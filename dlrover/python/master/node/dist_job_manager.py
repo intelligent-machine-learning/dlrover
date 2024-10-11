@@ -1135,6 +1135,18 @@ class DistributedJobManager(JobManager):
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
 
+    def get_node_required_info(self):
+        return self._nodes_required
+
+    def get_total_node_num_by_type(self, node_type):
+        if not self._job_nodes:
+            return 0
+
+        return len(self._job_nodes[node_type])
+
+    def get_job_strategy(self):
+        return self._job_args.distribution_strategy
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)

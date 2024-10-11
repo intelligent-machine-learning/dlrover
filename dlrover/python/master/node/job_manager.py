@@ -54,7 +54,7 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._nodes_required = (0, 0, 0)
+        self._nodes_required = (0, 0, 0)  # (min-nodes, max-nodes, timeout)
 
         self._training_node_config = TrainingNodeConfig(external_config)
 

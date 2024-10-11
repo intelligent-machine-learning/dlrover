@@ -137,7 +137,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         self.assertEqual(collector.collect_data(), "")
 
-        file = "data/xpu_timer_metrics"
+        file = "data/xpu_timer/xpu_timer_metric_single"
         file_path = os.path.join(os.path.dirname(__file__), file)
         with open(file_path, "r", encoding="utf-8") as file:
             test_metrics = file.read()

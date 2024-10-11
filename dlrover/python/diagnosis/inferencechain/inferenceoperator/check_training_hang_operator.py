@@ -11,8 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+import re
+import sys
+from typing import Dict, List, Tuple
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -46,7 +49,14 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        if not self.data_manager:
+        if (
+            not self.data_manager
+            or not self.data_manager.with_runtime_context()
+        ):
+            logger.info(
+                "Skip training-hang inference for there is "
+                "no diagnosis data reference."
+            )
             return [
                 Inference(
                     name=InferenceName.TRAINING,
@@ -60,6 +70,7 @@ class CheckTrainingHangOperator(InferenceOperator):
         )
 
         if diagnosis_data and self.is_hang(diagnosis_data):
+            logger.warning("Training might hanged.")
             return [
                 Inference(
                     name=InferenceName.TRAINING,
@@ -77,17 +88,100 @@ class CheckTrainingHangOperator(InferenceOperator):
         ]
 
     def is_hang(self, diagnosis_data: List[DiagnosisData]):
-        hang_metric = []
+        logger.info(
+            "Hang detection start using diagnosis data, "
+            f"data number: {len(diagnosis_data)}, "
+            f"data size: {sys.getsizeof(diagnosis_data)}."
+        )
+        worker_hang_metric: Dict[int, List[Tuple[int, bool]]] = {}
         if not diagnosis_data:
             return False
 
         for data in diagnosis_data:
+            # filter hang metric
             each_metric = [
                 line
                 for line in data.data_content.splitlines()
                 if line.startswith(HANG_METRIC_PREFIX)
             ]
-            hang_metric.append(each_metric)
 
-        # TODO: implement the judgement
+            # if all local rank is hanged, tag worker hang
+            rank_hang_size = 0
+            is_worker_hang = False
+            for each_rank_metric in each_metric:
+                match = re.search(r"(\d+)(?!.*\d)", each_rank_metric)
+                if match and match.group(0) == "1":
+                    rank_hang_size += 1
+            if rank_hang_size == len(each_metric):
+                is_worker_hang = True
+
+            if data.node_rank not in worker_hang_metric:
+                worker_hang_metric[data.node_rank] = []
+            worker_hang_metric[data.node_rank].append(
+                (data.timestamp, is_worker_hang)
+            )
+
+        # hang detection rules:
+        # 1. 100% worker got hang metric
+        # 2. last for 10+ minutes
+        hang_id, hang_last = self._find_hang_intersection(worker_hang_metric)
+        if hang_id != -1:
+            logger.info(
+                f"Got hang worker: {hang_id}, " f"time last: {hang_last}"
+            )
+            return True
+
         return False
+
+    def _find_hang_intersection(
+        self, worker_hang_metric: Dict[int, List[Tuple[int, bool]]]
+    ) -> Tuple[int, int]:
+        """
+        Require all workers hang from latest and find the hang intersection.
+
+        Args:
+            worker_hang_metric (Dict[int, List[Tuple[int, bool]]]): Input
+                metric.
+
+        Returns:
+            The hang intersection's id and time last in tuple format.
+        """
+
+        worker_hang_length_min = 0
+        worker_hang_id = -1
+
+        # find the intersection from latest
+        for worker_id, tuple_list in worker_hang_metric.items():
+            # sorted by timestamp
+            tuple_list.sort(key=lambda x: x[0])
+            worker_hang_length = 0
+
+            for tuple_item in reversed(tuple_list):
+                if tuple_item[1]:
+                    worker_hang_length += 1
+                else:
+                    break
+
+            if worker_hang_length > 0:
+                if worker_hang_length_min == 0:
+                    worker_hang_length_min = worker_hang_length
+                    worker_hang_id = worker_id
+                elif worker_hang_length < worker_hang_length_min:
+                    worker_hang_length_min = worker_hang_length
+                    worker_hang_id = worker_id
+            else:
+                # there is normal worker
+                return -1, -1
+
+        # get the intersection's time last
+        if worker_hang_id != -1 and worker_hang_length_min != 0:
+            hang_worker_metric = worker_hang_metric[worker_hang_id]
+            time_last = (
+                hang_worker_metric[len(hang_worker_metric) - 1][0]
+                - hang_worker_metric[
+                    len(hang_worker_metric) - worker_hang_length_min
+                ][0]
+            )
+            return worker_hang_id, time_last
+
+        return -1, -1

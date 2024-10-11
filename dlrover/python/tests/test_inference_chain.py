@@ -13,8 +13,13 @@
 
 import os
 import unittest
+from typing import Dict, List, Tuple
 
-from dlrover.python.diagnosis.common.constants import InferenceConfigKey
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisDataType,
+    InferenceConfigKey,
+)
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -40,7 +45,256 @@ class InferenceChainTest(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_check_training_hang_operator_find_intersection(self):
+        test_metric: Dict[int, List[Tuple[int, bool]]] = {
+            1: [(1, True), (2, False), (3, True), (4, True), (5, True)],
+            2: [(1, True), (2, True), (3, True), (4, True), (5, False)],
+            3: [(1, False), (2, True), (3, True), (4, True), (5, True)],
+        }
+        operator = CheckTrainingHangOperator(None)
+        self.assertEqual(
+            operator._find_hang_intersection(test_metric), (-1, -1)
+        )
+
+        test_metric: Dict[int, List[Tuple[int, bool]]] = {
+            1: [
+                (1, True),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+            ],
+            2: [
+                (1, True),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, False),
+                (6, True),
+                (7, True),
+            ],
+            3: [
+                (1, False),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+            ],
+        }
+        operator = CheckTrainingHangOperator(None)
+        self.assertEqual(operator._find_hang_intersection(test_metric), (2, 1))
+
+        test_metric: Dict[int, List[Tuple[int, bool]]] = {
+            1: [
+                (1, True),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (8, True),
+            ],
+            2: [
+                (1, True),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, False),
+                (6, True),
+                (8, True),
+            ],
+            3: [
+                (1, False),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (8, True),
+            ],
+        }
+        operator = CheckTrainingHangOperator(None)
+        self.assertEqual(operator._find_hang_intersection(test_metric), (2, 2))
+
+        test_metric: Dict[int, List[Tuple[int, bool]]] = {
+            1: [
+                (1, True),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (8, False),
+            ],
+            2: [
+                (1, True),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, False),
+                (6, True),
+                (8, True),
+            ],
+            3: [
+                (1, False),
+                (2, True),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (8, True),
+            ],
+        }
+        operator = CheckTrainingHangOperator(None)
+        self.assertEqual(
+            operator._find_hang_intersection(test_metric), (-1, -1)
+        )
+
+    def test_check_training_hang_operator_is_hang(self):
+        operator = CheckTrainingHangOperator(None)
+        test_data = []
+
+        # prepare test data
+        normal_metric, some_abnormal_metric, all_abnormal_metric = "", "", ""
+        file_path = os.path.join(
+            os.path.dirname(__file__),
+            "data/xpu_timer/normal/xpu_timer_metric_0",
+        )
+        with open(file_path, "r", encoding="utf-8") as file:
+            normal_metric = file.read()
+        file_path = os.path.join(
+            os.path.dirname(__file__),
+            "data/xpu_timer/hang/xpu_timer_metric_some",
+        )
+        with open(file_path, "r", encoding="utf-8") as file:
+            some_abnormal_metric = file.read()
+        file_path = os.path.join(
+            os.path.dirname(__file__),
+            "data/xpu_timer/hang/xpu_timer_metric_all",
+        )
+        with open(file_path, "r", encoding="utf-8") as file:
+            all_abnormal_metric = file.read()
+
+        # test data: no worker hang
+        w0_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=normal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w0_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=normal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w1_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=normal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        w1_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=normal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        test_data = [w0_t1, w1_t1, w0_t2, w1_t2]
+
+        self.assertFalse(operator.is_hang(test_data))
+        test_data.clear()
+
+        # test data0: 1 of 2 worker hang
+        w0_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=some_abnormal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w0_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=some_abnormal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w1_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=some_abnormal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        w1_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=some_abnormal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        test_data = [w0_t1, w1_t1, w0_t2, w1_t2]
+
+        self.assertFalse(operator.is_hang(test_data))
+        test_data.clear()
+
+        # test data: 2 of 2 worker hang
+        w0_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=all_abnormal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w0_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=all_abnormal_metric,
+            node_id=0,
+            node_type="worker",
+            node_rank=0,
+        )
+        w1_t1 = WorkerTrainingMetric(
+            timestamp=1,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=all_abnormal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        w1_t2 = WorkerTrainingMetric(
+            timestamp=2,
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=all_abnormal_metric,
+            node_id=1,
+            node_type="worker",
+            node_rank=1,
+        )
+        test_data = [w0_t1, w1_t1, w0_t2, w1_t2]
+
+        self.assertTrue(operator.is_hang(test_data))
+        test_data.clear()
+
     def test_check_training_hang_operator(self):
+        # no data
         operator = CheckTrainingHangOperator(None)
         inf = Inference(
             name=InferenceName.TRAINING,

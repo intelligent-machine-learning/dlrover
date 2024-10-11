@@ -703,6 +703,19 @@ class DistributedJobManagerTest(unittest.TestCase):
         # reset
         _dlrover_context.seconds_to_wait_pending_pod = 900
 
+    def test_multi_getting(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        self.assertEqual(manager.get_total_node_num_by_type(NodeType.PS), 0)
+        manager._init_nodes()
+
+        self.assertEqual(manager.get_job_strategy(), DistributionStrategy.PS)
+        self.assertEqual(manager.get_total_node_num_by_type(NodeType.PS), 3)
+        self.assertEqual(manager.get_node_required_info(), (0, 0, 0))
+        manager._nodes_required = (3, 5, 100)
+        self.assertEqual(manager.get_node_required_info(), (3, 5, 100))
+
 
 class LocalJobManagerTest(unittest.TestCase):
     def test_local_job_manager(self):

@@ -11,8 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -41,9 +43,11 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 
 class DiagnosisManager:
-    def __init__(self):
+    def __init__(self, job_manager=None):
         self._is_observing_started = False
-        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
+        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(
+            job_manager, 600
+        )
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
 
     def collect_diagnosis_data(self, data: DiagnosisData):
@@ -94,6 +98,9 @@ class DiagnosisManager:
             if not self._is_observing_started:
                 logger.info("Stop to diagnose failures for observing.")
                 break
+            logger.info(
+                f"Diagnosis data size: {self._data_manager.get_data_size()}."
+            )
 
             observed_problems = self._diagnostician.observe_training()
             for problem in observed_problems:
@@ -107,28 +114,45 @@ class DiagnosisManager:
 
 
 class DiagnosisDataManager:
-    def __init__(self, expire_time_period):
-        self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
+    def __init__(self, job_manager=None, expire_time_period=600):
+        self._diagnosis_data: Dict[str, deque[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
+        self._job_manager = job_manager
+        self._lock = threading.Lock()
+
+    @property
+    def job_manager(self):
+        return self._job_manager
+
+    @property
+    def data(self):
+        return self._diagnosis_data
+
+    def with_runtime_context(self) -> bool:
+        return self.job_manager is not None
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
-        if data_type not in self.diagnosis_data:
-            logger.debug(f"{data_type} is not found in the store")
-            self.diagnosis_data[data_type] = []
-        self.diagnosis_data[data_type].append(data)
-        self._clean_diagnosis_data(data_type)
+        with self._lock:
+            if data_type not in self.data:
+                self.data[data_type] = deque(maxlen=100000)
+            self.data[data_type].append(data)
+            self._clean_diagnosis_data(data_type)
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
-        if data_type not in self.diagnosis_data:
-            return []
-        return self.diagnosis_data[data_type]
+        with self._lock:
+            if data_type not in self.data:
+                return []
+            return list(self.data[data_type])
+
+    def get_data_size(self):
+        return sys.getsizeof(self.data)
 
     def _clean_diagnosis_data(self, data_type: str):
-        if data_type not in self.diagnosis_data:
+        if data_type not in self.data:
             return
 
-        data = self.diagnosis_data[data_type]
+        data = self.data[data_type]
         n = 0
         for d in data:
             if has_expired(d.timestamp, self.expire_time_period):
@@ -136,7 +160,7 @@ class DiagnosisDataManager:
             else:
                 break
 
-        self.diagnosis_data[data_type] = data[n:]
+        self.data[data_type] = data[n:]
 
 
 class Diagnostician:
