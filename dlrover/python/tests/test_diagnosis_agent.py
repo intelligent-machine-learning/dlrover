@@ -98,7 +98,11 @@ class TestDiagnosisAgent(unittest.TestCase):
         action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnosisAction.RESTART_WORKER)
 
-        agent.stop()
+        # agent.stop()
+        # time.sleep(
+        #     DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+        # )
+
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(

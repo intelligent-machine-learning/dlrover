@@ -69,7 +69,7 @@ class DiagnosisAgent(Singleton):
         self._observe_operators = get_worker_observe_operators()
         self._diagnosis_operators = get_worker_diagnosis_operators()
 
-        self.start()
+        # self.start()
 
         logger.info(
             "Initializing diagnosis agent with\n"
