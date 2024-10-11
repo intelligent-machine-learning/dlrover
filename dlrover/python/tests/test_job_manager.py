@@ -354,6 +354,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 0)
+
         for index, node in enumerate(
             manager._job_nodes[NodeType.WORKER].values()
         ):
@@ -372,6 +373,23 @@ class DistributedJobManagerTest(unittest.TestCase):
         nodes_time_info = manager._get_nodes_time_info()
         self.assertIsNotNone(nodes_time_info)
         self.assertEqual(len(nodes_time_info), 3)
+
+        for index, node in enumerate(
+            manager._job_nodes[NodeType.WORKER].values()
+        ):
+            node.status = NodeStatus.RUNNING
+            now = datetime.now()
+            node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
+            if index == 0:
+                node.create_time = now - timedelta(seconds=800)
+                node.start_time = now - timedelta(seconds=600)
+            else:
+                if index == 1:
+                    node.succeeded = True
+                node.create_time = now - timedelta(seconds=1400)
+                node.start_time = now - timedelta(seconds=1200)
+        events = manager._get_dead_node_event()
+        self.assertEqual(len(events), 1)
 
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
@@ -736,3 +754,16 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
+
+        try:
+            self.assertFalse(
+                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
+            )
+            job_manager.update_succeeded_node(0, NodeType.WORKER)
+            self.assertTrue(
+                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
+            )
+            job_manager.update_succeeded_node(5, NodeType.WORKER)
+            job_manager.update_succeeded_node(0, "unknown")
+        except Exception:
+            self.fail()

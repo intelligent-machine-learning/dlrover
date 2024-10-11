@@ -470,6 +470,7 @@ class DistributedJobManager(JobManager):
                     and node.start_time
                     and node.create_time
                     and node.status == NodeStatus.RUNNING
+                    and not node.is_succeeded()
                 ):
                     if (
                         node.heartbeat_time <= node.start_time.timestamp()
@@ -1134,6 +1135,12 @@ class DistributedJobManager(JobManager):
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
+
+    def update_succeeded_node(self, node_id, node_type):
+        with self._lock:
+            if node_type in self._job_nodes:
+                if node_id in self._job_nodes[node_type]:
+                    self._job_nodes[node_type][node_id].set_as_succeeded()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
