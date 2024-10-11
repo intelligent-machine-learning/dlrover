@@ -38,7 +38,7 @@ from dlrover.python.tests.test_utils import start_local_master
 
 class TestDiagnosisAgent(unittest.TestCase):
     def setUp(self):
-        self.master_proc, self.addr = start_local_master()
+        self._master, self.addr = start_local_master()
         MasterClient._instance = build_master_client(self.addr, 1)
         launch_config = LaunchConfig(
             min_nodes=1,
@@ -51,6 +51,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        self._master.stop()
 
     def test_diagnose_training(self):
         file = "data/training.log"
@@ -97,7 +98,6 @@ class TestDiagnosisAgent(unittest.TestCase):
         wc.remaining_failovers = 2
         action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnosisAction.RESTART_WORKER)
-
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(

@@ -49,11 +49,11 @@ from dlrover.python.tests.test_utils import start_local_master
 
 class InferenceChainTest(unittest.TestCase):
     def setUp(self):
-        self.master_proc, self.addr = start_local_master()
-        MasterClient._instance = build_master_client(self.addr, 1)
+        self._master, self._addr = start_local_master()
+        MasterClient._instance = build_master_client(self._addr, 1)
 
     def tearDown(self):
-        pass
+        self._master.stop()
 
     def test_check_training_hang_operator(self):
         operator = CheckTrainingHangOperator(None)
