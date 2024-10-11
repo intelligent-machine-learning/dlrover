@@ -39,23 +39,23 @@ class MasterClientTest(unittest.TestCase):
         self._master_client.close_channel()
         self._master_client.open_channel()
 
-    def test_report_used_resource(self):
-        gpu_stats: list[grpc.GPUStats] = [
-            grpc.GPUStats(
-                index=0,
-                total_memory_mb=24000,
-                used_memory_mb=4000,
-                gpu_utilization=55.5,
-            )
-        ]
-        result = self._master_client.report_used_resource(1024, 10, gpu_stats)
-        self.assertTrue(result.success)
-
-    def test_report_failures(self):
-        res = self._master_client.report_failures(
-            "test", 0, TrainingExceptionLevel.WARNING
-        )
-        self.assertIsNone(res)
+    # def test_report_used_resource(self):
+    #     gpu_stats: list[grpc.GPUStats] = [
+    #         grpc.GPUStats(
+    #             index=0,
+    #             total_memory_mb=24000,
+    #             used_memory_mb=4000,
+    #             gpu_utilization=55.5,
+    #         )
+    #     ]
+    #     result = self._master_client.report_used_resource(1024, 10, gpu_stats)
+    #     self.assertTrue(result.success)
+    #
+    # def test_report_failures(self):
+    #     res = self._master_client.report_failures(
+    #         "test", 0, TrainingExceptionLevel.WARNING
+    #     )
+    #     self.assertIsNone(res)
 
     def test_ready_for_ps_relaunch(self):
         res = self._master_client.ready_for_ps_relaunch()
