@@ -37,8 +37,8 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_nod
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.collect_metrics_operator import (  # noqa: E501
-    CollectMetricsOperator,
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
+    MetricsCollectionOperator,
 )
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -148,7 +148,7 @@ class InferenceChainTest(unittest.TestCase):
     )
     def test_collect_metrics_operator(self, mock_collector):
         mock_collector.return_value = "data"
-        operator = CollectMetricsOperator()
+        operator = MetricsCollectionOperator()
         inf = Inference(
             name=InferenceName.WORKER,
             attribution=InferenceAttribute.COLLECT,

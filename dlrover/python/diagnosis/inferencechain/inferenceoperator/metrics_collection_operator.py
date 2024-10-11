@@ -29,7 +29,7 @@ from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
-class CollectMetricsOperator(InferenceOperator):
+class MetricsCollectionOperator(InferenceOperator):
     """
     CollectXPUTimerMetricsOperator is the operator to collect
     XPU timer metrics.
