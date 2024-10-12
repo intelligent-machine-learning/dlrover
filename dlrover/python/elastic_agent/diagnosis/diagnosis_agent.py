@@ -15,11 +15,10 @@ import json
 import threading
 import time
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
-from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -28,25 +27,28 @@ from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisAction,
     DiagnosisConstant,
-    DiagnosisDataType,
     InferenceConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
+    combine_inferences,
     is_inference_included,
 )
-from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
-    XpuTimerMetricsCollector,
+from dlrover.python.diagnosis.inferencechain.coordinator import (
+    coordinate_inferences,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
     get_training_failure_operators,
+    get_worker_diagnosis_operators,
+    get_worker_observe_operators,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 
@@ -56,8 +58,16 @@ class DiagnosisAgent(Singleton):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
-        self._xpu_timer_metric_collector = XpuTimerMetricsCollector()
         self._stopped = False
+        self._observe_problems: List[Inference] = [
+            Inference(
+                name=InferenceName.WORKER,
+                attribution=InferenceAttribute.COLLECT,
+                description=InferenceDescription.METRICS,
+            ),
+        ]
+        self._observe_operators = get_worker_observe_operators()
+        self._diagnosis_operators = get_worker_diagnosis_operators()
 
         self.start()
 
@@ -81,6 +91,32 @@ class DiagnosisAgent(Singleton):
     def stop(self):
         self._stopped = True
 
+    def _observe(self) -> List[Inference]:
+        observations: List[Inference] = []
+        for problem in self._observe_problems:
+            ic = InferenceChain([problem], self._observe_operators)
+            try:
+                infs = ic.infer()
+                if len(infs) > 0:
+                    observations = combine_inferences(observations, infs)
+            except Exception as e:
+                logger.error(f"fail to observe problem {problem}: {e}")
+        return observations
+
+    def _diagnose_observations(
+        self, observations: List[Inference]
+    ) -> DiagnoseAction:
+        conclusions: List[Inference] = []
+        for ob in observations:
+            ic = InferenceChain([ob], self._diagnosis_operators)
+            try:
+                infs = ic.infer()
+                if len(infs) > 0:
+                    conclusions = combine_inferences(conclusions, infs)
+            except Exception as e:
+                logger.error(f"fail to diagnose observation {ob}: {e}")
+        return coordinate_inferences(conclusions)
+
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")
         while True:
@@ -88,16 +124,10 @@ class DiagnosisAgent(Singleton):
                 logger.info("Stop periodically diagnosis.")
                 break
 
-            xpu_timer_metric = self._xpu_timer_metric_collector.collect_data()
-            if xpu_timer_metric:
-                agent_xpu_metric = WorkerTrainingMetric(
-                    data_type=DiagnosisDataType.XPU_TIMER_METRIC,
-                    data_content=xpu_timer_metric,
-                    node_id=env_utils.get_node_id(),
-                    node_type=env_utils.get_node_type(),
-                    node_rank=env_utils.get_node_rank(),
-                )
-                self._report_metric_to_master(agent_xpu_metric)
+            observations = self._observe()
+            if len(observations) > 0:
+                logger.info(f"Observed problems: {observations}")
+                self._diagnose_observations(observations)
 
             time.sleep(
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS

@@ -11,21 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
-    CheckFailureNodeOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
-    MetricsCollectionOperator,
-)
+from typing import List
 
 
-def get_training_failure_operators():
-    return [CheckFailureNodeOperator()]
+class DiagnoseAction:
+    def __init__(self):
+        self._actions: List[str] = []
 
-
-def get_worker_observe_operators():
-    return [MetricsCollectionOperator()]
-
-
-def get_worker_diagnosis_operators():
-    return []
+    def add_action(self, action: str):
+        self._actions.append(action)
