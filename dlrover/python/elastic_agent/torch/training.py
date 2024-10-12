@@ -485,7 +485,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     spec.master_port,
                 )
 
-        master_addr, master_port = self._get_master_addr_port(store)
+        master_addr, master_port = self._safe_get_master_addr_port(store)
 
         # compatible with torch 2.4
         if not version_less_than_240():
@@ -542,6 +542,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
         master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
         master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
         return (master_addr, master_port)
+
+    def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        for i in range(1,5):
+            try:
+                addr, port = self._get_master_addr_port(store)
+                return (addr, port)
+            except Exception as e:
+                logger.warning(f"_get_master_addr_port failed with exception {e}, will try again")
+                time.sleep(10)
+
+        raise ValueError("invalid value in _get_master_addr_port")
 
     def _get_socket_with_port(self) -> socket.socket:
         """Return a free port on localhost.
