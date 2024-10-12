@@ -544,12 +544,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return (master_addr, master_port)
 
     def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
-        for i in range(1,5):
+        for i in range(1, 5):
             try:
                 addr, port = self._get_master_addr_port(store)
                 return (addr, port)
             except Exception as e:
-                logger.warning(f"_get_master_addr_port failed with exception {e}, will try again")
+                logger.warning(
+                    f"_get_master_addr_port failed with exception {e}, will try again"
+                )
                 time.sleep(10)
 
         raise ValueError("invalid value in _get_master_addr_port")
