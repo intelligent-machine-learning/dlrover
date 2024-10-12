@@ -233,6 +233,8 @@ class JobManager(metaclass=ABCMeta):
         return self._training_node_config.get_elastic_run_configs()
 
     def update_succeeded_node(self, node_id, node_type):
-        if node_type in self._job_nodes:
-            if node_id in self._job_nodes[node_type]:
-                self._job_nodes[node_type][node_id].set_as_succeeded()
+        if (
+            node_type in self._job_nodes
+            and node_id in self._job_nodes[node_type]
+        ):
+            self._job_nodes[node_type][node_id].set_as_succeeded()

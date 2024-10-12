@@ -1138,9 +1138,11 @@ class DistributedJobManager(JobManager):
 
     def update_succeeded_node(self, node_id, node_type):
         with self._lock:
-            if node_type in self._job_nodes:
-                if node_id in self._job_nodes[node_type]:
-                    self._job_nodes[node_type][node_id].set_as_succeeded()
+            if (
+                node_type in self._job_nodes
+                and node_id in self._job_nodes[node_type]
+            ):
+                self._job_nodes[node_type][node_id].set_as_succeeded()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
