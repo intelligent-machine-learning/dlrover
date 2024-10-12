@@ -2,7 +2,7 @@ name: Close stale issues
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天运行一次
+    - cron: '0 0 * * *'  # run every day
 
 jobs:
   stale:
@@ -13,8 +13,8 @@ jobs:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity.'
         close-issue-message: 'This issue is being automatically closed due to inactivity.'
-        days-before-stale: 90  # 多少天未更新标记为stale
-        days-before-close: 7   # 标记为stale后多少天关闭
+        days-before-stale: 90
+        days-before-close: 7
         stale-pr-message: 'This pull request has been automatically marked as stale because it has not had recent activity.'
         close-pr-message: 'This pull request is being automatically closed due to inactivity.'
         stale-label: 'stale'
