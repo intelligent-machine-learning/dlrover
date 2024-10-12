@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
         g++ \
         wget \
         cmake \
+        vim \
+        net-tools \
         ca-certificates \
         shellcheck \
         clang-format > /dev/null && \

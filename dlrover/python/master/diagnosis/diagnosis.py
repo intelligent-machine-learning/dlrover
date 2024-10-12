@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
@@ -45,8 +46,8 @@ class DiagnosisManager:
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
 
-    def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
-        self._data_manager.store_data(data_type, data)
+    def collect_diagnosis_data(self, data: DiagnosisData):
+        self._data_manager.store_data(data)
 
     def pre_check(self):
         logger.info("Start Diagnosis Manager to pre-check training...")
@@ -100,7 +101,9 @@ class DiagnosisManager:
                 root_causes = self._diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
-            time.sleep(180)
+            time.sleep(
+                DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
+            )
 
 
 class DiagnosisDataManager:
@@ -108,9 +111,10 @@ class DiagnosisDataManager:
         self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
 
-    def store_data(self, data_type: str, data: DiagnosisData):
+    def store_data(self, data: DiagnosisData):
+        data_type = data.data_type
         if data_type not in self.diagnosis_data:
-            logger.warning(f"{data_type} is not found in the store")
+            logger.debug(f"{data_type} is not found in the store")
             self.diagnosis_data[data_type] = []
         self.diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)
@@ -127,7 +131,7 @@ class DiagnosisDataManager:
         data = self.diagnosis_data[data_type]
         n = 0
         for d in data:
-            if has_expired(d.get_timestamp(), self.expire_time_period):
+            if has_expired(d.timestamp, self.expire_time_period):
                 n = n + 1
             else:
                 break

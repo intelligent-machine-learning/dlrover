@@ -12,12 +12,27 @@
 # limitations under the License.
 
 
+class EnvConfigKey(object):
+    XPU_TIMER_PORT = "XPU_TIMER_PORT"
+
+
 class InferenceConfigKey(object):
     LOG_FILE = "log_file"
     ERRORS = "errors"
 
 
-class DiagnoseAction(object):
+class DiagnosisConstant(object):
+    MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
+    AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 60
+
+
+class DiagnosisDataType(object):
+    GENERIC = "GENERIC"
+    TRAINING_LOG = "TRAINING_LOG"
+    XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
+
+
+class DiagnosisAction(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"

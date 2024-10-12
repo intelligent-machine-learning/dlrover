@@ -44,5 +44,5 @@ class TrainingLogCollector(DataCollector):
         training_log = TrainingLog(logs=logs)
         return training_log
 
-    def to_collect_data(self) -> bool:
+    def is_enabled(self) -> bool:
         return True

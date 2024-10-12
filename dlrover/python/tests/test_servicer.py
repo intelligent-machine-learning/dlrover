@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import time
 import unittest
 from unittest import mock
@@ -18,7 +18,7 @@ from unittest import mock
 import ray
 
 from dlrover.proto import elastic_training_pb2
-from dlrover.python.common import grpc
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.grpc import GPUStats
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -83,6 +84,9 @@ class MasterServicerTest(unittest.TestCase):
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
         )
+
+    def tearDown(self) -> None:
+        os.environ.clear()
 
     def test_query_running_nodes(self):
         request = elastic_training_pb2.Message()
@@ -403,6 +407,22 @@ class MasterServicerTest(unittest.TestCase):
         self.assertFalse(success)
         success = self.servicer._sync_checkpoint(NodeType.WORKER, 1, message)
         self.assertTrue(success)
+
+    def test_report_worker_diagnosis_data(self):
+        test = WorkerTrainingMetric(
+            data_content="test123",
+            node_id=env_utils.get_node_id(),
+            node_type=env_utils.get_node_type(),
+            node_rank=env_utils.get_node_rank(),
+            is_final_result=True,
+        )
+
+        request = grpc.DiagnosisReportData(
+            test.__class__.__name__,
+            test.to_json(),
+            test.node_rank,
+        )
+        self.assertTrue(self.servicer._report_worker_diagnosis_data(request))
 
 
 class MasterServicerForRayTest(unittest.TestCase):
