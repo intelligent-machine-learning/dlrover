@@ -31,8 +31,8 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 
 class MetricsCollectionOperator(InferenceOperator):
     """
-    CollectXPUTimerMetricsOperator is the operator to collect
-    XPU timer metrics.
+    MetricsCollectionOperator is the operator to collect
+    worker diagnosis metrics.
     """
 
     def __init__(self):
