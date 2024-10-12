@@ -550,7 +550,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return (addr, port)
             except Exception as e:
                 logger.warning(
-                    f"_get_master_addr_port failed with exception {e}, will try again"
+                    f"_get_master_addr_port failed with exception {e}"
                 )
                 time.sleep(10)
 
