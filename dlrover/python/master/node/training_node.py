@@ -470,6 +470,8 @@ class TrainingNodeConfig:
                 )
 
     def get_elastic_run_configs(self) -> Dict[str, str]:
+        logger.info("try to collect elastic run configs externally")
         if not self._external_config:
+            logger.warning("External config not set")
             return {}
         return self._external_config.get_elastic_run_configs()

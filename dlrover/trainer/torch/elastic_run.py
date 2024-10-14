@@ -243,7 +243,7 @@ class elastic_launch:
 
 
 def _launch_dlrover_local_master(master_addr, job_name, node_num):
-    """Launch a subprocess to run the DLrover master."""
+    """Launch a subprocess to run the DLRover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
@@ -314,18 +314,22 @@ def _elastic_config_from_args(
 
     elastic_config.network_check = getattr(args, "network_check", False)
     if master_config.network_check:
+        logger.info("Enable network checking by master")
         elastic_config.network_check = True
 
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
     if master_config.comm_perf_test:
+        logger.info("Enable comm_perf_test by master")
         elastic_config.comm_perf_test = True
 
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     if master_config.auto_tunning:
+        logger.info("Enable auto_tunning by master")
         elastic_config.auto_tunning = True
 
     elastic_config.auto_config = getattr(args, "auto_config", False)
     if master_config.auto_config:
+        logger.info("Enable auto_config by master")
         elastic_config.auto_config = True
 
     elastic_config.accelerator = getattr(
@@ -356,6 +360,7 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
     _client = MasterClient.singleton_instance()
+    logger.info("try to get elastic run config from master")
     master_configs = _client.get_elastic_run_config()
 
     elastic_config.network_check = False
