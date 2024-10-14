@@ -123,15 +123,19 @@ class CheckTrainingHangOperator(InferenceOperator):
 
         # hang detection rules:
         # 1. 100% worker got hang metric
-        # 2. last for 10+ minutes
+        # 2. last for 5+ minutes
         hang_id, hang_last = self._find_hang_intersection(worker_hang_metric)
-        if hang_id != -1:
-            logger.info(
-                f"Got hang worker: {hang_id}, " f"time last: {hang_last}"
-            )
+        hang_last_threshold = self._get_hang_time_last_threshold()
+        if hang_id != -1 and hang_last > hang_last_threshold:
+            logger.info(f"Got hang worker: {hang_id}, time last: {hang_last}, "
+                        f"threshold: {hang_last_threshold}")
             return True
 
         return False
+
+    def _get_hang_time_last_threshold(self):
+        # set 5 minutes for now(second)
+        return 5 * 60
 
     def _find_hang_intersection(
         self, worker_hang_metric: Dict[int, List[Tuple[int, bool]]]
@@ -141,7 +145,7 @@ class CheckTrainingHangOperator(InferenceOperator):
 
         Args:
             worker_hang_metric (Dict[int, List[Tuple[int, bool]]]): Input
-                metric.
+                metric in format: node_id: [(timestamp, is_hang), ...]
 
         Returns:
             The hang intersection's id and time last in tuple format.

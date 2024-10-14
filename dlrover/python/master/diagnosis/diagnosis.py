@@ -16,6 +16,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta
+from itertools import islice
 from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
@@ -152,15 +153,15 @@ class DiagnosisDataManager:
         if data_type not in self.data:
             return
 
-        data = self.data[data_type]
+        each_data = self.data[data_type]
         n = 0
-        for d in data:
+        for d in each_data:
             if has_expired(d.timestamp, self.expire_time_period):
                 n = n + 1
             else:
                 break
-
-        self.data[data_type] = data[n:]
+        if n > 0:
+            self.data[data_type] = deque(islice(each_data, n, len(each_data)))
 
 
 class Diagnostician:

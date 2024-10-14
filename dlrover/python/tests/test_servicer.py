@@ -408,7 +408,7 @@ class MasterServicerTest(unittest.TestCase):
         success = self.servicer._sync_checkpoint(NodeType.WORKER, 1, message)
         self.assertTrue(success)
 
-    def test_report_worker_diagnosis_data(self):
+    def test_report_node_diagnosis_data(self):
         test = WorkerTrainingMetric(
             data_content="test123",
             node_id=env_utils.get_node_id(),
@@ -422,7 +422,7 @@ class MasterServicerTest(unittest.TestCase):
             test.to_json(),
             test.node_rank,
         )
-        self.assertTrue(self.servicer._report_worker_diagnosis_data(request))
+        self.assertTrue(self.servicer._report_node_diagnosis_data(request))
 
     def test_report_succeeded(self):
         self.assertTrue(self.servicer._report_succeeded(0, NodeType.WORKER))
