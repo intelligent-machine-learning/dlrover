@@ -231,3 +231,11 @@ class JobManager(metaclass=ABCMeta):
 
     def get_elastic_run_configs(self) -> Dict[str, str]:
         return self._training_node_config.get_elastic_run_configs()
+
+    def update_succeeded_node(self, node_id, node_type):
+        if (
+            node_type in self._job_nodes
+            and node_id in self._job_nodes[node_type]
+        ):
+            logger.info(f"Node {node_id}({node_type}) to succeeded.")
+            self._job_nodes[node_type][node_id].set_as_succeeded()

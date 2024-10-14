@@ -1,3 +1,4 @@
+---
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
