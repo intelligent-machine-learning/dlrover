@@ -850,6 +850,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info("Async saver stopped.")
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
+                finally:
+                    self._client.report_succeeded()
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
