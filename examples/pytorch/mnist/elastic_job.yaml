@@ -1,3 +1,4 @@
+---
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
@@ -34,11 +35,11 @@ spec:
                 requests:
                   cpu: "2"  # turn up when using GPU
                   memory: 3Gi  # turn up when using GPU
-                  # nvidia.com/gpu: 1 # optional
-          #     volumeMounts:
-          #       - name: pvc-nas
-          #         mountPath: /nas
-          # volumes:
-          #   - name: pvc-nas
-          #     persistentVolumeClaim:
-          #       claimName: pvc-nas
+#                  nvidia.com/gpu: 1  # optional
+#               volumeMounts:
+#                 - name: pvc-nas
+#                   mountPath: /nas
+#           volumes:
+#             - name: pvc-nas
+#               persistentVolumeClaim:
+#                 claimName: pvc-nas
