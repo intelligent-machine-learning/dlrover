@@ -360,8 +360,12 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
     _client = MasterClient.singleton_instance()
-    logger.info("try to get elastic run config from master")
-    master_configs = _client.get_elastic_run_config()
+    try:
+        logger.info("try to get elastic run config from master")
+        master_configs = _client.get_elastic_run_config()
+    except Exception as e:
+        logger.error(f"fail to get elastic config from master: {e}")
+        master_configs = {}
 
     elastic_config.network_check = False
     if "network_check" in master_configs:
