@@ -46,7 +46,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DdpCheckpointSaver,
 )
 from dlrover.python.elastic_agent.torch.training import (
-    ElasticLaunchConfig,
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
@@ -59,6 +58,7 @@ from dlrover.python.elastic_agent.torch.training import (
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 class ElasticTrainingAgentTest(unittest.TestCase):

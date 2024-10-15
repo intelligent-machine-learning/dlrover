@@ -30,10 +30,10 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.training import (
-    ElasticLaunchConfig,
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 class TestDiagnosisAgent(unittest.TestCase):

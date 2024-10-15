@@ -12,15 +12,16 @@
 # limitations under the License.
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerSpec
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 class WorkerContext:
     def __init__(
         self,
-        worker_spec: WorkerSpec,
-        remaining_failovers: int,
-        restart_count: int,
-        run_result: RunResult,
+        worker_spec: WorkerSpec = None,
+        remaining_failovers: int = 0,
+        restart_count: int = 0,
+        run_result: RunResult = None,
     ):
         self._worker_spec: WorkerSpec = worker_spec
         self.remaining_failovers = remaining_failovers

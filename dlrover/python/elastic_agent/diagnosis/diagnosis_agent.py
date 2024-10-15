@@ -91,6 +91,20 @@ class DiagnosisAgent(Singleton):
     def stop(self):
         self._stopped = True
 
+    def diagnose_problems(
+            self, problems: List[Inference]
+    ) -> DiagnoseAction:
+        conclusions: List[Inference] = []
+        for problem in problems:
+            ic = InferenceChain([problem], self._diagnosis_operators)
+            try:
+                infs = ic.infer()
+                if len(infs) > 0:
+                    conclusions = combine_inferences(conclusions, infs)
+            except Exception as e:
+                logger.error(f"fail to diagnose observation {problem}: {e}")
+        return coordinate_inferences(conclusions)
+
     def _observe(self) -> List[Inference]:
         observations: List[Inference] = []
         for problem in self._observe_problems:
@@ -103,20 +117,6 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
-    def _diagnose_observations(
-        self, observations: List[Inference]
-    ) -> DiagnoseAction:
-        conclusions: List[Inference] = []
-        for ob in observations:
-            ic = InferenceChain([ob], self._diagnosis_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    conclusions = combine_inferences(conclusions, infs)
-            except Exception as e:
-                logger.error(f"fail to diagnose observation {ob}: {e}")
-        return coordinate_inferences(conclusions)
-
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")
         while True:
@@ -127,7 +127,7 @@ class DiagnosisAgent(Singleton):
             observations = self._observe()
             if len(observations) > 0:
                 logger.info(f"Observed problems: {observations}")
-                self._diagnose_observations(observations)
+                self.diagnose_problems(observations)
 
             time.sleep(
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
@@ -197,3 +197,6 @@ class DiagnosisAgent(Singleton):
 
     def _report_metric_to_master(self, agent_metric: WorkerTrainingMetric):
         self._client.report_diagnosis_agent_metrics(agent_metric)
+
+
+
