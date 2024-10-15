@@ -11,20 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.common.diagnosis_data import ChipMetrics
-from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
+from typing import List
 
 
-class MetricsCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        """
-        MetricsCollector collects GPU metrics
-        """
-        pass
+class DiagnoseAction:
+    def __init__(self):
+        self._actions: List[str] = []
 
-    def collect_data(self) -> object:
-        chip_metrics = ChipMetrics(0)
-        return chip_metrics
-
-    def to_collect_data(self) -> bool:
-        return True
+    def add_action(self, action: str):
+        self._actions.append(action)

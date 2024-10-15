@@ -489,18 +489,10 @@ class NodeCheckpointState(Message):
 
 
 @dataclass
-class DiagnosisTrainingLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisCudaLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisChipMetrics(Message):
-    timestamp: int = 0
+class DiagnosisReportData(Message):
+    data_cls: str = ""
+    data_content: str = ""
+    node_rank: int = -1
 
 
 @dataclass
@@ -517,3 +509,8 @@ class ElasticRunConfigRequest(Message):
 @dataclass
 class ElasticRunConfig(Message):
     configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class SucceededRequest(Message):
+    pass

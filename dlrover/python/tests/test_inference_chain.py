@@ -13,8 +13,14 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
-from dlrover.python.diagnosis.common.constants import InferenceConfigKey
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.diagnosis.common.constants import (
+    EnvConfigKey,
+    InferenceConfigKey,
+)
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -31,16 +37,25 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_nod
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
+    MetricsCollectionOperator,
+)
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class InferenceChainTest(unittest.TestCase):
     def setUp(self):
-        pass
+        self._master, self._addr = start_local_master()
+        MasterClient._instance = build_master_client(self._addr, 1)
 
     def tearDown(self):
-        pass
+        os.environ.clear()
 
-    def test_CheckTrainingHangOperator(self):
+    def test_check_training_hang_operator(self):
         operator = CheckTrainingHangOperator(None)
         inf = Inference(
             name=InferenceName.TRAINING,
@@ -50,9 +65,16 @@ class InferenceChainTest(unittest.TestCase):
         self.assertTrue(operator.is_compatible(inf))
 
         results = operator.infer([inf])
-        self.assertEqual(results[0].name, InferenceName.END)
+        self.assertEqual(
+            results[0],
+            Inference(
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.NOT,
+                description=InferenceDescription.HANG,
+            ),
+        )
 
-    def test_CheckFailureNodeOperator(self):
+    def test_check_failure_node_operator(self):
         file = "data/training.log"
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
@@ -96,7 +118,7 @@ class InferenceChainTest(unittest.TestCase):
         )
         self.assertTrue(is_same_inference(results[0], not_failure_inf))
 
-    def test_InferenceChain(self):
+    def test_inference_chain(self):
         file = "data/training.log"
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
@@ -119,6 +141,27 @@ class InferenceChainTest(unittest.TestCase):
             description=InferenceDescription.FAILURE,
         )
         self.assertTrue(is_same_inference(results[0], failure_inf))
+
+    @patch(
+        "dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector"
+        ".XpuTimerMetricsCollector.collect_data"
+    )
+    def test_collect_metrics_operator(self, mock_collector):
+        mock_collector.return_value = "data"
+        operator = MetricsCollectionOperator()
+        inf = Inference(
+            name=InferenceName.WORKER,
+            attribution=InferenceAttribute.COLLECT,
+            description=InferenceDescription.METRICS,
+        )
+        self.assertTrue(operator.is_compatible(inf))
+
+        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
+        env_utils.set_env(NodeEnv.NODE_ID, 1)
+        env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
+        env_utils.set_env(NodeEnv.NODE_RANK, 1)
+        infs = operator.infer([])
+        self.assertEqual(len(infs), 0)
 
 
 if __name__ == "__main__":

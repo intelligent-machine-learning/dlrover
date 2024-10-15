@@ -424,9 +424,6 @@ class DistributedJobManager(JobManager):
             try:
                 nodes = self._node_watcher.list()
                 self._process_list_nodes(nodes)
-                if self._stopped:
-                    logger.info("Stop processing node events")
-                    break
                 for event in self._node_watcher.watch():
                     try:
                         self._process_event(event)
@@ -473,6 +470,7 @@ class DistributedJobManager(JobManager):
                     and node.start_time
                     and node.create_time
                     and node.status == NodeStatus.RUNNING
+                    and not node.is_succeeded()
                 ):
                     if (
                         node.heartbeat_time <= node.start_time.timestamp()
@@ -1137,6 +1135,10 @@ class DistributedJobManager(JobManager):
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
+
+    def update_succeeded_node(self, node_id, node_type):
+        with self._lock:
+            super().update_succeeded_node(node_id, node_type)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

@@ -32,6 +32,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    NodeEnv,
     RendezvousName,
 )
 from dlrover.python.common.storage import PosixDiskStorage
@@ -266,8 +267,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
+            # redirects=self.config.redirects,
+            # tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
@@ -305,6 +306,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
     def test_report_resource_with_step(self):
+        os.environ[NodeEnv.MONITOR_ENABLED] = "true"
         with tempfile.TemporaryDirectory() as tmpdirname:
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
             monitor = TorchTrainingMonitor(config_file)
