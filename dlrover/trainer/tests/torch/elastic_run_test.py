@@ -140,3 +140,4 @@ class ElasticRunTest(unittest.TestCase):
         args = parse_args(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
         self.assertFalse(config.network_check)
+        self._master.stop()
