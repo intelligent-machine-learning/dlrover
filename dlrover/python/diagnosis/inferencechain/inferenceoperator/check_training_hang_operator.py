@@ -15,6 +15,7 @@ import re
 import sys
 from typing import Dict, List, Tuple
 
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
@@ -27,6 +28,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
 )
 
 HANG_METRIC_PREFIX = "XPU_TIMER_COMMON_HANG"
+_dlrover_ctx = Context.singleton_instance()
 
 
 class CheckTrainingHangOperator(InferenceOperator):
@@ -127,8 +129,16 @@ class CheckTrainingHangOperator(InferenceOperator):
         hang_id, hang_last = self._find_hang_intersection(worker_hang_metric)
         hang_last_threshold = self._get_hang_time_last_threshold()
         if hang_id != -1 and hang_last > hang_last_threshold:
-            logger.info(f"Got hang worker: {hang_id}, time last: {hang_last}, "
-                        f"threshold: {hang_last_threshold}")
+            logger.info(
+                f"Got hang worker: {hang_id}, time last: {hang_last}, "
+                f"threshold: {hang_last_threshold}"
+            )
+            if _dlrover_ctx.hang_detect_strategy == 1:
+                # TODO
+                pass
+            elif _dlrover_ctx.hang_detect_strategy == 2:
+                # TODO
+                pass
             return True
 
         return False

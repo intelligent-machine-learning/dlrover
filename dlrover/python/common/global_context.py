@@ -92,6 +92,7 @@ class Context(Singleton):
         self.is_tfv1_ps = False
         self.master_port = None
         self.relaunch_always = False
+        self.hang_detect_strategy = 0
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
