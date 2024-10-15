@@ -34,6 +34,12 @@ MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
 
 
 class ElasticRunTest(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
     @patch(f"{MC_PATH}.report_failures")
     def test_launch_local_master(self, some_func):
         available = _check_dlrover_master_available("", timeout=3)
