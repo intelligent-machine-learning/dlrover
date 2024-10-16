@@ -999,6 +999,28 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
     by users.
     """
 
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage_meta: ClassMeta,
+        local_shard_num=1,
+        global_shard_num=1,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ) -> None:
+        super().__init__(
+            checkpoint_dir,
+            storage_meta,
+            local_shard_num,
+            global_shard_num,
+            save_timeout,
+        )
+
+        if self._node_rank == 0:
+            # remove the history temp path if exists
+            self.storage.safe_rmtree(
+                os.path.join(self.checkpoint_dir, self._STAGE_DIR)
+            )
+
     def save_step_checkpoint(self, step):
         """
         Save the checkpoint of a step into the storage.
