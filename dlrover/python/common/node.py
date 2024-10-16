@@ -216,6 +216,7 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
+        self.succeeded = False
 
     def exited(self):
         return self.status in [
@@ -339,6 +340,12 @@ class Node(object):
             and self.status == NodeStatus.INITIAL
         ):
             return True
+
+    def set_as_succeeded(self):
+        self.succeeded = True
+
+    def is_succeeded(self):
+        return self.succeeded
 
     def __repr__(self):
         return (

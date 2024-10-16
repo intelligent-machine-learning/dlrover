@@ -361,6 +361,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
             success = self._report_worker_diagnosis_data(message)
+        elif isinstance(message, grpc.SucceededRequest):
+            success = self._report_succeeded(node_id, node_type)
 
         response.success = success
         return response
@@ -630,6 +632,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 return False
             data_obj = data_cls.from_json(message.data_content)
             self._diagnosis_manager.collect_diagnosis_data(data_obj)
+        return True
+
+    def _report_succeeded(self, node_id, node_type):
+        self._job_manager.update_succeeded_node(node_id, node_type)
         return True
 
     def _sync_training_ports(

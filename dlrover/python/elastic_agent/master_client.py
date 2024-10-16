@@ -420,6 +420,11 @@ class MasterClient(Singleton):
         response: grpc.ElasticRunConfig = self._get(request)
         return response.configs
 
+    def report_succeeded(self):
+        request = grpc.SucceededRequest()
+        response = self._report(request)
+        return response.success
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:
