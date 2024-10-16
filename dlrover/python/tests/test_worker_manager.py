@@ -107,10 +107,12 @@ class WorkerManagerTest(unittest.TestCase):
         )
         failed_worker = self._job_nodes[NodeType.WORKER][4]
         failed_worker.status = NodeStatus.FAILED
+        failed_worker.max_relaunch_count = 3
         plan = worker_manager.relaunch_node(
             failed_worker, remove_exited_node=True
         )
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
+        self.assertEqual(plan.launch_nodes[0].max_relaunch_count, 3)
         self.assertEqual(worker_manager._nodes[5].id, 5)
         self.assertEqual(plan.remove_nodes[0].config_resource.cpu, 16)
 
