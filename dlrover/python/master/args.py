@@ -88,7 +88,7 @@ def _build_master_args_parser():
     )
     parser.add_argument(
         "--hang_detection",
-        default=0,
+        default=1,
         type=pos_int,
         help="The strategy of 'hang detection', "
         "0: log only; 1: notify; 2: with fault tolerance",

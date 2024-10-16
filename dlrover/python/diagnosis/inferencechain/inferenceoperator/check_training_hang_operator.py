@@ -133,10 +133,10 @@ class CheckTrainingHangOperator(InferenceOperator):
                 f"Got hang worker: {hang_id}, time last: {hang_last}, "
                 f"threshold: {hang_last_threshold}"
             )
-            if _dlrover_ctx.hang_detect_strategy == 1:
+            if _dlrover_ctx.hang_detection == 1:
                 # TODO
                 pass
-            elif _dlrover_ctx.hang_detect_strategy == 2:
+            elif _dlrover_ctx.hang_detection == 2:
                 # TODO
                 pass
             return True

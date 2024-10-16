@@ -51,6 +51,7 @@ class DefaultValues(object):
     SEC_TO_CHANGE_PS = 3600  # 1h
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
+    HANG_DETECTION = 1
 
 
 class Context(Singleton):
@@ -92,7 +93,9 @@ class Context(Singleton):
         self.is_tfv1_ps = False
         self.master_port = None
         self.relaunch_always = False
-        self.hang_detect_strategy = 0
+        # The strategy of 'hang detection':
+        # 0: log only; 1: notify; 2: with fault tolerance
+        self.hang_detection = DefaultValues.HANG_DETECTION
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
