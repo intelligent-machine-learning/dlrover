@@ -72,7 +72,7 @@ class DiagnosisManager:
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_failures(),
+                target=self._diagnose(),
                 name="diagnose_failures",
                 daemon=True,
             )
@@ -88,7 +88,7 @@ class DiagnosisManager:
         logger.info("Stop Diagnosis Manager to observing training.")
         self._is_observing_started = False
 
-    def _diagnose_failures(self):
+    def _diagnose(self):
         logger.info("Start to diagnose failures for observing.")
         while True:
             if not self._is_observing_started:
@@ -96,6 +96,8 @@ class DiagnosisManager:
                 break
 
             observed_problems = self._diagnostician.observe_training()
+
+            solutions: List[Inference] = []
             for problem in observed_problems:
                 logger.info(f"observed problems: {problem}")
                 root_causes = self._diagnostician.diagnose_failure(problem)
@@ -144,9 +146,7 @@ class Diagnostician:
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []
         self._training_problems: List[Inference] = []
-
-    def get_pre_check_operators(self) -> List[InferenceOperator]:
-        return []
+        self._observing_operators =
 
     def get_observing_operators(self) -> List[InferenceOperator]:
         return [CheckTrainingHangOperator(self._data_manager)]
@@ -167,5 +167,5 @@ class Diagnostician:
         )
         return ic.infer()
 
-    def diagnose_failure(self, inference: Inference) -> List[Inference]:
-        pass
+    def diagnose_problem(self, inference: Inference) -> List[Inference]:
+        return []

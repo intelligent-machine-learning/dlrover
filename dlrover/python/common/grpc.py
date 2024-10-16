@@ -514,3 +514,14 @@ class ElasticRunConfig(Message):
 @dataclass
 class SucceededRequest(Message):
     pass
+
+
+@dataclass
+class DiagnosisAction(Message):
+    instance: str = ""
+    action: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    diagnosis_action: DiagnosisAction = DiagnosisAction()
