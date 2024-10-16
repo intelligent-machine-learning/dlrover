@@ -240,6 +240,7 @@ class TrainingNodeManager(object):
                 name=self._new_node_name_fn(node.type, new_id),
                 service_addr=node.service_addr,
                 relaunch_count=relaunch_node.relaunch_count,
+                max_relaunch_count=relaunch_node.max_relaunch_count,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
