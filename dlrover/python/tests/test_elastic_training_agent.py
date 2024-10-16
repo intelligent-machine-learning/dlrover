@@ -16,8 +16,8 @@ import os
 import shutil
 import socket
 import tempfile
-import time
 import threading
+import time
 import unittest
 from unittest import mock
 from unittest.mock import patch
