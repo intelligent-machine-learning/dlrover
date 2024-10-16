@@ -322,7 +322,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "Critical node (type={}, id={}) is failed "
-                    "and {}.".format(
+                    "and {}".format(
                         node.type, node.id, node.unrecoverable_failure_msg
                     )
                 ),
@@ -334,7 +334,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "The number of worker failure exceeds the "
-                    f"max failure limit: {max_failure_num}."
+                    f"max failure limit: {max_failure_num}"
                 ),
             )
         elif self._available_worker_num < self._min_node:
@@ -343,6 +343,6 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "The available number of worker is less than the minimum"
-                    f"number {self._min_node} of rdzv."
+                    f"number {self._min_node} of rdzv"
                 ),
             )
