@@ -8,19 +8,22 @@ GRPCIO_VERSION_SRC=$(pip show grpcio | grep Version | cut -d' ' -f2)
 GRPCIO_TOOLS_VERSION_SRC=$(pip show grpcio-tools | grep Version | cut -d' ' -f2)
 PROTOS_DIR="atorch/protos"
 
-PROTOBUF_VERSION_2="3.20.3"
-GRPCIO_VERSION_2="1.34.1"
-GRPCIO_TOOLS_VERSION_2="1.34.1"
-pip install protobuf==$PROTOBUF_VERSION_2 grpcio==$GRPCIO_VERSION_2 grpcio-tools==$GRPCIO_TOOLS_VERSION_2
-cp $PROTOS_DIR/*.proto $PROTOS_DIR/protobuf_3_20_3/
-pushd .
-cd $PROTOS_DIR/protobuf_3_20_3
-python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. ./acceleration.proto
-python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. ./coworker.proto
-sed -i 's/import acceleration_pb2/from \. import acceleration_pb2/g' acceleration_pb2_grpc.py
-sed -i 's/import coworker_pb2/from \. import coworker_pb2/g' coworker_pb2_grpc.py
-rm *.proto
-popd
+CUR_PYTHON_VERSION=$(python3 --version | awk -F " " '{print $NF}'| awk -F. '{print $1 $2}')
+if [[ ${CUR_PYTHON_VERSION} == "38" ]];then
+  PROTOBUF_VERSION_2="3.20.3"
+  GRPCIO_VERSION_2="1.34.1"
+  GRPCIO_TOOLS_VERSION_2="1.34.1"
+  pip install protobuf==$PROTOBUF_VERSION_2 grpcio==$GRPCIO_VERSION_2 grpcio-tools==$GRPCIO_TOOLS_VERSION_2
+  cp $PROTOS_DIR/*.proto $PROTOS_DIR/protobuf_3_20_3/
+  pushd .
+  cd $PROTOS_DIR/protobuf_3_20_3
+  python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. ./acceleration.proto
+  python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. ./coworker.proto
+  sed -i 's/import acceleration_pb2/from \. import acceleration_pb2/g' acceleration_pb2_grpc.py
+  sed -i 's/import coworker_pb2/from \. import coworker_pb2/g' coworker_pb2_grpc.py
+  rm *.proto
+  popd
+fi
 
 PROTOBUF_VERSION_3="4.25.3"
 GRPCIO_VERSION_3="1.62.1"
@@ -37,4 +40,6 @@ rm *.proto
 popd
 
 
-pip install protobuf==$PROTOBUF_VERSION_SRC grpcio==$GRPCIO_VERSION_SRC grpcio-tools==$GRPCIO_TOOLS_VERSION_SRC
+if [[ ${CUR_PYTHON_VERSION} == "38" ]];then
+  pip install protobuf==$PROTOBUF_VERSION_SRC grpcio==$GRPCIO_VERSION_SRC grpcio-tools==$GRPCIO_TOOLS_VERSION_SRC
+fi

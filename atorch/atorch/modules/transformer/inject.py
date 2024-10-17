@@ -218,7 +218,7 @@ def replace_module(
                     if init_from_attr:
                         mod_is_meta = is_meta(child)
                         if mod_is_meta:
-                            reload_meta_module(child)
+                            reload_meta_module(child, delete_ckpt_name=False)
                         new_module.load_state_dict(child.state_dict())
                         if mod_is_meta:
                             recursive_empty_param(child, ignore_save=True)

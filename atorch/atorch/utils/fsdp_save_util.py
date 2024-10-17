@@ -18,15 +18,22 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 try:
     from torch.distributed.fsdp._common_utils import clean_tensor_name
     from torch.distributed.fsdp._wrap_utils import _get_post_order_named_modules
-    from torch.distributed.fsdp.flat_param import _FLAT_PARAM_PADDING_VALUE
 except (ModuleNotFoundError, ImportError):
     # for import Compatible, we do version check in save/load
     # those variable will never used.
     def clean_tensor_name(x):
         return x
 
-    _FLAT_PARAM_PADDING_VALUE = 42.0
     _get_post_order_named_modules = lambda x: None  # noqa: E731
+
+try:
+    from torch.distributed.fsdp.flat_param import _FLAT_PARAM_PADDING_VALUE
+except (ImportError, ModuleNotFoundError):
+    try:
+        from torch.distributed.fsdp._flat_param import _FLAT_PARAM_PADDING_VALUE
+    except (ImportError, ModuleNotFoundError):
+        _FLAT_PARAM_PADDING_VALUE = 42.0
+
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import (
@@ -430,7 +437,7 @@ def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
         each_flat["flat_numel"] = flat_param.numel()
         each_flat["numels_with_padding"] = flat_param._numels_with_padding
         each_flat["is_padding_mask"] = flat_param._is_padding_mask
-        if dist.get_world_size(fsdp_flat_handle.process_group) != dist.get_world_size():
+        if dist.get_world_size(fsdp_flat_handle.process_group) != dist.get_world_size(data_group):
             # not global FSDP unit, save expert/expert_fsdp rank and ranks
             each_flat["expert_ranks"] = parallel_group_and_ranks("expert")[1]
             each_flat["expert_rank"] = parallel_rank("expert")
@@ -992,7 +999,11 @@ class ShardTensorUtil:
                     maybe_expert_rank = self.flat_param_meta[key][rank].get("expert_rank", 0)
                     maybe_expert_ranks = self.flat_param_meta[key][rank].get("expert_ranks", [rank])
                     maybe_expert_world_size = len(maybe_expert_ranks)
-                if maybe_expert_world_size > 1 and parallel_group_size("expert") != maybe_expert_world_size:
+                if (
+                    self.device != "cpu"
+                    and maybe_expert_world_size > 1
+                    and parallel_group_size("expert") != maybe_expert_world_size
+                ):
                     raise FlatCkptError(
                         f"Support expert parallel size consistent for now, but get "
                         f"{parallel_group_size('expert')} v.s. {maybe_expert_world_size}",

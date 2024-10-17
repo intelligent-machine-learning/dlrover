@@ -1,6 +1,7 @@
 import torch.nn as nn
 
-from atorch.kernels import cross_entropy_loss
+from atorch.kernels import cross_entropy_loss, npu_fuse_cross_entropy_loss
+from atorch.utils.import_util import is_torch_npu_available
 
 
 class AtorchCrossEntropyLoss(nn.Module):
@@ -43,15 +44,25 @@ class AtorchCrossEntropyLoss(nn.Module):
             losses: (batch,) if reduction is 'none', else (1,), dtype float
         """
         assert input.is_cuda and target.is_cuda, "Only support CUDA tensors"
-        loss = cross_entropy_loss(
-            input,
-            target,
-            label_smoothing=self.label_smoothing,
-            lse_square_scale=self.lse_square_scale,
-            ignored_index=self.ignore_index,
-            inplace_backward=self.inplace_backward,
-            process_group=self.process_group,
-        )
+
+        if is_torch_npu_available() and npu_fuse_cross_entropy_loss is not None:
+            loss, _ = npu_fuse_cross_entropy_loss(
+                input,
+                target.int(),
+                label_smoothing=self.label_smoothing,
+                lse_square_scale=self.lse_square_scale,
+                ignore_index=self.ignore_index,
+            )
+        else:
+            loss = cross_entropy_loss(
+                input,
+                target,
+                label_smoothing=self.label_smoothing,
+                lse_square_scale=self.lse_square_scale,
+                ignored_index=self.ignore_index,
+                inplace_backward=self.inplace_backward,
+                process_group=self.process_group,
+            )
         if self.reduction == "mean":
             return loss.sum() / (target != self.ignore_index).sum()
         elif self.reduction == "sum":

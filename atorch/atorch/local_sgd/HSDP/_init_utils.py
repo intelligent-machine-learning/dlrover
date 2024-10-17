@@ -261,7 +261,7 @@ def _init_local_sgd_state(
                 "Invalid gradient_accumulation_steps value: {}.".format(local_sgd_configs.gradient_accumulation_steps)
             )
         if local_sgd_configs.use_async:
-            if local_sgd_configs.local_sgd_sync_time < 1:
+            if local_sgd_configs.local_sgd_sync_time < 0:
                 raise ValueError("Invalid local_sgd_sync_time value: {}.".format(local_sgd_configs.local_sgd_sync_time))
             if local_sgd_configs.min_total_global_steps < 1:
                 raise ValueError(

@@ -5,7 +5,7 @@ from atorch.auto.opt_lib.dynamo_optimization import NativeDynamoOptimization
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
 from atorch.auto.opt_lib.mixed_parallel_optimization import MixedParallelOptimization
 from atorch.auto.opt_lib.module_replace_optimization import ModuleReplaceOptimization
-from atorch.auto.opt_lib.parallel_mode_optimization import ParallelModeOptimization
+from atorch.auto.opt_lib.parallel_mode_optimization import AutoDDPOptimization, ParallelModeOptimization
 from atorch.auto.opt_lib.pipeline_parallel_optimization import PipelineParallelOptimization
 from atorch.auto.opt_lib.sequence_parallel_optimization import SequenceParallelOptimization
 from atorch.auto.opt_lib.tensor_parallel_optimization import TensorParallelOptimization
@@ -43,6 +43,7 @@ class OptimizationLibrary(object):
             Zero2Optimization,
             FSDPOptimization,
             ParallelModeOptimization,
+            AutoDDPOptimization,
             AmpNativeOptimization,
             Fp8Optimization,
             TensorParallelOptimization,

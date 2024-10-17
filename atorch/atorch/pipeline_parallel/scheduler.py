@@ -5,7 +5,7 @@ from typing import Dict, Iterable, List, Optional, Union
 import torch
 
 from atorch.common.util_func import data_to_device
-from atorch.communication.communicator import PipeCommunicator
+from atorch.communication.pipe_communicator import PipeCommunicator
 from atorch.distributed import distributed as _distributed_context
 from atorch.distributed.distributed import get_data_partition_rank_and_size
 from atorch.pipeline_parallel.pipe_module import PipeModule
@@ -98,6 +98,24 @@ class _PipeState:
 
         return config.global_batchsize // micro_batch_times_data_parallel
 
+    # def _cal_p2p_tensor_shapes(self, seq_length, micro_batchsize, hidden_size):
+    #     # TODO: rank, prepare for encoder and decoder model
+    #     return [(seq_length, micro_batchsize, hidden_size)]
+
+    # def read_tensor_shapes(self, p2p_type: P2PType):
+    #     seq_length = self.config.seq_length
+    #     micro_batchsize = self.config.micro_batchsize
+    #     hidden_size = self.config.hidden_size
+
+    #     if self.config.variable_seq_lengths:
+    #         return [None]
+
+    #     if p2p_type not in self.tensor_shapes_cache:
+    #         send_tensor_shapes = self._cal_p2p_tensor_shapes(seq_length, micro_batchsize, hidden_size)
+    #         self.tensor_shapes_cache[p2p_type] = send_tensor_shapes
+
+    #     return self.tensor_shapes_cache[p2p_type]
+
 
 def is_batch_on_device(batch, device):
     for data in batch:
@@ -185,6 +203,19 @@ def _backward_step(model: PipeModule, pipe_state: _PipeState, config: Config):
     return input_tensor_grad
 
 
+def _deallocate(output_tensor: torch.Tensor):
+    if output_tensor is None:
+        return
+
+    assert isinstance(output_tensor, torch.Tensor) and output_tensor._base is None
+    output_tensor.data = torch.empty((1,), device=output_tensor.device, dtype=output_tensor.dtype)
+
+
+def _disable_grad_sync():
+    no_sync_context = contextlib.nullcontext()
+    no_sync_context.__enter__()
+
+
 def one_forward_one_backward_executor(
     model: PipeModule,
     pipe_state: _PipeState,
@@ -196,6 +227,68 @@ def one_forward_one_backward_executor(
     1F1B non-interleaved scheduler executor.
     """
     pass
+    # assert len(model.modules) == 1
+    # if isinstance(data_iter, list):
+    #     assert len(data_iter) == 1
+    #     data_iter = data_iter[0]
+
+    # pipe_state.reset_store()
+    # # Disable async grad reductions
+    # _disable_grad_sync()
+
+    # # Compute number of warmup microbatches.
+    # num_warmup_microbatches = (
+    #     _distributed_context.parallel_group_size("pipe") - _distributed_context.parallel_rank("pipe") - 1
+    # )
+    # num_microbatches = pipe_state.num_micro_batches
+    # num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
+    # num_microbatches_remaining = num_microbatches - num_warmup_microbatches
+
+    # recv_tensor_shapes = pipe_state.read_tensor_shapes(P2PType.Recv)
+    # send_tensor_shapes = pipe_state.read_tensor_shapes(P2PType.Send)
+
+    # # Run warmup forward passes.
+    # for i in range(num_warmup_microbatches):
+
+    #     if _distributed_context.is_pipe_first_stage():
+    #         input_tensors = [None] * len(recv_tensor_shapes)
+    #     else:
+    #         input_tensors = pipe_communicator.recv_forward(recv_tensor_shapes, config.variable_seq_lengths)
+    #     pipe_state.input_tensors.append(input_tensors)
+
+    #     output_tensor = _forward_step(model, data_iter, pipe_state, num_microbatches, config)
+    #     pipe_state.output_tensors.append(output_tensor)
+
+    #     if not _distributed_context.is_pipe_last_stage():
+    #         pipe_communicator.send_forward(output_tensor, send_tensor_shapes)
+    #     # TODO: how to deal with num of total tokens
+    #     if config.deallocate_outputs:
+    #         _deallocate(output_tensor)
+
+    # # Recive first forward tensor
+    # if num_microbatches_remaining > 0:
+    #     input_tensor = pipe_communicator.recv_forward(recv_tensor_shapes, config.variable_seq_lengths)
+    #     pipe_state.input_tensors.append(input_tensor)
+
+    # # Run 1F1B
+    # for i in range(num_microbatches_remaining):
+    #     last_iteration = i == (num_microbatches_remaining - 1)
+
+    #     output_tensor = _forward_step(model, data_iter, pipe_state, num_microbatches, config)
+
+    #     if _distributed_context.is_pipe_last_stage():
+    #         output_tensor_grad = [None] * len(output_tensor)
+    #     else:
+    #         output_tensor_grad = pipe_communicator.send_forward_recv_backward(output_tensor, send_tensor_shapes)
+
+    #     pipe_state.output_tensors.append(output_tensor)
+    #     # TODO: how to deal with num of total tokens
+    #     if config.deallocate_outputs:
+    #         _deallocate(output_tensor)
+
+    #     # TODO: to be continued
+
+    # return pipe_state.forward_output
 
 
 def forward_backward_no_pipelining_executor(

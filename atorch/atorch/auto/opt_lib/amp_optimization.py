@@ -1,7 +1,11 @@
-import collections
 import copy
 import types
 from functools import partialmethod, wraps
+
+try:
+    from collections import abs as collections_abc  # type: ignore[attr-defined]
+except ImportError:
+    import collections as collections_abc  # type: ignore[no-redef]
 
 import torch
 from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
@@ -12,7 +16,7 @@ import atorch
 from atorch.distributed.distributed import parallel_group
 from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
 from atorch.utils.import_util import is_torch_npu_available
-from atorch.utils.version import torch_version
+from atorch.utils.version import package_version_smaller_than, torch_version
 
 if torch_version() >= (1, 12, 0):  # type: ignore
     from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -126,14 +130,14 @@ def amp_native_loss_func(loss_func, **amp_config):
     def amp_native_loss_wrapper(*args, **kwargs):
         casted_loss_func = autocast(**amp_config)(loss_func)
         loss_result = casted_loss_func(*args, **kwargs)
-        if isinstance(loss_result, collections.abc.Sequence):
+        if isinstance(loss_result, collections_abc.Sequence):
             loss = loss_result[0]
         else:
             loss = loss_result
         partial_backward_func = partialmethod(hook_amp_native_loss_backward, counter=counter)
         setattr(AmpNativaScaledLoss, "backward", partial_backward_func)
         scaled_loss = loss.as_subclass(AmpNativaScaledLoss)
-        if isinstance(loss_result, collections.abc.Sequence):
+        if isinstance(loss_result, collections_abc.Sequence):
             return scaled_loss, *loss_result[1:]
         else:
             return scaled_loss
@@ -222,7 +226,7 @@ class Fp8Optimization(Optimization):
             If not None, if a nn.Linear module's name has at least one substring matches exclude, it will not use te.
         recipe.DelayedScaling's parameter:
             margin: default 0
-            interval: default 1
+            interval (te < 1.8): default 1
             fp8_format: "HYBRID" (default) or "E4M3"
             amax_history_len: default 1024
             amax_compute_algo: “max” (default) or “most_recent”
@@ -240,7 +244,9 @@ class Fp8Optimization(Optimization):
         include = config.get("include", None)
         exclude = config.get("exclude", None)
         delayed_scaling_config["margin"] = config.get("margin", 0)
-        delayed_scaling_config["interval"] = config.get("interval", 1)
+        if package_version_smaller_than("transformer_engine", "1.8"):
+            # valid only te version < 1.8, will be removed in future version.
+            delayed_scaling_config["interval"] = config.get("interval", 1)
         fp8_format = config.get("fp8_format", "HYBRID").upper()
         if fp8_format == "HYBRID":
             fp8_format_type = recipe.Format.HYBRID
@@ -308,11 +314,13 @@ class Fp8Optimization(Optimization):
                     if hasattr(module.weight, "checkpoint_name"):
                         value = getattr(module.weight, "checkpoint_name")
                         setattr(new_module.weight, "checkpoint_name", value)
+                    del module.weight
                     if config["bias"]:
                         new_module.bias.copy_(module.bias)
                         if hasattr(module.bias, "checkpoint_name"):
                             value = getattr(module.bias, "checkpoint_name")
                             setattr(new_module.bias, "checkpoint_name", value)
+                        del module.bias
             return new_module
 
         def replace_module_with_te(model, m_include, m_exclude):

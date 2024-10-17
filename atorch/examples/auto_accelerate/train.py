@@ -59,6 +59,8 @@ def parse_args():
     parser.add_argument("--min_total_global_steps", type=int, default=10, required=False)
     parser.add_argument("--local_sgd_warmup_steps", type=int, default=0, required=False)
     parser.add_argument("--outer_optim_class", type=str, choices=["none", "sgd"], default="none", required=False)
+    # if need to init torch_npu
+    parser.add_argument("--npu", default=False, action="store_true")
 
     return parser.parse_args()
 
@@ -252,4 +254,6 @@ def train(args):
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.npu:
+        from atorch import npu  # noqa
     train(args)

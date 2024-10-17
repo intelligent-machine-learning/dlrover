@@ -1,7 +1,7 @@
 from typing import Iterable, List, Union
 
 from atorch.common.log_utils import default_logger as logger
-from atorch.communication.communicator import PipeCommunicator
+from atorch.communication.pipe_communicator import PipeCommunicator
 from atorch.utils.config import Config
 
 from .pipe_module import PipeModule

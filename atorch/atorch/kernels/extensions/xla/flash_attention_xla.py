@@ -9,7 +9,7 @@ class FlashAttnXlaExtension(_TorchxlaExtension):
             return False
 
         try:
-            from torch_xla.core.functions import flash_attn, flash_attn_varlen  # noqa
+            from torch_xla.core.functions import flash_attn_func, flash_attn_varlen_func  # noqa
 
             available = True
         except (ImportError, ModuleNotFoundError):
@@ -23,7 +23,7 @@ class FlashAttnXlaExtension(_TorchxlaExtension):
             return False
 
         try:
-            from torch_xla.core.functions import flash_attn  # noqa
+            from torch_xla.core.functions import flash_attn_func  # noqa
 
             available = True
         except (ImportError, ModuleNotFoundError):
@@ -37,7 +37,7 @@ class FlashAttnXlaExtension(_TorchxlaExtension):
             return False
 
         try:
-            from torch_xla.core.functions import flash_attn_varlen  # noqa
+            from torch_xla.core.functions import flash_attn_varlen_func  # noqa
 
             available = True
         except (ImportError, ModuleNotFoundError):
@@ -48,25 +48,25 @@ class FlashAttnXlaExtension(_TorchxlaExtension):
         if not self.is_available():
             return None, None
 
-        from torch_xla.core.functions import flash_attn, flash_attn_varlen  # noqa
+        from torch_xla.core.functions import flash_attn_func, flash_attn_varlen_func  # noqa
 
-        return flash_attn, flash_attn_varlen
+        return flash_attn_func, flash_attn_varlen_func
 
     def load_flash_attn(self):
         if not self.is_flash_attn_available():
             return None
 
-        from torch_xla.core.functions import flash_attn  # noqa
+        from torch_xla.core.functions import flash_attn_func  # noqa
 
-        return flash_attn
+        return flash_attn_func
 
     def load_flash_attn_varlen(self):
         if not self.is_flash_attn_varlen_available():
             return None
 
-        from torch_xla.core.functions import flash_attn_varlen  # noqa
+        from torch_xla.core.functions import flash_attn_varlen_func  # noqa
 
-        return flash_attn_varlen
+        return flash_attn_varlen_func
 
 
 _flash_attn_ext = FlashAttnXlaExtension()

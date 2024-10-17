@@ -116,7 +116,7 @@ def moe_fsdp_policy_fn(module):
     return False
 
 
-def run_module_gt(rank, world_size, hidden_size):
+def run_module_gt(rank, world_size, hidden_size, path):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
     os.environ["LOCAL_WORLD_SIZE"] = str(world_size)
@@ -135,7 +135,6 @@ def run_module_gt(rank, world_size, hidden_size):
     loss = model(get_input(hidden_size)).mean()
     loss.backward()
     optim.step()
-    path = f"/tmp/fsdp_moe_save_load_test/{world_size}/gt"
     save_fsdp_flat_param(model, path)
     save_fsdp_optim_param(model, optim, path)
 
@@ -216,7 +215,7 @@ class FSDPMoEShardSaveLoadTest(unittest.TestCase):
         mp.spawn(
             run_module_gt,
             nprocs=self.world_size,
-            args=(self.world_size, self.hidden_size),
+            args=(self.world_size, self.hidden_size, self.gt_ckpt),
             join=True,
             daemon=False,
             start_method="spawn",

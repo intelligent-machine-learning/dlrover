@@ -42,20 +42,34 @@ def partition_model_from_model_provider(model_provider, distributed_context, con
         config.total_layer_num >= total_stages
     ), f"Total layer num({config.total_layer_num}) should greater than or equal to total stage num({total_stages})."
 
-    per_stage_layer_num = config.total_layer_num // total_stages
-    extra_layer_stage_num = config.total_layer_num % total_stages
+    layer_num_per_stage = []
+    if config.manual_stage_partition is None:
+        per_stage_layer_num = config.total_layer_num // total_stages
+        extra_layer_stage_num = config.total_layer_num % total_stages
+        for stage_id in stage_ids:
+            if extra_layer_stage_num == 0:
+                layer_num = per_stage_layer_num
+            elif stage_id > 0 and stage_id <= extra_layer_stage_num:
+                layer_num = per_stage_layer_num + 1
+            layer_num_per_stage.append(layer_num)
+    else:
+        assert (
+            len(config.manual_stage_partition) == total_stages
+            and sum(config.manual_stage_partition) == config.total_layer_num
+        )
+        for stage_id in stage_ids:
+            layer_num_per_stage.append(config.manual_stage_partition[stage_id])
 
     modules = []
 
-    for stage_id in stage_ids:
-        if extra_layer_stage_num == 0:
-            layer_num = per_stage_layer_num
-        elif stage_id > 0 and stage_id <= extra_layer_stage_num:
-            layer_num = per_stage_layer_num + 1
+    for idx, stage_id in enumerate(stage_ids):
         pre_process = stage_id == 0
         post_process = stage_id == total_stages - 1
         module = model_provider(
-            model_config=config.model_config, layer_num=layer_num, pre_process=pre_process, post_process=post_process
+            model_config=config.model_config,
+            layer_num=layer_num_per_stage[idx],
+            pre_process=pre_process,
+            post_process=post_process,
         )
         modules.append(module)
 

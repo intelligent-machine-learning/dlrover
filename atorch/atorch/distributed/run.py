@@ -10,6 +10,7 @@ from atorch.distributed.hooks import hook_set_master_addr_port
 from atorch.distributed.launch import main as normal_run
 from atorch.distributed.launch import parse_args as parse_static_args
 from atorch.fault_tolerance.api import run as fault_tolerant_run
+from atorch.utils.version import torch_version
 
 try:
     from dlrover.trainer.torch.elastic_run import run as dlrover_run
@@ -238,6 +239,24 @@ def parse_fault_tolerant_or_elastic_args(args=None, mode="elastic"):
         "(if path is not exists, create it).mode is wb or ab, wb is overwrite, ab"
         "is append",
     )
+    parser.add_argument(
+        "--local-ranks-filter",
+        "--local_ranks_filter",
+        action=env,
+        type=str,
+        default="",
+        help="Only show logs from specified ranks in console (e.g. [--local_ranks_filter=0,1,2] will "
+        "only show logs from rank 0, 1 and 2). This will only apply to stdout and stderr, not to"
+        "log files saved via --redirect or --tee",
+    )
+    parser.add_argument(
+        "--logs-specs",
+        "--logs_specs",
+        default=None,
+        type=str,
+        help="torchrun.logs_specs group entrypoint name, value must be type of LogsSpecs. "
+        "Can be used to override custom logging behavior.",
+    )
     #
     # Positional arguments.
     #
@@ -356,6 +375,8 @@ def main():
         hook_set_master_addr_port()
         elastic_run(args)
     elif args.relaunch_on_hanging is True:
+        if torch_version() >= (2, 2, 0):
+            raise NotImplementedError("'relaunch_on_hanging' only support torch==2.1.0")
         args = parse_fault_tolerant_or_elastic_args(unknown_args, "fault_tolerant")
         fault_tolerant_run(args)
     else:

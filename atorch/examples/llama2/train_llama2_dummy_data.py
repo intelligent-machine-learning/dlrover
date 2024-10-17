@@ -132,6 +132,7 @@ def parse_args():
     parser.add_argument("--use_meta_init", default=False, action="store_true")
     parser.add_argument("--use_distributed_dataloader", default=False, action="store_true")
     parser.add_argument("--max_checkpoint_module_num", type=int, default=-1, required=False)
+    parser.add_argument("--npu", default=False, action="store_true")
 
     return parser.parse_args()
 
@@ -279,4 +280,6 @@ def train(args):
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.npu:
+        from atorch import npu  # noqa
     train(args)

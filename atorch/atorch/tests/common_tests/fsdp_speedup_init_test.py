@@ -10,7 +10,11 @@ import pytest
 import torch
 
 torch = pytest.importorskip("torch", minversion="2.0.9")
-if torch.version.git_version != "7bcf7da3a268b435777fe87c7794c382f444e86d" or not torch.cuda.is_available():
+if (
+    torch.version.git_version
+    not in ("7bcf7da3a268b435777fe87c7794c382f444e86d", "e4ee3be4063b7c430974252fdf7db42273388d86")
+    or not torch.cuda.is_available()
+):
     pytest.skip("requires pytorch 2.1 stable release", allow_module_level=True)
 from unittest import mock
 
@@ -18,7 +22,12 @@ import torch.multiprocessing as mp
 from torch import nn
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision
-from torch.distributed.fsdp.flat_param import FlatParamHandle, HandleShardingStrategy
+
+try:
+    from torch.distributed.fsdp.flat_param import FlatParamHandle, HandleShardingStrategy
+except (ImportError, ModuleNotFoundError):
+    from torch.distributed.fsdp._flat_param import FlatParamHandle, HandleShardingStrategy
+
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 import atorch
@@ -136,9 +145,9 @@ def run_module_reshard(rank, world_size, ckpt_path, hidden_size, test_dir_prefix
         save_fsdp_optim_param(model, optim, path)
 
 
-class FSDPShardSaveLoadTest(unittest.TestCase):
+class FSDPShardSaveLoadTestSpeedInit(unittest.TestCase):
     def __init__(self, methodName="runTest", world_size=None, hidden_size=None):
-        super(FSDPShardSaveLoadTest, self).__init__(methodName)
+        super(FSDPShardSaveLoadTestSpeedInit, self).__init__(methodName)
         self.world_size = world_size or 4
         self.hidden_size = hidden_size or 64
         self.test_dir_prefix = str(self.world_size)
@@ -330,21 +339,27 @@ class FSDPShardAsyncSaveLoadTest(unittest.TestCase):
                 # only save/load, all values should be equal.
                 self.assertTrue((gt_value == state_dict[name]).all())
 
+    @unittest.skipIf(torch.cuda.is_available(), "skip gpu test as cpu test is enough")
+    def test_fsdp_ignore_rank_check(self):
+        from atorch.utils.fsdp_init_util import fsdp_ignore_rank_check
+
+        fsdp_ignore_rank_check()
+
 
 # not a test, if nameing starts with `test`, pytest will run it.
 def _test_generator(world_size, hidden):
-    class TestClass(FSDPShardSaveLoadTest):
+    class TestClass(FSDPShardSaveLoadTestSpeedInit):
         def __init__(self, methodName="runTest"):
             super().__init__(methodName, world_size, hidden)
 
-    TestClass.__name__ = f"FSDPShardSaveLoadTest_{world_size}_{hidden}"
+    TestClass.__name__ = f"FSDPShardSaveLoadTestSpeedInit_{world_size}_{hidden}"
     return TestClass
 
 
-FSDPShardSaveLoadTest_4_64 = _test_generator(4, 64)
+FSDPShardSaveLoadTestSpeedInit_4_64 = _test_generator(4, 64)
 
 if torch.cuda.device_count() == 8:
-    FSDPShardSaveLoadTest_7_97 = _test_generator(7, 97)
+    FSDPShardSaveLoadTestSpeedInit_7_97 = _test_generator(7, 97)
 
 if __name__ == "__main__":
     unittest.main()

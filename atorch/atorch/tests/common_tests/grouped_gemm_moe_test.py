@@ -17,12 +17,7 @@ from atorch.common.util_func import divide, find_free_port
 from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.moe.grouped_gemm_moe import Grouped_GEMM_MoE, SwiGLUActivatition
 from atorch.utils.import_util import is_torch_npu_available
-from atorch.utils.moe_util import transpose_moe
 from atorch.utils.version import torch_version
-
-if torch.cuda.is_available():
-    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-    from torch.distributed.fsdp.wrap import ModuleWrapPolicy
 
 
 def sd_trans(ref_sd, num_experts, use_bias):
@@ -42,8 +37,8 @@ def sd_trans(ref_sd, num_experts, use_bias):
     if use_bias:
         b1 = torch.cat([ref_sd[f"experts.expert_{eid}.dense_h_to_4h.bias"].unsqueeze(0) for eid in range(num_experts)])
         b2 = torch.cat([ref_sd[f"experts.expert_{eid}.dense_4h_to_h.bias"].unsqueeze(0) for eid in range(num_experts)])
-    new_sd["w1"] = w1
-    new_sd["w2"] = w2
+    new_sd["mlp.w1"] = w1
+    new_sd["mlp.w2"] = w2
     if use_bias:
         new_sd["b1"] = b1
         new_sd["b2"] = b2
@@ -501,7 +496,9 @@ def run_ep_grouped_gemm_moe(rank, world_size):
     atorch.reset_distributed()
 
 
-def run_ep_grouped_gemm_moe_single(rank, world_size, no_local_token=False, implementation_type="MegaBlocks"):
+def run_ep_grouped_gemm_moe_single(
+    rank, world_size, no_local_token=False, implementation_type="MegaBlocks", single_local_expert=False
+):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
     os.environ["WORLD_SIZE"] = str(world_size)
@@ -510,7 +507,8 @@ def run_ep_grouped_gemm_moe_single(rank, world_size, no_local_token=False, imple
     ep_mode = ([("expert", torch.distributed.get_world_size())], None)
     create_parallel_group(ep_mode)
 
-    num_experts, hidden_size, expert_intermediate_size, topk, num_shared_experts = 8, 64, 128, 2, 2
+    num_experts = world_size if single_local_expert else 8
+    hidden_size, expert_intermediate_size, topk, num_shared_experts = 64, 128, 2, 2
     use_swiglu, use_bias = False, False
 
     if implementation_type == "MegaBlocks":
@@ -752,7 +750,19 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
 
-    @unittest.skipIf(is_torch_npu_available(), "MegaBlocks implementation_type not supported yet for npu")
+    def test_ep_grouped_gemm_moe_megatron_single_local_expert(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_ep_grouped_gemm_moe_single,
+            args=(world_size, False, "Megatron", True),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
     def test_ep_grouped_gmm_moe_megablocks_prefetch_attn_and_expert(self):
         world_size = 4
         os.environ["MASTER_ADDR"] = "localhost"
@@ -782,114 +792,3 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
         del os.environ["MOE_FSDP_PREFETCH_NUM"]
-
-
-class TranposeMOE(torch.nn.Module):
-    def __init__(
-        self,
-        num_experts,
-        hidden_size,
-        expert_intermediate_size,
-        topk,
-        use_swiglu,
-        use_bias,
-        implementation_type,
-        token_dispatcher_type,
-    ):
-        super().__init__()
-        self.moe1 = Grouped_GEMM_MoE(
-            hidden_size,
-            expert_intermediate_size,
-            0.0,
-            num_experts,
-            topk,
-            use_swiglu,
-            use_bias,
-            transpose_w1=False,
-            implementation_type=implementation_type,
-            token_dispatcher_type=token_dispatcher_type,
-            merge_w1_v1=False,
-        )
-        self.moe2 = Grouped_GEMM_MoE(
-            hidden_size,
-            expert_intermediate_size,
-            0.0,
-            num_experts,
-            topk,
-            use_swiglu,
-            use_bias,
-            transpose_w1=False,
-            implementation_type=implementation_type,
-            token_dispatcher_type=token_dispatcher_type,
-            merge_w1_v1=True,
-        )
-        self.m = torch.nn.Linear(2, 4)
-
-    def forward(self, x):
-        return x
-
-
-def run_transpose_moe(rank, world_size):
-    os.environ["LOCAL_RANK"] = str(rank)
-    os.environ["RANK"] = str(rank)
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["NPROC_PER_NODE"] = str(world_size)
-    atorch.init_distributed(set_cuda_device_using_local_rank=True)
-    num_experts, hidden_size, expert_intermediate_size, topk = 4, 2, 3, 2
-    use_swiglu, use_bias = False, False
-    implementation_type = "Megatron"
-    token_dispatcher_type = "AllGather"
-    model = TranposeMOE(
-        hidden_size,
-        expert_intermediate_size,
-        num_experts,
-        topk,
-        use_swiglu,
-        use_bias,
-        implementation_type=implementation_type,
-        token_dispatcher_type=token_dispatcher_type,
-    )
-    w1_v1_shape = (num_experts, hidden_size, expert_intermediate_size)
-
-    temp = torch.arange(0, num_experts * hidden_size * expert_intermediate_size, dtype=torch.float32).reshape(
-        w1_v1_shape
-    )
-    model.moe1.w1 = torch.nn.Parameter(temp)
-    model.moe1.v1 = torch.nn.Parameter(temp.clone())
-    model.moe2.w1 = torch.nn.Parameter(temp.clone())
-    model.moe2.v1 = torch.nn.Parameter(temp.clone())
-    model = FSDP(
-        model, auto_wrap_policy=ModuleWrapPolicy({Grouped_GEMM_MoE}), sync_module_states=True, device_id=atorch.rank()
-    )
-
-    model = transpose_moe(model)
-
-    target = temp.to("cuda").transpose(-1, -2).reshape(w1_v1_shape)
-    with torch.distributed.fsdp.FullyShardedDataParallel.summon_full_params(model, writeback=False):
-        assert torch.allclose(model.moe1.w1, target)
-        assert torch.allclose(model.moe1.v1, target)
-        assert torch.allclose(model.moe2.w1, target)
-        assert torch.allclose(model.moe2.v1, target)
-    model(torch.ones((2, 2)).to("cuda"))
-
-    atorch.reset_distributed()
-
-
-@unittest.skipIf(
-    not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),  # type: ignore
-    "Must have at least 4 GPUs for expert parallel test",
-)
-class TestTransposeMOE(unittest.TestCase):
-    def test_transpose_moe(self):
-        world_size = 4
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = str(find_free_port())
-
-        mp.spawn(
-            run_transpose_moe,
-            args=(world_size,),
-            nprocs=world_size,
-            join=True,
-        )
-        os.environ["MASTER_ADDR"] = ""
-        os.environ["MASTER_PORT"] = ""

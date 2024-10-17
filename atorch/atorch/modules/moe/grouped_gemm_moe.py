@@ -29,7 +29,7 @@ from atorch.common.env import EnvSetting
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.singleton import SingletonMeta
 from atorch.common.util_func import divide
-from atorch.distributed.distributed import parallel_group, parallel_rank, rank
+from atorch.distributed.distributed import parallel_group, parallel_group_size, parallel_rank, rank
 from atorch.kernels import bias_gather_add
 from atorch.modules.moe.token_dispatcher import (
     MindSpeedAllGatherTokenDispatcher,
@@ -41,7 +41,7 @@ from atorch.utils.import_util import is_torch_npu_available
 from atorch.utils.version import torch_version
 
 if is_torch_npu_available():
-    from atorch.kernels import npu_gmm as gmm
+    from atorch.npu.gmm import npu_gmm as gmm
 else:
     from atorch.kernels import gmm
 
@@ -219,6 +219,22 @@ else:
     )
 
 
+class ScaleGradient(torch.autograd.Function):
+    @staticmethod
+    @torch.cuda.amp.custom_fwd
+    def forward(ctx, x, scale):
+        ctx.scale = scale
+        return x
+
+    @staticmethod
+    @torch.cuda.amp.custom_bwd
+    def backward(ctx, grad):
+        return grad * ctx.scale, None
+
+
+scale_gradient = ScaleGradient.apply
+
+
 # refer to megablocks
 class AllToAllWithComputeOverlapOp(torch.autograd.Function):
     @staticmethod
@@ -345,11 +361,13 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         expert_parallel_group=None,
         merge_w1_v1=True,
         transpose_w1=True,
+        is_scale_gradient=False,
         implementation_type="MegaBlocks",
         token_dispatcher_type="AllToAll",
     ) -> None:
         super().__init__()
 
+        self.mlp_prefix = EnvSetting().MOE_MLP_PREFIX
         self.implementer_type = MOEImplmenterType(implementation_type)
         self.token_dispatcher_type = MOETokenDispatcherType(token_dispatcher_type)
         if is_torch_npu_available():
@@ -394,6 +412,10 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         self.output_dropout_prob = output_dropout_prob
         self.num_experts = num_experts
         self.use_expert_parallelism = use_expert_parallelism
+        self.is_scale_gradient = is_scale_gradient
+        self.gradient_scale = None
+        if self.use_expert_parallelism and self.is_scale_gradient:
+            self.gradient_scale = 1 / parallel_group_size("expert")
         if self.use_expert_parallelism:
             if expert_parallel_group is None:
                 self.expert_parallel_group = parallel_group("expert")
@@ -408,6 +430,9 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         self.merge_w1_v1 = merge_w1_v1
         self.transpose_w1 = transpose_w1
 
+        if self.mlp_prefix:
+            self.mlp = torch.nn.ParameterDict({})
+
         # rm `fine_grained_factor`, make sure num_experts, top_k have been `update_moe_config`
         # and pass the updated `expert_intermediate_size`
 
@@ -419,11 +444,20 @@ class Grouped_GEMM_MoE(torch.nn.Module):
             else:
                 w1_v1_shape = (self.num_local_experts, self.hidden_size, self.expert_intermediate_size)
 
-            self.w1 = torch.nn.Parameter(torch.empty(w1_v1_shape))
-            self.w2 = torch.nn.Parameter(
+            w1_param = torch.nn.Parameter(torch.empty(w1_v1_shape))
+            w2_param = torch.nn.Parameter(
                 torch.empty(self.num_local_experts, self.expert_intermediate_size, self.hidden_size)
             )
-            self.v1 = torch.nn.Parameter(torch.empty(w1_v1_shape))
+            v1_param = torch.nn.Parameter(torch.empty(w1_v1_shape))
+
+            if self.mlp_prefix:
+                self.mlp["w1"] = w1_param
+                self.mlp["w2"] = w2_param
+                self.mlp["v1"] = v1_param
+            else:
+                self.w1 = w1_param
+                self.w2 = w2_param
+                self.v1 = v1_param
             assert not self.use_bias, "bias not supported yet for not merge_w1_v1"
         else:
             if self.transpose_w1:
@@ -439,11 +473,19 @@ class Grouped_GEMM_MoE(torch.nn.Module):
                     self.expert_intermediate_size * (2 if self.use_swiglu else 1),
                 )
 
-            self.w1 = torch.nn.Parameter(torch.empty(w1_shape))
-            self.w2 = torch.nn.Parameter(
+            w1_param = torch.nn.Parameter(torch.empty(w1_shape))
+            w2_param = torch.nn.Parameter(
                 torch.empty(self.num_local_experts, self.expert_intermediate_size, self.hidden_size)
             )
+
+            if self.mlp_prefix:
+                self.mlp["w1"] = w1_param
+                self.mlp["w2"] = w2_param
+            else:
+                self.w1 = w1_param
+                self.w2 = w2_param
         if self.use_bias:
+            # TODO: support mlp prefix for b1/b2
             self.b1 = torch.nn.Parameter(
                 torch.empty(self.num_local_experts, self.expert_intermediate_size * (2 if self.use_swiglu else 1))
             )
@@ -454,7 +496,7 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         # reset gg weight bias
         self.w1.data.normal_(mean=0.0, std=initializer_range)
         self.w2.data.normal_(mean=0.0, std=initializer_range)
-        if hasattr(self, "v1"):
+        if self.has_v1():
             self.v1.data.normal_(mean=0.0, std=initializer_range)
         if self.use_bias:
             self.b1.data.zero_()
@@ -464,6 +506,21 @@ class Grouped_GEMM_MoE(torch.nn.Module):
             self._additional_init_for_megatron_moe()
         elif self.implementer_type is MOEImplmenterType.MegaBlocks:
             self._additional_init_for_megablocks_moe()
+
+    def has_v1(self):
+        if self.mlp_prefix:
+            return "v1" in self.mlp
+        else:
+            return hasattr(self, "v1") and self.v1 is not None
+
+    def _get_w1_for_mlp_prefix(self):
+        return self.mlp["w1"]
+
+    def _get_w2_for_mlp_prefix(self):
+        return self.mlp["w2"]
+
+    def _get_v1_for_mlp_prefix(self):
+        return self.mlp["v1"]
 
     def _additional_init_for_megablocks_moe(self):
         # megablocks gather scatter
@@ -478,41 +535,22 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         local_expert_indices = [local_expert_indices_offset + i for i in range(self.num_local_experts)]
 
         if self.token_dispatcher_type is MOETokenDispatcherType.AllToAll:
-            self.token_dispatcher = MoEAllToAllTokenDispatcher(
-                self.num_local_experts,
-                local_expert_indices,
-                self.num_experts,
-                topk=self.topk,
-                add_bias=self.use_bias,
-                use_expert_parallelism=self.use_expert_parallelism,
-            )
+            token_dispatcher_cls = MoEAllToAllTokenDispatcher
         elif self.token_dispatcher_type is MOETokenDispatcherType.AllGather:
-            self.token_dispatcher = MoEAllGatherTokenDispatcher(
-                self.num_local_experts,
-                local_expert_indices,
-                self.num_experts,
-                topk=self.topk,
-                add_bias=self.use_bias,
-                use_expert_parallelism=self.use_expert_parallelism,
-            )
+            token_dispatcher_cls = MoEAllGatherTokenDispatcher
         elif self.token_dispatcher_type is MOETokenDispatcherType.MindSpeedAllGather:
-            self.token_dispatcher = MindSpeedAllGatherTokenDispatcher(
-                self.num_local_experts,
-                local_expert_indices,
-                self.num_experts,
-                topk=self.topk,
-                add_bias=self.use_bias,
-                use_expert_parallelism=self.use_expert_parallelism,
-            )
+            token_dispatcher_cls = MindSpeedAllGatherTokenDispatcher
         elif self.token_dispatcher_type is MOETokenDispatcherType.MindSpeedAllToAll:
-            self.token_dispatcher = MindSpeedAllToAllTokenDispatcher(
-                self.num_local_experts,
-                local_expert_indices,
-                self.num_experts,
-                topk=self.topk,
-                add_bias=self.use_bias,
-                use_expert_parallelism=self.use_expert_parallelism,
-            )
+            token_dispatcher_cls = MindSpeedAllToAllTokenDispatcher
+
+        self.token_dispatcher = token_dispatcher_cls(
+            self.num_local_experts,
+            local_expert_indices,
+            self.num_experts,
+            topk=self.topk,
+            add_bias=self.use_bias,
+            use_expert_parallelism=self.use_expert_parallelism,
+        )
 
     @torch.no_grad()
     def indices_and_bins(self, top_experts):
@@ -566,6 +604,11 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         recv_counts = recv_counts.tolist()
         tokens_received = sum(recv_counts)
         return send_counts, recv_counts, tokens_received, parallel_tokens_per_expert
+
+    def scale_grad(self, w):
+        if self.gradient_scale is None:
+            return w
+        return scale_gradient(w, self.gradient_scale)
 
     def forward(
         self,
@@ -758,68 +801,73 @@ class Grouped_GEMM_MoE(torch.nn.Module):
         return output
 
     def compute_expert(self, _hidden_states, _tokens_per_expert, bin_ids=None):
+        w1, w2 = self.scale_grad(self.w1), self.scale_grad(self.w2)
+        v1 = self.scale_grad(self.v1) if self.has_v1() else None
+
         # Compute expert
         if _hidden_states.nelement() == 0:
             # no valid token per expert & permuted local hidden states
             if not is_torch_npu_available():
                 assert _tokens_per_expert.sum(dim=0) == 0
-            expert_output = self.compute_expert_no_token(_hidden_states)
+            expert_output = self.compute_expert_no_token(_hidden_states, w1, w2, v1)
         else:
             if self.num_local_experts > 1:
-                expert_output = self.compute_moe(_hidden_states, _tokens_per_expert, bin_ids)
+                expert_output = self.compute_moe(_hidden_states, _tokens_per_expert, w1, w2, v1, bin_ids)
             else:
-                expert_output = self.compute_single_expert(_hidden_states)
+                expert_output = self.compute_single_expert(_hidden_states, w1, w2, v1)
 
         return expert_output
 
-    def compute_moe(self, hidden_states, tokens_per_expert, bin_ids=None):
+    def compute_moe(self, hidden_states, tokens_per_expert, w1, w2, v1, bin_ids=None):
         tokens_per_expert = tokens_per_expert.cpu().to(torch.long)
+        if EnvSetting().DEBUG:
+            print("rank:", rank(), "tokens_per_expert:", tokens_per_expert)
         if self.use_swiglu and not self.merge_w1_v1:
-            x1 = gmm(hidden_states, self.w1, tokens_per_expert, trans_b=self.transpose_w1)
-            x2 = gmm(hidden_states, self.v1, tokens_per_expert, trans_b=self.transpose_w1)
+            x1 = gmm(hidden_states, w1, tokens_per_expert, trans_b=self.transpose_w1)
+            x2 = gmm(hidden_states, v1, tokens_per_expert, trans_b=self.transpose_w1)
             intermediate_states = F.silu(x1) * x2
         else:
-            fc1_output = gmm(hidden_states, self.w1, tokens_per_expert, trans_b=self.transpose_w1)
+            fc1_output = gmm(hidden_states, w1, tokens_per_expert, trans_b=self.transpose_w1)
             if self.use_bias:
                 assert bin_ids is not None
                 fc1_output = bias_gather_add(fc1_output, self.b1, bin_ids)
             intermediate_states = self.activation(fc1_output)
-        fc2_output = gmm(intermediate_states, self.w2, tokens_per_expert, trans_b=False)
+        fc2_output = gmm(intermediate_states, w2, tokens_per_expert, trans_b=False)
         if self.use_bias:
             assert bin_ids is not None
             fc2_output = bias_gather_add(fc2_output, self.b2, bin_ids)
         expert_output = self.dropout(fc2_output)
         return expert_output
 
-    def compute_single_expert(self, hidden_states):
+    def compute_single_expert(self, hidden_states, w1, w2, v1):
         if not self.transpose_w1:
-            _w1 = self.w1.squeeze(0).transpose(0, 1)
+            _w1 = w1.squeeze(0).transpose(0, 1)
         else:
-            _w1 = self.w1.squeeze(0)
+            _w1 = w1.squeeze(0)
+
         if self.use_swiglu and not self.merge_w1_v1:
             if not self.transpose_w1:
-                _v1 = self.v1.squeeze(0).transpose(0, 1)
+                _v1 = v1.squeeze(0).transpose(0, 1)
             else:
-                _v1 = self.v1.squeeze(0)
+                _v1 = v1.squeeze(0)
             x1 = F.linear(hidden_states, _w1, None)
             x2 = F.linear(hidden_states, _v1, None)
             intermediate_states = F.silu(x1) * x2
         else:
-            fc1_output = F.linear(
-                hidden_states, self.w1.squeeze(0).transpose(0, 1), self.b1.squeeze(0) if self.use_bias else None
-            )
+            fc1_output = F.linear(hidden_states, _w1, self.b1.squeeze(0) if self.use_bias else None)
             intermediate_states = self.activation(fc1_output)
+
         fc2_output = F.linear(
-            intermediate_states, self.w2.squeeze(0).transpose(0, 1), self.b2.squeeze(0) if self.use_bias else None
+            intermediate_states, w2.squeeze(0).transpose(0, 1), self.b2.squeeze(0) if self.use_bias else None
         )
         expert_output = self.dropout(fc2_output)
         return expert_output
 
-    def compute_expert_no_token(self, hidden_states):
-        w1 = self.w1.view(self.hidden_size, -1)
-        w2 = self.w2.view(-1, self.hidden_size)
+    def compute_expert_no_token(self, hidden_states, w1, w2, v1):
+        w1 = w1.view(self.hidden_size, -1)
+        w2 = w2.view(-1, self.hidden_size)
         if self.use_swiglu and not self.merge_w1_v1:
-            v1 = self.v1.view(self.hidden_size, -1)
+            v1 = v1.view(self.hidden_size, -1)
             x1 = torch.matmul(hidden_states, w1)
             x2 = torch.matmul(hidden_states, v1)
             intermediate_states = F.silu(x1) * x2
@@ -830,3 +878,9 @@ class Grouped_GEMM_MoE(torch.nn.Module):
             raise NotImplementedError("Not support bias when there is no local token.")
         fc2_output = torch.matmul(intermediate_states, w2)
         return fc2_output
+
+
+if EnvSetting().MOE_MLP_PREFIX:
+    setattr(Grouped_GEMM_MoE, "w1", property(Grouped_GEMM_MoE._get_w1_for_mlp_prefix))
+    setattr(Grouped_GEMM_MoE, "w2", property(Grouped_GEMM_MoE._get_w2_for_mlp_prefix))
+    setattr(Grouped_GEMM_MoE, "v1", property(Grouped_GEMM_MoE._get_v1_for_mlp_prefix))

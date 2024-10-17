@@ -1,13 +1,27 @@
 """This file is used to restore FlatParameter from flat ckpt."""
-import collections
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Type, Union, no_type_check
 
+try:
+    from collections import abs as collections_abc  # type: ignore[attr-defined]
+except ImportError:
+    import collections as collections_abc  # type: ignore[no-redef]
+
 import torch
 from torch import nn
-from torch.distributed.fsdp import _init_utils, flat_param
+from torch.distributed.fsdp import _init_utils
+
+try:
+    from torch.distributed.fsdp import flat_param
+except (ImportError, ModuleNotFoundError):
+    try:
+        # torch 2.4
+        from torch.distributed.fsdp import _flat_param as flat_param
+    except (ImportError, ModuleNotFoundError):
+        flat_param = None
+
 from torch.distributed.fsdp import fully_sharded_data_parallel as FSDP
 from torch.distributed.fsdp._common_utils import clean_tensor_name
 from torch.distributed.utils import _p_assert
@@ -17,8 +31,14 @@ from atorch.distributed.distributed import local_rank, rank, world_size
 from atorch.utils.fsdp_save_util import _FLAT_PARAM_PADDING_VALUE, ErrorCode, FlatCkptError, ShardTensorUtil, TensorDict
 from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
-OriginFlatParamHandle: Type[flat_param.FlatParamHandle] = flat_param.FlatParamHandle
-origin_init_param_handle_from_module = _init_utils._init_param_handle_from_module
+if flat_param is not None:
+    OriginFlatParamHandle: Type[flat_param.FlatParamHandle] = flat_param.FlatParamHandle
+    origin_init_param_handle_from_module = _init_utils._init_param_handle_from_module
+else:
+    OriginFlatParamHandle = object
+
+TORCH_210_GIT_VERSION = "7bcf7da3a268b435777fe87c7794c382f444e86d"
+TORCH_240_GIT_VERSION = "e4ee3be4063b7c430974252fdf7db42273388d86"
 
 
 def patch_fsdp_init(ckpt_path, wrap_class, top_model, check_module=True, ignore_ckpt_version=False):
@@ -34,7 +54,7 @@ def patch_fsdp_init(ckpt_path, wrap_class, top_model, check_module=True, ignore_
     It is dangerous to patch core functions in FSDP, so we only support pt2.1.0.
     """
     version = torch.version.git_version
-    if version == "7bcf7da3a268b435777fe87c7794c382f444e86d":
+    if version in (TORCH_210_GIT_VERSION, TORCH_240_GIT_VERSION):
         RestoreFlatParamHandle.GLOBAL_CONFIG.build_ckpt_util(ckpt_path, wrap_class, top_model)
         if not check_module:
             logger.warn("Ignore module checkint, make sure your wrap class in FSDP is same")
@@ -47,12 +67,17 @@ def patch_fsdp_init(ckpt_path, wrap_class, top_model, check_module=True, ignore_
                 ErrorCode.CHECKPOINT_WRAP_CLASS_MISMATCH,
             )
 
-        RestoreFlatParamHandle.shard = RestoreFlatParamHandle.mock_shard_pt210
-        FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_pt210
+        if version == TORCH_210_GIT_VERSION:
+            RestoreFlatParamHandle.shard = RestoreFlatParamHandle.mock_shard_pt210
+            FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_pt210
+        elif version == TORCH_240_GIT_VERSION:
+            RestoreFlatParamHandle.shard = RestoreFlatParamHandle.mock_shard_pt240
+            FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_pt240
         _init_utils.FlatParamHandle = RestoreFlatParamHandle
     else:
         raise FlatCkptError(
-            "Torch git version must equal 7bcf7da3a268b435777fe87c7794c382f444e86d(2.1.0)", ErrorCode.NOT_SUPPORT
+            f"Torch git version must equal {TORCH_210_GIT_VERSION}(2.1.0) or {TORCH_240_GIT_VERSION}(2.4.0)",
+            ErrorCode.NOT_SUPPORT,
         )
 
 
@@ -60,6 +85,11 @@ def reset_hooks():
     global _init_utils, FSDP
     _init_utils.FlatParamHandle = OriginFlatParamHandle
     FSDP._init_param_handle_from_module = origin_init_param_handle_from_module
+
+
+def clear_fsdp_patch_init():
+    reset_hooks()
+    RestoreFlatParamHandle.reset()
 
 
 @dataclass
@@ -80,7 +110,7 @@ class RestoreFlatParamHandleInjectConfig:
     def build_ckpt_util(self, ckpt_path, wrap_class, top_model):
         """This will build util of flat ckpt and get all init order of FSDP."""
         self.ckpt_path = ckpt_path
-        self.wrap_class = set(wrap_class) if isinstance(wrap_class, collections.Sequence) else {wrap_class}
+        self.wrap_class = set(wrap_class) if isinstance(wrap_class, collections_abc.Sequence) else {wrap_class}
         self.top_model = top_model
         self.ckpt_util = ShardTensorUtil(self.ckpt_path, rank(), world_size(), device="cpu")
         self.ckpt_util.get_fsdp_init_order(self.top_model, self.wrap_class, build_fsdp_load_map=False)
@@ -177,6 +207,12 @@ class RestoreFlatParamHandle(OriginFlatParamHandle):  # type: ignore
         self.enable = RestoreFlatParamHandle.GLOBAL_CONFIG.enable()
         self.post_init()
 
+    @classmethod
+    def reset(cls):
+        RestoreFlatParamHandle.GLOBAL_CONFIG = RestoreFlatParamHandleInjectConfig()
+        RestoreFlatParamHandle.RESTORE_FLAT_PARAM_HANDLE_TAG = "ATORCH_FSDP_INIT_ORDER"
+        RestoreFlatParamHandle.HAS_TAGGING = False
+
     def post_init(self):
         """Tagging name for each FSDP unit, which name is flat_param's name in flat ckpt. After this,
         we can load flat_param in ckpt for this FSDP unit.
@@ -195,6 +231,54 @@ class RestoreFlatParamHandle(OriginFlatParamHandle):  # type: ignore
 
     @torch.no_grad()
     def mock_shard_pt210(self):
+        """Mock origin `shard` function.
+        We load shared flat param from ckpt and set it to flat_param in `FlatParamHandle`.
+        """
+
+        def load_buffer():
+            """Reload buffers."""
+            module = self._fully_sharded_module
+            module_name = self._fully_sharded_module.ATORCH_FSDP_INIT_ORDER
+            for name, buf in module.named_buffers():
+                name = clean_tensor_name(name)
+                buffer_name_in_ckpt = f"{module_name}.{name}" if module_name else name
+                ckpt_buf = self.ckpt_util.buffers.get_tensor(buffer_name_in_ckpt)
+                ckpt_buf = ckpt_buf.to(buf.device)
+                ckpt_buf = ckpt_buf.to(buf.dtype)
+                buf.set_(ckpt_buf)
+
+        flat_param = self.flat_param
+        if not self.uses_sharded_strategy:
+            self._init_shard_metadata(0, 0, flat_param.numel() - 1)
+        else:
+            _p_assert(
+                flat_param.storage_offset() == 0,
+                "The `FlatParameter` is not the sole occupant of its storage",
+            )
+            orig_storage = flat_param._typed_storage()
+            flat_param_name_in_ckpt = getattr(
+                self._fully_sharded_module, RestoreFlatParamHandle.RESTORE_FLAT_PARAM_HANDLE_TAG, None
+            )
+            if flat_param_name_in_ckpt is None:
+                raise ValueError("Ckpt mismatch, maybe you have change wrapclass or number of layer")
+            sharded_flat_param, numel_padded = self.ckpt_util.load_flat_param_by_name(
+                self._fully_sharded_module.ATORCH_FSDP_INIT_ORDER, self
+            )
+            flat_param.set_(
+                sharded_flat_param.to(torch.device("cuda", index=local_rank()))
+            )  # type: ignore[call-overload]
+            start_idx = sharded_flat_param.numel() * self.rank
+            end_idx = sharded_flat_param.numel() * (self.rank + 1) - 1  # inclusive
+            self._init_shard_metadata(numel_padded, start_idx, end_idx)
+            # load buffer here
+            load_buffer()
+            if orig_storage._size() > 0:
+                orig_storage._resize_(0)
+        if self._use_orig_params:
+            self._use_sharded_views()
+
+    @torch.no_grad()
+    def mock_shard_pt240(self):
         """Mock origin `shard` function.
         We load shared flat param from ckpt and set it to flat_param in `FlatParamHandle`.
         """
@@ -342,6 +426,78 @@ def mock_init_param_handle_from_module_pt210(
     return state
 
 
+@no_type_check
+def mock_init_param_handle_from_module_pt240(
+    state: _init_utils._FSDPState,
+    fully_sharded_module: nn.Module,
+    device_id: Optional[Union[int, torch.device]],
+    param_init_fn: Optional[Callable[[nn.Module], None]],
+    sync_module_states: bool,
+    **atorch_hook_kwargs,
+) -> _init_utils._FSDPState:
+    """
+    We two things, others are same with original function.
+        1. add tie_weights after `materialize_meta_module`.
+        2. add lora reset parameters
+    """
+    tie_weights = {}
+    tie_weights = _find_tied_weights(fully_sharded_module)
+
+    _init_utils._check_single_device_module(fully_sharded_module, state._ignored_params, device_id)
+    device_from_device_id = _init_utils._get_device_from_device_id(device_id, state.rank)
+    is_meta_module, is_torchdistX_deferred_init = _init_utils._need_to_materialize_module(
+        fully_sharded_module, state._ignored_params, state._ignored_modules
+    )
+    # Materialize the module if needed
+    if (is_meta_module or is_torchdistX_deferred_init) and param_init_fn is not None:
+        _init_utils._materialize_with_param_init_fn(fully_sharded_module, param_init_fn, state._ignored_modules)
+    elif is_meta_module:
+        _init_utils._materialize_meta_module(fully_sharded_module, device_id, state._ignored_modules)
+    elif is_torchdistX_deferred_init:
+        _init_utils.deferred_init.materialize_module(
+            fully_sharded_module,
+            check_fn=lambda k: _init_utils._get_module_fsdp_state(k) is None and k not in state._ignored_modules,
+        )
+    ignored_buffers = {buffer for ignored_module in state._ignored_modules for buffer in ignored_module.buffers()}
+    _init_utils._move_module_to_device(
+        fully_sharded_module, state._ignored_params, ignored_buffers, device_from_device_id
+    )
+    _retie_weights(fully_sharded_module, tie_weights)
+    state.compute_device = _init_utils._get_compute_device(
+        fully_sharded_module,
+        state._ignored_params,
+        device_from_device_id,
+        state.rank,
+    )
+
+    wrap_cls = atorch_hook_kwargs.get("atorch_wrap_cls", int)
+    restore_lora = atorch_hook_kwargs.get("restore_lora", False)
+
+    if not restore_lora and isinstance(fully_sharded_module, wrap_cls):
+        # wrap cls fsdp unit
+        lora_cls = atorch_hook_kwargs.get("lora_cls", None)
+        _reset_lora_param(fully_sharded_module, lora_cls)
+
+    managed_params = list(_init_utils._get_orig_params(fully_sharded_module, state._ignored_params))
+
+    if "atorch_wrap_cls" in atorch_hook_kwargs:
+        # check sync_module_states, and any param is 42
+        if not sync_module_states:
+            raise ValueError("FSDP lora on meta init must set `sync_module_states`", ErrorCode.LORA_WEIGHT_INIT_ERROR)
+        for p in managed_params:
+            if p.view(-1)[0] != _FLAT_PARAM_PADDING_VALUE:
+                continue
+            for name, param in fully_sharded_module.named_parameters():
+                if param is p:
+                    raise FlatCkptError(f"Weight {name} is not init", ErrorCode.LORA_WEIGHT_INIT_ERROR)
+    if sync_module_states:
+        _init_utils._sync_module_params_and_buffers(fully_sharded_module, managed_params, state.process_group)
+        if state.sharding_strategy in _init_utils.HYBRID_SHARDING_STRATEGIES:
+            raise FlatCkptError("Speedup init is not support hybrid sharding", ErrorCode.NOT_SUPPORT)
+    _init_utils._init_param_handle_from_params(state, managed_params, fully_sharded_module)
+    return state
+
+
 @dataclass
 class FSDPCkptConfig:
     """
@@ -376,15 +532,26 @@ class FSDPInitFn:
         self.wrap_cls = wrap_cls
         self.restore_lora = fsdp_ckpt_config.lora_ckpt_path is not None
 
+        version = torch.version.git_version
+        mock_init_param_handle_from_module_handle = None
+        if version == TORCH_210_GIT_VERSION:
+            mock_init_param_handle_from_module_handle = mock_init_param_handle_from_module_pt210
+        elif version == TORCH_240_GIT_VERSION:
+            mock_init_param_handle_from_module_handle = mock_init_param_handle_from_module_pt240
+        else:
+            raise FlatCkptError(
+                f"Torch git version must equal {TORCH_210_GIT_VERSION}(2.1.0) or {TORCH_240_GIT_VERSION}(2.4.0)",
+                ErrorCode.NOT_SUPPORT,
+            )
         if rank == 0:
             FSDP._init_param_handle_from_module = partial(
-                mock_init_param_handle_from_module_pt210,
+                mock_init_param_handle_from_module_handle,
                 atorch_wrap_cls=wrap_cls,
                 restore_lora=self.restore_lora,
                 lora_cls=self._prepare_lora_cls_check_list(),
             )
         else:
-            FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_pt210
+            FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_handle
 
     def _prepare_lora_cls_check_list(self):
         """
@@ -500,3 +667,16 @@ class FSDPInitFn:
                 else:
                     # mark not initialized
                     buf.fill_(_FLAT_PARAM_PADDING_VALUE)
+
+
+def fsdp_ignore_rank_check():
+    try:
+        from torch.distributed.fsdp._exec_order_utils import _ExecOrderData
+    except (ImportError, ModuleNotFoundError):
+        return
+
+    def _ignored_check_order(self, handle, is_training):
+        return
+
+    if hasattr(_ExecOrderData, "_check_order"):
+        _ExecOrderData._check_order = _ignored_check_order

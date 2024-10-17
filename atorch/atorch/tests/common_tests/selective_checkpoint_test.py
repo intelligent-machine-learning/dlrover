@@ -10,7 +10,6 @@ try:
 except ImportError:
     from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper as ActivationWrapper
 
-
 import torch.multiprocessing as mp  # noqa: E402
 from torch.distributed.fsdp import MixedPrecision  # noqa: E402
 from transformers.models.llama.configuration_llama import LlamaConfig  # noqa: E402
@@ -19,6 +18,7 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer  # noqa: 
 import atorch  # noqa: E402
 from atorch.auto.accelerate import auto_accelerate  # noqa: E402
 from atorch.common.util_func import find_free_port  # noqa: E402
+from atorch.tests.toy_modules.toy_module import get_llama_decoder_layer  # noqa: E402
 
 
 def boot_test(rank, number_layers, pipes, mode):
@@ -32,7 +32,7 @@ def boot_test(rank, number_layers, pipes, mode):
     class M(torch.nn.Module):
         def __init__(self, llama_config):
             super().__init__()
-            self.linears = torch.nn.ModuleList([LlamaDecoderLayer(llama_config) for i in range(number_layers)])
+            self.linears = torch.nn.ModuleList([get_llama_decoder_layer(llama_config) for i in range(number_layers)])
 
         def forward(self, x):
             for layer in self.linears:

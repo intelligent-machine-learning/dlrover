@@ -92,7 +92,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
-    def save_to_storage(self, step, state_dict, paths):
+    def save_to_storage(self, step, state_dict, paths, group=None):
         """
         Asynchronously save the state dict into the storage. It firstly synchronously
         saves the state dict into the shared memory and put the path
@@ -112,7 +112,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
 
         # barrier to wait all ranks save state dict to memory.
         if dist.is_initialized():
-            dist.barrier()
+            dist.barrier(group=group)
         # Only local rank 0 on each node notifies the saving event to the agent.
         if self._local_rank == 0 and succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
@@ -144,6 +144,7 @@ def save_checkpoint(
     comm_backend="",
     save_timeout=600,
     storage=None,
+    group=None,
 ):
     """
     Asynchronously save a checkpoint.
@@ -188,7 +189,7 @@ def save_checkpoint(
     if storage_type == StorageType.MEMORY:
         ckpt_engine.save_to_memory(step, state_dict, paths)
     elif storage_type == StorageType.DISK:
-        ckpt_engine.save_to_storage(step, state_dict, paths)
+        ckpt_engine.save_to_storage(step, state_dict, paths, group)
     else:
         raise ValueError("The storage type only supports StorageType.MEMORY and StorageType.DISK")
 

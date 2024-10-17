@@ -1,9 +1,14 @@
-import collections
 import copy
 import inspect
 import os
 import re
 import types
+
+try:
+    from collections import abs as collections_abc  # type: ignore[attr-defined]
+except ImportError:
+    import collections as collections_abc  # type: ignore[no-redef]
+
 from functools import wraps
 
 import torch
@@ -699,7 +704,7 @@ class ModelContext(object):
                             ordered_wrappers[wrapper_name] = self.pre_wrappers[wrapper_name]
             self.pre_wrappers = ordered_wrappers
 
-    def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
+    def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True, ignore_duplicated=True):
         """
         wrapper_name: name of the wrapper
         wrapper_func: the function to apply this wrapper
@@ -707,11 +712,13 @@ class ModelContext(object):
         is_pre_wrapper: True if pre_wrapper, False if post_wrapper
             pre_wrapper will apply before optim/dataloader instance creation
             post_wrapper will apply after optim/dataloader instance creation
+        ignore_duplicated: if True, ignore duplicated wrapper name
         Save the wrapper in wrappers(dict), use wrapper_name as key
         and (wrapper_func, wrapper_config) as value.
         """
         wrappers = self.pre_wrappers if is_pre_wrapper else self.post_wrappers
-        wrappers[wrapper_name] = (wrapper_func, wrapper_config)
+        if wrapper_name not in wrappers or not ignore_duplicated:
+            wrappers[wrapper_name] = (wrapper_func, wrapper_config)
 
     def _verify_and_set_input_format(self, model_input_format):
         assert model_input_format in (
@@ -808,7 +815,7 @@ class ModelContext(object):
 
     @staticmethod
     def get_loss_from_loss_func_output(output):
-        if isinstance(output, collections.abc.Sequence):
+        if isinstance(output, collections_abc.Sequence):
             return output[0]
         return output
 

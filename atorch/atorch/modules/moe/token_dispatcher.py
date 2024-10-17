@@ -15,7 +15,30 @@ from atorch.communication.functions import (
     reduce_scatter_to_expert_parallel_region_from_moe,
 )
 from atorch.distributed.distributed import parallel_group, parallel_group_size
+from atorch.kernels import npu_fused_permute, npu_fused_unpermute
 from atorch.utils.import_util import is_torch_npu_available
+
+
+class NewIndex(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, tensor, map_, value_, accumulate):
+        ctx.map_ = map_
+        ori_dtype = None
+        if value_.dtype != torch.float32:
+            ori_dtype = value_.dtype
+            value_ = value_.float()
+        output = tensor.index_put_(map_, value_, accumulate=accumulate)
+        if ori_dtype:
+            return output.to(ori_dtype)
+        return output
+
+    def backward(ctx, grad_output):
+        map_ = ctx.map_
+        return None, None, grad_output.index_select(0, map_[0]), None
+
+
+def new_index_put(tensor, map_, value_, accumulate):
+    return NewIndex.apply(tensor, map_, value_, accumulate)
 
 
 class _MoeGather(torch.autograd.Function):
@@ -138,6 +161,21 @@ def unpermute(
     return unpermuted_tokens
 
 
+def npu_fused_unpermute_func(
+    permuted_tokens: torch.Tensor,
+    sorted_indices: torch.Tensor,
+    probs: torch.Tensor = None,
+):
+    # bfloat16 only for probs
+    return npu_fused_unpermute(
+        permuted_tokens,
+        sorted_indices,
+        probs.to(torch.bfloat16) if probs is not None else None,
+        padded_mode=False,
+        restore_shape=None,
+    )
+
+
 class MoETokenDispatcher:
     """
     MoE Token Dispatcher
@@ -234,6 +272,9 @@ class MoEAllToAllTokenDispatcher(MoETokenDispatcher):
         super().__init__(
             num_local_experts, local_expert_indices, num_moe_experts, topk, add_bias, use_expert_parallelism
         )
+
+        self.use_fused_kernel = False
+        self.unpermute_fn = unpermute
 
         self.hidden_shape: Optional[torch.Size] = None
         self.num_input_tokens = None
@@ -389,7 +430,7 @@ class MoEAllToAllTokenDispatcher(MoETokenDispatcher):
         if self.use_expert_parallelism:
             # Unpermutation 2: expert output to AlltoAll input
             if self.num_local_experts > 1:
-                hidden_states = unpermute(
+                hidden_states = self.unpermute_fn(
                     hidden_states,
                     self.reversed_global_input_permutation_mapping,
                 )
@@ -408,7 +449,7 @@ class MoEAllToAllTokenDispatcher(MoETokenDispatcher):
             permutated_local_input_tokens = hidden_states
 
         # Unpermutation 1: AlltoAll output to output
-        output = unpermute(
+        output = self.unpermute_fn(
             permutated_local_input_tokens,
             self.reversed_local_input_permutation_mapping,
             probs=self.probs,
@@ -753,12 +794,25 @@ class MindSpeedAllGatherTokenDispatcher(MoEAllGatherTokenDispatcher):
             # hidden_shape: [SeqLen/TP, MBS, HiddenSize], glboal_num_tokens = SeqLen/TP*MBS*(TP*EP)
             global_num_tokens = self.hidden_shape[0] * self.hidden_shape[1] * ep_group_size
             global_hidden_shape = [global_num_tokens, hidden_states.shape[-1]]
-            unpermuted_global_hidden = torch.zeros(
-                global_hidden_shape, dtype=hidden_states.dtype, device=torch.cuda.current_device()
-            )
-            unpermuted_global_hidden.index_put_(
-                (self.global_local_map,), unpermuted_local_hidden[: self.global_local_map.shape[0], :], accumulate=True
-            )
+            if is_torch_npu_available() and EnvSetting().MOE_REPLACE_MINDSPEED_ALLGATHER_TOKENDISPATCHER_INDEX:
+                unpermuted_global_hidden = torch.zeros(
+                    global_hidden_shape, dtype=torch.float, device=torch.cuda.current_device()
+                )
+                unpermuted_global_hidden = new_index_put(
+                    unpermuted_global_hidden,
+                    (self.global_local_map,),
+                    unpermuted_local_hidden[: self.global_local_map.shape[0], :],
+                    accumulate=True,
+                )
+            else:
+                unpermuted_global_hidden = torch.zeros(
+                    global_hidden_shape, dtype=hidden_states.dtype, device=torch.cuda.current_device()
+                )
+                unpermuted_global_hidden.index_put_(
+                    (self.global_local_map,),
+                    unpermuted_local_hidden[: self.global_local_map.shape[0], :],
+                    accumulate=True,
+                )
 
             output_total, ot_handle = reduce_scatter_to_expert_parallel_region_from_moe(
                 unpermuted_global_hidden, async_op=True
@@ -800,7 +854,43 @@ class MindSpeedAllGatherTokenDispatcher(MoEAllGatherTokenDispatcher):
 
 
 class MindSpeedAllToAllTokenDispatcher(MoEAllToAllTokenDispatcher):
-    def _permute(self, tokens, indices, topk: int = 1, num_out_tokens: int = None):
+    def __init__(
+        self,
+        num_local_experts: int,
+        local_expert_indices: List[int],
+        num_moe_experts: int,
+        topk: int,
+        add_bias: bool,
+        use_expert_parallelism: bool,
+    ) -> None:
+        """
+        Initialize the AlltoAll token dispatcher. use fused ops if available and not disabled.
+
+        Args:
+            num_local_experts (int): Number of local experts on the current device.
+            local_expert_indices (List[int]): Indices of local experts on the current device.
+            config (TransformerConfig): Configuration for the transformer model.
+        """
+        super().__init__(
+            num_local_experts, local_expert_indices, num_moe_experts, topk, add_bias, use_expert_parallelism
+        )
+        if (
+            is_torch_npu_available()
+            and not EnvSetting().MOE_NPU_DISABLE_FUSED_KERNEL
+            and npu_fused_permute is not None
+            and npu_fused_unpermute is not None
+        ):
+            self.use_fused_kernel = True
+            self.unpermute_fn = npu_fused_unpermute_func
+        else:
+            self.use_fused_kernel = False
+
+    def _permute(self, tokens, indices, topk: int = 1, num_out_tokens: int = 0):
+        if self.use_fused_kernel:
+            return npu_fused_permute(
+                tokens, indices.view(-1, topk).to(torch.int64), num_out_tokens=num_out_tokens, padded_mode=False
+            )
+
         if topk > 1:
             assert indices.size(1) == topk
         flatten_indices = indices.view(-1)
@@ -891,13 +981,19 @@ class MindSpeedAllToAllTokenDispatcher(MoEAllToAllTokenDispatcher):
 
         if self.use_expert_parallelism:
             # Perform expert parallel AlltoAll communication
-            global_input_tokens = all_to_all(
+            global_input_tokens, git_handle = all_to_all(
                 parallel_group("expert"),
                 permutated_local_input_tokens,
                 self.output_splits,
                 self.input_splits,
+                async_op=True,
             )
 
+            if se_fn1 is not None and not EnvSetting().MOE_DISABLE_SHARED_EXPERT_OVERLAP:
+                # Overlap with AlltoAll
+                se_intermediate = se_fn1(hidden_states)
+
+            git_handle.wait()
             # Permutation 2: AlltoAll output to expert input if num_local_experts > 1
             if self.num_local_experts > 1:
                 torch.cuda.current_stream().wait_stream(self.comm_stream)

@@ -330,6 +330,24 @@ class TestOptim(TestCase):
         torch.testing.assert_close(weight_npu.cpu(), weight_cpu)
         torch.testing.assert_close(bias_npu.cpu(), bias_cpu)
 
+    @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
+    def test_adaml(self):
+        from atorch.optimizers import AdamL
+
+        optimizer = AdamL
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, l1=1e-6))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, l1=1e-6, adjust_l1=False))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, l21=1e-6))
+        self._test_basic_cases(
+            lambda weight, bias: optimizer([weight, bias], lr=1e-3, l1=1e-6, l21=1e-6, weight_decay=0.1)
+        )
+        with self.assertRaisesRegex(ValueError, "Invalid l1 value: -1"):
+            optimizer(None, lr=1e-3, l1=-1)
+        with self.assertRaisesRegex(ValueError, "Invalid l21 value: -1"):
+            optimizer(None, lr=1e-3, l21=-1)
+
 
 class TestSamOptim(TestCase):
     def setUp(self):

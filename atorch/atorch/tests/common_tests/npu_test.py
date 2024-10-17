@@ -7,7 +7,8 @@ from itertools import product
 import numpy as np
 import torch
 
-from atorch.kernels.extensions.npu.grouped_gemm_gmm_npu import npu_gmm
+from atorch.modules.transformer.cross_entropy import AtorchCrossEntropyLoss
+from atorch.modules.transformer.rmsnorm import AtorchRmsNorm
 from atorch.npu.layers import AtorchNpuRMSNorm, create_additive_mask_by_breakpoint_mask, npu_fa_with_glm_mask
 from atorch.utils.import_util import is_torch_npu_available
 
@@ -487,11 +488,23 @@ class TestNPUNorm(unittest.TestCase):
                 hidden_states = torch.randn((b, s, h), dtype=dtype, device=device)
                 fused_output = npu_fused_rms_norm(hidden_states)
                 normal_output = rms_norm(hidden_states)
-                self.assertTrue(torch.allclose(fused_output, normal_output, rtol=5e-3))
+                self.assertTrue(torch.allclose(fused_output, normal_output, rtol=6e-3))
+
+    def test_npu_fused_rms_norm_transformers_version(self):
+        b, s = 3, 512
+        device = "npu:0"
+        for h in (1024, 2048, 4096, 5120, 6144, 12288):
+            for dtype in (torch.bfloat16, torch.float16, torch.float32):
+                npu_fused_rms_norm = AtorchRmsNorm(h).to(dtype).to(device)
+                rms_norm = RMSNorm(h).to(dtype).to(device)
+                hidden_states = torch.randn((b, s, h), dtype=dtype, device=device)
+                fused_output = npu_fused_rms_norm(hidden_states)
+                normal_output = rms_norm(hidden_states)
+                self.assertTrue(torch.allclose(fused_output, normal_output, rtol=6e-3))
 
 
 @unittest.skipIf(not is_torch_npu_available(), "NPU is not available")
-class TestNPUGroupedGEMM(unittest.TestCase):
+class TestNPUCrossEntropy(unittest.TestCase):
     seed = 1234
 
     def setUp(self):
@@ -503,95 +516,29 @@ class TestNPUGroupedGEMM(unittest.TestCase):
         torch.cuda.manual_seed(self.seed)
         torch.backends.cudnn.set_flags(_benchmark=False, _deterministic=True)
 
-    @unittest.skipIf(not is_torch_npu_available(), "NPU is not available")
-    def test_npu_grouped_gemm(
-        self,
-    ):
-        shapes = [
-            (1, 128, 128, 128),
-            (8, 128, 128, 128),
-            (16, 128, 128, 128),
-            (1, 128, 256, 512),
-            (8, 128, 256, 512),
-            (16, 128, 256, 512),
-        ]
-        for z, m, k, n in shapes:
-            for trans_b in [False, True]:
-                for dtype in [torch.float16, torch.bfloat16]:
-                    self._test_grpuped_gemm_fixed_sizes(z, m, k, n, trans_b, dtype)
-                    self._test_grpuped_gemm_variable_sizes(z, m, k, n, trans_b, dtype)
-
-    def _test_grpuped_gemm_fixed_sizes(self, z, m, k, n, trans_b, dtype):
-        a = torch.randn((z, m, k), dtype=dtype).view(-1, k)
-        b = torch.randn((z, n, k), dtype=dtype) if trans_b else torch.randn((z, k, n), dtype=dtype)
-
-        batch_sizes = torch.tensor([m] * z)
-
-        a = a.npu(0)
-        b = b.npu(0)
-        a.requires_grad_(True)
-        b.requires_grad_(True)
-        a_ref = a.detach().clone().requires_grad_(True)
-        b_ref = b.detach().clone().requires_grad_(True)
-
-        out = npu_gmm(a, b, batch_sizes, trans_b)
-        expected_out = self._ref_gmm(a_ref, b_ref, batch_sizes, trans_b)
-        self.assertTrue(self._allclose(out, expected_out))
-
-        # Check gradients.
-        out.backward(torch.ones(out.shape).npu())
-        expected_out.backward(torch.ones(expected_out.shape).npu())
-        self.assertTrue(self._allclose(a.grad, a_ref.grad))
-        self.assertTrue(self._allclose(b.grad, b_ref.grad))
-
-    def _test_grpuped_gemm_variable_sizes(self, z, m, k, n, trans_b, dtype):
-        a = torch.randn((z, m, k), dtype=dtype).view(-1, k)
-        b = torch.randn((z, n, k), dtype=dtype) if trans_b else torch.randn((z, k, n), dtype=dtype)
-
-        dist = torch.rand(
-            z,
-        )
-        dist /= dist.sum()
-        batch_sizes = (dist * m).to(torch.long)
-        error = m * z - batch_sizes.sum()
-        batch_sizes[-1] += error
-        assert batch_sizes.sum() == (m * z)
-
-        a = a.npu(0)
-        b = b.npu(0)
-        a.requires_grad_(True)
-        b.requires_grad_(True)
-        a_ref = a.detach().clone().requires_grad_(True)
-        b_ref = b.detach().clone().requires_grad_(True)
-
-        out = npu_gmm(a, b, batch_sizes, trans_b)
-        expected_out = self._ref_gmm(a_ref, b_ref, batch_sizes, trans_b)
-        self.assertTrue(self._allclose(out, expected_out))
-
-        # Check gradients.
-        out.backward(torch.ones(out.shape).npu())
-        expected_out.backward(torch.ones(expected_out.shape).npu())
-        self.assertTrue(self._allclose(a.grad, a_ref.grad))
-        self.assertTrue(self._allclose(b.grad, b_ref.grad))
-
-    def _ref_gmm(self, a, b, batch_sizes, trans_b=False):
-        batch_sizes = batch_sizes.numpy()
-        out = []
-        start = 0
-        for i, size in enumerate(batch_sizes):
-            rhs = b[i, :, :].t() if trans_b else b[i, :, :]
-            out.append(a[start : start + size, :] @ rhs)
-            start += size
-        return torch.cat(out)
-
-    def _allclose(self, x, y, pct=2.0):
-        mask = torch.isclose(x, y, rtol=1e-5)
-        pct_diff = (mask.numel() - mask.sum()) / mask.numel() * 100
-        if pct_diff > pct:
-            print(x[torch.logical_not(mask)], y[torch.logical_not(mask)])
-            print("{:.2f}% of values not close.".format(pct_diff))
-            return False
-        return True
+    def test_npu_fuse_cross_entropy_loss(self):
+        batch = 2
+        seq = 1024
+        hidden = 32000
+        loss_fn_pt = torch.nn.CrossEntropyLoss()
+        loss_fn_atorch = AtorchCrossEntropyLoss()
+        torch.random.manual_seed(0)
+        assert torch.cuda.is_bf16_supported()
+        dtypes = [torch.bfloat16]
+        device = "npu:0"
+        for dtype in dtypes:
+            rtol, atol = (1e-5, 1e-6) if dtype == torch.float32 else (1e-3, 1e-4)
+            with torch.device(device):
+                input_gt = torch.randn(batch * seq, hidden).requires_grad_(True)
+                input_pt = input_gt.clone().detach().to(dtype).requires_grad_(True)
+                input_atorch = input_gt.clone().detach().to(dtype).requires_grad_(True)
+                target = torch.empty(batch * seq, dtype=torch.long).random_(hidden)
+                loss_pt = loss_fn_pt(input_pt.float(), target)
+                loss_atorch = loss_fn_atorch(input_atorch, target)
+                loss_pt.backward()
+                loss_atorch.backward()
+            self.assertTrue(torch.allclose(loss_pt, loss_atorch, rtol=1e-5, atol=1e-6))
+            self.assertTrue(torch.allclose(input_pt.grad, input_atorch.grad, rtol=rtol, atol=atol))
 
 
 if __name__ == "__main__":

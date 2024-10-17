@@ -1,4 +1,5 @@
 import functools
+import os
 import types
 from copy import copy
 from functools import partial
@@ -278,6 +279,13 @@ class FSDPOptimization(Optimization):
     @staticmethod
     def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
         """FSDP must be created before optimizer is created, it's a pre wrapper"""
+
+        # If KEEP_FSDP_RANK_CHECK env not set, ignore rank_check to save time.
+        if not os.environ.get("KEEP_FSDP_RANK_CHECK", False):
+            from atorch.utils.fsdp_init_util import fsdp_ignore_rank_check
+
+            fsdp_ignore_rank_check()
+
         torch.cuda.set_device(local_rank())
         wrapper_config = wrapper_config or {}
         # atorch_wrap_cls or atorch_size_based_min_num_params
@@ -398,7 +406,8 @@ class FSDPOptimization(Optimization):
                 extra_config["sharding_strategy"] = ShardingStrategy.HYBRID_SHARD
                 pg = (parallel_group("zero"), parallel_group("data"))
 
-        extra_config["process_group"] = pg
+        if parallel_group("ddp1") is None or parallel_group("ddp2") is None:
+            extra_config["process_group"] = pg
         wrapper_config.update(extra_config)
         if wrap_trainable_outmost:
             fsdp_clz = functools.partial(

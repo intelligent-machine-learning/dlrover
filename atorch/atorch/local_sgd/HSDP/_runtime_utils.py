@@ -211,16 +211,19 @@ def _sync_if_needed(
             total_global_step = torch.tensor(state.global_step).to(state.compute_device)
             dist.all_reduce(total_global_step, group=state._inter_node_pg)
             state.last_total_global_step = total_global_step.item()
-            state.last_sync_timestamp = time.time()
         return False
     if state.use_async:
+        current_time = time.time() / dist.get_world_size(state.process_group)
+        current_time = torch.tensor(current_time).to(state.compute_device)
+        dist.all_reduce(current_time, group=state.process_group)
+        current_time = current_time.item()
         if state.last_sync_timestamp is None:
             total_global_step = torch.tensor(state.global_step).to(state.compute_device)
             dist.all_reduce(total_global_step, group=state._inter_node_pg)
             state.last_total_global_step = total_global_step.item()
-            state.last_sync_timestamp = time.time()
+            state.last_sync_timestamp = current_time
             return True
-        elif time.time() - state.last_sync_timestamp < state.local_sgd_sync_time:
+        elif current_time - state.last_sync_timestamp < state.local_sgd_sync_time:
             return False
         else:
             total_global_step = torch.tensor(state.global_step).to(state.compute_device)
@@ -228,10 +231,10 @@ def _sync_if_needed(
             diff_global_steps = total_global_step.item() - state.last_total_global_step
             if diff_global_steps < state.min_total_global_steps:
                 # Should we skip this synchronization or keep looping until the synchronization is completed?
-                state.last_sync_timestamp = time.time()
+                state.last_sync_timestamp = current_time
                 return False
             else:
-                state.last_sync_timestamp = time.time()
+                state.last_sync_timestamp = current_time
                 state.last_total_global_step = total_global_step.item()
                 return True
     else:

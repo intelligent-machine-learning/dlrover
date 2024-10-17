@@ -1,7 +1,9 @@
+import signal
 import socket
 import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
+from functools import wraps
 from operator import attrgetter
 from typing import List, Union
 
@@ -140,8 +142,11 @@ def data_float_to_dtype(inputs, dtype):
 
 
 def check_and_transform_to_list(tensor: Union[List, torch.Tensor]):
-    if not isinstance(tensor, list):
+    # TODO: Support any type, such as list/tuple/namedtuple/dict of tensor or digit
+    if not isinstance(tensor, (list, tuple)):
         tensor = [tensor]
+    elif isinstance(tensor, tuple):
+        tensor = list(tensor)
     return tensor
 
 
@@ -197,3 +202,33 @@ def is_wrapped_by_context_manager(func):
             return True
 
     return False
+
+
+def exit_after(s):
+    """
+    Decorator to raise TimeoutError if the fn is taking more than 's' seconds
+    to run.
+    """
+
+    def outer(fn):
+        @wraps(fn)
+        def inner(*args, **kwargs):
+            def handle_timeout(signum, frame):
+                if torch.distributed.is_initialized():
+                    rank = torch.distributed.get_rank()
+                    log_prefix = f"RANK {rank} "
+                else:
+                    log_prefix = ""
+                raise TimeoutError(log_prefix + f"calling {fn} timed out after {s} seconds")
+
+            signal.signal(signal.SIGALRM, handle_timeout)
+            signal.alarm(s)
+            try:
+                result = fn(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return inner
+
+    return outer

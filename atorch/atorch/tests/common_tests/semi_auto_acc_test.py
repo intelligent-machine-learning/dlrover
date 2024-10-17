@@ -289,6 +289,7 @@ def run_gpt2_with_strategy(
                 ("amp_native", amp_config),
                 ("fsdp", fsdp_config),
                 ("checkpoint", checkpoint_config),
+                "auto_ddp",
             ]
         else:
             strategy = [
@@ -321,6 +322,8 @@ def run_gpt2_with_strategy(
         diff_method_num += 1
     if atorch.world_size() == 1 and not bf16_only:
         diff_method_num += 1
+        if "auto_ddp" in strategy:
+            diff_method_num += 1
     assert len(best_strategy) == len(strategy) - diff_method_num
     if bf16_only:
         assert isinstance(result.optim, BF16Optimizer)
@@ -485,6 +488,7 @@ class LoadStrategyTest(unittest.TestCase):
             use_te_impl=True,
             no_reentrant=False,
         )
+        os.environ["MASTER_PORT"] = str(find_free_port())
         run_gpt2_with_strategy(
             0,
             hidden_size,

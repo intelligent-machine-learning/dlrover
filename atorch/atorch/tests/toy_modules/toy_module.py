@@ -1,4 +1,5 @@
 import functools
+import inspect
 
 import numpy as np
 import torch
@@ -14,6 +15,14 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaMod
 from atorch.auto.model_context import ModelContext
 from atorch.common.util_func import data_to_device, recursively_apply
 from atorch.distributed import seq_all_to_all
+
+
+def get_llama_decoder_layer(config):
+    requires_layer_idx = "layer_idx" in inspect.signature(LlamaDecoderLayer.__init__).parameters
+    if requires_layer_idx:
+        return LlamaDecoderLayer(config, layer_idx=None)
+    else:
+        return LlamaDecoderLayer(config)
 
 
 def get_gpt2_module_type(module="block"):
@@ -305,7 +314,7 @@ class ToyLlamaChunk(LlamaModel):
             self.layer_num = config.num_hidden_layers
         else:
             self.layer_num = layer_num
-        self.layers = nn.ModuleList([LlamaDecoderLayer(config) for _ in range(self.layer_num)])
+        self.layers = nn.ModuleList([get_llama_decoder_layer(config) for _ in range(self.layer_num)])
 
         if post_process:
             self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -352,8 +361,8 @@ def get_llama_input_output_mapping():
     default_input_info = ([("input_ids", 0)], None)
 
     stage_0_input_info = (None, [("input_ids", "input_ids")])
-    last_stage_input_info = ([("input_ids", 0)], [("labels", "labels")])
-    stage_input_info = {"default": default_input_info, 0: stage_0_input_info, -1: last_stage_input_info}
+    # last_stage_input_info = ([("input_ids", 0)], [("labels", "labels")])
+    stage_input_info = {"default": default_input_info, 0: stage_0_input_info}
     return stage_input_info
 
 

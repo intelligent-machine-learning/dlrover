@@ -9,7 +9,11 @@ import os
 import time
 
 import numpy as np
-import pyomo.environ as pyo
+
+try:
+    import pyomo.environ as pyo
+except Exception:
+    pyo = object
 
 from atorch.auto.opt_lib.shard_planners.base_tp_planner import BaseTensorParallelPlanner
 from atorch.auto.opt_lib.utils import print_sharding_specs

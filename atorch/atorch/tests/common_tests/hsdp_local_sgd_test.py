@@ -177,6 +177,7 @@ def run_hsdp_local_sgd(
     reducer=None,
     clip=None,
     cpu_offload=True,
+    use_async=False,
 ):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
@@ -214,6 +215,9 @@ def run_hsdp_local_sgd(
         "atorch_wrap_cls": (LlamaDecoderLayer,),
         "use_local_sgd": True,
         "local_sgd_configs": LocalSGDConfigs(
+            use_async=use_async,
+            local_sgd_sync_time=1e-3,
+            min_total_global_steps=1,
             local_sgd_sync_interval=5,
             local_sgd_warmup_steps=local_sgd_warmup_steps,
             gradient_accumulation_steps=1,
@@ -516,6 +520,24 @@ class TestHSDPLocalSGD(unittest.TestCase):
             nprocs=world_size,
             join=True,
         )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
+    )
+    def test_hsdp_diloco_async(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_hsdp_local_sgd,
+            args=(world_size, 0, "sgd", self.save_dir, "diloco_async", None, None, True, True),
+            nprocs=world_size,
+            join=True,
+        )
+
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
 

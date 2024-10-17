@@ -35,13 +35,7 @@ except (ModuleNotFoundError, ImportError):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPEncoderLayer, CLIPTextConfig
 
 try:
-    from transformers.models.llama.modeling_llama import (
-        LlamaAttention,
-        LlamaConfig,
-        LlamaDecoderLayer,
-        _expand_mask,
-        _make_causal_mask,
-    )
+    from transformers.models.llama.modeling_llama import LlamaAttention, LlamaConfig, _expand_mask, _make_causal_mask
 
     _llama_supported_transformers = True
 except (ImportError, ModuleNotFoundError):
@@ -51,6 +45,20 @@ import gc
 import time
 
 from torch.nn import MultiheadAttention, TransformerEncoderLayer
+
+
+def generate_random_integers_for_concatenated_mask(seq_len):
+    numbers = np.zeros(seq_len, dtype=int)
+    remaining_sum = seq_len
+
+    for i in range(seq_len):
+        numbers[i] = np.random.randint(1, remaining_sum + 1)
+        remaining_sum -= numbers[i]
+
+        if remaining_sum == 0:
+            break
+
+    return numbers
 
 
 def autocast(enabled, dtype=torch.float16):
@@ -130,6 +138,24 @@ def get_additive_pack_glm_mask(pack_glm_mask, s_q, b):
     return additive_pack_glm_mask.to(0)
 
 
+def get_additive_concatenated_mask(concatenated_mask, q, s_q, b):
+    m = q.new_ones(s_q)
+    m = torch.diag(m)
+    m = m.unsqueeze(0)
+    m = m.repeat(b, 1, 1)
+    for bidx, bseqlen in enumerate(concatenated_mask):
+        st = 0
+        for in_idx, in_seqlen in enumerate(bseqlen):
+            if in_seqlen == 0:
+                break
+            in_mask = torch.tril(torch.ones([in_seqlen, in_seqlen]))
+            m[bidx, st : st + in_seqlen, st : st + in_seqlen] = in_mask
+            st = st + in_seqlen
+    m = m.unsqueeze(1)
+    m = (1 - m) * (-60000.0)
+    return m
+
+
 @unittest.skipIf(not torch.cuda.is_available(), "cuda is not available")
 class TestFlashAttn(unittest.TestCase):
 
@@ -191,6 +217,10 @@ class TestFlashAttn(unittest.TestCase):
             for batch_size in [1, 4, 16]:
                 for seq_len in [32, 128, 512, 1024]:
                     self._test_Llama(batch_size, seq_len)
+        for batch_size in [4, 16, 22]:
+            for seq_len in [512, 513, 1024]:
+                for dtype in [torch.float16, torch.bfloat16]:
+                    self._test_fa2_with_concatenated_mask(batch_size, seq_len, seq_len, dtype)
 
     @unittest.skipIf(
         not torch.cuda.is_available() or not is_xla_device_available() or not _llama_supported_transformers,
@@ -1085,6 +1115,8 @@ class TestFlashAttn(unittest.TestCase):
             end_timer_and_print("")
 
     def _test_Llama(self, batch_size, seq_len, is_xla=False):
+        from atorch.tests.toy_modules.toy_module import get_llama_decoder_layer
+
         print(f"############## Llama autocast, bs: {batch_size}, seq_len: {seq_len}")
         cuda_device = torch.cuda.current_device()
         torch.cuda.set_device(cuda_device)
@@ -1111,7 +1143,7 @@ class TestFlashAttn(unittest.TestCase):
         _mask = mask.float()
         _mask = _make_causal_mask((batch_size, seq_len), dtype, device) + _expand_mask(_mask, dtype, seq_len)
         randn_label = torch.randn_like(hidden_state)
-        ori_layer = LlamaDecoderLayer(config)
+        ori_layer = get_llama_decoder_layer(config)
         fa_layer = copy.deepcopy(ori_layer)
         ori_layer_copy = copy.deepcopy(ori_layer)
         fa_layer = replace_module(fa_layer, LlamaAttention, LlamaAttentionFA, need_src_module=True)
@@ -1209,6 +1241,128 @@ class TestFlashAttn(unittest.TestCase):
                 with autocast(enabled=True):
                     fa_out_autocast = fa_layer(hidden_state, _mask, position_ids)[0]
                 scaler.scale((fa_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
+
+    def _test_fa2_with_concatenated_mask(self, b, s_q, s_k, dtype):
+        print(f"############## test_fa2_with_concatenated_mask, bs: {b}, seq_q: {s_q}, seq_k: {s_k}, dtype: {dtype}")
+        _is_flash_attn_2 = _flash_attn_version >= parse_version("2")
+        if not _is_flash_attn_2:
+            print("concatenated mask supported version FA2 needed.")
+            return
+        nh, hs = 32, 64
+        q = torch.randn((b, s_q, nh, hs)).to(0)
+        k = torch.randn((b, s_k, nh, hs)).to(0)
+        v = torch.randn((b, s_k, nh, hs)).to(0)
+        concatenated_mask = (
+            torch.Tensor(np.array([generate_random_integers_for_concatenated_mask(s_q) for _ in range(b)])).int().to(0)
+        )
+        additive_concatenated_mask = get_additive_concatenated_mask(concatenated_mask, q, s_q, b)
+
+        q.requires_grad = True
+        k.requires_grad = True
+        v.requires_grad = True
+        q_copy, k_copy, v_copy = [copy.deepcopy(i) for i in [q, k, v]]
+        q_fa, k_fa, v_fa = [copy.deepcopy(i) for i in [q, k, v]]
+        label = torch.randn((b, s_q, nh, hs)).to(0)
+        fa = FlashAttnModule(causal=True)
+
+        def ref_attn(q, k, v, concatenated_mask):
+            q = q.permute(0, 2, 1, 3)  # [b, nh, s_q, hs]
+            k = k.permute(0, 2, 1, 3)
+            v = v.permute(0, 2, 1, 3)
+            attention_scores = torch.matmul(q, k.transpose(-1, -2) / math.sqrt(hs))
+            attention_scores = attention_scores + concatenated_mask
+            attention_probs = torch.nn.Softmax(dim=-1)(attention_scores)
+            # ignore dropout
+            context_layer = torch.matmul(attention_probs, v)
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+            return context_layer
+
+        ori_out_fp32 = ref_attn(q, k, v, additive_concatenated_mask)
+        (ori_out_fp32 - label).pow(2).mean().backward()
+        scaler = GradScaler()
+        with autocast(enabled=True, dtype=dtype):
+            ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_concatenated_mask)
+            fa_out_autocast = fa(q_fa, k_fa, v_fa, concatenated_mask)
+
+        scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+        scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast).abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast).abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast).abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast).abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        q_grad, k_grad, v_grad = [i.grad * scaler._scale for i in [q, k, v]]
+        print(f"Original q grad max diff: {(q_grad - q_copy.grad).abs().max().item()}")
+        print(f"Original k grad max diff: {(k_grad - k_copy.grad).abs().max().item()}")
+        print(f"Original v grad max diff: {(v_grad - v_copy.grad).abs().max().item()}")
+        print(f"Original q grad mean diff: {(q_grad - q_copy.grad).abs().mean().item()}")
+        print(f"Original k grad mean diff: {(k_grad - k_copy.grad).abs().mean().item()}")
+        print(f"Original v grad mean diff: {(v_grad - v_copy.grad).abs().mean().item()}")
+        print(f"FA q grad max diff: {(q_grad - q_fa.grad).abs().max().item()}")
+        print(f"FA k grad max diff: {(k_grad - k_fa.grad).abs().max().item()}")
+        print(f"FA v grad max diff: {(v_grad - v_fa.grad).abs().max().item()}")
+        print(f"FA q grad mean diff: {(q_grad - q_fa.grad).abs().mean().item()}")
+        print(f"FA k grad mean diff: {(k_grad - k_fa.grad).abs().mean().item()}")
+        print(f"FA v grad mean diff: {(v_grad - v_fa.grad).abs().mean().item()}")
+        assert (q_grad - q_fa.grad).abs().max().item() <= 2 * (
+            q_grad - q_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (k_grad - k_fa.grad).abs().max().item() <= 2 * (
+            k_grad - k_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (v_grad - v_fa.grad).abs().max().item() <= 2 * (
+            v_grad - v_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, additive_concatenated_mask)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, additive_concatenated_mask)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_concatenated_mask)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_concatenated_mask)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa(q_fa, k_fa, v_fa, concatenated_mask)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa(q_fa, k_fa, v_fa, concatenated_mask)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
             print(
                 f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
