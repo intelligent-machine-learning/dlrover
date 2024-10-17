@@ -414,11 +414,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         )
         self._master_client = None
 
-        # remove the history temp path if exists
-        self.storage.safe_rmtree(
-            os.path.join(self.checkpoint_dir, self._STAGE_DIR)
-        )
-        logger.info("AsyncSaver initialized.")
+        logger.info(f"AsyncSaver({self.__class__.__name__}) initialized.")
 
     def __del__(self):
         self.close()
@@ -781,9 +777,16 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if elapsed_time > timeout:
                     logger.info(
                         "It is timeout to sync checkpoint "
-                        "bacause some nodes may fail."
+                        "because some nodes may fail."
                     )
                     return False
+
+    def _remove_sub_dir_of_target_path(self, path):
+        if os.path.exists(path):
+            for entry in os.listdir(path):
+                full_path = os.path.join(path, entry)
+                if os.path.isdir(full_path):
+                    self.storage.safe_rmtree(full_path)
 
     @classmethod
     def reset(cls):
@@ -998,6 +1001,28 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
     directory and move the directory into the common directory configured
     by users.
     """
+
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage_meta: ClassMeta,
+        local_shard_num=1,
+        global_shard_num=1,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ) -> None:
+        super().__init__(
+            checkpoint_dir,
+            storage_meta,
+            local_shard_num,
+            global_shard_num,
+            save_timeout,
+        )
+
+        if self._node_rank == 0:
+            # remove the history temp path if exists
+            self._remove_sub_dir_of_target_path(
+                os.path.join(self.checkpoint_dir, self._STAGE_DIR)
+            )
 
     def save_step_checkpoint(self, step):
         """
