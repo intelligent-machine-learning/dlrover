@@ -1,6 +1,6 @@
 # Proto files
-*_pb2.py
-*_pb2_grpc.py
+dlrover/*_pb2.py
+dlrover/*_pb2_grpc.py
 .pb.go
 
 # System files
