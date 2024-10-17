@@ -414,7 +414,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         )
         self._master_client = None
 
-        logger.info("AsyncSaver initialized.")
+        logger.info(f"AsyncSaver({self.__class__.__name__}) initialized.")
 
     def __del__(self):
         self.close()
