@@ -157,6 +157,22 @@ class CheckpointSaverTest(unittest.TestCase):
             id(AsyncCheckpointSaver._saver_instance._master_client),
         )
 
+        # test
+        test_path = "/tmp/test_ckpt"
+        AsyncCheckpointSaver._saver_instance.checkpoint_dir = test_path
+        os.makedirs(test_path, exist_ok=True)
+        os.makedirs(os.path.join(test_path, "td1"), exist_ok=True)
+        with open(
+            os.path.join(test_path, "tf1"), "w", encoding="utf-8"
+        ) as file:
+            file.write("test")
+        AsyncCheckpointSaver._saver_instance._remove_sub_dir_of_target_path(
+            test_path
+        )
+        self.assertTrue(os.path.exists(test_path))
+        self.assertTrue(os.path.exists(os.path.join(test_path, "tf1")))
+        self.assertFalse(os.path.exists(os.path.join(test_path, "td1")))
+
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
         try:
