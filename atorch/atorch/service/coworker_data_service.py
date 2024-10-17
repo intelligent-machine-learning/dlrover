@@ -6,7 +6,11 @@ import grpc
 
 from atorch.common.constants import GrpcEnv
 from atorch.common.log_utils import default_logger as logger
-from atorch.protos import coworker_pb2, coworker_pb2_grpc
+
+try:
+    from atorch.protos import coworker_pb2, coworker_pb2_grpc
+except ImportError:
+    coworker_pb2 = coworker_pb2_grpc = None
 
 
 def create_coworker_rpc_service(port, data_queue):

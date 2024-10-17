@@ -58,7 +58,7 @@ def model_transform(
         model_context.update_optim()
     if use_sample_batch:
         model_context.update_sample_batch()
-    if apply_wrapper and create_optim:
+    if apply_wrapper:
         model_context.apply_wrappers(is_pre_wrapper=False)
     if torch.cuda.is_available() and not model_context.gpu_used and not cpu_offload:
         reload_meta_module(model_context.model, torch.device(type="cuda", index=local_rank()), False)

@@ -7,11 +7,13 @@ import torch
 import torch.distributed as dist
 import torch.distributed.rpc as torch_rpc
 from torch.distributed.constants import default_pg_timeout
-from torch.distributed.distributed_c10d import _get_default_group
+from torch.distributed.distributed_c10d import _get_default_group, get_process_group_ranks
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import find_free_port, get_ip_address, wait_for_server_started
+from atorch.distributed.mesh import build_mesh
 from atorch.utils.import_util import is_torch_npu_available
+from atorch.utils.version import torch_version
 
 _SP_NAME = "_ATORCH_SEQUENCE_PARALLEL"
 
@@ -37,6 +39,7 @@ class _DistributedContext:
     STORE = None
     PREFIX_STORE_COUNT = 0
     PIPE_RPC_INIT = 0
+    DEVICE_MESHES = None
 
 
 class _CoworkerContext:
@@ -123,6 +126,59 @@ def parallel_group_size(name):
     ):
         return _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)]
     return None
+
+
+def pipe_prev_rank():
+    name = "pipe"
+    if _DistributedContext.PARALLEL_RANK is not None and _prefix_pg_name(name) in _DistributedContext.PARALLEL_RANK:
+        pipe_cur_rank = parallel_rank(name)
+        pipe_world_size = parallel_group_size(name)
+        _, pipe_global_ranks = parallel_group_and_ranks(name)
+        return pipe_global_ranks[(pipe_cur_rank - 1) % pipe_world_size]
+    return None
+
+
+def pipe_next_rank():
+    name = "pipe"
+    if _DistributedContext.PARALLEL_RANK is not None and _prefix_pg_name(name) in _DistributedContext.PARALLEL_RANK:
+        pipe_cur_rank = parallel_rank(name)
+        pipe_world_size = parallel_group_size(name)
+        _, pipe_global_ranks = parallel_group_and_ranks(name)
+        return pipe_global_ranks[(pipe_cur_rank + 1) % pipe_world_size]
+    return None
+
+
+def is_pipe_first_stage(ignore_virtual=False, true_if_no_pipe=True):
+    name = "pipe"
+
+    rank = parallel_rank(name)
+
+    if rank is None:
+        if true_if_no_pipe:
+            return True
+        else:
+            return False
+
+    if ignore_virtual:
+        return rank == 0
+    else:
+        raise NotImplementedError("Virtual 1F1B is not implemented yet")
+
+
+def is_pipe_last_stage(ignore_virtual=False, true_if_no_pipe=True):
+    name = "pipe"
+    rank = parallel_rank(name)
+
+    if rank is None:
+        if true_if_no_pipe:
+            return True
+        else:
+            return False
+
+    if ignore_virtual:
+        return rank == (parallel_group_size(name) - 1)
+    else:
+        raise NotImplementedError("Virtual 1F1B is not implemented yet")
 
 
 def parallel_instance_num():
@@ -320,7 +376,44 @@ def get_ranks_in_same_group(parallel_mode, my_rank=0):
     return all_ranks_in_same_group
 
 
-def create_parallel_group(parallel_config):
+def get_group_name(group):
+    if _DistributedContext.PARALLEL_GROUP is not None:
+        for name, parallel_group in _DistributedContext.PARALLEL_GROUP.items():
+            if parallel_group == group:
+                return name
+    return None
+
+
+def get_device_mesh(group_name, use_prefix=True):
+    if use_prefix:
+        pname = _prefix_pg_name(group_name)
+    else:
+        pname = group_name
+
+    for device_mesh in _DistributedContext.DEVICE_MESHES:
+        if pname in device_mesh.mesh_dim_names:
+            return device_mesh
+
+    return None
+
+
+def init_distributed_context_from_mesh(name, size, device_mesh):
+    if _DistributedContext.PARALLEL_GROUPS_AND_RANKS is None:
+        _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
+
+    pname = _prefix_pg_name(name)
+    group_and_ranks = []
+    group = device_mesh.get_group(pname)
+    group_ranks = get_process_group_ranks(group)
+    group_and_ranks.append((group, group_ranks))
+    if rank() in group_ranks:
+        _DistributedContext.PARALLEL_GROUP[pname] = group
+        _DistributedContext.PARALLEL_RANK[pname] = group_ranks.index(rank())
+    _DistributedContext.PARALLEL_GROUPS_AND_RANKS[pname] = group_and_ranks
+    _DistributedContext.PARALLEL_GROUP_SIZE[pname] = size
+
+
+def create_parallel_group(parallel_config, use_atorch_pipe=True, use_device_mesh=False):
     """
     Create additional groups for mixed parallel when needed.
     parallel_config: (List[Tuple[str, int]], Oneof(List(int), None), Optional(Bool))
@@ -334,6 +427,7 @@ def create_parallel_group(parallel_config):
     8 process groups for "data: [0, 8], [1, 9], [2, 10], [3, 11], [4, 12], [5, 13], [6, 14], [7, 15]
     """
     assert _DistributedContext.INITIALIZED or torch.distributed.is_initialized(), "distributed should be initialized"
+
     slicing_dim = parallel_config[0]
     rank_order = parallel_config[1]
     support_multi_parallel_instance = parallel_config[2] if len(parallel_config) > 2 else False
@@ -345,6 +439,9 @@ def create_parallel_group(parallel_config):
                 f"Multiplication of parallel_config size({multiplication}) should equal to world_size({world_size()}). "
                 f"Please check your parallel_config: {parallel_config}"
             )
+    if use_device_mesh and rank_order is not None:
+        raise NotImplementedError()
+
     if rank_order is None:
         rank_order = list(range(world_size()))
 
@@ -373,26 +470,61 @@ def create_parallel_group(parallel_config):
     has_pipe = False
 
     if len(slicing_dim) == 1 and world_size() == multiplication:
-        # only one slicing dim with one parallel instance, use global pg.
         name, size = slicing_dim[0]
         assert name not in _DistributedContext.PARALLEL_GROUP, f"group name {name} already used"
+        if use_device_mesh:
+            device_mesh = build_mesh(slicing_dim, _DistributedContext.PG_NAME_PREFIX)
+            if _DistributedContext.DEVICE_MESHES is None:
+                _DistributedContext.DEVICE_MESHES = [device_mesh]
+            else:
+                _DistributedContext.DEVICE_MESHES.append(device_mesh)
+            local_rank = device_mesh.get_local_rank(_prefix_pg_name(name))
+            group = device_mesh.get_group(_prefix_pg_name(name))
+        else:
+            # only one slicing dim with one parallel instance, use global pg.
+            local_rank = rank()
+            group = _get_default_group()
+
         _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
-        _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = rank()
-        _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = _get_default_group()
+        _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = local_rank
+        _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
+
         if name == "pipe":
             has_pipe = True
     else:
-        all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
-        for (name, size) in slicing_dim:
-            if name == "pipe":
-                has_pipe = True
+        if use_device_mesh:
+            device_mesh = build_mesh(slicing_dim, _DistributedContext.PG_NAME_PREFIX)
+            if _DistributedContext.DEVICE_MESHES is None:
+                _DistributedContext.DEVICE_MESHES = [device_mesh]
+            else:
+                _DistributedContext.DEVICE_MESHES.append(device_mesh)
+            for (name, size) in slicing_dim:
+                if name == "pipe":
+                    has_pipe = True
 
-            named_ranks = [ranks for idx in range(instance_num) for ranks in all_pg_ranks[idx][name]]
-            _create_named_groups(name, size, named_ranks)
+                init_distributed_context_from_mesh(name, size, device_mesh)
+        else:
+            all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
+            for (name, size) in slicing_dim:
+                if name == "pipe":
+                    has_pipe = True
 
-    if has_pipe:
+                named_ranks = [ranks for idx in range(instance_num) for ranks in all_pg_ranks[idx][name]]
+                _create_named_groups(name, size, named_ranks)
+
+    if has_pipe and use_atorch_pipe and torch.cuda.is_available():
+        # avoid hang when use batch_isend_irecv as the first collective call in pp pg.
+        # see https://github.com/pytorch/pytorch/blob/main/torch/distributed/distributed_c10d.py#L2368
+        _call_allreduce_avoid_pp_hang(parallel_group("pipe"))
+
+    if has_pipe and not use_atorch_pipe:
         # initialize rpc for pipeline execution
         _build_pippy_rpc_networks()
+
+
+def _call_allreduce_avoid_pp_hang(group):
+    tensor = torch.ones([1], dtype=torch.float32, device=torch.device(type="cuda", index=local_rank()))
+    torch.distributed.all_reduce(tensor, group=group)
 
 
 def _create_named_groups(name, size, ranks_list):
@@ -430,6 +562,33 @@ def destroy_parallel_group(destroy_rpc=True):
     _DistributedContext.PARALLEL_CONFIG = None
     _DistributedContext.PARALLEL_INSTANCE_NUM = None
     _DistributedContext.PARALLEL_INSTANCE_INDEX = None
+    _DistributedContext.DEVICE_MESHES = None
+
+
+def get_data_partition_rank_and_size():
+    # data, zero are all data parallel and can be mixed used.
+    data_size = parallel_group_size("data")
+    drank = parallel_rank("data")
+    if data_size is None:
+        data_size = 1
+        drank = 0
+    zero_size = parallel_group_size("zero")
+    if zero_size is not None:
+        zrank = parallel_rank("zero")
+        drank = drank * zero_size + zrank
+        data_size *= zero_size
+    sp_size = get_sequence_parallel_size()
+    # If sequence parallel used, it is a sequence sharding in data.
+    # Thus, every sp_size ranks share a same training data batch.
+    if sp_size > 1:
+        if data_size % sp_size != 0:
+            logger.error(
+                "data parallel size {} should be divisible by sequence parallel size {}!".format(data_size, sp_size)
+            )
+        data_size = data_size // sp_size
+        drank = drank // sp_size
+
+    return drank, data_size
 
 
 def create_sequence_parallel_group(sp_size):
@@ -718,6 +877,21 @@ def init_distributed(
             return False
         if is_torch_npu_available():
             backend = "hccl"
+            if torch_version() >= (2, 1, 0) and timeout == default_pg_timeout:  # type: ignore
+                # When the version of PyTorch is greater than or equal to 2.1.0, the asynchronous error handling
+                # feature is enabled by default. To better clarify the cause of HCCL timeouts, it is recommended
+                # that the timeout parameter passed to init_process_group should be greater than the time configured
+                # by the HCCL_EXEC_TIMEOUT environment variables.
+                # https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC2alpha001/apiref/envref/envref_07_0054.html
+                hccl_exec_timeout = os.getenv("HCCL_EXEC_TIMEOUT", "")
+                if hccl_exec_timeout.isdigit():
+                    hccl_timeout_seconds = int(hccl_exec_timeout) + 600
+                else:
+                    # The default value of HCCL_EXEC_TIMEOUT is 1836. Ref:
+                    # https://www.hiascend.com/document/detail/zh/canncommercial/700/reference/envvar/envref_07_0071.html
+                    hccl_timeout_seconds = 2436
+                if hccl_timeout_seconds is not None and hccl_timeout_seconds > timeout.seconds:
+                    timeout = timedelta(seconds=hccl_timeout_seconds)
         if backend == "nccl":
             try:
                 torch.cuda.nccl.version()

@@ -4,9 +4,9 @@ import traceback
 import torch
 import torch.distributed.rpc as torch_rpc
 
-from atorch.auto.model_context import ModelContext, get_data_partition_rank_and_size
+from atorch.auto.model_context import ModelContext
 from atorch.common.log_utils import default_logger as logger
-from atorch.distributed.distributed import local_rank, parallel_group_and_ranks, rank
+from atorch.distributed.distributed import get_data_partition_rank_and_size, local_rank, parallel_group_and_ranks, rank
 
 
 class DryRunner(object):

@@ -5,6 +5,7 @@ from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.distributed.distributed import local_rank
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
+from atorch.modules.normalization import LayerNorm as ApexLayerNorm
 from atorch.modules.transformer.inject import replace_module
 from atorch.modules.transformer.layers import (
     BertAttentionFA,
@@ -13,7 +14,6 @@ from atorch.modules.transformer.layers import (
     LlamaAttentionFA,
     MultiheadAttentionFA,
 )
-from atorch.normalization import LayerNorm as ApexLayerNorm
 from atorch.utils.meta_model_utils import empty_param, recursive_empty_param
 from atorch.utils.version import package_version_smaller_than
 
@@ -108,6 +108,8 @@ def _replace_by_config(model, config=None, gpu_used=False, verbose=True):
         src_module_cls, tgt_module_cls, default_kwargs, _ = REPLACEMENT_PAIRS[pair_name]
         kwargs = default_kwargs if config[pair_name] is None else config[pair_name]
         model = replace_module(model, src_module_cls, tgt_module_cls, verbose=verbose, **kwargs)
+    if getattr(AutoAccelerateContext, "FSDP_META_INIT", None) == "NEW_META":
+        return model
     # Handles device placement mismatch
     # In case modules are on meta, do nothing and assume defer init is enabled
     if (
@@ -167,7 +169,8 @@ class ModuleReplaceOptimization(Optimization):
 
         if hasattr(AutoAccelerateContext, "FSDP_META_INIT"):
             tie_weights = _find_tied_weights(model_context.model)
-            model_context.model = model_context.model.to("meta")
+            if getattr(AutoAccelerateContext, "FSDP_META_INIT") != "NEW_META":
+                model_context.model = model_context.model.to("meta")
 
         model_context.model = _replace_by_config(
             model_context.model, config=wrapper_config, gpu_used=model_context.gpu_used, verbose=verbose
