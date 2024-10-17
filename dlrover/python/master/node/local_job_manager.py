@@ -38,7 +38,7 @@ class LocalJobManager(JobManager):
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}
         worker = self._job_args.node_args[NodeType.WORKER].group_resource
-        self._training_node_configure.set_node_num(worker.count)
+        self._training_node_config.set_node_num(worker.count)
         for i in range(worker.count):
             self._job_nodes[NodeType.WORKER][i] = Node(
                 name=NodeType.WORKER + f"-{i}",

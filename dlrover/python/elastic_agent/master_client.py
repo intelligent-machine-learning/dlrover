@@ -16,13 +16,14 @@ import socket
 import threading
 import time
 from contextlib import closing
+from typing import Dict
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
-from dlrover.python.common.diagnosis import ChipMetrics, CudaLog, TrainingLog
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 
 
 def retry_grpc_request(func):
@@ -356,13 +357,14 @@ class MasterClient(Singleton):
         return result.nodes
 
     def report_rdzv_params(
-        self, min_nodes, max_nodes, waiting_timeout, node_unit
+        self, min_nodes, max_nodes, waiting_timeout, node_unit, joint_timeout
     ):
         message = grpc.RendezvousParams(
             min_nodes,
             max_nodes,
             waiting_timeout,
             node_unit,
+            joint_timeout,
         )
         response = self._report(message)
         return response.success
@@ -380,16 +382,12 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
-    def report_diagnosis_training_log(self, training_log: TrainingLog):
-        message = grpc.DiagnosisTrainingLog(training_log.timestamp)
-        self._report(message)
-
-    def report_diagnosis_chip_metrics(self, chip_metrics: ChipMetrics):
-        message = grpc.DiagnosisChipMetrics(chip_metrics.timestamp)
-        self._report(message)
-
-    def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
-        message = grpc.DiagnosisCudaLog(cuda_log.timestamp)
+    def report_diagnosis_agent_metrics(self, data: DiagnosisData):
+        message = grpc.DiagnosisReportData(
+            data.__class__.__name__,
+            data.to_json(),
+            data.node_rank,
+        )
         self._report(message)
 
     def get_paral_config(self) -> grpc.ParallelConfig:
@@ -416,6 +414,16 @@ class MasterClient(Singleton):
         request = grpc.SyncTrainingPort(port=port)
         response: grpc.SyncTrainingPort = self._get(request)
         return response
+
+    def get_elastic_run_config(self) -> Dict[str, str]:
+        request = grpc.ElasticRunConfigRequest()
+        response: grpc.ElasticRunConfig = self._get(request)
+        return response.configs
+
+    def report_succeeded(self):
+        request = grpc.SucceededRequest()
+        response = self._report(request)
+        return response.success
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

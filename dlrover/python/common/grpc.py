@@ -211,6 +211,7 @@ class OpStats(Message):
     read_op_count: int = 0
     input_fetch_dur: int = 0
     flops: int = 0
+    op_type: int = 0  # 0:training, 1:others
 
 
 @dataclass
@@ -349,6 +350,7 @@ class RendezvousParams(Message):
     max_nodes: int = 0
     waiting_timeout: int = 0
     node_unit: int = 0
+    join_timeout: int = 0
 
 
 @dataclass
@@ -487,21 +489,28 @@ class NodeCheckpointState(Message):
 
 
 @dataclass
-class DiagnosisTrainingLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisCudaLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisChipMetrics(Message):
-    timestamp: int = 0
+class DiagnosisReportData(Message):
+    data_cls: str = ""
+    data_content: str = ""
+    node_rank: int = -1
 
 
 @dataclass
 class SyncTrainingPort(Message):
     port: int = 0
     newport: int = 0
+
+
+@dataclass
+class ElasticRunConfigRequest(Message):
+    pass
+
+
+@dataclass
+class ElasticRunConfig(Message):
+    configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class SucceededRequest(Message):
+    pass

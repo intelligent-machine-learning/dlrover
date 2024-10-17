@@ -23,10 +23,11 @@ from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
-    TrainingNodeConfigure,
+    TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class JobManager(metaclass=ABCMeta):
@@ -39,9 +40,11 @@ class JobManager(metaclass=ABCMeta):
         job_args: JobArgs,
         speed_monitor=None,
         error_monitor=None,
+        external_config=None,
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
+        self._k8s_client = k8sClient.singleton_instance(job_args.namespace)
         self._job_strategy_generator: SimpleStrategyGenerator = (
             SimpleStrategyGenerator(self._job_args.job_uuid)
         )
@@ -51,9 +54,9 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._nodes_required = (0, 0)
+        self._nodes_required = (0, 0, 0)
 
-        self._training_node_configure = TrainingNodeConfigure()
+        self._training_node_config = TrainingNodeConfig(external_config)
 
     @abstractmethod
     def start(self):
@@ -197,29 +200,42 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
-        return self._training_node_configure.sync_node_training_port(
+        return self._training_node_config.sync_node_training_port(
             node_id, port
         )
 
-    def update_node_required_info(self, min_required, max_required):
+    def update_node_required_info(self, min_required, max_required, timeout):
         """
         Update the nodes min/max requirements.
 
         Args:
             min_required(int): Minimum number of nodes for training.
             max_required(int): Maximum number of nodes for training.
+            timeout(int): Required timeout in seconds.
         """
 
         if 0 < min_required <= max_required and max_required > 0:
-            self._nodes_required = (min_required, max_required)
+            self._nodes_required = (min_required, max_required, timeout)
             self.update_node_required_info_callback()
         else:
             logger.warning(
-                f"Invalid min_required: {min_required} "
-                f"and max_required: {max_required}."
+                f"Invalid required info, min_required: {min_required}, "
+                f"max_required: {max_required}, "
+                f"required_timeout: {timeout}."
             )
 
     def update_node_required_info_callback(self):
         """Callback when 'update_node_required_info' is invoked."""
 
         pass
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        return self._training_node_config.get_elastic_run_configs()
+
+    def update_succeeded_node(self, node_id, node_type):
+        if (
+            node_type in self._job_nodes
+            and node_id in self._job_nodes[node_type]
+        ):
+            logger.info(f"Node {node_id}({node_type}) to succeeded.")
+            self._job_nodes[node_type][node_id].set_as_succeeded()

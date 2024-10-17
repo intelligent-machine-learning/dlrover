@@ -243,7 +243,7 @@ class elastic_launch:
 
 
 def _launch_dlrover_local_master(master_addr, job_name, node_num):
-    """Launch a subprocess to run the DLrover master."""
+    """Launch a subprocess to run the DLRover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
@@ -304,32 +304,94 @@ def _elastic_config_from_args(
     args,
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
+
+    master_config = _elastic_config_from_master(config)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
     # PyTorch >= 2.3.0 remove log_dir in the LaunchConfig.
     if not version_less_than_230():
         elastic_config.log_dir = config.logs_specs.root_log_dir
+
     elastic_config.network_check = getattr(args, "network_check", False)
+    if master_config.network_check:
+        logger.info("Enable network checking by master")
+        elastic_config.network_check = True
+
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
+    if master_config.comm_perf_test:
+        logger.info("Enable comm_perf_test by master")
+        elastic_config.comm_perf_test = True
+
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    if master_config.auto_tunning:
+        logger.info("Enable auto_tunning by master")
+        elastic_config.auto_tunning = True
+
     elastic_config.auto_config = getattr(args, "auto_config", False)
+    if master_config.auto_config:
+        logger.info("Enable auto_config by master")
+        elastic_config.auto_config = True
+
     elastic_config.accelerator = getattr(
         args, "accelerator", Accelerators.NVIDIA_GPU
     )
+
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
+    if master_config.exclude_straggler:
+        elastic_config.exclude_straggler = True
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
     elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
+    if master_config.save_at_breakpoint:
+        elastic_config.save_at_breakpoint = True
     elastic_config.auto_configure_params()
     elastic_config.rdzv_backend = "dlrover-master"
     elastic_config.rdzv_endpoint = ""
     join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
     elastic_config.rdzv_configs["timeout"] = join_timeout
     return elastic_config, cmd, cmd_args
+
+
+def _elastic_config_from_master(config) -> ElasticLaunchConfig:
+    elastic_config = ElasticLaunchConfig(**config.__dict__)
+
+    _client = MasterClient.singleton_instance()
+    try:
+        logger.info("try to get elastic run config from master")
+        master_configs = _client.get_elastic_run_config()
+    except Exception as e:
+        logger.error(f"fail to get elastic config from master: {e}")
+        master_configs = {}
+
+    elastic_config.network_check = False
+    if "network_check" in master_configs:
+        elastic_config.network_check = True
+
+    elastic_config.comm_perf_test = False
+    if "comm_perf_test" in master_configs:
+        elastic_config.comm_perf_test = True
+
+    elastic_config.auto_tunning = False
+    if "auto_tunning" in master_configs:
+        elastic_config.auto_tunning = True
+
+    elastic_config.auto_config = False
+    if "auto_config" in master_configs:
+        elastic_config.auto_config = True
+
+    elastic_config.exclude_straggler = False
+    if "exclude_straggler" in master_configs:
+        elastic_config.exclude_straggler = True
+
+    elastic_config.save_at_breakpoint = False
+    if "save_at_breakpoint" in master_configs:
+        elastic_config.save_at_breakpoint = True
+
+    return elastic_config
 
 
 def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):

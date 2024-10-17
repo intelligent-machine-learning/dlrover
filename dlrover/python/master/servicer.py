@@ -10,11 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import threading
 import time
 from concurrent import futures
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import grpc as grpc_lib
 
@@ -23,20 +23,16 @@ from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
+    JobConstant,
     NodeStatus,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
     TrainingLoopStatus,
 )
-from dlrover.python.common.diagnosis import (
-    ChipMetrics,
-    CudaLog,
-    DiagnosisDataType,
-    TrainingLog,
-)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
@@ -78,6 +74,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -86,7 +83,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager = diagnosis_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -95,6 +92,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = 0
         self._start_autoscale = False
+
+        # preload module for class reflection
+        self._diagnosis_data_module = importlib.import_module(
+            "dlrover.python.diagnosis.common.diagnosis_data"
+        )
 
     def get(self, request, _):
         node_type = request.node_type
@@ -135,6 +137,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._need_to_restart_training(node_type, node_id)
         elif isinstance(req_message, grpc.SyncTrainingPort):
             message = self._sync_training_ports(node_id, req_message)
+        elif isinstance(req_message, grpc.ElasticRunConfigRequest):
+            configs = self._job_manager.get_elastic_run_configs()
+            message = grpc.ElasticRunConfig(configs=configs)
 
         if message:
             response.data = message.serialize()
@@ -354,12 +359,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisChipMetrics):
-            success = self._report_chip_metrics(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisCudaLog):
-            success = self._report_cuda_log(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisTrainingLog):
-            success = self._report_training_log(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisReportData):
+            success = self._report_worker_diagnosis_data(message)
+        elif isinstance(message, grpc.SucceededRequest):
+            success = self._report_succeeded(node_id, node_type)
 
         response.success = success
         return response
@@ -551,13 +554,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
                 min_nodes=message.min_nodes,
-                max_ndoes=message.max_nodes,
+                max_nodes=message.max_nodes,
                 waiting_timeout=message.waiting_timeout,
                 node_unit=message.node_unit,
             )
 
+        join_timeout = message.join_timeout
+        if join_timeout == 0:  # Back compatibility
+            join_timeout = JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
         self._job_manager.update_node_required_info(
-            message.min_nodes, message.max_nodes
+            message.min_nodes, message.max_nodes, join_timeout
         )
         return True
 
@@ -612,31 +618,24 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_chip_metrics(
-        self, node_type, node_id, message: grpc.DiagnosisChipMetrics
-    ):
-        data = ChipMetrics(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CHIPMETRICES, data
-        )
+    def _report_worker_diagnosis_data(self, message: grpc.DiagnosisReportData):
+        if self._diagnosis_manager:
+            data_cls: Optional[DiagnosisData] = getattr(
+                self._diagnosis_data_module,
+                message.data_cls,
+            )
+            if data_cls is None:
+                logger.warning(
+                    "Invalid diagnosis report "
+                    f"data type: {message.data_cls}"
+                )
+                return False
+            data_obj = data_cls.from_json(message.data_content)
+            self._diagnosis_manager.collect_diagnosis_data(data_obj)
         return True
 
-    def _report_training_log(
-        self, node_type, node_id, message: grpc.DiagnosisTrainingLog
-    ):
-        data = TrainingLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.TRAININGLOG, data
-        )
-        return True
-
-    def _report_cuda_log(
-        self, node_type, node_id, message: grpc.DiagnosisCudaLog
-    ):
-        data = CudaLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CUDALOG, data
-        )
+    def _report_succeeded(self, node_id, node_type):
+        self._job_manager.update_succeeded_node(node_id, node_type)
         return True
 
     def _sync_training_ports(
@@ -657,6 +656,7 @@ def create_master_service(
     job_manager,
     speed_monitor,
     rdzv_managers,
+    diagnosis_manager,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
@@ -678,6 +678,7 @@ def create_master_service(
         job_manager=job_manager,
         speed_monitor=speed_monitor,
         rdzv_managers=rdzv_managers,
+        diagnosis_manager=diagnosis_manager,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,

@@ -11,19 +11,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import ChipMetrics
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+
+class EnvConfigKey(object):
+    XPU_TIMER_PORT = "XPU_TIMER_PORT"
 
 
-class MetricsCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        pass
+class InferenceConfigKey(object):
+    LOG_FILE = "log_file"
+    ERRORS = "errors"
 
-    def collect_data(self) -> object:
-        chip_metrics = ChipMetrics(0)
-        return chip_metrics
 
-    def to_collect_data(self) -> bool:
-        return True
+class DiagnosisConstant(object):
+    MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
+    AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 60
+
+
+class DiagnosisDataType(object):
+    GENERIC = "GENERIC"
+    TRAINING_LOG = "TRAINING_LOG"
+    XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
+
+
+class DiagnosisAction(object):
+    NO_ACTION = "no_action"
+    RESTART_WORKER = "restart_worker"
+    RELAUNCH_WORKER = "relaunch_worker"

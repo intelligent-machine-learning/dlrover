@@ -46,3 +46,7 @@ class NodeTest(unittest.TestCase):
         is_unrecoverable = node.is_unrecoverable_failure()
         self.assertEqual(is_unrecoverable, True)
         self.assertEqual("oom" in node.unrecoverable_failure_msg, True)
+
+        self.assertFalse(node.is_succeeded())
+        node.set_as_succeeded()
+        self.assertTrue(node.is_succeeded())

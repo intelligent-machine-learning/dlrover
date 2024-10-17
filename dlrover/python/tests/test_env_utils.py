@@ -27,6 +27,7 @@ class EnvUtilsTest(unittest.TestCase):
         os.environ.pop("LOCAL_WORLD_SIZE", None)
 
     def test_get_env(self):
+        os.environ[NodeEnv.WORKER_RANK] = "0"
         node_rank = env_utils.get_node_rank()
         self.assertEqual(node_rank, 0)
 

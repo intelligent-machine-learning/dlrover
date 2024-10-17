@@ -11,21 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import unittest
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+    CheckFailureNodeOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
+    MetricsCollectionOperator,
+)
 
-from dlrover.python.common.diagnosis import node_failed
+
+def get_training_failure_operators():
+    return [CheckFailureNodeOperator()]
 
 
-class DiagnosisTest(unittest.TestCase):
-    def setUp(self):
-        pass
+def get_worker_observe_operators():
+    return [MetricsCollectionOperator()]
 
-    def tearDown(self):
-        pass
 
-    def test_should_relaunch_worker(self):
-        file = "data/training.log"
-        path = os.path.dirname(__file__)
-        file_path = os.path.join(path, file)
-        self.assertTrue(node_failed(file_path))
+def get_worker_diagnosis_operators():
+    return []

@@ -14,28 +14,29 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceOperator,
     combine_inferences,
-)
-from dlrover.python.master.diagnosis.operator.operator import (
-    register_operators,
 )
 
 
 class InferenceChain:
     """
-    InferenceChain is used to diagnose training failures
+    InferenceChain is used to
+    1. observe training problems
+    2. identify the root causes of a problem
+    3. propose solutions to a training problem
     """
 
-    def __init__(self, data_mgr: DataManager, inferences: List[Inference]):
-        self.data_manager = data_mgr
+    def __init__(
+        self, inferences: List[Inference], operators: List[InferenceOperator]
+    ):
         self.inferences = inferences
-        self.operators = register_operators(data_mgr)
+        self.operators = operators
 
     def infer(self) -> List[Inference]:
+        logger.info(f"Infer {self.inferences}")
         inferences = self.inferences
         while True:
             has_new_inference = False
@@ -43,6 +44,8 @@ class InferenceChain:
             for inference in inferences:
                 try:
                     operator = self.get_operator(inference)
+                    if not operator:
+                        continue
                     infs = operator.infer(inferences)
                     if len(infs) > 0:
                         has_new_inference = True
@@ -63,4 +66,5 @@ class InferenceChain:
         for operator in self.operators:
             if operator.is_compatible(inference):
                 return operator
-        raise TypeError(f"no compatible operator for {inference}")
+        logger.info(f"No operator for inference: {inference.__dict__}")
+        return None  # type: ignore

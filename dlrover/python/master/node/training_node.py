@@ -16,6 +16,7 @@ import itertools
 import math
 import threading
 import time
+from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from threading import Lock
@@ -23,6 +24,7 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    JobConstant,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
@@ -89,24 +91,40 @@ def get_critical_worker_index(params: JobArgs):
     critical_worker_index = {}
     worker_params = params.node_args[NodeType.WORKER]
 
-    if worker_params.critical_nodes == "":
-        # for default, worker0 is critical if PS strategy with custom training
-        if params.distribution_strategy == DistributionStrategy.PS:
-            critical_worker_index[0] = worker_params.restart_count
-    elif worker_params.critical_nodes == "all":
-        for i in range(worker_params.group_resource.count):
-            critical_worker_index[i] = worker_params.restart_count
-    elif worker_params.critical_nodes != "none":
-        for pod_relaunch_conf in worker_params.critical_nodes.split(","):
-            # The conf is "pod_index:relaunch_times"
-            pod_relaunch = pod_relaunch_conf.strip().split(":")
-            critical_worker_index[int(pod_relaunch[0])] = int(pod_relaunch[1])
+    try:
+        if worker_params.critical_nodes == "":
+            # for default, worker0 is critical if PS strategy with
+            # custom training
+            if params.distribution_strategy == DistributionStrategy.PS:
+                critical_worker_index[0] = worker_params.restart_count
+        elif worker_params.critical_nodes == "all":
+            for i in range(worker_params.group_resource.count):
+                critical_worker_index[i] = worker_params.restart_count
+        elif worker_params.critical_nodes != "none":
+            for pod_relaunch_conf in worker_params.critical_nodes.split(","):
+                # The conf is "pod_index:relaunch_times"
+                pod_relaunch = pod_relaunch_conf.strip().split(":")
+                critical_worker_index[int(pod_relaunch[0])] = int(
+                    pod_relaunch[1]
+                )
 
-    return critical_worker_index
+        return critical_worker_index
+    except Exception as e:
+        logger.warning(
+            f"Invalid worker params: {worker_params.__dict__}, "
+            f"error: {str(e)}"
+        )
+        return {}
+
+
+def get_pending_timeout():
+    if _dlrover_context.seconds_to_wait_pending_pod <= 0:
+        return JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+    return _dlrover_context.seconds_to_wait_pending_pod
 
 
 def reduce_timeout_pending_node_resource(node: Node):
-    """Reduce CPU cores or memroy and relaunch it if the pending
+    """Reduce CPU cores or memory and relaunch it if the pending
     time is too long"""
     now = time.time()
     if (
@@ -116,7 +134,8 @@ def reduce_timeout_pending_node_resource(node: Node):
     ):
         return False
     pending_time = now - node.create_time.timestamp()
-    if pending_time < _dlrover_context.seconds_to_wait_pending_pod:
+    pending_timeout = get_pending_timeout()
+    if pending_time < pending_timeout:
         return False
 
     original_cpu = node.config_resource.cpu
@@ -130,7 +149,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             "Delete and relaunch it with CPU %s",
             node.name,
             pending_time,
-            _dlrover_context.seconds_to_wait_pending_pod,
+            pending_timeout,
             new_cpu,
         )
     original_memory = node.config_resource.memory
@@ -144,7 +163,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             "Delete and relaunch it with memory %s",
             node.name,
             pending_time,
-            _dlrover_context.seconds_to_wait_pending_pod,
+            pending_timeout,
             new_memory,
         )
     return True
@@ -166,6 +185,25 @@ class TrainingNodeManager(object):
         self._lock = threading.Lock()
         self._node_id_iter = itertools.count(len(self._nodes))
         self._node_rank_iter = itertools.count(len(self._nodes))
+        self._pending_nodes: List[Node] = []
+
+    @property
+    def pending_nodes(self):
+        return [node.name for node in self._pending_nodes]
+
+    @property
+    def first_pending_node(self):
+        if len(self._pending_nodes) == 0:
+            return ""
+        first_pending_node = min(
+            self._pending_nodes, key=lambda x: x.create_time  # type: ignore
+        )
+        return first_pending_node.name
+
+    @property
+    def cur_nodes(self):
+        cur_nodes = [node.name for node in self._nodes.values()]
+        return cur_nodes
 
     def update_nodes(self, nodes):
         self._nodes = nodes
@@ -202,6 +240,7 @@ class TrainingNodeManager(object):
                 name=self._new_node_name_fn(node.type, new_id),
                 service_addr=node.service_addr,
                 relaunch_count=relaunch_node.relaunch_count,
+                max_relaunch_count=relaunch_node.max_relaunch_count,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
@@ -237,10 +276,8 @@ class TrainingNodeManager(object):
             ):
                 continue
             pending_time = now - node.create_time.timestamp()
-            if (
-                node.is_recovered_oom
-                and pending_time > _dlrover_context.seconds_to_wait_pending_pod
-            ):
+            pending_timeout = get_pending_timeout()
+            if node.is_recovered_oom and pending_time > pending_timeout:
                 logger.info(
                     f"Node {node.name} with resource f{node.config_resource} "
                     f"and pends f{pending_time}s."
@@ -365,13 +402,23 @@ class SyncNodeTrainingPorts:
     next_check_port: int = 0
 
 
-class TrainingNodeConfigure:
+class ExternalConfig(metaclass=ABCMeta):
     def __init__(self):
+        pass
+
+    @abstractmethod
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        pass
+
+
+class TrainingNodeConfig:
+    def __init__(self, external_config: ExternalConfig = None):
         self._lock = Lock()
         self._recv_node_training_ports: Dict[int, int] = {}
         self._node_training_port = 0
         self._next_check_node_training_port = 0
         self._n_node = 0
+        self._external_config = external_config
 
     def set_node_num(self, num):
         logger.info(f"set worker count: {num}")
@@ -422,3 +469,9 @@ class TrainingNodeConfigure:
                 return SyncNodeTrainingPorts(
                     training_port=0, next_check_port=0
                 )
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        if not self._external_config:
+            logger.warning("External config not set")
+            return {}
+        return self._external_config.get_elastic_run_configs()

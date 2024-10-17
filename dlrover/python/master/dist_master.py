@@ -17,6 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    ErrorMonitorConstants,
     JobExitReason,
     NodeType,
     OptimizeMode,
@@ -25,6 +26,7 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -141,6 +143,7 @@ class DistributedJobMaster(JobMaster):
                 error_monitor
             ),
         }
+        self.diagnosis_manager = DiagnosisManager()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -151,6 +154,7 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
+        self._error_monitor = error_monitor
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
@@ -159,6 +163,7 @@ class DistributedJobMaster(JobMaster):
             self.job_manager,
             self.speed_monitor,
             self.rdzv_managers,
+            self.diagnosis_manager,
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
@@ -197,6 +202,11 @@ class DistributedJobMaster(JobMaster):
         if self.job_manager:
             self.job_manager.start()
 
+    def pre_check(self):
+        logger.info("Pre-check before running.")
+        self.diagnosis_manager.pre_check()
+        # TODO
+
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""
         if self.task_manager:
@@ -218,6 +228,16 @@ class DistributedJobMaster(JobMaster):
         The main loop of master.
         Dispatch the tasks to the workers until all the tasks are completed.
         """
+
+        # start training runtime diagnosis
+        try:
+            self.diagnosis_manager.start_observing()
+        except Exception as e:
+            logger.warning(
+                "Failed to start training " f"runtime diagnosis: {str(e)}"
+            )
+
+        # into running loop
         try:
             while True:
                 if self._stop_requested:
@@ -269,6 +289,8 @@ class DistributedJobMaster(JobMaster):
         finally:
             if self.job_manager:
                 self.job_manager.stop()
+            if self.diagnosis_manager:
+                self.diagnosis_manager.stop_observing()
             self.stop()
 
         return self._exit_code
@@ -312,4 +334,19 @@ class DistributedJobMaster(JobMaster):
             logger.error(
                 f"Request to stop. Success: {success}, reason: {reason}, "
                 f"msg: {msg}."
+            )
+
+        action = ErrorMonitorConstants.ACTION_STOP
+        if not success:
+            action = ErrorMonitorConstants.ACTION_EARLY_STOP
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                event_type=ErrorMonitorConstants.TYPE_ERROR,
+                instance="job",
+                action=action,
+                msg=msg,
+                labels={
+                    "reason": reason,
+                    "success": f"{success}",
+                },
             )

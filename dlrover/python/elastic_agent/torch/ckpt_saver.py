@@ -50,9 +50,9 @@ DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
 
 class CheckpointSharedObjPrefix:
-    SAVE_STEP_QNAME = "checkpoint_lock_rank_"
-    META_NAME = "checkpoint_meta_"
-    SHM_NAME = "checkpoint_shm_"
+    SAVE_STEP_QNAME = "ckpt_lock_rank_"
+    META_NAME = "ckpt_meta_"
+    SHM_NAME = "ckpt_shm_"
     SHM_LOCK_NAME = "shm_lock_"
 
 
@@ -319,7 +319,7 @@ class SharedMemoryHandler(object):
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
         return state_dict
 
-    def no_checkpint_state(self):
+    def no_checkpoint_state(self):
         """
         The handler lazily initializes the shared memory. The shared memory
         of the handler on the host may be None even if the handler on the
@@ -378,6 +378,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ) -> None:
+        logger.info(
+            "Initializing the AsyncSaver with arguments: "
+            f"checkpoint_dir={checkpoint_dir}, "
+            f"local_shard_num={local_shard_num}, "
+            f"global_shard_num={global_shard_num}, "
+            f"save_timeout={save_timeout}"
+        )
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
         self.global_shard_num = global_shard_num
@@ -411,12 +418,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self.storage.safe_rmtree(
             os.path.join(self.checkpoint_dir, self._STAGE_DIR)
         )
-        logger.info(
-            "Initialize the AsyncSaver with arguments: "
-            f"checkpoint_dir={checkpoint_dir}, "
-            f"local_shard_num={local_shard_num}, "
-            f"global_shard_num={global_shard_num}, "
-        )
+        logger.info("AsyncSaver initialized.")
 
     def __del__(self):
         self.close()
@@ -508,10 +510,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
-    @classmethod
-    def register_master_client(cls, master_client):
-        if cls._saver_instance:
-            cls._saver_instance.setup_master_client(master_client)
+    def get_master_client(self):
+        if not self._master_client:
+            self._master_client = MasterClient.singleton_instance()
+            logger.info(f"Setup master client: {self._master_client}.")
+        return self._master_client
 
     def wait_saving_checkpoint(self):
         """
@@ -524,7 +527,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """Clear the resource of the shared objects."""
         event = CheckpointEvent(type=CheckpointEventType.EXIT)
         if not self._event_queue.empty():
-            self._event_queue._queue.get()
+            self._event_queue.queue.get()
         self._event_queue.put(event)
         for i in range(self.local_shard_num):
             if self._shm_handlers[i]:
@@ -539,10 +542,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         The loop to persist the state dict from the memory
         buffer into the storage.
         """
+
         logger.info("Async flash checkpoint saver starts!")
+        event: CheckpointEvent = None
         while True:
             try:
-                event: CheckpointEvent = self._event_queue.get()
+                event = self._event_queue.get()
                 if event.type == CheckpointEventType.UPDATE_SHARD:
                     logger.info(
                         "Reset the shared memory after the training starts. "
@@ -560,15 +565,15 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     break
             except Exception as e:
                 logger.error(
-                    f"Got unexpected exception during checkpointing: {e}."
+                    f"Got unexpected exception during checkpointing: {event}, "
+                    f"error: {e}.",
+                    exc_info=True,
                 )
                 self._report_failure_to_master(str(e))
 
-    def setup_master_client(self, master_client):
-        self._master_client = master_client
-
     def _report_failure_to_master(self, error_msg):
-        if not self._master_client:
+        master_client = self.get_master_client()
+        if not master_client:
             logger.warning(
                 "Skip ckpt saver failure reporting for master "
                 "client hasn't setup."
@@ -587,7 +592,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
             )
 
-            self._master_client.report_failures(
+            master_client.report_failures(
                 json.dumps(error),
                 level=TrainingExceptionLevel.PROCESS_ERROR,
             )
@@ -705,14 +710,14 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         processes.
         """
         if any(
-            [handler.no_checkpint_state() for handler in self._shm_handlers]
+            [handler.no_checkpoint_state() for handler in self._shm_handlers]
         ):
             logger.info(
                 "Skip because no any memory buffer with the state dict."
             )
             return
 
-        # Skip saving checkpiont if the step of checkpoint shard in the
+        # Skip saving checkpoint if the step of checkpoint shard in the
         # memory is not same.
         steps = []
         for shm_handler in self._shm_handlers:
@@ -1013,7 +1018,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             )
             return
         self._writing_storage = True
-        mkdir_timeout = self._save_timeout / 2
+        mkdir_timeout = int(self._save_timeout / 2)
 
         temp_dir = self._get_tmp_ckpt_dir(step)
         self._dist_make_dir(temp_dir, mkdir_timeout)
@@ -1120,7 +1125,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
         Args:
             step (int): the iteration step.
-            step_donr_dir (str): the directory to save the done file of
+            step_done_dir (str): the directory to save the done file of
                 each shard.
             tmp_path: the temp directory path to save the latest checkpoint.
             target_path: the regular directory path to save the checkpoint.
@@ -1254,6 +1259,9 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         # only rank0 create dir
         if self._is_agent_rank_0 and local_shard_id == 0:
             self._dist_make_dir(checkpoint_dir)
+        else:
+            while not self.storage.exists(checkpoint_dir):
+                time.sleep(1)
 
         # do saving
         assert shm_handler.shared_memory is not None

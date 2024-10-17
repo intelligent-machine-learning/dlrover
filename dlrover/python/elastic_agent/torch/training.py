@@ -20,10 +20,21 @@ import socket
 import tempfile
 import time
 import uuid
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import torch
 import torch.distributed.elastic.timer as timer
@@ -62,13 +73,13 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    JobConstant,
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.diagnosis import node_failed
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
@@ -76,14 +87,22 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.worker import WorkerContext
+from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
+)
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
+    DiagnosisAgent,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.trainer.torch.utils import (
+    version_less_than_230,
+    version_less_than_240,
+)
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -123,19 +142,22 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
-        network_check: whether to check the network avaliable before training.
+        network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
-        auto_config: wether to automatically configure the nnodes and
+        auto_config: indicate if automatically configure the nnodes and
             nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
-        save_at_breakpoint: wether to save the checkpoint from the shared
+        save_at_breakpoint: indicate if save the checkpoint from the shared
             memory into the disk after a failure occurs.
-        accelerator: the type of acclerator processor like nvidia.com/gpu,
+        accelerator: the type of accelerator processor like nvidia.com/gpu,
             ascend-npu.
+        training_log_file: the training log file of this training job
+        failure_node_errors: the error information that indicate the node
+            is a failure node
     """
 
     network_check: bool = False
@@ -150,13 +172,23 @@ class ElasticLaunchConfig(LaunchConfig):
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
     tee: Union[Std, Dict[int, Std]] = Std.NONE
+    training_log_file: str = ""
+    failure_node_errors: str = ""
 
     def set_node_unit(self, node_unit):
-        """Set the number unint of ndoes."""
+        """Set the number unit of nodes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
+        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
+        if len(self.failure_node_errors) > 0:
+            errors = self.failure_node_errors.strip()
+            if errors[0] != "#" or errors[-1] != "#":
+                logger.warning("invalid failure node errors: %s", errors)
+                self.failure_node_errors = ""
+
         device = ""
         if torch.cuda.is_available():
             device = torch.cuda.get_device_name()
@@ -175,10 +207,10 @@ class ElasticLaunchConfig(LaunchConfig):
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    """The rendzevous handler completes rendezvous by connecting
+    """The rendezvous handler completes rendezvous by connecting
     with the ElasticJob master. The master will collect all nodes
     after the handler of all node agents calls `_join_rendezvous`.
-    Then, the handler will get the communcation world from the master
+    Then, the handler will get the communication world from the master
     and assign ranks to the training process.
 
     Args:
@@ -186,7 +218,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
             rendezvous in the rdzv_params.config. Now we set:
-            join_timeout: the timeout to join the rendevous. The timeout
+            join_timeout: the timeout to join the rendezvous. The timeout
                 happens if the number of nodes is less than min_nodes
                 in the join_timeout.
             lastcall_timeout: the timeout to wait new nodes after the
@@ -213,7 +245,11 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._node_rank = node_rank
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
-        self.join_timeout = int(rdzv_params.get("join_timeout", 600))
+        self.join_timeout = int(
+            rdzv_params.get(
+                "join_timeout", JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
+            )
+        )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
@@ -224,6 +260,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             rdzv_params.max_nodes,
             lastcall_timeout,
             node_unit,
+            self.join_timeout,
         )
 
     def get_backend(self) -> str:
@@ -246,7 +283,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         return round
 
     def next_rendezvous(self):
-        """The handler will peroidically query the world from the master until
+        """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
@@ -288,7 +325,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 timeout = self.join_timeout
                 err_msg = (
                     f"Timeout {timeout}s to wait the enough nodes "
-                    "to complete rendzvous."
+                    "to complete rendezvous."
                 )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
@@ -379,6 +416,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         start_method="spawn",
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
+        training_log_file: str = "",
+        failure_node_errors: str = "",
     ):
         if version_less_than_230():
             super().__init__(spec, exit_barrier_timeout)
@@ -404,7 +443,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self._diagnose_agent = DiagnosisAgent(
+            training_log_file, failure_node_errors
+        )
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -428,6 +469,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if group_rank == 0:
             spec.master_port = self._get_free_port()
+
             if hasattr(spec, "local_addr"):
                 self._set_master_addr_port(
                     store,
@@ -445,6 +487,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         master_addr, master_port = self._get_master_addr_port(store)
 
+        # compatible with torch 2.4
+        if not version_less_than_240():
+            worker_group.master_addr = master_addr
+            worker_group.master_port = master_port
+
         logger.info(
             f"[{spec.role}] Rendezvous complete for workers. Result:\n"
             f"  restart_count={self._restart_count}\n"
@@ -460,6 +507,79 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+    """
+    The following function(copied from torch 230) is used to
+    compatible with torch < 240
+    """
+
+    def _set_master_addr_port(
+        self,
+        store: Store,
+        master_addr: Optional[str],
+        master_port: Optional[int],
+        local_addr: Optional[str] = None,
+    ):
+        if master_port is None:
+            sock = self._get_socket_with_port()
+            with closing(sock):
+                master_port = sock.getsockname()[1]
+
+        if master_addr is None:
+            # If user specified the address for the local node,
+            # use it as the master addr if not exist
+            if local_addr:
+                master_addr = local_addr
+            else:
+                master_addr = _get_fq_hostname()
+
+        store.set("MASTER_ADDR", master_addr.encode(encoding="UTF-8"))
+        store.set("MASTER_PORT", str(master_port).encode(encoding="UTF-8"))
+        os.environ["MASTER_ADDR"] = master_addr
+        os.environ["MASTER_PORT"] = str(master_port)
+
+    def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
+        master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
+        return (master_addr, master_port)
+
+    def _get_socket_with_port(self) -> socket.socket:
+        """Return a free port on localhost.
+
+        The free port is "reserved" by binding a temporary socket on it.
+        Close the socket before passing the port to the entity that
+        requires it. Usage example::
+
+        sock = _get_socket_with_port()
+        with closing(sock):
+            port = sock.getsockname()[1]
+            sock.close()
+            # there is still a race-condition that some other process
+            # may grab this port before func() runs
+            func(port)
+        """
+        addrs = socket.getaddrinfo(
+            host="localhost",
+            port=None,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        )
+        for addr in addrs:
+            family, type, proto, _, _ = addr
+            s = socket.socket(family, type, proto)
+            try:
+                s.bind(("localhost", 0))
+                s.listen(0)
+                return s
+            except OSError as e:
+                s.close()
+                logger.info("Socket creation attempt failed.", exc_info=e)
+        raise RuntimeError("Failed to create a socket")
+
+    """
+    The above function(copied from torch 230) is used to
+    compatible with torch < 240
+    """
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
@@ -511,34 +631,113 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
-        my_role_info = role_infos[group_rank]
-        worker_world_size, worker_global_ranks = self._get_ranks(
-            role_infos, group_rank
-        )
-        role_infos = sorted(
-            role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
-        )
-        role_start_idx, role_end_idx = _RoleInstanceInfo.find_role_boundaries(
-            role_infos, my_role_info.role
-        )
-        role_pos = next(
-            idx
-            for idx, role_info in enumerate(role_infos)
-            if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
-        )
-        role_world_size, role_ranks = self._get_ranks(
-            role_infos, role_pos, role_start_idx, role_end_idx + 1
-        )
-        workers = []
-        for ind in range(spec.local_world_size):
-            worker = Worker(
-                local_rank=ind,
-                global_rank=worker_global_ranks[ind],
-                role_rank=role_ranks[ind],
-                world_size=worker_world_size,
-                role_world_size=role_world_size,
+
+        if version_less_than_240():
+            my_role_info = role_infos[group_rank]
+            worker_world_size, worker_global_ranks = self._get_ranks(
+                role_infos, group_rank
             )
-            workers.append(worker)
+            role_infos = sorted(
+                role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
+            )
+            (
+                role_start_idx,
+                role_end_idx,
+            ) = _RoleInstanceInfo.find_role_boundaries(
+                role_infos, my_role_info.role
+            )
+            role_pos = next(
+                idx
+                for idx, role_info in enumerate(role_infos)
+                if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
+            )
+            role_world_size, role_ranks = self._get_ranks(
+                role_infos, role_pos, role_start_idx, role_end_idx + 1
+            )
+            workers = []
+            for ind in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=ind,
+                    global_rank=worker_global_ranks[ind],
+                    role_rank=role_ranks[ind],
+                    world_size=worker_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
+        else:
+            group_world_size = len(world)
+
+            ROLE_INFO_PREFIX = "torchelastic/role_info/"
+            ASSIGNED_RANKS_PREFIX = "torchelastic/assigned_ranks/"
+
+            agent_role_info = _RoleInstanceInfo(
+                spec.role, group_rank, spec.local_world_size
+            )
+            self._store.set(
+                f"{ROLE_INFO_PREFIX}{group_rank}", agent_role_info.serialize()
+            )
+
+            if group_rank == 0:
+                role_infos_bytes = self._store.multi_get(
+                    [
+                        f"torchelastic/role_info/{i}"
+                        for i in range(group_world_size)
+                    ]
+                )
+                role_infos = [
+                    _RoleInstanceInfo.deserialize(info_bytes)
+                    for info_bytes in role_infos_bytes
+                ]
+
+                role_sizes: DefaultDict[str, int] = defaultdict(lambda: 0)
+                global_size = 0
+                for role_info in role_infos:
+                    role_sizes[role_info.role] += role_info.local_world_size
+                    global_size += role_info.local_world_size
+
+                base_global_rank = 0
+                role_ranks = defaultdict(lambda: 0)
+
+                keys = []
+                values = []
+                for i, role_info in enumerate(role_infos):
+                    keys.append(f"{ASSIGNED_RANKS_PREFIX}{i}")
+                    values.append(
+                        json.dumps(
+                            [
+                                base_global_rank,
+                                global_size,
+                                role_ranks[role_info.role],
+                                role_sizes[role_info.role],
+                            ]
+                        )
+                    )
+
+                    base_global_rank += role_info.local_world_size
+                    role_ranks[role_info.role] += role_info.local_world_size
+
+                self._store.multi_set(keys, values)
+
+            # get will block until the data is available in the store.
+            (
+                base_global_rank,
+                global_world_size,
+                base_role_rank,
+                role_world_size,
+            ) = json.loads(
+                self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}")
+            )
+
+            workers = []
+            for local_rank in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=local_rank,
+                    global_rank=base_global_rank + local_rank,
+                    role_rank=base_role_rank + local_rank,
+                    world_size=global_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
         return workers
 
     def _initialize_workers(self, worker_group):
@@ -555,9 +754,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
-
-                # need master client to report unexpected failures in saver
-                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
@@ -573,7 +769,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     @prof
-    def _stop_workers(self, worker_group: WorkerGroup, timeout=300) -> None:
+    def _stop_workers(
+        self, worker_group: WorkerGroup, is_restart=False, timeout=300
+    ) -> None:
         try:
             signal.signal(signal.SIGALRM, self._stop_timeout_handler)
             signal.alarm(timeout)
@@ -582,7 +780,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info("stop workers via SIGKILL")
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
-                super()._stop_workers(worker_group)
+                if version_less_than_240():
+                    super()._stop_workers(worker_group)
+                else:
+                    super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
         except TimeoutError as te:
@@ -604,6 +805,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         spec = self._worker_group.spec
         role = spec.role
+
+        # TODO: call master to get approval of
+        #  training starting(to wait pre-check)
 
         logger.info(
             f"[{role}] starting training workers for entrypoint: "
@@ -637,26 +841,41 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     f" Waiting {self._exit_barrier_timeout} seconds "
                     "for other agents to finish."
                 )
-                self._exit_barrier()
-                self._wait_async_saver()
+
+                try:
+                    self._exit_barrier()
+                    logger.info("Barrier exited.")
+
+                    self._wait_async_saver()
+                    logger.info("Async saver stopped.")
+                except Exception as e:
+                    logger.warning(f"Unexpected exception when ending: {e}")
+                finally:
+                    self._client.report_succeeded()
+
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
-                self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0 and not node_failed(
-                    self._log_file
-                ):
-                    logger.info(
-                        f"[{role}] Worker group {state.name}. "
-                        f"{self._remaining_failovers}/{spec.max_restarts}"
-                        f" attempts left; will restart worker group"
+
+                worker_context = WorkerContext(
+                    worker_spec=self._worker_group.spec,
+                    remaining_failovers=self._remaining_failovers,
+                    restart_count=self._restart_count,
+                    run_result=run_result,
+                )
+                try:
+                    action = self._diagnose_agent.diagnose_training_failure(
+                        worker_context
                     )
-                    self._remaining_failovers -= 1
-                    self._restart_workers(self._worker_group)
-                else:
-                    self._stop_workers(self._worker_group)
-                    self._worker_group.state = WorkerState.FAILED
+                except Exception as e:
+                    logger.warning(f"Failed to diagnose errors: {e}")
+                    if self._remaining_failovers > 0:
+                        action = DiagnosisAction.RESTART_WORKER
+                    else:
+                        action = DiagnosisAction.RELAUNCH_WORKER
+                self._process_diagnose_action(action)
+                if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
@@ -664,7 +883,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
             else:
-                raise Exception(f"[{role}] Worker group in {state.name} state")
+                raise Exception(f"[{role}] worker group in {state.name} state")
+
+    def _process_diagnose_action(self, action: str):
+        if action == DiagnosisAction.RESTART_WORKER:
+            self._remaining_failovers -= 1
+            self._restart_workers(self._worker_group)
+        elif action == DiagnosisAction.RELAUNCH_WORKER:
+            self._stop_workers(self._worker_group)
+            self._worker_group.state = WorkerState.FAILED
 
     def _wait_async_saver(self):
         """
@@ -829,6 +1056,8 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
+        f"  training_log     : {config.training_log_file}\n"
+        f"  failure_errors   : {config.failure_node_errors}\n"
     )
 
     _set_paral_config()
@@ -850,6 +1079,8 @@ def launch_agent(
         spec=spec,
         start_method=config.start_method,
         log_dir=config.log_dir,
+        training_log_file=config.training_log_file,
+        failure_node_errors=config.failure_node_errors,
     )
 
     shutdown_rdzv = True
@@ -1003,20 +1234,26 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f" and stragglers are: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if fault_nodes or stragglers:
+            if fault_nodes or (stragglers and self._config.exclude_straggler):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
-                    logger.error("Network check needs at least 4 nodes.")
+                    logger.warning(
+                        "No need for another round of network "
+                        "check because the nodes is less than 3."
+                    )
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
+            elif stragglers and not self._config.exclude_straggler:
+                pass
             else:
                 return success
+
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,

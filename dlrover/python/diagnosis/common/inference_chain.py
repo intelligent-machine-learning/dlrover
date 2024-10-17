@@ -12,21 +12,28 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 
 class InferenceName:
     END = "end"
     TRAINING = "training"
+    NODE = "node"
+    WORKER = "worker"
 
 
 class InferenceAttribute:
     ISORNOT = "is_or_not"
+    IS = "is"
+    NOT = "not"
+    COLLECT = "collect"
 
 
 class InferenceDescription:
     HANG = "hang"
+    FAILURE = "failure"
+    METRICS = "metrics"
 
 
 @dataclass
@@ -38,6 +45,7 @@ class Inference(object):
     name: str = ""
     attribution: str = ""
     description: str = ""
+    configs: Dict[str, str] = field(default_factory=dict)
 
 
 class InferenceOperator(metaclass=ABCMeta):
@@ -45,20 +53,24 @@ class InferenceOperator(metaclass=ABCMeta):
     InferenceOperator is used to infer the root cause of problems.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
 
     @abstractmethod
     def infer(self, inferences: List[Inference]) -> List[Inference]:
         pass
 
-    # check if the operator can be used to infer a given inference
+    # check if the InferenceOperator can be used to infer a given inference
     @abstractmethod
     def is_compatible(self, inference: Inference) -> bool:
         pass
 
+    @property
+    def data_manager(self):
+        return self._data_manager
 
-def same_inference(inference1: Inference, inference2: Inference) -> bool:
+
+def is_same_inference(inference1: Inference, inference2: Inference) -> bool:
     if (
         inference1.name == inference2.name
         and inference1.attribution == inference2.attribution
@@ -69,17 +81,21 @@ def same_inference(inference1: Inference, inference2: Inference) -> bool:
         return False
 
 
+def is_inference_included(infs: List[Inference], inf: Inference) -> bool:
+    if not infs or not inf:
+        return False
+    for i in infs:
+        if is_same_inference(i, inf):
+            return True
+    return False
+
+
 def combine_inferences(
     inferences1: List[Inference], inferences2: List[Inference]
 ) -> List[Inference]:
     inferences = []
     for inference2 in inferences2:
-        is_duplicate = False
-        for inference1 in inferences1:
-            if same_inference(inference1, inference2):
-                is_duplicate = True
-                break
-        if not is_duplicate:
+        if not is_inference_included(inferences1, inference2):
             inferences.append(inference2)
 
     for inference1 in inferences1:

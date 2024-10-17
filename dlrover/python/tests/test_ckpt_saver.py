@@ -142,14 +142,19 @@ class CheckpointSaverTest(unittest.TestCase):
 
         # test setup master client
         self.assertIsNone(AsyncCheckpointSaver._saver_instance._master_client)
-
         master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr)
         master_client = MasterClient.singleton_instance()
         self.assertIsNotNone(master_client)
-        AsyncCheckpointSaver.register_master_client(master_client)
+        self.assertIsNotNone(
+            AsyncCheckpointSaver._saver_instance.get_master_client()
+        )
         self.assertIsNotNone(
             AsyncCheckpointSaver._saver_instance._master_client
+        )
+        self.assertEqual(
+            id(master_client),
+            id(AsyncCheckpointSaver._saver_instance._master_client),
         )
 
     def test_close_saver(self):
@@ -245,7 +250,7 @@ class CheckpointSaverTest(unittest.TestCase):
             sq.unlink()
             time.sleep(0.3)
             self.assertEqual(saver.global_shard_num, 2)
-            self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
+            self.assertTrue(saver._shm_handlers[0].no_checkpoint_state())
             saver.close()
 
     def test_commit_checkpoint(self):
@@ -285,9 +290,14 @@ class CheckpointSaverTest(unittest.TestCase):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
         master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr)
-        master_client = MasterClient.singleton_instance()
-        saver.setup_master_client(master_client)
 
+        self.assertIsNone(saver._master_client)
+        self.assertIsNotNone(saver.get_master_client())
+        self.assertIsNotNone(saver._master_client)
+        self.assertEqual(id(MasterClient._instance), id(saver._master_client))
+        self.assertEqual(
+            id(MasterClient._instance), id(saver.get_master_client())
+        )
         saver._report_failure_to_master("test-error")
 
 

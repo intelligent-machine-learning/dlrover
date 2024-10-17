@@ -29,7 +29,7 @@ import _posixshmem
 from .constants import NodeEnv
 from .log import default_logger as logger
 
-SOCKET_TMP_DIR = "/tmp/checkpoint_sock/"
+SOCKET_TMP_DIR = "/tmp/ckpt_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
@@ -69,7 +69,7 @@ def _create_socket_server(path):
     if os.path.exists(path):
         os.unlink(path)
 
-    logger.info(f"Creating socket server at {path}.")
+    logger.debug(f"Creating socket server at {path}.")
     server.bind(path)
     server.listen(0)
     return server
@@ -81,10 +81,19 @@ def _create_socket_client(path):
 
     Args:
         path (str): a file path.
-
     """
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.connect(path)
+
+    try:
+        logger.debug(f"Creating socket client at {path}.")
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(path)
+    except Exception as e:
+        logger.warning(
+            "Unexpected error when creating socket client by "
+            f"path: {path}, error: {e}",
+            exc_info=True,
+        )
+        raise e
     return client
 
 
@@ -174,6 +183,10 @@ class LocalSocketComm(metaclass=ABCMeta):
     """
 
     def __init__(self, name="", create=False):
+        logger.debug(
+            f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
+            f"for {name}"
+        )
         self._name = name
         self._socket_file = self._create_socket_path()
         self._create = create
@@ -198,7 +211,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         return os.path.join(root_dir, fname)
 
     def _init_socket(self):
-        """Initialze a socket server."""
+        """Initialize a socket server."""
         if self._create:
             self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(
@@ -214,7 +227,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     @retry_socket
     def _request(self, request: SocketRequest):
-        """Create a socket client to requet the shared object."""
+        """Create a socket client to request the shared object."""
         client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
         _socket_send(client, message)
@@ -222,6 +235,12 @@ class LocalSocketComm(metaclass=ABCMeta):
         client.close()
         response: LockAcquireResponse = pickle.loads(recv_data)
         return response
+
+    def is_available(self):
+        try:
+            return os.path.exists(self._socket_file)
+        except Exception:
+            return False
 
 
 class SharedLock(LocalSocketComm):
@@ -246,6 +265,9 @@ class SharedLock(LocalSocketComm):
 
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)
@@ -279,9 +301,14 @@ class SharedLock(LocalSocketComm):
                 method="acquire",
                 args={"blocking": blocking},
             )
-            response = self._request(request)
-            if response.status == SUCCESS_CODE:
-                return response.acquired
+            try:
+                response = self._request(request)
+                if response.status == SUCCESS_CODE:
+                    return response.acquired
+            except Exception as e:
+                logger.warning(
+                    f"Failed to acquire lock due to unexpected error: {e}"
+                )
             return False
 
     def release(self):
@@ -365,8 +392,15 @@ class SharedQueue(LocalSocketComm):
         else:
             self._queue = None
 
+    @property
+    def queue(self):
+        return self._queue
+
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)
@@ -465,7 +499,6 @@ class SharedDict(LocalSocketComm):
 
     def __init__(self, name="", create=False):
         super().__init__(name, create)
-
         self._dict = {}
 
         # The queue is used to notify the saver waiting for a new dict.
@@ -475,6 +508,9 @@ class SharedDict(LocalSocketComm):
 
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)
