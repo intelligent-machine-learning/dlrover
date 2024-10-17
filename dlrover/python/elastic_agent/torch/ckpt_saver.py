@@ -777,15 +777,16 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if elapsed_time > timeout:
                     logger.info(
                         "It is timeout to sync checkpoint "
-                        "bacause some nodes may fail."
+                        "because some nodes may fail."
                     )
                     return False
 
     def _remove_sub_dir_of_target_path(self, path):
-        for entry in os.listdir(path):
-            full_path = os.path.join(path, entry)
-            if os.path.isdir(full_path):
-                self.storage.safe_rmtree(full_path)
+        if os.path.exists(path):
+            for entry in os.listdir(path):
+                full_path = os.path.join(path, entry)
+                if os.path.isdir(full_path):
+                    self.storage.safe_rmtree(full_path)
 
     @classmethod
     def reset(cls):
