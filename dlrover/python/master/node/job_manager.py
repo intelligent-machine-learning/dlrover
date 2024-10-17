@@ -12,10 +12,13 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+from queue import Queue
 from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
@@ -57,6 +60,8 @@ class JobManager(metaclass=ABCMeta):
         self._nodes_required = (0, 0, 0)  # (min-nodes, max-nodes, timeout)
 
         self._training_node_config = TrainingNodeConfig(external_config)
+
+        self._diagnosis_action_queue = Queue()
 
     @abstractmethod
     def start(self):
@@ -110,9 +115,6 @@ class JobManager(metaclass=ABCMeta):
 
     @abstractmethod
     def stop(self):
-        pass
-
-    def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
 
     @abstractmethod
@@ -199,10 +201,19 @@ class JobManager(metaclass=ABCMeta):
         """Collect the heart beat message of nodes."""
         pass
 
+    def put_diagnosis_action(self, diagnosis_action: DiagnosisAction):
+        self._diagnosis_action_queue.put(diagnosis_action)
+
+    def get_diagnosis_actions_size(self):
+        return self._diagnosis_action_queue.qsize()
+
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         return self._training_node_config.sync_node_training_port(
             node_id, port
         )
+
+    def update_node_service_addr(self, node_type, node_id, service_addr):
+        pass
 
     def update_node_required_info(self, min_required, max_required, timeout):
         """

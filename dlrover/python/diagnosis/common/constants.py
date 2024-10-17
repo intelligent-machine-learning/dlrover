@@ -32,7 +32,9 @@ class DiagnosisDataType(object):
     XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
 
 
-class DiagnosisAction(object):
+class DiagnosisActionType(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+    EVENT = "event"
+    MASTER_RELAUNCH_WORKER = "master_relaunch_worker"

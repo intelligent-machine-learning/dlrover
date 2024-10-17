@@ -45,11 +45,15 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 class DiagnosisManager:
     def __init__(self, job_manager=None):
+        self._job_manager = job_manager
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(
             job_manager, 600
         )
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
+
+    def is_job_manager_exist(self) -> bool:
+        return self._job_manager is not None
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -77,8 +81,8 @@ class DiagnosisManager:
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_failures(),
-                name="diagnose_failures",
+                target=self._diagnose_failures,
+                name="failure_diagnosis",
                 daemon=True,
             )
             thread.start()
@@ -100,12 +104,12 @@ class DiagnosisManager:
                 logger.info("Stop to diagnose failures for observing.")
                 break
             logger.info(
-                f"Diagnosis data size: {self._data_manager.get_data_size()}."
+                f"Current diagnosis data size: {self._data_manager.get_data_size()}."
             )
 
             observed_problems = self._diagnostician.observe_training()
             for problem in observed_problems:
-                logger.info(f"observed problems: {problem}")
+                logger.info(f"Observe problem in diagnosing: {problem}")
                 root_causes = self._diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")

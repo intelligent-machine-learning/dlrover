@@ -672,6 +672,7 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("diagnosis_action_consumer", active_threads_name)
         self.assertIn("node_monitor", active_threads_name)
         self.assertIn("node_heart_beat_monitor", active_threads_name)
         manager.stop()
@@ -780,3 +781,5 @@ class LocalJobManagerTest(unittest.TestCase):
             job_manager.update_succeeded_node(0, "unknown")
         except Exception:
             self.fail()
+
+        self.assertEqual(job_manager.get_diagnosis_actions_size(), 0)

@@ -20,6 +20,8 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from diagnosis.common.constants import DiagnosisActionType
+
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -206,6 +208,11 @@ class DistributedJobManager(JobManager):
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
         self._speed_monitor.set_target_worker_num(worker_num)
         self._training_node_config.set_node_num(worker_num)
+        threading.Thread(
+            target=self._diagnosis_action_consumer,
+            name="diagnosis_action_consumer",
+            daemon=True,
+        ).start()
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
@@ -414,6 +421,34 @@ class DistributedJobManager(JobManager):
         logger.info(
             "Create job autoscaler: %s", self._job_autoscaler.__class__
         )
+
+    def _diagnosis_action_consumer(self):
+        logger.info("Start consuming diagnosis actions.")
+        while True:
+            if self._stopped:
+                logger.info("Stop consuming diagnosis actions.")
+                break
+            try:
+                if self.get_diagnosis_actions_size() == 0:
+                    time.sleep(5)
+                    continue
+
+                action = self._diagnosis_action_queue.get()
+                if action.type == DiagnosisActionType.EVENT:
+                    self._report_event(
+                        action.event_type,
+                        action.instance,
+                        action.action,
+                        action.msg,
+                        action.labels,
+                    )
+                elif action.type == DiagnosisActionType.MASTER_RELAUNCH_WORKER:
+                    # TODO
+                    pass
+            except Exception as e:
+                logger.warning(e)
+                time.sleep(10)
+            time.sleep(1)
 
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes events.")
