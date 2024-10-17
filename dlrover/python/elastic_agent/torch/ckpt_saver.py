@@ -414,10 +414,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         )
         self._master_client = None
 
-        # remove the history temp path if exists
-        self.storage.safe_rmtree(
-            os.path.join(self.checkpoint_dir, self._STAGE_DIR)
-        )
         logger.info("AsyncSaver initialized.")
 
     def __del__(self):
