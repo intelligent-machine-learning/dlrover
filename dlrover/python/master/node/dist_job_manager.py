@@ -582,8 +582,10 @@ class DistributedJobManager(JobManager):
                     and not node.is_released
                     and node.id not in exist_nodes[node_type]
                 ):
-                    logger.info(f"Node {node_type} {node.id} is deleted "
-                                "without the event")
+                    logger.info(
+                        f"Node {node_type} {node.id} is deleted "
+                        "without the event"
+                    )
                     node.is_released = True
                     new_node = copy.deepcopy(node)
                     new_node.status = NodeStatus.DELETED
@@ -593,9 +595,9 @@ class DistributedJobManager(JobManager):
     def close_job(self):
         plan = ScalePlan()
         ps_resource = NodeGroupResource.new_empty()
-        worker_reource = NodeGroupResource.new_empty()
+        worker_resource = NodeGroupResource.new_empty()
         plan.node_group_resources = {
-            "worker": worker_reource,
+            "worker": worker_resource,
             "ps": ps_resource,
         }
         self._scaler.scale(plan=plan)
