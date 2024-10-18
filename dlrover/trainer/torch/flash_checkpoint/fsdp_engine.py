@@ -172,6 +172,17 @@ class SharedMemoryWriter(StorageWriter):
         self.shm_handler = shm_handler
         self.metadata: Dict[str, Any] = {}
 
+    # Implement the abstract function in StorageWriter
+    def reset(
+        self, checkpoint_id: Union[str, os.PathLike, None] = None
+    ) -> None:
+        pass
+
+    def validate_checkpoint_id(
+        cls, checkpoint_id: Union[str, os.PathLike]
+    ) -> bool:
+        return True
+
     def set_up_storage_writer(self, is_coordinator: bool) -> None:
         pass
 
@@ -296,7 +307,7 @@ class SharedMemoryReader(StorageReader):
         fut.set_result(None)
         return fut
 
-    # Implementating the abstract function in StorageReader
+    # Implement the abstract function in StorageReader
     def read_metadata(self) -> Metadata:
         cached_meta = self.shm_handler.metadata.get()
         dcp_metadata = cached_meta["dcp_metadata"]
@@ -317,6 +328,16 @@ class SharedMemoryReader(StorageReader):
         self, global_plan: List[LoadPlan]
     ) -> List[LoadPlan]:
         return global_plan
+
+    def reset(
+        self, checkpoint_id: Union[str, os.PathLike, None] = None
+    ) -> None:
+        pass
+
+    def validate_checkpoint_id(
+        cls, checkpoint_id: Union[str, os.PathLike]
+    ) -> bool:
+        return True
 
 
 class SlicedBufferedReader(io.BufferedReader):
@@ -392,7 +413,7 @@ class FileReader(StorageReader):
         fut.set_result(None)
         return fut
 
-    # Implementating the abstract function in StorageReader
+    # Implement the abstract function in StorageReader
     def read_metadata(self) -> Metadata:
         with (self.path / ".metadata").open("rb") as metadata_file:
             return pickle.load(metadata_file)
@@ -411,6 +432,16 @@ class FileReader(StorageReader):
         self, global_plan: List[LoadPlan]
     ) -> List[LoadPlan]:
         return global_plan
+
+    def reset(
+        self, checkpoint_id: Union[str, os.PathLike, None] = None
+    ) -> None:
+        pass
+
+    def validate_checkpoint_id(
+        cls, checkpoint_id: Union[str, os.PathLike]
+    ) -> bool:
+        return True
 
 
 class FsdpCheckpointEngine(CheckpointEngine):
