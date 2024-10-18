@@ -518,10 +518,12 @@ class SucceededRequest(Message):
 
 @dataclass
 class DiagnosisAction(Message):
-    instance: str = ""
+    rank: int = -1
+    timestamp: float = 0.0
+    expired_time_period: int = 0
     action: str = ""
 
 
 @dataclass
 class HeartbeatResponse(Message):
-    diagnosis_action: DiagnosisAction = DiagnosisAction()
+    diagnosis_actions: List[DiagnosisAction] = field(default_factory=list)

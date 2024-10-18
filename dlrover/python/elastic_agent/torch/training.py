@@ -63,7 +63,7 @@ from torch.distributed.elastic.multiprocessing.errors import (
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
-from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
+from torch.distributed.launcher.api import _get_entrypoint_name
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -83,7 +83,7 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
+from dlrover.python.elastic_agent.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -106,6 +106,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceDescription,
 )
 from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -376,8 +377,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._worker_context = WorkerContext()
         self._diagnose_agent = DiagnosisAgent(
-            training_log_file, failure_node_errors
+            training_log_file=training_log_file,
+            errors=failure_node_errors,
+            worker_context=self._worker_context,
         )
 
     @prof
@@ -779,6 +783,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             put_metric(f"workers.{role}.{state.name.lower()}", 1)
 
+            actions = self._worker_context.next_actions()
+            for action in actions:
+                self._process_diagnose_action(action)
+
             if state == WorkerState.SUCCEEDED:
                 logger.info(
                     f"[{role}] worker group successfully finished."
@@ -802,16 +810,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                self._worker_context.update_context(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
                 try:
-                    action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
-                    )
+                    action = self._diagnose_agent.diagnose_training_failure()
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
@@ -829,11 +835,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnose_action(self, action: str):
-        if action == DiagnosisAction.RESTART_WORKER:
+    def _process_diagnose_action(self, action: DiagnoseAction):
+        if action.action == DiagnosisAction.RESTART_WORKER:
             self._remaining_failovers -= 1
             self._restart_workers(self._worker_group)
-        elif action == DiagnosisAction.RELAUNCH_WORKER:
+        elif action.action == DiagnosisAction.RELAUNCH_WORKER:
             self._stop_workers(self._worker_group)
             self._worker_group.state = WorkerState.FAILED
 

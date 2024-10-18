@@ -17,6 +17,8 @@ from dlrover.python.common.node import Node
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
+from typing import List
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 
 class LocalJobManager(JobManager):
@@ -68,9 +70,10 @@ class LocalJobManager(JobManager):
             node, restart_count, error_data, level
         )
 
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> List[DiagnoseAction]:
         node = self._job_nodes[node_type][node_id]
         node.heartbeat_time = timestamp
+        return []
 
     def close_job(self):
         pass

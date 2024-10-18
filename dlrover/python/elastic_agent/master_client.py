@@ -16,7 +16,7 @@ import socket
 import threading
 import time
 from contextlib import closing
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
@@ -24,6 +24,7 @@ from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 
 def retry_grpc_request(func):
@@ -231,9 +232,19 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
-    def report_heart_beat(self, timestamp):
+    def report_heart_beat(self, timestamp) -> List[DiagnoseAction]:
         message = grpc.HeartBeat(timestamp=timestamp)
-        return self._report(message)
+        response: grpc.HeartbeatResponse = self._get(message)
+        actions: List[DiagnoseAction] = []
+        for grpc_action in response.diagnosis_actions:
+            action = DiagnoseAction(
+                rank=grpc_action.rank,
+                timestamp=grpc_action.timestamp,
+                expired_time_period=grpc_action.expired_time_period,
+                action=grpc_action.action,
+            )
+            actions.append(action)
+        return actions
 
     def get_cluster_version(self, version_type, task_type, task_id):
         request = grpc.ClusterVersionRequest(

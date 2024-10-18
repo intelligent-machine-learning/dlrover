@@ -17,5 +17,5 @@ from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 from dlrover.python.diagnosis.common.inference_chain import Inference
 
 
-def coordinate_inferences(observations: List[Inference]) -> DiagnoseAction:
-    return DiagnoseAction()
+def coordinate_inferences(problems: List[Inference]) -> List[DiagnoseAction]:
+    return []

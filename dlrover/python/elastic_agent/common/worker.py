@@ -12,21 +12,20 @@
 # limitations under the License.
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerSpec
-from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
+from dlrover.python.diagnosis.common.diagnose_action import (
+    DiagnoseActionQueue,
+    DiagnoseAction,
+)
+from typing import Optional, List
 
 
 class WorkerContext:
-    def __init__(
-        self,
-        worker_spec: WorkerSpec = None,
-        remaining_failovers: int = 0,
-        restart_count: int = 0,
-        run_result: RunResult = None,
-    ):
-        self._worker_spec: WorkerSpec = worker_spec
-        self.remaining_failovers = remaining_failovers
-        self.restart_count = restart_count
-        self._run_result = run_result
+    def __init__(self):
+        self._worker_spec: Optional[WorkerSpec] = None
+        self.remaining_failovers = 0
+        self.restart_count = 0
+        self._run_result: Optional[RunResult] = None
+        self._diagnose_action_queue = DiagnoseActionQueue()
 
     @property
     def worker_spec(self):
@@ -44,3 +43,21 @@ class WorkerContext:
             f"restart_count: {self.restart_count}\n"
             f"run_result: {self._run_result}"
         )
+
+    def update_context(
+            self,
+            worker_spec: WorkerSpec = None,
+            remaining_failovers: int = 0,
+            restart_count: int = 0,
+            run_result: RunResult = None,
+    ):
+        self._worker_spec: WorkerSpec = worker_spec
+        self.remaining_failovers = remaining_failovers
+        self.restart_count = restart_count
+        self._run_result = run_result
+
+    def enqueue_diagnose_action(self, action: DiagnoseAction):
+        self._diagnose_action_queue.add_action(action)
+
+    def next_actions(self) -> List[DiagnoseAction]:
+        return self._diagnose_action_queue.next_actions()

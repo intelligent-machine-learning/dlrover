@@ -13,8 +13,8 @@
 
 import threading
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List
+
+from typing import List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
@@ -24,27 +24,31 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceDescription,
     InferenceName,
 )
+from dlrover.python.diagnosis.common.diagnose_action import (
+    DiagnoseAction,
+)
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     Inference,
     InferenceChain,
-    InferenceOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
-    CheckTrainingHangOperator,
 )
 
-
-def has_expired(timestamp: float, time_period: int) -> bool:
-    dt = datetime.fromtimestamp(timestamp)
-    expired_dt = dt + timedelta(seconds=time_period)
-    return expired_dt < datetime.now()
+from dlrover.python.master.diagnosis.diagnosis_data_manager import DiagnosisDataManager
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
+    get_master_observe_operators,
+)
+from dlrover.python.diagnosis.inferencechain.inference_chain import combine_inferences
+from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
+    coordinate_inferences,
+)
+from dlrover.python.master.node.job import JobContext
 
 
 class DiagnosisManager:
-    def __init__(self):
+    def __init__(self, job_context: JobContext = None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
+        self._job_context = job_context
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -68,7 +72,7 @@ class DiagnosisManager:
                 InferenceDescription.HANG,
             )
         ]
-        self._diagnostician.register_problems(problems)
+        self._diagnostician.register_training_problems(problems)
 
         try:
             thread = threading.Thread(
@@ -100,45 +104,20 @@ class DiagnosisManager:
             solutions: List[Inference] = []
             for problem in observed_problems:
                 logger.info(f"observed problems: {problem}")
-                root_causes = self._diagnostician.diagnose_failure(problem)
-                for root_cause in root_causes:
-                    logger.info(f"identify root cause: {root_cause}")
+                infs = self._diagnostician.diagnose_problem(problem)
+                logger.info(f"have the solution to {problem}: {infs}")
+                if len(infs) > 0:
+                    solutions = combine_inferences(solutions, infs)
+
+            actions = coordinate_inferences(solutions)
+            self._job_context.enqueue_actions(actions)
+
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
             )
 
-
-class DiagnosisDataManager:
-    def __init__(self, expire_time_period):
-        self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
-        self.expire_time_period = expire_time_period
-
-    def store_data(self, data: DiagnosisData):
-        data_type = data.data_type
-        if data_type not in self.diagnosis_data:
-            logger.debug(f"{data_type} is not found in the store")
-            self.diagnosis_data[data_type] = []
-        self.diagnosis_data[data_type].append(data)
-        self._clean_diagnosis_data(data_type)
-
-    def get_data(self, data_type: str) -> List[DiagnosisData]:
-        if data_type not in self.diagnosis_data:
-            return []
-        return self.diagnosis_data[data_type]
-
-    def _clean_diagnosis_data(self, data_type: str):
-        if data_type not in self.diagnosis_data:
-            return
-
-        data = self.diagnosis_data[data_type]
-        n = 0
-        for d in data:
-            if has_expired(d.timestamp, self.expire_time_period):
-                n = n + 1
-            else:
-                break
-
-        self.diagnosis_data[data_type] = data[n:]
+    def next_actions(self, rank) -> List[DiagnoseAction]:
+        return self._action_queue.next_actions(rank)
 
 
 class Diagnostician:
@@ -146,24 +125,20 @@ class Diagnostician:
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []
         self._training_problems: List[Inference] = []
-        self._observing_operators =
-
-    def get_observing_operators(self) -> List[InferenceOperator]:
-        return [CheckTrainingHangOperator(self._data_manager)]
+        self._observing_operators = get_master_observe_operators(data_mgr=data_manager)
 
     def register_pre_check(self, pre_checks: List[Inference]):
         self._pre_checks = pre_checks
 
-    def register_problems(self, problems: List[Inference]):
+    def register_training_problems(self, problems: List[Inference]):
         self._training_problems = problems
 
-    def check_training(self) -> List[Inference]:
-        ic = InferenceChain(self._pre_checks, self.get_pre_check_operators())
-        return ic.infer()
-
     def observe_training(self) -> List[Inference]:
+        if len(self._training_problems) == 0:
+            logger.warning("No training problem is registered.")
+            return []
         ic = InferenceChain(
-            self._training_problems, self.get_observing_operators()
+            self._training_problems, self._observing_operators
         )
         return ic.infer()
 

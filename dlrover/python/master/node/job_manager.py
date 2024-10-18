@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
@@ -28,6 +28,8 @@ from dlrover.python.master.node.training_node import (
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.master.node.job import JobContext
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 
 class JobManager(metaclass=ABCMeta):
@@ -41,6 +43,7 @@ class JobManager(metaclass=ABCMeta):
         speed_monitor=None,
         error_monitor=None,
         external_config=None,
+        job_context=None,
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
@@ -57,6 +60,11 @@ class JobManager(metaclass=ABCMeta):
         self._nodes_required = (0, 0, 0)
 
         self._training_node_config = TrainingNodeConfig(external_config)
+
+        if job_context is None:
+            self._job_context = JobContext()
+        else:
+            self._job_context = job_context
 
     @abstractmethod
     def start(self):
@@ -195,7 +203,7 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> List[DiagnoseAction]:
         """Collect the heart beat message of nodes."""
         pass
 

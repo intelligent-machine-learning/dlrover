@@ -123,17 +123,9 @@ class TorchTrainingMonitor(Singleton):
         except Exception as e:
             logger.warning(e)
 
-    def send_heartbeat(self):
-        try:
-            ts = int(time.time())
-            self._master_client.report_heart_beat(ts)
-        except Exception:
-            logger.warning("Fail to report a heartbeat.")
-
     def _periodically_report(self):
         logger.info("Start training agent reporter.")
         while True:
             if self._group_rank == 0:
                 self.report_resource_with_step()
-            self.send_heartbeat()
             time.sleep(15)
