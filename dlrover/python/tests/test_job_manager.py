@@ -17,6 +17,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import patch
 
 from kubernetes import client
 
@@ -41,7 +42,10 @@ from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.dist_job_manager import create_job_manager
+from dlrover.python.master.node.dist_job_manager import (
+    DistributedJobManager,
+    create_job_manager,
+)
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     TaskRescheduleCallback,
@@ -426,6 +430,34 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._process_list_nodes(nodes)
         ps_ids = list(manager._job_nodes[NodeType.PS].keys())
         self.assertListEqual(ps_ids, [0, 1, 2])
+
+    @patch.object(DistributedJobManager, "_process_event")
+    def test_process_list_nodes_for_empty_case(self, mock_method):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._job_nodes = {
+            NodeType.PS: {
+                0: Node(
+                    node_type=NodeType.PS,
+                    node_id=0,
+                    status=NodeStatus.RUNNING,
+                    config_resource=NodeResource(1, 4096),
+                    max_relaunch_count=1,
+                )
+            },
+            NodeType.WORKER: {
+                1: Node(
+                    node_type=NodeType.WORKER,
+                    node_id=1,
+                    status=NodeStatus.RUNNING,
+                    config_resource=NodeResource(1, 4096),
+                    max_relaunch_count=1,
+                )
+            },
+        }
+        manager._process_list_nodes([])
+        self.assertEqual(mock_method.call_count, 2)
 
     def test_create_allreduce_job_manager(self):
         params = MockK8sPSJobArgs()
