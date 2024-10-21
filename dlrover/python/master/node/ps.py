@@ -15,9 +15,14 @@ import collections
 import copy
 import itertools
 import threading
+import time
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeStatus,
+    NodeType,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
@@ -367,3 +372,81 @@ class ParameterServerManager(TrainingNodeManager):
             if pod_info.status == NodeStatus.RUNNING
         ]
         return len(running_ps) == self._job_resource.ps_num
+
+    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
+        """
+        To prevent training hang by pending ps. Should exit when there
+        is inextricable pending issue.
+
+        The fail strategy:
+        tf:
+        0: skip judgement
+        1+2: all ps should be ready within the timeout period
+
+        There is 3 main conditions for the judgement:
+        1: exist pending nodes
+        2: alive nodes number consistently lower than the min nodes requires
+        3: 1+2 last for a certain time
+
+        Args:
+            total_node_num(int): Total node number master managed.
+            job_type(str): Job type. Support AllReduceStrategy and
+                ParameterServerStrategy for now.
+
+        Return:
+            bool
+        """
+
+        # fail strategy
+        strategy = _dlrover_ctx.pending_fail_strategy
+
+        # pending time as timeout for now
+        timeout = self._get_pending_timeout()
+        logger.debug(
+            "Is training hang by pending with total ps "
+            f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
+        )
+        if (
+            timeout <= 0
+            or strategy == 0
+            or job_type != DistributionStrategy.PS
+        ):
+            return False
+
+        # collect pending and running nodes
+        cur_nodes = list(self._nodes.values())
+        pending_ps: List[Node] = []
+        running_ps: List[Node] = []
+        for node in cur_nodes:
+            if node is None or node.is_released or node.create_time is None:
+                continue
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
+                pending_ps.append(node)
+            elif node.status == NodeStatus.RUNNING:
+                running_ps.append(node)
+
+        if len(pending_ps) != 0:
+            now = time.time()
+            first_pending_ps = min(
+                pending_ps, key=lambda x: x.create_time  # type: ignore
+            )
+            if not first_pending_ps or not first_pending_ps.create_time:
+                logger.debug(
+                    "Skip for no pending ps or pending ps's "
+                    f"create time is None: {first_pending_ps}."
+                )
+                return False
+
+            if now - first_pending_ps.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {first_pending_ps.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"running ps(size:{len(running_ps)})"
+                    f": {running_ps}, "
+                    f"pending ps(size:{len(pending_ps)})"
+                    f": {pending_ps}, "
+                    f"min required nodes size: {total_node_num}."
+                )
+                return True
+        return False

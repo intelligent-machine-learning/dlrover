@@ -80,9 +80,7 @@ class Context(Singleton):
         self.seconds_to_wait_pending_pod = (
             DefaultValues.SEC_TO_WAIT_PENDING_POD
         )
-        self.pending_fail_strategy = (
-            DefaultValues.PENDING_FAIL_STRATEGY
-        )
+        self.pending_fail_strategy = DefaultValues.PENDING_FAIL_STRATEGY
         self.seconds_huge_training_threshold = (
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
         )

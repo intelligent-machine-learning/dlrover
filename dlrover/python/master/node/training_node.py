@@ -395,6 +395,15 @@ class TrainingNodeManager(object):
                 node.critical = True
                 node.max_relaunch_count = critical_node_restarts[id]
 
+    def _get_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
 
 @dataclass
 class SyncNodeTrainingPorts:

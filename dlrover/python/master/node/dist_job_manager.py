@@ -231,6 +231,12 @@ class DistributedJobManager(JobManager):
     def get_worker_num(self):
         return self._job_resource.worker_num
 
+    def get_ps_num(self):
+        return self._job_resource.ps_num
+
+    def get_job_type(self):
+        return self._job_args.distribution_strategy
+
     def is_all_reduce_type_job(self):
         return (
             self._job_args.distribution_strategy
@@ -264,16 +270,15 @@ class DistributedJobManager(JobManager):
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
-        # worker pending judgement:
-        if (
-            self.is_all_reduce_type_job()
-            and self._worker_manager.is_training_hang_by_pending(
-                self.get_worker_num()
-            )
+        # ps/worker pending judgement:
+        if self._ps_manager.is_training_hang_by_pending(
+            self.get_ps_num(), self.get_job_type()
+        ) or self._worker_manager.is_training_hang_by_pending(
+            self.get_worker_num(), self.get_job_type()
         ):
             msg = (
                 "Stop the training early because 1) there is node pending "
-                "2) alive worker number consistently less than the min "
+                "2) alive nodes number consistently less than the min "
                 "training nodes required 3) pending time last exceed limit."
             )
             self._process_error(
