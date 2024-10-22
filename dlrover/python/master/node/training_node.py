@@ -169,6 +169,18 @@ def reduce_timeout_pending_node_resource(node: Node):
     return True
 
 
+def skip_pending_judgement(strategy) -> bool:
+    return strategy == 0
+
+
+def is_key_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 1
+
+
+def is_all_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 2
+
+
 class TrainingNodeManager(object):
     def __init__(
         self,
@@ -394,6 +406,15 @@ class TrainingNodeManager(object):
             if id in critical_node_restarts:
                 node.critical = True
                 node.max_relaunch_count = critical_node_restarts[id]
+
+    def _get_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
 
 
 @dataclass
