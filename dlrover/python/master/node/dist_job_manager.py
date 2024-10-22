@@ -556,20 +556,22 @@ class DistributedJobManager(JobManager):
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
-        if not nodes:
-            return
+
         exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
             exist_nodes[node_type] = []
-        for node in nodes:
-            exist_nodes[node.type].append(node.id)
-            if node.status == NodeStatus.DELETED:
-                type = NodeEventType.DELETED
-            else:
-                type = NodeEventType.MODIFIED
-            # Mock event to avoid missing events
-            event = NodeEvent(type, node)
-            self._process_event(event)
+
+        if nodes:
+            for node in nodes:
+                exist_nodes[node.type].append(node.id)
+                if node.status == NodeStatus.DELETED:
+                    event_type = NodeEventType.DELETED
+                else:
+                    event_type = NodeEventType.MODIFIED
+                # Mock event to avoid missing events
+                event = NodeEvent(event_type, node)
+                self._process_event(event)
+        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in self._job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -581,9 +583,8 @@ class DistributedJobManager(JobManager):
                     and node.id not in exist_nodes[node_type]
                 ):
                     logger.info(
-                        "Node %s %s is deleted without the event",
-                        node_type,
-                        node.id,
+                        f"Node {node_type} {node.id} is deleted "
+                        "without the event"
                     )
                     node.is_released = True
                     new_node = copy.deepcopy(node)
@@ -594,9 +595,9 @@ class DistributedJobManager(JobManager):
     def close_job(self):
         plan = ScalePlan()
         ps_resource = NodeGroupResource.new_empty()
-        worker_reource = NodeGroupResource.new_empty()
+        worker_resource = NodeGroupResource.new_empty()
         plan.node_group_resources = {
-            "worker": worker_reource,
+            "worker": worker_resource,
             "ps": ps_resource,
         }
         self._scaler.scale(plan=plan)
@@ -633,6 +634,7 @@ class DistributedJobManager(JobManager):
                 and len(pods.items) > 0
                 and any(
                     pod.status.phase == NodeStatus.RUNNING
+                    and not pod.metadata.deletion_timestamp
                     for pod in pods.items
                 )
             ):
