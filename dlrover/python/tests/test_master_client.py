@@ -15,7 +15,7 @@ import json
 import time
 import unittest
 
-from dlrover.python.common import grpc
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
@@ -35,6 +35,9 @@ class MasterClientTest(unittest.TestCase):
         self._master.stop()
 
     def test_open_channel(self):
+        self.assertEqual(env_utils.get_env("GRPC_ENABLE_FORK_SUPPORT"), "true")
+        self.assertEqual(env_utils.get_env("GRPC_POLL_STRATEGY"), "poll")
+        self.assertEqual(self._master_client._timeout, 0.5)
         self.assertEqual(self._master_client._timeout, 0.5)
         self._master_client.close_channel()
         self._master_client.open_channel()
