@@ -26,7 +26,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.training_node import TrainingNodeManager
+from dlrover.python.master.node.training_node import (
+    TrainingNodeManager,
+    skip_pending_judgement,
+)
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 
@@ -408,7 +411,7 @@ class ParameterServerManager(TrainingNodeManager):
         )
         if (
             timeout <= 0
-            or strategy == 0
+            or skip_pending_judgement(strategy)
             or job_type != DistributionStrategy.PS
         ):
             return False

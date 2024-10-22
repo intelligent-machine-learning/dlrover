@@ -169,6 +169,18 @@ def reduce_timeout_pending_node_resource(node: Node):
     return True
 
 
+def skip_pending_judgement(strategy) -> bool:
+    return strategy == 0
+
+
+def is_key_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 1
+
+
+def is_all_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 2
+
+
 class TrainingNodeManager(object):
     def __init__(
         self,

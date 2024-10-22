@@ -28,6 +28,9 @@ from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,
     TrainingNodeManager,
+    is_all_nodes_pending_judgement,
+    is_key_nodes_pending_judgement,
+    skip_pending_judgement,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
@@ -352,7 +355,7 @@ class WorkerManager(TrainingNodeManager):
             "Is training hang by pending with total worker "
             f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
         )
-        if timeout <= 0 or strategy == 0:
+        if timeout <= 0 or skip_pending_judgement(strategy):
             return False
 
         # collect pending and running nodes
@@ -376,7 +379,8 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         if job_type == DistributionStrategy.ALLREDUCE or (
-            job_type == DistributionStrategy.PS and strategy == 2
+            job_type == DistributionStrategy.PS
+            and is_all_nodes_pending_judgement(strategy)
         ):
             if 0 < len(pending_workers) == total_node_num:
                 # all nodes pending
@@ -424,7 +428,10 @@ class WorkerManager(TrainingNodeManager):
                     f": {self.get_min_nodes_required()}."
                 )
                 return True
-        elif job_type == DistributionStrategy.PS and strategy == 1:
+        elif (
+            job_type == DistributionStrategy.PS
+            and is_key_nodes_pending_judgement(strategy)
+        ):
             # get worker 0
             pending_worker_0 = None
             for pending_worker in pending_workers:
