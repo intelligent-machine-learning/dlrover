@@ -76,7 +76,7 @@ class DiagnosisManager:
 
         try:
             thread = threading.Thread(
-                target=self._diagnose(),
+                target=self._diagnose,
                 name="diagnose_failures",
                 daemon=True,
             )

@@ -212,6 +212,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertDictEqual(critical_worker, {})
 
     def test_relaunch_node(self):
+        print("!!!!!!!!!!!Start test relaunch_node!!!!!!!!!!!!\n")
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())

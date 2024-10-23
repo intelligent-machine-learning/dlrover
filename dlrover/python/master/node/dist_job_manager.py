@@ -31,8 +31,8 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     TrainingExceptionLevel,
-    MasterConstants,
 )
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
@@ -214,7 +214,7 @@ class DistributedJobManager(JobManager):
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
         threading.Thread(
-            target=self._diagnose_job(),
+            target=self._diagnose_job,
             name="diagnose_job",
             daemon=True,
         ).start()
@@ -440,27 +440,27 @@ class DistributedJobManager(JobManager):
                 time.sleep(30)
             time.sleep(5)
 
-    def _monitor_node_heart_beat(self):
-        logger.info("Start monitoring the heartbeat of nodes.")
-        while True:
-            if self._stopped:
-                logger.info("Stop monitoring the heartbeat of nodes.")
-                break
-            with self._lock:
-                try:
-                    events = self._get_dead_node_event()
-                except Exception as e:
-                    logger.warning(e)
-                    events = []
-
-            for event in events:
-                try:
-                    self._process_event(event)
-                except Exception as e:
-                    logger.warning(e)
-                    detail_trace_back = traceback.format_exc()
-                    logger.warning(detail_trace_back)
-            time.sleep(15)
+    # def _monitor_node_heart_beat(self):
+    #     logger.info("Start monitoring the heartbeat of nodes.")
+    #     while True:
+    #         if self._stopped:
+    #             logger.info("Stop monitoring the heartbeat of nodes.")
+    #             break
+    #         with self._lock:
+    #             try:
+    #                 events = self._get_dead_node_event()
+    #             except Exception as e:
+    #                 logger.warning(e)
+    #                 events = []
+    #
+    #         for event in events:
+    #             try:
+    #                 self._process_event(event)
+    #             except Exception as e:
+    #                 logger.warning(e)
+    #                 detail_trace_back = traceback.format_exc()
+    #                 logger.warning(detail_trace_back)
+    #         time.sleep(15)
 
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
@@ -474,7 +474,6 @@ class DistributedJobManager(JobManager):
                 except Exception as e:
                     logger.warning(e)
                     events = []
-
             for event in events:
                 try:
                     self._process_event(event)
@@ -482,8 +481,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
-
-            actions = self._job_context.next_actions(MasterConstants.MASTER_RANK)
+            actions = self._job_context.next_actions(DiagnosisConstant.MASTER_RANK)
             for action in actions:
                 self._process_diagnosis_action(action)
             time.sleep(15)
@@ -764,7 +762,6 @@ class DistributedJobManager(JobManager):
                 "exit reason": cur_node.exit_reason,
             },
         )
-
         if should_relaunch:
             self._relaunch_node(cur_node)
 
