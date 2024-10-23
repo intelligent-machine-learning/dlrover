@@ -1,6 +1,6 @@
 NUM_GPUS_PER_NODE=$(npu-smi info -l | grep "Total Count" | awk '{print $4}')
 
-STRATEGY_LIST="--use_fsdp --use_amp --use_module_replace --use_checkpointing --shared_expert_overlapping"
+STRATEGY_LIST="--use_fsdp --use_amp --use_module_replace --use_checkpointing --shared_expert_overlapping  --moe_implementation_type Megatron --moe_token_dispatcher_type MindSpeedAllGather"
 
 HIDDEN_SIZE=2048
 INTERMEDIATE_SIZE=2816
@@ -81,5 +81,6 @@ MOE_FSDP_PREFETCH_NUM=$MOE_FSDP_PREFETCH_NUM  python -m atorch.distributed.run \
     --seq_length $SEQ_LENGTH \
     --key_value_head_num $KEY_VALUE_HEAD_NUM \
     --max_train_step $TRAIN_STEP \
-    --batchsize_per_gpu $BATCHSIZE_PER_GPU  $EXTRA_PARAM
+    --batchsize_per_gpu $BATCHSIZE_PER_GPU  $EXTRA_PARAM \
+    --npu
 
