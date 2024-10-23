@@ -2,7 +2,6 @@ import argparse
 import functools
 import time
 from datetime import timedelta
-from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -11,7 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from transformers.models.llama import modeling_llama
 from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaForCausalLM
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaForCausalLM
 
 import atorch
 from atorch.auto.accelerate import auto_accelerate
@@ -166,78 +165,10 @@ class _SparseMLP(nn.Module):
         return hidden_states
 
 
-modeling_llama.LlamaMLP = _SparseMLP
-
-
-class _LlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, use_atorch_rms_norm=True):
-        super().__init__()
-        self.hidden_size = config.hidden_size
-        self.self_attn = modeling_llama.LlamaAttention(config=config)
-        self.mlp = modeling_llama.LlamaMLP(config)
-        if use_atorch_rms_norm:
-            self.input_layernorm = AtorchRmsNorm(config.hidden_size, eps=config.rms_norm_eps)
-            self.post_attention_layernorm = AtorchRmsNorm(config.hidden_size, eps=config.rms_norm_eps)
-        else:
-            self.input_layernorm = modeling_llama.LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-            self.post_attention_layernorm = modeling_llama.LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
-        output_attentions: Optional[bool] = False,
-        use_cache: Optional[bool] = False,
-    ):
-        """
-        Args:
-            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            attention_mask (`torch.FloatTensor`, *optional*): attention mask of size
-                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-            use_cache (`bool`, *optional*):
-                If set to `True`, `past_key_values` key value states are returned and can be used to speed up decoding
-                (see `past_key_values`).
-            past_key_value (`Tuple(torch.FloatTensor)`, *optional*): cached past key and value projection states
-        """
-
-        residual = hidden_states
-
-        hidden_states = self.input_layernorm(hidden_states)
-
-        # Self Attention
-        hidden_states, self_attn_weights, present_key_value = self.self_attn(
-            hidden_states=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_value=past_key_value,
-            output_attentions=output_attentions,
-            use_cache=use_cache,
-        )
-        hidden_states = residual + hidden_states
-
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states
-
-        outputs = (hidden_states,)
-
-        if output_attentions:
-            outputs += (self_attn_weights,)  # type: ignore
-
-        if use_cache:
-            outputs += (present_key_value,)  # type: ignore
-
-        return outputs
-
-
-modeling_llama.LlamaDecoderLayer = _LlamaDecoderLayer
+def patch_llama(args):
+    modeling_llama.LlamaMLP = _SparseMLP
+    if not args.not_use_atorch_rmsnorm:
+        modeling_llama.LlamaRMSNorm = AtorchRmsNorm
 
 
 def llama_loss_func(inputs, output):
@@ -367,14 +298,27 @@ def parse_args():
     parser.add_argument("--use_fp8", default=False, action="store_true")
     parser.add_argument("--use_checkpointing", default=False, action="store_true")
     parser.add_argument("--use_module_replace", default=False, action="store_true")
+    parser.add_argument("--not_use_atorch_rmsnorm", default=False, action="store_true")
     parser.add_argument("--use_meta_init", default=False, action="store_true")
     parser.add_argument("--use_distributed_dataloader", default=False, action="store_true")
     parser.add_argument("--shared_expert_overlapping", default=False, action="store_true")
     parser.add_argument("--max_checkpoint_module_num", type=int, default=-1, required=False)
     parser.add_argument("--record_timeline", default=False, action="store_true")
     parser.add_argument("--timeline_dir", type=str, default="timeline_dir", required=False)
-    parser.add_argument("--moe_implementation_type", type=str, default="Megatron", required=False)
-    parser.add_argument("--moe_token_dispatcher_type", type=str, default="MindSpeedAllGather", required=False)
+    parser.add_argument(
+        "--moe_implementation_type",
+        type=str,
+        default="Megatron",
+        required=False,
+        help="supported value: Megatron, MegaBlocks",
+    )
+    parser.add_argument(
+        "--moe_token_dispatcher_type",
+        type=str,
+        default="MindSpeedAllGather",
+        required=False,
+        help="supported value: AllToAll, AllGather, MindSpeedAllToAll, MindSpeedAllGather",
+    )
     parser.add_argument("--npu", default=False, action="store_true")
 
     return parser.parse_args()
@@ -389,7 +333,7 @@ def get_strategy(args):
     if args.use_module_replace:
         strategy.append("module_replace")
     if args.use_fsdp:
-        atorch_wrap_cls = (_LlamaDecoderLayer,)
+        atorch_wrap_cls = (LlamaDecoderLayer,)
         fsdp_config = {
             "sync_module_states": True,
             "limit_all_gathers": True,
@@ -424,7 +368,7 @@ def get_strategy(args):
         amp_config = {"dtype": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16}
         strategy.append(("amp_native", amp_config))
     if args.use_checkpointing:
-        checkpoint_modules = (_LlamaDecoderLayer,)
+        checkpoint_modules = (LlamaDecoderLayer,)
         checkpoint_config = {"wrap_class": checkpoint_modules, "no_reentrant": True}
         if args.max_checkpoint_module_num >= 0:
             checkpoint_config["max_checkpoint_module_num"] = args.max_checkpoint_module_num
@@ -488,6 +432,8 @@ def train(args):
     c_s += f"num_key_value_heads={args.key_value_head_num},max_position_embeddings={args.seq_length},"
     c_s += f"intermediate_size={args.intermediate_size}"
     model_config.update_from_string(c_s)
+    model_config._attn_implementation = "flash_attention_2"
+    model_config.use_cache = False
     model_config.num_experts = args.num_experts
     model_config.num_shared_expert = args.num_shared_expert
     model_config.top_k = args.top_k
@@ -620,4 +566,5 @@ if __name__ == "__main__":
     set_global_variable_from_args(args)
     if args.npu:
         from atorch import npu  # noqa
+    patch_llama(args)
     train(args)
