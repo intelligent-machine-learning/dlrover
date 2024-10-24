@@ -16,6 +16,7 @@ import time
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     JobConstant,
     NodeExitReason,
     NodeStatus,
@@ -27,6 +28,9 @@ from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,
     TrainingNodeManager,
+    is_all_nodes_pending_judgement,
+    is_key_nodes_pending_judgement,
+    skip_pending_judgement,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
@@ -314,103 +318,145 @@ class WorkerManager(TrainingNodeManager):
             worker.restart_training = False
         return restart
 
-    def _get_pending_timeout(self):
-        timeout = _dlrover_context.seconds_to_wait_pending_pod
-        if timeout <= 0:
-            return 0
-        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
-            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
-
-        return timeout
-
-    def is_training_hang_by_pending(self, total_node_num) -> bool:
+    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
         """
-        To prevent training hanging by pending nodes. Should exit when there is
-        inextricable pending issue.
+        To prevent training hang by pending workers. Should exit when there
+        is inextricable pending issue.
 
-        There is 3 main conditions:
+        The fail strategy:
+        torch:
+        0: skip judgement
+        1 and 2: all workers should be ready within the timeout period
+        tf:
+        0: skip judgement
+        1: at least 1 worker(chief) should be ready within the timeout period
+        2: all role nodes should be ready within the timeout period
+
+        There is 3 main conditions for the judgement:
         1: exist pending nodes
         2: alive nodes number consistently lower than the min nodes requires
         3: 1+2 last for a certain time
 
         Args:
             total_node_num(int): Total node number master managed.
+            job_type(str): Job type. Support AllReduceStrategy and
+                ParameterServerStrategy for now.
 
         Return:
             bool
         """
 
+        # fail strategy
+        strategy = _dlrover_context.pending_fail_strategy
+
         # pending time as timeout for now
         timeout = self._get_pending_timeout()
         logger.debug(
             "Is training hang by pending with total worker "
-            f"num: {total_node_num}, timeout: {timeout}."
+            f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
         )
-        if timeout <= 0:
+        if timeout <= 0 or skip_pending_judgement(strategy):
             return False
 
-        cur_nodes = list(self._nodes.values())
-
         # collect pending and running nodes
-        pending_nodes: List[Node] = []
-        running_nodes: List[Node] = []
+        cur_nodes = list(self._nodes.values())
+        pending_workers: List[Node] = []
+        running_workers: List[Node] = []
         for node in cur_nodes:
             if node is None or node.is_released or node.create_time is None:
                 continue
-
             if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
-                pending_nodes.append(node)
+                pending_workers.append(node)
             elif node.status == NodeStatus.RUNNING:
-                running_nodes.append(node)
-        self._pending_nodes = pending_nodes
+                running_workers.append(node)
 
         if not self.has_node_required_info() and total_node_num != len(
-            pending_nodes
+            pending_workers
         ):
             logger.debug(
                 "Skip for no required nodes info and not all nodes pending."
             )
             return False
-        elif 0 < len(pending_nodes) == total_node_num:
-            # all nodes pending
-            logger.info(f"All nodes pending: {pending_nodes}.")
-        else:
-            # partial nodes pending
-            # with condition 1 + 2
+
+        if job_type == DistributionStrategy.ALLREDUCE or (
+            job_type == DistributionStrategy.PS
+            and is_all_nodes_pending_judgement(strategy)
+        ):
+            if 0 < len(pending_workers) == total_node_num:
+                # all nodes pending
+                logger.info(f"All workers pending: {pending_workers}.")
+            else:
+                # partial nodes pending
+                # with condition 1 + 2
+                if (
+                    len(pending_workers) == 0
+                    or len(running_workers) >= self.get_min_nodes_required()
+                ):
+                    logger.debug(
+                        f"Skip for no pending workers: {pending_workers} "
+                        f"or running workers: {running_workers} is greater "
+                        f"than the min workers "
+                        f"required: {self.get_min_nodes_required()}."
+                    )
+                    return False
+
+            # with condition 3
+            now = time.time()
+            first_pending_worker = min(
+                pending_workers, key=lambda x: x.create_time  # type: ignore
+            )
             if (
-                len(pending_nodes) == 0
-                or len(running_nodes) >= self.get_min_nodes_required()
+                not first_pending_worker
+                or not first_pending_worker.create_time
             ):
                 logger.debug(
-                    f"Skip for no pending nodes: {pending_nodes} "
-                    f"or running nodes: {running_nodes} is greater "
-                    f"than the min nodes "
-                    f"required: {self.get_min_nodes_required()}."
+                    "Skip for no pending workers or pending worker's "
+                    f"create time is None: {first_pending_worker}."
                 )
                 return False
 
-        # with condition 3
-        now = time.time()
-        first_pending_node = min(
-            pending_nodes, key=lambda x: x.create_time  # type: ignore
-        )
-        if not first_pending_node or not first_pending_node.create_time:
-            logger.debug(
-                "Skip for no pending nodes or pending node's "
-                f"create time is None: {first_pending_node}."
-            )
-            return False
+            if now - first_pending_worker.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {first_pending_worker.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"running workers(size:{len(running_workers)})"
+                    f": {running_workers}, "
+                    f"pending workers(size:{len(pending_workers)})"
+                    f": {pending_workers}, "
+                    "min required nodes size"
+                    f": {self.get_min_nodes_required()}."
+                )
+                return True
+        elif (
+            job_type == DistributionStrategy.PS
+            and is_key_nodes_pending_judgement(strategy)
+        ):
+            # get worker 0
+            pending_worker_0 = None
+            for pending_worker in pending_workers:
+                if pending_worker.rank_index == 0:
+                    pending_worker_0 = pending_worker
+                    break
+            if not pending_worker_0 or not pending_worker_0.create_time:
+                logger.debug(
+                    "Skip for no pending worker0 or pending worker's "
+                    f"create time is None: {pending_worker_0}."
+                )
+                return False
 
-        if now - first_pending_node.create_time.timestamp() > timeout:
-            logger.warning(
-                f"Node {first_pending_node.name} "
-                f"exceeded pending timeout: {timeout}s, "
-                f"running nodes(size:{len(running_nodes)}): {running_nodes}, "
-                f"pending nodes(size:{len(pending_nodes)}): {pending_nodes}, "
-                f"min required nodes size: {self.get_min_nodes_required()}."
-            )
-            return True
-
+            now = time.time()
+            if now - pending_worker_0.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {pending_worker_0.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"running workers(size:{len(running_workers)})"
+                    f": {running_workers}, "
+                    f"pending workers(size:{len(pending_workers)})"
+                    f": {pending_workers}."
+                )
+                return True
         return False
 
     def _get_insufficient_timeout(self):

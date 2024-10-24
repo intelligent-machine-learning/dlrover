@@ -657,7 +657,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        manager.is_all_reduce_type_job = mock.MagicMock(return_value=True)
+        # ps normal + worker pending
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
         manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
             return_value=True
         )
@@ -666,9 +669,35 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(reason, JobExitReason.PENDING_TIMEOUT)
         self.assertTrue(msg)
 
-        manager.is_all_reduce_type_job = mock.MagicMock(return_value=False)
+        # ps normal + worker normal
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
+
+        # ps pending + worker normal
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+
+        # ps pending + worker pending
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
 
     def test_early_stop_part3(self):
         params = MockK8sPSJobArgs()
