@@ -15,7 +15,7 @@ import json
 import time
 import unittest
 
-from dlrover.python.common import env_utils, grpc
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
