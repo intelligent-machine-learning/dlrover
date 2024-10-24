@@ -733,6 +733,7 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("diagnosis_action_consumer", active_threads_name)
         self.assertIn("node_monitor", active_threads_name)
         self.assertIn("node_heart_beat_monitor", active_threads_name)
         manager.stop()
@@ -782,6 +783,19 @@ class DistributedJobManagerTest(unittest.TestCase):
         # reset
         _dlrover_context.seconds_to_wait_pending_pod = 900
 
+    def test_multi_getting(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        self.assertEqual(manager.get_total_node_num_by_type(NodeType.PS), 0)
+        manager._init_nodes()
+
+        self.assertEqual(manager.get_job_strategy(), DistributionStrategy.PS)
+        self.assertEqual(manager.get_total_node_num_by_type(NodeType.PS), 3)
+        self.assertEqual(manager.get_node_required_info(), (0, 0, 0))
+        manager._nodes_required = (3, 5, 100)
+        self.assertEqual(manager.get_node_required_info(), (3, 5, 100))
+
 
 class LocalJobManagerTest(unittest.TestCase):
     def test_local_job_manager(self):
@@ -828,3 +842,5 @@ class LocalJobManagerTest(unittest.TestCase):
             job_manager.update_succeeded_node(0, "unknown")
         except Exception:
             self.fail()
+
+        self.assertEqual(job_manager.get_diagnosis_actions_size(), 0)

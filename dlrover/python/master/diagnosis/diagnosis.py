@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timedelta
+from itertools import islice
 from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
@@ -41,10 +44,16 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 
 class DiagnosisManager:
-    def __init__(self):
+    def __init__(self, job_manager=None):
+        self._job_manager = job_manager
         self._is_observing_started = False
-        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
+        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(
+            job_manager, 600
+        )
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
+
+    def is_job_manager_exist(self) -> bool:
+        return self._job_manager is not None
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -72,8 +81,8 @@ class DiagnosisManager:
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_failures(),
-                name="diagnose_failures",
+                target=self._diagnose_failures,
+                name="failure_diagnosis",
                 daemon=True,
             )
             thread.start()
@@ -94,10 +103,13 @@ class DiagnosisManager:
             if not self._is_observing_started:
                 logger.info("Stop to diagnose failures for observing.")
                 break
+            logger.info(
+                f"Current diagnosis data size: {self._data_manager.get_data_size()}."
+            )
 
             observed_problems = self._diagnostician.observe_training()
             for problem in observed_problems:
-                logger.info(f"observed problems: {problem}")
+                logger.info(f"Observe problem in diagnosing: {problem}")
                 root_causes = self._diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
@@ -107,36 +119,53 @@ class DiagnosisManager:
 
 
 class DiagnosisDataManager:
-    def __init__(self, expire_time_period):
-        self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
+    def __init__(self, job_manager=None, expire_time_period=600):
+        self._diagnosis_data: Dict[str, deque[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
+        self._job_manager = job_manager
+        self._lock = threading.Lock()
+
+    @property
+    def job_manager(self):
+        return self._job_manager
+
+    @property
+    def data(self):
+        return self._diagnosis_data
+
+    def with_runtime_context(self) -> bool:
+        return self.job_manager is not None
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
-        if data_type not in self.diagnosis_data:
-            logger.debug(f"{data_type} is not found in the store")
-            self.diagnosis_data[data_type] = []
-        self.diagnosis_data[data_type].append(data)
-        self._clean_diagnosis_data(data_type)
+        with self._lock:
+            if data_type not in self.data:
+                self.data[data_type] = deque(maxlen=100000)
+            self.data[data_type].append(data)
+            self._clean_diagnosis_data(data_type)
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
-        if data_type not in self.diagnosis_data:
-            return []
-        return self.diagnosis_data[data_type]
+        with self._lock:
+            if data_type not in self.data:
+                return []
+            return list(self.data[data_type])
+
+    def get_data_size(self):
+        return sys.getsizeof(self.data)
 
     def _clean_diagnosis_data(self, data_type: str):
-        if data_type not in self.diagnosis_data:
+        if data_type not in self.data:
             return
 
-        data = self.diagnosis_data[data_type]
+        each_data = self.data[data_type]
         n = 0
-        for d in data:
+        for d in each_data:
             if has_expired(d.timestamp, self.expire_time_period):
                 n = n + 1
             else:
                 break
-
-        self.diagnosis_data[data_type] = data[n:]
+        if n > 0:
+            self.data[data_type] = deque(islice(each_data, n, len(each_data)))
 
 
 class Diagnostician:
