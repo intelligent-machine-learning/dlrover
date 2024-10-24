@@ -19,7 +19,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
-from dlrover.python.common.worker import WorkerContext
+from dlrover.python.elastic_agent.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
@@ -30,10 +30,10 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.training import (
-    ElasticLaunchConfig,
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 class TestDiagnosisAgent(unittest.TestCase):

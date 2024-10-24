@@ -27,7 +27,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -394,7 +394,7 @@ class MasterServicerTest(unittest.TestCase):
         request.data = message.serialize()
         request.node_type = NodeType.WORKER
         request.node_id = 0
-        self.servicer.report(request, None)
+        self.servicer.get(request, None)
         worker0 = self.servicer._job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker0.heartbeat_time, ts)
 

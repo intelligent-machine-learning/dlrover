@@ -514,3 +514,16 @@ class ElasticRunConfig(Message):
 @dataclass
 class SucceededRequest(Message):
     pass
+
+
+@dataclass
+class DiagnosisAction(Message):
+    rank: int = -1
+    timestamp: float = 0.0
+    expired_time_period: int = 0
+    action: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    diagnosis_actions: List[DiagnosisAction] = field(default_factory=list)

@@ -116,10 +116,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.training import (
-    ElasticLaunchConfig,
     launch_agent,
 )
 from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 def parse_args(args):

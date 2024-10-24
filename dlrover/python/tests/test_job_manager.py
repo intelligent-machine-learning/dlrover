@@ -216,6 +216,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertDictEqual(critical_worker, {})
 
     def test_relaunch_node(self):
+        print("!!!!!!!!!!!Start test relaunch_node!!!!!!!!!!!!\n")
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
@@ -734,7 +735,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
-        self.assertIn("node_heart_beat_monitor", active_threads_name)
+        self.assertIn("diagnose_job", active_threads_name)
         manager.stop()
 
     def test_concurrency_heart_beat_collecting(self):

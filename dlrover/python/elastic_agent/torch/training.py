@@ -23,7 +23,6 @@ import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import (
     Any,
@@ -36,7 +35,6 @@ from typing import (
     Union,
 )
 
-import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
@@ -58,7 +56,6 @@ from torch.distributed.elastic.metrics.api import prof
 from torch.distributed.elastic.multiprocessing import (
     PContext,
     SignalException,
-    Std,
 )
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
@@ -66,7 +63,7 @@ from torch.distributed.elastic.multiprocessing.errors import (
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
-from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
+from torch.distributed.launcher.api import _get_entrypoint_name
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -74,7 +71,6 @@ from dlrover.python.common.constants import (
     AscendConstants,
     ConfigPath,
     JobConstant,
-    NodeEnv,
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
@@ -87,7 +83,7 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
+from dlrover.python.elastic_agent.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -103,6 +99,14 @@ from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
 )
+from dlrover.python.diagnosis.common.inference_chain import (
+    Inference,
+    InferenceName,
+    InferenceAttribute,
+    InferenceDescription,
+)
+from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -134,76 +138,6 @@ def _get_local_ip():
 
 class RendezvousOutSyncError(Exception):
     pass
-
-
-@dataclass
-class ElasticLaunchConfig(LaunchConfig):
-    """
-    Creates a rendezvous config of elastic training.
-
-    Args:
-        network_check: whether to check the network available before training.
-        comm_perf_test: whether to test the communication performance.
-        node_unit: the number of unit of nodes. The number of nodes must be
-            a multiple of node_unit.
-        auto_config: indicate if automatically configure the nnodes and
-            nproc_per_node.
-        auto_tunning: whether to auto-tune the parallelism configuration.
-        exclude_straggler: The node will exit if it is a straggler in network
-            check and exclude_straggler is True.
-        save_at_breakpoint: indicate if save the checkpoint from the shared
-            memory into the disk after a failure occurs.
-        accelerator: the type of accelerator processor like nvidia.com/gpu,
-            ascend-npu.
-        training_log_file: the training log file of this training job
-        failure_node_errors: the error information that indicate the node
-            is a failure node
-    """
-
-    network_check: bool = False
-    comm_perf_test: bool = False
-    node_unit: int = 1
-    training_port: int = AscendConstants.HCCL_PORT_START_DEFAULT
-    auto_config: bool = False
-    auto_tunning: bool = False
-    exclude_straggler: bool = False
-    save_at_breakpoint: bool = False
-    accelerator: str = ""
-    log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
-    redirects: Union[Std, Dict[int, Std]] = Std.NONE
-    tee: Union[Std, Dict[int, Std]] = Std.NONE
-    training_log_file: str = ""
-    failure_node_errors: str = ""
-
-    def set_node_unit(self, node_unit):
-        """Set the number unit of nodes."""
-        self.node_unit = node_unit
-        self.rdzv_configs["node_unit"] = node_unit
-
-    def auto_configure_params(self):
-        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
-        if len(self.failure_node_errors) > 0:
-            errors = self.failure_node_errors.strip()
-            if errors[0] != "#" or errors[-1] != "#":
-                logger.warning("invalid failure node errors: %s", errors)
-                self.failure_node_errors = ""
-
-        device = ""
-        if torch.cuda.is_available():
-            device = torch.cuda.get_device_name()
-        if "Ascend" in device:
-            self.accelerator = Accelerators.ASCEND_NPU
-        if not self.auto_config:
-            return
-
-        if NodeEnv.NODE_NUM in os.environ:
-            self.min_nodes = int(os.environ[NodeEnv.NODE_NUM])
-            self.max_nodes = int(os.environ[NodeEnv.NODE_NUM])
-        if torch.cuda.is_available():
-            self.nproc_per_node = torch.cuda.device_count()
-        if self.min_nodes >= 4:
-            self.network_check = True
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -443,8 +377,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._worker_context = WorkerContext()
         self._diagnose_agent = DiagnosisAgent(
-            training_log_file, failure_node_errors
+            training_log_file=training_log_file,
+            errors=failure_node_errors,
+            worker_context=self._worker_context,
         )
 
     @prof
@@ -752,6 +689,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 workers.append(worker)
         return workers
 
+    def _pre_check(self):
+        problems: List[Inference] = []
+        if self._config.network_check:
+            succ = run_network_check(self._config, self._entrypoint)
+            if not succ:
+                problems.append(Inference(
+                    name=InferenceName.NODE,
+                    attribution=InferenceAttribute.IS,
+                    description=InferenceDescription.FAILURE,
+                ))
+        self._diagnose_agent.diagnose_problems(problems)
+
     def _initialize_workers(self, worker_group):
         logger.info("Start initializing training workers.")
         start_pending = 0
@@ -760,8 +709,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
         while True:
             try:
-                if self._config.network_check:
-                    run_network_check(self._config, self._entrypoint)
+                self._pre_check()
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
@@ -847,6 +795,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             put_metric(f"workers.{role}.{state.name.lower()}", 1)
 
+            actions = self._worker_context.next_actions()
+            for action in actions:
+                self._process_diagnose_action(action)
+
             if state == WorkerState.SUCCEEDED:
                 logger.info(
                     f"[{role}] worker group successfully finished."
@@ -870,16 +822,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                self._worker_context.update_context(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
                 try:
-                    action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
-                    )
+                    action = self._diagnose_agent.diagnose_training_failure()
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
@@ -897,11 +847,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnose_action(self, action: str):
-        if action == DiagnosisAction.RESTART_WORKER:
+    def _process_diagnose_action(self, action: DiagnoseAction):
+        if action.action == DiagnosisAction.RESTART_WORKER:
             self._remaining_failovers -= 1
             self._restart_workers(self._worker_group)
-        elif action == DiagnosisAction.RELAUNCH_WORKER:
+        elif action.action == DiagnosisAction.RELAUNCH_WORKER:
             self._stop_workers(self._worker_group)
             self._worker_group.state = WorkerState.FAILED
 

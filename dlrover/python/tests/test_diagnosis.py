@@ -16,7 +16,7 @@ import unittest
 
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
+from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisDataManager
 
 
 class DiagnosisTest(unittest.TestCase):

@@ -32,10 +32,12 @@ from dlrover.python.common.constants import (
     NodeType,
     TrainingExceptionLevel,
 )
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -101,12 +103,14 @@ class DistributedJobManager(JobManager):
         job_scaler=None,
         error_monitor=None,
         external_config=None,
+        job_context=None,
     ):
         super().__init__(
             job_args=job_args,
             speed_monitor=speed_monitor,
             error_monitor=error_monitor,
             external_config=external_config,
+            job_context=job_context,
         )
         self._remove_exited_node = job_args.remove_exited_node
         node_restart_count: Dict[str, int] = {}
@@ -210,8 +214,8 @@ class DistributedJobManager(JobManager):
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
         threading.Thread(
-            target=self._monitor_node_heart_beat,
-            name="node_heart_beat_monitor",
+            target=self._diagnose_job,
+            name="diagnose_job",
             daemon=True,
         ).start()
         if os.getenv("KUBERNETES_SERVICE_HOST"):
@@ -441,11 +445,33 @@ class DistributedJobManager(JobManager):
                 time.sleep(30)
             time.sleep(5)
 
-    def _monitor_node_heart_beat(self):
-        logger.info("Start monitoring the heartbeat of nodes.")
+    # def _monitor_node_heart_beat(self):
+    #     logger.info("Start monitoring the heartbeat of nodes.")
+    #     while True:
+    #         if self._stopped:
+    #             logger.info("Stop monitoring the heartbeat of nodes.")
+    #             break
+    #         with self._lock:
+    #             try:
+    #                 events = self._get_dead_node_event()
+    #             except Exception as e:
+    #                 logger.warning(e)
+    #                 events = []
+    #
+    #         for event in events:
+    #             try:
+    #                 self._process_event(event)
+    #             except Exception as e:
+    #                 logger.warning(e)
+    #                 detail_trace_back = traceback.format_exc()
+    #                 logger.warning(detail_trace_back)
+    #         time.sleep(15)
+
+    def _diagnose_job(self):
+        logger.info("Start diagnosing the job.")
         while True:
             if self._stopped:
-                logger.info("Stop monitoring the heartbeat of nodes.")
+                logger.info("Stop diagnosing job.")
                 break
             with self._lock:
                 try:
@@ -453,7 +479,6 @@ class DistributedJobManager(JobManager):
                 except Exception as e:
                     logger.warning(e)
                     events = []
-
             for event in events:
                 try:
                     self._process_event(event)
@@ -461,6 +486,9 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
+            actions = self._job_context.next_actions(DiagnosisConstant.MASTER_RANK)
+            for action in actions:
+                self._process_diagnosis_action(action)
             time.sleep(15)
 
     def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
@@ -615,6 +643,9 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
         }
 
+    def _process_diagnosis_action(self, action: DiagnosisAction):
+        pass
+
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
         node_status = event.node.status
@@ -738,7 +769,6 @@ class DistributedJobManager(JobManager):
                 "exit reason": cur_node.exit_reason,
             },
         )
-
         if should_relaunch:
             self._relaunch_node(cur_node)
 
@@ -1125,13 +1155,13 @@ class DistributedJobManager(JobManager):
             return False
         return self._worker_manager.verify_restarting_training(node_id)
 
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> List[DiagnosisAction]:
         with self._lock:
             if (
                 node_type not in self._job_nodes
                 or node_id not in self._job_nodes[node_type]
             ):
-                return
+                return []
             node = self._job_nodes[node_type][node_id]
             if node.heartbeat_time == 0:
                 logger.info(
@@ -1139,6 +1169,7 @@ class DistributedJobManager(JobManager):
                     f"-{node.name}"
                 )
             node.heartbeat_time = timestamp
+            return self._job_context.next_actions(node_id)
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
@@ -1148,7 +1179,7 @@ class DistributedJobManager(JobManager):
             super().update_succeeded_node(node_id, node_type)
 
 
-def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
+def create_job_manager(args: JobArgs, speed_monitor, job_context=None) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
@@ -1173,4 +1204,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         node_watcher=node_watcher,
         job_scaler=job_scaler,
         error_monitor=node_error_monitor,
+        job_context=job_context,
     )

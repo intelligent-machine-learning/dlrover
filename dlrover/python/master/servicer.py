@@ -33,7 +33,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -140,6 +140,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.ElasticRunConfigRequest):
             configs = self._job_manager.get_elastic_run_configs()
             message = grpc.ElasticRunConfig(configs=configs)
+        elif isinstance(req_message, grpc.HeartBeat):
+            message = self._report_heartbeat(node_type, node_id, req_message)
 
         if message:
             response.data = message.serialize()
@@ -355,8 +357,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
-        elif isinstance(message, grpc.HeartBeat):
-            success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
@@ -602,14 +602,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return True
 
-    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat):
-        self._job_manager.collect_node_heart_beat(
-            node_type,
-            node_id,
-            message.timestamp,
-        )
-        return True
-
     def _sync_checkpoint(
         self, node_type, node_id, message: grpc.NodeCheckpointState
     ):
@@ -648,6 +640,19 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return grpc.SyncTrainingPort(
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
+
+    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat) -> grpc.HeartbeatResponse:
+        actions = self._job_manager.collect_node_heart_beat(node_type, node_id, message.timestamp)
+        grpc_actions: List[grpc.DiagnosisAction] = []
+        for action in actions:
+            grpc_action = grpc.DiagnosisAction(
+                rank=action.rank,
+                timestamp=action.timestamp,
+                action=action.action,
+                expired_time_period=action.expired_time_period,
+            )
+            grpc_actions.append(grpc_action)
+        return grpc.HeartbeatResponse(diagnosis_actions=grpc_actions)
 
 
 def create_master_service(

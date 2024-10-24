@@ -24,6 +24,8 @@ class InferenceConfigKey(object):
 class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
     AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 60
+    MASTER_RANK = -1
+    ANY_RANK = -2
 
 
 class DiagnosisDataType(object):
@@ -36,3 +38,4 @@ class DiagnosisAction(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+    ACTION_EXPIRED_TIME_PERIOD = 60 * 5
