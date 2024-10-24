@@ -29,7 +29,7 @@ from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 def retry_grpc_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 10)
-        exception = None
+        execption = None
         for i in range(retry):
             try:
                 return func(self, *args, **kwargs)
@@ -39,20 +39,13 @@ def retry_grpc_request(func):
                 logger.warning(
                     f"Retry {i} to {class_name}.{func_name} with failure",
                 )
-                exception = e
+                execption = e
                 time.sleep(5)
-        if exception:
-            logger.error(exception)
-            raise exception
+        if execption:
+            logger.error(execption)
+            raise execption
 
     return wrapper
-
-
-def init_grpc_env():
-    # At the cost of increased performance overhead, these provide greater
-    # stability in concurrent scenarios.
-    env_utils.set_env("GRPC_ENABLE_FORK_SUPPORT", "true")
-    env_utils.set_env("GRPC_POLL_STRATEGY", "poll")
 
 
 class MasterClient(Singleton):
@@ -82,7 +75,6 @@ class MasterClient(Singleton):
             f"Build master client with master_addr: {master_addr}, "
             f"node_id: {node_id}, node_type: {node_type}."
         )
-        init_grpc_env()
         self._timeout = timeout
         self._master_addr = master_addr
         self._channel = grpc.build_channel(master_addr)
