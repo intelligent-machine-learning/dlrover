@@ -18,13 +18,30 @@ except ImportError:
 
 from packaging.version import Version
 
+
 def package_version_bigger_than(pkg_name, version):
     pkg_v = metadata.version(pkg_name)
     return Version(pkg_v) > Version(version)
 
-if package_version_bigger_than("protobuf", "3.20.3"):
-    from .protobuf_4_25_3 import elastic_training_pb2, elastic_training_pb2_grpc, brain_pb2, brain_pb2_grpc
-else:
-    from .protobuf_3_20_3 import elastic_training_pb2, elastic_training_pb2_grpc, brain_pb2, brain_pb2_grpc
 
-__all__ = ["elastic_training_pb2", "elastic_training_pb2_grpc", "brain_pb2", "brain_pb2_grpc"]
+if package_version_bigger_than("protobuf", "3.20.3"):
+    from .protobuf_4_25_3 import (
+        brain_pb2,
+        brain_pb2_grpc,
+        elastic_training_pb2,
+        elastic_training_pb2_grpc,
+    )
+else:
+    from .protobuf_3_20_3 import (
+        brain_pb2,
+        brain_pb2_grpc,
+        elastic_training_pb2,
+        elastic_training_pb2_grpc,
+    )
+
+__all__ = [
+    "elastic_training_pb2",
+    "elastic_training_pb2_grpc",
+    "brain_pb2",
+    "brain_pb2_grpc",
+]

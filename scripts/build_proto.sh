@@ -34,7 +34,7 @@ generate_proto_files() {
     sed -i "s/import ${filename}_pb2/from \. import ${filename}_pb2/g" "$filename"_pb2_grpc.py
   done
   rm -rf ./*.proto
-  cd ${base_dir}
+  cd "$base_dir"
 }
 CUR_PYTHON_VERSION=$(python3 --version | awk -F " " '{print $NF}'| awk -F. '{print $1 $2}')
 
