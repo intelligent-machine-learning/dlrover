@@ -29,7 +29,7 @@ from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 def retry_grpc_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 10)
-        execption = None
+        exception = None
         for i in range(retry):
             try:
                 return func(self, *args, **kwargs)
@@ -39,11 +39,11 @@ def retry_grpc_request(func):
                 logger.warning(
                     f"Retry {i} to {class_name}.{func_name} with failure",
                 )
-                execption = e
+                exception = e
                 time.sleep(5)
-        if execption:
-            logger.error(execption)
-            raise execption
+        if exception:
+            logger.error(exception)
+            raise exception
 
     return wrapper
 
