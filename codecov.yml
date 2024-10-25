@@ -8,6 +8,7 @@ coverage:
   ignore:
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
+    - "dlrover/dlrover/proto/*"
   status:
     changes: false
     default_rules:
