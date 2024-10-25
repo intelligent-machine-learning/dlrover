@@ -194,6 +194,11 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
+        logger.info(
+            f"Use {self.accelerator} device for training, "
+            f"cuda is available: {torch.cuda.is_available()}."
+        )
+
         if not self.auto_config:
             return
 
