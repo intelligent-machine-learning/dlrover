@@ -4,7 +4,13 @@ from atorch.common.log_utils import default_logger as logger
 from atorch.utils.version import torch_version  # noqa: E402
 
 from ._init_utils import fsdp_inits
-from ._runtime_utils import _init_streams, _reduce_grad, _share_state_and_init_handle_attrs, forward
+from ._runtime_utils import (
+    _init_streams,
+    _post_backward_hook,
+    _reduce_grad,
+    _share_state_and_init_handle_attrs,
+    forward,
+)
 from ._state_dict_utils import (
     _load_local_sgd_state_dict,
     _local_sgd_state_dict,
@@ -12,13 +18,15 @@ from ._state_dict_utils import (
     _pre_state_dict_hook,
     _save_local_sgd_state_dict,
 )
+from .configs import GTAConfigs, LocalSGDConfigs, OuterOptimizerConfigs
 
 
 def patch_local_sgd_to_fsdp():
-    if torch_version() != (2, 1, 0):  # type: ignore
-        raise ValueError("Only pytorch 2.1.0 supports local sgd!")
+    if torch_version()[:2] != (2, 1):  # type: ignore
+        raise ValueError("Only pytorch 2.1.x supports local sgd!")
     torch.distributed.fsdp._runtime_utils._share_state_and_init_handle_attrs = _share_state_and_init_handle_attrs
     torch.distributed.fsdp._runtime_utils._init_streams = _init_streams
+    torch.distributed.fsdp._runtime_utils._post_backward_hook = _post_backward_hook
     torch.distributed.fsdp._runtime_utils._reduce_grad = _reduce_grad
 
     torch.distributed.fsdp._state_dict_utils._pre_state_dict_hook = _pre_state_dict_hook

@@ -36,6 +36,7 @@ class MasterClientTest(unittest.TestCase):
 
     def test_open_channel(self):
         self.assertEqual(self._master_client._timeout, 0.5)
+        self.assertEqual(self._master_client._timeout, 0.5)
         self._master_client.close_channel()
         self._master_client.open_channel()
 

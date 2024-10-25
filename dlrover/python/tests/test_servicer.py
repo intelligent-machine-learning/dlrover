@@ -424,6 +424,10 @@ class MasterServicerTest(unittest.TestCase):
         )
         self.assertTrue(self.servicer._report_worker_diagnosis_data(request))
 
+    def test_report_succeeded(self):
+        self.assertTrue(self.servicer._report_succeeded(0, NodeType.WORKER))
+        self.assertTrue(self.servicer._report_succeeded(0, "test"))
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:

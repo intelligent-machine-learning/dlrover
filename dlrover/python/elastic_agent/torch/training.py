@@ -194,6 +194,11 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
+        logger.info(
+            f"Use {self.accelerator} device for training, "
+            f"cuda is available: {torch.cuda.is_available()}."
+        )
+
         if not self.auto_config:
             return
 
@@ -485,7 +490,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     spec.master_port,
                 )
 
-        master_addr, master_port = self._get_master_addr_port(store)
+        master_addr, master_port = self._safe_get_master_addr_port(store)
 
         # compatible with torch 2.4
         if not version_less_than_240():
@@ -542,6 +547,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
         master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
         master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
         return (master_addr, master_port)
+
+    def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        for _ in range(5):
+            try:
+                return self._get_master_addr_port(store)
+            except Exception as e:
+                logger.warning(
+                    f"_get_master_addr_port failed with exception {e}"
+                )
+                time.sleep(10)
+
+        raise ValueError("invalid value in _get_master_addr_port")
 
     def _get_socket_with_port(self) -> socket.socket:
         """Return a free port on localhost.
@@ -850,6 +867,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info("Async saver stopped.")
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
+                finally:
+                    self._client.report_succeeded()
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:

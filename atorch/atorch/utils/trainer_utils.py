@@ -1,6 +1,5 @@
 import math
 from enum import Enum
-from typing import Union
 
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import get_scheduler as get_scheduler_trans
@@ -54,6 +53,7 @@ class AsyncCheckpointSignal(Enum):
 
 
 class PipeMessageEntity:
-    def __init__(self, signal_type: AsyncCheckpointSignal, data: Union[str, int] = ""):
+    def __init__(self, signal_type: AsyncCheckpointSignal, pid: int = None, ckpt_path: str = None):
         self.signal_type = signal_type
-        self.data = data
+        self.pid = pid
+        self.ckpt_path = ckpt_path

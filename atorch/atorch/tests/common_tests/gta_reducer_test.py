@@ -33,6 +33,7 @@ def check_gta_correctness(
     method: Literal["sum", "count"] = "sum",
     normalize=True,
     sparsification_method: Optional[SparsificationMethod] = None,
+    weight_softmax_temperature: Optional[float] = None,
 ):
     seed_everything(42)
 
@@ -49,9 +50,14 @@ def check_gta_correctness(
         consensus_method=method,
         sparsification_method=sparsification_method,
         normalize=normalize,
+        weight_softmax_temperature=weight_softmax_temperature,
     )
     local_tensor = torch.tensor([(rank + 1) * (-1) ** (rank)] * world_size, device=f"cuda:{rank}", dtype=torch.float32)
-    answer = answers[(weighted, method, normalize)].to(local_tensor.device) if answers is not None else None
+    answer = (
+        answers[(weighted, method, normalize, weight_softmax_temperature)].to(local_tensor.device)
+        if answers is not None
+        else None
+    )
     kwargs = {}
     if weighted:
         kwargs["weight"] = rank + 1
@@ -60,7 +66,7 @@ def check_gta_correctness(
         assert torch.allclose(local_tensor, answer, atol=1e-5)
 
 
-def check_linear_correctness(rank, world_size, answer):
+def check_linear_correctness(rank, world_size, answer, weight_softmax_temperature: Optional[float] = None):
     seed_everything(42)
 
     os.environ["LOCAL_RANK"] = str(rank)
@@ -71,7 +77,9 @@ def check_linear_correctness(rank, world_size, answer):
     torch.cuda.set_device(rank)
 
     dp_group = dist.new_group(list(range(world_size)), backend="nccl")
-    reducer = LinearReducer(process_group=dp_group, normalize=True)
+    reducer = LinearReducer(
+        process_group=dp_group, normalize=True, weight_softmax_temperature=weight_softmax_temperature
+    )
     local_tensor = torch.tensor([(rank + 1) * (-1) ** (rank)] * world_size, device=f"cuda:{rank}", dtype=torch.float32)
     answer = answer.to(local_tensor.device)
     reducer.reduce_tensor(tensors=local_tensor)
@@ -91,10 +99,11 @@ class TestReducer(unittest.TestCase):
         os.environ["MASTER_PORT"] = str(find_free_port())
         self.world_size = 4
         self.answers = {
-            (False, "sum", True): torch.tensor([-3, -3, -3, -3], dtype=torch.float32),
-            (False, "count", True): torch.tensor([2, 2, 2, 2], dtype=torch.float32),
-            (True, "sum", True): torch.tensor([-10 / 3, -10 / 3, -10 / 3, -10 / 3], dtype=torch.float32),
-            (True, "count", True): torch.tensor([5 / 2, 5 / 2, 5 / 2, 5 / 2], dtype=torch.float32),
+            (False, "sum", True, None): torch.tensor([-3, -3, -3, -3], dtype=torch.float32),
+            (False, "sum", True, 1.0): torch.tensor([-3, -3, -3, -3], dtype=torch.float32),
+            (False, "count", True, None): torch.tensor([2, 2, 2, 2], dtype=torch.float32),
+            (True, "sum", True, None): torch.tensor([-10 / 3, -10 / 3, -10 / 3, -10 / 3], dtype=torch.float32),
+            (True, "count", True, None): torch.tensor([5 / 2, 5 / 2, 5 / 2, 5 / 2], dtype=torch.float32),
         }
         self.linear_answer = torch.tensor([-0.5, -0.5, -0.5, -0.5])
 
@@ -106,6 +115,18 @@ class TestReducer(unittest.TestCase):
         mp.spawn(
             check_gta_correctness,
             args=(self.world_size, self.answers, False, "sum", True),
+            nprocs=self.world_size,
+            join=True,
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4,
+        "Needs at least 4 gpu to run the reducer test",
+    )
+    def test_gta_sum_softmax_noramlize(self):
+        mp.spawn(
+            check_gta_correctness,
+            args=(self.world_size, self.answers, False, "sum", True, None, 1.0),
             nprocs=self.world_size,
             join=True,
         )
@@ -190,6 +211,15 @@ class TestReducer(unittest.TestCase):
     def test_linear(self):
         mp.spawn(
             check_linear_correctness, args=(self.world_size, self.linear_answer), nprocs=self.world_size, join=True
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4,
+        "Needs at least 4 gpu to run the reducer test",
+    )
+    def test_linear_softmax(self):
+        mp.spawn(
+            check_linear_correctness, args=(self.world_size, self.linear_answer, 1.0), nprocs=self.world_size, join=True
         )
 
 

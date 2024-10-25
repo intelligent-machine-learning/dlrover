@@ -17,6 +17,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import patch
 
 from kubernetes import client
 
@@ -41,7 +42,10 @@ from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.dist_job_manager import create_job_manager
+from dlrover.python.master.node.dist_job_manager import (
+    DistributedJobManager,
+    create_job_manager,
+)
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     TaskRescheduleCallback,
@@ -354,6 +358,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 0)
+
         for index, node in enumerate(
             manager._job_nodes[NodeType.WORKER].values()
         ):
@@ -372,6 +377,23 @@ class DistributedJobManagerTest(unittest.TestCase):
         nodes_time_info = manager._get_nodes_time_info()
         self.assertIsNotNone(nodes_time_info)
         self.assertEqual(len(nodes_time_info), 3)
+
+        for index, node in enumerate(
+            manager._job_nodes[NodeType.WORKER].values()
+        ):
+            node.status = NodeStatus.RUNNING
+            now = datetime.now()
+            node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
+            if index == 0:
+                node.create_time = now - timedelta(seconds=800)
+                node.start_time = now - timedelta(seconds=600)
+            else:
+                if index == 1:
+                    node.succeeded = True
+                node.create_time = now - timedelta(seconds=1400)
+                node.start_time = now - timedelta(seconds=1200)
+        events = manager._get_dead_node_event()
+        self.assertEqual(len(events), 1)
 
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
@@ -408,6 +430,34 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._process_list_nodes(nodes)
         ps_ids = list(manager._job_nodes[NodeType.PS].keys())
         self.assertListEqual(ps_ids, [0, 1, 2])
+
+    @patch.object(DistributedJobManager, "_process_event")
+    def test_process_list_nodes_for_empty_case(self, mock_method):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._job_nodes = {
+            NodeType.PS: {
+                0: Node(
+                    node_type=NodeType.PS,
+                    node_id=0,
+                    status=NodeStatus.RUNNING,
+                    config_resource=NodeResource(1, 4096),
+                    max_relaunch_count=1,
+                )
+            },
+            NodeType.WORKER: {
+                1: Node(
+                    node_type=NodeType.WORKER,
+                    node_id=1,
+                    status=NodeStatus.RUNNING,
+                    config_resource=NodeResource(1, 4096),
+                    max_relaunch_count=1,
+                )
+            },
+        }
+        manager._process_list_nodes([])
+        self.assertEqual(mock_method.call_count, 2)
 
     def test_create_allreduce_job_manager(self):
         params = MockK8sPSJobArgs()
@@ -607,7 +657,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        manager.is_all_reduce_type_job = mock.MagicMock(return_value=True)
+        # ps normal + worker pending
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
         manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
             return_value=True
         )
@@ -616,9 +669,35 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(reason, JobExitReason.PENDING_TIMEOUT)
         self.assertTrue(msg)
 
-        manager.is_all_reduce_type_job = mock.MagicMock(return_value=False)
+        # ps normal + worker normal
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
+
+        # ps pending + worker normal
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+
+        # ps pending + worker pending
+        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
 
     def test_early_stop_part3(self):
         params = MockK8sPSJobArgs()
@@ -736,3 +815,16 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
+
+        try:
+            self.assertFalse(
+                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
+            )
+            job_manager.update_succeeded_node(0, NodeType.WORKER)
+            self.assertTrue(
+                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
+            )
+            job_manager.update_succeeded_node(5, NodeType.WORKER)
+            job_manager.update_succeeded_node(0, "unknown")
+        except Exception:
+            self.fail()

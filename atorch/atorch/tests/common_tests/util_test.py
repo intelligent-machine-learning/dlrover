@@ -1,5 +1,7 @@
+import time
 import unittest
 
+from atorch.common.util_func import exit_after
 from atorch.utils.hooks import ATorchHooks
 from atorch.utils.import_util import import_module_from_py_file, is_triton_available
 
@@ -45,6 +47,26 @@ class UtilsTest(unittest.TestCase):
         except (ImportError, ModuleNotFoundError):
             _has_triton = False
         self.assertEqual(_has_triton, is_triton_available())
+
+
+class TestTimeoutDecorator(unittest.TestCase):
+    @exit_after(5)
+    def long_running_function(self):
+        time.sleep(10)
+        print("Function completed successfully")
+
+    @exit_after(2)
+    def short_running_function(self):
+        time.sleep(1)
+        return "Function completed successfully"
+
+    def test_long_running_function(self):
+        with self.assertRaises(TimeoutError):
+            self.long_running_function()
+
+    def test_short_running_function(self):
+        result = self.short_running_function()
+        self.assertEqual(result, "Function completed successfully")
 
 
 if __name__ == "__main__":

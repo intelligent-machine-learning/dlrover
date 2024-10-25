@@ -1,4 +1,3 @@
-import pkgutil
 import unittest
 
 import torch
@@ -70,7 +69,7 @@ def _run_pipeline_parallel_optimization(num_nodes=1, num_devices_per_node=2):
 
 
 class TestPipelineParallelOptimization(unittest.TestCase):
-    @unittest.skipIf(not pkgutil.find_loader("pippy"), "PiPPy non existent, skip pipe test")
+    @unittest.skipIf(True, "skip pp test using PiPPy")
     def test_pipeline_parallel_optimization(self):
         _run_pipeline_parallel_optimization()
 

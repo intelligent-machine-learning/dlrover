@@ -1,4 +1,5 @@
 import functools
+import os
 import types
 from copy import copy
 from functools import partial
@@ -17,6 +18,7 @@ except ImportError:
 
 from typing import Set, Type
 
+from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.auto.opt_lib.utils import find_modules, to_module_class_by_name
 from atorch.common.log_utils import default_logger as logger
@@ -277,6 +279,13 @@ class FSDPOptimization(Optimization):
     @staticmethod
     def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
         """FSDP must be created before optimizer is created, it's a pre wrapper"""
+
+        # If KEEP_FSDP_RANK_CHECK env not set, ignore rank_check to save time.
+        if not os.environ.get("KEEP_FSDP_RANK_CHECK", False):
+            from atorch.utils.fsdp_init_util import fsdp_ignore_rank_check
+
+            fsdp_ignore_rank_check()
+
         torch.cuda.set_device(local_rank())
         wrapper_config = wrapper_config or {}
         # atorch_wrap_cls or atorch_size_based_min_num_params
@@ -328,7 +337,10 @@ class FSDPOptimization(Optimization):
                 # support meta
                 if "param_init_fn" in wrapper_config:
                     logger.info("`param_init_fn` has been set, use `param_init_fn` in config")
-                elif is_meta(model_context.model):
+                elif (
+                    is_meta(model_context.model)
+                    and getattr(AutoAccelerateContext, "FSDP_META_INIT", None) != "NEW_META"
+                ):
                     from atorch.utils import meta_model_utils
                     from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
@@ -394,7 +406,8 @@ class FSDPOptimization(Optimization):
                 extra_config["sharding_strategy"] = ShardingStrategy.HYBRID_SHARD
                 pg = (parallel_group("zero"), parallel_group("data"))
 
-        extra_config["process_group"] = pg
+        if parallel_group("ddp1") is None or parallel_group("ddp2") is None:
+            extra_config["process_group"] = pg
         wrapper_config.update(extra_config)
         if wrap_trainable_outmost:
             fsdp_clz = functools.partial(
@@ -414,6 +427,12 @@ class FSDPOptimization(Optimization):
                 from atorch.local_sgd.HSDP import patch_local_sgd_to_fsdp
 
                 patch_local_sgd_to_fsdp()
+
+        anomaly_configs = wrapper_config.get("anomaly_configs", None)
+        if anomaly_configs:
+            from atorch.local_sgd.HSDP import patch_local_sgd_to_fsdp
+
+            patch_local_sgd_to_fsdp()
 
         model_context.model = fsdp_clz(
             model_context.model,

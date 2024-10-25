@@ -169,6 +169,18 @@ def reduce_timeout_pending_node_resource(node: Node):
     return True
 
 
+def skip_pending_judgement(strategy) -> bool:
+    return strategy == 0
+
+
+def is_key_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 1
+
+
+def is_all_nodes_pending_judgement(strategy) -> bool:
+    return strategy == 2
+
+
 class TrainingNodeManager(object):
     def __init__(
         self,
@@ -240,6 +252,7 @@ class TrainingNodeManager(object):
                 name=self._new_node_name_fn(node.type, new_id),
                 service_addr=node.service_addr,
                 relaunch_count=relaunch_node.relaunch_count,
+                max_relaunch_count=relaunch_node.max_relaunch_count,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
@@ -394,6 +407,15 @@ class TrainingNodeManager(object):
                 node.critical = True
                 node.max_relaunch_count = critical_node_restarts[id]
 
+    def _get_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
 
 @dataclass
 class SyncNodeTrainingPorts:
@@ -471,5 +493,6 @@ class TrainingNodeConfig:
 
     def get_elastic_run_configs(self) -> Dict[str, str]:
         if not self._external_config:
+            logger.warning("External config not set")
             return {}
         return self._external_config.get_elastic_run_configs()

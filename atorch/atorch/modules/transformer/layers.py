@@ -2,26 +2,33 @@
 from __future__ import absolute_import, unicode_literals
 
 import copy
-import functools
 import inspect
-import shutil
 from importlib.metadata import version
-from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from deepspeed import DeepSpeedTransformerLayer
-from deepspeed.ops.op_builder import StochasticTransformerBuilder, TransformerBuilder
-from deepspeed.ops.transformer import transformer  # using module var
-from pkg_resources import packaging  # type: ignore
+from packaging.version import parse as parse_version
 from torch import nn
-from torch.cuda.amp.autocast_mode import _cast, autocast
 from torch.nn import MultiheadAttention
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import divide, split_tensor_along_last_dim
-from atorch.utils.import_util import is_torch_npu_available
+from atorch.utils.fa_util import patch_fa_interface_to_autocast
+from atorch.utils.import_util import (
+    is_flash_attn_3_avaliable,
+    is_torch_npu_available,
+    is_torch_xla_available,
+    is_xla_device_available,
+)
 from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
+
+try:
+    from deepspeed import DeepSpeedTransformerLayer
+    from deepspeed.ops.op_builder import StochasticTransformerBuilder, TransformerBuilder
+    from deepspeed.ops.transformer import transformer  # using module var
+except (ImportError, ModuleNotFoundError):
+    DeepSpeedTransformerLayer = StochasticTransformerBuilder = TransformerBuilder = object
+    transformer = None
 
 
 class ImportFailDummyClass:
@@ -50,75 +57,65 @@ except ModuleNotFoundError:
     flash_attn = None
 
 
-# patch fn to handle autocast
-def _cast_fa_fn(fa_fn):
-    @functools.wraps(fa_fn)
-    def new_fa_fn(*args, **kwargs):
-        if torch.is_autocast_enabled():
-            cur_dtype = torch.get_autocast_gpu_dtype()
-            with autocast(enabled=False):
-                return fa_fn(*_cast(args, cur_dtype), **_cast(kwargs, cur_dtype))
-        else:
-            return fa_fn(*args, **kwargs)
-
-    return new_fa_fn
-
-
 if flash_attn is not None:
     # patching flash_attn.flash_attn_interface.flash_attn[xxxx]_func to handle autocast
     import flash_attn.flash_attn_interface
 
-    fn_names = [i for i in dir(flash_attn.flash_attn_interface) if i.startswith("flash_attn_") and i.endswith("_func")]
-    for fn_name in fn_names:
-        new_fa_fn = _cast_fa_fn(getattr(flash_attn.flash_attn_interface, fn_name))
-        setattr(flash_attn.flash_attn_interface, fn_name, new_fa_fn)
-
-    _flash_attn_version = packaging.version.Version(version("flash-attn"))
+    _flash_attn_version = parse_version(version("flash-attn"))
     try:
         from flash_attn.flash_attention import FlashMHA  # cuda version
     except (ImportError, ModuleNotFoundError):
-        assert _flash_attn_version >= packaging.version.Version(
+        assert _flash_attn_version >= parse_version(
             "2"
         ), "FlashMHA is deleted in 2.0 release, but FA1 should has FlashMHA."
-        patch_src = Path(__file__).parent.resolve() / "_fa_api_compat_patch"
-        patch_dst = Path(flash_attn.__file__).parent.resolve() / "flash_attention.py"
-        shutil.copy(patch_src, patch_dst)
-        from flash_attn.flash_attention import FlashMHA
+        from atorch.modules.transformer._fa_api_compat_patch import FlashMHA
 
-    from flash_attn.bert_padding import pad_input, unpad_input
+    from flash_attn.bert_padding import pad_input, unpad_input  # noqa: F401
 
-    if _flash_attn_version >= packaging.version.Version("2"):
-        from flash_attn.flash_attn_interface import flash_attn_func
-        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+    # TODO(jingjun): move code to fa repo
+    def unpad_input_for_concatenated_sequences(hidden_states, attention_mask_in_length):
+        from flash_attn import bert_padding
+
+        length = attention_mask_in_length.sum(dim=-1)
+        seqlen = attention_mask_in_length.size(-1)
+        attention_mask_2d = torch.arange(seqlen, device=length.device, dtype=length.dtype).expand(
+            len(length), seqlen
+        ) < length.unsqueeze(1)
+        real_indices_idx = torch.nonzero(attention_mask_in_length.flatten(), as_tuple=False).flatten()
+        seqlens_in_batch = attention_mask_in_length.flatten()[real_indices_idx]
+        indices = torch.nonzero(attention_mask_2d.flatten(), as_tuple=False).flatten()
+        max_seqlen_in_batch = seqlens_in_batch.max().item()
+        cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.int32), (1, 0))
+        return (
+            bert_padding.index_first_axis(bert_padding.rearrange(hidden_states, "b s ... -> (b s) ..."), indices),
+            indices,
+            cu_seqlens,
+            max_seqlen_in_batch,
+        )
+
+    if _flash_attn_version >= parse_version("2"):
+        # Patch fa interface in kernels
+        from atorch.kernels import flash_attn_func
+        from atorch.kernels import flash_attn_varlen_func as flash_attn_unpadded_func
     else:
-        from flash_attn.flash_attn_interface import flash_attn_unpadded_func
+        patch_fa_interface_to_autocast(flash_attn.flash_attn_interface)
+        from flash_attn.flash_attn_interface import flash_attn_unpadded_func  # type: ignore
 
-    try:
-        from flash_attn.ops.layer_norm import dropout_add_layer_norm
-    except ImportError:
-        dropout_add_layer_norm = None
+    from atorch.kernels import dropout_add_layer_norm
 else:
     FlashMHA = ImportFailDummyClass
     _flash_attn_version = None
     dropout_add_layer_norm = None
 
 try:
-    # patching flash_attn_1.flash_attn_interface.flash_attn[xxxx]_func to handle autocast
-    import flash_attn_1.flash_attn_interface
-
-    fn_names = [
-        i for i in dir(flash_attn_1.flash_attn_interface) if i.startswith("flash_attn_") and i.endswith("_func")
-    ]
-    for fn_name in fn_names:
-        new_fa_fn = _cast_fa_fn(getattr(flash_attn_1.flash_attn_interface, fn_name))
-        setattr(flash_attn_1.flash_attn_interface, fn_name, new_fa_fn)
-
-    from flash_attn_1.flash_attn_interface import flash_attn_unpadded_func as flash_attn_1_unpadded_func
-    from flash_attn_1.ops.layer_norm import dropout_add_layer_norm
+    # Patching flash_attn_1.flash_attn_interface.flash_attn[xxxx]_func to handle autocast
+    # Patch flash_attn_1 interface func in kernels
+    from atorch.kernels import dropout_add_layer_norm_1 as dropout_add_layer_norm  # type: ignore
+    from atorch.kernels import flash_attn_unpadded_func_1 as flash_attn_1_unpadded_func
 
     has_legacy_fa1 = True
     if _flash_attn_version is None:
-        _flash_attn_version = packaging.version.Version(version("flash-attn-1"))
+        _flash_attn_version = parse_version(version("flash-attn-1"))
 except (ImportError, ModuleNotFoundError):
     flash_attn_1 = None
     has_legacy_fa1 = False
@@ -128,8 +125,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     _amp_state = None
 
+if is_torch_xla_available():
+    from atorch.kernels import xla_flash_attn, xla_flash_attn_varlen
+
 if is_torch_npu_available():
     from atorch.npu.layers import npu_fa_with_glm_mask
+
+if is_flash_attn_3_avaliable():
+    from atorch.kernels import flash_attn_func_3
 
 
 def is_apex_amp_activate():
@@ -139,7 +142,9 @@ def is_apex_amp_activate():
 
 
 def is_additive_mask_bias_supported_fa1():
-    if not _flash_attn_version or _flash_attn_version >= packaging.version.Version("2"):
+    if is_torch_npu_available():
+        return True
+    if not _flash_attn_version or _flash_attn_version >= parse_version("2"):
         return False
     if has_legacy_fa1:
         flash_attn_unpadded_func = flash_attn_1_unpadded_func
@@ -149,13 +154,13 @@ def is_additive_mask_bias_supported_fa1():
 def is_glm_mask_supported_fa2():
     if is_torch_npu_available():
         return True
-    if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
+    if not _flash_attn_version or _flash_attn_version < parse_version("2"):
         return False
     return "glm_mask" in inspect.signature(flash_attn_func).parameters
 
 
 def is_pack_glm_mask_supported_fa2():
-    if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
+    if not _flash_attn_version or _flash_attn_version < parse_version("2"):
         return False
     return _flash_attn_version.local == "pack.glm.mask"
 
@@ -1287,11 +1292,14 @@ class FlashAttnModule(nn.Module):
            q/k uneven causal fix in https://github.com/Dao-AILab/flash-attention/issues/282.
     """
 
-    def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0):
+    npu_cache = {"breakpoint_additive_mask": None, "breakpoint_prefix": None}
+
+    def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0, use_fa3=False):
         super().__init__()
         self.causal = causal
         self.softmax_scale = softmax_scale
         self.attention_dropout = attention_dropout
+        self.use_fa3 = use_fa3
 
     def forward(self, q, k, v, key_padding_mask=None, glm_mask=None, additive_mask=None, additive_bias=None):
         """
@@ -1321,6 +1329,7 @@ class FlashAttnModule(nn.Module):
             kwargs.update({"glm_mask": glm_mask})
 
             if is_torch_npu_available():
+                kwargs.update(self.npu_cache)
                 return npu_fa_with_glm_mask(q, k, v, **kwargs)
 
         # FA1 additive mask
@@ -1329,25 +1338,74 @@ class FlashAttnModule(nn.Module):
                 is_additive_mask_bias_supported_fa1() or has_legacy_fa1
             ), "Must be attn mask/bias supported version FlashAttn v1"
             assert not self.causal and key_padding_mask is None, "Should not causal/padding mask when additive mask"
+            if is_torch_npu_available():
+                assert additive_bias is None, "HPU FlashAttenion does not suppport additive_bias"
+                kwargs.update({"glm_mask": additive_mask})
+                return npu_fa_with_glm_mask(q, k, v, **kwargs)
             kwargs.update({"mask": additive_mask, "bias": additive_bias})
 
-        if key_padding_mask is None or key_padding_mask.bool().all():
-            if _flash_attn_version >= packaging.version.Version("2") and "mask" not in kwargs and "bias" not in kwargs:
-                return flash_attn_func(q, k, v, **kwargs)
+        if is_xla_device_available():
+            # Warning: Avoid using `key_padding_mask.bool().all()` as it causes XLA to split the computation graph.
+            if key_padding_mask is None:
+                return xla_flash_attn(
+                    q,
+                    k,
+                    v,
+                    dropout_p=kwargs["dropout_p"],
+                    softmax_scale=kwargs["softmax_scale"],
+                    causal=kwargs["causal"],
+                )
             else:
-                return flash_attn_with_mask_bias(q, k, v, **kwargs)
+                return xla_flash_attn_varlen(
+                    q,
+                    k,
+                    v,
+                    key_padding_mask,
+                    dropout_p=kwargs["dropout_p"],
+                    softmax_scale=kwargs["softmax_scale"],
+                    causal=kwargs["causal"],
+                )
         else:
-            # unpad input and pad output according key_padding_mask
-            # Note: [2023-12-08] single q decoding, only the last mask meaningful to query
-            q_unpad, indices, cu_seqlens, max_seqlen = unpad_input(
-                q, key_padding_mask[:, -1:] if s_q == 1 else key_padding_mask
-            )
-            k_unpad, k_indices, k_cu_seqlens, k_max_seqlen = unpad_input(k, key_padding_mask)
-            v_unpad, _, _, _ = unpad_input(v, key_padding_mask)
-            o_unpad = flash_attn_unpadded_func(
-                q_unpad, k_unpad, v_unpad, cu_seqlens, k_cu_seqlens, max_seqlen, k_max_seqlen, **kwargs
-            )
-            return pad_input(o_unpad, indices, b, s_q)
+            if key_padding_mask is None or key_padding_mask.bool().all():
+                if is_torch_npu_available():
+                    return npu_fa_with_glm_mask(q, k, v, **kwargs)
+
+                if self.use_fa3:
+                    if not is_flash_attn_3_avaliable(verbose=True):
+                        raise ModuleNotFoundError("flash-attention-3 is not available.")
+                    if "mask" in kwargs:
+                        raise RuntimeError(
+                            "flash-attention-3 does not support additive mask, only support causal mask."
+                        )
+                    if "glm_mask" in kwargs:
+                        raise RuntimeError("flash-attention-3 does not support glm mask, only support causal mask.")
+                    assert kwargs["causal"] is True, "causal must be True when using flash-attention-3"
+                    dropout_p = kwargs.pop("dropout_p", 0.0)
+                    if dropout_p > 0.0:
+                        raise ValueError("flash-attention-3 does not support dropout, set attention_dropout to 0.0.")
+                    return flash_attn_func_3(q, k, v, **kwargs)
+
+                if _flash_attn_version >= parse_version("2") and "mask" not in kwargs and "bias" not in kwargs:
+                    return flash_attn_func(q, k, v, **kwargs)
+                else:
+                    return flash_attn_with_mask_bias(q, k, v, **kwargs)
+            else:
+                if torch.any(key_padding_mask > 1):
+                    unpad_input_func = unpad_input_for_concatenated_sequences
+                else:
+                    unpad_input_func = unpad_input
+
+                # unpad input and pad output according key_padding_mask
+                # Note: [2023-12-08] single q decoding, only the last mask meaningful to query
+                q_unpad, indices, cu_seqlens, max_seqlen = unpad_input_func(
+                    q, key_padding_mask[:, -1:] if s_q == 1 else key_padding_mask
+                )
+                k_unpad, k_indices, k_cu_seqlens, k_max_seqlen = unpad_input_func(k, key_padding_mask)
+                v_unpad, _, _, _ = unpad_input_func(v, key_padding_mask)
+                o_unpad = flash_attn_unpadded_func(
+                    q_unpad, k_unpad, v_unpad, cu_seqlens, k_cu_seqlens, max_seqlen, k_max_seqlen, **kwargs
+                )
+                return pad_input(o_unpad, indices, b, s_q)
 
 
 class LlamaAttentionFA(LlamaAttention):
@@ -1413,18 +1471,26 @@ class LlamaAttentionFA(LlamaAttention):
         past_key_value = (key_states, value_states) if use_cache else None
 
         ###### FA Compute #######
-        if len(attention_mask.shape) == 4:
-            # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
-            key_padding_mask = attention_mask[:, 0, -1, :] == 0
-        elif len(attention_mask.shape) == 2:
-            # if attention_mask is not processed and remained key padding mask format
-            key_padding_mask = attention_mask
+        if attention_mask is not None:
+            if len(attention_mask.shape) == 4:
+                # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
+                key_padding_mask = attention_mask[:, 0, -1, :] == 0
+            elif len(attention_mask.shape) == 2:
+                # if attention_mask is not processed and remained key padding mask format
+                key_padding_mask = attention_mask
+            else:
+                raise ValueError(f"Attention mask format not supported, {attention_mask.dtype}, {attention_mask.shape}")
         else:
-            raise ValueError(f"Attention mask format not supported, {attention_mask.dtype}, {attention_mask.shape}")
+            key_padding_mask = None
+
+        query_states = query_states.transpose(1, 2)
+        key_states = key_states.transpose(1, 2)
+        value_states = value_states.transpose(1, 2)
+
         attn_output = self.FA(
-            query_states.transpose(1, 2),
-            key_states.transpose(1, 2),
-            value_states.transpose(1, 2),
+            query_states,
+            key_states,
+            value_states,
             key_padding_mask=key_padding_mask,
         )
         ###### FA Compute End ###
