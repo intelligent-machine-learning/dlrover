@@ -13,6 +13,7 @@
 # limitations under the License.
 rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
 pip install deprecated
+pip install packaging
 python -m dlrover.python.master.main --platform=local --job_name=train-test --port 12345 &
 export DLROVER_MASTER_ADDR=127.0.0.1:12345
 python -m dlrover.trainer --platform=local_kubernetes --conf=train_conf.TrainConf --ps_num=1 --worker_num=2
