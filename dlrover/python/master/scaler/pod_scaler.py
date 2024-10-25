@@ -476,7 +476,7 @@ class PodScaler(Scaler):
         # stability in concurrent scenarios. (need grpcio version>=1.58)
         # A history background: https://chromium.googlesource.com/external/
         # github.com/grpc/grpc/+/refs/tags/v1.19.0-pre1/doc/fork_support.md
-        env.append(V1EnvVar(name=NodeEnv.GRPC_ENABLE_FORK, value="True"))
+        env.append(V1EnvVar(name=NodeEnv.GRPC_ENABLE_FORK, value="true"))
         env.append(V1EnvVar(name=NodeEnv.GRPC_POLL_STRATEGY, value="poll"))
 
         worker_num = self._config_worker_num
