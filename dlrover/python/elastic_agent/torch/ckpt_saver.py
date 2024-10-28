@@ -625,7 +625,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     f"The step {step} in event is no equal "
                     f"to step {config.step} in memory."
                 )
-                return
+                return False
 
             logger.info(
                 f"Saves the checkpoint shard {local_shard_id} "
@@ -659,7 +659,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         else:
             for _ in range(timeout):
                 if self.storage.exists(path):
-                    break
+                    return
                 time.sleep(1)
             logger.warning(
                 f"Worker {self._node_rank} can't find path {path} "
@@ -914,7 +914,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                     f"Fail to save checkpoint shared {i} for step {step}"
                 )
 
-        if success_count == self.local_shard_num:
+        if success_count == len(futures):
             write_success = True
             self._latest_step = step
 
@@ -923,6 +923,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 f"Rank {self._node_rank} save checkpoint failed for "
                 f"step {step}"
             )
+            self._writing_storage = False
             return
 
         # commit checkpoint
@@ -1082,6 +1083,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 f"Rank {self._node_rank} save checkpoint failed for "
                 f"step {step}"
             )
+            self._writing_storage = False
             return
 
         # commit checkpoint
