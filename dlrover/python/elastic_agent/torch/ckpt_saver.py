@@ -1075,7 +1075,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                     f"Rank {i} save checkpoint failed for step {step}"
                 )
 
-        if success_count == self.local_shard_num:
+        if success_count == len(futures):
             write_success = True
 
         if not write_success:
