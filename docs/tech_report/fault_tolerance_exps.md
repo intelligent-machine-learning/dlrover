@@ -16,7 +16,7 @@ We conduct experiments to simulate the following scenarios:
 
 - The Pod is preempted.
 - The Pod is a straggler.
-- The Pod is placed on a fualt node.
+- The Pod is placed on a fault node.
 - The Pod network breaks down during training.
 - The training process corrupts in the Pod.
 
