@@ -35,7 +35,7 @@ COPY docker/scripts/install-protobuf.bash /
 RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install Pre-commit
-RUN pip install pre-commit pytest packaging kubernetes grpcio-tools psutil \
+RUN pip install pre-commit pytest kubernetes grpcio-tools psutil \
     deprecated -i https://mirrors.aliyun.com/pypi/simple/
 
 # Configure envtest for integration tests of kubebuilder
