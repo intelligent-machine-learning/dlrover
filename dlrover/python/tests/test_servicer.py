@@ -20,6 +20,7 @@ import ray
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
+    NodeEventType,
     NodeStatus,
     NodeType,
     PSClusterVersionType,
@@ -424,9 +425,25 @@ class MasterServicerTest(unittest.TestCase):
         )
         self.assertTrue(self.servicer._report_worker_diagnosis_data(request))
 
-    def test_report_succeeded(self):
-        self.assertTrue(self.servicer._report_succeeded(0, NodeType.WORKER))
-        self.assertTrue(self.servicer._report_succeeded(0, "test"))
+    def test_deal_with_reported_node_event(self):
+        request = grpc.NodeEvent(node=grpc.NodeMeta())
+        task_id = 1
+        task_type = NodeType.PS
+        request.node.type = task_type
+        request.node.id = task_id
+        request.event_type = NodeEventType.DELETED
+        request.message = "OOM"
+        self.assertTrue(self.servicer._deal_with_reported_node_event(request))
+        self.assertFalse(
+            self.job_manager._job_nodes[task_type][task_id].is_succeeded()
+        )
+
+        request.event_type = NodeEventType.SUCCEEDED
+        request.message = ""
+        self.assertTrue(self.servicer._deal_with_reported_node_event(request))
+        self.assertTrue(
+            self.job_manager._job_nodes[task_type][task_id].is_succeeded()
+        )
 
 
 class MasterServicerForRayTest(unittest.TestCase):
@@ -469,15 +486,3 @@ class MasterServicerForRayTest(unittest.TestCase):
         res = self.servicer._query_ps_nodes()
         self.assertEqual(addr, res.nodes[task_id].addr)
         self.assertEqual("", res.nodes[0].addr)
-
-    def test_update_node_event(self):
-        request = grpc.NodeEvent(node=grpc.NodeMeta())
-        task_id = 1
-        task_type = NodeType.PS
-        request.node.type = task_type
-        request.node.id = task_id
-        request.event_type = "Deleted"
-        request.message = "OOM"
-        self.servicer._update_node_event(request)
-        event = ray_event_queue.get()
-        event.event_type = "OOM"
