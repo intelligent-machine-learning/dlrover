@@ -17,6 +17,7 @@ import unittest
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
+    NodeEventType,
     NodeStatus,
     NodeType,
     RendezvousName,
@@ -107,7 +108,9 @@ class MasterClientTest(unittest.TestCase):
         )
         self.assertTrue(res.success, True)
 
-        res = self._master_client.update_node_event(NodeType.PS, 0, "ADDED")
+        res = self._master_client.report_node_event(
+            NodeEventType.ADDED, "ADDED"
+        )
         self.assertTrue(res.success, True)
 
         ts = int(time.time())

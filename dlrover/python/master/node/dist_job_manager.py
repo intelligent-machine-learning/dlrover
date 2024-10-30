@@ -1143,9 +1143,28 @@ class DistributedJobManager(JobManager):
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
 
-    def update_succeeded_node(self, node_id, node_type):
-        with self._lock:
-            super().update_succeeded_node(node_id, node_type)
+    def deal_with_reported_node_event(self, node_event: NodeEvent):
+        """
+        The node events here is reported from training agent.
+
+        Args:
+            node_event: The event from training agent.
+        """
+
+        event_type = node_event.event_type
+        node = node_event.node
+        node_type = node.type
+        node_id = node.id
+
+        if event_type == NodeEventType.SUCCEEDED:
+            with self._lock:
+                if (
+                    node_type in self._job_nodes
+                    and node_id in self._job_nodes[node_type]
+                ):
+                    logger.info(f"Node {node_id}({node_type}) to succeeded.")
+                    self._job_nodes[node_type][node_id].set_as_succeeded()
+        # TODO: deal with other type event
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

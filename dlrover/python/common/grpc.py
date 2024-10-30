@@ -327,7 +327,7 @@ class NodeAddress(NodeMeta):
 
 @dataclass
 class NetworkStatus(NodeMeta):
-    elasped_time: float = 0.0
+    elapsed_time: float = 0.0
 
 
 @dataclass
@@ -509,8 +509,3 @@ class ElasticRunConfigRequest(Message):
 @dataclass
 class ElasticRunConfig(Message):
     configs: Dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
-class SucceededRequest(Message):
-    pass

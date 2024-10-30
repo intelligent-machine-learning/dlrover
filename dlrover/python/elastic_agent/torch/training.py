@@ -869,6 +869,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.warning(f"Unexpected exception when ending: {e}")
                 finally:
                     self._client.report_succeeded()
+                    logger.info("Succeeded and exit.")
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
