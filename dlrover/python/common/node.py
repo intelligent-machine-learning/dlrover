@@ -221,7 +221,7 @@ class Node(object):
         # 0: succeeded(final);
         # 1: node_check_succeeded
         # 2: node_check_failed
-        self.reported_status = -1
+        self.reported_status: int = -1
 
     def exited(self):
         return self.status in [
@@ -349,7 +349,7 @@ class Node(object):
     def set_as_succeeded(self):
         self.reported_status = 0
 
-    def is_succeeded(self):
+    def is_succeeded(self) -> bool:
         return self.reported_status == 0
 
     def update_node_check_result(self, result: NodeEventType):

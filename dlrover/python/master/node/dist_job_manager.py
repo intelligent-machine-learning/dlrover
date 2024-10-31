@@ -1170,7 +1170,9 @@ class DistributedJobManager(JobManager):
                 if event_type == NodeEventType.SUCCEEDED:
                     self._job_nodes[node_type][node_id].set_as_succeeded()
                 elif node_event.is_node_check_event():
-                    self._job_nodes[node_type][node_id].set_as_succeeded()
+                    self._job_nodes[node_type][
+                        node_id
+                    ].update_node_check_result(event_type)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
