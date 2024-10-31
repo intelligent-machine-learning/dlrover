@@ -424,7 +424,7 @@ class ParameterServerManager(TrainingNodeManager):
             return False
 
         # collect pending and running nodes
-        cur_nodes = list(self._nodes.values())
+        cur_nodes = list(self._job_context.ps_nodes.values())
         pending_ps: List[Node] = []
         running_ps: List[Node] = []
         for node in cur_nodes:

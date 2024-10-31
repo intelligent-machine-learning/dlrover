@@ -126,6 +126,7 @@ class JobContext(Singleton):
         with self._locker:
             self._job_nodes = {}
             self._ps_nodes = {}
+            self._workers = {}
 
 
 def get_job_context() -> JobContext:

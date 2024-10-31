@@ -223,7 +223,6 @@ class PSManagerTest(unittest.TestCase):
     def test_is_training_hang_by_pending_ps(self):
         _dlrover_ctx.pending_fail_strategy = 1
         ps_manager = ParameterServerManager(
-            self._job_nodes[NodeType.PS],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
@@ -260,7 +259,7 @@ class PSManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        ps_manager._nodes = mock_nodes
+            update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -272,6 +271,7 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
+        clear_job_nodes()
 
         # mock with 3 running + 1 pending long time
         for index in range(4):
@@ -288,7 +288,7 @@ class PSManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        ps_manager._nodes = mock_nodes
+            update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -300,6 +300,7 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
+        clear_job_nodes()
 
         # mock with 4 running
         for index in range(4):
@@ -311,7 +312,7 @@ class PSManagerTest(unittest.TestCase):
                 NodeStatus.RUNNING,
             )
             mock_nodes[index] = mock_node
-        ps_manager._nodes = mock_nodes
+            update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -323,3 +324,4 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
+        clear_job_nodes()
