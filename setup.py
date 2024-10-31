@@ -20,6 +20,7 @@ install_requires = [
     "urllib3<1.27,>=1.21.1",
     "deprecated",
     "requests",
+    "packaging",
 ]
 
 
