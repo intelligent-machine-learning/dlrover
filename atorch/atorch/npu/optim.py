@@ -9,11 +9,8 @@ from torch.optim.optimizer import (  # type: ignore[attr-defined]
     params_t,
 )
 
+from atorch.kernels import npu_apply_adam_w
 from atorch.utils.import_util import is_torch_npu_available
-
-if is_torch_npu_available():
-    import torch_npu
-
 
 __all__ = ["NpuAdamW", "npu_adamw"]
 
@@ -231,7 +228,7 @@ def _npu_single_tensor_adamw(
         step = _get_value(step_t)
         bias_correction1 = beta1 ** (step - 1)
         bias_correction2 = beta2 ** (step - 1)
-        param.data, exp_avg, exp_avg_sq = torch_npu.npu_apply_adam_w(
+        param.data, exp_avg, exp_avg_sq = npu_apply_adam_w(
             bias_correction1,
             bias_correction2,
             lr,

@@ -29,6 +29,7 @@ class ConfigKeys(object):
     FACTOR_TO_CUT_PENDING_CPU = "factor_to_cut_pending_cpu"
     FACTOR_TO_CUT_PENDING_MEM = "factor_to_cut_pending_mem"
     SECONDS_TO_WAIT_PENDING_POD = "seconds_to_wait_pending_pod"
+
     SECONDS_HUGE_TRAINING_THRESHOLD = "seconds_huge_training_threshold"
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
@@ -46,6 +47,7 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
+    PENDING_FAIL_STRATEGY = 1  # 0: skip 1: necessary part 2: all
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h
@@ -78,6 +80,7 @@ class Context(Singleton):
         self.seconds_to_wait_pending_pod = (
             DefaultValues.SEC_TO_WAIT_PENDING_POD
         )
+        self.pending_fail_strategy = DefaultValues.PENDING_FAIL_STRATEGY
         self.seconds_huge_training_threshold = (
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
         )

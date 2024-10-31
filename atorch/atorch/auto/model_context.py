@@ -1,9 +1,14 @@
-import collections
 import copy
 import inspect
 import os
 import re
 import types
+
+try:
+    from collections import abs as collections_abc  # type: ignore[attr-defined]
+except ImportError:
+    import collections as collections_abc  # type: ignore[no-redef]
+
 from functools import wraps
 
 import torch
@@ -21,11 +26,10 @@ from atorch.auto.opt_lib.utils import _propose_leaf_modules, _propose_wrap_cls, 
 from atorch.common.log_utils import default_logger as logger
 from atorch.data import ShmDataloader, expand_batch_dim, get_sample_batch
 from atorch.distributed.distributed import (
-    get_sequence_parallel_size,
+    get_data_partition_rank_and_size,
     local_rank,
     parallel_group_and_ranks,
     parallel_group_size,
-    parallel_rank,
     rank,
 )
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
@@ -86,32 +90,6 @@ def if_use_shm_dataloader():
         return rank0_global_rank, rank, group_size
 
     return None, None, None
-
-
-def get_data_partition_rank_and_size():
-    # data, zero are all data parallel and can be mixed used.
-    data_size = parallel_group_size("data")
-    drank = parallel_rank("data")
-    if data_size is None:
-        data_size = 1
-        drank = 0
-    zero_size = parallel_group_size("zero")
-    if zero_size is not None:
-        zrank = parallel_rank("zero")
-        drank = drank * zero_size + zrank
-        data_size *= zero_size
-    sp_size = get_sequence_parallel_size()
-    # If sequence parallel used, it is a sequence sharding in data.
-    # Thus, every sp_size ranks share a same training data batch.
-    if sp_size > 1:
-        if data_size % sp_size != 0:
-            logger.error(
-                "data parallel size {} should be divisible by sequence parallel size {}!".format(data_size, sp_size)
-            )
-        data_size = data_size // sp_size
-        drank = drank // sp_size
-
-    return drank, data_size
 
 
 def get_mc_default_args():
@@ -726,7 +704,7 @@ class ModelContext(object):
                             ordered_wrappers[wrapper_name] = self.pre_wrappers[wrapper_name]
             self.pre_wrappers = ordered_wrappers
 
-    def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
+    def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True, ignore_duplicated=True):
         """
         wrapper_name: name of the wrapper
         wrapper_func: the function to apply this wrapper
@@ -734,11 +712,13 @@ class ModelContext(object):
         is_pre_wrapper: True if pre_wrapper, False if post_wrapper
             pre_wrapper will apply before optim/dataloader instance creation
             post_wrapper will apply after optim/dataloader instance creation
+        ignore_duplicated: if True, ignore duplicated wrapper name
         Save the wrapper in wrappers(dict), use wrapper_name as key
         and (wrapper_func, wrapper_config) as value.
         """
         wrappers = self.pre_wrappers if is_pre_wrapper else self.post_wrappers
-        wrappers[wrapper_name] = (wrapper_func, wrapper_config)
+        if wrapper_name not in wrappers or not ignore_duplicated:
+            wrappers[wrapper_name] = (wrapper_func, wrapper_config)
 
     def _verify_and_set_input_format(self, model_input_format):
         assert model_input_format in (
@@ -835,7 +815,7 @@ class ModelContext(object):
 
     @staticmethod
     def get_loss_from_loss_func_output(output):
-        if isinstance(output, collections.abc.Sequence):
+        if isinstance(output, collections_abc.Sequence):
             return output[0]
         return output
 

@@ -1,5 +1,5 @@
 [flake8]
-ignore = E203, E266, W503
-extend-ignore = E203, E501, W503
+ignore = E203, E266, W503, E741
 max-line-length = 120
-per-file-ignores = __init__.py:F401 atorch/distributed/distributed.py:F401 atorch/tests/fsdp_save_auto_acc_test.py:E402
+per-file-ignores = __init__.py:F401 atorch/distributed/distributed.py:F401
+

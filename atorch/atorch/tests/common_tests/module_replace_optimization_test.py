@@ -5,8 +5,8 @@ import torch
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.module_replace_optimization import ModuleReplaceOptimization, _check_model_params_device
+from atorch.modules.normalization import LayerNorm as ApexLayerNorm
 from atorch.modules.transformer.layers import BertAttentionFA, MultiheadAttentionFA
-from atorch.normalization import LayerNorm as ApexLayerNorm
 from atorch.tests.toy_modules.toy_module import create_model_context
 
 try:

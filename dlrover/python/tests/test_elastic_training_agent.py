@@ -16,6 +16,7 @@ import os
 import shutil
 import socket
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -140,7 +141,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         config.auto_configure_params()
         self.assertEqual(config.failure_node_errors, "")
 
-    def test_rank0_rendzevous(self):
+    def test_rank0_rendezvous(self):
         agent = ElasticTrainingAgent(
             node_rank=0,
             config=self.config,
@@ -169,7 +170,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             agent._membership_changed("default", self.rdzv_handler)
         )
 
-    def test_rank1_rendzevous(self):
+    def test_rank1_rendezvous(self):
         agent = ElasticTrainingAgent(
             node_rank=1,
             config=self.config,
@@ -183,9 +184,22 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.rdzv_handler._client.join_rendezvous(
             0, 8, self.rdzv_handler._name
         )
+
         store = self.rdzv_handler._get_store(round=1, group=0)
-        store.set("MASTER_ADDR", "127.0.0.1".encode())
-        store.set("MASTER_PORT", "12345".encode())
+
+        def _set_store(store):
+            time.sleep(5)
+            store.set("MASTER_ADDR", "127.0.0.1".encode())
+            store.set("MASTER_PORT", "12345".encode())
+
+        _task = threading.Thread(target=_set_store, args=(store,))
+        _task.start()
+
+        addr, port = agent._safe_get_master_addr_port(store)
+        print(addr)
+        print(port)
+        self.assertEqual(addr, "127.0.0.1")
+        self.assertEqual(port, 12345)
 
         # Set the node id and rank as 1.
         agent._client._node_id = 1
@@ -199,6 +213,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(worker.local_rank, 1)
         self.assertEqual(worker.global_rank, 9)
         self.assertEqual(worker.world_size, 16)
+        self.assertEqual(store.get("MASTER_ADDR").decode(), "127.0.0.1")
+        self.assertEqual(store.get("MASTER_PORT").decode(), "12345")
 
     def test_get_local_ip(self):
         local_ip = _get_local_ip()

@@ -14,13 +14,21 @@
 import unittest
 from datetime import datetime, timedelta
 
-from dlrover.python.common.constants import NodeStatus, NodeType, PlatformType
-from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeStatus,
+    NodeType,
+    PlatformType,
+)
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.tests.test_utils import mock_k8s_client
 from dlrover.python.master.node.job_context import get_job_context, update_job_nodes, clear_job_nodes, update_job_node
+
+_dlrover_ctx = Context.singleton_instance()
 
 
 class PSManagerTest(unittest.TestCase):
@@ -211,3 +219,107 @@ class PSManagerTest(unittest.TestCase):
             cluster[0].service_addr,
             "test-edljob-ps-0.default.svc:2222",
         )
+
+    def test_is_training_hang_by_pending_ps(self):
+        _dlrover_ctx.pending_fail_strategy = 1
+        ps_manager = ParameterServerManager(
+            self._job_nodes[NodeType.PS],
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                4, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(4, DistributionStrategy.PS)
+        )
+
+        mock_nodes = {}
+
+        # =========================================
+        # condition: when node required is updated
+        # =========================================
+
+        # mock with 3 running + 1 pending short time
+        ps_num = 4
+        for index in range(4):
+            mock_node = Node(
+                NodeType.PS,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-1)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        ps_manager._nodes = mock_nodes
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.PS
+            )
+        )
+        mock_nodes.clear()
+
+        # mock with 3 running + 1 pending long time
+        for index in range(4):
+            mock_node = Node(
+                NodeType.PS,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        ps_manager._nodes = mock_nodes
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.PS
+            )
+        )
+        mock_nodes.clear()
+
+        # mock with 4 running
+        for index in range(4):
+            mock_node = Node(
+                NodeType.PS,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            mock_nodes[index] = mock_node
+        ps_manager._nodes = mock_nodes
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            ps_manager.is_training_hang_by_pending(
+                ps_num, DistributionStrategy.PS
+            )
+        )
+        mock_nodes.clear()

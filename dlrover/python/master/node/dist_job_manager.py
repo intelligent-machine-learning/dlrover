@@ -239,6 +239,12 @@ class DistributedJobManager(JobManager):
     def get_worker_num(self):
         return self._job_resource.worker_num
 
+    def get_ps_num(self):
+        return self._job_resource.ps_num
+
+    def get_job_type(self):
+        return self._job_args.distribution_strategy
+
     def is_all_reduce_type_job(self):
         return (
             self._job_args.distribution_strategy
@@ -272,16 +278,15 @@ class DistributedJobManager(JobManager):
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
-        # worker pending judgement:
-        if (
-            self.is_all_reduce_type_job()
-            and self._worker_manager.is_training_hang_by_pending(
-                self.get_worker_num()
-            )
+        # ps/worker pending judgement:
+        if self._ps_manager.is_training_hang_by_pending(
+            self.get_ps_num(), self.get_job_type()
+        ) or self._worker_manager.is_training_hang_by_pending(
+            self.get_worker_num(), self.get_job_type()
         ):
             msg = (
                 "Stop the training early because 1) there is node pending "
-                "2) alive worker number consistently less than the min "
+                "2) alive nodes number consistently less than the min "
                 "training nodes required 3) pending time last exceed limit."
             )
             self._process_error(
@@ -578,21 +583,23 @@ class DistributedJobManager(JobManager):
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
-        if not nodes:
-            return
+
         exist_nodes: Dict[str, List[int]] = {}
         job_nodes = self._job_context.job_nodes()
         for node_type in job_nodes.keys():
             exist_nodes[node_type] = []
-        for node in nodes:
-            exist_nodes[node.type].append(node.id)
-            if node.status == NodeStatus.DELETED:
-                type = NodeEventType.DELETED
-            else:
-                type = NodeEventType.MODIFIED
-            # Mock event to avoid missing events
-            event = NodeEvent(type, node)
-            self._process_event(event)
+
+        if nodes:
+            for node in nodes:
+                exist_nodes[node.type].append(node.id)
+                if node.status == NodeStatus.DELETED:
+                    event_type = NodeEventType.DELETED
+                else:
+                    event_type = NodeEventType.MODIFIED
+                # Mock event to avoid missing events
+                event = NodeEvent(event_type, node)
+                self._process_event(event)
+        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -604,9 +611,8 @@ class DistributedJobManager(JobManager):
                     and node.id not in exist_nodes[node_type]
                 ):
                     logger.info(
-                        "Node %s %s is deleted without the event",
-                        node_type,
-                        node.id,
+                        f"Node {node_type} {node.id} is deleted "
+                        "without the event"
                     )
                     node.is_released = True
                     new_node = copy.deepcopy(node)
@@ -617,9 +623,9 @@ class DistributedJobManager(JobManager):
     def close_job(self):
         plan = ScalePlan()
         ps_resource = NodeGroupResource.new_empty()
-        worker_reource = NodeGroupResource.new_empty()
+        worker_resource = NodeGroupResource.new_empty()
         plan.node_group_resources = {
-            "worker": worker_reource,
+            "worker": worker_resource,
             "ps": ps_resource,
         }
         self._scaler.scale(plan=plan)
@@ -660,6 +666,7 @@ class DistributedJobManager(JobManager):
                 and len(pods.items) > 0
                 and any(
                     pod.status.phase == NodeStatus.RUNNING
+                    and not pod.metadata.deletion_timestamp
                     for pod in pods.items
                 )
             ):

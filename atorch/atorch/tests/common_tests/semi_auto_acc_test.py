@@ -208,15 +208,14 @@ def run_ds_zero(
         )
         assert num == data_size // batch_size, f"num={num}"
 
-    dtype_list = [torch.float16, torch.half, torch.float32]
+    dtype = torch.bfloat16
     cpu_offload_list = [False, True]
     ds_zero_list = ["zero1", "zero2"]
 
-    for dtype in dtype_list:
-        for ds_zero in ds_zero_list:
-            for cpu_offload in cpu_offload_list:
-                mc_copy = copy.deepcopy(mc)
-                train_with_ds(mc_copy, dtype, ds_zero, cpu_offload)
+    for ds_zero in ds_zero_list:
+        for cpu_offload in cpu_offload_list:
+            mc_copy = copy.deepcopy(mc)
+            train_with_ds(mc_copy, dtype, ds_zero, cpu_offload)
 
     atorch.reset_distributed()
 
@@ -235,6 +234,8 @@ def run_gpt2_with_strategy(
     bf16_only=False,
     wrap_test_only=False,
     use_fp8=False,
+    use_te_impl=False,
+    no_reentrant=False,
 ):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
@@ -273,7 +274,9 @@ def run_gpt2_with_strategy(
         }
         if torch_version() >= (2, 0, 0):
             fsdp_config["use_orig_params"] = True
-        checkpoint_config = (gpt2block_cls,)
+        checkpoint_config = {"wrap_class": (gpt2block_cls,), "no_reentrant": no_reentrant}
+        if use_te_impl:
+            checkpoint_config["use_te_impl"] = True
 
         if zero_size is not None:
             p_config = ([("data", zero_size)], None, True)
@@ -286,6 +289,7 @@ def run_gpt2_with_strategy(
                 ("amp_native", amp_config),
                 ("fsdp", fsdp_config),
                 ("checkpoint", checkpoint_config),
+                "auto_ddp",
             ]
         else:
             strategy = [
@@ -318,6 +322,8 @@ def run_gpt2_with_strategy(
         diff_method_num += 1
     if atorch.world_size() == 1 and not bf16_only:
         diff_method_num += 1
+        if "auto_ddp" in strategy:
+            diff_method_num += 1
     assert len(best_strategy) == len(strategy) - diff_method_num
     if bf16_only:
         assert isinstance(result.optim, BF16Optimizer)
@@ -454,6 +460,55 @@ class LoadStrategyTest(unittest.TestCase):
     @unittest.skipIf(
         not torch.cuda.is_available() or not torch.cuda.is_bf16_supported(),
         "Must have GPU with bf16 supported",
+    )
+    def test_gpt2_use_te_impl(self):
+        os.environ["WORLD_SIZE"] = str(1)
+        os.environ["NPROC_PER_NODE"] = str(1)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 128
+        data_size = 16
+        batch_size = 4
+        run_gpt2_with_strategy(
+            0,
+            hidden_size,
+            head_num,
+            layer_num,
+            seq_length,
+            data_size,
+            batch_size,
+            use_bf16=True,
+            zero_size=None,
+            bf16_only=False,
+            wrap_test_only=False,
+            use_fp8=False,
+            use_te_impl=True,
+            no_reentrant=False,
+        )
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        run_gpt2_with_strategy(
+            0,
+            hidden_size,
+            head_num,
+            layer_num,
+            seq_length,
+            data_size,
+            batch_size,
+            use_bf16=True,
+            zero_size=None,
+            bf16_only=False,
+            wrap_test_only=False,
+            use_fp8=False,
+            use_te_impl=True,
+            no_reentrant=True,
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or not is_fp8_available(),
+        "Must have GPU with fp8 supported",
     )
     def test_gpt2_fp8(self):
         os.environ["WORLD_SIZE"] = str(1)

@@ -4,7 +4,13 @@ import socket
 import time
 from contextlib import closing
 
-from torch.distributed.elastic.agent.server.api import WorkerState, _get_fq_hostname, _get_socket_with_port
+from torch.distributed.elastic.agent.server.api import WorkerState, _get_fq_hostname
+
+try:
+    from torch.distributed.elastic.agent.server.api import _get_socket_with_port
+except (ImportError, ModuleNotFoundError):
+    from torch.distributed.elastic.utils.distributed import get_socket_with_port as _get_socket_with_port
+
 from torch.distributed.elastic.agent.server.local_elastic_agent import LocalElasticAgent
 from torch.distributed.elastic.metrics import prof, put_metric
 from torch.distributed.elastic.multiprocessing import start_processes

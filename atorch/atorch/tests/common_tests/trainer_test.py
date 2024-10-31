@@ -3,18 +3,27 @@ import subprocess
 
 import numpy as np
 import pytest
-import torch
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import Dataset
-from transformers import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaForCausalLM
-from transformers.trainer_utils import EvalPrediction
 
-from atorch.common.util_func import find_free_port
-from atorch.trainer.atorch_args import AtorchArguments
-from atorch.trainer.atorch_trainer import AtorchTrainer
-from atorch.utils.version import torch_version
+torch = pytest.importorskip("torch", minversion="2.0.9")
+if torch.version.git_version != "7bcf7da3a268b435777fe87c7794c382f444e86d" or not torch.cuda.is_available():
+    pytest.skip("requires pytorch 2.1 stable release", allow_module_level=True)
+
+from peft import LoraConfig, TaskType, get_peft_model  # noqa: E402
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP  # noqa: E402
+from torch.nn.parallel import DistributedDataParallel as DDP  # noqa: E402
+from torch.utils.data import Dataset  # noqa: E402
+from transformers import LlamaConfig  # noqa: E402
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaForCausalLM  # noqa: E402
+from transformers.trainer_utils import EvalPrediction  # noqa: E402
+
+from atorch.common.util_func import find_free_port  # noqa: E402
+from atorch.trainer.atorch_args import AtorchArguments  # noqa: E402
+from atorch.trainer.atorch_trainer import AtorchTrainer  # noqa: E402
+from atorch.utils.import_util import is_coverage_available  # noqa: E402
+from atorch.utils.version import torch_version  # noqa: E402
+
+if is_coverage_available():
+    import coverage
 
 
 class LlamaDatset(Dataset):
@@ -42,10 +51,11 @@ def run_atorch_trainer(test_args):
     test_dataset = LlamaDatset(20)
 
     atorch_opt = test_args.get("atorch_opt", "fsdp")
-    save_load_by_streaming = test_args.get("save_load_by_streaming", True)
+    save_by_streaming = test_args.get("save_by_streaming", True)
     use_atorch_dataloader = test_args.get("use_atorch_dataloader", True)
     use_default_data_collator = test_args.get("use_default_data_collator", True)
     async_save = test_args.get("async_save", False)
+    peft_type = test_args.get("peft_type", None)
 
     config = LlamaConfig(
         vocab_size=10,
@@ -62,8 +72,8 @@ def run_atorch_trainer(test_args):
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
         do_train=True,
-        fp16=True,
-        save_load_by_streaming=save_load_by_streaming,
+        bf16=True,
+        save_by_streaming=save_by_streaming,
         save_strategy="steps",
         save_steps=0.4,
         save_total_limit=1,
@@ -73,14 +83,34 @@ def run_atorch_trainer(test_args):
         logging_strategy="steps",
         logging_steps=0.1,
         logging_nan_inf_filter=False,
-        gradient_checkpointing=True,
+        gradient_checkpointing=False,
         atorch_opt=atorch_opt,
         atorch_wrap_cls=(LlamaDecoderLayer,),
         model_input_format="unpack_dict",
         use_atorch_dataloader=use_atorch_dataloader,
         use_default_data_collator=use_default_data_collator,
         async_save=async_save,
+        peft_type=peft_type,
+        atorch_module_replace=False,
     )
+
+    if args.peft_type == "lora":
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=8,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            target_modules=["q_proj", "v_proj"],
+        )
+        if args.gradient_checkpointing:
+            # Make Lora and gradient checkpointing compatible
+            # https://github.com/huggingface/peft/issues/137
+            model.enable_input_require_grads()
+        model = get_peft_model(model, peft_config)
+
+        args.save_base_model = True
+        args.hyper_parameters = {"peft_type": "lora"}
 
     def compute_metrics(eval_preds: EvalPrediction):
         logits, label_ids, inputs = eval_preds  # logits:[b,s,v], label_ids:[b,s], inputs:[b,s]
@@ -119,40 +149,49 @@ def run_atorch_trainer(test_args):
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Skip cpu ut, only run on gpu.")
 @pytest.mark.skipif(torch_version() < (2, 0, 0), reason="AtorchTrainer need torch2.0 .")  # type: ignore
 @pytest.mark.parametrize("atorch_opt", ["fsdp", "ddp"])
-@pytest.mark.parametrize("save_load_by_streaming", [True, False])
-@pytest.mark.parametrize("use_atorch_dataloader", [True, False])
-@pytest.mark.parametrize("use_default_data_collator", [True, False])
-@pytest.mark.parametrize("async_save", [True, False])
+@pytest.mark.parametrize("save_by_streaming", [True, False])
+@pytest.mark.parametrize("use_atorch_dataloader", [True])
+@pytest.mark.parametrize("use_default_data_collator", [True])
+@pytest.mark.parametrize("async_save", [True])
+@pytest.mark.parametrize("peft_type", [None])
 @pytest.mark.parametrize("gpu_num", [1, 4])
 def test_atorch_trainer(
-    atorch_opt, save_load_by_streaming, use_atorch_dataloader, use_default_data_collator, async_save, gpu_num
+    atorch_opt, save_by_streaming, use_atorch_dataloader, use_default_data_collator, async_save, peft_type, gpu_num
 ):
-    # save_load_by_streaming only works on fsdp training mode.
-    if atorch_opt == "ddp" and save_load_by_streaming:
+    # save_by_streaming only works on fsdp training mode.
+    if atorch_opt == "ddp" and save_by_streaming:
         pytest.skip()
 
     # Skip some tests to reduce the time of unit test.
     if gpu_num == 1:
-        if save_load_by_streaming or not use_atorch_dataloader or not use_default_data_collator or async_save:
+        if (
+            save_by_streaming
+            or not use_atorch_dataloader
+            or not use_default_data_collator
+            or async_save
+            or not peft_type
+        ):
             pytest.skip()
     if async_save:
-        if save_load_by_streaming or not use_atorch_dataloader or not use_default_data_collator:
+        if save_by_streaming or not use_atorch_dataloader or not use_default_data_collator:
             pytest.skip()
 
     test_args = {
         "atorch_opt": atorch_opt,
-        "save_load_by_streaming": save_load_by_streaming,
+        "save_by_streaming": save_by_streaming,
         "use_atorch_dataloader": use_atorch_dataloader,
         "use_default_data_collator": use_default_data_collator,
         "async_save": async_save,
+        "peft_type": peft_type,
     }
 
     # Test for AntMonitor
     if os.environ.get("ANTMONITOR_TFEVENT_PATH") is None:
         os.environ["ANTMONITOR_TFEVENT_PATH"] = "/home/admin/logs/tfevent"
 
+    launch_engine = "coverage run" if is_coverage_available() else "python"
     dist_cmd = (
-        f"coverage run -m atorch.distributed.run --nnode=1 --nproc_per_node={gpu_num} "
+        f"{launch_engine} -m atorch.distributed.run --nnode=1 --nproc_per_node={gpu_num} "
         f"--node_rank=0 --master_port={find_free_port()} {__file__}"
     )
 
@@ -160,7 +199,7 @@ def test_atorch_trainer(
         if isinstance(v, bool):
             if v:
                 dist_cmd += f" --{k}"
-        else:
+        elif v is not None:
             dist_cmd += f" --{k} {v}"
 
     subprocess.run(dist_cmd, check=True, shell=True)
@@ -169,16 +208,16 @@ def test_atorch_trainer(
 if __name__ == "__main__":
     import argparse
 
-    import coverage
-
-    ut_cov = coverage.Coverage()
-    ut_cov.start()
+    ut_cov = None
+    if is_coverage_available():
+        ut_cov = coverage.Coverage()
+        ut_cov.start()
 
     parser = argparse.ArgumentParser(description="Test atorch trainer.")
 
     parser.add_argument("--atorch_opt", type=str, help="ATorch optimize method.")
     parser.add_argument(
-        "--save_load_by_streaming", action="store_true", help="Whether to use stream saving when using FSDP."
+        "--save_by_streaming", action="store_true", help="Whether to use stream saving when using FSDP."
     )
     parser.add_argument(
         "--use_atorch_dataloader", action="store_true", help="Whether to use auto_accelerate to generate dataloader."
@@ -189,10 +228,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--async_save", action="store_true", help="Whether to use asynchronous saving model and optimizer."
     )
+    parser.add_argument("--peft_type", type=str, default=None, help="What peft fintune method to use.")
 
     test_args = vars(parser.parse_args())
 
     run_atorch_trainer(test_args)
 
-    ut_cov.stop()
-    ut_cov.save()
+    if ut_cov is not None:
+        ut_cov.stop()
+        ut_cov.save()

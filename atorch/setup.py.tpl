@@ -26,15 +26,6 @@ RED_END = "\033[0m"
 ERROR = f"{RED_START} [ERROR] {RED_END}"
 
 
-class build_proto(setuptools.command.build_py.build_py):
-    def run(self):
-        try:
-            self.spawn(["sh", "dev/scripts/build_proto.sh"])
-        except RuntimeError as e:
-            self.warn(f"build proto error:{e}")
-        super().run()
-
-
 def abort(msg):
     print(f"{ERROR} {msg}")
     assert False, msg
@@ -50,9 +41,7 @@ in_req_path = "atorch/internal_requirements.txt"
 internal_required_deps = [] if not os.path.exists(in_req_path) else fetch_requirements(in_req_path)
 required_deps += internal_required_deps
 
-cmdclass = {
-    "build_py": build_proto,
-}
+cmdclass = {}
 
 # For any pre-installed ops force disable ninja.
 if torch_available:
@@ -194,13 +183,15 @@ print(f"ext_modules={ext_modules}")
 # package dependencies of source files and binaries
 package_data = []
 filename_suffixes = ["*.cu", "*.cuh", "*.cc", "*.cpp", "*.h", ".so"]
-data_path = os.path.abspath("./atorch/ops/csrc")
-for rootname, _, filenames in os.walk(data_path):
-    for filename in filenames:
-        src = os.path.join(rootname, filename)
-        for suffix in filename_suffixes:
-            if fnmatch.filter([src], suffix):
-                package_data.append(src)
+csrc_paths = ["./atorch/ops/csrc", "./atorch/npu/csrc"]
+for csrc_path in csrc_paths:
+    data_path = os.path.abspath(csrc_path)
+    for rootname, _, filenames in os.walk(data_path):
+        for filename in filenames:
+            src = os.path.join(rootname, filename)
+            for suffix in filename_suffixes:
+                if fnmatch.filter([src], suffix):
+                    package_data.append(src)
 
 proto_files = glob.glob("atorch/protos/*.proto")
 setup(
@@ -217,7 +208,7 @@ setup(
     python_requires=">=3.8",
     packages=find_packages(exclude=["*test*", "benchmarks*"]),
     install_requires=required_deps,
-    package_data={"": ["*.so", "_fa_api_compat_patch"], "atorch": package_data},
+    package_data={"": ["*.so"], "atorch": package_data},
     ext_modules=ext_modules,
     cmdclass=cmdclass,
     data_files=["atorch/requirements.txt", "dev/scripts/build_proto.sh"] + proto_files,

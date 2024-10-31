@@ -8,11 +8,12 @@ from deepspeed import comm as dist
 from deepspeed.inference.config import DeepSpeedInferenceConfig
 from deepspeed.module_inject import ReplaceWithTensorSlicing
 from deepspeed.ops.op_builder import InferenceBuilder
-from transformers.models.llama.modeling_llama import LlamaConfig, LlamaDecoderLayer, LlamaForCausalLM
+from transformers.models.llama.modeling_llama import LlamaConfig, LlamaForCausalLM
 
 from atorch.rl.ds_hybrid_engine.ds_hook import *  # NOQA
 from atorch.rl.ds_hybrid_engine.module_inject.containers import LLAMALayerPolicy
 from atorch.rl.ds_hybrid_engine.module_inject.utils import policy_to_ds_container
+from atorch.tests.toy_modules.toy_module import get_llama_decoder_layer
 from atorch.tests.utils.test_utils import init_dist
 
 
@@ -52,7 +53,7 @@ def _test_llama2_tp(rank, world_size):
     model_config.num_hidden_layers = 1
     model_config.num_key_value_heads = 64
     model_config.num_attention_heads = 64
-    module = LlamaDecoderLayer(model_config)
+    module = get_llama_decoder_layer(model_config)
 
     module.bfloat16().to(rank)
 

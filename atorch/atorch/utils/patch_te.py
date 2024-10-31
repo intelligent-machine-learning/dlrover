@@ -1,27 +1,17 @@
 # mypy: ignore-errors
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 import torch
-from transformer_engine.pytorch.constants import dist_group_type
-from transformer_engine.pytorch.distributed import (
-    CheckpointFunction,
-    _set_cuda_rng_state,
-    activation_recompute_forward,
-    detach_variable,
-    gather_split_1d_tensor,
-    safely_set_viewless_tensor_data,
-    split_tensor_into_1d_equal_chunks,
-)
 
 from atorch.utils.version import package_version_smaller_than
 
 
 def te_checkpoint_forward(
     ctx,
-    run_function: Callable,
-    distribute_saved_activations: bool,
-    get_cuda_rng_tracker: Callable,
-    tp_group: dist_group_type,
+    run_function,
+    distribute_saved_activations,
+    get_cuda_rng_tracker,
+    tp_group,
     kwargs: Dict[str, Any],
     *args: Tuple[torch.Tensor, ...],
 ) -> Tuple[torch.Tensor, ...]:
@@ -29,6 +19,12 @@ def te_checkpoint_forward(
     redo the computation later."""
     ctx.run_function = run_function
     ctx.distribute_saved_activations = distribute_saved_activations
+
+    from transformer_engine.pytorch.distributed import (
+        activation_recompute_forward,
+        safely_set_viewless_tensor_data,
+        split_tensor_into_1d_equal_chunks,
+    )
 
     # Copy the rng states.
     ctx.fwd_cpu_rng_state = torch.get_rng_state()
@@ -72,6 +68,14 @@ def te_checkpoint_backward(ctx, *args: Tuple[Union[torch.Tensor, None], ...]) ->
     """Call backward function with activation recomputation."""
     if not torch.autograd._is_checkpoint_valid():
         raise RuntimeError("Checkpointing is not compatible with .grad(), " "please use .backward() if possible")
+
+    from transformer_engine.pytorch.distributed import (
+        _set_cuda_rng_state,
+        activation_recompute_forward,
+        detach_variable,
+        gather_split_1d_tensor,
+        safely_set_viewless_tensor_data,
+    )
 
     inputs = list(ctx.inputs)
     tensor_indices = ctx.tensor_indices
@@ -131,5 +135,7 @@ def te_checkpoint_backward(ctx, *args: Tuple[Union[torch.Tensor, None], ...]) ->
 def patch_te_if_needed():
     # patch checkpoint if te version < 1.3
     if package_version_smaller_than("transformer_engine", "1.3"):
+        from transformer_engine.pytorch.distributed import CheckpointFunction
+
         CheckpointFunction.forward = te_checkpoint_forward
         CheckpointFunction.backward = te_checkpoint_backward

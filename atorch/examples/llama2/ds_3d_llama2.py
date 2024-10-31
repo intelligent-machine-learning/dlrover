@@ -11,7 +11,7 @@ from atorch.auto import auto_accelerate
 from atorch.auto.opt_lib.ds_3d_parallel_optimization import DeepSpeed3DParallelConfig
 from atorch.common.util_func import divide
 from atorch.modules.distributed_modules.cross_entropy import vocab_parallel_cross_entropy
-from atorch.utils.manual_tp_utils import TPInfo
+from atorch.tensor_parallel.manual_tp import TPInfo
 from atorch.utils.meta_model_utils import record_module_init
 
 
