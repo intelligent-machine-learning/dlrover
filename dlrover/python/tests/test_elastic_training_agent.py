@@ -112,6 +112,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        os.environ.clear()
 
     def test_node_unit(self):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
