@@ -91,6 +91,8 @@ class NodeEventType(object):
     ERROR = "ERROR"
     FINISHED = "FINISHED"
     SUCCEEDED = "SUCCEEDED"
+    NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
+    NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
 class NodeExitReason(object):

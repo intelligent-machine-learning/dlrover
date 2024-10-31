@@ -253,15 +253,35 @@ class MasterClient(Singleton):
         res = self._report(message)
         return res
 
-    def report_node_event(self, event_type, event_msg=""):
+    def report_node_event(
+        self,
+        event_type,
+        event_msg="",
+        event_time=0,
+        event_elapsed_time=0,
+        node_rank=-1,
+    ):
         message = grpc.NodeEvent(
             event_type=event_type,
-            message=event_msg,
+            event_message=event_msg,
+            event_time=event_time,
+            event_elapsed_time=event_elapsed_time,
             node=grpc.NodeMeta(
                 type=self._node_type, id=self._node_id, addr=self._node_ip
             ),
         )
+
+        if node_rank != -1:
+            message.node.rank = node_rank
+
         return self._report(message)
+
+    def report_network_check_status(self, node_rank, status, elapsed_time):
+        return self.report_node_event(
+            event_type=status,
+            event_elapsed_time=elapsed_time,
+            node_rank=node_rank,
+        )
 
     def report_succeeded(self):
         return self.report_node_event(NodeEventType.SUCCEEDED)
@@ -377,12 +397,6 @@ class MasterClient(Singleton):
         )
         response = self._report(message)
         return response.success
-
-    def report_network_status(self, node_rank, status, elapsed_time):
-        message = grpc.NetworkStatus(
-            rank=node_rank, status=status, elapsed_time=elapsed_time
-        )
-        self._report(message)
 
     def report_failures(self, error_data, restart_count=-1, level=""):
         message = grpc.NodeFailure(error_data, restart_count, level)

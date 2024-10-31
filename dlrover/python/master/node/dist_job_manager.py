@@ -284,16 +284,18 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-            first_pending_node = self._worker_manager.first_pending_node
+
+            if self._ps_manager.first_pending_node:
+                first_pending_node = self._ps_manager.first_pending_node
+            else:
+                first_pending_node = self._worker_manager.first_pending_node
+
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
-                    "pending_nodes": json.dumps(
-                        self._worker_manager.pending_nodes
-                    ),
                     "first_pending_node": first_pending_node,
                 },
             )

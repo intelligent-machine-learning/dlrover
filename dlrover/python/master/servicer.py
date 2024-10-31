@@ -24,7 +24,7 @@ from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
     JobConstant,
-    NodeStatus,
+    NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
@@ -335,8 +335,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NetworkStatus):
-            success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
             success = self._deal_with_reported_node_event(message)
         elif isinstance(message, grpc.SyncJoin):
@@ -507,17 +505,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NetworkStatus):
-        net_rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.NETWORK_CHECK, None
-        )
-        if net_rdzv_manager:
-            succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(
-                message.rank, succeed, message.elapsed_time
-            )
-        return True
-
     def _deal_with_reported_node_event(self, message: grpc.NodeEvent):
         node = Node(
             node_type=message.node.type,
@@ -525,6 +512,21 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             rank_index=message.node.rank,
         )
         event = NodeEvent(message.event_type, node)
+
+        # let rdzv manager deal with rendezvous issue
+        if event.is_node_check_event():
+            net_rdzv_manager = self._rdzv_managers.get(
+                RendezvousName.NETWORK_CHECK, None
+            )
+            if net_rdzv_manager:
+                succeed = (
+                    event.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+                )
+                net_rdzv_manager.report_network_check_result(
+                    node.rank_index, succeed, message.event_elapsed_time
+                )
+
+        # let job manager deal with node issue
         self._job_manager.deal_with_reported_node_event(event)
         return True
 

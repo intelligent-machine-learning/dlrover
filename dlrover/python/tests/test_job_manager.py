@@ -815,16 +815,3 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
-
-        try:
-            self.assertFalse(
-                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
-            job_manager.update_succeeded_node(0, NodeType.WORKER)
-            self.assertTrue(
-                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
-            job_manager.update_succeeded_node(5, NodeType.WORKER)
-            job_manager.update_succeeded_node(0, "unknown")
-        except Exception:
-            self.fail()

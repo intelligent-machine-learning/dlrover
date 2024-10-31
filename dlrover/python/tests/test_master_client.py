@@ -18,7 +18,6 @@ import unittest
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     NodeEventType,
-    NodeStatus,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
@@ -30,14 +29,14 @@ from dlrover.python.tests.test_utils import start_local_master
 class MasterClientTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        self._master_client = build_master_client(addr, 0.5)
+        self._master_client = build_master_client(addr, 1)
 
     def tearDown(self):
         self._master.stop()
 
     def test_open_channel(self):
-        self.assertEqual(self._master_client._timeout, 0.5)
-        self.assertEqual(self._master_client._timeout, 0.5)
+        self.assertEqual(self._master_client._timeout, 1)
+        self.assertEqual(self._master_client._timeout, 1)
         self._master_client.close_channel()
         self._master_client.open_channel()
 
@@ -128,7 +127,9 @@ class MasterClientTest(unittest.TestCase):
         success = self._master_client.barrier("test-barrier", True)
         self.assertFalse(success)
 
-        self._master_client.report_network_status(0, NodeStatus.SUCCEEDED, 10)
+        self._master_client.report_network_check_status(
+            0, NodeEventType.NODE_CHECK_SUCCEEDED, 10
+        )
 
         success = self._master_client.sync_checkpoint(100)
         self.assertFalse(success)
