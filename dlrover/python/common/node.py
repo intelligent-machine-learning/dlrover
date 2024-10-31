@@ -366,4 +366,6 @@ class Node(object):
         return d
 
     def update_from_node(self, node):
+        if self == node:
+            return
         self.__dict__.update(node.__dict__)

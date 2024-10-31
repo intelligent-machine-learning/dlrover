@@ -368,7 +368,7 @@ class ParameterServerManager(TrainingNodeManager):
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
             update_job_node(new_node)
-            self._migrated_ps_nodes[old_ps_id] = new_node
+            self._migrated_ps_nodes[old_ps_id] = self._job_context.ps_nodes[new_node.id]
             logger.info("Migrated PS %s to PS %s", old_ps_id, new_ps_id)
             return new_node
 

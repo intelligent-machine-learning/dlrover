@@ -36,7 +36,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
-from dlrover.python.master.node.job_context import JobContext
+from dlrover.python.master.node.job_context import get_job_context, update_job_node, clear_job_nodes
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -61,15 +61,17 @@ class MasterServicerTest(unittest.TestCase):
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
 
-        job_context = JobContext()
         self.job_manager = create_job_manager(
-            params, speed_monitor, job_context
+            params, speed_monitor
         )
+        self.job_context = get_job_context()
 
         self.job_manager._init_nodes()
         self.job_manager._init_job_auto_scaler()
-        for node in self.job_manager._job_nodes[NodeType.WORKER].values():
+        job_nodes = self.job_context.job_nodes_by_type(NodeType.WORKER)
+        for node in job_nodes.values():
             node.status = NodeStatus.RUNNING
+            update_job_node(node)
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )
@@ -93,6 +95,7 @@ class MasterServicerTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.environ.clear()
+        clear_job_nodes()
 
     def test_query_running_nodes(self):
         request = elastic_training_pb2.Message()
@@ -173,10 +176,15 @@ class MasterServicerTest(unittest.TestCase):
         reporter._runtime_stats = []
         self.assertEqual(reporter._model_info.op_stats.flops, 10000)
 
-        worker0 = self.job_manager._job_nodes[NodeType.WORKER][0]
+        job_nodes = self.job_context.job_nodes()
+        worker0 = job_nodes[NodeType.WORKER][0]
         worker0.status = NodeStatus.RUNNING
-        ps0 = self.job_manager._job_nodes[NodeType.PS][0]
+        update_job_node(worker0)
+
+        ps0 = job_nodes[NodeType.PS][0]
         ps0.status = NodeStatus.RUNNING
+        update_job_node(ps0)
+
         request = grpc.GlobalStep()
         self.task_manager._speed_monitor.add_running_worker(NodeType.WORKER, 0)
         self.task_manager._speed_monitor.set_target_worker_num(1)
@@ -211,8 +219,10 @@ class MasterServicerTest(unittest.TestCase):
 
     def test_query_ps_nodes(self):
         self.job_manager._init_nodes()
-        for node in self.job_manager._job_nodes[NodeType.PS].values():
+        nodes = self.job_context.job_nodes_by_type(NodeType.PS)
+        for node in nodes.values():
             node.status = NodeStatus.RUNNING
+            update_job_node(node)
         res = self.servicer._query_ps_nodes()
         self.assertEqual(len(res.nodes), 3)
         self.assertEqual(
@@ -401,7 +411,8 @@ class MasterServicerTest(unittest.TestCase):
         request.node_type = NodeType.WORKER
         request.node_id = 0
         self.servicer.get(request, None)
-        worker0 = self.servicer._job_manager._job_nodes[NodeType.WORKER][0]
+
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertEqual(worker0.heartbeat_time, ts)
 
     def test_sync_checkpoint(self):
@@ -456,6 +467,10 @@ class MasterServicerForRayTest(unittest.TestCase):
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )
+        self.job_context = get_job_context()
+
+    def tearDown(self) -> None:
+        clear_job_nodes()
 
     def test_update_node_addr(self):
         request = grpc.NodeMeta()
@@ -467,11 +482,14 @@ class MasterServicerForRayTest(unittest.TestCase):
         request.addr = "localhost:5001"
         self.job_manager._init_nodes()
         self.servicer._update_node_address(request)
+        node = self.job_context.job_node(task_type, task_id)
         self.assertEqual(
-            self.job_manager._job_nodes[task_type][task_id].service_addr, addr
+            node.service_addr, addr
         )
-        for node in self.job_manager._job_nodes[NodeType.PS].values():
+        ps_nodes = self.job_context.job_nodes_by_type(NodeType.PS)
+        for node in ps_nodes.values():
             node.status = NodeStatus.RUNNING
+            update_job_node(node)
         res = self.servicer._query_ps_nodes()
         self.assertEqual(addr, res.nodes[task_id].addr)
         self.assertEqual("", res.nodes[0].addr)

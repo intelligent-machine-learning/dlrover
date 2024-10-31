@@ -148,9 +148,8 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        print(f"!!!!!!!!!!!!!migrated_ps_nodes={ps_manager._migrated_ps_nodes}\n")
 
-        nodes = self._job_context.job_nodes_by_type(NodeType.PS)
+        nodes = self._job_context.ps_nodes
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
             update_job_node(node)
@@ -162,17 +161,14 @@ class PSManagerTest(unittest.TestCase):
         self.assertEqual(len(plan.launch_nodes), 1)
         self.assertEqual(ps_manager._migrated_ps_nodes[0].id, 2)
         self.assertTrue(ps_manager.exist_migrated_ps_nodes())
-        print(f"!!!!!!!!!!!!!migrated_ps_nodes={ps_manager._migrated_ps_nodes}\n")
 
-        nodes = self._job_context.job_nodes_by_type(NodeType.PS)
+        nodes = self._job_context.ps_nodes
         ps_manager._pre_drop_migrated_ps(list(nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 0)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
             update_job_node(node)
-        nodes = self._job_context.job_nodes_by_type(NodeType.PS)
-        print(f"!!!!!!!!!!!!!nodes={nodes}\n")
-        print(f"!!!!!!!!!!!!!migrated_ps_nodes={ps_manager._migrated_ps_nodes}\n")
+        nodes = self._job_context.ps_nodes
         ps_manager._pre_drop_migrated_ps(list(nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
 

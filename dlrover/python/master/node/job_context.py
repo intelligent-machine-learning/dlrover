@@ -37,6 +37,7 @@ class JobContext(Singleton):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._ps_nodes: Dict[int, Node] = {}
+        self._workers: Dict[int, Node] = {}
         self._locker = threading.Lock()
 
     def enqueue_actions(self, actions):
@@ -50,16 +51,26 @@ class JobContext(Singleton):
 
     def _update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
         with self._locker:
-            self._job_nodes = job_nodes
+            self._job_nodes = copy.deepcopy(job_nodes)
             if NodeType.PS in self._job_nodes:
                 self._ps_nodes = copy.deepcopy(self._job_nodes[NodeType.PS])
             else:
                 self._ps_nodes = {}
 
+            if NodeType.WORKER in self._job_nodes:
+                self._workers = copy.deepcopy(self._job_nodes[NodeType.WORKER])
+            else:
+                self._workers = {}
+
     @property
     def ps_nodes(self) -> Dict[int, Node]:
         with self._locker:
             return self._ps_nodes
+
+    @property
+    def workers(self) -> Dict[int, Node]:
+        with self._locker:
+            return self._workers
 
     def job_nodes(self) -> Dict[str, Dict[int, Node]]:
         """
@@ -67,12 +78,6 @@ class JobContext(Singleton):
         """
         with self._locker:
             return copy.deepcopy(self._job_nodes)
-
-    def job_nodes_if_updated(self, last_update_timestamp: float) -> Optional[Dict[str, Dict[int, Node]]]:
-        with self._locker:
-            if self._last_update_timestamp > last_update_timestamp:
-                return self._job_nodes
-            return None
 
     def job_node(self, node_type: str, node_id: int) -> Optional[Node]:
         with self._locker:
@@ -102,6 +107,7 @@ class JobContext(Singleton):
                 self._job_nodes = {}
             if node.type not in self._job_nodes:
                 self._job_nodes[node.type] = {}
+
             self._job_nodes[node.type][node.id] = copy.deepcopy(node)
 
             if node.type == NodeType.PS:
@@ -110,10 +116,16 @@ class JobContext(Singleton):
                 else:
                     self._ps_nodes[node.id].update_from_node(node)
 
+            if node.type == NodeType.WORKER:
+                if node.id not in self._workers:
+                    self._workers[node.id] = copy.deepcopy(node)
+                else:
+                    self._workers[node.id].update_from_node(node)
+
     def _clear_nodes(self):
         with self._locker:
             self._job_nodes = {}
-            self._last_update_timestamp = datetime.now().timestamp()
+            self._ps_nodes = {}
 
 
 def get_job_context() -> JobContext:
@@ -130,7 +142,7 @@ def update_job_node(node: Node):
     if node is None:
         return
     job_context = JobContext.singleton_instance()
-    job_context._update_job_node(copy.deepcopy(node))
+    job_context._update_job_node(node)
 
 
 def clear_job_nodes():

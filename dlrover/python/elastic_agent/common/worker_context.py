@@ -75,8 +75,10 @@ class WorkerContext(Singleton):
             instance=instance, action_type=action_type
         )
 
+
 def get_worker_context() -> WorkerContext:
     return WorkerContext.singleton_instance()
+
 
 def update_worker_context(
     worker_spec: WorkerSpec = None,
