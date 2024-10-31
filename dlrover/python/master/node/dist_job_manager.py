@@ -1145,7 +1145,7 @@ class DistributedJobManager(JobManager):
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
 
-    def deal_with_reported_node_event(self, node_event: NodeEvent):
+    def process_reported_node_event(self, node_event: NodeEvent):
         """
         The node events here is reported from training agent.
 

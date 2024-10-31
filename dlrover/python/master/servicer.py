@@ -527,7 +527,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 )
 
         # let job manager deal with node issue
-        self._job_manager.deal_with_reported_node_event(event)
+        self._job_manager.process_reported_node_event(event)
         return True
 
     def _join_sync(self, node_type, node_id, message: grpc.SyncJoin):

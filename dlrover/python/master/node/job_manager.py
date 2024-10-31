@@ -233,7 +233,7 @@ class JobManager(metaclass=ABCMeta):
     def get_elastic_run_configs(self) -> Dict[str, str]:
         return self._training_node_config.get_elastic_run_configs()
 
-    def deal_with_reported_node_event(self, node_event: NodeEvent):
+    def process_reported_node_event(self, node_event: NodeEvent):
         """
         The node events here is reported from training agent.
 
