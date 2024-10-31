@@ -11,11 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
-from dlrover.python.diagnosis.common.inference_chain import Inference
+from datetime import datetime, timedelta
 
 
-def coordinate_inferences(problems: List[Inference]) -> List[DiagnosisAction]:
-    return []
+def has_expired(timestamp: float, time_period: int) -> bool:
+    dt = datetime.fromtimestamp(timestamp)
+    expired_dt = dt + timedelta(seconds=time_period)
+    return expired_dt < datetime.now()

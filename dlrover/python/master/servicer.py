@@ -641,8 +641,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
 
-    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat) -> grpc.HeartbeatResponse:
-        actions = self._job_manager.collect_node_heart_beat(node_type, node_id, message.timestamp)
+    def _report_heartbeat(
+        self, node_type, node_id, message: grpc.HeartBeat
+    ) -> grpc.HeartbeatResponse:
+        actions = self._job_manager.collect_node_heart_beat(
+            node_type, node_id, message.timestamp
+        )
         grpc_actions: List[grpc.DiagnosisAction] = []
         for action in actions:
             grpc_action = grpc.DiagnosisAction(

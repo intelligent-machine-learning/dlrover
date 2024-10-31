@@ -16,6 +16,7 @@ from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
@@ -28,8 +29,10 @@ from dlrover.python.master.node.training_node import (
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
-from dlrover.python.master.node.job import JobContext
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
+from dlrover.python.master.node.job_context import (
+    get_job_context,
+    update_job_node,
+)
 
 
 class JobManager(metaclass=ABCMeta):
@@ -43,7 +46,6 @@ class JobManager(metaclass=ABCMeta):
         speed_monitor=None,
         error_monitor=None,
         external_config=None,
-        job_context=None,
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
@@ -55,16 +57,10 @@ class JobManager(metaclass=ABCMeta):
         self._stopped = False
         self._speed_monitor: SpeedMonitor = speed_monitor
         self._error_monitor: ErrorMonitor = error_monitor
-
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._nodes_required = (0, 0, 0)
 
         self._training_node_config = TrainingNodeConfig(external_config)
-
-        if job_context is None:
-            self._job_context = JobContext()
-        else:
-            self._job_context = job_context
+        self._job_context = get_job_context()
 
     @abstractmethod
     def start(self):
@@ -203,7 +199,9 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> List[DiagnoseAction]:
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> List[DiagnosisAction]:
         """Collect the heart beat message of nodes."""
         pass
 
@@ -241,9 +239,9 @@ class JobManager(metaclass=ABCMeta):
         return self._training_node_config.get_elastic_run_configs()
 
     def update_succeeded_node(self, node_id, node_type):
-        if (
-            node_type in self._job_nodes
-            and node_id in self._job_nodes[node_type]
-        ):
+        node = self._job_context.job_node(node_type, node_id)
+        if node is not None:
             logger.info(f"Node {node_id}({node_type}) to succeeded.")
-            self._job_nodes[node_type][node_id].set_as_succeeded()
+            node.set_as_succeeded()
+            update_job_node(node)
+

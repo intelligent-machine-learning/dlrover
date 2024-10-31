@@ -11,21 +11,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional
+
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerSpec
-from dlrover.python.diagnosis.common.diagnose_action import (
-    DiagnoseActionQueue,
-    DiagnoseAction,
+
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    DiagnosisActionQueue,
 )
-from typing import Optional, List
+from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisActionConstants,
+)
 
 
-class WorkerContext:
+class WorkerContext(Singleton):
     def __init__(self):
         self._worker_spec: Optional[WorkerSpec] = None
         self.remaining_failovers = 0
         self.restart_count = 0
         self._run_result: Optional[RunResult] = None
-        self._diagnose_action_queue = DiagnoseActionQueue()
+        self._diagnose_action_queue = DiagnosisActionQueue()
 
     @property
     def worker_spec(self):
@@ -44,20 +51,38 @@ class WorkerContext:
             f"run_result: {self._run_result}"
         )
 
-    def update_context(
-            self,
-            worker_spec: WorkerSpec = None,
-            remaining_failovers: int = 0,
-            restart_count: int = 0,
-            run_result: RunResult = None,
+    def _update_context(
+        self,
+        worker_spec: WorkerSpec = None,
+        remaining_failovers: int = 0,
+        restart_count: int = 0,
+        run_result: RunResult = None,
     ):
         self._worker_spec: WorkerSpec = worker_spec
         self.remaining_failovers = remaining_failovers
         self.restart_count = restart_count
         self._run_result = run_result
 
-    def enqueue_diagnose_action(self, action: DiagnoseAction):
+    def enqueue_diagnose_action(self, action: DiagnosisAction):
         self._diagnose_action_queue.add_action(action)
 
-    def next_actions(self) -> List[DiagnoseAction]:
-        return self._diagnose_action_queue.next_actions()
+    def next_actions(
+            self,
+            instance=DiagnosisConstant.LOCAL_INSTANCE,
+            action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
+    ) -> List[DiagnosisAction]:
+        return self._diagnose_action_queue.next_actions(
+            instance=instance, action_type=action_type
+        )
+
+def get_worker_context() -> WorkerContext:
+    return WorkerContext.singleton_instance()
+
+def update_worker_context(
+    worker_spec: WorkerSpec = None,
+    remaining_failovers: int = 0,
+    restart_count: int = 0,
+    run_result: RunResult = None,
+):
+    worker_context = get_worker_context()
+    worker_context._update_context(worker_spec, remaining_failovers, restart_count, run_result)

@@ -43,11 +43,11 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
+from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.master.node.job import JobContext
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -124,9 +124,8 @@ class DistributedJobMaster(JobMaster):
                 )
 
         self.speed_monitor = SpeedMonitor()
-        self.job_context = JobContext()
         self.job_manager = (
-            create_job_manager(args, self.speed_monitor, self.job_context)
+            create_job_manager(args, self.speed_monitor)
             if args.enable_elastic_scheduling
             else None
         )
@@ -145,7 +144,7 @@ class DistributedJobMaster(JobMaster):
                 error_monitor
             ),
         }
-        self.diagnosis_manager = DiagnosisManager(self.job_context)
+        self.diagnosis_manager = DiagnosisManager()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )

@@ -33,6 +33,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.master.node.job_context import get_job_context, update_job_node
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.scheduler.job import JobArgs
 
@@ -172,19 +173,21 @@ def reduce_timeout_pending_node_resource(node: Node):
 class TrainingNodeManager(object):
     def __init__(
         self,
-        nodes: Dict[int, Node],
+        node_type: str,
         new_node_name_fn,
     ):
         """
         Args:
-            nodes: training nodes
+            node_type: node type
             new_node_name_fn: new node name function
         """
-        self._nodes = nodes
+        self._job_context = get_job_context()
+        nodes = self._job_context.job_nodes_by_type(node_type)
+        self._node_type = node_type
         self._new_node_name_fn = new_node_name_fn
         self._lock = threading.Lock()
-        self._node_id_iter = itertools.count(len(self._nodes))
-        self._node_rank_iter = itertools.count(len(self._nodes))
+        self._node_id_iter = itertools.count(len(nodes))
+        self._node_rank_iter = itertools.count(len(nodes))
         self._pending_nodes: List[Node] = []
 
     @property
@@ -202,34 +205,38 @@ class TrainingNodeManager(object):
 
     @property
     def cur_nodes(self):
-        cur_nodes = [node.name for node in self._nodes.values()]
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        cur_nodes = [node.name for node in nodes.values()]
         return cur_nodes
 
-    def update_nodes(self, nodes):
-        self._nodes = nodes
-        self._node_id_iter = itertools.count(len(self._nodes))
-        self._node_rank_iter = itertools.count(len(self._nodes))
+    def update_nodes(self):
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        self._node_id_iter = itertools.count(len(nodes))
+        self._node_rank_iter = itertools.count(len(nodes))
 
     def remove_node(self, node_id):
         plan = ScalePlan()
-        if node_id not in self._nodes:
-            logger.info("Delete non-existed worker %s", node_id)
-            return plan
-        worker = self._nodes[node_id]
         with self._lock:
+            worker = self._job_context.job_node(self._node_type, node_id)
+            if worker is None:
+                logger.info("Delete non-existed worker %s", node_id)
+                return plan
             if worker.status in [NodeStatus.DELETED, NodeStatus.INITIAL]:
                 logger.error("Unknown deletable worker id: %s" % node_id)
                 return
         worker.is_released = True
+        update_job_node(worker)
         plan.remove_nodes.append(worker)
         return plan
 
     def relaunch_node(self, node: Node, remove_exited_node=False):
         plan = ScalePlan()
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
         with self._lock:
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
-            self._nodes[new_id] = relaunch_node
+            nodes[new_id] = relaunch_node
+            update_job_node(relaunch_node)
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -244,6 +251,7 @@ class TrainingNodeManager(object):
         )
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True
+            update_job_node(node)
             plan.remove_nodes.append(node)
         return plan
 
@@ -252,19 +260,22 @@ class TrainingNodeManager(object):
         plan = ScalePlan()
 
         # Avoid dictionary changed size during iteration.
-        cur_nodes = list(self._nodes.values())
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        cur_nodes = list(nodes.values())
         for node in cur_nodes:
             if node.status == NodeStatus.PENDING:
                 reduced = reduce_timeout_pending_node_resource(node)
                 if reduced:
                     node.relaunchable = False
+                    update_job_node(node)
                     node_plan = self.relaunch_node(node)
                     plan.remove_nodes.append(node)
                     plan.merge(node_plan)
         return plan
 
     def get_pending_timeout_oom_recovered_node(self):
-        cur_nodes = list(self._nodes.values())
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        cur_nodes = list(nodes.values())
         now = time.time()
         nodes = []
         for node in cur_nodes:
@@ -288,13 +299,15 @@ class TrainingNodeManager(object):
         """TensorFlow Chief nodes"""
         nodes = []
         with self._lock:
-            for node in self._nodes.values():
+            training_nodes = self._job_context.job_nodes_by_type(self._node_type)
+            for node in training_nodes.values():
                 if node.status == NodeStatus.RUNNING:
                     nodes.append(node)
         return nodes
 
     def all_nodes_exited(self):
-        if len(self._nodes) == 0:
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        if len(nodes) == 0:
             return True
         counter = self._get_node_counter()
 
@@ -307,7 +320,7 @@ class TrainingNodeManager(object):
             running_workers = []
             pending_high_workers = []
             pending_low_workers = []
-            for worker_id, worker in self._nodes.items():
+            for worker_id, worker in nodes.items():
                 if worker.is_released:
                     continue
                 if worker.config_resource.priority == PriorityClass.LOW:
@@ -359,7 +372,8 @@ class TrainingNodeManager(object):
     def running_nodes_hanged(self) -> List[bool]:
         cur_time = time.time()
         node_hang = []
-        nodes = list(self._nodes.values())  # Avoid dictionary changed size.
+        nodes_dict = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = list(nodes_dict.values())  # Avoid dictionary changed size.
         for node in nodes:
             if node.status == NodeStatus.RUNNING:
                 timeout = NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
@@ -375,12 +389,14 @@ class TrainingNodeManager(object):
                         f"{timeout} from {date_time}!!!"
                     )
                 node.hang = hang
+                update_job_node(node)
                 node_hang.append(hang)
         return node_hang
 
     def _get_node_counter(self):
         with self._lock:
-            return Counter([node.status for node in self._nodes.values()])
+            nodes = self._job_context.job_nodes_by_type(self._node_type)
+            return Counter([node.status for node in nodes.values()])
 
     def update_critical_node(self, critical_node_restarts):
         """Update critical node by a dict.
@@ -389,7 +405,8 @@ class TrainingNodeManager(object):
                 and values are the relaunchable number of nodes
         """
         logger.info("Update critical worker {}".format(critical_node_restarts))
-        for id, node in self._nodes.items():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for id, node in nodes.items():
             if id in critical_node_restarts:
                 node.critical = True
                 node.max_relaunch_count = critical_node_restarts[id]

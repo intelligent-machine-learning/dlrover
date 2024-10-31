@@ -23,13 +23,12 @@ from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.elastic_agent.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisAction,
+    DiagnosisActionConstants,
     DiagnosisConstant,
     InferenceConfigKey,
 )
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction, DiagnosisNodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -50,11 +49,17 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
     get_worker_diagnosis_operators,
     get_worker_observe_operators,
 )
+from dlrover.python.elastic_agent.common.worker_context import WorkerContext
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnosisAgent(Singleton):
-    def __init__(self, training_log_file: str, errors: str, worker_context: WorkerContext):
+    def __init__(
+        self,
+        training_log_file: str,
+        errors: str,
+        worker_context: WorkerContext,
+    ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
@@ -102,8 +107,8 @@ class DiagnosisAgent(Singleton):
         self._stopped = True
 
     def diagnose_problems(
-            self, problems: List[Inference]
-    ) -> List[DiagnoseAction]:
+        self, problems: List[Inference]
+    ) -> List[DiagnosisAction]:
         conclusions: List[Inference] = []
         for problem in problems:
             ic = InferenceChain([problem], self._diagnosis_operators)
@@ -143,9 +148,10 @@ class DiagnosisAgent(Singleton):
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
-    def diagnose_training_failure(self) -> DiagnoseAction:
+    def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(
-            self._worker_context.run_result.failures, self._worker_context.restart_count
+            self._worker_context.run_result.failures,
+            self._worker_context.restart_count,
         )
         # check if the node is failed
         inference = Inference(
@@ -175,8 +181,9 @@ class DiagnosisAgent(Singleton):
                 f"{self._worker_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
             )
-            return DiagnoseAction(
-                action=DiagnosisAction.RESTART_WORKER,
+            return DiagnosisNodeAction(
+                action=DiagnosisActionConstants.RESTART_WORKER,
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
             )
         else:
             logger.info(
@@ -186,8 +193,9 @@ class DiagnosisAgent(Singleton):
                 f"no attempts({self._worker_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnoseAction(
-                action=DiagnosisAction.RELAUNCH_WORKER,
+            return DiagnosisNodeAction(
+                action=DiagnosisActionConstants.RELAUNCH_WORKER,
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
             )
 
     def _report_failure_to_master(

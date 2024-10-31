@@ -53,10 +53,7 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
 )
 from torch.distributed.elastic.metrics import put_metric
 from torch.distributed.elastic.metrics.api import prof
-from torch.distributed.elastic.multiprocessing import (
-    PContext,
-    SignalException,
-)
+from torch.distributed.elastic.multiprocessing import PContext, SignalException
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
     ProcessFailure,
@@ -83,8 +80,24 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnosisAction
+from dlrover.python.diagnosis.common.constants import DiagnosisActionConstants
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    DiagnosisNodeAction,
+)
+from dlrover.python.diagnosis.common.inference_chain import (
+    Inference,
+    InferenceAttribute,
+    InferenceDescription,
+    InferenceName,
+)
+from dlrover.python.elastic_agent.common.worker_context import (
+    get_worker_context,
+    update_worker_context,
+)
+from dlrover.python.elastic_agent.config.launch_config import (
+    ElasticLaunchConfig,
+)
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
@@ -99,14 +112,6 @@ from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
 )
-from dlrover.python.diagnosis.common.inference_chain import (
-    Inference,
-    InferenceName,
-    InferenceAttribute,
-    InferenceDescription,
-)
-from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -377,7 +382,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._worker_context = WorkerContext()
+        self._worker_context = get_worker_context()
         self._diagnose_agent = DiagnosisAgent(
             training_log_file=training_log_file,
             errors=failure_node_errors,
@@ -682,11 +687,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
         if self._config.network_check:
             succ = run_network_check(self._config, self._entrypoint)
             if not succ:
-                problems.append(Inference(
-                    name=InferenceName.NODE,
-                    attribution=InferenceAttribute.IS,
-                    description=InferenceDescription.FAILURE,
-                ))
+                problems.append(
+                    Inference(
+                        name=InferenceName.NODE,
+                        attribution=InferenceAttribute.IS,
+                        description=InferenceDescription.FAILURE,
+                    )
+                )
         self._diagnose_agent.diagnose_problems(problems)
 
     def _initialize_workers(self, worker_group):
@@ -785,7 +792,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
             actions = self._worker_context.next_actions()
             for action in actions:
-                self._process_diagnose_action(action)
+                self._process_diagnosis_action(action)
 
             if state == WorkerState.SUCCEEDED:
                 logger.info(
@@ -810,7 +817,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                self._worker_context.update_context(
+                update_worker_context(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
@@ -819,12 +826,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 try:
                     action = self._diagnose_agent.diagnose_training_failure()
                 except Exception as e:
-                    logger.warning(f"Failed to diagnose errors: {e}")
+                    logger.warning(f"failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
-                        action = DiagnosisAction.RESTART_WORKER
+                        action = DiagnosisNodeAction(
+                            action=DiagnosisActionConstants.RESTART_WORKER,
+                        )
                     else:
-                        action = DiagnosisAction.RELAUNCH_WORKER
-                self._process_diagnose_action(action)
+                        action = DiagnosisNodeAction(
+                            action=DiagnosisActionConstants.RELAUNCH_WORKER,
+                        )
+                self._process_diagnosis_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
@@ -835,13 +846,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnose_action(self, action: DiagnoseAction):
-        if action.action == DiagnosisAction.RESTART_WORKER:
-            self._remaining_failovers -= 1
-            self._restart_workers(self._worker_group)
-        elif action.action == DiagnosisAction.RELAUNCH_WORKER:
-            self._stop_workers(self._worker_group)
-            self._worker_group.state = WorkerState.FAILED
+    def _process_diagnosis_action(self, action: DiagnosisAction):
+        if action.action_type == DiagnosisActionConstants.TYPE_NODE:
+            if action.action == DiagnosisActionConstants.RESTART_WORKER:
+                self._remaining_failovers -= 1
+                self._restart_workers(self._worker_group)
+            elif action.action == DiagnosisActionConstants.RELAUNCH_WORKER:
+                self._stop_workers(self._worker_group)
+                self._worker_group.state = WorkerState.FAILED
 
     def _wait_async_saver(self):
         """
@@ -1211,7 +1223,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             )
             raise RuntimeError("This node is down.")
         elif self._node_rank in stragglers:
-            logger.warn("This node is a straggler!")
+            logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
         return success

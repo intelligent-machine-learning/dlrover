@@ -364,3 +364,6 @@ class Node(object):
         d.pop("config_resource", None)
         d.pop("used_resource", None)
         return d
+
+    def update_from_node(self, node):
+        self.__dict__.update(node.__dict__)

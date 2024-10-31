@@ -13,42 +13,43 @@
 
 import threading
 import time
-
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import DiagnosisConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisActionConstants,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
 )
-from dlrover.python.diagnosis.common.diagnose_action import (
-    DiagnoseAction,
+from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
+    coordinate_inferences,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     Inference,
     InferenceChain,
+    combine_inferences,
 )
-
-from dlrover.python.master.diagnosis.diagnosis_data_manager import DiagnosisDataManager
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
     get_master_observe_operators,
 )
-from dlrover.python.diagnosis.inferencechain.inference_chain import combine_inferences
-from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
-    coordinate_inferences,
+from dlrover.python.master.diagnosis.diagnosis_data_manager import (
+    DiagnosisDataManager,
 )
-from dlrover.python.master.node.job import JobContext
+from dlrover.python.master.node.job_context import get_job_context
 
 
 class DiagnosisManager:
-    def __init__(self, job_context: JobContext = None):
+    def __init__(self):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
-        self._job_context = job_context
+        self._job_context = get_job_context()
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -116,8 +117,10 @@ class DiagnosisManager:
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
             )
 
-    def next_actions(self, rank) -> List[DiagnoseAction]:
-        return self._action_queue.next_actions(rank)
+    def next_actions(
+            self, instance=DiagnosisConstant.LOCAL_INSTANCE, action_type=DiagnosisActionConstants.ACTION_TYPE_ANY
+    ) -> List[DiagnosisAction]:
+        return self._job_context.next_actions(instance=instance, action_type=action_type)
 
 
 class Diagnostician:
@@ -125,7 +128,9 @@ class Diagnostician:
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []
         self._training_problems: List[Inference] = []
-        self._observing_operators = get_master_observe_operators(data_mgr=data_manager)
+        self._observing_operators = get_master_observe_operators(
+            data_mgr=data_manager
+        )
 
     def register_pre_check(self, pre_checks: List[Inference]):
         self._pre_checks = pre_checks
@@ -137,9 +142,7 @@ class Diagnostician:
         if len(self._training_problems) == 0:
             logger.warning("No training problem is registered.")
             return []
-        ic = InferenceChain(
-            self._training_problems, self._observing_operators
-        )
+        ic = InferenceChain(self._training_problems, self._observing_operators)
         return ic.infer()
 
     def diagnose_problem(self, inference: Inference) -> List[Inference]:

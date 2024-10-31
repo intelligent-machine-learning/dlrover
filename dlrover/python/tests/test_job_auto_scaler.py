@@ -32,6 +32,7 @@ from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     mock_k8s_client,
 )
+from dlrover.python.master.node.job_context import get_job_context, update_job_node
 
 _dlrover_context = Context.singleton_instance()
 
@@ -50,7 +51,6 @@ class JobAutoScalerTest(unittest.TestCase):
 
         auto_scaler = PSTrainingAutoScaler(
             manager._job_resource,
-            manager._job_nodes,
             manager._job_optimizer,
             manager._speed_monitor,
             manager._ps_manager,
@@ -64,11 +64,28 @@ class JobAutoScalerTest(unittest.TestCase):
         plan.node_resources["test-edljob-worker-0"] = NodeResource(8, 8192)
         plan.node_resources["test-edljob-worker-1"] = NodeResource(8, 8192)
         plan.node_resources["test-edljob-ps-1"] = NodeResource(8, 8192)
-        auto_scaler._ps_manager._nodes[1].status = NodeStatus.RUNNING
-        auto_scaler._worker_manager._nodes[0].critical = True
+
+        job_context = get_job_context()
+        ps_nodes = job_context.job_nodes_by_type(NodeType.PS)
+        ps_node = ps_nodes[1]
+        ps_node.type = NodeType.PS
+        ps_node.status = NodeStatus.RUNNING
+        update_job_node(ps_node)
+        # auto_scaler._ps_manager._nodes[1].status = NodeStatus.RUNNING
+        worker_nodes = job_context.job_nodes_by_type(NodeType.WORKER)
+        worker_node = worker_nodes[0]
+        worker_node.type = NodeType.WORKER
+        worker_node.critical = True
+        update_job_node(worker_node)
+        # auto_scaler._worker_manager._nodes[0].critical = True
         scale_plan = auto_scaler.execute_job_optimization_plan(plan)
-        self.assertEqual(len(manager._ps_manager._nodes), 4)
-        self.assertEqual(len(manager._worker_manager._nodes), 7)
+
+        ps_nodes = job_context.job_nodes_by_type(NodeType.PS)
+        # self.assertEqual(len(manager._ps_manager._nodes), 4)
+        self.assertEqual(len(ps_nodes), 4)
+        worker_nodes = job_context.job_nodes_by_type(NodeType.WORKER)
+        # self.assertEqual(len(manager._worker_manager._nodes), 7)
+        self.assertEqual(len(worker_nodes), 7)
         self.assertEqual(len(scale_plan.remove_nodes), 1)
         self.assertEqual(len(scale_plan.launch_nodes), 5)
         remove_node = scale_plan.remove_nodes[0]
@@ -113,7 +130,6 @@ class JobAutoScalerTest(unittest.TestCase):
 
         auto_scaler = PSTrainingAutoScaler(
             manager._job_resource,
-            manager._job_nodes,
             manager._job_optimizer,
             manager._speed_monitor,
             manager._ps_manager,
@@ -121,10 +137,16 @@ class JobAutoScalerTest(unittest.TestCase):
             manager._scaler,
         )
         auto_scaler._autoscaling_started = True
-        ps0 = manager._ps_manager._nodes[0]
+
+        job_context = get_job_context()
+        ps_nodes = job_context.job_nodes_by_type(NodeType.PS)
+        ps0 = ps_nodes[0]
+        ps0.type = NodeType.PS
+        # ps0 = manager._ps_manager._nodes[0]
         ps0.config_resource.cpu = 16
         ps0.status = NodeStatus.PENDING
         ps0.create_time = datetime.now() + timedelta(days=-1)
+        update_job_node(ps0)
         plan = auto_scaler._reduce_timeout_pending_node_resource()
         self.assertEqual(
             plan.ps_addrs,
@@ -146,14 +168,17 @@ class AllreduceAutoScalerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        for worker in manager._job_nodes[NodeType.WORKER].values():
+        job_context = get_job_context()
+        worker_nodes = job_context.job_nodes_by_type(NodeType.WORKER)
+
+        for worker in worker_nodes.values():
             worker.status = NodeStatus.RUNNING
+            update_job_node(worker)
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
 
         auto_scaler = AllreduceTrainingAutoScaler(
             manager._job_resource,
-            manager._job_nodes,
             manager._job_optimizer,
             manager._speed_monitor,
             manager._worker_manager,

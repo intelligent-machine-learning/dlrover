@@ -518,10 +518,8 @@ class SucceededRequest(Message):
 
 @dataclass
 class DiagnosisAction(Message):
-    rank: int = -1
-    timestamp: float = 0.0
-    expired_time_period: int = 0
-    action: str = ""
+    action_cls: str = ""
+    action_content: str = ""
 
 
 @dataclass

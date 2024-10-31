@@ -36,6 +36,9 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.elastic_agent.config.launch_config import (
+    ElasticLaunchConfig,
+)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -58,7 +61,6 @@ from dlrover.python.elastic_agent.torch.training import (
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.elastic_agent.config.launch_config import ElasticLaunchConfig
 
 
 class ElasticTrainingAgentTest(unittest.TestCase):

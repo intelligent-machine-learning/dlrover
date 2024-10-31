@@ -11,14 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
-from typing import List
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
+from dlrover.python.master.node.job_context import update_job_node
 
 
 class LocalJobManager(JobManager):
@@ -38,16 +40,18 @@ class LocalJobManager(JobManager):
         self._job_resource_optimizer = None
 
     def start(self):
-        self._job_nodes[NodeType.WORKER] = {}
+        workers = {}
         worker = self._job_args.node_args[NodeType.WORKER].group_resource
         self._training_node_config.set_node_num(worker.count)
         for i in range(worker.count):
-            self._job_nodes[NodeType.WORKER][i] = Node(
+            workers[i] = Node(
                 name=NodeType.WORKER + f"-{i}",
                 node_type=NodeType.WORKER,
                 node_id=i,
                 status=NodeStatus.RUNNING,
             )
+            update_job_node(workers[i])
+
 
     def should_early_stop(self):
         return False
@@ -58,21 +62,31 @@ class LocalJobManager(JobManager):
     def update_node_resource_usage(
         self, node_type, node_id, cpu, memory, gpu_stats=[]
     ):
-        node = self._job_nodes[node_type][node_id]
+        node = self._job_context.job_node(node_type, node_id)
+        if node is None:
+            return
         node.update_resource_usage(cpu, memory, gpu_stats)
+        update_job_node(node)
 
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
         """Process the training failure reported by the node."""
-        node = self._job_nodes[node_type][node_id]
+        node = self._job_context.job_node(node_type, node_id)
+        if node is None:
+            return
         self._error_monitor.process_error(
             node, restart_count, error_data, level
         )
 
-    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> List[DiagnoseAction]:
-        node = self._job_nodes[node_type][node_id]
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> List[DiagnosisAction]:
+        node = self._job_context.job_node(node_type, node_id)
+        if node is None:
+            return []
         node.heartbeat_time = timestamp
+        update_job_node(node)
         return []
 
     def close_job(self):
@@ -94,12 +108,11 @@ class LocalJobManager(JobManager):
         pass
 
     def get_running_nodes(self):
-        nodes = list(self._job_nodes[NodeType.WORKER].values())
-        return nodes
+        nodes = self._job_context.job_nodes_by_type(NodeType.WORKER)
+        return nodes.values()
 
     def get_running_workers(self):
-        workers = list(self._job_nodes[NodeType.WORKER].values())
-        return workers
+        return self._job_context.job_nodes_by_type(NodeType.WORKER)
 
     def post_ps_ready(self):
         pass
@@ -149,8 +162,11 @@ class LocalJobManager(JobManager):
         return strategy
 
     def update_node_paral_config(self, node_type, node_id, paral_config):
-        node = self._job_nodes[node_type][node_id]
+        node = self._job_context.job_node(node_type, node_id)
+        if node is None:
+            return
         node.update_paral_config(paral_config)
+        update_job_node(node)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:

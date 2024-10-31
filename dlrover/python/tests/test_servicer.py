@@ -36,6 +36,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
+from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -59,7 +60,12 @@ class MasterServicerTest(unittest.TestCase):
         worker_resource.node_resource.gpu_type = "a100"
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
-        self.job_manager = create_job_manager(params, speed_monitor)
+
+        job_context = JobContext()
+        self.job_manager = create_job_manager(
+            params, speed_monitor, job_context
+        )
+
         self.job_manager._init_nodes()
         self.job_manager._init_job_auto_scaler()
         for node in self.job_manager._job_nodes[NodeType.WORKER].values():

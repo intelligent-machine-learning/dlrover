@@ -23,8 +23,8 @@ from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 
 def retry_grpc_request(func):
@@ -232,12 +232,12 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
-    def report_heart_beat(self, timestamp) -> List[DiagnoseAction]:
+    def report_heart_beat(self, timestamp) -> List[DiagnosisAction]:
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)
-        actions: List[DiagnoseAction] = []
+        actions: List[DiagnosisAction] = []
         for grpc_action in response.diagnosis_actions:
-            action = DiagnoseAction(
+            action = DiagnosisAction(
                 rank=grpc_action.rank,
                 timestamp=grpc_action.timestamp,
                 expired_time_period=grpc_action.expired_time_period,
