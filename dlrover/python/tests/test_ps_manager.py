@@ -22,11 +22,16 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.node.job_context import (
+    clear_job_nodes,
+    get_job_context,
+    update_job_node,
+    update_job_nodes,
+)
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.tests.test_utils import mock_k8s_client
-from dlrover.python.master.node.job_context import get_job_context, update_job_nodes, clear_job_nodes, update_job_node
 
 _dlrover_ctx = Context.singleton_instance()
 

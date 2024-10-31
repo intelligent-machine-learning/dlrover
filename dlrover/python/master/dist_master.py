@@ -43,7 +43,6 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector

@@ -17,8 +17,8 @@ from typing import List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
     DiagnosisActionConstants,
+    DiagnosisConstant,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
@@ -35,7 +35,7 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
     combine_inferences,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
     get_master_observe_operators,
 )
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
@@ -118,9 +118,13 @@ class DiagnosisManager:
             )
 
     def next_actions(
-            self, instance=DiagnosisConstant.LOCAL_INSTANCE, action_type=DiagnosisActionConstants.ACTION_TYPE_ANY
+        self,
+        instance=DiagnosisConstant.LOCAL_INSTANCE,
+        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
     ) -> List[DiagnosisAction]:
-        return self._job_context.next_actions(instance=instance, action_type=action_type)
+        return self._job_context.next_actions(
+            instance=instance, action_type=action_type
+        )
 
 
 class Diagnostician:

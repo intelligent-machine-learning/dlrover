@@ -28,7 +28,10 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     InferenceConfigKey,
 )
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction, DiagnosisNodeAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    DiagnosisNodeAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -190,7 +193,8 @@ class DiagnosisAgent(Singleton):
                 f"[{self._worker_context.worker_spec.role}] Worker group "
                 f"{self._worker_context.run_result.state.name}, "
                 f"is failure node: {failure_node}, "
-                f"no attempts({self._worker_context.worker_spec.max_restarts}) "
+                f"no attempts("
+                f"{self._worker_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
             return DiagnosisNodeAction(

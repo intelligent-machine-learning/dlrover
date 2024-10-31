@@ -650,10 +650,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         grpc_actions: List[grpc.DiagnosisAction] = []
         for action in actions:
             grpc_action = grpc.DiagnosisAction(
-                rank=action.rank,
-                timestamp=action.timestamp,
-                action=action.action,
-                expired_time_period=action.expired_time_period,
+                action.__class__.__name__,
+                action.to_json(),
             )
             grpc_actions.append(grpc_action)
         return grpc.HeartbeatResponse(diagnosis_actions=grpc_actions)

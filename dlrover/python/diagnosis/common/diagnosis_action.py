@@ -10,10 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import threading
 from abc import ABCMeta
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
@@ -22,11 +23,16 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
 )
 from dlrover.python.util.time_util import has_expired
-import json
 
 
 class DiagnosisAction(metaclass=ABCMeta):
-    def __init__(self, action_type: str, instance: int, timestamp=0, expired_time_period=0):
+    def __init__(
+        self,
+        action_type: str,
+        instance: int,
+        timestamp=0,
+        expired_time_period=0,
+    ):
         self.action_type = action_type
         self.instance = instance
         if timestamp == 0:
@@ -63,7 +69,10 @@ class DiagnosisNodeAction(DiagnosisAction):
         instance=DiagnosisConstant.LOCAL_INSTANCE,
     ):
         super().__init__(
-            DiagnosisActionConstants.TYPE_NODE, instance, timestamp, expired_time_period
+            DiagnosisActionConstants.TYPE_NODE,
+            instance,
+            timestamp,
+            expired_time_period,
         )
         self.action = action
         self.node_type = node_type
@@ -73,13 +82,6 @@ class DiagnosisNodeAction(DiagnosisAction):
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
-    if (
-        action1.action_type == DiagnosisActionConstants.TYPE_NODE
-        and action2.action_type == DiagnosisActionConstants.TYPE_NODE
-        and action1.action == action2.action
-        and action1.rank == action2.rank
-    ):
-        return True
     return False
 
 
@@ -125,7 +127,10 @@ class DiagnosisActionQueue:
             remain_actions = []
             actions = self._actions[instance]
             for action in actions:
-                if action_type == DiagnosisActionConstants.TYPE_NODE or action_type == action.action_type:
+                if (
+                    action_type == DiagnosisActionConstants.TYPE_NODE
+                    or action_type == action.action_type
+                ):
                     deque_actions.append(action)
                 else:
                     remain_actions.append(action)

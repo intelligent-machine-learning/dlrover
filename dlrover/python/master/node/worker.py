@@ -25,7 +25,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.job_context import JobContext, update_job_node
+from dlrover.python.master.node.job_context import update_job_node
 from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,
     TrainingNodeManager,
@@ -56,9 +56,7 @@ class ChiefManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 chief.
         """
-        super(ChiefManager, self).__init__(
-            NodeType.CHIEF, new_node_name_fn
-        )
+        super(ChiefManager, self).__init__(NodeType.CHIEF, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
@@ -124,9 +122,7 @@ class WorkerManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 worker.
         """
-        super(WorkerManager, self).__init__(
-            NodeType.WORKER, new_node_name_fn
-        )
+        super(WorkerManager, self).__init__(NodeType.WORKER, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn

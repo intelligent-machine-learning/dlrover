@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import os
 import socket
 import threading
 import time
 from contextlib import closing
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
@@ -85,6 +86,10 @@ class MasterClient(Singleton):
         self._node_ip = os.getenv("NODE_IP", "")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = self.find_free_port()
+
+        self._diagnosis_action_module = importlib.import_module(
+            "dlrover.python.diagnosis.common.diagnosis_action"
+        )
 
     def __del__(self):
         if self._channel:
@@ -237,12 +242,17 @@ class MasterClient(Singleton):
         response: grpc.HeartbeatResponse = self._get(message)
         actions: List[DiagnosisAction] = []
         for grpc_action in response.diagnosis_actions:
-            action = DiagnosisAction(
-                rank=grpc_action.rank,
-                timestamp=grpc_action.timestamp,
-                expired_time_period=grpc_action.expired_time_period,
-                action=grpc_action.action,
+            action_cls: Optional[DiagnosisData] = getattr(
+                self._diagnosis_action_module,
+                grpc_action.action_cls,
             )
+            if action_cls is None:
+                logger.warning(
+                    "Invalid diagnosis action "
+                    f"action type: {grpc_action.action_cls}"
+                )
+                continue
+            action = action_cls.from_json(grpc_action.action_content)
             actions.append(action)
         return actions
 

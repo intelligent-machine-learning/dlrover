@@ -33,7 +33,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.master.node.job_context import get_job_context, update_job_node
+from dlrover.python.master.node.job_context import (
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.scheduler.job import JobArgs
 
@@ -312,7 +315,9 @@ class TrainingNodeManager(object):
         """TensorFlow Chief nodes"""
         nodes = []
         with self._lock:
-            training_nodes = self._job_context.job_nodes_by_type(self._node_type)
+            training_nodes = self._job_context.job_nodes_by_type(
+                self._node_type
+            )
             for node in training_nodes.values():
                 if node.status == NodeStatus.RUNNING:
                     nodes.append(node)

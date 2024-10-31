@@ -36,7 +36,11 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
-from dlrover.python.master.node.job_context import get_job_context, update_job_node, clear_job_nodes
+from dlrover.python.master.node.job_context import (
+    clear_job_nodes,
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -61,9 +65,7 @@ class MasterServicerTest(unittest.TestCase):
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
 
-        self.job_manager = create_job_manager(
-            params, speed_monitor
-        )
+        self.job_manager = create_job_manager(params, speed_monitor)
         self.job_context = get_job_context()
 
         self.job_manager._init_nodes()
@@ -483,9 +485,7 @@ class MasterServicerForRayTest(unittest.TestCase):
         self.job_manager._init_nodes()
         self.servicer._update_node_address(request)
         node = self.job_context.job_node(task_type, task_id)
-        self.assertEqual(
-            node.service_addr, addr
-        )
+        self.assertEqual(node.service_addr, addr)
         ps_nodes = self.job_context.job_nodes_by_type(NodeType.PS)
         for node in ps_nodes.values():
             node.status = NodeStatus.RUNNING

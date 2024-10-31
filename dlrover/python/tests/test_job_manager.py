@@ -51,6 +51,12 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
+from dlrover.python.master.node.job_context import (
+    clear_job_nodes,
+    get_job_context,
+    update_job_node,
+    update_job_nodes,
+)
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
@@ -75,7 +81,6 @@ from dlrover.python.tests.test_utils import (
     mock_k8s_client,
     new_dataset_splitter,
 )
-from dlrover.python.master.node.job_context import get_job_context, update_job_node, clear_job_nodes, update_job_nodes
 
 _MOCK_JOB_UUID = "11111"
 
@@ -253,9 +258,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeType.WORKER, 0, 0.7, 2048, gpu_stats
         )  # noqa
         job_nodes = self.job_context.job_nodes()
-        self.assertEqual(
-            job_nodes[NodeType.WORKER][0].used_resource.cpu, 0.7
-        )
+        self.assertEqual(job_nodes[NodeType.WORKER][0].used_resource.cpu, 0.7)
         self.assertEqual(
             job_nodes[NodeType.WORKER][0].used_resource.memory, 2048
         )
@@ -372,9 +375,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(len(events), 0)
 
         job_nodes = self.job_context.job_nodes()
-        for index, node in enumerate(
-            job_nodes[NodeType.WORKER].values()
-        ):
+        for index, node in enumerate(job_nodes[NodeType.WORKER].values()):
             node.status = NodeStatus.RUNNING
             now = datetime.now()
             node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
@@ -393,9 +394,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(len(nodes_time_info), 3)
 
         job_nodes = self.job_context.job_nodes()
-        for index, node in enumerate(
-            job_nodes[NodeType.WORKER].values()
-        ):
+        for index, node in enumerate(job_nodes[NodeType.WORKER].values()):
             node.status = NodeStatus.RUNNING
             now = datetime.now()
             node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
@@ -873,14 +872,10 @@ class LocalJobManagerTest(unittest.TestCase):
         job_manager.handle_training_failure(NodeType.WORKER, 3)
 
         try:
-            self.assertFalse(
-                job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
+            self.assertFalse(job_nodes[NodeType.WORKER][0].is_succeeded())
             job_manager.update_succeeded_node(0, NodeType.WORKER)
             job_nodes = job_context.job_nodes()
-            self.assertTrue(
-                job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
+            self.assertTrue(job_nodes[NodeType.WORKER][0].is_succeeded())
             job_manager.update_succeeded_node(5, NodeType.WORKER)
             job_manager.update_succeeded_node(0, "unknown")
         except Exception:

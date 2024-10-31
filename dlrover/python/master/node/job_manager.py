@@ -15,13 +15,16 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import (
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfig,
@@ -29,10 +32,6 @@ from dlrover.python.master.node.training_node import (
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
-from dlrover.python.master.node.job_context import (
-    get_job_context,
-    update_job_node,
-)
 
 
 class JobManager(metaclass=ABCMeta):
@@ -244,4 +243,3 @@ class JobManager(metaclass=ABCMeta):
             logger.info(f"Node {node_id}({node_type}) to succeeded.")
             node.set_as_succeeded()
             update_job_node(node)
-

@@ -22,7 +22,11 @@ from dlrover.python.common.node import Node
 class ErrorMonitor(metaclass=ABCMeta):
     @abstractmethod
     def process_error(
-        self, node: Node, restart_count: int, error_data: str, level: str
+        self,
+        node: Node,
+        restart_count: int,
+        error_data: str,
+        level: str,
     ) -> bool:
         """
         Handle the error of training processes.
@@ -34,7 +38,7 @@ class ErrorMonitor(metaclass=ABCMeta):
             level: the error level.
 
         Returns:
-            bool: wether to relaunch the node.
+            bool: to relaunch the node or not.
         """
         pass
 
@@ -57,7 +61,11 @@ class SimpleErrorMonitor(ErrorMonitor):
         self._restart_errors: Dict[int, str] = {}
 
     def process_error(
-        self, node: Node, restart_count: int, error_data: str, level: str
+        self,
+        node: Node,
+        restart_count: int,
+        error_data: str,
+        level: str,
     ) -> bool:
         if level == TrainingExceptionLevel.PROCESS_ERROR:
             return self._handle_process_error(node, restart_count, error_data)
@@ -108,7 +116,11 @@ class K8sJobErrorMonitor(ErrorMonitor):
         self._restart_errors: Dict[int, str] = {}
 
     def process_error(
-        self, node: Node, restart_count: int, error_data: str, level: str
+        self,
+        node: Node,
+        restart_count: int,
+        error_data: str,
+        level: str,
     ) -> bool:
         if level == TrainingExceptionLevel.PROCESS_ERROR:
             return self._handle_process_error(node, restart_count, error_data)
@@ -151,5 +163,5 @@ class K8sJobErrorMonitor(ErrorMonitor):
         if self.cordon_node_eanbled:
             succeed = self._k8s_client.cordon_node(node.host_name)
             if succeed:
-                logger.info(f"Node {node.name} is marked unschedulable.")
+                logger.info(f"Node {node.name} is marked unscheduled.")
         return True

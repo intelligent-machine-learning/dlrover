@@ -26,10 +26,13 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.training_node import TrainingNodeManager, skip_pending_judgement
+from dlrover.python.master.node.job_context import update_job_node
+from dlrover.python.master.node.training_node import (
+    TrainingNodeManager,
+    skip_pending_judgement,
+)
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
-from dlrover.python.master.node.job_context import update_job_node
 
 _dlrover_ctx = Context.singleton_instance()
 
@@ -91,7 +94,9 @@ class ParameterServerManager(TrainingNodeManager):
             update_job_node(new_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
-                self._training_ps_cluster[i] = self._job_context.ps_nodes[new_node.id]
+                self._training_ps_cluster[i] = self._job_context.ps_nodes[
+                    new_node.id
+                ]
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -367,7 +372,9 @@ class ParameterServerManager(TrainingNodeManager):
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
             update_job_node(new_node)
-            self._migrated_ps_nodes[old_ps_id] = self._job_context.ps_nodes[new_node.id]
+            self._migrated_ps_nodes[old_ps_id] = self._job_context.ps_nodes[
+                new_node.id
+            ]
             logger.info("Migrated PS %s to PS %s", old_ps_id, new_ps_id)
             return new_node
 

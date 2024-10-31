@@ -18,9 +18,9 @@ from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
+from dlrover.python.master.node.job_context import update_job_node
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.master.node.job_context import update_job_node
 
 
 class LocalJobManager(JobManager):
@@ -51,7 +51,6 @@ class LocalJobManager(JobManager):
                 status=NodeStatus.RUNNING,
             )
             update_job_node(workers[i])
-
 
     def should_early_stop(self):
         return False

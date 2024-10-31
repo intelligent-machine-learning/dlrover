@@ -26,13 +26,16 @@ from dlrover.python.master.node.job_auto_scaler import (
     AllreduceTrainingAutoScaler,
     PSTrainingAutoScaler,
 )
+from dlrover.python.master.node.job_context import (
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,
     MockK8sPSJobArgs,
     mock_k8s_client,
 )
-from dlrover.python.master.node.job_context import get_job_context, update_job_node
 
 _dlrover_context = Context.singleton_instance()
 

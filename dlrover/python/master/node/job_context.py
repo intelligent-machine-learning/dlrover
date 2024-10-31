@@ -13,18 +13,18 @@
 
 import copy
 import threading
-import time
 from typing import Dict, Optional
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisActionQueue
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
     DiagnosisActionConstants,
+    DiagnosisConstant,
 )
-from datetime import datetime
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisActionQueue,
+)
 
 
 class JobContext(Singleton):
@@ -45,9 +45,13 @@ class JobContext(Singleton):
             self._action_queue.add_action(action)
 
     def next_actions(
-            self, instance=DiagnosisConstant.LOCAL_INSTANCE, action_type=DiagnosisActionConstants.ACTION_TYPE_ANY
+        self,
+        instance=DiagnosisConstant.LOCAL_INSTANCE,
+        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
     ):
-        return self._action_queue.next_actions(instance=instance, action_type=action_type)
+        return self._action_queue.next_actions(
+            instance=instance, action_type=action_type
+        )
 
     def _update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
         with self._locker:

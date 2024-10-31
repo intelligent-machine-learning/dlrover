@@ -15,14 +15,14 @@ from typing import List, Optional
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerSpec
 
+from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionConstants,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
-)
-from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
-    DiagnosisActionConstants,
 )
 
 
@@ -58,7 +58,7 @@ class WorkerContext(Singleton):
         restart_count: int = 0,
         run_result: RunResult = None,
     ):
-        self._worker_spec: WorkerSpec = worker_spec
+        self._worker_spec = worker_spec
         self.remaining_failovers = remaining_failovers
         self.restart_count = restart_count
         self._run_result = run_result
@@ -67,9 +67,9 @@ class WorkerContext(Singleton):
         self._diagnose_action_queue.add_action(action)
 
     def next_actions(
-            self,
-            instance=DiagnosisConstant.LOCAL_INSTANCE,
-            action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
+        self,
+        instance=DiagnosisConstant.LOCAL_INSTANCE,
+        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
     ) -> List[DiagnosisAction]:
         return self._diagnose_action_queue.next_actions(
             instance=instance, action_type=action_type
@@ -87,4 +87,6 @@ def update_worker_context(
     run_result: RunResult = None,
 ):
     worker_context = get_worker_context()
-    worker_context._update_context(worker_spec, remaining_failovers, restart_count, run_result)
+    worker_context._update_context(
+        worker_spec, remaining_failovers, restart_count, run_result
+    )

@@ -23,8 +23,9 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
 from dlrover.python.master.resource.job import (
@@ -33,7 +34,6 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
-from dlrover.python.master.node.job_context import get_job_context
 
 _dlrover_context = Context.singleton_instance()
 
@@ -219,7 +219,9 @@ class PSTrainingAutoScaler(JobAutoScaler):
                     scale_plan.merge(ps_plan)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
-                    chief_nodes = self._job_context.job_nodes_by_type(NodeType.CHIEF)
+                    chief_nodes = self._job_context.job_nodes_by_type(
+                        NodeType.CHIEF
+                    )
                     chief_num = len(chief_nodes)
                     worker_num = chief_num + group.count
                     self._speed_monitor.set_target_worker_num(worker_num)

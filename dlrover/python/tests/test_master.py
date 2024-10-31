@@ -28,13 +28,17 @@ from dlrover.python.master.dist_master import (
     _create_master_service_on_k8s,
 )
 from dlrover.python.master.main import update_context
+from dlrover.python.master.node.job_context import (
+    clear_job_nodes,
+    get_job_context,
+    update_job_nodes,
+)
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     mock_k8s_client,
     start_local_master,
 )
-from dlrover.python.master.node.job_context import get_job_context, update_job_node, clear_job_nodes, update_job_nodes
 
 _dlrover_context = Context.singleton_instance()
 

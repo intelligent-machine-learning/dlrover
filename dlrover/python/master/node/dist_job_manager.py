@@ -36,9 +36,6 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
-)
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
@@ -1113,7 +1110,7 @@ class DistributedJobManager(JobManager):
         error_data: str,
         level: str,
     ) -> bool:
-        if self._error_monitor:
+        if self._error_monitor and node is not None:
             return self._error_monitor.process_error(
                 node, restart_count, error_data, level
             )
@@ -1202,9 +1199,7 @@ class DistributedJobManager(JobManager):
             super().update_succeeded_node(node_id, node_type)
 
 
-def create_job_manager(
-    args: JobArgs, speed_monitor
-) -> DistributedJobManager:
+def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (

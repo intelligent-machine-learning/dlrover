@@ -22,8 +22,8 @@ from dlrover.python.common.constants import RendezvousName
 from dlrover.python.diagnosis.common.constants import DiagnosisActionConstants
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.common.worker_context import (
-    update_worker_context,
     get_worker_context,
+    update_worker_context,
 )
 from dlrover.python.elastic_agent.config.launch_config import (
     ElasticLaunchConfig,
@@ -90,21 +90,29 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
 
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action, DiagnosisActionConstants.RESTART_WORKER)
+        self.assertEqual(
+            action.action, DiagnosisActionConstants.RESTART_WORKER
+        )
 
         agent._errors = "error code is 507035"
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action, DiagnosisActionConstants.RELAUNCH_WORKER)
+        self.assertEqual(
+            action.action, DiagnosisActionConstants.RELAUNCH_WORKER
+        )
 
         agent._errors = "error code is 11111"
         worker_context.remaining_failovers = 0
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action, DiagnosisActionConstants.RELAUNCH_WORKER)
+        self.assertEqual(
+            action.action, DiagnosisActionConstants.RELAUNCH_WORKER
+        )
 
         agent._errors = " #"
         worker_context.remaining_failovers = 2
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action, DiagnosisActionConstants.RESTART_WORKER)
+        self.assertEqual(
+            action.action, DiagnosisActionConstants.RESTART_WORKER
+        )
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(
