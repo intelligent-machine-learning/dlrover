@@ -13,7 +13,11 @@
 
 import unittest
 
-from dlrover.python.common.constants import NodeExitReason, NodeResourceLimit
+from dlrover.python.common.constants import (
+    NodeEventType,
+    NodeExitReason,
+    NodeResourceLimit,
+)
 from dlrover.python.common.node import Node
 
 
@@ -50,3 +54,10 @@ class NodeTest(unittest.TestCase):
         self.assertFalse(node.is_succeeded())
         node.set_as_succeeded()
         self.assertTrue(node.is_succeeded())
+
+        node.update_node_check_result(NodeEventType.NODE_CHECK_SUCCEEDED)
+        self.assertFalse(node.is_succeeded())
+        self.assertFalse(node.is_node_check_failed())
+        node.update_node_check_result(NodeEventType.NODE_CHECK_FAILED)
+        self.assertFalse(node.is_succeeded())
+        self.assertTrue(node.is_node_check_failed())

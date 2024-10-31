@@ -15,6 +15,7 @@ import copy
 import time
 
 from dlrover.python.common.constants import (
+    NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
@@ -216,7 +217,11 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
-        self.succeeded = False
+        # -1: n/a
+        # 0: succeeded(final);
+        # 1: node_check_succeeded
+        # 2: node_check_failed
+        self.reported_status = -1
 
     def exited(self):
         return self.status in [
@@ -342,10 +347,19 @@ class Node(object):
             return True
 
     def set_as_succeeded(self):
-        self.succeeded = True
+        self.reported_status = 0
 
     def is_succeeded(self):
-        return self.succeeded
+        return self.reported_status == 0
+
+    def update_node_check_result(self, result: NodeEventType):
+        if result == NodeEventType.NODE_CHECK_SUCCEEDED:
+            self.reported_status = 1
+        elif result == NodeEventType.NODE_CHECK_FAILED:
+            self.reported_status = 2
+
+    def is_node_check_failed(self):
+        return self.reported_status == 2
 
     def __repr__(self):
         return (

@@ -1158,15 +1158,19 @@ class DistributedJobManager(JobManager):
         node_type = node.type
         node_id = node.id
 
-        if event_type == NodeEventType.SUCCEEDED:
-            with self._lock:
-                if (
-                    node_type in self._job_nodes
-                    and node_id in self._job_nodes[node_type]
-                ):
-                    logger.info(f"Node {node_id}({node_type}) to succeeded.")
+        with self._lock:
+            if (
+                node_type in self._job_nodes
+                and node_id in self._job_nodes[node_type]
+            ):
+                logger.info(
+                    f"Node {node_id}({node_type}) reported "
+                    f"status to {event_type}."
+                )
+                if event_type == NodeEventType.SUCCEEDED:
                     self._job_nodes[node_type][node_id].set_as_succeeded()
-        # TODO: deal with other type event
+                elif node_event.is_node_check_event():
+                    self._job_nodes[node_type][node_id].set_as_succeeded()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
