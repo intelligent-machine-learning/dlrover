@@ -346,17 +346,23 @@ class Node(object):
         ):
             return True
 
+    def __update_reported_status(self, status: int):
+        # no updating if already succeeded
+        if status < 0 or self.reported_status == 0:
+            return
+        self.reported_status = status
+
     def set_as_succeeded(self):
-        self.reported_status = 0
+        self.__update_reported_status(0)
 
     def is_succeeded(self) -> bool:
         return self.reported_status == 0
 
     def update_node_check_result(self, result: NodeEventType):
         if result == NodeEventType.NODE_CHECK_SUCCEEDED:
-            self.reported_status = 1
+            self.__update_reported_status(1)
         elif result == NodeEventType.NODE_CHECK_FAILED:
-            self.reported_status = 2
+            self.__update_reported_status(2)
 
     def is_node_check_failed(self):
         return self.reported_status == 2
