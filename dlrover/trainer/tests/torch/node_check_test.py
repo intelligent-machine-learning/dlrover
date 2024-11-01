@@ -32,7 +32,7 @@ class TestNetworkCheckScript(unittest.TestCase):
 
     def tearDown(self):
         # Cleanup code to run after each test method
-        pass
+        os.environ.clear()
 
     def test_gpu_node_check(self):
         os.environ["RANK"] = "0"

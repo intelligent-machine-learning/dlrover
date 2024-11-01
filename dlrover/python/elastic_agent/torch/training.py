@@ -76,7 +76,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeErrorMessage,
-    NodeStatus,
+    NodeEventType,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -869,6 +869,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.warning(f"Unexpected exception when ending: {e}")
                 finally:
                     self._client.report_succeeded()
+                    logger.info("Succeeded and exit.")
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
@@ -1237,8 +1238,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
             )
-            status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_network_status(
+            status = (
+                NodeEventType.NODE_CHECK_SUCCEEDED
+                if result
+                else NodeEventType.NODE_CHECK_FAILED
+            )
+            self._client.report_network_check_status(
                 self._node_rank,
                 status,
                 elapsed_time,
