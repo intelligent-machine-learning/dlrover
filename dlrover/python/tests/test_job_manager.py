@@ -398,7 +398,7 @@ class DistributedJobManagerTest(unittest.TestCase):
                 node.start_time = now - timedelta(seconds=600)
             else:
                 if index == 1:
-                    node.succeeded = True
+                    node.reported_status = 0
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
             self.job_context.update_job_node(node)
@@ -876,13 +876,3 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
-
-        try:
-            self.assertFalse(job_nodes[NodeType.WORKER][0].is_succeeded())
-            job_manager.update_succeeded_node(0, NodeType.WORKER)
-            job_nodes = job_context.job_nodes()
-            self.assertTrue(job_nodes[NodeType.WORKER][0].is_succeeded())
-            job_manager.update_succeeded_node(5, NodeType.WORKER)
-            job_manager.update_succeeded_node(0, "unknown")
-        except Exception:
-            self.fail()

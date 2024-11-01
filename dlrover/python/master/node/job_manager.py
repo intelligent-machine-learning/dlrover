@@ -27,6 +27,7 @@ from dlrover.python.master.node.training_node import (
     TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -234,9 +235,12 @@ class JobManager(metaclass=ABCMeta):
     def get_elastic_run_configs(self) -> Dict[str, str]:
         return self._training_node_config.get_elastic_run_configs()
 
-    def update_succeeded_node(self, node_id, node_type):
-        node = self._job_context.job_node(node_type, node_id)
-        if node is not None:
-            logger.info(f"Node {node_id}({node_type}) to succeeded.")
-            node.set_as_succeeded()
-            self._job_context.update_job_node(node)
+    def process_reported_node_event(self, node_event: NodeEvent):
+        """
+        The node events here is reported from training agent.
+
+        Args:
+            node_event: The event from training agent.
+        """
+
+        pass
