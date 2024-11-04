@@ -1004,7 +1004,7 @@ class DistributedJobManager(JobManager):
             return
         if (
             node_type not in self._job_nodes
-            or node_id in self._job_nodes[node_type]
+            or node_id not in self._job_nodes[node_type]
         ):
             logger.warning(
                 "Skip updating node resource usage for node "
