@@ -576,7 +576,10 @@ class DistributedJobManager(JobManager):
                 exist_nodes[node_type].append(node_id)
 
                 # for nodes not in current 'job_nodes' obj, re add it
-                if node_id not in self._job_nodes[node_type] and node.status != NodeStatus.DELETED:
+                if (
+                    node_id not in self._job_nodes[node_type]
+                    and node.status != NodeStatus.DELETED
+                ):
                     logger.info(
                         f"Node {node_type} {node.id} with status {node.status}"
                         " is re added without the event"
@@ -994,14 +997,19 @@ class DistributedJobManager(JobManager):
         self, node_type, node_id, cpu, memory, gpu_stats=[]
     ):
         if not self._job_nodes:
-            logger.warning("Skip updating node resource usage for job_nodes "
-                           "hasn't been initialized.")
+            logger.warning(
+                "Skip updating node resource usage for job_nodes "
+                "hasn't been initialized."
+            )
             return
-        if (node_type not in self._job_nodes
-                or node_id in self._job_nodes[node_type]
+        if (
+            node_type not in self._job_nodes
+            or node_id in self._job_nodes[node_type]
         ):
-            logger.warning("Skip updating node resource usage for node "
-                           f"{node_type}-{node_id} can not be found.")
+            logger.warning(
+                "Skip updating node resource usage for node "
+                f"{node_type}-{node_id} can not be found."
+            )
             return
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory, gpu_stats)
