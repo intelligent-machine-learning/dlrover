@@ -19,7 +19,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
-from dlrover.python.diagnosis.common.constants import DiagnosisActionConstants
+from dlrover.python.diagnosis.common.constants import DiagnosisActionConstant
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.common.worker_context import (
     get_worker_context,
@@ -90,29 +90,25 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
 
         action = agent.diagnose_training_failure()
-        self.assertEqual(
-            action.action, DiagnosisActionConstants.RESTART_WORKER
-        )
+        self.assertEqual(action.action, DiagnosisActionConstant.RESTART_WORKER)
 
         agent._errors = "error code is 507035"
         action = agent.diagnose_training_failure()
         self.assertEqual(
-            action.action, DiagnosisActionConstants.RELAUNCH_WORKER
+            action.action, DiagnosisActionConstant.RELAUNCH_WORKER
         )
 
         agent._errors = "error code is 11111"
         worker_context.remaining_failovers = 0
         action = agent.diagnose_training_failure()
         self.assertEqual(
-            action.action, DiagnosisActionConstants.RELAUNCH_WORKER
+            action.action, DiagnosisActionConstant.RELAUNCH_WORKER
         )
 
         agent._errors = " #"
         worker_context.remaining_failovers = 2
         action = agent.diagnose_training_failure()
-        self.assertEqual(
-            action.action, DiagnosisActionConstants.RESTART_WORKER
-        )
+        self.assertEqual(action.action, DiagnosisActionConstant.RESTART_WORKER)
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(

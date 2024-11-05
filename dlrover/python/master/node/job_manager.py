@@ -21,10 +21,7 @@ from dlrover.python.master.hyperparams.simple_strategy_generator import (
 )
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_context import (
-    get_job_context,
-    update_job_node,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfig,
@@ -242,4 +239,4 @@ class JobManager(metaclass=ABCMeta):
         if node is not None:
             logger.info(f"Node {node_id}({node_type}) to succeeded.")
             node.set_as_succeeded()
-            update_job_node(node)
+            self._job_context.update_job_node(node)

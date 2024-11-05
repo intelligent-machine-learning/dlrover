@@ -46,10 +46,6 @@ from dlrover.python.master.node.job_auto_scaler import (
     JobAutoScaler,
     new_job_auto_scaler,
 )
-from dlrover.python.master.node.job_context import (
-    update_job_node,
-    update_job_nodes,
-)
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
@@ -392,7 +388,7 @@ class DistributedJobManager(JobManager):
             self._critical_worker_index,
         )
         update_nodes_priority(job_nodes)
-        update_job_nodes(job_nodes)
+        self._job_context.update_job_nodes(job_nodes)
 
         self._ps_manager.update_nodes()
         self._chief_manager.update_nodes()
@@ -434,27 +430,27 @@ class DistributedJobManager(JobManager):
                 time.sleep(30)
             time.sleep(5)
 
-    # def _monitor_node_heart_beat(self):
-    #     logger.info("Start monitoring the heartbeat of nodes.")
-    #     while True:
-    #         if self._stopped:
-    #             logger.info("Stop monitoring the heartbeat of nodes.")
-    #             break
-    #         with self._lock:
-    #             try:
-    #                 events = self._get_dead_node_event()
-    #             except Exception as e:
-    #                 logger.warning(e)
-    #                 events = []
-    #
-    #         for event in events:
-    #             try:
-    #                 self._process_event(event)
-    #             except Exception as e:
-    #                 logger.warning(e)
-    #                 detail_trace_back = traceback.format_exc()
-    #                 logger.warning(detail_trace_back)
-    #         time.sleep(15)
+    def _monitor_node_heart_beat(self):
+        logger.info("Start monitoring the heartbeat of nodes.")
+        while True:
+            if self._stopped:
+                logger.info("Stop monitoring the heartbeat of nodes.")
+                break
+            with self._lock:
+                try:
+                    events = self._get_dead_node_event()
+                except Exception as e:
+                    logger.warning(e)
+                    events = []
+
+            for event in events:
+                try:
+                    self._process_event(event)
+                except Exception as e:
+                    logger.warning(e)
+                    detail_trace_back = traceback.format_exc()
+                    logger.warning(detail_trace_back)
+            time.sleep(15)
 
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
@@ -703,7 +699,7 @@ class DistributedJobManager(JobManager):
                 restart_training=event.node.restart_training,
                 relaunch_count=event.node.relaunch_count,
             )
-            update_job_node(cur_node)
+            self._job_context.update_job_node(cur_node)
 
         # For the given node id, check whether it meets
         # the state change condition
@@ -734,7 +730,7 @@ class DistributedJobManager(JobManager):
             cur_node.update_status(new_status)
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
-            update_job_node(cur_node)
+            self._job_context.update_job_node(cur_node)
 
             self._process_node_events(status_change_flow, cur_node)
 
@@ -896,7 +892,7 @@ class DistributedJobManager(JobManager):
             plan.remove_nodes.append(node)
         # Avoid repeatedly relaunching the node.
         node.relaunchable = False
-        update_job_node(node)
+        self._job_context.update_job_node(node)
         self._scaler.scale(plan)
 
     def clear_exited_nodes(self):
@@ -910,7 +906,7 @@ class DistributedJobManager(JobManager):
                     if not node.is_released and node.exited():
                         scale_plan.remove_nodes.append(node)
                         node.is_released = True
-                        update_job_node(node)
+                        self._job_context.update_job_node(node)
         if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
@@ -1004,12 +1000,12 @@ class DistributedJobManager(JobManager):
                     node.critical = False
                     node.is_released = True
                     node.relaunchable = False
-                    update_job_node(node)
+                    self._job_context.update_job_node(node)
             for node in job_nodes[NodeType.WORKER].values():
                 node.eval_time = self._speed_monitor.get_worker_eval_time(
                     node.id
                 )
-                update_job_node(node)
+                self._job_context.update_job_node(node)
         self._stopped = True
 
     def update_node_resource_usage(
@@ -1031,7 +1027,7 @@ class DistributedJobManager(JobManager):
             if node.start_hang_time > 0:
                 now = datetime.now()
             node.start_hang_time = 0
-        update_job_node(node)
+        self._job_context.update_job_node(node)
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         node = self._job_context.job_node(node_type, node_id)
@@ -1041,7 +1037,7 @@ class DistributedJobManager(JobManager):
         node.update_service_address(service_addr)
         node.status = NodeStatus.RUNNING
         node.is_released = False
-        update_job_node(node)
+        self._job_context.update_job_node(node)
 
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
@@ -1078,7 +1074,7 @@ class DistributedJobManager(JobManager):
                 node.is_released = True
                 node.status = NodeStatus.DELETED
                 logger.info("Remove node %s", node.name)
-                update_job_node(node)
+                self._job_context.update_job_node(node)
                 plan.remove_nodes.append(node)
         self._scaler.scale(plan)
 
@@ -1168,7 +1164,7 @@ class DistributedJobManager(JobManager):
             logger.warning(f"not found Node[{node_type}][{node_id}]")
             return
         node.update_paral_config(paral_config)
-        update_job_node(node)
+        self._job_context.update_job_node(node)
 
     def verify_restarting_worker_training(self, node_type, node_id):
         if node_type != NodeType.WORKER:
@@ -1188,7 +1184,7 @@ class DistributedJobManager(JobManager):
                     f"-{node.name}"
                 )
             node.heartbeat_time = timestamp
-            update_job_node(node)
+            self._job_context.update_job_node(node)
             return self._job_context.next_actions(instance=node_id)
 
     def update_node_required_info_callback(self):

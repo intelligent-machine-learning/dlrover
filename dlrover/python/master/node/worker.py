@@ -25,7 +25,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.job_context import update_job_node
 from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,
     TrainingNodeManager,
@@ -172,7 +171,7 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
-            update_job_node(new_node)
+            self._job_context.update_job_node(new_node)
             logger.info("Create worker %s", new_node)
             plan.launch_nodes.append(new_node)
         return plan
@@ -259,7 +258,7 @@ class WorkerManager(TrainingNodeManager):
                 rank_index=task_id,
                 name=self._new_node_name_fn(NodeType.WORKER, node_id),
             )
-            update_job_node(new_node)
+            self._job_context.update_job_node(new_node)
             plan.launch_nodes.append(new_node)
             plan.remove_nodes.append(old_node)
         return plan
@@ -324,7 +323,7 @@ class WorkerManager(TrainingNodeManager):
             restart = worker.restart_training
             # Set False to avoid restart repeatedly.
             worker.restart_training = False
-            update_job_node(worker)
+            self._job_context.update_job_node(worker)
         return restart
 
     def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:

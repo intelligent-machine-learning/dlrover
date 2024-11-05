@@ -26,11 +26,7 @@ from dlrover.python.master.node.job_auto_scaler import (
     AllreduceTrainingAutoScaler,
     PSTrainingAutoScaler,
 )
-from dlrover.python.master.node.job_context import (
-    clear_job_nodes,
-    get_job_context,
-    update_job_node,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,
@@ -47,7 +43,7 @@ class JobAutoScalerTest(unittest.TestCase):
         self.job_context = get_job_context()
 
     def tearDown(self) -> None:
-        clear_job_nodes()
+        self.job_context.clear_job_nodes()
 
     def test_execute_job_optimization_plan(self):
         params = MockK8sPSJobArgs()
@@ -77,12 +73,12 @@ class JobAutoScalerTest(unittest.TestCase):
         ps_node = ps_nodes[1]
         ps_node.type = NodeType.PS
         ps_node.status = NodeStatus.RUNNING
-        update_job_node(ps_node)
+        self.job_context.update_job_node(ps_node)
         worker_nodes = self.job_context.job_nodes_by_type(NodeType.WORKER)
         worker_node = worker_nodes[0]
         worker_node.type = NodeType.WORKER
         worker_node.critical = True
-        update_job_node(worker_node)
+        self.job_context.update_job_node(worker_node)
         scale_plan = auto_scaler.execute_job_optimization_plan(plan)
 
         ps_nodes = self.job_context.job_nodes_by_type(NodeType.PS)
@@ -147,7 +143,7 @@ class JobAutoScalerTest(unittest.TestCase):
         ps0.config_resource.cpu = 16
         ps0.status = NodeStatus.PENDING
         ps0.create_time = datetime.now() + timedelta(days=-1)
-        update_job_node(ps0)
+        self.job_context.update_job_node(ps0)
         plan = auto_scaler._reduce_timeout_pending_node_resource()
         self.assertEqual(
             plan.ps_addrs,
@@ -165,7 +161,7 @@ class AllreduceAutoScalerTest(unittest.TestCase):
         self.job_context = get_job_context()
 
     def tearDown(self) -> None:
-        clear_job_nodes()
+        self.job_context.clear_job_nodes()
 
     def test_execute_job_optimization_plan(self):
         params = MockK8sAllreduceJobArgs()
@@ -177,7 +173,7 @@ class AllreduceAutoScalerTest(unittest.TestCase):
 
         for worker in worker_nodes.values():
             worker.status = NodeStatus.RUNNING
-            update_job_node(worker)
+            self.job_context.update_job_node(worker)
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
 

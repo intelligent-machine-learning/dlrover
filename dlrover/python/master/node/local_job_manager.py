@@ -18,7 +18,6 @@ from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
-from dlrover.python.master.node.job_context import update_job_node
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
 
@@ -50,7 +49,7 @@ class LocalJobManager(JobManager):
                 node_id=i,
                 status=NodeStatus.RUNNING,
             )
-            update_job_node(workers[i])
+            self._job_context.update_job_node(workers[i])
 
     def should_early_stop(self):
         return False
@@ -65,7 +64,7 @@ class LocalJobManager(JobManager):
         if node is None:
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
-        update_job_node(node)
+        self._job_context.update_job_node(node)
 
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
@@ -85,7 +84,7 @@ class LocalJobManager(JobManager):
         if node is None:
             return []
         node.heartbeat_time = timestamp
-        update_job_node(node)
+        self._job_context.update_job_node(node)
         return []
 
     def close_job(self):
@@ -165,7 +164,7 @@ class LocalJobManager(JobManager):
         if node is None:
             return
         node.update_paral_config(paral_config)
-        update_job_node(node)
+        self._job_context.update_job_node(node)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:

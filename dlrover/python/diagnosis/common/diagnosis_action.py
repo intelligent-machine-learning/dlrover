@@ -19,7 +19,7 @@ from typing import Dict, List
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstants,
+    DiagnosisActionConstant,
     DiagnosisConstant,
 )
 from dlrover.python.util.time_util import has_expired
@@ -42,7 +42,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
         if expired_time_period == 0:
             self.expired_time_period = (
-                DiagnosisActionConstants.ACTION_EXPIRED_TIME_PERIOD
+                DiagnosisActionConstant.ACTION_EXPIRED_TIME_PERIOD
             )
         else:
             self.expired_time_period = expired_time_period
@@ -69,7 +69,7 @@ class DiagnosisNodeAction(DiagnosisAction):
         instance=DiagnosisConstant.LOCAL_INSTANCE,
     ):
         super().__init__(
-            DiagnosisActionConstants.TYPE_NODE,
+            DiagnosisActionConstant.TYPE_NODE,
             instance,
             timestamp,
             expired_time_period,
@@ -117,7 +117,7 @@ class DiagnosisActionQueue:
     def next_actions(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
+        action_type=DiagnosisActionConstant.ACTION_TYPE_ANY,
     ) -> List[DiagnosisAction]:
         self._remove_expired_actions()
         with self._lock:
@@ -128,7 +128,7 @@ class DiagnosisActionQueue:
             actions = self._actions[instance]
             for action in actions:
                 if (
-                    action_type == DiagnosisActionConstants.TYPE_NODE
+                    action_type == DiagnosisActionConstant.TYPE_NODE
                     or action_type == action.action_type
                 ):
                     deque_actions.append(action)

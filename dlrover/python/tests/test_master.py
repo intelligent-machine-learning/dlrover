@@ -28,11 +28,7 @@ from dlrover.python.master.dist_master import (
     _create_master_service_on_k8s,
 )
 from dlrover.python.master.main import update_context
-from dlrover.python.master.node.job_context import (
-    clear_job_nodes,
-    get_job_context,
-    update_job_nodes,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
@@ -52,7 +48,7 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.job_context = get_job_context()
 
     def tearDown(self):
-        clear_job_nodes()
+        self.job_context.clear_job_nodes()
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()
@@ -63,7 +59,7 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
         for node in job_nodes[NodeType.CHIEF].values():
             node.status = NodeStatus.FINISHED
-        update_job_nodes(job_nodes)
+        self.job_context.update_job_nodes(job_nodes)
         self.master.run()
         self.assertEqual(self.master._exit_code, 0)
         self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
@@ -79,7 +75,7 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
 
         job_nodes[NodeType.WORKER][0].status = NodeStatus.FINISHED
-        update_job_nodes(job_nodes)
+        self.job_context.update_job_nodes(job_nodes)
 
         splitter = new_dataset_splitter(
             False,
@@ -108,7 +104,7 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.is_recovered_oom = True
             node.create_time = datetime.now() + timedelta(days=-1)
-        update_job_nodes(job_nodes)
+        self.job_context.update_job_nodes(job_nodes)
 
         exit_code = self.master.run()
         self.master.job_manager.clear_all_nodes()

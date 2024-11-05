@@ -51,12 +51,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_context import (
-    clear_job_nodes,
-    get_job_context,
-    update_job_node,
-    update_job_nodes,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
@@ -130,7 +125,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.job_context = get_job_context()
 
     def tearDown(self):
-        clear_job_nodes()
+        self.job_context.clear_job_nodes()
 
     def test_job_resource(self):
         job = JobResource()
@@ -370,7 +365,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(worker0.heartbeat_time, ts)
         for node in job_nodes[NodeType.WORKER].values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 0)
 
@@ -385,7 +380,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             else:
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 2)
 
@@ -406,7 +401,7 @@ class DistributedJobManagerTest(unittest.TestCase):
                     node.succeeded = True
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 1)
 
@@ -421,7 +416,7 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         manager._init_nodes()
         master = Node(NodeType.MASTER, 0, NodeResource(1, 256))
-        update_job_node(master)
+        self.job_context.update_job_node(master)
         plan = manager._chief_manager.relaunch_node(master)
         self.assertEqual(plan.launch_nodes[0].id, 1)
 
@@ -433,7 +428,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         job_nodes = self.job_context.job_nodes()
         for node in job_nodes[NodeType.PS].values():
             node.status = NodeStatus.PENDING
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         nodes = []
         for i in range(2):
             node = Node(
@@ -475,7 +470,7 @@ class DistributedJobManagerTest(unittest.TestCase):
                 )
             },
         }
-        update_job_nodes(job_nodes)
+        self.job_context.update_job_nodes(job_nodes)
         manager._process_list_nodes([])
         self.assertEqual(mock_method.call_count, 2)
 
@@ -571,30 +566,30 @@ class DistributedJobManagerTest(unittest.TestCase):
             worker.status = NodeStatus.FINISHED
         for worker in job_nodes[NodeType.EVALUATOR].values():
             worker.status = NodeStatus.FINISHED
-        update_job_nodes(job_nodes)
+        self.job_context.update_job_nodes(job_nodes)
         self.assertTrue(manager.all_workers_exited())
 
         job_nodes = self.job_context.job_nodes()
         for worker in job_nodes[NodeType.WORKER].values():
             worker.status = NodeStatus.FAILED
-            update_job_node(worker)
+            self.job_context.update_job_node(worker)
         for worker in job_nodes[NodeType.CHIEF].values():
             worker.status = NodeStatus.FAILED
-            update_job_node(worker)
+            self.job_context.update_job_node(worker)
         for worker in job_nodes[NodeType.EVALUATOR].values():
             worker.status = NodeStatus.FAILED
-            update_job_node(worker)
+            self.job_context.update_job_node(worker)
         self.assertTrue(manager.all_workers_failed())
 
         job_nodes = self.job_context.job_nodes()
         for worker in job_nodes[NodeType.PS].values():
             worker.status = NodeStatus.FINISHED
-            update_job_node(worker)
+            self.job_context.update_job_node(worker)
         job_nodes[NodeType.WORKER][0].status = NodeStatus.RUNNING
-        update_job_node(job_nodes[NodeType.WORKER][0])
+        self.job_context.update_job_node(job_nodes[NodeType.WORKER][0])
         self.assertFalse(manager.all_critical_node_completed())
         job_nodes[NodeType.WORKER][0].status = NodeStatus.FINISHED
-        update_job_node(job_nodes[NodeType.WORKER][0])
+        self.job_context.update_job_node(job_nodes[NodeType.WORKER][0])
         self.assertTrue(manager.all_critical_node_completed())
 
     def test_tf_ps_node_handling(self):
@@ -642,7 +637,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             for _, node in nodes.items():
                 node.start_hang_time = time.time() - 3600 * 4
                 node.status = NodeStatus.RUNNING
-                update_job_node(node)
+                self.job_context.self.job_context.update_job_node(node)
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
@@ -661,7 +656,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.is_recovered_oom = True
             node.create_time = datetime.now()
-            update_job_node(node)
+            self.job_context.self.job_context.update_job_node(node)
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
         self.assertFalse(reason)
@@ -670,7 +665,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._remove_exited_node = True
         job_nodes = self.job_context.job_nodes()
         job_nodes[NodeType.WORKER][0].status = NodeStatus.FAILED
-        update_job_node(job_nodes[NodeType.WORKER][0])
+        self.job_context.update_job_node(job_nodes[NodeType.WORKER][0])
         manager.clear_exited_nodes()
         job_nodes = self.job_context.job_nodes()
         self.assertTrue(job_nodes[NodeType.WORKER][0].is_released)
@@ -679,7 +674,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
         self.assertTrue(reason)
@@ -690,7 +685,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-            update_job_node(node)
+            self.job_context.update_job_node(node)
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
         self.assertFalse(reason)
@@ -815,7 +810,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             self.assertEqual(node.heartbeat_time, i)
 
         manager.stop()
-        clear_job_nodes()
+        self.job_context.clear_job_nodes()
 
         # test when job manager not init
         try:

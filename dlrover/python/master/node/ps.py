@@ -26,7 +26,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.job_context import update_job_node
 from dlrover.python.master.node.training_node import (
     TrainingNodeManager,
     skip_pending_judgement,
@@ -91,7 +90,7 @@ class ParameterServerManager(TrainingNodeManager):
             node.is_released = True
             new_id = next(self._node_id_iter)
             new_node = node.get_relaunch_node_info(new_id)
-            update_job_node(new_node)
+            self._job_context.update_job_node(new_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._job_context.ps_nodes[
@@ -155,7 +154,7 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
-                update_job_node(ps)
+                self._job_context.update_job_node(ps)
                 new_ps.append(ps)
                 logger.info("Create PS %s", ps)
         return new_ps
@@ -192,7 +191,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.critical = False
                 node.relaunchable = False
                 node.is_released = True
-                update_job_node(node)
+                self._job_context.update_job_node(node)
                 if node.id in self._migrated_ps_nodes:
                     self._migrated_ps_nodes.pop(node.id)
                 plan.remove_nodes.append(node)
@@ -267,7 +266,7 @@ class ParameterServerManager(TrainingNodeManager):
             ):
                 if node not in self._pre_dropped_ps:
                     node.migrated = True
-                    update_job_node(node)
+                    self._job_context.update_job_node(node)
                     self._pre_dropped_ps.append(node)
 
     def get_total_request_cpu(self):
@@ -324,7 +323,7 @@ class ParameterServerManager(TrainingNodeManager):
                 )
                 node.is_released = True
                 node.status = NodeStatus.DELETED
-                update_job_node(node)
+                self._job_context.update_job_node(node)
 
                 plan.remove_nodes.append(node)
         return plan
@@ -371,7 +370,7 @@ class ParameterServerManager(TrainingNodeManager):
                 service_addr=service_addr,
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
-            update_job_node(new_node)
+            self._job_context.update_job_node(new_node)
             self._migrated_ps_nodes[old_ps_id] = self._job_context.ps_nodes[
                 new_node.id
             ]

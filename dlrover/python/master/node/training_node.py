@@ -33,10 +33,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.master.node.job_context import (
-    get_job_context,
-    update_job_node,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.scheduler.job import JobArgs
 
@@ -240,7 +237,7 @@ class TrainingNodeManager(object):
                 logger.error("Unknown deletable worker id: %s" % node_id)
                 return
         worker.is_released = True
-        update_job_node(worker)
+        self._job_context.update_job_node(worker)
         plan.remove_nodes.append(worker)
         return plan
 
@@ -251,7 +248,7 @@ class TrainingNodeManager(object):
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
             nodes[new_id] = relaunch_node
-            update_job_node(relaunch_node)
+            self._job_context.update_job_node(relaunch_node)
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -267,7 +264,7 @@ class TrainingNodeManager(object):
         )
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True
-            update_job_node(node)
+            self._job_context.update_job_node(node)
             plan.remove_nodes.append(node)
         return plan
 
@@ -283,7 +280,7 @@ class TrainingNodeManager(object):
                 reduced = reduce_timeout_pending_node_resource(node)
                 if reduced:
                     node.relaunchable = False
-                    update_job_node(node)
+                    self._job_context.update_job_node(node)
                     node_plan = self.relaunch_node(node)
                     plan.remove_nodes.append(node)
                     plan.merge(node_plan)
@@ -407,7 +404,7 @@ class TrainingNodeManager(object):
                         f"{timeout} from {date_time}!!!"
                     )
                 node.hang = hang
-                update_job_node(node)
+                self._job_context.update_job_node(node)
                 node_hang.append(hang)
         return node_hang
 

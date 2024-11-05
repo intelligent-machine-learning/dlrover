@@ -22,12 +22,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.job_context import (
-    clear_job_nodes,
-    get_job_context,
-    update_job_node,
-    update_job_nodes,
-)
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
@@ -52,7 +47,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        update_job_nodes(job_nodes)
+        self._job_context.update_job_node(job_nodes)
 
         self._ps_manager = ParameterServerManager(
             self._job_resource,
@@ -62,7 +57,7 @@ class PSManagerTest(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        clear_job_nodes()
+        self._job_context.clear_job_nodes()
 
     def test_get_training_ps_cluster(self):
         ps_nodes = self._ps_manager.get_training_ps_cluster()
@@ -81,7 +76,7 @@ class PSManagerTest(unittest.TestCase):
         for _, node in nodes.items():
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
-            update_job_node(node)
+            self._job_context.update_job_node(node)
 
         plan = self._ps_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 2)
@@ -96,7 +91,7 @@ class PSManagerTest(unittest.TestCase):
         nodes = self._job_context.job_nodes_by_type(NodeType.PS)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
         training_ps = self._ps_manager.get_next_training_ps_cluster()
         self.assertEqual(len(training_ps), 4)
 
@@ -106,7 +101,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        update_job_nodes(job_nodes)
+        self._job_context.self._job_context.update_job_node(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -116,7 +111,7 @@ class PSManagerTest(unittest.TestCase):
         nodes = self._job_context.job_nodes_by_type(NodeType.PS)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
         ps_manager._scale_down_ps(1)
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
         self.assertEqual(ps_manager._pre_dropped_ps[0].id, 1)
@@ -130,7 +125,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        update_job_nodes(job_nodes)
+        self._job_context.self._job_context.update_job_node(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -140,7 +135,7 @@ class PSManagerTest(unittest.TestCase):
         nodes = self._job_context.job_nodes_by_type(NodeType.PS)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
 
         plan = ps_manager.delete_running_ps()
         job_nodes = self._job_context.job_nodes()
@@ -154,7 +149,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        update_job_nodes(job_nodes)
+        self._job_context.self._job_context.update_job_node(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -165,7 +160,7 @@ class PSManagerTest(unittest.TestCase):
         nodes = self._job_context.ps_nodes
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
 
         job_nodes = self._job_context.job_nodes()
         node_name = job_nodes[NodeType.PS][0].name
@@ -180,7 +175,7 @@ class PSManagerTest(unittest.TestCase):
         self.assertEqual(len(ps_manager._pre_dropped_ps), 0)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
         nodes = self._job_context.ps_nodes
         ps_manager._pre_drop_migrated_ps(list(nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
@@ -197,7 +192,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        update_job_nodes(job_nodes)
+        self._job_context.self._job_context.update_job_node(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -207,7 +202,7 @@ class PSManagerTest(unittest.TestCase):
         nodes = self._job_context.job_nodes_by_type(NodeType.PS)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
-            update_job_node(node)
+            self._job_context.update_job_node(node)
         ps_failure = ps_manager.has_ps_failure()
         self.assertFalse(ps_failure)
         latest_ps_index = len(nodes) - 1
@@ -215,7 +210,7 @@ class PSManagerTest(unittest.TestCase):
         ps_manager._ps_cluster_changed = True
         ps.status = NodeStatus.INITIAL
         ps.init_time -= 600
-        update_job_node(ps)
+        self._job_context.update_job_node(ps)
         ps_failure = ps_manager.has_ps_failure()
         self.assertTrue(ps_failure)
         cluster = ps_manager.get_next_training_ps_cluster()
@@ -264,7 +259,7 @@ class PSManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-            update_job_node(mock_node)
+            self._job_context.update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -276,7 +271,7 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
-        clear_job_nodes()
+        self._job_context.clear_job_nodes()
 
         # mock with 3 running + 1 pending long time
         for index in range(4):
@@ -293,7 +288,7 @@ class PSManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-            update_job_node(mock_node)
+            self._job_context.update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -305,7 +300,7 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
-        clear_job_nodes()
+        self._job_context.clear_job_nodes()
 
         # mock with 4 running
         for index in range(4):
@@ -317,7 +312,7 @@ class PSManagerTest(unittest.TestCase):
                 NodeStatus.RUNNING,
             )
             mock_nodes[index] = mock_node
-            update_job_node(mock_node)
+            self._job_context.update_job_node(mock_node)
         self.assertFalse(
             ps_manager.is_training_hang_by_pending(
                 ps_num, DistributionStrategy.ALLREDUCE
@@ -329,4 +324,4 @@ class PSManagerTest(unittest.TestCase):
             )
         )
         mock_nodes.clear()
-        clear_job_nodes()
+        self._job_context.clear_job_nodes()
