@@ -102,9 +102,7 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
-    def _diagnose_observations(
-        self, observations: List[Inference]
-    ) -> DiagnosisActionConstant:
+    def _diagnose_observations(self, observations: List[Inference]):
         conclusions: List[Inference] = []
         for ob in observations:
             ic = InferenceChain([ob], self._diagnosis_operators)
