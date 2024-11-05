@@ -389,9 +389,10 @@ class DistributedJobManagerTest(unittest.TestCase):
                 node.start_time = now - timedelta(seconds=600)
             else:
                 if index == 1:
-                    node.succeeded = True
+                    node.reported_status = 0
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
+
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 1)
 
@@ -415,6 +416,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
+        self.assertFalse(4 in manager._job_nodes[NodeType.WORKER])
         for node in manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.PENDING
         nodes = []
@@ -427,9 +429,19 @@ class DistributedJobManagerTest(unittest.TestCase):
                 max_relaunch_count=1,
             )
             nodes.append(node)
+        nodes.append(
+            Node(
+                node_type=NodeType.WORKER,
+                node_id=4,
+                status=NodeStatus.RUNNING,
+                config_resource=NodeResource(1, 4096),
+                max_relaunch_count=1,
+            )
+        )
         manager._process_list_nodes(nodes)
         ps_ids = list(manager._job_nodes[NodeType.PS].keys())
         self.assertListEqual(ps_ids, [0, 1, 2])
+        self.assertTrue(4 in manager._job_nodes[NodeType.WORKER])
 
     @patch.object(DistributedJobManager, "_process_event")
     def test_process_list_nodes_for_empty_case(self, mock_method):
@@ -815,16 +827,3 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
-
-        try:
-            self.assertFalse(
-                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
-            job_manager.update_succeeded_node(0, NodeType.WORKER)
-            self.assertTrue(
-                job_manager._job_nodes[NodeType.WORKER][0].is_succeeded()
-            )
-            job_manager.update_succeeded_node(5, NodeType.WORKER)
-            job_manager.update_succeeded_node(0, "unknown")
-        except Exception:
-            self.fail()

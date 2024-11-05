@@ -24,7 +24,7 @@ from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
     JobConstant,
-    NodeStatus,
+    NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
@@ -335,10 +335,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NetworkStatus):
-            success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
-            success = self._update_node_event(message)
+            success = self._deal_with_reported_node_event(message)
         elif isinstance(message, grpc.SyncJoin):
             success = self._join_sync(node_type, node_id, message)
         elif isinstance(message, grpc.SyncFinish):
@@ -361,8 +359,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
             success = self._report_worker_diagnosis_data(message)
-        elif isinstance(message, grpc.SucceededRequest):
-            success = self._report_succeeded(node_id, node_type)
 
         response.success = success
         return response
@@ -509,21 +505,29 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NetworkStatus):
-        net_rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.NETWORK_CHECK, None
+    def _deal_with_reported_node_event(self, message: grpc.NodeEvent):
+        node = Node(
+            node_type=message.node.type,
+            node_id=message.node.id,
+            rank_index=message.node.rank,
         )
-        if net_rdzv_manager:
-            succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(
-                message.rank, succeed, message.elasped_time
-            )
-        return True
+        event = NodeEvent(message.event_type, node)
 
-    def _update_node_event(self, message: grpc.NodeEvent):
-        node = Node(message.event_type, message.node.id)
-        event = NodeEvent("exit", node)
-        ray_event_queue.put(event)
+        # let rdzv manager deal with rendezvous issue
+        if event.is_node_check_event():
+            net_rdzv_manager = self._rdzv_managers.get(
+                RendezvousName.NETWORK_CHECK, None
+            )
+            if net_rdzv_manager:
+                succeed = (
+                    event.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+                )
+                net_rdzv_manager.report_network_check_result(
+                    node.rank_index, succeed, message.event_elapsed_time
+                )
+
+        # let job manager deal with node issue
+        self._job_manager.process_reported_node_event(event)
         return True
 
     def _join_sync(self, node_type, node_id, message: grpc.SyncJoin):
@@ -632,10 +636,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 return False
             data_obj = data_cls.from_json(message.data_content)
             self._diagnosis_manager.collect_diagnosis_data(data_obj)
-        return True
-
-    def _report_succeeded(self, node_id, node_type):
-        self._job_manager.update_succeeded_node(node_id, node_type)
         return True
 
     def _sync_training_ports(
