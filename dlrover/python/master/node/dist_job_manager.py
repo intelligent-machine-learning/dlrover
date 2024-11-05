@@ -564,13 +564,29 @@ class DistributedJobManager(JobManager):
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
 
+        logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
             exist_nodes[node_type] = []
 
         if nodes:
             for node in nodes:
-                exist_nodes[node.type].append(node.id)
+                node_type = node.type
+                node_id = node.id
+                exist_nodes[node_type].append(node_id)
+
+                # for nodes not in current 'job_nodes' obj, re add it
+                if (
+                    node_id not in self._job_nodes[node_type]
+                    and node.status != NodeStatus.DELETED
+                ):
+                    logger.info(
+                        f"Node {node_type} {node.id} with status {node.status}"
+                        " is re added without the event"
+                    )
+                    new_node = copy.deepcopy(node)
+                    self._job_nodes[node_type][node_id] = new_node
+
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
                 else:
@@ -578,7 +594,6 @@ class DistributedJobManager(JobManager):
                 # Mock event to avoid missing events
                 event = NodeEvent(event_type, node)
                 self._process_event(event)
-        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in self._job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -983,7 +998,17 @@ class DistributedJobManager(JobManager):
     ):
         if not self._job_nodes:
             logger.warning(
-                "Skip updating for job_nodes hasn't been initialized."
+                "Skip updating node resource usage for job_nodes "
+                "hasn't been initialized."
+            )
+            return
+        if (
+            node_type not in self._job_nodes
+            or node_id not in self._job_nodes[node_type]
+        ):
+            logger.warning(
+                "Skip updating node resource usage for node "
+                f"{node_type}-{node_id} can not be found."
             )
             return
         node = self._job_nodes[node_type][node_id]
