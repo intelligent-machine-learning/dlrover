@@ -352,3 +352,6 @@ class ErrorMonitorConstants(object):
     ACTION_RDZV_TIMEOUT = "rendezvous_timeout"
     ACTION_TRAINING_START = "training_start"
     ACTION_RESTART_TRAINING = "restart_training"
+    ACTION_START_SAVE_SHARD = "start_save_shard"
+    ACTION_COMPLETE_SAVE_SHARD = "complete_save_shard"
+    ACTION_SAVE_SHARD_ERROR = "save_shard_error"

@@ -506,3 +506,12 @@ class ElasticRunConfigRequest(Message):
 @dataclass
 class ElasticRunConfig(Message):
     configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class InfoEvent(Message):
+    event_type: str = ""
+    instance: str = ""
+    action: str = ""
+    msg: str = ""
+    labels: Dict[str, str] = field(default_factory=dict)

@@ -32,6 +32,7 @@ import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     CheckpointConstant,
+    ErrorMonitorConstants,
     NodeEnv,
     TrainingExceptionLevel,
 )
@@ -567,6 +568,31 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 )
                 self._report_failure_to_master(str(e))
 
+    def _report_event_to_master(
+        self,
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        master_client = self.get_master_client()
+        if not master_client:
+            logger.warning(
+                "Skip ckpt saver event reporting for master "
+                "client hasn't setup."
+            )
+            return
+        if labels is None:
+            labels = {}
+        master_client.report_info_event(
+            event_type,
+            instance,
+            action,
+            msg,
+            labels,
+        )
+
     def _report_failure_to_master(self, error_msg):
         master_client = self.get_master_client()
         if not master_client:
@@ -610,6 +636,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         step_done_dir: str,
     ):
         """Save the shard of state dict into the storage."""
+
         try:
             shm_handler = self._shm_handlers[local_shard_id]
             shm_lock = self._shm_locks[local_shard_id]
@@ -632,7 +659,19 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"of rank {ckpt_config.rank} from the "
                 f"shared memory into the storage {ckpt_config}."
             )
+            self._report_event_to_master(
+                event_type=ErrorMonitorConstants.TYPE_INFO,
+                instance=str(ckpt_config.rank),
+                action=ErrorMonitorConstants.ACTION_START_SAVE_SHARD,
+                msg=f"local_id={local_shard_id}, step={step}",
+            )
             self.persist_to_storage(local_shard_id, ckpt_config)
+            self._report_event_to_master(
+                event_type=ErrorMonitorConstants.TYPE_INFO,
+                instance=str(ckpt_config.rank),
+                action=ErrorMonitorConstants.ACTION_COMPLETE_SAVE_SHARD,
+                msg=f"local_id={local_shard_id}, step={step}",
+            )
             shm_lock.release()
             step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
@@ -646,6 +685,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"Fail to save the checkpoint shard {local_shard_id} "
                 f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
+            )
+            self._report_event_to_master(
+                event_type=ErrorMonitorConstants.TYPE_ERROR,
+                instance=str(ckpt_config.rank),
+                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_ERROR,
+                msg=f"local_id={local_shard_id}, step={step}, error={e}",
             )
             return False
         finally:

@@ -167,6 +167,7 @@ class DistributedJobMaster(JobMaster):
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
+            self._error_monitor,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):
