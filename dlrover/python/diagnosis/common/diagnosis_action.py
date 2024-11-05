@@ -10,16 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import json
 import threading
+import time
 from abc import ABCMeta
-from datetime import datetime
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstant,
+    DiagnosisActionType,
     DiagnosisConstant,
 )
 from dlrover.python.util.time_util import has_expired
@@ -28,27 +28,37 @@ from dlrover.python.util.time_util import has_expired
 class DiagnosisAction(metaclass=ABCMeta):
     def __init__(
         self,
-        action_type: str,
-        instance: int,
+        action_type=DiagnosisActionType.NO_ACTION,
         timestamp=0,
         expired_time_period=0,
     ):
-        self.action_type = action_type
-        self.instance = instance
+        self._action_type = action_type
         if timestamp == 0:
-            self.timestamp = int(round(datetime.now().timestamp()))
+            self._timestamp = time.time()
         else:
-            self.timestamp = timestamp
+            self._timestamp = timestamp
 
         if expired_time_period == 0:
-            self.expired_time_period = (
-                DiagnosisActionConstant.ACTION_EXPIRED_TIME_PERIOD
+            self._expired_time_period = (
+                DiagnosisConstant.ACTION_EXPIRED_TIME_PERIOD_DEFAULT
             )
         else:
-            self.expired_time_period = expired_time_period
+            self._expired_time_period = expired_time_period
 
-    def has_expired(self) -> bool:
-        return has_expired(self.timestamp, self.expired_time_period)
+    @property
+    def action_type(self):
+        return self._action_type
+
+    @property
+    def timestamp(self):
+        return self._timestamp
+
+    @property
+    def expired_timestamp(self):
+        return self._timestamp + self._expired_time_period
+
+    def is_expired(self) -> bool:
+        return has_expired(self._timestamp, self._expired_time_period)
 
     def to_json(self):
         data = {k.lstrip("_"): v for k, v in self.__dict__.items()}
@@ -59,26 +69,78 @@ class DiagnosisAction(metaclass=ABCMeta):
         return cls(**json.loads(json_data))
 
 
-class DiagnosisNodeAction(DiagnosisAction):
+class EventAction(DiagnosisAction):
+    """Output the specified event."""
+
     def __init__(
         self,
         timestamp=0,
         expired_time_period=0,
-        action="",
-        node_type=NodeType.WORKER,
-        instance=DiagnosisConstant.LOCAL_INSTANCE,
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Dict[str, str] = {},
     ):
         super().__init__(
-            DiagnosisActionConstant.TYPE_NODE,
-            instance,
+            DiagnosisActionType.EVENT, timestamp, expired_time_period
+        )
+        self._event_type = event_type
+        self._instance = instance
+        self._action = action
+        self._msg = msg
+        self._labels = labels
+
+    @property
+    def event_type(self):
+        return self._event_type
+
+    @property
+    def instance(self):
+        return self._instance
+
+    @property
+    def action(self):
+        return self._action
+
+    @property
+    def msg(self):
+        return self._msg
+
+    @property
+    def labels(self):
+        return self._labels
+
+
+class NodeRelaunchAction(DiagnosisAction):
+    def __init__(
+        self,
+        node_id,
+        node_status,
+        reason,
+        timestamp=0,
+        expired_time_period=0,
+    ):
+        super().__init__(
+            DiagnosisActionType.MASTER_RELAUNCH_WORKER,
             timestamp,
             expired_time_period,
         )
-        self.action = action
-        self.node_type = node_type
+        self._node_id = node_id
+        self._node_status = node_status
+        self._reason = reason
 
-    def update_action(self, action: str):
-        self.action = action
+    @property
+    def node_id(self):
+        return self._node_id
+
+    @property
+    def node_status(self):
+        return self._node_status
+
+    @property
+    def reason(self):
+        return self._reason
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
@@ -108,7 +170,7 @@ class DiagnosisActionQueue:
                 action_queue = self._actions[instance]
                 actions = []
                 for action in action_queue:
-                    if not action.has_expired():
+                    if not action.is_expired():
                         actions.append(action)
                     else:
                         logger.info(f"Action {action} has expired")
@@ -117,7 +179,7 @@ class DiagnosisActionQueue:
     def next_actions(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionConstant.ACTION_TYPE_ANY,
+        action_type=DiagnosisActionType.ACTION_TYPE_ANY,
     ) -> List[DiagnosisAction]:
         self._remove_expired_actions()
         with self._lock:
@@ -128,7 +190,7 @@ class DiagnosisActionQueue:
             actions = self._actions[instance]
             for action in actions:
                 if (
-                    action_type == DiagnosisActionConstant.TYPE_NODE
+                    action_type == DiagnosisActionType.TYPE_NODE
                     or action_type == action.action_type
                 ):
                     deque_actions.append(action)

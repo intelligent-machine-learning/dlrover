@@ -27,6 +27,7 @@ class DiagnosisConstant(object):
     MASTER = -1
     ANY_INSTANCE = -2
     LOCAL_INSTANCE = -3
+    ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
 
 
 class DiagnosisDataType(object):
@@ -35,13 +36,11 @@ class DiagnosisDataType(object):
     XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
 
 
-class DiagnosisActionConstant(object):
+class DiagnosisActionType(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
-
+    MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
+    EVENT = "event"
     ACTION_TYPE_ANY = "any"
-
-    ACTION_EXPIRED_TIME_PERIOD = 60 * 5
-
     TYPE_NODE = "node"

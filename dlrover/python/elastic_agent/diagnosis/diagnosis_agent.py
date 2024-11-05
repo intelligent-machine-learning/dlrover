@@ -24,10 +24,11 @@ from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstant,
+    DiagnosisActionType,
     DiagnosisConstant,
     InferenceConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -102,7 +103,9 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
-    def _diagnose_observations(self, observations: List[Inference]):
+    def _diagnose_observations(
+        self, observations: List[Inference]
+    ) -> DiagnosisAction:
         conclusions: List[Inference] = []
         for ob in observations:
             ic = InferenceChain([ob], self._diagnosis_operators)
@@ -162,7 +165,7 @@ class DiagnosisAgent(Singleton):
                 f"{agent_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
             )
-            return DiagnosisActionConstant.RESTART_WORKER
+            return DiagnosisActionType.RESTART_WORKER
         else:
             logger.info(
                 f"[{agent_context.worker_spec.role}] Worker group "
@@ -171,7 +174,7 @@ class DiagnosisAgent(Singleton):
                 f"no attempts({agent_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnosisActionConstant.RELAUNCH_WORKER
+            return DiagnosisActionType.RELAUNCH_WORKER
 
     def _report_failure_to_master(
         self, failures: Dict[int, ProcessFailure], restart_count: int

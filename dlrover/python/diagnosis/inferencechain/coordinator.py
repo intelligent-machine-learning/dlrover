@@ -13,9 +13,9 @@
 
 from typing import List
 
-from dlrover.python.diagnosis.common.constants import DiagnosisActionConstant
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.inference_chain import Inference
 
 
-def coordinate_inferences(observations: List[Inference]):
-    return DiagnosisActionConstant.NO_ACTION
+def coordinate_inferences(observations: List[Inference]) -> DiagnosisAction:
+    return DiagnosisAction()

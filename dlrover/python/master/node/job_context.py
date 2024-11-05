@@ -19,7 +19,7 @@ from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstant,
+    DiagnosisActionType,
     DiagnosisConstant,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -45,7 +45,7 @@ class JobContext(Singleton):
     def next_actions(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionConstant.ACTION_TYPE_ANY,
+        action_type=DiagnosisActionType.ACTION_TYPE_ANY,
     ):
         return self._action_queue.next_actions(
             instance=instance, action_type=action_type
