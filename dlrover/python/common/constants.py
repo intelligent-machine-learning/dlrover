@@ -89,6 +89,10 @@ class NodeEventType(object):
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
     ERROR = "ERROR"
+    FINISHED = "FINISHED"
+    SUCCEEDED = "SUCCEEDED"
+    NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
+    NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
 class NodeExitReason(object):

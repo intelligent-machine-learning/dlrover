@@ -14,6 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import List
 
+from dlrover.python.common.constants import NodeEventType
 from dlrover.python.common.node import Node
 
 
@@ -23,6 +24,12 @@ class NodeEvent(object):
     def __init__(self, event_type, node):
         self.event_type = event_type
         self.node: Node = node
+
+    def is_node_check_event(self):
+        return (
+            self.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+            or self.event_type == NodeEventType.NODE_CHECK_FAILED
+        )
 
 
 class NodeWatcher(metaclass=ABCMeta):

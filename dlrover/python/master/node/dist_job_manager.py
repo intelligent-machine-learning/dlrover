@@ -284,16 +284,18 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-            first_pending_node = self._worker_manager.first_pending_node
+
+            if self._ps_manager.first_pending_node:
+                first_pending_node = self._ps_manager.first_pending_node
+            else:
+                first_pending_node = self._worker_manager.first_pending_node
+
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
-                    "pending_nodes": json.dumps(
-                        self._worker_manager.pending_nodes
-                    ),
                     "first_pending_node": first_pending_node,
                 },
             )
@@ -562,13 +564,29 @@ class DistributedJobManager(JobManager):
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
 
+        logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
             exist_nodes[node_type] = []
 
         if nodes:
             for node in nodes:
-                exist_nodes[node.type].append(node.id)
+                node_type = node.type
+                node_id = node.id
+                exist_nodes[node_type].append(node_id)
+
+                # for nodes not in current 'job_nodes' obj, re add it
+                if (
+                    node_id not in self._job_nodes[node_type]
+                    and node.status != NodeStatus.DELETED
+                ):
+                    logger.info(
+                        f"Node {node_type} {node.id} with status {node.status}"
+                        " is re added without the event"
+                    )
+                    new_node = copy.deepcopy(node)
+                    self._job_nodes[node_type][node_id] = new_node
+
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
                 else:
@@ -576,7 +594,6 @@ class DistributedJobManager(JobManager):
                 # Mock event to avoid missing events
                 event = NodeEvent(event_type, node)
                 self._process_event(event)
-        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in self._job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -981,7 +998,17 @@ class DistributedJobManager(JobManager):
     ):
         if not self._job_nodes:
             logger.warning(
-                "Skip updating for job_nodes hasn't been initialized."
+                "Skip updating node resource usage for job_nodes "
+                "hasn't been initialized."
+            )
+            return
+        if (
+            node_type not in self._job_nodes
+            or node_id not in self._job_nodes[node_type]
+        ):
+            logger.warning(
+                "Skip updating node resource usage for node "
+                f"{node_type}-{node_id} can not be found."
             )
             return
         node = self._job_nodes[node_type][node_id]
@@ -1143,9 +1170,34 @@ class DistributedJobManager(JobManager):
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)
 
-    def update_succeeded_node(self, node_id, node_type):
+    def process_reported_node_event(self, node_event: NodeEvent):
+        """
+        The node events here is reported from training agent.
+
+        Args:
+            node_event: The event from training agent.
+        """
+
+        event_type = node_event.event_type
+        node = node_event.node
+        node_type = node.type
+        node_id = node.id
+
         with self._lock:
-            super().update_succeeded_node(node_id, node_type)
+            if (
+                node_type in self._job_nodes
+                and node_id in self._job_nodes[node_type]
+            ):
+                logger.info(
+                    f"Node {node_id}({node_type}) reported "
+                    f"status to {event_type}."
+                )
+                if event_type == NodeEventType.SUCCEEDED:
+                    self._job_nodes[node_type][node_id].set_as_succeeded()
+                elif node_event.is_node_check_event():
+                    self._job_nodes[node_type][
+                        node_id
+                    ].update_node_check_result(event_type)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
