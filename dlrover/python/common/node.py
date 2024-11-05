@@ -15,7 +15,6 @@ import copy
 import time
 
 from dlrover.python.common.constants import (
-    NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
@@ -217,11 +216,7 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
-        # -1: n/a
-        # 0: succeeded(final);
-        # 1: node_check_succeeded
-        # 2: node_check_failed
-        self.reported_status: int = -1
+        self.succeeded = False
 
     def exited(self):
         return self.status in [
@@ -346,26 +341,11 @@ class Node(object):
         ):
             return True
 
-    def __update_reported_status(self, status: int):
-        # no updating if already succeeded
-        if status < 0 or self.reported_status == 0:
-            return
-        self.reported_status = status
-
     def set_as_succeeded(self):
-        self.__update_reported_status(0)
+        self.succeeded = True
 
-    def is_succeeded(self) -> bool:
-        return self.reported_status == 0
-
-    def update_node_check_result(self, result: NodeEventType):
-        if result == NodeEventType.NODE_CHECK_SUCCEEDED:
-            self.__update_reported_status(1)
-        elif result == NodeEventType.NODE_CHECK_FAILED:
-            self.__update_reported_status(2)
-
-    def is_node_check_failed(self):
-        return self.reported_status == 2
+    def is_succeeded(self):
+        return self.succeeded
 
     def __repr__(self):
         return (
@@ -384,3 +364,8 @@ class Node(object):
         d.pop("config_resource", None)
         d.pop("used_resource", None)
         return d
+
+    def update_from_node(self, node):
+        if self == node:
+            return
+        self.__dict__.update(node.__dict__)

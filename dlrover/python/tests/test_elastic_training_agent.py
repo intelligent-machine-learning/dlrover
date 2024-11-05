@@ -37,6 +37,9 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.elastic_agent.config.launch_config import (
+    ElasticLaunchConfig,
+)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -47,7 +50,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DdpCheckpointSaver,
 )
 from dlrover.python.elastic_agent.torch.training import (
-    ElasticLaunchConfig,
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
@@ -111,6 +113,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        os.environ.clear()
 
     def test_node_unit(self):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))

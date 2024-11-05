@@ -17,6 +17,11 @@ from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
+from dlrover.python.master.node.job_context import (
+    clear_job_nodes,
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
 
 
@@ -28,22 +33,30 @@ class SyncServiceTest(unittest.TestCase):
         params.initilize()
         self.job_manager = create_job_manager(params, SpeedMonitor())
         self.job_manager._init_nodes()
+        self.job_context = get_job_context()
+
+    def tearDown(self):
+        clear_job_nodes()
 
     def test_sync(self):
         sync_service = SyncService(self.job_manager)
-        for node in self.job_manager._job_nodes[NodeType.CHIEF].values():
+        job_nodes = self.job_context.job_nodes()
+        for node in job_nodes[NodeType.CHIEF].values():
             node.status = NodeStatus.RUNNING
+            update_job_node(node)
 
-        for node in self.job_manager._job_nodes[NodeType.WORKER].values():
+        for node in job_nodes[NodeType.WORKER].values():
             node.status = NodeStatus.RUNNING
+            update_job_node(node)
 
         sync_name = "sync-0"
-        for node in self.job_manager._job_nodes[NodeType.CHIEF].values():
+        job_nodes = self.job_context.job_nodes()
+        for node in job_nodes[NodeType.CHIEF].values():
             sync_service.join_sync(sync_name, node.type, node.id)
         finished = sync_service.sync_finished(sync_name)
         self.assertFalse(finished)
 
-        for node in self.job_manager._job_nodes[NodeType.WORKER].values():
+        for node in job_nodes[NodeType.WORKER].values():
             sync_service.join_sync(sync_name, node.type, node.id)
         finished = sync_service.sync_finished(sync_name)
         self.assertTrue(finished)

@@ -23,8 +23,9 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
 from dlrover.python.master.resource.job import (
@@ -40,7 +41,6 @@ _dlrover_context = Context.singleton_instance()
 def new_job_auto_scaler(
     job_strategy,
     job_resource: JobResource,
-    job_nodes: Dict[str, Dict[int, Node]],
     job_optimizer: JobResourceOptimizer,
     speed_monitor: SpeedMonitor,
     ps_manager: ParameterServerManager,
@@ -50,7 +50,6 @@ def new_job_auto_scaler(
     if job_strategy == DistributionStrategy.PS:
         return PSTrainingAutoScaler(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             ps_manager,
@@ -60,7 +59,6 @@ def new_job_auto_scaler(
     elif job_strategy == DistributionStrategy.ALLREDUCE:
         return AllreduceTrainingAutoScaler(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             worker_manager,
@@ -76,18 +74,17 @@ class JobAutoScaler(metaclass=ABCMeta):
     def __init__(
         self,
         job_resource: JobResource,
-        job_nodes: Dict[str, Dict[int, Node]],
         job_optimizer: JobResourceOptimizer,
         speed_monitor: SpeedMonitor,
         node_scaler: Scaler,
         scale_interval: int,
     ):
         self._job_resource = job_resource
-        self._job_nodes = job_nodes
         self._job_optimizer = job_optimizer
         self._speed_monitor = speed_monitor
         self._scaler = node_scaler
         self._scale_interval = scale_interval
+        self._job_context = get_job_context()
 
         self._suggested_stop = False
         self._autoscaling_started = False
@@ -118,7 +115,6 @@ class PSTrainingAutoScaler(JobAutoScaler):
     def __init__(
         self,
         job_resource: JobResource,
-        job_nodes: Dict[str, Dict[int, Node]],
         job_optimizer: JobResourceOptimizer,
         speed_monitor: SpeedMonitor,
         ps_manager: ParameterServerManager,
@@ -127,7 +123,6 @@ class PSTrainingAutoScaler(JobAutoScaler):
     ) -> None:
         super().__init__(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             node_scaler,
@@ -224,7 +219,10 @@ class PSTrainingAutoScaler(JobAutoScaler):
                     scale_plan.merge(ps_plan)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
-                    chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
+                    chief_nodes = self._job_context.job_nodes_by_type(
+                        NodeType.CHIEF
+                    )
+                    chief_num = len(chief_nodes)
                     worker_num = chief_num + group.count
                     self._speed_monitor.set_target_worker_num(worker_num)
                     worker_plan = self._worker_manager.adjust_worker(group)
@@ -260,7 +258,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         return scale_plan
 
     def _reduce_timeout_pending_node_resource(self):
-        """Cut down CPU cores of pending pod at the job starts"""
+        """Cut down CPU cores of pending pod when job starts"""
         scale_plan = ScalePlan()
         plan = self._ps_manager.reduce_pending_node_resource()
         scale_plan.merge(plan)
@@ -278,7 +276,6 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
     def __init__(
         self,
         job_resource: JobResource,
-        job_nodes: Dict[str, Dict[int, Node]],
         job_optimizer: JobResourceOptimizer,
         speed_monitor: SpeedMonitor,
         worker_manager: WorkerManager,
@@ -286,14 +283,12 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
     ) -> None:
         super().__init__(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             node_scaler,
             1800,
         )
         self._worker_manager = worker_manager
-        self._workers = job_nodes[NodeType.WORKER]
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -334,7 +329,8 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
 
     def _get_alive_worker_num(self):
         worker_num = 0
-        for _, worker in self._workers.items():
+        workers = self._job_context.job_nodes_by_type(NodeType.WORKER)
+        for _, worker in workers.items():
             if worker.status in [
                 NodeStatus.RUNNING,
                 NodeStatus.PENDING,

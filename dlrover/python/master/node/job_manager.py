@@ -12,21 +12,24 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import (
+    get_job_context,
+    update_job_node,
+)
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
-from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -53,11 +56,10 @@ class JobManager(metaclass=ABCMeta):
         self._stopped = False
         self._speed_monitor: SpeedMonitor = speed_monitor
         self._error_monitor: ErrorMonitor = error_monitor
-
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._nodes_required = (0, 0, 0)
 
         self._training_node_config = TrainingNodeConfig(external_config)
+        self._job_context = get_job_context()
 
     @abstractmethod
     def start(self):
@@ -196,7 +198,9 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> List[DiagnosisAction]:
         """Collect the heart beat message of nodes."""
         pass
 
@@ -233,12 +237,9 @@ class JobManager(metaclass=ABCMeta):
     def get_elastic_run_configs(self) -> Dict[str, str]:
         return self._training_node_config.get_elastic_run_configs()
 
-    def process_reported_node_event(self, node_event: NodeEvent):
-        """
-        The node events here is reported from training agent.
-
-        Args:
-            node_event: The event from training agent.
-        """
-
-        pass
+    def update_succeeded_node(self, node_id, node_type):
+        node = self._job_context.job_node(node_type, node_id)
+        if node is not None:
+            logger.info(f"Node {node_id}({node_type}) to succeeded.")
+            node.set_as_succeeded()
+            update_job_node(node)

@@ -88,7 +88,7 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnosisAction
+from dlrover.python.diagnosis.common.constants import DiagnosisActionConstants
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
@@ -889,9 +889,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
-                        action = DiagnosisAction.RESTART_WORKER
+                        action = DiagnosisActionConstants.RESTART_WORKER
                     else:
-                        action = DiagnosisAction.RELAUNCH_WORKER
+                        action = DiagnosisActionConstants.RELAUNCH_WORKER
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
