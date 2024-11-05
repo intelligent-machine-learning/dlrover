@@ -21,13 +21,7 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.diagnosis.common.constants import DiagnosisActionConstant
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from dlrover.python.elastic_agent.common.worker_context import (
-    get_worker_context,
-    update_worker_context,
-)
-from dlrover.python.elastic_agent.config.launch_config import (
-    ElasticLaunchConfig,
-)
+from dlrover.python.elastic_agent.context import AgentContext
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -35,7 +29,10 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.torch.training import _create_worker_spec
+from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
+    _create_worker_spec,
+)
 from dlrover.python.tests.test_utils import start_local_master
 
 
@@ -62,10 +59,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         errors = "error code is 11111"
 
-        worker_context = get_worker_context()
-        agent = DiagnosisAgent.singleton_instance(
-            file_path, errors, worker_context
-        )
+        agent = DiagnosisAgent.singleton_instance(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,
@@ -82,32 +76,32 @@ class TestDiagnosisAgent(unittest.TestCase):
             failures={},
         )
 
-        update_worker_context(
+        context = AgentContext(
             worker_spec=spec,
             remaining_failovers=2,
             restart_count=3,
             run_result=run_result,
         )
 
-        action = agent.diagnose_training_failure()
+        action = agent.diagnose_training_failure(context)
         self.assertEqual(action.action, DiagnosisActionConstant.RESTART_WORKER)
 
         agent._errors = "error code is 507035"
-        action = agent.diagnose_training_failure()
+        action = agent.diagnose_training_failure(context)
         self.assertEqual(
             action.action, DiagnosisActionConstant.RELAUNCH_WORKER
         )
 
         agent._errors = "error code is 11111"
-        worker_context.remaining_failovers = 0
-        action = agent.diagnose_training_failure()
+        context.remaining_failovers = 0
+        action = agent.diagnose_training_failure(context)
         self.assertEqual(
             action.action, DiagnosisActionConstant.RELAUNCH_WORKER
         )
 
         agent._errors = " #"
-        worker_context.remaining_failovers = 2
-        action = agent.diagnose_training_failure()
+        context.remaining_failovers = 2
+        action = agent.diagnose_training_failure(context)
         self.assertEqual(action.action, DiagnosisActionConstant.RESTART_WORKER)
 
     def test_worker_training_metric(self):

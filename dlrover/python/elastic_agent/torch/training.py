@@ -87,11 +87,11 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnosisActionConstant
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
+from dlrover.python.elastic_agent.context import AgentContext
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -876,7 +876,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                context = AgentContext(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
@@ -884,7 +884,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
                 try:
                     action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
+                        context
                     )
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
