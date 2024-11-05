@@ -10,13 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import List
-
-
-class DiagnoseAction:
-    def __init__(self):
-        self._actions: List[str] = []
-
-    def add_action(self, action: str):
-        self._actions.append(action)

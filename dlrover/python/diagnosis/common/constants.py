@@ -24,6 +24,9 @@ class InferenceConfigKey(object):
 class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
     AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 60
+    MASTER = -1
+    ANY_INSTANCE = -2
+    LOCAL_INSTANCE = -3
 
 
 class DiagnosisDataType(object):
@@ -32,7 +35,13 @@ class DiagnosisDataType(object):
     XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
 
 
-class DiagnosisAction(object):
+class DiagnosisActionConstants(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+
+    ACTION_TYPE_ANY = "any"
+
+    ACTION_EXPIRED_TIME_PERIOD = 60 * 5
+
+    TYPE_NODE = "node"
