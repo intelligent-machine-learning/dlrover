@@ -476,9 +476,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
-            actions = self._job_context.next_action()
-            for action in actions:
-                self._process_diagnosis_action(action)
+            self._process_diagnosis_action(self._job_context.next_action())
             time.sleep(15)
 
     def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
