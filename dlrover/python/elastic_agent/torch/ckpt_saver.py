@@ -594,9 +594,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 labels,
             )
         except Exception as e:
-            logger.warning(
-                f"Failed to report event: {e}."
-            )
+            logger.warning(f"Failed to report event: {e}.")
 
     def _report_failure_to_master(self, error_msg):
         master_client = self.get_master_client()

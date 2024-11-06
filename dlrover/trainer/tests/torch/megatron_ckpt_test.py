@@ -24,9 +24,14 @@ import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.multi_process import clear_sock_dir
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
 )
+from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.flash_checkpoint import megatron
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron import (
@@ -61,6 +66,9 @@ class SimpleNet(nn.Module):
 
 class MegatrionCheckpointTest(unittest.TestCase):
     def setUp(self):
+        self._master, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 1)
+
         MegatronCheckpointSaver._saver_instance = None
         MegatronCheckpointSaver.start_async_saving_ckpt()
 

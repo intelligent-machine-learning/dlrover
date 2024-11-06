@@ -29,6 +29,10 @@ from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     CheckpointConfig,
@@ -36,6 +40,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
     TempDirCheckpointSaver,
 )
+from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
@@ -122,6 +127,9 @@ class SimpleShardingCheckpointEngine(FullCheckpointEngine):
 
 class ShardingCheckpointEngineTest(unittest.TestCase):
     def setUp(self):
+        self._master, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 1)
+
         os.environ[NodeEnv.NODE_NUM] = "1"
         os.environ[NodeEnv.NODE_RANK] = "0"
         AsyncCheckpointSaver._saver_instance = None
