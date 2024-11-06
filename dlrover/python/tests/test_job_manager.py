@@ -648,7 +648,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             for _, node in nodes.items():
                 node.start_hang_time = time.time() - 3600 * 4
                 node.status = NodeStatus.RUNNING
-                self.job_context.self.job_context.update_job_node(node)
+                self.job_context.update_job_node(node)
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
@@ -667,7 +667,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.is_recovered_oom = True
             node.create_time = datetime.now()
-            self.job_context.self.job_context.update_job_node(node)
+            self.job_context.update_job_node(node)
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
         self.assertFalse(reason)

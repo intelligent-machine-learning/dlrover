@@ -450,28 +450,32 @@ class MasterServicerTest(unittest.TestCase):
         request.message = "OOM"
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertFalse(
-            self.job_manager._job_nodes[task_type][task_id].is_succeeded()
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_succeeded()
         )
 
         request.event_type = NodeEventType.NODE_CHECK_FAILED
         request.message = ""
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(
-            self.job_manager._job_nodes[task_type][
-                task_id
-            ].is_node_check_failed()
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_node_check_failed()
         )
 
         request.event_type = NodeEventType.SUCCEEDED
         request.message = ""
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(
-            self.job_manager._job_nodes[task_type][task_id].is_succeeded()
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_succeeded()
         )
         self.assertFalse(
-            self.job_manager._job_nodes[task_type][
-                task_id
-            ].is_node_check_failed()
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_node_check_failed()
         )
 
 
