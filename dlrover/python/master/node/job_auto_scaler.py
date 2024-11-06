@@ -92,6 +92,11 @@ class JobAutoScaler(metaclass=ABCMeta):
     def suggested_stop(self):
         return self._suggested_stop
 
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
+
     @abstractmethod
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -219,9 +224,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
                     scale_plan.merge(ps_plan)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
-                    chief_nodes = self._job_context.job_nodes_by_type(
-                        NodeType.CHIEF
-                    )
+                    chief_nodes = self.get_job_nodes(NodeType.CHIEF)
                     chief_num = len(chief_nodes)
                     worker_num = chief_num + group.count
                     self._speed_monitor.set_target_worker_num(worker_num)
@@ -329,7 +332,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
 
     def _get_alive_worker_num(self):
         worker_num = 0
-        workers = self._job_context.job_nodes_by_type(NodeType.WORKER)
+        workers = self.get_job_nodes(NodeType.WORKER)
         for _, worker in workers.items():
             if worker.status in [
                 NodeStatus.RUNNING,
