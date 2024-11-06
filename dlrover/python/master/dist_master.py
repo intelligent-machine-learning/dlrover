@@ -144,6 +144,7 @@ class DistributedJobMaster(JobMaster):
             ),
         }
         self.diagnosis_manager = DiagnosisManager()
+        self._error_monitor = error_monitor
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -154,7 +155,6 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
-        self._error_monitor = error_monitor
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
