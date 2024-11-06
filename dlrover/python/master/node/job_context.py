@@ -45,7 +45,7 @@ class JobContext(Singleton):
     def next_actions(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionType.ACTION_TYPE_ANY,
+        action_type=DiagnosisActionType.ANY,
     ):
         return self._action_queue.next_actions(
             instance=instance, action_type=action_type

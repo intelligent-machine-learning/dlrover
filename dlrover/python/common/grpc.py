@@ -509,11 +509,6 @@ class ElasticRunConfig(Message):
 
 
 @dataclass
-class SucceededRequest(Message):
-    pass
-
-
-@dataclass
 class DiagnosisAction(Message):
     action_cls: str = ""
     action_content: str = ""

@@ -28,7 +28,7 @@ from dlrover.python.util.time_util import has_expired
 class DiagnosisAction(metaclass=ABCMeta):
     def __init__(
         self,
-        action_type=DiagnosisActionType.NO_ACTION,
+        action_type=DiagnosisActionType.NONE,
         instance=DiagnosisConstant.MASTER,
         timestamp=0,
         expired_time_period=0,
@@ -167,7 +167,7 @@ class DiagnosisActionQueue:
             for action in ins_actions:
                 if is_same_action(new_action, action):
                     return
-            logger.info(f"enqueue action {new_action}")
+            logger.info(f"New diagnosis action {new_action}")
             ins_actions.append(new_action)
 
     def _remove_expired_actions(self):
@@ -185,7 +185,7 @@ class DiagnosisActionQueue:
     def next_actions(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionType.ACTION_TYPE_ANY,
+        action_type=DiagnosisActionType.ANY,
     ) -> List[DiagnosisAction]:
         self._remove_expired_actions()
         with self._lock:
@@ -196,7 +196,7 @@ class DiagnosisActionQueue:
             actions = self._actions[instance]
             for action in actions:
                 if (
-                    action_type == DiagnosisActionType.TYPE_NODE
+                    action_type == DiagnosisActionType.NODE_ACT
                     or action_type == action.action_type
                 ):
                     deque_actions.append(action)

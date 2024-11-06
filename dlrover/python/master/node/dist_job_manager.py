@@ -481,7 +481,7 @@ class DistributedJobManager(JobManager):
     def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
         now = time.time()
         dead_events: List[NodeEvent] = []
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes
         logger.debug(f"Current job nodes are: {job_nodes}.")
         for _, nodes in job_nodes.items():
             for _, node in nodes.items():
@@ -533,7 +533,7 @@ class DistributedJobManager(JobManager):
 
     def _get_nodes_time_info(self):
         result = {}
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         for _, nodes in job_nodes.items():
             for _, node in nodes.items():
                 if node.heartbeat_time == 0:
@@ -581,7 +581,7 @@ class DistributedJobManager(JobManager):
 
         logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         for node_type in job_nodes.keys():
             exist_nodes[node_type] = []
 
@@ -656,7 +656,7 @@ class DistributedJobManager(JobManager):
         node_type = event.node.type
         node_status = event.node.status
         node_id = event.node.id
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
 
         # Skip deleted event of pod if the cluster has relaunched a new pod
         # with the same type and rank as the deleted pod.
@@ -916,7 +916,7 @@ class DistributedJobManager(JobManager):
     def clear_exited_nodes(self):
         if not self._remove_exited_node:
             return
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         scale_plan = ScalePlan()
         with self._lock:
             for _, nodes in job_nodes.items():
@@ -931,7 +931,7 @@ class DistributedJobManager(JobManager):
 
     def clear_all_nodes(self):
         scale_plan = ScalePlan()
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         with self._lock:
             for _, nodes in job_nodes.items():
                 for _, node in nodes.items():
@@ -964,7 +964,7 @@ class DistributedJobManager(JobManager):
 
     def all_critical_node_completed(self):
         alive_critical_nodes = []
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         for _, nodes in job_nodes.items():
             for node in nodes.values():
                 if node.critical and node.status in [
@@ -980,7 +980,7 @@ class DistributedJobManager(JobManager):
         return completed
 
     def remove_worker(self, worker_id):
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         if job_nodes[NodeType.WORKER][worker_id].critical:
             logger.info("Skip the critical worker %s", worker_id)
         else:
@@ -1011,7 +1011,7 @@ class DistributedJobManager(JobManager):
 
     def stop(self):
         self._enable_relaunch_node = False
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         with self._lock:
             for node_type in job_nodes.keys():
                 for node in job_nodes[node_type].values():
@@ -1059,7 +1059,7 @@ class DistributedJobManager(JobManager):
 
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
-        logger.info("job nodes are {}".format(self._job_context.job_nodes()))
+        logger.info("job nodes are {}".format(self.job_nodes()))
         return self._ps_manager.get_training_ps_cluster()
 
     def get_next_cluster_ps(self):
@@ -1078,7 +1078,7 @@ class DistributedJobManager(JobManager):
         """Remove all PS and workers"""
         self._job_autoscaler.stop_auto_scaling()
         plan = ScalePlan()
-        job_nodes = self._job_context.job_nodes()
+        job_nodes = self.job_nodes()
         training_nodes = list(job_nodes[NodeType.WORKER].values()) + list(
             job_nodes[NodeType.PS].values()
         )

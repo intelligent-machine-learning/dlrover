@@ -202,6 +202,10 @@ class JobManager(metaclass=ABCMeta):
         """Collect the heart beat message of nodes."""
         pass
 
+    @property
+    def job_nodes(self):
+        self._job_context.job_nodes()
+
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         return self._training_node_config.sync_node_training_port(
             node_id, port

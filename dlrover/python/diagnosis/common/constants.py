@@ -37,10 +37,15 @@ class DiagnosisDataType(object):
 
 
 class DiagnosisActionType(object):
-    NO_ACTION = "no_action"
-    RESTART_WORKER = "restart_worker"
-    RELAUNCH_WORKER = "relaunch_worker"
+    # common
+    NONE = "no_action"
+    ANY = "any_action"
+
+    # master operation
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
-    ACTION_TYPE_ANY = "any"
-    TYPE_NODE = "node"
+
+    # node operation
+    NODE_ACT = "node_action"
+    RESTART_WORKER = "restart_worker"
+    RELAUNCH_WORKER = "relaunch_worker"
