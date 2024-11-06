@@ -36,7 +36,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -1191,11 +1194,11 @@ class DistributedJobManager(JobManager):
 
     def collect_node_heart_beat(
         self, node_type, node_id, timestamp
-    ) -> List[DiagnosisAction]:
+    ) -> DiagnosisAction:
         with self._lock:
             node = self._job_context.job_node(node_type, node_id)
             if node is None:
-                return []
+                return NoAction()
             if node.heartbeat_time == 0:
                 logger.info(
                     f"Start receiving heartbeat from node {node_id}"

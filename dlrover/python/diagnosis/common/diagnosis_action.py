@@ -14,8 +14,8 @@
 import json
 import queue
 import threading
-import time
 from abc import ABCMeta
+from datetime import datetime
 from queue import Queue
 from typing import Dict
 
@@ -28,19 +28,31 @@ from dlrover.python.util.time_util import has_expired
 
 
 class DiagnosisAction(metaclass=ABCMeta):
+    """
+    Operation to be done after diagnostician.
+
+    Args:
+        action_type (DiagnosisActionType): Type of action.
+        instance (Optional): Instance id(nod id). Defaults to -1(Master).
+        timestamp (Optional[datetime.datetime]): Timestamp of action. Unit: ms.
+            Defaults to current time.
+        expired_time_period (Optional): Milliseconds of expired time period.
+            Unit: ms. Defaults to 60 seconds.
+    """
+
     def __init__(
         self,
         action_type=DiagnosisActionType.NONE,
         instance=DiagnosisConstant.MASTER,
         timestamp=0,
-        expired_time_period=0,
+        expired_time_period=60 * 1000,
     ):
         self._action_type = action_type
         self._instance = instance
         if timestamp == 0:
-            self._timestamp = time.time()
+            self._timestamp: float = datetime.now().timestamp()
         else:
-            self._timestamp = timestamp
+            self._timestamp: float = timestamp
 
         if expired_time_period == 0:
             self._expired_time_period = (
@@ -75,6 +87,13 @@ class DiagnosisAction(metaclass=ABCMeta):
     @classmethod
     def from_json(cls, json_data):
         return cls(**json.loads(json_data))
+
+
+class NoAction(DiagnosisAction):
+    def __init__(self):
+        super(NoAction, self).__init__(
+            action_type=DiagnosisActionType.NONE, instance=-999
+        )
 
 
 class EventAction(DiagnosisAction):
@@ -191,3 +210,5 @@ class DiagnosisActionQueue:
                 action = self._actions[instance].get()
                 if not action.is_expired():
                     return action
+                else:
+                    logger.info(f"Skip expired diagnosis action: {action}.")

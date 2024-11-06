@@ -644,17 +644,15 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _report_heartbeat(
         self, node_type, node_id, message: grpc.HeartBeat
     ) -> grpc.HeartbeatResponse:
-        actions = self._job_manager.collect_node_heart_beat(
+        action = self._job_manager.collect_node_heart_beat(
             node_type, node_id, message.timestamp
         )
-        grpc_actions: List[grpc.DiagnosisAction] = []
-        for action in actions:
-            grpc_action = grpc.DiagnosisAction(
-                action.__class__.__name__,
-                action.to_json(),
-            )
-            grpc_actions.append(grpc_action)
-        return grpc.HeartbeatResponse(diagnosis_actions=grpc_actions)
+        grpc_action = grpc.DiagnosisAction(
+            action.__class__.__name__,
+            action.to_json(),
+        )
+
+        return grpc.HeartbeatResponse(action=grpc_action)
 
 
 def create_master_service(

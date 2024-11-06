@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
@@ -79,13 +80,13 @@ class LocalJobManager(JobManager):
 
     def collect_node_heart_beat(
         self, node_type, node_id, timestamp
-    ) -> List[DiagnosisAction]:
+    ) -> DiagnosisAction:
         node = self._job_context.job_node(node_type, node_id)
         if node is None:
-            return []
+            return NoAction()
         node.heartbeat_time = timestamp
         self._job_context.update_job_node(node)
-        return []
+        return NoAction()
 
     def close_job(self):
         pass

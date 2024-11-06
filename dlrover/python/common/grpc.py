@@ -516,4 +516,4 @@ class DiagnosisAction(Message):
 
 @dataclass
 class HeartbeatResponse(Message):
-    diagnosis_actions: List[DiagnosisAction] = field(default_factory=list)
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)

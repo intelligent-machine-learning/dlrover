@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List
+from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
@@ -198,7 +198,7 @@ class JobManager(metaclass=ABCMeta):
     @abstractmethod
     def collect_node_heart_beat(
         self, node_type, node_id, timestamp
-    ) -> List[DiagnosisAction]:
+    ) -> DiagnosisAction:
         """Collect the heart beat message of nodes."""
         pass
 

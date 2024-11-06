@@ -17,7 +17,7 @@ import socket
 import threading
 import time
 from contextlib import closing
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
@@ -28,7 +28,10 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 
 
@@ -241,24 +244,22 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
-    def report_heart_beat(self, timestamp) -> List[DiagnosisAction]:
+    def report_heart_beat(self, timestamp) -> DiagnosisAction:
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)
-        actions: List[DiagnosisAction] = []
-        for grpc_action in response.diagnosis_actions:
-            action_cls: Optional[DiagnosisData] = getattr(
-                self._diagnosis_action_module,
-                grpc_action.action_cls,
+        action = NoAction()
+        action_cls: Optional[DiagnosisData] = getattr(
+            self._diagnosis_action_module,
+            response.action.action_cls,
+        )
+        if action_cls is None:
+            logger.warning(
+                "Invalid diagnosis action "
+                f"action type: {response.action.action_cls}"
             )
-            if action_cls is None:
-                logger.warning(
-                    "Invalid diagnosis action "
-                    f"action type: {grpc_action.action_cls}"
-                )
-                continue
-            action = action_cls.from_json(grpc_action.action_content)
-            actions.append(action)
-        return actions
+        else:
+            action = action_cls.from_json(response.action.action_content)
+        return action
 
     def get_cluster_version(self, version_type, task_type, task_id):
         request = grpc.ClusterVersionRequest(
