@@ -101,7 +101,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self._job_context.self._job_context.update_job_node(job_nodes)
+        self._job_context.update_job_nodes(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -125,7 +125,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self._job_context.self._job_context.update_job_node(job_nodes)
+        self._job_context.update_job_nodes(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -149,7 +149,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self._job_context.self._job_context.update_job_node(job_nodes)
+        self._job_context.update_job_nodes(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
@@ -192,7 +192,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self._job_context.self._job_context.update_job_node(job_nodes)
+        self._job_context.update_job_nodes(job_nodes)
         ps_manager = ParameterServerManager(
             self._job_resource,
             3,
