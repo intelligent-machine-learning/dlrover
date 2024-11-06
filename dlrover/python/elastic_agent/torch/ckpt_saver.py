@@ -585,13 +585,18 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             return
         if labels is None:
             labels = {}
-        master_client.report_info_event(
-            event_type,
-            instance,
-            action,
-            msg,
-            labels,
-        )
+        try:
+            master_client.report_info_event(
+                event_type,
+                instance,
+                action,
+                msg,
+                labels,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to report event: {e}."
+            )
 
     def _report_failure_to_master(self, error_msg):
         master_client = self.get_master_client()
