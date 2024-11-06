@@ -1222,20 +1222,18 @@ class DistributedJobManager(JobManager):
         node_id = node.id
 
         with self._lock:
-            if (
-                node_type in self._job_nodes
-                and node_id in self._job_nodes[node_type]
-            ):
+            target_node = self._job_context.job_node(node_type, node_id)
+            if target_node:
                 logger.info(
                     f"Node {node_id}({node_type}) reported "
                     f"status to {event_type}."
                 )
                 if event_type == NodeEventType.SUCCEEDED:
-                    self._job_nodes[node_type][node_id].set_as_succeeded()
+                    target_node.set_as_succeeded()
                 elif node_event.is_node_check_event():
-                    self._job_nodes[node_type][
-                        node_id
-                    ].update_node_check_result(event_type)
+                    target_node.update_node_check_result(event_type)
+
+                self._job_context.update_job_node(target_node)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
