@@ -244,10 +244,12 @@ class DistributedJobManager(JobManager):
         )
 
     def is_all_workers_node_check_failed(self):
-        return all([
-            node.is_node_check_failed()
-            for _, node in self._job_nodes[NodeType.WORKER].items()
-        ])
+        return all(
+            [
+                node.is_node_check_failed()
+                for _, node in self._job_nodes[NodeType.WORKER].items()
+            ]
+        )
 
     def should_early_stop(self):
         # node-check all failed

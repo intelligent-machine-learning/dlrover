@@ -740,11 +740,12 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        manager.is_all_workers_node_check_failed = mock.MagicMock(return_value=True)
+        manager.is_all_workers_node_check_failed = mock.MagicMock(
+            return_value=True
+        )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
         self.assertEqual(reason, JobExitReason.RDZV_ALL_FAILED)
-
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()

@@ -120,6 +120,7 @@ class JobExitReason(object):
     UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
     RDZV_ALL_FAILED = "RdzvAllFailed"
 
+
 class CustomMetricKeys:
     RDZV_ROUND = "rdzv_round"
     TRAINING_ERROR_LEVEL = "error_level"
