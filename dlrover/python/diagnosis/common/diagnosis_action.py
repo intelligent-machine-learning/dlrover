@@ -29,10 +29,12 @@ class DiagnosisAction(metaclass=ABCMeta):
     def __init__(
         self,
         action_type=DiagnosisActionType.NO_ACTION,
+        instance=DiagnosisConstant.MASTER,
         timestamp=0,
         expired_time_period=0,
     ):
         self._action_type = action_type
+        self._instance = instance
         if timestamp == 0:
             self._timestamp = time.time()
         else:
@@ -48,6 +50,10 @@ class DiagnosisAction(metaclass=ABCMeta):
     @property
     def action_type(self):
         return self._action_type
+
+    @property
+    def instance(self):
+        return self._instance
 
     @property
     def timestamp(self):
@@ -77,39 +83,39 @@ class EventAction(DiagnosisAction):
         timestamp=0,
         expired_time_period=0,
         event_type: str = "",
-        instance: str = "",
-        action: str = "",
-        msg: str = "",
-        labels: Dict[str, str] = {},
+        event_instance: str = "",
+        event_action: str = "",
+        event_msg: str = "",
+        event_labels: Dict[str, str] = {},
     ):
         super().__init__(
             DiagnosisActionType.EVENT, timestamp, expired_time_period
         )
         self._event_type = event_type
-        self._instance = instance
-        self._action = action
-        self._msg = msg
-        self._labels = labels
+        self._event_instance = event_instance
+        self._event_action = event_action
+        self._event_msg = event_msg
+        self._event_labels = event_labels
 
     @property
     def event_type(self):
         return self._event_type
 
     @property
-    def instance(self):
-        return self._instance
+    def event_instance(self):
+        return self._event_instance
 
     @property
-    def action(self):
-        return self._action
+    def event_action(self):
+        return self._event_action
 
     @property
-    def msg(self):
-        return self._msg
+    def event_msg(self):
+        return self._event_msg
 
     @property
-    def labels(self):
-        return self._labels
+    def event_labels(self):
+        return self._event_labels
 
 
 class NodeRelaunchAction(DiagnosisAction):
@@ -123,16 +129,16 @@ class NodeRelaunchAction(DiagnosisAction):
     ):
         super().__init__(
             DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+            node_id,
             timestamp,
             expired_time_period,
         )
-        self._node_id = node_id
         self._node_status = node_status
         self._reason = reason
 
     @property
     def node_id(self):
-        return self._node_id
+        return self.instance
 
     @property
     def node_status(self):
