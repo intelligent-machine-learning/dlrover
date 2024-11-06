@@ -426,6 +426,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
         job_nodes = self.job_context.job_nodes()
+        self.assertFalse(4 in job_nodes[NodeType.WORKER])
         for node in job_nodes[NodeType.PS].values():
             node.status = NodeStatus.PENDING
             self.job_context.update_job_node(node)
@@ -439,11 +440,21 @@ class DistributedJobManagerTest(unittest.TestCase):
                 max_relaunch_count=1,
             )
             nodes.append(node)
+        nodes.append(
+            Node(
+                node_type=NodeType.WORKER,
+                node_id=4,
+                status=NodeStatus.RUNNING,
+                config_resource=NodeResource(1, 4096),
+                max_relaunch_count=1,
+            )
+        )
         manager._process_list_nodes(nodes)
 
         job_nodes = self.job_context.job_nodes()
         ps_ids = list(job_nodes[NodeType.PS].keys())
         self.assertListEqual(ps_ids, [0, 1, 2])
+        self.assertTrue(4 in self.job_context.job_nodes()[NodeType.WORKER])
 
     @patch.object(DistributedJobManager, "_process_event")
     def test_process_list_nodes_for_empty_case(self, mock_method):

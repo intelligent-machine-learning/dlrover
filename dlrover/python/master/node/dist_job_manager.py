@@ -577,6 +577,7 @@ class DistributedJobManager(JobManager):
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
 
+        logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
         job_nodes = self._job_context.job_nodes()
         for node_type in job_nodes.keys():
@@ -584,7 +585,22 @@ class DistributedJobManager(JobManager):
 
         if nodes:
             for node in nodes:
-                exist_nodes[node.type].append(node.id)
+                node_type = node.type
+                node_id = node.id
+                exist_nodes[node_type].append(node_id)
+
+                # for nodes not in current 'job_nodes' obj, re add it
+                if (
+                    node_id not in job_nodes[node_type]
+                    and node.status != NodeStatus.DELETED
+                ):
+                    logger.info(
+                        f"Node {node_type} {node.id} with status {node.status}"
+                        " is re added without the event"
+                    )
+                    new_node = copy.deepcopy(node)
+                    self._job_context.update_job_node(new_node)
+
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
                 else:
