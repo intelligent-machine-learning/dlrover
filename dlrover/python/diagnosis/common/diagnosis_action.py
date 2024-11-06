@@ -12,10 +12,12 @@
 # limitations under the License.
 
 import json
+import queue
 import threading
 import time
 from abc import ABCMeta
-from typing import Dict, List
+from queue import Queue
+from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
@@ -157,52 +159,35 @@ def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
 
 class DiagnosisActionQueue:
     def __init__(self):
-        self._actions: Dict[int, List[DiagnosisAction]] = {}
+        self._actions: Dict[int, Queue[DiagnosisAction]] = {}
         self._lock = threading.Lock()
 
     def add_action(self, new_action: DiagnosisAction):
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
-                self._actions[instance] = []
+                self._actions[instance] = Queue(maxsize=10)
             ins_actions = self._actions[instance]
-            for action in ins_actions:
-                if is_same_action(new_action, action):
-                    return
-            logger.info(f"New diagnosis action {new_action}")
-            ins_actions.append(new_action)
+            try:
+                ins_actions.put(new_action, timeout=3)
+                logger.info(f"New diagnosis action {new_action}")
+            except queue.Full:
+                logger.warning(
+                    f"Diagnosis actions for {instance} is full, "
+                    f"skip action: {new_action}."
+                )
 
-    def _remove_expired_actions(self):
-        with self._lock:
-            for instance in self._actions.keys():
-                action_queue = self._actions[instance]
-                actions = []
-                for action in action_queue:
-                    if not action.is_expired():
-                        actions.append(action)
-                    else:
-                        logger.info(f"Action {action} has expired")
-                self._actions[instance] = actions
-
-    def next_actions(
+    def next_action(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionType.ANY,
-    ) -> List[DiagnosisAction]:
-        self._remove_expired_actions()
+    ) -> DiagnosisAction:
         with self._lock:
-            if instance not in self._actions:
-                return []
-            deque_actions = []
-            remain_actions = []
-            actions = self._actions[instance]
-            for action in actions:
+            while True:
                 if (
-                    action_type == DiagnosisActionType.NODE_ACT
-                    or action_type == action.action_type
+                    instance not in self._actions
+                    or self._actions[instance].empty()
                 ):
-                    deque_actions.append(action)
-                else:
-                    remain_actions.append(action)
-            self._actions[instance] = remain_actions
-            return deque_actions
+                    return DiagnosisAction()
+                action = self._actions[instance].get()
+                if not action.is_expired():
+                    return action

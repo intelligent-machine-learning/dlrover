@@ -18,10 +18,7 @@ from typing import Dict, Optional
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionType,
-    DiagnosisConstant,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
@@ -40,16 +37,16 @@ class JobContext(Singleton):
 
     def enqueue_actions(self, actions):
         for action in actions:
-            self._action_queue.add_action(action)
+            self.enqueue_action(action)
 
-    def next_actions(
+    def enqueue_action(self, action):
+        self._action_queue.add_action(action)
+
+    def next_action(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionType.ANY,
     ):
-        return self._action_queue.next_actions(
-            instance=instance, action_type=action_type
-        )
+        return self._action_queue.next_action(instance=instance)
 
     @property
     def ps_nodes(self) -> Dict[int, Node]:

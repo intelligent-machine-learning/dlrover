@@ -473,7 +473,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
-            actions = self._job_context.next_actions()
+            actions = self._job_context.next_action()
             for action in actions:
                 self._process_diagnosis_action(action)
             time.sleep(15)
@@ -1203,7 +1203,7 @@ class DistributedJobManager(JobManager):
                 )
             node.heartbeat_time = timestamp
             self._job_context.update_job_node(node)
-            return self._job_context.next_actions(instance=node_id)
+            return self._job_context.next_action(instance=node_id)
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)

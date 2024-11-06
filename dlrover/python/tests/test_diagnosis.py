@@ -22,6 +22,7 @@ from dlrover.python.diagnosis.common.constants import (
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    DiagnosisActionQueue,
     EventAction,
     NodeRelaunchAction,
 )
@@ -78,6 +79,34 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
+
+    def test_action_queue(self):
+        action_queue = DiagnosisActionQueue()
+        action0 = EventAction("test0", expired_time_period=100000)
+        action1 = EventAction("test1", expired_time_period=1)
+        action2 = EventAction("test2", expired_time_period=100000)
+
+        action_queue.add_action(action0)
+        action_queue.add_action(action1)
+        action_queue.add_action(action2)
+
+        time.sleep(1)
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=-1).action_type,
+            DiagnosisActionType.EVENT,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=-1).action_type,
+            DiagnosisActionType.EVENT,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
 
 
 if __name__ == "__main__":
