@@ -202,7 +202,6 @@ class JobManager(metaclass=ABCMeta):
         """Collect the heart beat message of nodes."""
         pass
 
-    @property
     def job_nodes(self, node_type=""):
         if node_type == "":
             return self._job_context.job_nodes()
