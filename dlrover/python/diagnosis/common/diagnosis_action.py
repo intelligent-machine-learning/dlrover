@@ -80,16 +80,18 @@ class EventAction(DiagnosisAction):
 
     def __init__(
         self,
-        timestamp=0,
-        expired_time_period=0,
         event_type: str = "",
         event_instance: str = "",
         event_action: str = "",
         event_msg: str = "",
         event_labels: Dict[str, str] = {},
+        timestamp=0,
+        expired_time_period=0,
     ):
         super().__init__(
-            DiagnosisActionType.EVENT, timestamp, expired_time_period
+            DiagnosisActionType.EVENT,
+            timestamp=timestamp,
+            expired_time_period=expired_time_period,
         )
         self._event_type = event_type
         self._event_instance = event_instance

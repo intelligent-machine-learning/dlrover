@@ -14,7 +14,17 @@
 import time
 import unittest
 
-from dlrover.python.diagnosis.common.constants import DiagnosisDataType
+from dlrover.python.common.constants import NodeStatus
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+    DiagnosisDataType,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    EventAction,
+    NodeRelaunchAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
 
@@ -42,6 +52,32 @@ class DiagnosisTest(unittest.TestCase):
         mgr.store_data(log3)
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
         self.assertEqual(len(logs), 1)
+
+    def test_action_basic(self):
+        basic_action = DiagnosisAction()
+        self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
+        self.assertEqual(basic_action._instance, DiagnosisConstant.MASTER)
+
+        event_action = EventAction(
+            "info", "job", "test", "test123", {"k1": "v1"}
+        )
+        self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
+        self.assertEqual(event_action._instance, DiagnosisConstant.MASTER)
+        self.assertEqual(event_action.event_type, "info")
+        self.assertEqual(event_action.event_instance, "job")
+        self.assertEqual(event_action.event_action, "test")
+        self.assertEqual(event_action.event_msg, "test123")
+        self.assertEqual(event_action.event_labels, {"k1": "v1"})
+
+        node_relaunch_action = NodeRelaunchAction(1, NodeStatus.FAILED, "hang")
+        self.assertEqual(
+            node_relaunch_action.action_type,
+            DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+        )
+        self.assertEqual(node_relaunch_action._instance, 1)
+        self.assertEqual(node_relaunch_action.node_id, 1)
+        self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
+        self.assertEqual(node_relaunch_action.reason, "hang")
 
 
 if __name__ == "__main__":
