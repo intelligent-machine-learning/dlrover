@@ -46,6 +46,5 @@ class DiagnosisActionType(object):
     EVENT = "event"
 
     # node operation
-    NODE_ACT = "node_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
