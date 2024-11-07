@@ -380,10 +380,9 @@ class ParameterServerManager(TrainingNodeManager):
         return len(self._migrated_ps_nodes) > 0
 
     def is_all_running(self):
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
         running_ps = [
             pod_info.id
-            for pod_info in nodes.values()
+            for pod_info in self._ps_nodes().values()
             if pod_info.status == NodeStatus.RUNNING
         ]
         return len(running_ps) == self._job_resource.ps_num
