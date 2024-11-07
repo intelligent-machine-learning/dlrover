@@ -20,8 +20,6 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from diagnosis.common.constants import DiagnosisActionType
-
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -38,6 +36,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -478,7 +480,11 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
-            self._process_diagnosis_action(self._job_context.next_action())
+            self._process_diagnosis_action(
+                self._job_context.next_action(
+                    instance=DiagnosisConstant.MASTER_INSTANCE
+                )
+            )
             time.sleep(15)
 
     def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
@@ -651,6 +657,12 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
         }
+
+    def _process_diagnosis_action(self, action: DiagnosisAction):
+        if not action or action.action_type == DiagnosisActionType.NONE:
+            return
+
+        # TODO
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type

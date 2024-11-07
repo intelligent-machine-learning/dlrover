@@ -99,7 +99,8 @@ class DiagnosisManager:
                 logger.info("Stop to diagnose failures for observing.")
                 break
             logger.info(
-                f"Current diagnosis data size: {self._data_manager.get_data_size()}."
+                "Current diagnosis "
+                f"data size: {self._data_manager.get_data_size()}."
             )
 
             observed_problems = self._diagnostician.observe_training()

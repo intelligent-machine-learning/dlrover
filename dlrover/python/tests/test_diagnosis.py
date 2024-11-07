@@ -57,13 +57,17 @@ class DiagnosisTest(unittest.TestCase):
     def test_action_basic(self):
         basic_action = DiagnosisAction()
         self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
-        self.assertEqual(basic_action._instance, DiagnosisConstant.MASTER)
+        self.assertEqual(
+            basic_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
         )
         self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
-        self.assertEqual(event_action._instance, DiagnosisConstant.MASTER)
+        self.assertEqual(
+            event_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertEqual(event_action.event_type, "info")
         self.assertEqual(event_action.event_instance, "job")
         self.assertEqual(event_action.event_action, "test")
