@@ -35,6 +35,7 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
+from dlrover.python.master.node.job_context import get_job_context
 
 
 def has_expired(timestamp: float, time_period: int) -> bool:
@@ -44,16 +45,10 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 
 class DiagnosisManager:
-    def __init__(self, job_manager=None):
-        self._job_manager = job_manager
+    def __init__(self):
         self._is_observing_started = False
-        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(
-            job_manager, 600
-        )
+        self._data_manager: DiagnosisDataManager = DiagnosisDataManager()
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
-
-    def is_job_manager_exist(self) -> bool:
-        return self._job_manager is not None
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -119,22 +114,15 @@ class DiagnosisManager:
 
 
 class DiagnosisDataManager:
-    def __init__(self, job_manager=None, expire_time_period=600):
+    def __init__(self, expire_time_period=600):
         self._diagnosis_data: Dict[str, deque[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
-        self._job_manager = job_manager
+        self._job_context = get_job_context()
         self._lock = threading.Lock()
-
-    @property
-    def job_manager(self):
-        return self._job_manager
 
     @property
     def data(self):
         return self._diagnosis_data
-
-    def with_runtime_context(self) -> bool:
-        return self.job_manager is not None
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type

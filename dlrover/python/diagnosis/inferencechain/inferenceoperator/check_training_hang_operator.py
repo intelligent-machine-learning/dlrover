@@ -134,7 +134,7 @@ class CheckTrainingHangOperator(InferenceOperator):
                 f"threshold: {hang_last_threshold}"
             )
             if _dlrover_ctx.hang_detection == 1:
-                # TODO
+                # logs only
                 pass
             elif _dlrover_ctx.hang_detection == 2:
                 # TODO

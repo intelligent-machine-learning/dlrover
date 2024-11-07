@@ -213,11 +213,6 @@ class DistributedJobManager(JobManager):
         self._speed_monitor.set_target_worker_num(worker_num)
         self._training_node_config.set_node_num(worker_num)
         threading.Thread(
-            target=self._diagnosis_action_consumer,
-            name="diagnosis_action_consumer",
-            daemon=True,
-        ).start()
-        threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
         threading.Thread(
@@ -420,34 +415,6 @@ class DistributedJobManager(JobManager):
         logger.info(
             "Create job autoscaler: %s", self._job_autoscaler.__class__
         )
-
-    def _diagnosis_action_consumer(self):
-        logger.info("Start consuming diagnosis actions.")
-        while True:
-            if self._stopped:
-                logger.info("Stop consuming diagnosis actions.")
-                break
-            try:
-                if self.get_diagnosis_actions_size() == 0:
-                    time.sleep(5)
-                    continue
-
-                action = self._diagnosis_action_queue.get()
-                if action.type == DiagnosisActionType.EVENT:
-                    self._report_event(
-                        action.event_type,
-                        action.instance,
-                        action.action,
-                        action.msg,
-                        action.labels,
-                    )
-                elif action.type == DiagnosisActionType.MASTER_RELAUNCH_WORKER:
-                    # TODO
-                    pass
-            except Exception as e:
-                logger.warning(e)
-                time.sleep(10)
-            time.sleep(1)
 
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes events.")
@@ -684,9 +651,6 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
         }
-
-    def _process_diagnosis_action(self, action: DiagnosisAction):
-        pass
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
@@ -1273,12 +1237,6 @@ class DistributedJobManager(JobManager):
 
     def get_node_required_info(self):
         return self._nodes_required
-
-    def get_total_node_num_by_type(self, node_type):
-        if not self._job_nodes:
-            return 0
-
-        return len(self._job_nodes[node_type])
 
     def get_job_strategy(self):
         return self._job_args.distribution_strategy
