@@ -221,7 +221,10 @@ class TrainingNodeManager(object):
         cur_nodes = [node.name for node in nodes.values()]
         return cur_nodes
 
-    def update_nodes(self):
+    def _update_node(self, node: Node):
+        self._job_context.update_job_node(node)
+
+    def update_nodes_iter(self):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
         self._node_id_iter = itertools.count(len(nodes))
         self._node_rank_iter = itertools.count(len(nodes))
@@ -243,12 +246,10 @@ class TrainingNodeManager(object):
 
     def relaunch_node(self, node: Node, remove_exited_node=False):
         plan = ScalePlan()
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
         with self._lock:
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
-            nodes[new_id] = relaunch_node
-            self._job_context.update_job_node(relaunch_node)
+            self._update_node(relaunch_node)
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(

@@ -395,10 +395,10 @@ class DistributedJobManager(JobManager):
         update_nodes_priority(job_nodes)
         self._job_context.update_job_nodes(job_nodes)
 
-        self._ps_manager.update_nodes()
-        self._chief_manager.update_nodes()
-        self._worker_manager.update_nodes()
-        self._evaluator_manager.update_nodes()
+        self._ps_manager.update_nodes_iter()
+        self._chief_manager.update_nodes_iter()
+        self._worker_manager.update_nodes_iter()
+        self._evaluator_manager.update_nodes_iter()
 
     def _init_job_auto_scaler(self):
         self._job_autoscaler: JobAutoScaler = new_job_auto_scaler(

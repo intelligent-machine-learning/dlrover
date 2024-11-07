@@ -65,12 +65,12 @@ class WorkerManagerTest(unittest.TestCase):
 
     def test_scale_up_workers(self):
         self._worker_manager._scale_up_workers(3)
-        workers = self.job_context.workers
+        workers = self.job_context.get_and_update_worker_nodes()
         self.assertEqual(len(workers), 8)
         self.assertEqual(workers[7].id, 7)
 
     def test_scale_down_workers(self):
-        workers = list(self.job_context.workers.values())
+        workers = list(self.job_context.get_and_update_worker_nodes().values())
         self._worker_manager._scale_down_workers(2, workers)
         released_workers = []
         for worker in workers:
@@ -79,7 +79,7 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertEqual(len(released_workers), 2)
 
     def test_delete_exited_workers(self):
-        workers = self.job_context.workers
+        workers = self.job_context.get_and_update_worker_nodes()
         workers[3].status = NodeStatus.FINISHED
         self.job_context.update_job_node(workers[3])
         workers[4].status = NodeStatus.FAILED
@@ -93,7 +93,7 @@ class WorkerManagerTest(unittest.TestCase):
         )
 
     def test_delete_running_workers(self):
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.status = NodeStatus.RUNNING
             self.job_context.update_job_node(node)
         plan = self._worker_manager.delete_running_workers()
@@ -116,7 +116,7 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        failed_worker = self.job_context.workers[4]
+        failed_worker = self.job_context.get_and_update_worker_nodes()[4]
         failed_worker.status = NodeStatus.FAILED
         failed_worker.max_relaunch_count = 3
         self.job_context.update_job_node(failed_worker)
@@ -124,7 +124,9 @@ class WorkerManagerTest(unittest.TestCase):
             failed_worker, remove_exited_node=True
         )
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
-        self.assertEqual(self.job_context.workers[5].id, 5)
+        self.assertEqual(
+            self.job_context.get_and_update_worker_nodes()[5].id, 5
+        )
         self.assertEqual(plan.launch_nodes[0].max_relaunch_count, 3)
         self.assertEqual(plan.remove_nodes[0].config_resource.cpu, 16)
 
@@ -156,14 +158,14 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
             self.job_context.update_job_node(node)
         plan = worker_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 5)
 
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.config_resource.gpu_num = 1
             self.job_context.update_job_node(node)
 
@@ -177,27 +179,31 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.status = NodeStatus.FAILED
             node.exit_reason = NodeExitReason.FATAL_ERROR
             self.job_context.update_job_node(node)
         exited = worker_manager.has_exited_worker()
         self.assertTrue(exited)
 
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.exit_reason = NodeExitReason.KILLED
             self.job_context.update_job_node(node)
         exited = worker_manager.has_exited_worker()
         self.assertFalse(exited)
 
-        self.job_context.workers[0].status = NodeStatus.SUCCEEDED
-        self.job_context.update_job_node(self.job_context.workers[0])
+        self.job_context.get_and_update_worker_nodes()[
+            0
+        ].status = NodeStatus.SUCCEEDED
+        self.job_context.update_job_node(
+            self.job_context.get_and_update_worker_nodes()[0]
+        )
         exited = worker_manager.has_exited_worker()
         self.assertTrue(exited)
 
         wait = worker_manager.wait_worker_restart()
         self.assertTrue(wait)
-        for node in self.job_context.workers.values():
+        for node in self.job_context.get_and_update_worker_nodes().values():
             node.relaunch_count = node.max_relaunch_count
             self.job_context.update_job_node(node)
 
@@ -213,12 +219,18 @@ class WorkerManagerTest(unittest.TestCase):
         )
         reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)
-        self.job_context.workers[0].restart_training = True
-        self.job_context.update_job_node(self.job_context.workers[0])
+        self.job_context.get_and_update_worker_nodes()[
+            0
+        ].restart_training = True
+        self.job_context.update_job_node(
+            self.job_context.get_and_update_worker_nodes()[0]
+        )
         reset = worker_manager.verify_restarting_training(0)
         self.assertTrue(reset)
-        self.job_context.workers[0].is_released = True
-        self.job_context.update_job_node(self.job_context.workers[0])
+        self.job_context.get_and_update_worker_nodes()[0].is_released = True
+        self.job_context.update_job_node(
+            self.job_context.get_and_update_worker_nodes()[0]
+        )
         reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)
 

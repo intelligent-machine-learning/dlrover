@@ -69,7 +69,7 @@ class ParameterServerManager(TrainingNodeManager):
         self._init_training_ps_cluster()
 
     def _ps_nodes(self):
-        return self._job_context.ps_nodes
+        return self._job_context.get_and_update_ps_nodes()
 
     def _init_training_ps_cluster(self):
         for node in self._ps_nodes().values():
@@ -93,7 +93,7 @@ class ParameterServerManager(TrainingNodeManager):
             node.is_released = True
             new_id = next(self._node_id_iter)
             new_node = node.get_relaunch_node_info(new_id)
-            self._job_context.update_job_node(new_node)
+            self._update_node(new_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._ps_nodes()[new_node.id]
