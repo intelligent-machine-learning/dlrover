@@ -2,7 +2,12 @@ import os
 import socket
 from contextlib import closing
 
-from torch.distributed.elastic.agent.server.api import SimpleElasticAgent, _get_fq_hostname, _get_socket_with_port
+from torch.distributed.elastic.agent.server.api import SimpleElasticAgent, _get_fq_hostname
+
+try:
+    from torch.distributed.elastic.agent.server.api import _get_socket_with_port
+except (ImportError, ModuleNotFoundError):
+    from torch.distributed.elastic.utils.distributed import get_socket_with_port as _get_socket_with_port
 
 
 def hook_set_master_addr_port():

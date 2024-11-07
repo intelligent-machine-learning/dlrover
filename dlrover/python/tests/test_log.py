@@ -25,6 +25,7 @@ class LogTest(unittest.TestCase):
         from dlrover.python.common.log import default_logger as logger
         from dlrover.python.common.log import get_log_level
 
+        os.environ[BasicClass.LOG_LEVEL_ENV] = "INFO"
         self.assertEqual(get_log_level(), "INFO")
         logger.info("test123")
 

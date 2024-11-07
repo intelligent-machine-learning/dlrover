@@ -15,13 +15,21 @@ import collections
 import copy
 import itertools
 import threading
+import time
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeStatus,
+    NodeType,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.training_node import TrainingNodeManager
+from dlrover.python.master.node.training_node import (
+    TrainingNodeManager,
+    skip_pending_judgement,
+)
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 
@@ -31,7 +39,6 @@ _dlrover_ctx = Context.singleton_instance()
 class ParameterServerManager(TrainingNodeManager):
     def __init__(
         self,
-        ps_nodes: Dict[int, Node],
         job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
@@ -39,8 +46,6 @@ class ParameterServerManager(TrainingNodeManager):
     ):
         """
         Args:
-            ps_nodes: A dictionary where the key is the index of PS pod
-                and the value is the PodInfo instance of PS pod.
             job_resource: the resource configuration of a job.
             max_relaunch_num: The maximum relaunch number of PS.
             new_service_fn: A callable function to generate a server name of
@@ -49,7 +54,7 @@ class ParameterServerManager(TrainingNodeManager):
                 PS.
         """
         super(ParameterServerManager, self).__init__(
-            ps_nodes, new_node_name_fn
+            NodeType.PS, new_node_name_fn
         )
         self._max_relaunch_num = max_relaunch_num
         self._job_resource = job_resource
@@ -63,8 +68,11 @@ class ParameterServerManager(TrainingNodeManager):
         self._node_id_iter = itertools.count(self._job_resource.ps_num)
         self._init_training_ps_cluster()
 
+    def _ps_nodes(self):
+        return self._job_context.ps_nodes
+
     def _init_training_ps_cluster(self):
-        for node in self._nodes.values():
+        for node in self._ps_nodes().values():
             alive = node.status in [
                 NodeStatus.INITIAL,
                 NodeStatus.PENDING,
@@ -84,10 +92,11 @@ class ParameterServerManager(TrainingNodeManager):
         with self._lock:
             node.is_released = True
             new_id = next(self._node_id_iter)
-            self._nodes[new_id] = node.get_relaunch_node_info(new_id)
+            new_node = node.get_relaunch_node_info(new_id)
+            self._job_context.update_job_node(new_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
-                self._training_ps_cluster[i] = self._nodes[new_id]
+                self._training_ps_cluster[i] = self._ps_nodes()[new_node.id]
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -146,7 +155,7 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
-                self._nodes[ps_id] = ps
+                self._job_context.update_job_node(ps)
                 new_ps.append(ps)
                 logger.info("Create PS %s", ps)
         return new_ps
@@ -183,6 +192,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.critical = False
                 node.relaunchable = False
                 node.is_released = True
+                self._job_context.update_job_node(node)
                 if node.id in self._migrated_ps_nodes:
                     self._migrated_ps_nodes.pop(node.id)
                 plan.remove_nodes.append(node)
@@ -191,7 +201,7 @@ class ParameterServerManager(TrainingNodeManager):
     def _get_alive_ps(self) -> List[Node]:
         """Get all running PS pods"""
         alive_ps = []
-        for node in self._nodes.values():
+        for node in self._ps_nodes().values():
             if node.status == NodeStatus.RUNNING and not node.is_released:
                 alive_ps.append(node)
         return alive_ps
@@ -205,7 +215,7 @@ class ParameterServerManager(TrainingNodeManager):
             return self._next_training_ps_cluster
 
         all_new_ps_ready = True
-        for node in self._nodes.values():
+        for node in self._ps_nodes().values():
             if self._wait_ps_node(node):
                 all_new_ps_ready = False
                 break
@@ -226,7 +236,7 @@ class ParameterServerManager(TrainingNodeManager):
         Check whether there is PS failure and the master does not relaunch
         the failed PS node.
         """
-        for node in self._nodes.values():
+        for node in self._ps_nodes().values():
             if node.timeout(_dlrover_ctx.seconds_to_wait_failed_ps):
                 return True
         return False
@@ -257,6 +267,7 @@ class ParameterServerManager(TrainingNodeManager):
             ):
                 if node not in self._pre_dropped_ps:
                     node.migrated = True
+                    self._job_context.update_job_node(node)
                     self._pre_dropped_ps.append(node)
 
     def get_total_request_cpu(self):
@@ -282,7 +293,8 @@ class ParameterServerManager(TrainingNodeManager):
     def get_ps_addrs(self):
         """Get the address list of ps services"""
         ps_addrs = {}
-        for ps in list(self._nodes.values()):
+        nodes = self._ps_nodes()
+        for ps in list(nodes.values()):
             if (
                 ps.id not in self._migrated_ps_nodes
                 and not ps.is_released
@@ -297,7 +309,8 @@ class ParameterServerManager(TrainingNodeManager):
     def delete_running_ps(self):
         """Delete all running ps pods"""
         plan = ScalePlan()
-        for node in list(self._nodes.values()):
+        nodes = self._ps_nodes()
+        for node in list(nodes.values()):
             if (
                 node.status in [NodeStatus.RUNNING, NodeStatus.PENDING]
                 and not node.is_released
@@ -311,6 +324,8 @@ class ParameterServerManager(TrainingNodeManager):
                 )
                 node.is_released = True
                 node.status = NodeStatus.DELETED
+                self._job_context.update_job_node(node)
+
                 plan.remove_nodes.append(node)
         return plan
 
@@ -327,9 +342,13 @@ class ParameterServerManager(TrainingNodeManager):
     def _migrate_parameter_server(self, name: str, cpu=0, memory=0):
         """Migrate the parameter server node into a new pod"""
         old_ps_id = int(name.split("-")[-1])
-        original_pod = self._nodes[old_ps_id]
         if old_ps_id in self._migrated_ps_nodes:
             return
+        nodes = self._ps_nodes()
+        if old_ps_id not in nodes:
+            logger.error(f"not found PS-{old_ps_id} in job")
+            return
+        original_pod = nodes[old_ps_id]
 
         resource = copy.deepcopy(original_pod.config_resource)
         with self._lock:
@@ -352,8 +371,8 @@ class ParameterServerManager(TrainingNodeManager):
                 service_addr=service_addr,
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
-            self._nodes[new_ps_id] = new_node
-            self._migrated_ps_nodes[old_ps_id] = new_node
+            self._job_context.update_job_node(new_node)
+            self._migrated_ps_nodes[old_ps_id] = self._ps_nodes()[new_node.id]
             logger.info("Migrated PS %s to PS %s", old_ps_id, new_ps_id)
             return new_node
 
@@ -361,9 +380,88 @@ class ParameterServerManager(TrainingNodeManager):
         return len(self._migrated_ps_nodes) > 0
 
     def is_all_running(self):
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
         running_ps = [
             pod_info.id
-            for pod_info in self._nodes.values()
+            for pod_info in nodes.values()
             if pod_info.status == NodeStatus.RUNNING
         ]
         return len(running_ps) == self._job_resource.ps_num
+
+    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
+        """
+        To prevent training hang by pending ps. Should exit when there
+        is inextricable pending issue.
+
+        The fail strategy:
+        tf:
+        0: skip judgement
+        1+2: all ps should be ready within the timeout period
+
+        There is 3 main conditions for the judgement:
+        1: exist pending nodes
+        2: alive nodes number consistently lower than the min nodes requires
+        3: 1+2 last for a certain time
+
+        Args:
+            total_node_num(int): Total node number master managed.
+            job_type(str): Job type. Support AllReduceStrategy and
+                ParameterServerStrategy for now.
+
+        Return:
+            bool
+        """
+
+        # fail strategy
+        strategy = _dlrover_ctx.pending_fail_strategy
+
+        # pending time as timeout for now
+        timeout = self._get_pending_timeout()
+        logger.debug(
+            "Is training hang by pending with total ps "
+            f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
+        )
+        if (
+            timeout <= 0
+            or skip_pending_judgement(strategy)
+            or job_type != DistributionStrategy.PS
+        ):
+            return False
+
+        # collect pending and running nodes
+        cur_nodes = list(self._ps_nodes().values())
+        pending_ps: List[Node] = []
+        running_ps: List[Node] = []
+        for node in cur_nodes:
+            if node is None or node.is_released or node.create_time is None:
+                continue
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
+                pending_ps.append(node)
+            elif node.status == NodeStatus.RUNNING:
+                running_ps.append(node)
+
+        if len(pending_ps) != 0:
+            now = time.time()
+            first_pending_ps = min(
+                pending_ps, key=lambda x: x.create_time  # type: ignore
+            )
+            if not first_pending_ps or not first_pending_ps.create_time:
+                logger.debug(
+                    "Skip for no pending ps or pending ps's "
+                    f"create time is None: {first_pending_ps}."
+                )
+                return False
+
+            if now - first_pending_ps.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {first_pending_ps.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"running ps(size:{len(running_ps)})"
+                    f": {running_ps}, "
+                    f"pending ps(size:{len(pending_ps)})"
+                    f": {pending_ps}, "
+                    f"min required nodes size: {total_node_num}."
+                )
+                return True
+        return False

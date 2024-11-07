@@ -42,6 +42,11 @@ def main():
         device = torch.cuda.get_device_name()
         if "Ascend" in device:
             protocol = "hccl"
+    else:
+        logger.warning(
+            f"Use GLOO as comm protocol for use_cuda: {use_cuda} "
+            "or 'Ascend' not in `torch.cuda.get_device_name()`."
+        )
 
     init_process_group(protocol, timeout=get_network_check_timeout())
 

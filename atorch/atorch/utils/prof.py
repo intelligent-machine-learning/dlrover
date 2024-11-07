@@ -13,7 +13,7 @@ from torch.nn import Module
 import atorch
 from atorch.common.constants import AnalyserConstants, GPUCapability
 from atorch.common.log_utils import default_logger as logger
-from atorch.normalization.layernorm import AtorchLayerNormFunc
+from atorch.kernels import AtorchLayerNormFunc
 from atorch.utils.hooks import ATorchHooks
 
 try:
@@ -1155,7 +1155,7 @@ def report_device_memory(name=""):
             total_allocated = sum(b["total_size"] for b in snapshot)
             if total_allocated > 0:
                 memory_fragmentation = sum(b["allocated_size"] for b in snapshot) / total_allocated
-                string += " | memory fragmentation: {:.2f}%".format(memory_fragmentation)
+                string += " | memory fragmentation: {:.3f}".format(memory_fragmentation)
 
     import importlib.util
 
@@ -1164,7 +1164,10 @@ def report_device_memory(name=""):
         try:
             from pynvml.smi import nvidia_smi
         except ImportError:
-            nvidia_smi = None
+            try:
+                from pynvml_utils import nvidia_smi
+            except ImportError:
+                nvidia_smi = None
         if nvidia_smi is not None:
             try:
                 nvsmi = nvidia_smi.getInstance()

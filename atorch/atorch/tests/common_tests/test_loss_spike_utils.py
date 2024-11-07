@@ -1,9 +1,12 @@
 import os
 import unittest
 
+import torch
+
 from atorch.utils.loss_spike_utils import TokenLossSpike
 
 
+@unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test is enough.")
 class LossSpikeTest(unittest.TestCase):
     def init(self):
         self.min_iter = 100

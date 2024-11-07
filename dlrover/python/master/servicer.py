@@ -24,7 +24,7 @@ from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
     JobConstant,
-    NodeStatus,
+    NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
@@ -140,6 +140,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.ElasticRunConfigRequest):
             configs = self._job_manager.get_elastic_run_configs()
             message = grpc.ElasticRunConfig(configs=configs)
+        elif isinstance(req_message, grpc.HeartBeat):
+            message = self._report_heartbeat(node_type, node_id, req_message)
 
         if message:
             response.data = message.serialize()
@@ -335,10 +337,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NetworkStatus):
-            success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
-            success = self._update_node_event(message)
+            success = self._deal_with_reported_node_event(message)
         elif isinstance(message, grpc.SyncJoin):
             success = self._join_sync(node_type, node_id, message)
         elif isinstance(message, grpc.SyncFinish):
@@ -355,14 +355,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
-        elif isinstance(message, grpc.HeartBeat):
-            success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
-            success = self._report_node_diagnosis_data(message)
-        elif isinstance(message, grpc.SucceededRequest):
-            success = self._report_succeeded(node_id, node_type)
+            success = self._report_worker_diagnosis_data(message)
 
         response.success = success
         return response
@@ -509,21 +505,29 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NetworkStatus):
-        net_rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.NETWORK_CHECK, None
+    def _deal_with_reported_node_event(self, message: grpc.NodeEvent):
+        node = Node(
+            node_type=message.node.type,
+            node_id=message.node.id,
+            rank_index=message.node.rank,
         )
-        if net_rdzv_manager:
-            succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(
-                message.rank, succeed, message.elasped_time
-            )
-        return True
+        event = NodeEvent(message.event_type, node)
 
-    def _update_node_event(self, message: grpc.NodeEvent):
-        node = Node(message.event_type, message.node.id)
-        event = NodeEvent("exit", node)
-        ray_event_queue.put(event)
+        # let rdzv manager deal with rendezvous issue
+        if event.is_node_check_event():
+            net_rdzv_manager = self._rdzv_managers.get(
+                RendezvousName.NETWORK_CHECK, None
+            )
+            if net_rdzv_manager:
+                succeed = (
+                    event.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+                )
+                net_rdzv_manager.report_network_check_result(
+                    node.rank_index, succeed, message.event_elapsed_time
+                )
+
+        # let job manager deal with node issue
+        self._job_manager.process_reported_node_event(event)
         return True
 
     def _join_sync(self, node_type, node_id, message: grpc.SyncJoin):
@@ -602,14 +606,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return True
 
-    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat):
-        self._job_manager.collect_node_heart_beat(
-            node_type,
-            node_id,
-            message.timestamp,
-        )
-        return True
-
     def _sync_checkpoint(
         self, node_type, node_id, message: grpc.NodeCheckpointState
     ):
@@ -618,7 +614,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_node_diagnosis_data(self, message: grpc.DiagnosisReportData):
+    def _report_worker_diagnosis_data(self, message: grpc.DiagnosisReportData):
         if self._diagnosis_manager:
             data_cls: Optional[DiagnosisData] = getattr(
                 self._diagnosis_data_module,
@@ -634,10 +630,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._diagnosis_manager.collect_diagnosis_data(data_obj)
         return True
 
-    def _report_succeeded(self, node_id, node_type):
-        self._job_manager.update_succeeded_node(node_id, node_type)
-        return True
-
     def _sync_training_ports(
         self, node_id, message: grpc.SyncTrainingPort
     ) -> grpc.SyncTrainingPort:
@@ -648,6 +640,19 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return grpc.SyncTrainingPort(
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
+
+    def _report_heartbeat(
+        self, node_type, node_id, message: grpc.HeartBeat
+    ) -> grpc.HeartbeatResponse:
+        action = self._job_manager.collect_node_heart_beat(
+            node_type, node_id, message.timestamp
+        )
+        grpc_action = grpc.DiagnosisAction(
+            action.__class__.__name__,
+            action.to_json(),
+        )
+
+        return grpc.HeartbeatResponse(action=grpc_action)
 
 
 def create_master_service(

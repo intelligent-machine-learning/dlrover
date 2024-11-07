@@ -6,7 +6,7 @@ import unittest
 
 import torch
 
-from atorch.normalization import LayerNorm
+from atorch.modules.normalization import LayerNorm
 from atorch.utils.numberic_checker import module_numberic_checker, move_to_device
 
 

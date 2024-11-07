@@ -17,12 +17,14 @@ import unittest
 from dlrover.python.common.constants import NodeStatus
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
+    DiagnosisConstant,
     DiagnosisDataType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    DiagnosisActionQueue,
     EventAction,
-    NodeRelaunchAction,
+    NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
@@ -36,7 +38,7 @@ class DiagnosisTest(unittest.TestCase):
         pass
 
     def test_data_manager(self):
-        mgr = DiagnosisDataManager(expire_time_period=3)
+        mgr = DiagnosisDataManager(5)
         log1 = TrainingLog(0)
         mgr.store_data(log1)
         time.sleep(1)
@@ -46,7 +48,7 @@ class DiagnosisTest(unittest.TestCase):
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
         self.assertEqual(len(logs), 2)
 
-        time.sleep(4)
+        time.sleep(6)
         log3 = TrainingLog(0)
         mgr.store_data(log3)
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
@@ -54,30 +56,65 @@ class DiagnosisTest(unittest.TestCase):
 
     def test_action_basic(self):
         basic_action = DiagnosisAction()
-        self.assertEqual(
-            basic_action.diagnosis_type, DiagnosisActionType.NO_ACTION
-        )
+        self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
+        self.assertEqual(basic_action._instance, DiagnosisConstant.MASTER)
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
         )
-        self.assertEqual(
-            event_action.diagnosis_type, DiagnosisActionType.EVENT
-        )
+        self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
+        self.assertEqual(event_action._instance, DiagnosisConstant.MASTER)
         self.assertEqual(event_action.event_type, "info")
-        self.assertEqual(event_action.instance, "job")
-        self.assertEqual(event_action.action, "test")
-        self.assertEqual(event_action.msg, "test123")
-        self.assertEqual(event_action.labels, {"k1": "v1"})
+        self.assertEqual(event_action.event_instance, "job")
+        self.assertEqual(event_action.event_action, "test")
+        self.assertEqual(event_action.event_msg, "test123")
+        self.assertEqual(event_action.event_labels, {"k1": "v1"})
 
-        node_relaunch_action = NodeRelaunchAction(1, NodeStatus.FAILED, "hang")
+        node_relaunch_action = NodeAction(1, NodeStatus.FAILED, "hang")
         self.assertEqual(
-            node_relaunch_action.diagnosis_type,
+            node_relaunch_action.action_type,
             DiagnosisActionType.MASTER_RELAUNCH_WORKER,
         )
+        self.assertEqual(node_relaunch_action._instance, 1)
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
+
+        node_relaunch_action = NodeAction(
+            1, NodeStatus.FAILED, "hang", DiagnosisActionType.RESTART_WORKER
+        )
+        self.assertEqual(
+            node_relaunch_action.action_type,
+            DiagnosisActionType.RESTART_WORKER,
+        )
+
+    def test_action_queue(self):
+        action_queue = DiagnosisActionQueue()
+        action0 = EventAction("test0", expired_time_period=100000)
+        action1 = EventAction("test1", expired_time_period=1)
+        action2 = EventAction("test2", expired_time_period=100000)
+
+        action_queue.add_action(action0)
+        action_queue.add_action(action1)
+        action_queue.add_action(action2)
+
+        time.sleep(1)
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=-1).action_type,
+            DiagnosisActionType.EVENT,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=-1).action_type,
+            DiagnosisActionType.EVENT,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
 
 
 if __name__ == "__main__":

@@ -76,7 +76,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeErrorMessage,
-    NodeStatus,
+    NodeEventType,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -87,11 +87,11 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
+from dlrover.python.elastic_agent.context import AgentContext
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -194,6 +194,11 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
+        logger.info(
+            f"Use {self.accelerator} device for training, "
+            f"cuda is available: {torch.cuda.is_available()}."
+        )
+
         if not self.auto_config:
             return
 
@@ -285,7 +290,7 @@ class MasterRendezvousHandler(RendezvousHandler):
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
-        like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
+        {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
         of it node ID in the world.
         """
@@ -485,7 +490,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     spec.master_port,
                 )
 
-        master_addr, master_port = self._get_master_addr_port(store)
+        master_addr, master_port = self._safe_get_master_addr_port(store)
 
         # compatible with torch 2.4
         if not version_less_than_240():
@@ -542,6 +547,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
         master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
         master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
         return (master_addr, master_port)
+
+    def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        for _ in range(5):
+            try:
+                return self._get_master_addr_port(store)
+            except Exception as e:
+                logger.warning(
+                    f"_get_master_addr_port failed with exception {e}"
+                )
+                time.sleep(10)
+
+        raise ValueError("invalid value in _get_master_addr_port")
 
     def _get_socket_with_port(self) -> socket.socket:
         """Return a free port on localhost.
@@ -859,7 +876,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                context = AgentContext(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
@@ -867,7 +884,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
                 try:
                     action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
+                        context
                     )
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
@@ -1221,8 +1238,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
             )
-            status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_network_status(
+            status = (
+                NodeEventType.NODE_CHECK_SUCCEEDED
+                if result
+                else NodeEventType.NODE_CHECK_FAILED
+            )
+            self._client.report_network_check_status(
                 self._node_rank,
                 status,
                 elapsed_time,

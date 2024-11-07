@@ -119,6 +119,9 @@ def bm_allreduce(shape, use_gpu):
     else:
         elapsed_time = _execute_cpu_comm(dist.all_reduce, data)
 
+    # edge protection
+    elapsed_time = 0.001 if elapsed_time == 0.0 else elapsed_time
+
     gb_unit = 1024 * 1024 * 1024
     algobw = shape * 4 / gb_unit / (elapsed_time / 1000)
     busbw = algobw * 2 * (world_size - 1) / world_size

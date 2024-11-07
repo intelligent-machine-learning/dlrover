@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from unittest import mock
 
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -24,6 +25,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.worker import ChiefManager, WorkerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
@@ -42,27 +44,33 @@ class WorkerManagerTest(unittest.TestCase):
         self._elastic_job = new_elastic_job(
             PlatformType.KUBERNETES, "test", "default"
         )
-        self._job_nodes = self._job_resource.init_job_node_meta(
+
+        self.job_context = get_job_context()
+        job_nodes = self._job_resource.init_job_node_meta(
             1,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
+        self.job_context.update_job_nodes(job_nodes)
 
         self._worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
 
+    def tearDown(self) -> None:
+        self.job_context.clear_job_nodes()
+
     def test_scale_up_workers(self):
         self._worker_manager._scale_up_workers(3)
-        self.assertEqual(len(self._worker_manager._nodes), 8)
-        self.assertEqual(self._worker_manager._nodes[7].id, 7)
+        workers = self.job_context.workers
+        self.assertEqual(len(workers), 8)
+        self.assertEqual(workers[7].id, 7)
 
     def test_scale_down_workers(self):
-        workers = list(self._worker_manager._nodes.values())
+        workers = list(self.job_context.workers.values())
         self._worker_manager._scale_down_workers(2, workers)
         released_workers = []
         for worker in workers:
@@ -71,8 +79,11 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertEqual(len(released_workers), 2)
 
     def test_delete_exited_workers(self):
-        self._worker_manager._nodes[3].status = NodeStatus.FINISHED
-        self._worker_manager._nodes[4].status = NodeStatus.FAILED
+        workers = self.job_context.workers
+        workers[3].status = NodeStatus.FINISHED
+        self.job_context.update_job_node(workers[3])
+        workers[4].status = NodeStatus.FAILED
+        self.job_context.update_job_node(workers[4])
 
         plan = self._worker_manager.delete_exited_workers()
         node_names = [node.name for node in plan.remove_nodes]
@@ -82,8 +93,9 @@ class WorkerManagerTest(unittest.TestCase):
         )
 
     def test_delete_running_workers(self):
-        for node in self._worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.status = NodeStatus.RUNNING
+            self.job_context.update_job_node(node)
         plan = self._worker_manager.delete_running_workers()
         node_names = [node.name for node in plan.remove_nodes]
         self.assertListEqual(
@@ -99,19 +111,21 @@ class WorkerManagerTest(unittest.TestCase):
 
     def test_relaunch_node(self):
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        failed_worker = self._job_nodes[NodeType.WORKER][4]
+        failed_worker = self.job_context.workers[4]
         failed_worker.status = NodeStatus.FAILED
+        failed_worker.max_relaunch_count = 3
+        self.job_context.update_job_node(failed_worker)
         plan = worker_manager.relaunch_node(
             failed_worker, remove_exited_node=True
         )
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
-        self.assertEqual(worker_manager._nodes[5].id, 5)
+        self.assertEqual(self.job_context.workers[5].id, 5)
+        self.assertEqual(plan.launch_nodes[0].max_relaunch_count, 3)
         self.assertEqual(plan.remove_nodes[0].config_resource.cpu, 16)
 
     def test_relaunch_chief_node(self):
@@ -120,71 +134,78 @@ class WorkerManagerTest(unittest.TestCase):
             node_id=0,
             config_resource=NodeResource(cpu=16, memory=10240),
         )
+        job_nodes = {
+            NodeType.MASTER: {0: tf_master_node},
+        }
+        self.job_context.update_job_nodes(job_nodes)
         manager = ChiefManager(
-            {0: tf_master_node},
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
         plan = manager.relaunch_node(tf_master_node)
+        nodes = self.job_context.job_nodes_by_type(NodeType.CHIEF)
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
-        self.assertEqual(manager._nodes[1].id, 1)
+        self.assertEqual(nodes[1].id, 1)
 
     def test_reduce_pending_node_resource(self):
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        for node in worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
+            self.job_context.update_job_node(node)
         plan = worker_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 5)
 
-        for node in worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.config_resource.gpu_num = 1
+            self.job_context.update_job_node(node)
 
         plan = worker_manager.reduce_pending_node_resource()
         self.assertTrue(plan.empty())
 
     def test_pending_without_workers(self):
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        for node in worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.status = NodeStatus.FAILED
             node.exit_reason = NodeExitReason.FATAL_ERROR
+            self.job_context.update_job_node(node)
         exited = worker_manager.has_exited_worker()
         self.assertTrue(exited)
 
-        for node in worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.exit_reason = NodeExitReason.KILLED
+            self.job_context.update_job_node(node)
         exited = worker_manager.has_exited_worker()
         self.assertFalse(exited)
 
-        worker_manager._nodes[0].status = NodeStatus.SUCCEEDED
+        self.job_context.workers[0].status = NodeStatus.SUCCEEDED
+        self.job_context.update_job_node(self.job_context.workers[0])
         exited = worker_manager.has_exited_worker()
         self.assertTrue(exited)
 
         wait = worker_manager.wait_worker_restart()
         self.assertTrue(wait)
-        for node in worker_manager._nodes.values():
+        for node in self.job_context.workers.values():
             node.relaunch_count = node.max_relaunch_count
+            self.job_context.update_job_node(node)
 
         wait = worker_manager.wait_worker_restart()
         self.assertFalse(wait)
 
     def test_verify_restarting_training(self):
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
@@ -192,25 +213,45 @@ class WorkerManagerTest(unittest.TestCase):
         )
         reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)
-        worker_manager._nodes[0].restart_training = True
+        self.job_context.workers[0].restart_training = True
+        self.job_context.update_job_node(self.job_context.workers[0])
         reset = worker_manager.verify_restarting_training(0)
         self.assertTrue(reset)
-        worker_manager._nodes[0].is_released = True
+        self.job_context.workers[0].is_released = True
+        self.job_context.update_job_node(self.job_context.workers[0])
         reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)
 
-    def test_is_training_hang_by_pending(self):
+    def test_is_training_hang_by_pending_workers(self):
+        _dlrover_ctx.pending_fail_strategy = 2
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self.assertFalse(worker_manager.is_training_hang_by_pending(4))
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                4, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                4, DistributionStrategy.PS
+            )
+        )
 
         worker_manager.update_node_required_info((4, 8, 600))
-        self.assertFalse(worker_manager.is_training_hang_by_pending(4))
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                4, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                4, DistributionStrategy.PS
+            )
+        )
 
         mock_nodes = {}
 
@@ -234,11 +275,19 @@ class WorkerManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(worker_num)
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
         )
         mock_nodes.clear()
+        self.job_context.clear_job_nodes()
 
         # mock with 3 running + 1 pending long time
         for index in range(4):
@@ -255,9 +304,20 @@ class WorkerManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+            self.job_context.update_job_node(mock_node)
+
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
+        )
         mock_nodes.clear()
+        self.job_context.clear_job_nodes()
 
         # mock with 4 running + 1 pending long time
         worker_num = 5
@@ -275,11 +335,19 @@ class WorkerManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(worker_num)
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
         )
         mock_nodes.clear()
+        self.job_context.clear_job_nodes()
 
         # mock with 3 running + 1 initial long time
         worker_num = 4
@@ -297,8 +365,17 @@ class WorkerManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+            self.job_context.update_job_node(mock_node)
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
+        )
 
         # =============================================
         # condition: when node required is not updated
@@ -321,9 +398,16 @@ class WorkerManagerTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(worker_num)
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
         )
 
         # mock with 1 pending long time
@@ -337,8 +421,18 @@ class WorkerManagerTest(unittest.TestCase):
             )
             mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+            self.job_context.update_job_node(mock_node)
+
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
+        )
 
         # mock with 2 pending long time
         worker_num = 2
@@ -352,8 +446,17 @@ class WorkerManagerTest(unittest.TestCase):
             )
             mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+            self.job_context.update_job_node(mock_node)
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
+        )
 
         # mock with 2 pending + 1 running long time
         worker_num = 2
@@ -369,9 +472,16 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.status = NodeStatus.RUNNING
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(worker_num)
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
         )
 
         # mock timeout=0 with 2 pending long time
@@ -386,14 +496,50 @@ class WorkerManagerTest(unittest.TestCase):
             )
             mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
+        )
+
+        # with strategy 1
+        worker_manager._get_pending_timeout = mock.MagicMock(return_value=5)
+        worker_manager.update_node_required_info((2, 4, 1))
+        _dlrover_ctx.pending_fail_strategy = 1
+        worker_num = 4
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+                rank_index=index,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+            mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(worker_num)
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertTrue(
+            worker_manager.is_training_hang_by_pending(
+                worker_num, DistributionStrategy.PS
+            )
         )
 
     def test_is_training_hang_by_insufficient_worker(self):
         worker_manager = WorkerManager(
-            self._job_nodes[NodeType.WORKER],
             self._job_resource,
             3,
             self._elastic_job.get_node_service_addr,
@@ -426,7 +572,7 @@ class WorkerManagerTest(unittest.TestCase):
             if index == 0:
                 mock_node.status = NodeStatus.PENDING
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1
@@ -434,6 +580,7 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertEqual(is_insufficient, 0)
         mock_nodes.clear()
         is_insufficient = 0
+        self.job_context.clear_job_nodes()
 
         # mock with 3 running
         for index in range(3):
@@ -445,7 +592,7 @@ class WorkerManagerTest(unittest.TestCase):
                 NodeStatus.RUNNING,
             )
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1
@@ -453,6 +600,7 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertTrue(is_insufficient >= 2)
         mock_nodes.clear()
         is_insufficient = 0
+        self.job_context.clear_job_nodes()
 
         # mock with 3 running + 1 released
         for index in range(4):
@@ -466,8 +614,8 @@ class WorkerManagerTest(unittest.TestCase):
             if index == 0:
                 mock_node.status = NodeStatus.DELETED
                 mock_node.is_released = True
+            self.job_context.update_job_node(mock_node)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1

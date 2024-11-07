@@ -174,7 +174,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self.storage = storage
         self._save_timeout = save_timeout
         self._local_rank = env_utils.get_local_rank()
-        self._cached_step = 0
+        self._cached_step = -1
         self._restart_count = env_utils.get_torch_restart_count()
 
         # init saver

@@ -255,7 +255,7 @@ Note that transformer_engine is required for fp8. Your can use docker image <cod
     <summary>TPInfo</summary>
 
     ```python
-    # atorch/utils/manual_tp_utils.py
+    # atorch/tensor_parallel/manual_tp.py
     class TPInfo:
         """
         Manual tensor parallel information class.

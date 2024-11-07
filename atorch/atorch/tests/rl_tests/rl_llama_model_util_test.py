@@ -4,9 +4,9 @@ import torch
 
 # test case 70B
 from transformers import LlamaConfig, LlamaForCausalLM
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
 from atorch.rl.model_utils.llama2_utils import get_llama2_params_offsets, move_weight_to_continuous_buffer
+from atorch.tests.toy_modules.toy_module import get_llama_decoder_layer
 
 
 @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
@@ -15,7 +15,7 @@ class TestLLama2Util(unittest.TestCase):
         config = LlamaConfig()
         config.num_attention_heads = 32
         config.num_key_value_heads = 8
-        llama_decoder_layer = LlamaDecoderLayer(config)
+        llama_decoder_layer = get_llama_decoder_layer(config)
         layer_parameters_num = [p.numel() for p in llama_decoder_layer.parameters()]
         offsets_info = get_llama2_params_offsets(config)
         offsets_parameters_num = [p[1] - p[0] for p in offsets_info.values()]

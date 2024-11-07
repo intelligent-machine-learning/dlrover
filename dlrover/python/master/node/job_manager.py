@@ -12,23 +12,22 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from queue import Queue
 from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node
-from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -55,13 +54,10 @@ class JobManager(metaclass=ABCMeta):
         self._stopped = False
         self._speed_monitor: SpeedMonitor = speed_monitor
         self._error_monitor: ErrorMonitor = error_monitor
-
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._nodes_required = (0, 0, 0)  # (min-nodes, max-nodes, timeout)
+        self._nodes_required = (0, 0, 0)
 
         self._training_node_config = TrainingNodeConfig(external_config)
-
-        self._diagnosis_action_queue = Queue()
+        self._job_context = get_job_context()
 
     @abstractmethod
     def start(self):
@@ -115,6 +111,9 @@ class JobManager(metaclass=ABCMeta):
 
     @abstractmethod
     def stop(self):
+        pass
+
+    def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
 
     @abstractmethod
@@ -197,23 +196,21 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> DiagnosisAction:
         """Collect the heart beat message of nodes."""
         pass
 
-    def put_diagnosis_action(self, diagnosis_action: DiagnosisAction):
-        self._diagnosis_action_queue.put(diagnosis_action)
-
-    def get_diagnosis_actions_size(self):
-        return self._diagnosis_action_queue.qsize()
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         return self._training_node_config.sync_node_training_port(
             node_id, port
         )
-
-    def update_node_service_addr(self, node_type, node_id, service_addr):
-        pass
 
     def update_node_required_info(self, min_required, max_required, timeout):
         """
@@ -243,10 +240,12 @@ class JobManager(metaclass=ABCMeta):
     def get_elastic_run_configs(self) -> Dict[str, str]:
         return self._training_node_config.get_elastic_run_configs()
 
-    def update_succeeded_node(self, node_id, node_type):
-        if (
-            node_type in self._job_nodes
-            and node_id in self._job_nodes[node_type]
-        ):
-            logger.info(f"Node {node_id}({node_type}) to succeeded.")
-            self._job_nodes[node_type][node_id].set_as_succeeded()
+    def process_reported_node_event(self, node_event: NodeEvent):
+        """
+        The node events here is reported from training agent.
+
+        Args:
+            node_event: The event from training agent.
+        """
+
+        pass

@@ -11,6 +11,7 @@ import unittest
 import torch
 
 from atorch.ops.accelerator import get_accelerator
+from atorch.utils.version import torch_version
 
 # if not atorch.ops.__compatible_ops__[QuantizerBuilder.NAME]:
 #     pytest.skip("Inference ops are not available on this system", allow_module_level=True)
@@ -134,8 +135,8 @@ def run_float_dequantize(q_bits, is_symmetric_quant, data_i8, params, num_groups
 
 class QuantizeTest(unittest.TestCase):
     @unittest.skipIf(
-        not torch.cuda.is_available(),
-        "No gpu available for cuda tests",
+        not torch.cuda.is_available() or torch_version() > (2, 1),  # type: ignore
+        "No gpu available for cuda tests, and not supported for torch version > 2.1",
     )
     def test_quantize(self):
         def callback(num_elems, num_groups, is_symmetric_quant, q_bits, directed_case):
@@ -177,8 +178,8 @@ class QuantizeTest(unittest.TestCase):
 
 class CUDAQuantizeTest(unittest.TestCase):
     @unittest.skipIf(
-        not torch.cuda.is_available(),
-        "No gpu available for cuda tests",
+        not torch.cuda.is_available() or torch_version() > (2, 1),  # type: ignore
+        "No gpu available for cuda tests, and not supported for torch version > 2.1",
     )
     def test_cuda_quantizer(self):
         num_elems = 4096

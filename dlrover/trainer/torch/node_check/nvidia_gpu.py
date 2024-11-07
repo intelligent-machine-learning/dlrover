@@ -16,6 +16,8 @@ import os
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.log import default_logger as logger
+
 from .utils import (
     bm_allreduce,
     get_network_check_timeout,
@@ -37,7 +39,12 @@ def set_nccl_env():
 @record_execution_time
 def main():
     use_cuda = torch.cuda.is_available()
-    protocol = "nccl" if use_cuda else "gloo"
+
+    if use_cuda:
+        protocol = "nccl"
+    else:
+        logger.warning("Use GLOO as comm protocol for cuda is not available.")
+        protocol = "gloo"
 
     init_process_group(protocol, timeout=get_network_check_timeout())
     if use_cuda:

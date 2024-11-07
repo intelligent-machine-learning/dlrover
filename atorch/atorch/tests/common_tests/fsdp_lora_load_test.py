@@ -8,7 +8,11 @@ from unittest.mock import patch
 import pytest
 
 torch = pytest.importorskip("torch", minversion="2.0.9")
-if torch.version.git_version != "7bcf7da3a268b435777fe87c7794c382f444e86d" or not torch.cuda.is_available():
+if (
+    torch.version.git_version
+    not in ("7bcf7da3a268b435777fe87c7794c382f444e86d", "e4ee3be4063b7c430974252fdf7db42273388d86")
+    or not torch.cuda.is_available()
+):
     pytest.skip("requires pytorch 2.1 stable release", allow_module_level=True)
 import torch.multiprocessing as mp
 import transformers
@@ -19,7 +23,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 import atorch
 from atorch.auto import auto_accelerate
-from atorch.common.util_func import find_free_port
+from atorch.common.util_func import divide, find_free_port
 from atorch.utils.fsdp_init_util import FSDPCkptConfig, FSDPInitFn
 from atorch.utils.fsdp_save_util import save_lora_optim_param, save_lora_param
 
@@ -165,12 +169,13 @@ def main(rank, args):
         save_lora_param(model, args.lora_model_save_path)
 
 
-class FSDPShardSaveLoadTest(unittest.TestCase):
+class FSDPShardSaveLoadTestLora(unittest.TestCase):
     def _inner_boot(self, args):
+        world_size = 4
         mp.spawn(
             main,
             args=(args,),
-            nprocs=2,
+            nprocs=world_size,
             join=True,
             daemon=False,
             start_method="spawn",
@@ -203,8 +208,8 @@ class FSDPShardSaveLoadTest(unittest.TestCase):
                 md5sum of two dirs.
 
         """
-        os.environ["WORLD_SIZE"] = "2"
-        os.environ["NPROC_PER_NODE"] = "2"
+        os.environ["WORLD_SIZE"] = "4"
+        os.environ["NPROC_PER_NODE"] = "4"
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(find_free_port())
 

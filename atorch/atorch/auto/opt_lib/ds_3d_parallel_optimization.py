@@ -1,7 +1,14 @@
-import deepspeed
 import torch
-from deepspeed.runtime.config import DeepSpeedConfig
-from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+
+try:
+    import deepspeed
+    from deepspeed.runtime.config import DeepSpeedConfig
+    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+except (ImportError, ModuleNotFoundError):
+    deepspeed = None
+    DeepSpeedConfig = None
+    PipeModelDataParallelTopology = None
+
 from transformers.modeling_utils import PreTrainedModel
 
 from atorch.auto.opt_lib.optimization import Optimization
@@ -9,13 +16,13 @@ from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import _DistributedContext as dc
 from atorch.distributed.distributed import parallel_config, parallel_group, parallel_group_size, parallel_rank, rank
 from atorch.modules.distributed_modules.randomizer import get_MDPRInstance, init_randomizer
-from atorch.utils.ds_pipe_utils import PipeModuleFromRecordedMeta
-from atorch.utils.manual_tp_utils import (
+from atorch.tensor_parallel.manual_tp import (
     TPInfo,
     hf_init_weights_custom_fn,
     tp_manual_shard_custom_fn,
     vocab_parallel_logit_helper,
 )
+from atorch.utils.ds_pipe_utils import PipeModuleFromRecordedMeta
 
 
 class DeepSpeed3DParallelConfig:

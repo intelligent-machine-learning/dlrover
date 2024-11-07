@@ -242,11 +242,15 @@ class FsdpCheckpointTest(unittest.TestCase):
         for _, item in files:
             write_items.append(item)
         writer = _write_state_dict_to_shm(self.shm, files, state_dict)
+        writer.reset()
+        self.assertTrue(writer.validate_checkpoint_id(None))
         self.assertTrue("dcp_metadata" in writer.metadata)
         self.assertTrue("no_shard_data" in writer.metadata)
 
         writer.shm_handler.metadata.set(writer.metadata)
         reader = SharedMemoryReader(writer.shm_handler)
+        reader.reset()
+        self.assertTrue(reader.validate_checkpoint_id(None))
         dcp_metadata = reader.read_metadata()
         self.assertTrue(_OPTIMIZER_KEY in dcp_metadata.state_dict_metadata)
         self.assertTrue(_OPTIMIZER_KEY in reader.no_shard_data)
@@ -295,6 +299,8 @@ class FsdpCheckpointTest(unittest.TestCase):
                 f.write(writer.shm_handler.shared_memory.buf)
 
             reader = FileReader(tmpdir)
+            reader.reset()
+            self.assertTrue(reader.validate_checkpoint_id(None))
             metadata = reader.read_metadata()
             reader.set_up_storage_reader(metadata, True)
 

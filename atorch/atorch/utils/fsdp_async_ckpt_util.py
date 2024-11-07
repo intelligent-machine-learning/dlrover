@@ -65,10 +65,10 @@ class FsdpCheckpointSaver(TempDirCheckpointSaver):
 
 @singleton
 class FsdpCheckpointEngine(CheckpointEngine):
-    def __init__(self, checkpoint_dir: str, storage=None, comm_backend=""):
+    def __init__(self, checkpoint_dir: str, storage=None, comm_backend="", save_timeout=600):
         if storage is None:
             storage = PosixDiskStorage()
-        super().__init__(checkpoint_dir, storage, comm_backend)
+        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout=save_timeout)
 
     def get_saving_ranks(self):
         """Get the ranks to save checkpoint shards."""
@@ -92,7 +92,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
-    def save_to_storage(self, step, state_dict, paths):
+    def save_to_storage(self, step, state_dict, paths, group=None):
         """
         Asynchronously save the state dict into the storage. It firstly synchronously
         saves the state dict into the shared memory and put the path
@@ -112,7 +112,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
 
         # barrier to wait all ranks save state dict to memory.
         if dist.is_initialized():
-            dist.barrier()
+            dist.barrier(group=group)
         # Only local rank 0 on each node notifies the saving event to the agent.
         if self._local_rank == 0 and succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
@@ -142,7 +142,9 @@ def save_checkpoint(
     extra_paths: Optional[Dict] = None,
     storage_type=StorageType.DISK,
     comm_backend="",
+    save_timeout=600,
     storage=None,
+    group=None,
 ):
     """
     Asynchronously save a checkpoint.
@@ -157,7 +159,7 @@ def save_checkpoint(
             and the value is a path to save. For example, extra_sds["scheduler"]="/tmp/scheduler.pt".
     """
     dir_name = os.path.dirname(path)
-    ckpt_engine = FsdpCheckpointEngine(dir_name, storage=storage, comm_backend=comm_backend)
+    ckpt_engine = FsdpCheckpointEngine(dir_name, storage=storage, comm_backend=comm_backend, save_timeout=save_timeout)
     params, buffers, param_meta, ckpt_meta = get_flat_model_param(model)
     optim_state, param_groups = get_fsdp_optim_param(model, optimizer)
 
@@ -187,7 +189,7 @@ def save_checkpoint(
     if storage_type == StorageType.MEMORY:
         ckpt_engine.save_to_memory(step, state_dict, paths)
     elif storage_type == StorageType.DISK:
-        ckpt_engine.save_to_storage(step, state_dict, paths)
+        ckpt_engine.save_to_storage(step, state_dict, paths, group)
     else:
         raise ValueError("The storage type only supports StorageType.MEMORY and StorageType.DISK")
 
