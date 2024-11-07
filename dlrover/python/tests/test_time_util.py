@@ -11,10 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
 from datetime import datetime, timedelta
 
+import dlrover.python.util.time_util as tu
 
-def has_expired(timestamp: float, time_period: int) -> bool:
-    dt = datetime.fromtimestamp(timestamp)
-    expired_dt = dt + timedelta(milliseconds=time_period)
-    return expired_dt < datetime.now()
+
+class TimeUtilTest(unittest.TestCase):
+    def test_has_expired(self):
+        self.assertFalse(
+            tu.has_expired(
+                (datetime.now() + timedelta(seconds=1)).timestamp(), 500
+            )
+        )
+        self.assertTrue(
+            tu.has_expired(
+                (datetime.now() - timedelta(seconds=1)).timestamp(), 500
+            )
+        )

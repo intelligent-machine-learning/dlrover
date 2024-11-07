@@ -10,3 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+<<<<<<<< HEAD:dlrover/python/elastic_agent/common/__init__.py
+========
+
+from datetime import datetime, timedelta
+
+
+def has_expired(timestamp: float, time_period: int) -> bool:
+    dt = datetime.fromtimestamp(timestamp)
+    expired_dt = dt + timedelta(milliseconds=time_period)
+    return expired_dt < datetime.now()
+>>>>>>>> origin/master:dlrover/python/util/time_util.py

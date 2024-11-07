@@ -18,10 +18,7 @@ from typing import Dict, Optional
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstants,
-    DiagnosisConstant,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
@@ -36,45 +33,34 @@ class JobContext(Singleton):
     def __init__(self):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._ps_nodes: Dict[int, Node] = {}
-        self._workers: Dict[int, Node] = {}
         self._locker = threading.Lock()
 
     def enqueue_actions(self, actions):
         for action in actions:
-            self._action_queue.add_action(action)
+            self.enqueue_action(action)
 
-    def next_actions(
+    def enqueue_action(self, action):
+        self._action_queue.add_action(action)
+
+    def next_action(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
     ):
-        return self._action_queue.next_actions(
-            instance=instance, action_type=action_type
-        )
-
-    def _update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
-        with self._locker:
-            self._job_nodes = copy.deepcopy(job_nodes)
-            if NodeType.PS in self._job_nodes:
-                self._ps_nodes = copy.deepcopy(self._job_nodes[NodeType.PS])
-            else:
-                self._ps_nodes = {}
-
-            if NodeType.WORKER in self._job_nodes:
-                self._workers = copy.deepcopy(self._job_nodes[NodeType.WORKER])
-            else:
-                self._workers = {}
+        return self._action_queue.next_action(instance=instance)
 
     @property
     def ps_nodes(self) -> Dict[int, Node]:
         with self._locker:
-            return self._ps_nodes
+            if NodeType.PS in self._job_nodes:
+                return self._job_nodes[NodeType.PS]
+            return {}
 
     @property
     def workers(self) -> Dict[int, Node]:
         with self._locker:
-            return self._workers
+            if NodeType.WORKER in self._job_nodes:
+                return self._job_nodes[NodeType.WORKER]
+            return {}
 
     def job_nodes(self) -> Dict[str, Dict[int, Node]]:
         """
@@ -105,7 +91,11 @@ class JobContext(Singleton):
             return NodeType.MASTER
         return node_type
 
-    def _update_job_node(self, node: Node):
+    def update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
+        with self._locker:
+            self._job_nodes = copy.deepcopy(job_nodes)
+
+    def update_job_node(self, node: Node):
         with self._locker:
             if self._job_nodes is None:
                 self._job_nodes = {}
@@ -114,42 +104,11 @@ class JobContext(Singleton):
 
             self._job_nodes[node.type][node.id] = copy.deepcopy(node)
 
-            if node.type == NodeType.PS:
-                if node.id not in self._ps_nodes:
-                    self._ps_nodes[node.id] = copy.deepcopy(node)
-                else:
-                    self._ps_nodes[node.id].update_from_node(node)
-
-            if node.type == NodeType.WORKER:
-                if node.id not in self._workers:
-                    self._workers[node.id] = copy.deepcopy(node)
-                else:
-                    self._workers[node.id].update_from_node(node)
-
-    def _clear_nodes(self):
+    def clear_job_nodes(self):
         with self._locker:
             self._job_nodes = {}
-            self._ps_nodes = {}
-            self._workers = {}
 
 
 def get_job_context() -> JobContext:
     job_context = JobContext.singleton_instance()
     return job_context
-
-
-def update_job_nodes(job_nodes: Dict[str, Dict[int, Node]]):
-    job_context = JobContext.singleton_instance()
-    job_context._update_job_nodes(copy.deepcopy(job_nodes))
-
-
-def update_job_node(node: Node):
-    if node is None:
-        return
-    job_context = JobContext.singleton_instance()
-    job_context._update_job_node(node)
-
-
-def clear_job_nodes():
-    job_context = JobContext.singleton_instance()
-    job_context._clear_nodes()

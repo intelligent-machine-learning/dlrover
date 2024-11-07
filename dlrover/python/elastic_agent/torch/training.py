@@ -87,11 +87,11 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnosisAction
+from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
+from dlrover.python.elastic_agent.context import AgentContext
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -290,7 +290,7 @@ class MasterRendezvousHandler(RendezvousHandler):
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
-        like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
+        {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
         of it node ID in the world.
         """
@@ -876,7 +876,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                context = AgentContext(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
@@ -884,14 +884,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
                 try:
                     action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
+                        context
                     )
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
-                        action = DiagnosisAction.RESTART_WORKER
+                        action = DiagnosisActionType.RESTART_WORKER
                     else:
-                        action = DiagnosisAction.RELAUNCH_WORKER
+                        action = DiagnosisActionType.RELAUNCH_WORKER
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
@@ -904,10 +904,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
     def _process_diagnose_action(self, action: str):
-        if action == DiagnosisAction.RESTART_WORKER:
+        if action == DiagnosisActionType.RESTART_WORKER:
             self._remaining_failovers -= 1
             self._restart_workers(self._worker_group)
-        elif action == DiagnosisAction.RELAUNCH_WORKER:
+        elif action == DiagnosisActionType.RELAUNCH_WORKER:
             self._stop_workers(self._worker_group)
             self._worker_group.state = WorkerState.FAILED
 

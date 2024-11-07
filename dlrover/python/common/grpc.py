@@ -509,11 +509,6 @@ class ElasticRunConfig(Message):
 
 
 @dataclass
-class SucceededRequest(Message):
-    pass
-
-
-@dataclass
 class DiagnosisAction(Message):
     action_cls: str = ""
     action_content: str = ""
@@ -521,4 +516,4 @@ class DiagnosisAction(Message):
 
 @dataclass
 class HeartbeatResponse(Message):
-    diagnosis_actions: List[DiagnosisAction] = field(default_factory=list)
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)

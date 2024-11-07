@@ -24,6 +24,7 @@ from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
+<<<<<<< HEAD
     DiagnosisActionConstants,
     DiagnosisConstant,
     InferenceConfigKey,
@@ -32,6 +33,13 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisNodeAction,
 )
+=======
+    DiagnosisActionType,
+    DiagnosisConstant,
+    InferenceConfigKey,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+>>>>>>> origin/master
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -52,7 +60,11 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
     get_worker_diagnosis_operators,
     get_worker_observe_operators,
 )
+<<<<<<< HEAD
 from dlrover.python.elastic_agent.common.worker_context import WorkerContext
+=======
+from dlrover.python.elastic_agent.context import AgentContext
+>>>>>>> origin/master
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
@@ -135,6 +147,23 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
+<<<<<<< HEAD
+=======
+    def _diagnose_observations(
+        self, observations: List[Inference]
+    ) -> DiagnosisAction:
+        conclusions: List[Inference] = []
+        for ob in observations:
+            ic = InferenceChain([ob], self._diagnosis_operators)
+            try:
+                infs = ic.infer()
+                if len(infs) > 0:
+                    conclusions = combine_inferences(conclusions, infs)
+            except Exception as e:
+                logger.error(f"fail to diagnose observation {ob}: {e}")
+        return coordinate_inferences(conclusions)
+
+>>>>>>> origin/master
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")
         while True:
@@ -151,10 +180,16 @@ class DiagnosisAgent(Singleton):
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
+<<<<<<< HEAD
     def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(
             self._worker_context.run_result.failures,
             self._worker_context.restart_count,
+=======
+    def diagnose_training_failure(self, agent_context: AgentContext) -> str:
+        self._report_failure_to_master(
+            agent_context.run_result.failures, agent_context.restart_count
+>>>>>>> origin/master
         )
         # check if the node is failed
         inference = Inference(
@@ -175,6 +210,7 @@ class DiagnosisAgent(Singleton):
         )
         failure_node = is_inference_included(infer_results, failure_inf)
 
+<<<<<<< HEAD
         if self._worker_context.remaining_failovers > 0 and not failure_node:
             logger.info(
                 f"[{self._worker_context.worker_spec.role}] Worker group "
@@ -201,6 +237,27 @@ class DiagnosisAgent(Singleton):
                 action=DiagnosisActionConstants.RELAUNCH_WORKER,
                 instance=DiagnosisConstant.LOCAL_INSTANCE,
             )
+=======
+        if agent_context.remaining_failovers > 0 and not failure_node:
+            logger.info(
+                f"[{agent_context.worker_spec.role}] Worker group "
+                f"{agent_context.run_result.state.name}, "
+                f"is failure node: {failure_node},"
+                f"{agent_context.remaining_failovers}/"
+                f"{agent_context.worker_spec.max_restarts} "
+                f"attempts left; will restart worker group."
+            )
+            return DiagnosisActionType.RESTART_WORKER
+        else:
+            logger.info(
+                f"[{agent_context.worker_spec.role}] Worker group "
+                f"{agent_context.run_result.state.name}, "
+                f"is failure node: {failure_node}, "
+                f"no attempts({agent_context.worker_spec.max_restarts}) "
+                "left; will relaunch."
+            )
+            return DiagnosisActionType.RELAUNCH_WORKER
+>>>>>>> origin/master
 
     def _report_failure_to_master(
         self, failures: Dict[int, ProcessFailure], restart_count: int
