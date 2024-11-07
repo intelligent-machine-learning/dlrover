@@ -240,7 +240,7 @@ class TrainingNodeManager(object):
                 logger.error("Unknown deletable worker id: %s" % node_id)
                 return
         worker.is_released = True
-        self._job_context.update_job_node(worker)
+        self._update_node(worker)
         plan.remove_nodes.append(worker)
         return plan
 
@@ -265,7 +265,7 @@ class TrainingNodeManager(object):
         )
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True
-            self._job_context.update_job_node(node)
+            self._update_node(node)
             plan.remove_nodes.append(node)
         return plan
 
@@ -281,7 +281,7 @@ class TrainingNodeManager(object):
                 reduced = reduce_timeout_pending_node_resource(node)
                 if reduced:
                     node.relaunchable = False
-                    self._job_context.update_job_node(node)
+                    self._update_node(node)
                     node_plan = self.relaunch_node(node)
                     plan.remove_nodes.append(node)
                     plan.merge(node_plan)
@@ -405,7 +405,7 @@ class TrainingNodeManager(object):
                         f"{timeout} from {date_time}!!!"
                     )
                 node.hang = hang
-                self._job_context.update_job_node(node)
+                self._update_node(node)
                 node_hang.append(hang)
         return node_hang
 

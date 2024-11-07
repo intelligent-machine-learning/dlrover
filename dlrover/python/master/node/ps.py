@@ -155,7 +155,7 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
-                self._job_context.update_job_node(ps)
+                self._update_node(ps)
                 new_ps.append(ps)
                 logger.info("Create PS %s", ps)
         return new_ps
@@ -192,7 +192,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.critical = False
                 node.relaunchable = False
                 node.is_released = True
-                self._job_context.update_job_node(node)
+                self._update_node(node)
                 if node.id in self._migrated_ps_nodes:
                     self._migrated_ps_nodes.pop(node.id)
                 plan.remove_nodes.append(node)
@@ -267,7 +267,7 @@ class ParameterServerManager(TrainingNodeManager):
             ):
                 if node not in self._pre_dropped_ps:
                     node.migrated = True
-                    self._job_context.update_job_node(node)
+                    self._update_node(node)
                     self._pre_dropped_ps.append(node)
 
     def get_total_request_cpu(self):
@@ -324,7 +324,7 @@ class ParameterServerManager(TrainingNodeManager):
                 )
                 node.is_released = True
                 node.status = NodeStatus.DELETED
-                self._job_context.update_job_node(node)
+                self._update_node(node)
 
                 plan.remove_nodes.append(node)
         return plan
@@ -371,7 +371,7 @@ class ParameterServerManager(TrainingNodeManager):
                 service_addr=service_addr,
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
-            self._job_context.update_job_node(new_node)
+            self._update_node(new_node)
             self._migrated_ps_nodes[old_ps_id] = self._ps_nodes()[new_node.id]
             logger.info("Migrated PS %s to PS %s", old_ps_id, new_ps_id)
             return new_node
