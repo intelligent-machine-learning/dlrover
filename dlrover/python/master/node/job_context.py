@@ -89,6 +89,15 @@ class JobContext(Singleton):
             return NodeType.MASTER
         return node_type
 
+    def update_job_nodes_by_type(self, node_type, job_nodes: Dict[int, Node]):
+        with self._locker:
+            if self._job_nodes is None:
+                self._job_nodes = {}
+            if node_type not in self._job_nodes:
+                self._job_nodes[node_type] = {}
+
+            self._job_nodes[node_type] = copy.deepcopy(job_nodes)
+
     def update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
         with self._locker:
             self._job_nodes = copy.deepcopy(job_nodes)
