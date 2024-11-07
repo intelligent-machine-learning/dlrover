@@ -24,7 +24,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
     EventAction,
-    NodeRelaunchAction,
+    NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
@@ -70,7 +70,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(event_action.event_msg, "test123")
         self.assertEqual(event_action.event_labels, {"k1": "v1"})
 
-        node_relaunch_action = NodeRelaunchAction(1, NodeStatus.FAILED, "hang")
+        node_relaunch_action = NodeAction(1, NodeStatus.FAILED, "hang")
         self.assertEqual(
             node_relaunch_action.action_type,
             DiagnosisActionType.MASTER_RELAUNCH_WORKER,
@@ -79,6 +79,14 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
+
+        node_relaunch_action = NodeAction(
+            1, NodeStatus.FAILED, "hang", DiagnosisActionType.RESTART_WORKER
+        )
+        self.assertEqual(
+            node_relaunch_action.action_type,
+            DiagnosisActionType.RESTART_WORKER,
+        )
 
     def test_action_queue(self):
         action_queue = DiagnosisActionQueue()

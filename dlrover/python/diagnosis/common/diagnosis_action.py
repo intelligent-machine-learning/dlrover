@@ -141,17 +141,18 @@ class EventAction(DiagnosisAction):
         return self._event_labels
 
 
-class NodeRelaunchAction(DiagnosisAction):
+class NodeAction(DiagnosisAction):
     def __init__(
         self,
         node_id,
         node_status,
         reason,
+        action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
         timestamp=0,
         expired_time_period=0,
     ):
         super().__init__(
-            DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+            action_type,
             node_id,
             timestamp,
             expired_time_period,
