@@ -140,6 +140,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.ElasticRunConfigRequest):
             configs = self._job_manager.get_elastic_run_configs()
             message = grpc.ElasticRunConfig(configs=configs)
+        elif isinstance(req_message, grpc.HeartBeat):
+            message = self._report_heartbeat(node_type, node_id, req_message)
 
         if message:
             response.data = message.serialize()
@@ -353,8 +355,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
-        elif isinstance(message, grpc.HeartBeat):
-            success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
@@ -606,14 +606,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return True
 
-    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat):
-        self._job_manager.collect_node_heart_beat(
-            node_type,
-            node_id,
-            message.timestamp,
-        )
-        return True
-
     def _sync_checkpoint(
         self, node_type, node_id, message: grpc.NodeCheckpointState
     ):
@@ -648,6 +640,19 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return grpc.SyncTrainingPort(
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
+
+    def _report_heartbeat(
+        self, node_type, node_id, message: grpc.HeartBeat
+    ) -> grpc.HeartbeatResponse:
+        action = self._job_manager.collect_node_heart_beat(
+            node_type, node_id, message.timestamp
+        )
+        grpc_action = grpc.DiagnosisAction(
+            action.__class__.__name__,
+            action.to_json(),
+        )
+
+        return grpc.HeartbeatResponse(action=grpc_action)
 
 
 def create_master_service(
