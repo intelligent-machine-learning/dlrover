@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 set -e
 set -x
 PROTOBUF_VERSION_SRC=$(pip show protobuf | grep Version | cut -d' ' -f2)
 GRPCIO_VERSION_SRC=$(pip show grpcio | grep Version | cut -d' ' -f2)
 GRPCIO_TOOLS_VERSION_SRC=$(pip show grpcio-tools | grep Version | cut -d' ' -f2)
 PROTOS_DIR=dlrover/proto
+
 generate_proto_files() {
   base_dir=$PWD
   local protodir="$1"
@@ -38,19 +40,23 @@ generate_proto_files() {
 }
 CUR_PYTHON_VERSION=$(python3 --version | awk -F " " '{print $NF}'| awk -F. '{print $1 $2}')
 
-if [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -le 38 ]; then
-  PROTOBUF_VERSION_2="3.20.3"
-  GRPCIO_VERSION_2="1.34.1"
-  GRPCIO_TOOLS_VERSION_2="1.34.1"
-  pip install protobuf==$PROTOBUF_VERSION_2 grpcio==$GRPCIO_VERSION_2 grpcio-tools==$GRPCIO_TOOLS_VERSION_2
+if [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -le 36 ]; then
+  PROTOBUF_VERSION="3.13.0"
+  GRPCIO_VERSION="1.29.0"
+  GRPCIO_TOOLS_VERSION="1.29.0"
+  pip install protobuf==$PROTOBUF_VERSION grpcio==$GRPCIO_VERSION grpcio-tools==$GRPCIO_TOOLS_VERSION
   generate_proto_files protobuf_3_20_3
-fi
-
-if [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -ge 38 ]; then
-  PROTOBUF_VERSION_3="4.25.3"
-  GRPCIO_VERSION_3="1.62.1"
-  GRPCIO_TOOLS_VERSION_3="1.58.0"
-  pip install protobuf==$PROTOBUF_VERSION_3 grpcio==$GRPCIO_VERSION_3 grpcio-tools==$GRPCIO_TOOLS_VERSION_3
+elif [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -ge 38 ]; then
+  PROTOBUF_VERSION="3.20.3"
+  GRPCIO_VERSION="1.34.1"
+  GRPCIO_TOOLS_VERSION="1.34.1"
+  pip install protobuf==$PROTOBUF_VERSION grpcio==$GRPCIO_VERSION grpcio-tools==$GRPCIO_TOOLS_VERSION
+  generate_proto_files protobuf_3_20_3
+elif [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -ge 38 ]; then
+  PROTOBUF_VERSION="4.25.3"
+  GRPCIO_VERSION="1.62.1"
+  GRPCIO_TOOLS_VERSION="1.58.0"
+  pip install protobuf==$PROTOBUF_VERSION grpcio==$GRPCIO_VERSION grpcio-tools==$GRPCIO_TOOLS_VERSION
   generate_proto_files protobuf_4_25_3
   pip install protobuf=="$PROTOBUF_VERSION_SRC" grpcio=="$GRPCIO_VERSION_SRC" grpcio-tools=="$GRPCIO_TOOLS_VERSION_SRC"
 fi
