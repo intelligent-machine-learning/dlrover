@@ -38,7 +38,7 @@ generate_proto_files() {
 }
 CUR_PYTHON_VERSION=$(python3 --version | awk -F " " '{print $NF}'| awk -F. '{print $1 $2}')
 
-if [ "${CUR_PYTHON_VERSION}" = "38" ]; then
+if [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -le 38 ]; then
   PROTOBUF_VERSION_2="3.20.3"
   GRPCIO_VERSION_2="1.34.1"
   GRPCIO_TOOLS_VERSION_2="1.34.1"
@@ -46,9 +46,11 @@ if [ "${CUR_PYTHON_VERSION}" = "38" ]; then
   generate_proto_files protobuf_3_20_3
 fi
 
-PROTOBUF_VERSION_3="4.25.3"
-GRPCIO_VERSION_3="1.62.1"
-GRPCIO_TOOLS_VERSION_3="1.58.0"
-pip install protobuf==$PROTOBUF_VERSION_3 grpcio==$GRPCIO_VERSION_3 grpcio-tools==$GRPCIO_TOOLS_VERSION_3
-generate_proto_files protobuf_4_25_3
-pip install protobuf=="$PROTOBUF_VERSION_SRC" grpcio=="$GRPCIO_VERSION_SRC" grpcio-tools=="$GRPCIO_TOOLS_VERSION_SRC"
+if [ "$(printf '%02d\n' "${CUR_PYTHON_VERSION}")" -ge 38 ]; then
+  PROTOBUF_VERSION_3="4.25.3"
+  GRPCIO_VERSION_3="1.62.1"
+  GRPCIO_TOOLS_VERSION_3="1.58.0"
+  pip install protobuf==$PROTOBUF_VERSION_3 grpcio==$GRPCIO_VERSION_3 grpcio-tools==$GRPCIO_TOOLS_VERSION_3
+  generate_proto_files protobuf_4_25_3
+  pip install protobuf=="$PROTOBUF_VERSION_SRC" grpcio=="$GRPCIO_VERSION_SRC" grpcio-tools=="$GRPCIO_TOOLS_VERSION_SRC"
+fi
