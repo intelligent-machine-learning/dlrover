@@ -221,6 +221,9 @@ class TrainingNodeManager(object):
         cur_nodes = [node.name for node in nodes.values()]
         return cur_nodes
 
+    def _get_nodes(self):
+        return self._job_context.get_mutable_job_nodes(self._node_type)
+
     def _update_node(self, node: Node):
         self._job_context.update_job_node(node)
 

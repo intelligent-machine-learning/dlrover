@@ -63,7 +63,7 @@ class ChiefManager(TrainingNodeManager):
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
         variables in TensorFlow 1.x PS strategy"""
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for node in nodes.values():
             if node.status == NodeStatus.RUNNING:
                 return True
@@ -97,7 +97,7 @@ class EvaluatorManager(TrainingNodeManager):
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
         variables in TensorFlow 1.x PS strategy"""
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for node in nodes.values():
             if node.status == NodeStatus.RUNNING:
                 return True
@@ -140,7 +140,7 @@ class WorkerManager(TrainingNodeManager):
             )
         )
         alive_workers = []
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for worker in nodes.values():
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
@@ -192,7 +192,7 @@ class WorkerManager(TrainingNodeManager):
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
         plan = ScalePlan()
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         with self._lock:
             for worker in nodes.values():
                 if (
@@ -210,7 +210,7 @@ class WorkerManager(TrainingNodeManager):
 
     def delete_running_workers(self):
         plan = ScalePlan()
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for worker in nodes.values():
             if not worker.critical and worker.status in [
                 NodeStatus.RUNNING,
@@ -239,7 +239,7 @@ class WorkerManager(TrainingNodeManager):
     def migrate_workers(self, workers: Dict[str, NodeResource]):
         """Migrate workers with the new resource"""
         plan = ScalePlan()
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
             old_node = nodes[old_node_id]
@@ -269,7 +269,7 @@ class WorkerManager(TrainingNodeManager):
             worker_ranks: The rank of worker which does not join rendezvous.
         """
         plan = ScalePlan()
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for node_id, node in nodes.items():
             if node.rank_index in worker_ranks:
                 p = self.remove_node(node.id)
@@ -280,7 +280,7 @@ class WorkerManager(TrainingNodeManager):
 
     def has_exited_worker(self):
         """Check whether there is exited worker except evicted workers."""
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for worker in nodes.values():
             if (
                 worker.exit_reason == NodeExitReason.FATAL_ERROR
@@ -291,7 +291,7 @@ class WorkerManager(TrainingNodeManager):
 
     def wait_worker_restart(self):
         """Check whether there are workers tha have remaining retries."""
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         for worker in nodes.values():
             if (
                 worker.exit_reason == NodeExitReason.KILLED
@@ -367,7 +367,7 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         # collect pending and running nodes
-        cur_nodes = list(self._job_context.get_mutable_worker_nodes().values())
+        cur_nodes = list(self._get_nodes().values())
         pending_workers: List[Node] = []
         running_workers: List[Node] = []
         for node in cur_nodes:
@@ -496,7 +496,7 @@ class WorkerManager(TrainingNodeManager):
             f"Is training hang by insufficient worker with timeout: {timeout}."
         )
 
-        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        nodes = self._get_nodes()
         cur_nodes = list(nodes.values())
 
         # collect available nodes
