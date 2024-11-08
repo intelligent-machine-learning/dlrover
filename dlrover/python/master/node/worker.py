@@ -41,7 +41,6 @@ _dlrover_context = Context.singleton_instance()
 class ChiefManager(TrainingNodeManager):
     def __init__(
         self,
-        chief_nodes: Dict[int, Node],
         job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
@@ -49,8 +48,6 @@ class ChiefManager(TrainingNodeManager):
     ):
         """
         Args:
-            chief_nodes: A dictionary where the key is the index of
-                chief and the value is a Node instance.
             job_resource: the resource configuration of a job.
             max_relaunch_num: The maximum relaunch number of a chief.
             new_service_fn: A callable function to generate a server name of
@@ -58,7 +55,7 @@ class ChiefManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 chief.
         """
-        super(ChiefManager, self).__init__(chief_nodes, new_node_name_fn)
+        super(ChiefManager, self).__init__(NodeType.CHIEF, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
@@ -66,7 +63,8 @@ class ChiefManager(TrainingNodeManager):
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
         variables in TensorFlow 1.x PS strategy"""
-        for node in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for node in nodes.values():
             if node.status == NodeStatus.RUNNING:
                 return True
         return False
@@ -75,7 +73,6 @@ class ChiefManager(TrainingNodeManager):
 class EvaluatorManager(TrainingNodeManager):
     def __init__(
         self,
-        evaluator_nodes: Dict[int, Node],
         job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
@@ -83,8 +80,6 @@ class EvaluatorManager(TrainingNodeManager):
     ):
         """
         Args:
-            evaluator_nodes: A dictionary where the key is the index of
-                evaluator and the value is a Node instance.
             job_resource: the resource configuration of a job.
             max_relaunch_num: The maximum relaunch number of an evaluator.
             new_service_fn: A callable function to generate a server name of
@@ -93,7 +88,7 @@ class EvaluatorManager(TrainingNodeManager):
                 evaluator.
         """
         super(EvaluatorManager, self).__init__(
-            evaluator_nodes, new_node_name_fn
+            NodeType.EVALUATOR, new_node_name_fn
         )
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
@@ -102,7 +97,8 @@ class EvaluatorManager(TrainingNodeManager):
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
         variables in TensorFlow 1.x PS strategy"""
-        for node in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for node in nodes.values():
             if node.status == NodeStatus.RUNNING:
                 return True
         return False
@@ -111,7 +107,6 @@ class EvaluatorManager(TrainingNodeManager):
 class WorkerManager(TrainingNodeManager):
     def __init__(
         self,
-        worker_nodes: Dict[int, Node],
         job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
@@ -119,8 +114,6 @@ class WorkerManager(TrainingNodeManager):
     ):
         """
         Args:
-            worker_nodes: A dictionary where the key is the index of worker
-                and the value is a Node instance.
             job_resource: the resource configuration of a job.
             max_relaunch_num: The maximum relaunch number of worker.
             new_service_fn: A callable function to generate a server name of
@@ -128,7 +121,7 @@ class WorkerManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 worker.
         """
-        super(WorkerManager, self).__init__(worker_nodes, new_node_name_fn)
+        super(WorkerManager, self).__init__(NodeType.WORKER, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
@@ -147,7 +140,8 @@ class WorkerManager(TrainingNodeManager):
             )
         )
         alive_workers = []
-        for worker in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for worker in nodes.values():
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
         alive_num = len(alive_workers)
@@ -177,8 +171,8 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
-            self._nodes[worker_id] = new_node
-            logger.info("Create worker %s", self._nodes[worker_id])
+            self._job_context.update_job_node(new_node)
+            logger.info("Create worker %s", new_node)
             plan.launch_nodes.append(new_node)
         return plan
 
@@ -198,8 +192,9 @@ class WorkerManager(TrainingNodeManager):
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
         plan = ScalePlan()
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
         with self._lock:
-            for worker in self._nodes.values():
+            for worker in nodes.values():
                 if (
                     worker.status
                     in [
@@ -215,7 +210,8 @@ class WorkerManager(TrainingNodeManager):
 
     def delete_running_workers(self):
         plan = ScalePlan()
-        for worker in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for worker in nodes.values():
             if not worker.critical and worker.status in [
                 NodeStatus.RUNNING,
                 NodeStatus.PENDING,
@@ -231,7 +227,11 @@ class WorkerManager(TrainingNodeManager):
         return plan
 
     def remove_noncritical_worker(self, worker_id):
-        if self._nodes[worker_id].critical:
+        node = self._job_context.job_node(self._node_type, worker_id)
+        if node is None:
+            logger.error(f"not found node[{self._node_type}][{worker_id}]")
+            return
+        if node.critical:
             logger.info("Skip the critical worker %s", worker_id)
         else:
             return self.remove_node(worker_id)
@@ -239,9 +239,10 @@ class WorkerManager(TrainingNodeManager):
     def migrate_workers(self, workers: Dict[str, NodeResource]):
         """Migrate workers with the new resource"""
         plan = ScalePlan()
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
-            old_node = self._nodes[old_node_id]
+            old_node = nodes[old_node_id]
             if old_node.critical:
                 continue
             old_node.migrated = True
@@ -257,7 +258,7 @@ class WorkerManager(TrainingNodeManager):
                 rank_index=task_id,
                 name=self._new_node_name_fn(NodeType.WORKER, node_id),
             )
-            self._nodes[node_id] = new_node
+            self._job_context.update_job_node(new_node)
             plan.launch_nodes.append(new_node)
             plan.remove_nodes.append(old_node)
         return plan
@@ -268,17 +269,19 @@ class WorkerManager(TrainingNodeManager):
             worker_ranks: The rank of worker which does not join rendezvous.
         """
         plan = ScalePlan()
-        for node_id, node in self._nodes.items():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for node_id, node in nodes.items():
             if node.rank_index in worker_ranks:
                 p = self.remove_node(node.id)
-                self._nodes[node_id].relaunchable = False
+                nodes[node_id].relaunchable = False
                 if p:
                     plan.merge(p)
         return plan
 
     def has_exited_worker(self):
         """Check whether there is exited worker except evicted workers."""
-        for worker in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for worker in nodes.values():
             if (
                 worker.exit_reason == NodeExitReason.FATAL_ERROR
                 or worker.status == NodeStatus.SUCCEEDED
@@ -288,7 +291,8 @@ class WorkerManager(TrainingNodeManager):
 
     def wait_worker_restart(self):
         """Check whether there are workers tha have remaining retries."""
-        for worker in self._nodes.values():
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        for worker in nodes.values():
             if (
                 worker.exit_reason == NodeExitReason.KILLED
                 and worker.relaunch_count < worker.max_relaunch_count
@@ -311,11 +315,15 @@ class WorkerManager(TrainingNodeManager):
             bool
         """
         restart = False
-        worker = self._nodes[node_id]
+        worker = self._job_context.job_node(self._node_type, node_id)
+        if worker is None:
+            logger.error(f"not found worker-{node_id}")
+            return False
         if not worker.is_released:
             restart = worker.restart_training
             # Set False to avoid restart repeatedly.
             worker.restart_training = False
+            self._job_context.update_job_node(worker)
         return restart
 
     def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
@@ -359,7 +367,7 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         # collect pending and running nodes
-        cur_nodes = list(self._nodes.values())
+        cur_nodes = list(self._job_context.workers.values())
         pending_workers: List[Node] = []
         running_workers: List[Node] = []
         for node in cur_nodes:
@@ -487,7 +495,9 @@ class WorkerManager(TrainingNodeManager):
         logger.debug(
             f"Is training hang by insufficient worker with timeout: {timeout}."
         )
-        cur_nodes = list(self._nodes.values())
+
+        nodes = self._job_context.job_nodes_by_type(self._node_type)
+        cur_nodes = list(nodes.values())
 
         # collect available nodes
         available_nodes: List[Node] = []
