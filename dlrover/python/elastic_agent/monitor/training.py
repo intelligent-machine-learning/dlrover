@@ -126,7 +126,9 @@ class TorchTrainingMonitor(Singleton):
     def send_heartbeat(self):
         try:
             ts = int(time.time())
-            self._master_client.report_heart_beat(ts)
+            action = self._master_client.report_heart_beat(ts)
+            if action:
+                pass
         except Exception:
             logger.warning("Fail to report a heartbeat.")
 

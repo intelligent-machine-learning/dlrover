@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.distributed.elastic.agent.server.api import RunResult, WorkerSpec
+from torch.distributed.elastic.agent.server import RunResult, WorkerSpec
 
 
-class WorkerContext:
+class AgentContext(object):
     def __init__(
         self,
         worker_spec: WorkerSpec,

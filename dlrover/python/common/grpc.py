@@ -326,14 +326,11 @@ class NodeAddress(NodeMeta):
 
 
 @dataclass
-class NetworkStatus(NodeMeta):
-    elasped_time: float = 0.0
-
-
-@dataclass
 class NodeEvent(Message):
     event_type: str = ""
-    message: str = ""
+    event_message: str = ""
+    event_time: float = 0.0
+    event_elapsed_time: float = 0.0
     node: NodeMeta = NodeMeta()
 
 
@@ -512,5 +509,11 @@ class ElasticRunConfig(Message):
 
 
 @dataclass
-class SucceededRequest(Message):
-    pass
+class DiagnosisAction(Message):
+    action_cls: str = ""
+    action_content: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)

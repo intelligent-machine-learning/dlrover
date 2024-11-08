@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,11 +12,20 @@
 # limitations under the License.
 
 import unittest
+from datetime import datetime, timedelta
 
-import dlrover.python.util.common_util as cu
+import dlrover.python.util.time_util as tu
 
 
-class CommonUtilTest(unittest.TestCase):
-    def test_get_dlrover_version(self):
-        self.assertIsNotNone(cu.get_dlrover_version())
-        self.assertNotEqual(cu.get_dlrover_version(), "Unknown")
+class TimeUtilTest(unittest.TestCase):
+    def test_has_expired(self):
+        self.assertFalse(
+            tu.has_expired(
+                (datetime.now() + timedelta(seconds=1)).timestamp(), 500
+            )
+        )
+        self.assertTrue(
+            tu.has_expired(
+                (datetime.now() - timedelta(seconds=1)).timestamp(), 500
+            )
+        )
