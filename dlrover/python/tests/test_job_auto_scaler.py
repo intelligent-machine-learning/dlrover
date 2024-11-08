@@ -173,7 +173,9 @@ class AllreduceAutoScalerTest(unittest.TestCase):
 
         for worker in worker_nodes.values():
             worker.status = NodeStatus.RUNNING
-            self.job_context.update_job_node(worker)
+        self.job_context.update_job_nodes_by_type(
+            NodeType.WORKER, worker_nodes
+        )
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
 
