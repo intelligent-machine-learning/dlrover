@@ -48,15 +48,13 @@ class JobContext(Singleton):
     ):
         return self._action_queue.next_action(instance=instance)
 
-    @property
-    def ps_nodes(self) -> Dict[int, Node]:
+    def get_mutable_ps_nodes(self) -> Dict[int, Node]:
         with self._locker:
             if NodeType.PS in self._job_nodes:
                 return self._job_nodes[NodeType.PS]
             return {}
 
-    @property
-    def workers(self) -> Dict[int, Node]:
+    def get_mutable_worker_nodes(self) -> Dict[int, Node]:
         with self._locker:
             if NodeType.WORKER in self._job_nodes:
                 return self._job_nodes[NodeType.WORKER]
@@ -90,6 +88,15 @@ class JobContext(Singleton):
         if node_type == NodeType.CHIEF and node_type not in self._job_nodes:
             return NodeType.MASTER
         return node_type
+
+    def update_job_nodes_by_type(self, node_type, job_nodes: Dict[int, Node]):
+        with self._locker:
+            if self._job_nodes is None:
+                self._job_nodes = {}
+            if node_type not in self._job_nodes:
+                self._job_nodes[node_type] = {}
+
+            self._job_nodes[node_type] = copy.deepcopy(job_nodes)
 
     def update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
         with self._locker:

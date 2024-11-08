@@ -171,7 +171,7 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
-            self._job_context.update_job_node(new_node)
+            self._update_node(new_node)
             logger.info("Create worker %s", new_node)
             plan.launch_nodes.append(new_node)
         return plan
@@ -258,7 +258,7 @@ class WorkerManager(TrainingNodeManager):
                 rank_index=task_id,
                 name=self._new_node_name_fn(NodeType.WORKER, node_id),
             )
-            self._job_context.update_job_node(new_node)
+            self._update_node(new_node)
             plan.launch_nodes.append(new_node)
             plan.remove_nodes.append(old_node)
         return plan
@@ -323,7 +323,7 @@ class WorkerManager(TrainingNodeManager):
             restart = worker.restart_training
             # Set False to avoid restart repeatedly.
             worker.restart_training = False
-            self._job_context.update_job_node(worker)
+            self._update_node(worker)
         return restart
 
     def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
@@ -367,7 +367,7 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         # collect pending and running nodes
-        cur_nodes = list(self._job_context.workers.values())
+        cur_nodes = list(self._job_context.get_mutable_worker_nodes().values())
         pending_workers: List[Node] = []
         running_workers: List[Node] = []
         for node in cur_nodes:
