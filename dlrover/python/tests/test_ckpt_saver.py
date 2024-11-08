@@ -45,6 +45,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ClassMeta,
     DdpCheckpointSaver,
     FsdpDcpSaver,
+    TempDirCheckpointSaver,
     SharedMemoryHandler,
     _create_shared_memory,
     _traverse_state_dict,
@@ -315,6 +316,45 @@ class CheckpointSaverTest(unittest.TestCase):
             id(MasterClient._instance), id(saver.get_master_client())
         )
         saver._report_failure_to_master("test-error")
+
+    def test_dist_make_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "checkpoint.pt"
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+            saver._node_rank = 0
+            saver._dist_make_dir(path)
+            saver._node_rank = 1
+            saver._dist_make_dir(path)
+            self.assertTrue(saver.storage.exists(path))
+            saver.close()
+
+    def test_save_step_checkpoint(self):
+        model = SimpleNet()
+        step = 100
+        shard_num = 2
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver1 = TempDirCheckpointSaver(tmpdir, self.storage.get_class_meta())
+            saver2 = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+            savers = [saver1, saver2]
+            for saver in savers:
+                saver.global_shard_num = shard_num
+                saver.local_shard_num = shard_num
+                path = Path(tmpdir) / "checkpoint.pt"
+                paths = {CheckpointConstant.MODEL_STATES_NAME: path}
+                ckpt_config = CheckpointConfig(step=step, paths=paths)
+                state_dict = {
+                    CheckpointConstant.MODEL_STATES_NAME: state_dict,
+                    DLROVER_CKPT_CONFIG_KEY: ckpt_config,
+                }
+                for i in range(saver.local_shard_num):
+                    saver._shm_handlers[i].save_state_dict(state_dict)
+                saver.save_step_checkpoint(step)
+                self.assertTrue(saver._latest_step == step)
+                saver.close()
 
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
