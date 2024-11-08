@@ -247,19 +247,11 @@ class DistributedJobManager(JobManager):
             == DistributionStrategy.ALLREDUCE
         )
 
-    def is_all_workers_node_check_failed(self):
-        return all(
-            [
-                node.is_node_check_failed()
-                for _, node in self._job_nodes[NodeType.WORKER].items()
-            ]
-        )
-
     def should_early_stop(self):
         # node-check all failed
         if (
             self.is_all_reduce_type_job()
-            and self.is_all_workers_node_check_failed()
+            and self._worker_manager.is_all_workers_node_check_failed()
         ):
             msg = (
                 "Stop the training early because all worker nodes has "
@@ -281,7 +273,7 @@ class DistributedJobManager(JobManager):
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
 
-            return True, JobExitReason.RDZV_ALL_FAILED, msg
+            return True, JobExitReason.NODE_CHECK_FAILED, msg
 
         # ps pending judgement: any ps pod pending timeout
         timeout_ps_nodes = (

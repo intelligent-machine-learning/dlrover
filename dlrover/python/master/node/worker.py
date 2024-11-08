@@ -556,3 +556,7 @@ class WorkerManager(TrainingNodeManager):
 
     def update_node_required_info(self, nodes_required: Tuple[int, int, int]):
         self._nodes_required = nodes_required
+
+    def is_all_workers_node_check_failed(self):
+        nodes = self._job_context.job_nodes_by_type(NodeType.WORKER)
+        return all([node.is_node_check_failed() for _, node in nodes.items()])

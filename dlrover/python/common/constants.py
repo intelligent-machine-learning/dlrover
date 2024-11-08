@@ -118,7 +118,7 @@ class JobExitReason(object):
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
     PENDING_TIMEOUT = "PendingTimeout"
     UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
-    RDZV_ALL_FAILED = "RdzvAllFailed"
+    NODE_CHECK_FAILED = "NodeCheckFailed"
 
 
 class CustomMetricKeys:
