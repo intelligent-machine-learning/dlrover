@@ -157,7 +157,7 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_name,
         )
 
-        nodes = self._job_context.ps_nodes
+        nodes = self._job_context.get_mutable_ps_nodes()
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
             self._job_context.update_job_node(node)
@@ -170,13 +170,13 @@ class PSManagerTest(unittest.TestCase):
         self.assertEqual(ps_manager._migrated_ps_nodes[0].id, 2)
         self.assertTrue(ps_manager.exist_migrated_ps_nodes())
 
-        nodes = self._job_context.ps_nodes
+        nodes = self._job_context.get_mutable_ps_nodes()
         ps_manager._pre_drop_migrated_ps(list(nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 0)
         for node in nodes.values():
             node.status = NodeStatus.RUNNING
             self._job_context.update_job_node(node)
-        nodes = self._job_context.ps_nodes
+        nodes = self._job_context.get_mutable_ps_nodes()
         ps_manager._pre_drop_migrated_ps(list(nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
 
