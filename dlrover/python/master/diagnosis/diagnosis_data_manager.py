@@ -13,20 +13,21 @@
 
 from typing import Dict, List
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.util.time_util import has_expired
 
 
 class DiagnosisDataManager:
     def __init__(self, expire_time_period):
+        """
+        :param expire_time_period: data expire time period in seconds
+        """
         self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
         if data_type not in self.diagnosis_data:
-            logger.debug(f"{data_type} is not found in the store")
             self.diagnosis_data[data_type] = []
         self.diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)
