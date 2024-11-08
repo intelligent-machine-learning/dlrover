@@ -24,22 +24,14 @@ from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
-<<<<<<< HEAD
-    DiagnosisActionConstants,
+    DiagnosisActionType,
     DiagnosisConstant,
     InferenceConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    DiagnosisNodeAction,
+    NodeAction,
 )
-=======
-    DiagnosisActionType,
-    DiagnosisConstant,
-    InferenceConfigKey,
-)
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
->>>>>>> origin/master
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -60,11 +52,7 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
     get_worker_diagnosis_operators,
     get_worker_observe_operators,
 )
-<<<<<<< HEAD
-from dlrover.python.elastic_agent.common.worker_context import WorkerContext
-=======
-from dlrover.python.elastic_agent.context import AgentContext
->>>>>>> origin/master
+from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
@@ -73,7 +61,6 @@ class DiagnosisAgent(Singleton):
         self,
         training_log_file: str,
         errors: str,
-        worker_context: WorkerContext,
     ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
@@ -88,7 +75,7 @@ class DiagnosisAgent(Singleton):
         ]
         self._observe_operators = get_worker_observe_operators()
         self._diagnosis_operators = get_worker_diagnosis_operators()
-        self._worker_context = worker_context
+        self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
 
@@ -147,8 +134,6 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
-<<<<<<< HEAD
-=======
     def _diagnose_observations(
         self, observations: List[Inference]
     ) -> DiagnosisAction:
@@ -163,7 +148,6 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to diagnose observation {ob}: {e}")
         return coordinate_inferences(conclusions)
 
->>>>>>> origin/master
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")
         while True:
@@ -180,16 +164,10 @@ class DiagnosisAgent(Singleton):
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
-<<<<<<< HEAD
     def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(
-            self._worker_context.run_result.failures,
-            self._worker_context.restart_count,
-=======
-    def diagnose_training_failure(self, agent_context: AgentContext) -> str:
-        self._report_failure_to_master(
-            agent_context.run_result.failures, agent_context.restart_count
->>>>>>> origin/master
+            self._agent_context.run_result.failures,
+            self._agent_context.restart_count,
         )
         # check if the node is failed
         inference = Inference(
@@ -210,54 +188,30 @@ class DiagnosisAgent(Singleton):
         )
         failure_node = is_inference_included(infer_results, failure_inf)
 
-<<<<<<< HEAD
-        if self._worker_context.remaining_failovers > 0 and not failure_node:
+        if self._agent_context.remaining_failovers > 0 and not failure_node:
             logger.info(
-                f"[{self._worker_context.worker_spec.role}] Worker group "
-                f"{self._worker_context.run_result.state.name}, "
+                f"[{self._agent_context.worker_spec.role}] Worker group "
+                f"{self._agent_context.run_result.state.name}, "
                 f"is failure node: {failure_node},"
-                f"{self._worker_context.remaining_failovers}/"
-                f"{self._worker_context.worker_spec.max_restarts} "
+                f"{self._agent_context.remaining_failovers}/"
+                f"{self._agent_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
             )
-            return DiagnosisNodeAction(
-                action=DiagnosisActionConstants.RESTART_WORKER,
-                instance=DiagnosisConstant.LOCAL_INSTANCE,
+            return NodeAction(
+                action_type=DiagnosisActionType.RESTART_WORKER,
             )
         else:
             logger.info(
-                f"[{self._worker_context.worker_spec.role}] Worker group "
-                f"{self._worker_context.run_result.state.name}, "
+                f"[{self._agent_context.worker_spec.role}] Worker group "
+                f"{self._agent_context.run_result.state.name}, "
                 f"is failure node: {failure_node}, "
                 f"no attempts("
-                f"{self._worker_context.worker_spec.max_restarts}) "
+                f"{self._agent_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnosisNodeAction(
-                action=DiagnosisActionConstants.RELAUNCH_WORKER,
-                instance=DiagnosisConstant.LOCAL_INSTANCE,
+            return DiagnosisAction(
+                action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
-=======
-        if agent_context.remaining_failovers > 0 and not failure_node:
-            logger.info(
-                f"[{agent_context.worker_spec.role}] Worker group "
-                f"{agent_context.run_result.state.name}, "
-                f"is failure node: {failure_node},"
-                f"{agent_context.remaining_failovers}/"
-                f"{agent_context.worker_spec.max_restarts} "
-                f"attempts left; will restart worker group."
-            )
-            return DiagnosisActionType.RESTART_WORKER
-        else:
-            logger.info(
-                f"[{agent_context.worker_spec.role}] Worker group "
-                f"{agent_context.run_result.state.name}, "
-                f"is failure node: {failure_node}, "
-                f"no attempts({agent_context.worker_spec.max_restarts}) "
-                "left; will relaunch."
-            )
-            return DiagnosisActionType.RELAUNCH_WORKER
->>>>>>> origin/master
 
     def _report_failure_to_master(
         self, failures: Dict[int, ProcessFailure], restart_count: int
@@ -286,7 +240,7 @@ class DiagnosisAgent(Singleton):
             ts = int(time.time())
             actions = self._client.report_heart_beat(ts)
             for action in actions:
-                self._worker_context.enqueue_diagnose_action(action)
+                self._agent_context.enqueue_diagnosis_action(action)
         except Exception as e:
             logger.warning(f"fail to report a heartbeat: {e}")
 

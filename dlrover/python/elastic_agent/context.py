@@ -12,20 +12,21 @@
 # limitations under the License.
 
 from torch.distributed.elastic.agent.server import RunResult, WorkerSpec
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    DiagnosisActionQueue,
+)
+from typing import Optional
+from dlrover.python.common.singleton import Singleton
 
 
-class AgentContext(object):
-    def __init__(
-        self,
-        worker_spec: WorkerSpec,
-        remaining_failovers: int,
-        restart_count: int,
-        run_result: RunResult,
-    ):
-        self._worker_spec: WorkerSpec = worker_spec
-        self.remaining_failovers = remaining_failovers
-        self.restart_count = restart_count
-        self._run_result = run_result
+class AgentContext(Singleton):
+    def __init__(self):
+        self._worker_spec: Optional[WorkerSpec] = None
+        self.remaining_failovers = 0
+        self.restart_count = 0
+        self._run_result: Optional[RunResult] = None
+        self._diagnosis_action_queue = DiagnosisActionQueue()
 
     @property
     def worker_spec(self):
@@ -43,3 +44,22 @@ class AgentContext(object):
             f"restart_count: {self.restart_count}\n"
             f"run_result: {self._run_result}"
         )
+
+    def update_context(
+            self,
+            worker_spec,
+            remaining_failovers,
+            restart_count,
+            run_result,
+    ):
+        self._worker_spec = worker_spec
+        self.remaining_failovers = remaining_failovers
+        self.restart_count = restart_count
+        self._run_result = run_result
+
+    def enqueue_diagnosis_action(self, action: DiagnosisAction):
+        self._diagnosis_action_queue.add_action(action)
+
+
+def get_agent_context() -> AgentContext:
+    return AgentContext.singleton_instance()

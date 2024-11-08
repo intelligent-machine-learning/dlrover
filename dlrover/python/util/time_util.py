@@ -14,7 +14,7 @@
 from datetime import datetime, timedelta
 
 
-def has_expired(timestamp: float, time_period: int) -> bool:
+def has_expired(timestamp: float, time_period: float) -> bool:
     dt = datetime.fromtimestamp(timestamp)
     expired_dt = dt + timedelta(milliseconds=time_period)
     return expired_dt < datetime.now()
