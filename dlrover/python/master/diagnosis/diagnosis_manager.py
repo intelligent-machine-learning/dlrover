@@ -16,11 +16,7 @@ import time
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionConstants,
-    DiagnosisConstant,
-)
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
@@ -110,21 +106,12 @@ class DiagnosisManager:
                 if len(infs) > 0:
                     solutions = combine_inferences(solutions, infs)
 
-            actions = coordinate_inferences(solutions)
-            self._job_context.enqueue_actions(actions)
+            action = coordinate_inferences(solutions)
+            self._job_context.enqueue_action(action)
 
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
             )
-
-    def next_actions(
-        self,
-        instance=DiagnosisConstant.LOCAL_INSTANCE,
-        action_type=DiagnosisActionConstants.ACTION_TYPE_ANY,
-    ) -> List[DiagnosisAction]:
-        return self._job_context.next_actions(
-            instance=instance, action_type=action_type
-        )
 
 
 class Diagnostician:

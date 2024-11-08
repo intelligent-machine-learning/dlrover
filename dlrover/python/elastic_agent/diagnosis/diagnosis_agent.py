@@ -108,9 +108,7 @@ class DiagnosisAgent(Singleton):
     def stop(self):
         self._stopped = True
 
-    def diagnose_problems(
-        self, problems: List[Inference]
-    ) -> List[DiagnosisAction]:
+    def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
         conclusions: List[Inference] = []
         for problem in problems:
             ic = InferenceChain([problem], self._diagnosis_operators)
@@ -164,7 +162,7 @@ class DiagnosisAgent(Singleton):
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
-    def diagnose_training_failure(self) -> DiagnosisAction:
+    def diagnose_training_failure(self) -> NodeAction:
         self._report_failure_to_master(
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
@@ -209,7 +207,7 @@ class DiagnosisAgent(Singleton):
                 f"{self._agent_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnosisAction(
+            return NodeAction(
                 action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
 

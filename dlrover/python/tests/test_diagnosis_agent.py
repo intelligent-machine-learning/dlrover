@@ -85,21 +85,29 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
 
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action_type, DiagnosisActionType.RESTART_WORKER)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
 
         agent._errors = "error code is 507035"
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action_type, DiagnosisActionType.RELAUNCH_WORKER)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+        )
 
         agent._errors = "error code is 11111"
         context.remaining_failovers = 0
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action_type, DiagnosisActionType.RELAUNCH_WORKER)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+        )
 
         agent._errors = " #"
         context.remaining_failovers = 2
         action = agent.diagnose_training_failure()
-        self.assertEqual(action.action_type, DiagnosisActionType.RESTART_WORKER)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(

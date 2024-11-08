@@ -11,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from torch.distributed.elastic.agent.server import RunResult, WorkerSpec
+
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
 )
-from typing import Optional
-from dlrover.python.common.singleton import Singleton
 
 
 class AgentContext(Singleton):
@@ -46,11 +48,11 @@ class AgentContext(Singleton):
         )
 
     def update_context(
-            self,
-            worker_spec,
-            remaining_failovers,
-            restart_count,
-            run_result,
+        self,
+        worker_spec,
+        remaining_failovers,
+        restart_count,
+        run_result,
     ):
         self._worker_spec = worker_spec
         self.remaining_failovers = remaining_failovers

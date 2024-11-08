@@ -57,13 +57,17 @@ class DiagnosisTest(unittest.TestCase):
     def test_action_basic(self):
         basic_action = DiagnosisAction()
         self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
-        self.assertEqual(basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE)
+        self.assertEqual(
+            basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+        )
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
         )
         self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
-        self.assertEqual(event_action._instance, DiagnosisConstant.LOCAL_INSTANCE)
+        self.assertEqual(
+            event_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+        )
         self.assertEqual(event_action.event_type, "info")
         self.assertEqual(event_action.event_instance, "job")
         self.assertEqual(event_action.event_action, "test")
@@ -112,11 +116,15 @@ class DiagnosisTest(unittest.TestCase):
             DiagnosisActionType.NONE,
         )
         self.assertEqual(
-            action_queue.next_action(instance=DiagnosisConstant.LOCAL_INSTANCE).action_type,
+            action_queue.next_action(
+                instance=DiagnosisConstant.LOCAL_INSTANCE
+            ).action_type,
             DiagnosisActionType.EVENT,
         )
         self.assertEqual(
-            action_queue.next_action(instance=DiagnosisConstant.LOCAL_INSTANCE).action_type,
+            action_queue.next_action(
+                instance=DiagnosisConstant.LOCAL_INSTANCE
+            ).action_type,
             DiagnosisActionType.EVENT,
         )
         self.assertEqual(

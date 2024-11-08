@@ -28,7 +28,6 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,

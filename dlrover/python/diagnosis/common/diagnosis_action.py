@@ -45,14 +45,14 @@ class DiagnosisAction(metaclass=ABCMeta):
         action_type=DiagnosisActionType.NONE,
         instance: int = DiagnosisConstant.LOCAL_INSTANCE,
         timestamp: float = 0,
-        expired_time_period: float = 60 * 1000,
+        expired_time_period: int = 60 * 1000,
     ):
         self._action_type = action_type
         self._instance: int = instance
         if timestamp == 0:
-            self._timestamp: float = datetime.now().timestamp()
+            self._timestamp = datetime.now().timestamp()
         else:
-            self._timestamp: float = timestamp
+            self._timestamp = timestamp
 
         if expired_time_period == 0:
             self._expired_time_period = (
@@ -91,9 +91,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
 class NoAction(DiagnosisAction):
     def __init__(self):
-        super(NoAction, self).__init__(
-            action_type=DiagnosisActionType.NONE
-        )
+        super(NoAction, self).__init__(action_type=DiagnosisActionType.NONE)
 
 
 class EventAction(DiagnosisAction):
