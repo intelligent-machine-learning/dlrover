@@ -69,7 +69,7 @@ class ParameterServerManager(TrainingNodeManager):
         self._init_training_ps_cluster()
 
     def _ps_nodes(self):
-        return self._job_context.get_and_update_ps_nodes()
+        return self._job_context.get_mutable_ps_nodes()
 
     def _init_training_ps_cluster(self):
         for node in self._ps_nodes().values():

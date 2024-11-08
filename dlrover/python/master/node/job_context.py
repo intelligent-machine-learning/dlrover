@@ -48,13 +48,13 @@ class JobContext(Singleton):
     ):
         return self._action_queue.next_action(instance=instance)
 
-    def get_and_update_ps_nodes(self) -> Dict[int, Node]:
+    def get_mutable_ps_nodes(self) -> Dict[int, Node]:
         with self._locker:
             if NodeType.PS in self._job_nodes:
                 return self._job_nodes[NodeType.PS]
             return {}
 
-    def get_and_update_worker_nodes(self) -> Dict[int, Node]:
+    def get_mutable_worker_nodes(self) -> Dict[int, Node]:
         with self._locker:
             if NodeType.WORKER in self._job_nodes:
                 return self._job_nodes[NodeType.WORKER]

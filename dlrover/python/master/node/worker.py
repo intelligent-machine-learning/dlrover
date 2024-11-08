@@ -367,9 +367,7 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         # collect pending and running nodes
-        cur_nodes = list(
-            self._job_context.get_and_update_worker_nodes().values()
-        )
+        cur_nodes = list(self._job_context.get_mutable_worker_nodes().values())
         pending_workers: List[Node] = []
         running_workers: List[Node] = []
         for node in cur_nodes:
