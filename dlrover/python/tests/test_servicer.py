@@ -478,7 +478,9 @@ class MasterServicerTest(unittest.TestCase):
             ).is_node_check_failed()
         )
 
+        task_id = 2
         request.event_type = NodeEventType.FAILED_EXITED
+        request.node.id = task_id
         request.message = ""
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(

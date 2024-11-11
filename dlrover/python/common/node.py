@@ -359,10 +359,7 @@ class Node(object):
         self.reported_status = status
 
     def is_exited_reported(self):
-        return (
-            self.reported_status == 0
-            or self.reported_status == 1
-        )
+        return self.reported_status == 0 or self.reported_status == 1
 
     def set_as_succeeded_and_exited(self):
         self.__update_reported_status(0)

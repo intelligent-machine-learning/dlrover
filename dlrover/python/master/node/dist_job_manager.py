@@ -1259,7 +1259,7 @@ class DistributedJobManager(JobManager):
                 if event_type == NodeEventType.SUCCEEDED_EXITED:
                     target_node.set_as_succeeded_and_exited()
                 elif event_type == NodeEventType.FAILED_EXITED:
-                    target_node.set_as_succeeded_and_exited()
+                    target_node.set_as_failed_and_exited()
                 elif node_event.is_node_check_event():
                     target_node.update_node_check_result(event_type)
 
