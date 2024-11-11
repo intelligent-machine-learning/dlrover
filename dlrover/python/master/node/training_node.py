@@ -221,8 +221,19 @@ class TrainingNodeManager(object):
         cur_nodes = [node.name for node in nodes.values()]
         return cur_nodes
 
-    def _get_nodes(self):
+    def _get_mutable_nodes(self):
+        """
+        The object(original) got from this method can be updated directly.
+        """
+
         return self._job_context.get_mutable_job_nodes(self._node_type)
+
+    def _get_nodes(self):
+        """
+        The object(copied) got from this method can be read only.
+        """
+
+        return self._job_context.job_nodes_by_type(self._node_type)
 
     def _update_node(self, node: Node):
         self._job_context.update_job_node(node)
