@@ -45,8 +45,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ClassMeta,
     DdpCheckpointSaver,
     FsdpDcpSaver,
-    TempDirCheckpointSaver,
     SharedMemoryHandler,
+    TempDirCheckpointSaver,
     _create_shared_memory,
     _traverse_state_dict,
 )
@@ -74,6 +74,28 @@ class SimpleNet(nn.Module):
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
+
+
+class SimpleShardingSaver(TempDirCheckpointSaver):
+    def persist_to_storage(
+        self, local_shard_id, ckpt_config: CheckpointConfig
+    ):
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        for sd_name, sd in state_dict.items():
+            if sd_name not in ckpt_config.paths:
+                continue
+            path = ckpt_config.paths[sd_name]
+            torch.save(sd, path)
+
+    def get_tracker_file(self):
+        return os.path.join(self.checkpoint_dir, "tracker.txt")
+
+    def update_tracker_file(self, step):
+        tracker_file = self.get_tracker_file()
+        tracker_dir = os.path.dirname(tracker_file)
+        os.makedirs(tracker_dir, exist_ok=True)
+        with open(tracker_file, "w") as f:
+            f.write(str(step))
 
 
 class SharedMemoryHandlerTest(unittest.TestCase):
@@ -337,20 +359,24 @@ class CheckpointSaverTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver1 = TempDirCheckpointSaver(tmpdir, self.storage.get_class_meta())
-            saver2 = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
-            savers = [saver1, saver2]
-            for saver in savers:
-                saver.global_shard_num = shard_num
-                saver.local_shard_num = shard_num
+            saver_classes = [SimpleShardingSaver, DdpCheckpointSaver]
+            for saver_class in saver_classes:
+                saver = saver_class(
+                    tmpdir,
+                    self.storage.get_class_meta(),
+                    local_shard_num=shard_num,
+                    global_shard_num=shard_num,
+                )
                 path = Path(tmpdir) / "checkpoint.pt"
                 paths = {CheckpointConstant.MODEL_STATES_NAME: path}
-                ckpt_config = CheckpointConfig(step=step, paths=paths)
-                state_dict = {
-                    CheckpointConstant.MODEL_STATES_NAME: state_dict,
-                    DLROVER_CKPT_CONFIG_KEY: ckpt_config,
-                }
                 for i in range(saver.local_shard_num):
+                    ckpt_config = CheckpointConfig(
+                        step=step, paths=paths, rank=i
+                    )
+                    state_dict = {
+                        CheckpointConstant.MODEL_STATES_NAME: state_dict,
+                        DLROVER_CKPT_CONFIG_KEY: ckpt_config,
+                    }
                     saver._shm_handlers[i].save_state_dict(state_dict)
                 saver.save_step_checkpoint(step)
                 self.assertTrue(saver._latest_step == step)

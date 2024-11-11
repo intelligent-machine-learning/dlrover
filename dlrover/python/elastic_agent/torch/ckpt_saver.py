@@ -1077,6 +1077,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
         if success_count == len(futures):
             write_success = True
+            self._latest_step = step
 
         if not write_success:
             logger.error(
