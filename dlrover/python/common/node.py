@@ -218,9 +218,11 @@ class Node(object):
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
         # -1: n/a
-        # 0: succeeded(final);
-        # 1: node_check_succeeded
-        # 2: node_check_failed
+        # 0: succeeded(exited);
+        # 1: failed(exited)
+        # 2: unknown(exited)
+        # 10: node_check_succeeded
+        # 11: node_check_failed
         self.reported_status: int = -1
 
     def exited(self):
@@ -347,25 +349,41 @@ class Node(object):
             return True
 
     def __update_reported_status(self, status: int):
-        # no updating if already succeeded
-        if status < 0 or self.reported_status == 0:
+        # no updating if already exited(succeeded or failed)
+        if (
+            status < 0
+            or self.reported_status == 0
+            or self.reported_status == 1
+        ):
             return
         self.reported_status = status
 
-    def set_as_succeeded(self):
+    def is_exited_reported(self):
+        return (
+            self.reported_status == 0
+            or self.reported_status == 1
+        )
+
+    def set_as_succeeded_and_exited(self):
         self.__update_reported_status(0)
 
-    def is_succeeded(self) -> bool:
+    def is_succeeded_and_exited(self) -> bool:
         return self.reported_status == 0
+
+    def set_as_failed_and_exited(self):
+        self.__update_reported_status(1)
+
+    def is_failed_and_exited(self) -> bool:
+        return self.reported_status == 1
 
     def update_node_check_result(self, result: NodeEventType):
         if result == NodeEventType.NODE_CHECK_SUCCEEDED:
-            self.__update_reported_status(1)
+            self.__update_reported_status(10)
         elif result == NodeEventType.NODE_CHECK_FAILED:
-            self.__update_reported_status(2)
+            self.__update_reported_status(11)
 
     def is_node_check_failed(self):
-        return self.reported_status == 2
+        return self.reported_status == 11
 
     def __repr__(self):
         return (

@@ -52,18 +52,32 @@ class NodeTest(unittest.TestCase):
         self.assertEqual("oom" in node.unrecoverable_failure_msg, True)
 
         node.update_node_check_result(NodeEventType.NODE_CHECK_SUCCEEDED)
-        self.assertFalse(node.is_succeeded())
+        self.assertFalse(node.is_succeeded_and_exited())
+        self.assertFalse(node.is_exited_reported())
         self.assertFalse(node.is_node_check_failed())
         node.update_node_check_result(NodeEventType.NODE_CHECK_FAILED)
-        self.assertFalse(node.is_succeeded())
+        self.assertFalse(node.is_succeeded_and_exited())
+        self.assertFalse(node.is_exited_reported())
         self.assertTrue(node.is_node_check_failed())
 
-        self.assertFalse(node.is_succeeded())
-        node.set_as_succeeded()
-        self.assertTrue(node.is_succeeded())
+        self.assertFalse(node.is_succeeded_and_exited())
+        node.set_as_succeeded_and_exited()
+        self.assertTrue(node.is_succeeded_and_exited())
+        self.assertTrue(node.is_exited_reported())
 
         node.update_node_check_result(NodeEventType.NODE_CHECK_FAILED)
-        self.assertTrue(node.is_succeeded())
+        self.assertTrue(node.is_succeeded_and_exited())
+        self.assertTrue(node.is_exited_reported())
+
+        node.set_as_failed_and_exited()
+        self.assertTrue(node.is_succeeded_and_exited())
+        self.assertFalse(node.is_failed_and_exited())
+        self.assertTrue(node.is_exited_reported())
+
+        node.reported_status = 1
+        self.assertFalse(node.is_succeeded_and_exited())
+        self.assertTrue(node.is_failed_and_exited())
+        self.assertTrue(node.is_exited_reported())
 
         node.update_from_node(node)
         node.id = 100

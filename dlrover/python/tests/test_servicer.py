@@ -452,7 +452,7 @@ class MasterServicerTest(unittest.TestCase):
         self.assertFalse(
             self.job_manager._job_context.job_node(
                 task_type, task_id
-            ).is_succeeded()
+            ).is_succeeded_and_exited()
         )
 
         request.event_type = NodeEventType.NODE_CHECK_FAILED
@@ -464,13 +464,27 @@ class MasterServicerTest(unittest.TestCase):
             ).is_node_check_failed()
         )
 
-        request.event_type = NodeEventType.SUCCEEDED
+        request.event_type = NodeEventType.SUCCEEDED_EXITED
         request.message = ""
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(
             self.job_manager._job_context.job_node(
                 task_type, task_id
-            ).is_succeeded()
+            ).is_succeeded_and_exited()
+        )
+        self.assertFalse(
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_node_check_failed()
+        )
+
+        request.event_type = NodeEventType.FAILED_EXITED
+        request.message = ""
+        self.assertTrue(self.servicer._deal_with_reported_node_event(request))
+        self.assertTrue(
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_failed_and_exited()
         )
         self.assertFalse(
             self.job_manager._job_context.job_node(
