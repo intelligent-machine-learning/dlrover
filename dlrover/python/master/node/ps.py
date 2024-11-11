@@ -69,7 +69,7 @@ class ParameterServerManager(TrainingNodeManager):
         self._init_training_ps_cluster()
 
     def _init_training_ps_cluster(self):
-        ps_nodes = self._get_nodes()
+        ps_nodes = self._get_mutable_nodes()
         for node in ps_nodes.values():
             alive = node.status in [
                 NodeStatus.INITIAL,
@@ -94,7 +94,9 @@ class ParameterServerManager(TrainingNodeManager):
             self._update_node(new_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
-                self._training_ps_cluster[i] = self._get_nodes()[new_node.id]
+                self._training_ps_cluster[i] = self._get_mutable_nodes()[
+                    new_node.id
+                ]
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -199,7 +201,7 @@ class ParameterServerManager(TrainingNodeManager):
     def _get_alive_ps(self) -> List[Node]:
         """Get all running PS pods"""
         alive_ps = []
-        ps_nodes = self._get_nodes()
+        ps_nodes = self._get_mutable_nodes()
         for node in ps_nodes.values():
             if node.status == NodeStatus.RUNNING and not node.is_released:
                 alive_ps.append(node)
@@ -214,7 +216,7 @@ class ParameterServerManager(TrainingNodeManager):
             return self._next_training_ps_cluster
 
         all_new_ps_ready = True
-        ps_nodes = self._get_nodes()
+        ps_nodes = self._get_mutable_nodes()
         for node in ps_nodes.values():
             if self._wait_ps_node(node):
                 all_new_ps_ready = False
@@ -310,7 +312,7 @@ class ParameterServerManager(TrainingNodeManager):
     def delete_running_ps(self):
         """Delete all running ps pods"""
         plan = ScalePlan()
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         for node in list(nodes.values()):
             if (
                 node.status in [NodeStatus.RUNNING, NodeStatus.PENDING]
@@ -345,7 +347,7 @@ class ParameterServerManager(TrainingNodeManager):
         old_ps_id = int(name.split("-")[-1])
         if old_ps_id in self._migrated_ps_nodes:
             return
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         if old_ps_id not in nodes:
             logger.error(f"not found PS-{old_ps_id} in job")
             return
@@ -373,7 +375,9 @@ class ParameterServerManager(TrainingNodeManager):
                 name=self._new_node_name_fn(NodeType.PS, new_ps_id),
             )
             self._update_node(new_node)
-            self._migrated_ps_nodes[old_ps_id] = self._get_nodes()[new_node.id]
+            self._migrated_ps_nodes[old_ps_id] = self._get_mutable_nodes()[
+                new_node.id
+            ]
             logger.info("Migrated PS %s to PS %s", old_ps_id, new_ps_id)
             return new_node
 
@@ -381,9 +385,10 @@ class ParameterServerManager(TrainingNodeManager):
         return len(self._migrated_ps_nodes) > 0
 
     def is_all_running(self):
+        nodes = self._get_nodes()
         running_ps = [
             pod_info.id
-            for pod_info in self._get_nodes().values()
+            for pod_info in nodes.values()
             if pod_info.status == NodeStatus.RUNNING
         ]
         return len(running_ps) == self._job_resource.ps_num
