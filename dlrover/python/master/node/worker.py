@@ -140,7 +140,7 @@ class WorkerManager(TrainingNodeManager):
             )
         )
         alive_workers = []
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         for worker in nodes.values():
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
@@ -192,7 +192,7 @@ class WorkerManager(TrainingNodeManager):
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
         plan = ScalePlan()
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         with self._lock:
             for worker in nodes.values():
                 if (
@@ -210,7 +210,7 @@ class WorkerManager(TrainingNodeManager):
 
     def delete_running_workers(self):
         plan = ScalePlan()
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         for worker in nodes.values():
             if not worker.critical and worker.status in [
                 NodeStatus.RUNNING,
@@ -239,7 +239,7 @@ class WorkerManager(TrainingNodeManager):
     def migrate_workers(self, workers: Dict[str, NodeResource]):
         """Migrate workers with the new resource"""
         plan = ScalePlan()
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
             old_node = nodes[old_node_id]
@@ -269,7 +269,7 @@ class WorkerManager(TrainingNodeManager):
             worker_ranks: The rank of worker which does not join rendezvous.
         """
         plan = ScalePlan()
-        nodes = self._get_nodes()
+        nodes = self._get_mutable_nodes()
         for node_id, node in nodes.items():
             if node.rank_index in worker_ranks:
                 p = self.remove_node(node.id)
@@ -558,5 +558,5 @@ class WorkerManager(TrainingNodeManager):
         self._nodes_required = nodes_required
 
     def is_all_workers_node_check_failed(self):
-        nodes = self._job_context.job_nodes_by_type(NodeType.WORKER)
+        nodes = self._get_nodes()
         return all([node.is_node_check_failed() for _, node in nodes.items()])
