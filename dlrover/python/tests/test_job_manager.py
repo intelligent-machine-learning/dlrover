@@ -603,6 +603,13 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.job_context.update_job_node(job_nodes[NodeType.WORKER][0])
         self.assertTrue(manager.all_critical_node_completed())
 
+        for worker in job_nodes[NodeType.WORKER].values():
+            worker.reported_status = 2
+        self.job_context.update_job_nodes(job_nodes)
+        self.assertTrue(
+            manager._worker_manager.is_all_workers_node_check_failed()
+        )
+
     def test_tf_ps_node_handling(self):
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -768,6 +775,19 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.is_all_reduce_type_job = mock.MagicMock(return_value=False)
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
+
+    def test_early_stop_part4(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        manager._worker_manager.is_all_workers_node_check_failed = (
+            mock.MagicMock(return_value=True)
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+        self.assertEqual(reason, JobExitReason.NODE_CHECK_FAILED)
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()
