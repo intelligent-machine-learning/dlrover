@@ -25,6 +25,9 @@ from dlrover.python.common.log import default_logger as logger
 
 try:
     from megatron.core import mpu, tensor_parallel
+    from megatron.core.num_microbatches_calculator import (
+        update_num_microbatches,
+    )
     from megatron.core.optimizer.optimizer import ChainedOptimizer
     from megatron.training import get_args
     from megatron.training.checkpointing import (
@@ -37,13 +40,12 @@ try:
         get_rng_state,
         read_metadata,
         set_checkpoint_version,
-        update_num_microbatches,
     )
     from megatron.training.utils import print_rank_0, unwrap_model
 except ImportError:
     # Keep back compatibility with Megatron-LM.
     try:
-        from megatron import get_args
+        from megatron import get_args, update_num_microbatches
         from megatron.checkpointing import (
             check_checkpoint_args,
             find_checkpoint_rank_0,
@@ -54,7 +56,6 @@ except ImportError:
             get_rng_state,
             read_metadata,
             set_checkpoint_version,
-            update_num_microbatches,
         )
         from megatron.optimizer.optimizer import ChainedOptimizer
         from megatron.utils import print_rank_0, unwrap_model
