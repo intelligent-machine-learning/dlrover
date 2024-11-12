@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from queue import Queue
 from typing import Dict, List
 
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
@@ -22,31 +23,25 @@ class DiagnosisDataManager:
         """
         :param expire_time_period: data expire time period in seconds
         """
-        self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
+        self.diagnosis_data: Dict[str, Queue[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
         if data_type not in self.diagnosis_data:
-            self.diagnosis_data[data_type] = []
-        self.diagnosis_data[data_type].append(data)
-        self._clean_diagnosis_data(data_type)
+            self.diagnosis_data[data_type] = Queue(maxsize=100)
+        q = self.diagnosis_data[data_type]
+        if q.full():
+            _ = q.get()
+        q.put(data)
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
         if data_type not in self.diagnosis_data:
             return []
-        return self.diagnosis_data[data_type]
-
-    def _clean_diagnosis_data(self, data_type: str):
-        if data_type not in self.diagnosis_data:
-            return
-
-        data = self.diagnosis_data[data_type]
-        n = 0
-        for d in data:
-            if has_expired(d.timestamp, self.expire_time_period):
-                n = n + 1
-            else:
-                break
-
-        self.diagnosis_data[data_type] = data[n:]
+        q = self.diagnosis_data[data_type]
+        datas = []
+        while not q.empty():
+            data = q.get()
+            if not has_expired(data.timestamp, self.expire_time_period):
+                datas.append(data)
+        return datas

@@ -30,9 +30,6 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     is_training_hanged,
 )
-from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
-    coordinate_inferences,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
@@ -100,11 +97,5 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertTrue(is_training_hanged(observed_problems[0]))
 
         # explore solutions to observed problems
-        solutions = mgr._diagnostician.diagnose_problem(observed_problems[0])
-        self.assertTrue(is_training_hanged(solutions[0]))
-
-        # generate diagnosis actions
-        action = coordinate_inferences(solutions)
-        self.assertEqual(
-            action.action_type, DiagnosisActionType.ACTION_TYPE_LOG
-        )
+        action = mgr._diagnostician.diagnose_problems(observed_problems)
+        self.assertEqual(action.action_type, DiagnosisActionType.NONE)

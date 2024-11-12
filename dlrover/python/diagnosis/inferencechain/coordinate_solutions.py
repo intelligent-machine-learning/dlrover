@@ -13,17 +13,17 @@
 
 from typing import List
 
-from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
-from dlrover.python.diagnosis.common.inference_chain import (
-    Inference,
-    is_training_hanged,
-)
+from dlrover.python.diagnosis.common.inference_chain import Inference
 
 
-def coordinate_inferences(problems: List[Inference]) -> DiagnosisAction:
-    if len(problems) == 1 and is_training_hanged(problems[0]):
-        return DiagnosisAction(
-            action_type=DiagnosisActionType.LOG,
-        )
+def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
+    """
+    Transform solutions (of Inference) to executable diagnosis action
+
+    Args:
+        solutions: solutions of Inference
+    Return:
+        diagnosis action
+    """
     return DiagnosisAction()

@@ -106,9 +106,9 @@ def combine_inferences(
 
 def is_training_hanged(inf: Inference):
     if (
-            inf.name == InferenceName.TRAINING
-            and inf.attribution == InferenceAttribute.IS
-            and inf.description == InferenceDescription.HANG
+        inf.name == InferenceName.TRAINING
+        and inf.attribution == InferenceAttribute.IS
+        and inf.description == InferenceDescription.HANG
     ):
         return True
     return False

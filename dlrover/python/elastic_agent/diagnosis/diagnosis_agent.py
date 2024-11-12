@@ -41,8 +41,8 @@ from dlrover.python.diagnosis.common.inference_chain import (
     combine_inferences,
     is_inference_included,
 )
-from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
-    coordinate_inferences,
+from dlrover.python.diagnosis.inferencechain.coordinate_solutions import (
+    coordinate_solutions,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
@@ -118,7 +118,7 @@ class DiagnosisAgent(Singleton):
                     conclusions = combine_inferences(conclusions, infs)
             except Exception as e:
                 logger.error(f"fail to diagnose observation {problem}: {e}")
-        return coordinate_inferences(conclusions)
+        return coordinate_solutions(conclusions)
 
     def _observe(self) -> List[Inference]:
         observations: List[Inference] = []
@@ -144,7 +144,7 @@ class DiagnosisAgent(Singleton):
                     conclusions = combine_inferences(conclusions, infs)
             except Exception as e:
                 logger.error(f"fail to diagnose observation {ob}: {e}")
-        return coordinate_inferences(conclusions)
+        return coordinate_solutions(conclusions)
 
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")

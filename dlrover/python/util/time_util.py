@@ -16,9 +16,13 @@ from datetime import datetime, timedelta
 
 def has_expired(timestamp: float, time_period: float) -> bool:
     """
-    :param timestamp: data timestamp
-    :param time_period: expire time period in seconds
-    :return: indicate if the timestamp has expired
+    Check if a give timestamp has expired
+
+    Args:
+        timestamp: data timestamp
+        time_period: expire time period in seconds
+    Return:
+        indicate if the timestamp has expired
     """
     dt = datetime.fromtimestamp(timestamp)
     expired_dt = dt + timedelta(milliseconds=time_period * 1000)
