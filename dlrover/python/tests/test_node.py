@@ -64,3 +64,7 @@ class NodeTest(unittest.TestCase):
 
         node.update_node_check_result(NodeEventType.NODE_CHECK_FAILED)
         self.assertTrue(node.is_succeeded())
+
+        node.update_from_node(node)
+        node.id = 100
+        node.update_from_node(node)

@@ -287,8 +287,8 @@ class RendezvousManager(metaclass=ABCMeta):
                 psw=psw,
             )
             logger.info(
-                f"Worker node with id: {meta.node_id} "
-                f"and rank: {meta.node_rank} "
+                f"Worker node with id: {meta.node_id}, "
+                f"rank: {meta.node_rank} and ip: {meta.node_ip} "
                 f"joining rendezvous for round: {self._rdzv_round}."
             )
             self._waiting_nodes[node_rank] = meta

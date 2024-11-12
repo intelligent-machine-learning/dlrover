@@ -515,3 +515,14 @@ class InfoEvent(Message):
     action: str = ""
     msg: str = ""
     labels: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class DiagnosisAction(Message):
+    action_cls: str = ""
+    action_content: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)
