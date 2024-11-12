@@ -50,6 +50,7 @@ class DiagnosisActionType(object):
     RELAUNCH_WORKER = "relaunch_worker"
 
     ACTION_TYPE_ANY = "any"
+    ACTION_TYPE_LOG = "log"
 
     ACTION_EXPIRED_TIME_PERIOD = 60 * 5
 

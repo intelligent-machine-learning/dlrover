@@ -22,6 +22,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
+    InferenceOperator,
 )
 from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
     coordinate_inferences,
@@ -71,6 +72,9 @@ class DiagnosisManager:
         ]
         self._diagnostician.register_training_problems(problems)
 
+        operators = get_master_observe_operators(self._data_manager)
+        self._diagnostician.register_observing_operators(operators)
+
         try:
             thread = threading.Thread(
                 target=self._diagnose,
@@ -119,15 +123,16 @@ class Diagnostician:
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []
         self._training_problems: List[Inference] = []
-        self._observing_operators = get_master_observe_operators(
-            data_mgr=data_manager
-        )
+        self._observing_operators: List[InferenceOperator] = []
 
     def register_pre_check(self, pre_checks: List[Inference]):
         self._pre_checks = pre_checks
 
     def register_training_problems(self, problems: List[Inference]):
         self._training_problems = problems
+
+    def register_observing_operators(self, operators: List[InferenceOperator]):
+        self._observing_operators = operators
 
     def observe_training(self) -> List[Inference]:
         if len(self._training_problems) == 0:
@@ -137,4 +142,6 @@ class Diagnostician:
         return ic.infer()
 
     def diagnose_problem(self, inference: Inference) -> List[Inference]:
+        if inference.is_training_hanged():
+            return [inference]
         return []

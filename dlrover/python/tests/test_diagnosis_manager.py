@@ -13,16 +13,35 @@
 
 import time
 import unittest
+from typing import List
 
-from dlrover.python.diagnosis.common.constants import DiagnosisDataType
-from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisDataType,
+)
+from dlrover.python.diagnosis.common.diagnosis_data import (
+    DiagnosisData,
+    TrainingLog,
+)
+from dlrover.python.diagnosis.common.inference_chain import (
+    Inference,
+    InferenceAttribute,
+    InferenceDescription,
+    InferenceName,
+)
+from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
+    coordinate_inferences,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
+)
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 
 
-class DiagnosisTest(unittest.TestCase):
+class DiagnosisManagerTest(unittest.TestCase):
     def setUp(self):
         pass
 
@@ -46,9 +65,45 @@ class DiagnosisTest(unittest.TestCase):
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
         self.assertEqual(len(logs), 1)
 
-    def test_diagnosis_manager(self):
+    def test_diagnosis_manager_api(self):
         mgr = DiagnosisManager()
-
         mgr.pre_check()
         mgr.start_observing()
         mgr.stop_observing()
+
+    def test_diagnosis_manager(self):
+        mgr = DiagnosisManager()
+        problems: List[Inference] = [
+            Inference(
+                InferenceName.TRAINING,
+                InferenceAttribute.ISORNOT,
+                InferenceDescription.HANG,
+            )
+        ]
+        mgr._diagnostician.register_training_problems(problems)
+        self.assertEqual(len(mgr._diagnostician._training_problems), 1)
+
+        data_mgr = DiagnosisDataManager(10000)
+        operator = CheckTrainingHangOperator(data_mgr)
+        mgr._diagnostician.register_observing_operators([operator])
+        self.assertEqual(len(mgr._diagnostician._observing_operators), 1)
+
+        data = DiagnosisData(
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content="XPU_TIMER_COMMON_HANG",
+        )
+        data_mgr.store_data(data)
+
+        # observe training problems
+        observed_problems = mgr._diagnostician.observe_training()
+        self.assertTrue(observed_problems[0].is_training_hanged())
+
+        # explore solutions to observed problems
+        solutions = mgr._diagnostician.diagnose_problem(observed_problems[0])
+        self.assertTrue(solutions[0].is_training_hanged())
+
+        # generate diagnosis actions
+        action = coordinate_inferences(solutions)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.ACTION_TYPE_LOG
+        )
