@@ -43,6 +43,10 @@ from dlrover.python.master.node.job_context import get_job_context
 
 
 class DiagnosisManager:
+    """
+    DiagnosisManager is to manage all diagnosis issues in a training job
+    """
+
     def __init__(self):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
@@ -111,6 +115,11 @@ class DiagnosisManager:
 
 
 class Diagnostician:
+    """
+    Diagnostician is to observe training problems and explore solutions to
+    those problems during training.
+    """
+
     def __init__(self, data_manager):
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []

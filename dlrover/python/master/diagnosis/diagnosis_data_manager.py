@@ -19,9 +19,14 @@ from dlrover.python.util.time_util import has_expired
 
 
 class DiagnosisDataManager:
+    """
+    DiagnosisDataManager is to manage the diagnosis data collected from worker
+    """
+
     def __init__(self, expire_time_period):
         """
-        :param expire_time_period: data expire time period in seconds
+        Args:
+            expire_time_period: data expire time period in seconds
         """
         self.diagnosis_data: Dict[str, Queue[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
