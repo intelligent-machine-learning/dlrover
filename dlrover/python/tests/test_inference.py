@@ -436,7 +436,7 @@ class InferenceChainTest(unittest.TestCase):
                         "event_instance": ErrorMonitorConstants.JOB_INSTANCE,
                         "event_action": ErrorMonitorConstants.ACTION_HANG_WARN,
                         "event_msg": "",
-                        "event_labels": {},
+                        "event_labels": "{}",
                     },
                 )
             ],

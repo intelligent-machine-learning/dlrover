@@ -14,6 +14,7 @@
 import time
 import unittest
 from typing import List
+from unittest import mock
 
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
@@ -91,6 +92,11 @@ class DiagnosisManagerTest(unittest.TestCase):
             data_content="XPU_TIMER_COMMON_HANG",
         )
         data_mgr.store_data(data)
+
+        # mock training hang
+        mgr._diagnostician._observers[0].is_hang = mock.MagicMock(
+            return_value=True
+        )
 
         # observe training problems
         observed_problems = mgr._diagnostician.observe_training()

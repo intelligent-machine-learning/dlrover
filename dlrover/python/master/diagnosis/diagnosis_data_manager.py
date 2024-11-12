@@ -10,9 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import threading
 from collections import deque
-from typing import Deque, Dict, List
+from typing import Dict, List
 
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.util.time_util import has_expired
@@ -36,7 +37,7 @@ class DiagnosisDataManager:
         data_type = data.data_type
         with self._lock:
             if data_type not in self.diagnosis_data:
-                self.diagnosis_data[data_type] = deque(maxlen=100)
+                self.diagnosis_data[data_type] = deque(maxlen=10000)
             q = self.diagnosis_data[data_type]
             q.append(data)
 
