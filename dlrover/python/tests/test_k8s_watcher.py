@@ -16,6 +16,7 @@ import json
 import os
 import unittest
 from typing import List
+from unittest import mock
 
 from kubernetes import client
 
@@ -41,6 +42,7 @@ from dlrover.python.tests.test_utils import (
     create_pod,
     get_test_scale_plan,
     mock_k8s_client,
+    mock_list_namespaced_pod,
 )
 
 
@@ -90,6 +92,28 @@ class PodWatcherTest(unittest.TestCase):
 
         # reset env
         os.environ.pop(WITH_TO_DELETED)
+
+    def test_list_succeeded(self):
+        pod_watcher = PodWatcher("test", "")
+
+        pods = mock_list_namespaced_pod("")
+        pod_watcher._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=pods
+        )
+        pod_watcher._k8s_client.delete_pod = mock.MagicMock(
+            side_effect=Exception("test123")
+        )
+        try:
+            pod_watcher.list()
+        except Exception:
+            self.fail()
+
+        pods.items[0].status.phase = NodeStatus.SUCCEEDED
+        try:
+            pod_watcher.list()
+            self.fail()
+        except Exception as e:
+            self.assertEqual(e.args[0], "test123")
 
     def test_convert_pod_event_to_node_event(self):
         labels = _mock_pod_labels()

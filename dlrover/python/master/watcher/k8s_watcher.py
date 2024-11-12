@@ -217,6 +217,7 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             metadata: client.V1ObjectMeta = pod.metadata
+            pod_name = metadata.name
             pod_type = metadata.labels[replica_type_key]
             if pod_type == NodeType.DLROVER_MASTER:
                 continue
@@ -237,7 +238,7 @@ class PodWatcher(NodeWatcher):
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
-                name=metadata.name,
+                name=pod_name,
                 rank_index=task_id,
                 status=status,
                 start_time=start_time,
@@ -247,6 +248,13 @@ class PodWatcher(NodeWatcher):
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
+
+            # delete pod if pod already succeeded(no need for failed pod,
+            # cuz the deletion will be done in relaunch operation)
+            if pod.status.phase == NodeStatus.SUCCEEDED:
+                logger.info(f"Delete succeeded pod: {pod_name}")
+                self._k8s_client.delete_pod(pod_name)
+
         return nodes
 
 
