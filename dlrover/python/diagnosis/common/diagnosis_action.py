@@ -17,7 +17,7 @@ import threading
 from abc import ABCMeta
 from datetime import datetime
 from queue import Queue
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
@@ -43,16 +43,16 @@ class DiagnosisAction(metaclass=ABCMeta):
     def __init__(
         self,
         action_type=DiagnosisActionType.NONE,
-        instance=DiagnosisConstant.MASTER,
-        timestamp=0,
-        expired_time_period=60 * 1000,
+        instance: int = DiagnosisConstant.LOCAL_INSTANCE,
+        timestamp: float = 0,
+        expired_time_period: int = 60 * 1000,
     ):
         self._action_type = action_type
-        self._instance = instance
+        self._instance: int = instance
         if timestamp == 0:
-            self._timestamp: float = datetime.now().timestamp()
+            self._timestamp = datetime.now().timestamp()
         else:
-            self._timestamp: float = timestamp
+            self._timestamp = timestamp
 
         if expired_time_period == 0:
             self._expired_time_period = (
@@ -91,9 +91,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
 class NoAction(DiagnosisAction):
     def __init__(self):
-        super(NoAction, self).__init__(
-            action_type=DiagnosisActionType.NONE, instance=-999
-        )
+        super(NoAction, self).__init__(action_type=DiagnosisActionType.NONE)
 
 
 class EventAction(DiagnosisAction):
@@ -105,7 +103,7 @@ class EventAction(DiagnosisAction):
         event_instance: str = "",
         event_action: str = "",
         event_msg: str = "",
-        event_labels: Dict[str, str] = {},
+        event_labels: Optional[Dict[str, str]] = None,
         timestamp=0,
         expired_time_period=0,
     ):
@@ -144,10 +142,10 @@ class EventAction(DiagnosisAction):
 class NodeAction(DiagnosisAction):
     def __init__(
         self,
-        node_id,
-        node_status,
-        reason,
-        action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+        node_status: str = "",
+        reason: str = "",
+        node_id=DiagnosisConstant.LOCAL_INSTANCE,
+        action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
     ):
