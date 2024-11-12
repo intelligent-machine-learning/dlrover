@@ -40,6 +40,7 @@ class DiagnosisActionType(object):
     # common
     NONE = "no_action"
     ANY = "any_action"
+    LOG = "log"
 
     # master operation
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
@@ -48,10 +49,3 @@ class DiagnosisActionType(object):
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
-
-    ACTION_TYPE_ANY = "any"
-    ACTION_TYPE_LOG = "log"
-
-    ACTION_EXPIRED_TIME_PERIOD = 60 * 5
-
-    TYPE_NODE = "node"

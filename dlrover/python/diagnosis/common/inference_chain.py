@@ -47,15 +47,6 @@ class Inference(object):
     description: str = ""
     configs: Dict[str, str] = field(default_factory=dict)
 
-    def is_training_hanged(self):
-        if (
-            self.name == InferenceName.TRAINING
-            and self.attribution == InferenceAttribute.IS
-            and self.description == InferenceDescription.HANG
-        ):
-            return True
-        return False
-
 
 class InferenceOperator(metaclass=ABCMeta):
     """
@@ -111,3 +102,13 @@ def combine_inferences(
         inferences.append(inference1)
 
     return inferences
+
+
+def is_training_hanged(inf: Inference):
+    if (
+            inf.name == InferenceName.TRAINING
+            and inf.attribution == InferenceAttribute.IS
+            and inf.description == InferenceDescription.HANG
+    ):
+        return True
+    return False

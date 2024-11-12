@@ -15,12 +15,15 @@ from typing import List
 
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
-from dlrover.python.diagnosis.common.inference_chain import Inference
+from dlrover.python.diagnosis.common.inference_chain import (
+    Inference,
+    is_training_hanged,
+)
 
 
 def coordinate_inferences(problems: List[Inference]) -> DiagnosisAction:
-    if len(problems) == 1 and problems[0].is_training_hanged():
+    if len(problems) == 1 and is_training_hanged(problems[0]):
         return DiagnosisAction(
-            action_type=DiagnosisActionType.ACTION_TYPE_LOG,
+            action_type=DiagnosisActionType.LOG,
         )
     return DiagnosisAction()

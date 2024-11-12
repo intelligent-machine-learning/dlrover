@@ -23,6 +23,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceDescription,
     InferenceName,
     InferenceOperator,
+    is_training_hanged,
 )
 from dlrover.python.diagnosis.inferencechain.coordinate_inferences import (
     coordinate_inferences,
@@ -141,7 +142,7 @@ class Diagnostician:
         ic = InferenceChain(self._training_problems, self._observing_operators)
         return ic.infer()
 
-    def diagnose_problem(self, inference: Inference) -> List[Inference]:
-        if inference.is_training_hanged():
-            return [inference]
+    def diagnose_problem(self, inf: Inference) -> List[Inference]:
+        if is_training_hanged(inf):
+            return [inf]
         return []
