@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import socket
+import sys
 import tempfile
 import time
 import uuid
@@ -870,7 +871,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
                 finally:
-                    self._client.report_succeeded()
+                    self._client.report_succeeded_exited()
                     logger.info("Succeeded and exit.")
 
                 return run_result
@@ -1106,6 +1107,7 @@ def launch_agent(
     )
 
     shutdown_rdzv = True
+    result = None
     try:
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
 
@@ -1138,6 +1140,14 @@ def launch_agent(
         events.record(agent.get_event_failed())
         raise
     finally:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        client = MasterClient.singleton_instance()
+        if (exc_type is not None) or (
+            result is not None and result.is_failed()
+        ):
+            client.report_failed_exited()
+            logger.info("Failed and exit.")
+
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
         agent.stop_executor()
