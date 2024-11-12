@@ -40,6 +40,7 @@ class DiagnosisActionType(object):
     # common
     NONE = "no_action"
     ANY = "any_action"
+    LOG = "log"
 
     # master operation
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"

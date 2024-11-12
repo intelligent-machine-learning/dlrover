@@ -252,6 +252,33 @@ class DistributedJobManager(JobManager):
         )
 
     def should_early_stop(self):
+        # node-check all failed
+        if (
+            self.is_all_reduce_type_job()
+            and self._worker_manager.is_all_workers_node_check_failed()
+        ):
+            msg = (
+                "Stop the training early because all worker nodes has "
+                "failed the node check in rendezvous."
+            )
+
+            self._process_error(
+                None,
+                0,
+                msg,
+                level=TrainingExceptionLevel.RDZV_ERROR,
+            )
+
+            self._report_event(
+                ErrorMonitorConstants.TYPE_INFO,
+                "job",
+                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                "All node check failed",
+                {"nodes": json.dumps(self._worker_manager.cur_nodes)},
+            )
+
+            return True, JobExitReason.NODE_CHECK_FAILED, msg
+
         # ps pending judgement: any ps pod pending timeout
         timeout_ps_nodes = (
             self._ps_manager.get_pending_timeout_oom_recovered_node()
@@ -399,10 +426,10 @@ class DistributedJobManager(JobManager):
         update_nodes_priority(job_nodes)
         self._job_context.update_job_nodes(job_nodes)
 
-        self._ps_manager.update_nodes()
-        self._chief_manager.update_nodes()
-        self._worker_manager.update_nodes()
-        self._evaluator_manager.update_nodes()
+        self._ps_manager.update_nodes_iter()
+        self._chief_manager.update_nodes_iter()
+        self._worker_manager.update_nodes_iter()
+        self._evaluator_manager.update_nodes_iter()
 
     def _init_job_auto_scaler(self):
         self._job_autoscaler: JobAutoScaler = new_job_auto_scaler(
