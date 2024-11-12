@@ -604,7 +604,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
         for worker in job_nodes[NodeType.WORKER].values():
-            worker.reported_status = 11
+            worker.reported_status = NodeEventType.NODE_CHECK_FAILED
         self.job_context.update_job_nodes(job_nodes)
         self.assertTrue(
             manager._worker_manager.is_all_workers_node_check_failed()

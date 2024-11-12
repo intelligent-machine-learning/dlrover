@@ -217,13 +217,7 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
-        # -1: n/a
-        # 0: succeeded(exited);
-        # 1: failed(exited)
-        # 2: unknown(exited)
-        # 10: node_check_succeeded
-        # 11: node_check_failed
-        self.reported_status: int = -1
+        self.reported_status: str = ""
 
     def exited(self):
         return self.status in [
@@ -348,39 +342,26 @@ class Node(object):
         ):
             return True
 
-    def __update_reported_status(self, status: int):
+    def update_reported_status(self, status: str):
         # no updating if already exited(succeeded or failed)
-        if (
-            status < 0
-            or self.reported_status == 0
-            or self.reported_status == 1
-        ):
+        if self.is_exited_reported():
             return
         self.reported_status = status
 
     def is_exited_reported(self):
-        return self.reported_status == 0 or self.reported_status == 1
-
-    def set_as_succeeded_and_exited(self):
-        self.__update_reported_status(0)
+        return (
+            self.reported_status == NodeEventType.SUCCEEDED_EXITED
+            or self.reported_status == NodeEventType.FAILED_EXITED
+        )
 
     def is_succeeded_and_exited(self) -> bool:
-        return self.reported_status == 0
-
-    def set_as_failed_and_exited(self):
-        self.__update_reported_status(1)
+        return self.reported_status == NodeEventType.SUCCEEDED_EXITED
 
     def is_failed_and_exited(self) -> bool:
-        return self.reported_status == 1
-
-    def update_node_check_result(self, result: NodeEventType):
-        if result == NodeEventType.NODE_CHECK_SUCCEEDED:
-            self.__update_reported_status(10)
-        elif result == NodeEventType.NODE_CHECK_FAILED:
-            self.__update_reported_status(11)
+        return self.reported_status == NodeEventType.FAILED_EXITED
 
     def is_node_check_failed(self):
-        return self.reported_status == 11
+        return self.reported_status == NodeEventType.NODE_CHECK_FAILED
 
     def __repr__(self):
         return (

@@ -1256,12 +1256,7 @@ class DistributedJobManager(JobManager):
                     f"Node {node_id}({node_type}) reported "
                     f"status to {event_type}."
                 )
-                if event_type == NodeEventType.SUCCEEDED_EXITED:
-                    target_node.set_as_succeeded_and_exited()
-                elif event_type == NodeEventType.FAILED_EXITED:
-                    target_node.set_as_failed_and_exited()
-                elif node_event.is_node_check_event():
-                    target_node.update_node_check_result(event_type)
+                target_node.update_reported_status(event_type)
 
                 self._job_context.update_job_node(target_node)
 
