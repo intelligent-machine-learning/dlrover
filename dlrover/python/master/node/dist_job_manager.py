@@ -271,7 +271,7 @@ class DistributedJobManager(JobManager):
 
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "All node check failed",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
@@ -298,7 +298,7 @@ class DistributedJobManager(JobManager):
             )
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "PS OOM",
                 {},
@@ -327,7 +327,7 @@ class DistributedJobManager(JobManager):
 
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
@@ -351,7 +351,7 @@ class DistributedJobManager(JobManager):
             )
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},

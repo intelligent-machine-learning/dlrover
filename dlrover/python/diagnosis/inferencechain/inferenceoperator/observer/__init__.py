@@ -10,20 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import List
-
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
-from dlrover.python.diagnosis.common.inference_chain import Inference
-
-
-def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
-    """
-    Transform solutions (of Inference) to executable diagnosis action
-
-    Args:
-        solutions: solutions of Inference
-    Return:
-        diagnosis action
-    """
-    return DiagnosisAction()

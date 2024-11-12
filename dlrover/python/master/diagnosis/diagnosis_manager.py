@@ -25,7 +25,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     InferenceOperator,
 )
-from dlrover.python.diagnosis.inferencechain.coordinate_solutions import (
+from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
@@ -34,7 +34,8 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
     combine_inferences,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    get_master_observe_operators,
+    get_master_observer_operators,
+    get_master_resolver_operators,
 )
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
@@ -77,8 +78,12 @@ class DiagnosisManager:
         ]
         self._diagnostician.register_training_problems(problems)
 
-        operators = get_master_observe_operators(self._data_manager)
-        self._diagnostician.register_observing_operators(operators)
+        self._diagnostician.register_observers(
+            get_master_observer_operators(self._data_manager)
+        )
+        self._diagnostician.register_resolvers(
+            get_master_resolver_operators(self._data_manager)
+        )
 
         try:
             thread = threading.Thread(
@@ -106,7 +111,7 @@ class DiagnosisManager:
                 break
 
             observed_problems = self._diagnostician.observe_training()
-            action = self._diagnostician.diagnose_problems(observed_problems)
+            action = self._diagnostician.resolve_problems(observed_problems)
             self._job_context.enqueue_action(action)
 
             time.sleep(
@@ -124,8 +129,8 @@ class Diagnostician:
         self._data_manager = data_manager
         self._pre_checks: List[Inference] = []
         self._training_problems: List[Inference] = []
-        self._observing_operators: List[InferenceOperator] = []
-        self._diagnosis_operators: List[InferenceOperator] = []
+        self._observers: List[InferenceOperator] = []
+        self._resolvers: List[InferenceOperator] = []
 
     def register_pre_check(self, pre_checks: List[Inference]):
         self._pre_checks = pre_checks
@@ -133,8 +138,11 @@ class Diagnostician:
     def register_training_problems(self, problems: List[Inference]):
         self._training_problems = problems
 
-    def register_observing_operators(self, operators: List[InferenceOperator]):
-        self._observing_operators = operators
+    def register_observers(self, operators: List[InferenceOperator]):
+        self._observers = operators
+
+    def register_resolvers(self, operators: List[InferenceOperator]):
+        self._resolvers = operators
 
     def observe_training(self) -> List[Inference]:
         """
@@ -146,30 +154,34 @@ class Diagnostician:
         if len(self._training_problems) == 0:
             logger.warning("No training problem is registered.")
             return []
-        observed_problems: List[Inference] = []
+        combined_problems: List[Inference] = []
         for problem in self._training_problems:
-            ic = InferenceChain([problem], self._observing_operators)
-            ob_problems = ic.infer()
-            observed_problems = combine_inferences(
-                observed_problems, ob_problems
+            logger.info(f"Observing problem: {problem}")
+            ic = InferenceChain([problem], self._observers)
+            observed_problems = ic.infer()
+            combined_problems = combine_inferences(
+                combined_problems, observed_problems
             )
-        return observed_problems
+        return combined_problems
 
-    def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
+    def resolve_problems(self, problems: List[Inference]) -> DiagnosisAction:
         """
         Generate the diagnosis action for observed problem
 
         Args:
-            problems: observed problems
+            problems: observed(combined) problems
+
         Return:
             diagnosis action
         """
-        solutions: List[Inference] = []
+        combined_solutions: List[Inference] = []
         for problem in problems:
-            logger.info(f"observed problems: {problem}")
-            ic = InferenceChain([problem], self._diagnosis_operators)
-            sols = ic.infer()
-            if len(sols) > 0:
-                solutions = combine_inferences(solutions, sols)
+            logger.info(f"Resolving problem: {problem}")
+            ic = InferenceChain([problem], self._resolvers)
+            input_solutions = ic.infer()
+            if len(input_solutions) > 0:
+                combined_solutions = combine_inferences(
+                    combined_solutions, input_solutions
+                )
 
-        return coordinate_solutions(solutions)
+        return coordinate_solutions(combined_solutions)

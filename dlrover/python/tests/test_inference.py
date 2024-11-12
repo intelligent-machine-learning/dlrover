@@ -18,7 +18,11 @@ from unittest import mock
 from unittest.mock import patch
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.common.constants import (
+    ErrorMonitorConstants,
+    NodeEnv,
+    NodeType,
+)
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
     EnvConfigKey,
@@ -35,14 +39,17 @@ from dlrover.python.diagnosis.common.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+    ResolveTrainingHangOperator,
 )
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -370,6 +377,70 @@ class InferenceChainTest(unittest.TestCase):
             description=InferenceDescription.FAILURE,
         )
         self.assertTrue(is_same_inference(results[0], not_failure_inf))
+
+    def test_resolve_training_hang_operator(self):
+        operator = ResolveTrainingHangOperator(None)
+        input_infers = []
+        result_infers = operator.infer(input_infers)
+        self.assertEqual(
+            result_infers,
+            [
+                Inference(
+                    name=InferenceName.ACTION,
+                    attribution=InferenceAttribute.IS,
+                    description=InferenceDescription.NONE,
+                )
+            ],
+        )
+
+        input_infers.append(
+            Inference(
+                name=InferenceName.NODE,
+                attribution=InferenceAttribute.ISORNOT,
+                description=InferenceDescription.FAILURE,
+                configs={
+                    InferenceConfigKey.LOG_FILE: "test",
+                    InferenceConfigKey.ERRORS: "error code is 123456",
+                },
+            )
+        )
+        result_infers = operator.infer(input_infers)
+        self.assertEqual(
+            result_infers,
+            [
+                Inference(
+                    name=InferenceName.ACTION,
+                    attribution=InferenceAttribute.IS,
+                    description=InferenceDescription.NONE,
+                )
+            ],
+        )
+
+        input_infers.append(
+            Inference(
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.IS,
+                description=InferenceDescription.HANG,
+            )
+        )
+        result_infers = operator.infer(input_infers)
+        self.assertEqual(
+            result_infers,
+            [
+                Inference(
+                    name=InferenceName.ACTION,
+                    attribution=InferenceAttribute.IS,
+                    description=InferenceDescription.EVENT,
+                    configs={
+                        "event_type": ErrorMonitorConstants.TYPE_WARN,
+                        "event_instance": ErrorMonitorConstants.JOB_INSTANCE,
+                        "event_action": ErrorMonitorConstants.ACTION_HANG_WARN,
+                        "event_msg": "",
+                        "event_labels": {},
+                    },
+                )
+            ],
+        )
 
     def test_inference_chain(self):
         file = "data/training.log"

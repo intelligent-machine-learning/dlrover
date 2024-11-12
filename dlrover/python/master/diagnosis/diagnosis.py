@@ -32,7 +32,7 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
     InferenceOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 from dlrover.python.master.node.job_context import get_job_context
