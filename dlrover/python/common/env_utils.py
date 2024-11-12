@@ -13,6 +13,8 @@
 
 import os
 
+import psutil
+
 from dlrover.python.common.constants import NodeEnv
 
 
@@ -77,3 +79,49 @@ def get_env(env_key):
 def set_env(env_key, env_value):
     """Set the specified environment variable."""
     os.environ[env_key] = str(env_value)
+
+
+def print_process_list():
+    """Print out the processes list"""
+    try:
+        for p in psutil.process_iter():
+            name = " ".join(p.cmdline())
+            print(f"[{str(p.pid)}/{str(p.ppid())}] {name}")
+    except Exception as e:
+        print(f"error in print process: {str(e)}")
+
+
+def get_proc_env(pid):
+    try:
+        with open(f"/proc/{pid}/environ", "rb+") as f:
+            data = f.read()
+            envs = [chunk.decode("utf-8") for chunk in data.split(b"\x00")]
+            return {
+                k: v
+                for k, v in (env.split("=", 1) for env in envs if "=" in env)
+            }
+    except Exception as e:
+        print(f"error in get process {pid} env: {str(e)}")
+        return None
+
+
+def is_worker_process(pid):
+    envs = get_proc_env(pid)
+    print(f"{envs}")
+    _has_run_id = False
+    _has_master_addr = False
+    _has_master_port = False
+
+    if envs is not None:
+        for k in envs.keys():
+            if k == NodeEnv.TORCHELASTIC_RUN_ID:
+                _has_run_id = True
+            if k == NodeEnv.MASTER_ADDR:
+                _has_master_addr = True
+            if k == NodeEnv.MASTER_PORT:
+                _has_master_port = True
+
+    if _has_run_id and _has_master_addr and _has_master_port:
+        return True
+    else:
+        return False
