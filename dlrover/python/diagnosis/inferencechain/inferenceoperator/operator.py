@@ -14,8 +14,14 @@
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
+)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
+)
+from dlrover.python.master.diagnosis.diagnosis_data_manager import (
+    DiagnosisDataManager,
 )
 
 
@@ -29,3 +35,9 @@ def get_worker_observe_operators():
 
 def get_worker_diagnosis_operators():
     return []
+
+
+def get_master_observe_operators(data_mgr: DiagnosisDataManager = None):
+    return [
+        CheckTrainingHangOperator(data_mgr),
+    ]

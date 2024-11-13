@@ -35,10 +35,6 @@ class JobContext(Singleton):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._locker = threading.Lock()
 
-    def enqueue_actions(self, actions):
-        for action in actions:
-            self.enqueue_action(action)
-
     def enqueue_action(self, action):
         self._action_queue.add_action(action)
 

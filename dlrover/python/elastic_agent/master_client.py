@@ -305,8 +305,11 @@ class MasterClient(Singleton):
             node_rank=node_rank,
         )
 
-    def report_succeeded(self):
-        return self.report_node_event(NodeEventType.SUCCEEDED)
+    def report_failed_exited(self):
+        return self.report_node_event(NodeEventType.FAILED_EXITED)
+
+    def report_succeeded_exited(self):
+        return self.report_node_event(NodeEventType.SUCCEEDED_EXITED)
 
     def update_cluster_version(
         self, version_type, version, task_type, task_id
