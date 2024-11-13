@@ -175,6 +175,8 @@ class FsdpCheckpointTest(unittest.TestCase):
         dist.init_process_group(backend="gloo")
 
     def tearDown(self) -> None:
+        self._master.stop()
+
         os.environ.pop("LOCAL_RANK", None)
         os.environ.pop("LOCAL_WORLD_SIZE", None)
         self.shm.unlink()

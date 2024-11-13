@@ -64,7 +64,7 @@ class SimpleNet(nn.Module):
         return output
 
 
-class MegatrionCheckpointTest(unittest.TestCase):
+class MegatronCheckpointTest(unittest.TestCase):
     def setUp(self):
         self._master, self.addr = start_local_master()
         MasterClient._instance = build_master_client(self.addr, 1)
@@ -73,6 +73,8 @@ class MegatrionCheckpointTest(unittest.TestCase):
         MegatronCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
+        self._master.stop()
+
         if MegatronCheckpointSaver._saver_instance:
             MegatronCheckpointSaver._saver_instance.close()
         clear_sock_dir()

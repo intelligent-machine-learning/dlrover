@@ -102,6 +102,8 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
         DeepSpeedCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
+        self._master.stop()
+
         if DeepSpeedCheckpointSaver._saver_instance:
             DeepSpeedCheckpointSaver._saver_instance.close()
         clear_sock_dir()

@@ -357,3 +357,7 @@ class ErrorMonitorConstants(object):
     ACTION_START_SAVE_SHARD = "start_save_shard"
     ACTION_COMPLETE_SAVE_SHARD = "complete_save_shard"
     ACTION_SAVE_SHARD_ERROR = "save_shard_error"
+    ACTION_START_MEM_CKPT = "start_mem_ckpt"
+    ACTION_COMPLETE_MEM_CKPT = "complete_mem_ckpt"
+    ACTION_START_RESUME_MEM_CKPT = "start_resume_mem_ckpt"
+    ACTION_COMPLETE_RESUME_MEM_CKPT = "complete_resume_mem_ckpt"

@@ -136,6 +136,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self):
+        self._master.stop()
+
         os.environ.pop(NodeEnv.NODE_NUM, None)
         os.environ.pop(NodeEnv.NODE_RANK, None)
         if AsyncCheckpointSaver._saver_instance:
@@ -285,9 +287,13 @@ class CheckpointEngineTest(unittest.TestCase):
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+
     def tearDown(self) -> None:
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        self._master.stop()
 
     def test_load_no_sharding(self):
         model = SimpleNet()
@@ -357,6 +363,13 @@ class CheckpointEngineTest(unittest.TestCase):
 
 
 class PosixDiskStorageTest(unittest.TestCase):
+    def setUp(self):
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+
+    def tearDown(self) -> None:
+        self._master.stop()
+
     def test_posix(self):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:

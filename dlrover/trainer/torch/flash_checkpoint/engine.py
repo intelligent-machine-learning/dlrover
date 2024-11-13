@@ -27,6 +27,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
@@ -197,6 +198,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
+
+        self._master_client = MasterClient.singleton_instance()
 
         # need to wait until the socket server is created(by the saver)
         while not self._shm_lock.is_available():
