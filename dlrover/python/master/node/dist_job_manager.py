@@ -36,6 +36,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -267,7 +271,7 @@ class DistributedJobManager(JobManager):
 
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "All node check failed",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
@@ -294,7 +298,7 @@ class DistributedJobManager(JobManager):
             )
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "PS OOM",
                 {},
@@ -323,7 +327,7 @@ class DistributedJobManager(JobManager):
 
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
@@ -347,7 +351,7 @@ class DistributedJobManager(JobManager):
             )
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
-                "job",
+                ErrorMonitorConstants.JOB_INSTANCE,
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
@@ -503,7 +507,11 @@ class DistributedJobManager(JobManager):
                     logger.warning(e)
                     detail_trace_back = traceback.format_exc()
                     logger.warning(detail_trace_back)
-            self._process_diagnosis_action(self._job_context.next_action())
+            self._process_diagnosis_action(
+                self._job_context.next_action(
+                    instance=DiagnosisConstant.MASTER_INSTANCE
+                )
+            )
             time.sleep(15)
 
     def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
@@ -678,7 +686,10 @@ class DistributedJobManager(JobManager):
         }
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
-        pass
+        if not action or action.action_type == DiagnosisActionType.NONE:
+            return
+
+        # TODO
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
@@ -1259,6 +1270,12 @@ class DistributedJobManager(JobManager):
                 target_node.update_reported_status(event_type)
 
                 self._job_context.update_job_node(target_node)
+
+    def get_node_required_info(self):
+        return self._nodes_required
+
+    def get_job_strategy(self):
+        return self._job_args.distribution_strategy
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

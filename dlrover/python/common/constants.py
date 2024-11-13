@@ -340,7 +340,10 @@ class AscendConstants(object):
 
 class ErrorMonitorConstants(object):
     TYPE_INFO = "info"
+    TYPE_WARN = "warn"
     TYPE_ERROR = "error"
+
+    JOB_INSTANCE = "job"
 
     ACTION_WORKER_CREATE = "worker_create"
     ACTION_STATUS_UPDATE = "status_update"
@@ -354,3 +357,4 @@ class ErrorMonitorConstants(object):
     ACTION_RDZV_TIMEOUT = "rendezvous_timeout"
     ACTION_TRAINING_START = "training_start"
     ACTION_RESTART_TRAINING = "restart_training"
+    ACTION_HANG_WARN = "hang_warning"
