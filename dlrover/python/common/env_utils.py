@@ -107,7 +107,6 @@ def get_proc_env(pid):
 
 def is_worker_process(pid):
     envs = get_proc_env(pid)
-    print(f"{envs}")
     _has_run_id = False
     _has_master_addr = False
     _has_master_port = False

@@ -1,4 +1,3 @@
-#!/opt/conda/bin/python3
 # Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# ****************************************************************#
-# ScriptName: /tmp/orphan.py
-# Author: $SHTERM_REAL_USER@alibaba-inc.com
-# Create Date: 2024-10-15 10:26
-# Modify Author: $SHTERM_REAL_USER@alibaba-inc.com
-# Modify Date: 2024-10-15 10:26
-# Function:
-# ***************************************************************#
 import os
 import subprocess
 import sys
@@ -51,7 +41,10 @@ if __name__ == "__main__":
         os.environ["MASTER_ADDR"] = "127.0.0.1"
         os.environ["MASTER_PORT"] = "29500"
         subprocess.Popen(
-            ["python", "dlrover/python/tests/orphan_process.py"],
+            [
+                "/usr/local/bin/python",
+                "dlrover/python/tests/orphan_process.py",
+            ],
             env=os.environ,
         )
         exit(0)
