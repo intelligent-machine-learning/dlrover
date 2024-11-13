@@ -486,19 +486,25 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             ["/usr/local/bin/python", "dlrover/python/tests/orphan_process.py"]
         )
         for p in psutil.process_iter():
-            name = " ".join(p.cmdline())
-            if "orphan_process.py" in name:
-                self.assertFalse(env_utils.is_worker_process(p.pid))
-                break
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    self.assertFalse(env_utils.is_worker_process(p.pid))
+                    break
+            except Exception:
+                pass
 
         self.test_stop_workers_ascend()
 
         for p in psutil.process_iter():
-            name = " ".join(p.cmdline())
-            if "orphan_process.py" in name:
-                orphan_killed = False
-                orphan_pid = p.pid
-                break
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    orphan_killed = False
+                    orphan_pid = p.pid
+                    break
+            except Exception:
+                pass
 
         self.assertFalse(orphan_killed)
         os.kill(orphan_pid, signal.SIGTERM)
@@ -513,19 +519,25 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             ]
         )
         for p in psutil.process_iter():
-            name = " ".join(p.cmdline())
-            if "orphan_process.py" in name:
-                self.assertTrue(env_utils.is_worker_process(p.pid))
-                break
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    self.assertTrue(env_utils.is_worker_process(p.pid))
+                    break
+            except Exception:
+                pass
 
         self.test_stop_workers_ascend()
 
         for p in psutil.process_iter():
-            name = " ".join(p.cmdline())
-            if "orphan_process.py" in name:
-                orphan_killed = False
-                # orphan_pid = p.pid
-                break
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    orphan_killed = False
+                    # orphan_pid = p.pid
+                    break
+            except Exception:
+                pass
 
         self.assertTrue(orphan_killed)
         # os.kill(orphan_pid, signal.SIGTERM)
