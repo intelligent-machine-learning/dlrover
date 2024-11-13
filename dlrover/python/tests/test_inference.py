@@ -73,9 +73,7 @@ class InferenceChainTest(unittest.TestCase):
             3: [(1, False), (2, True), (3, True), (4, True), (5, True)],
         }
         operator = CheckTrainingHangOperator(None)
-        self.assertEqual(
-            operator._find_hang_intersection(test_metric), (-1, -1)
-        )
+        self.assertEqual(operator._get_hang_overlaps(test_metric), (-1, -1))
 
         test_metric: Dict[int, List[Tuple[int, bool]]] = {
             1: [
@@ -107,7 +105,7 @@ class InferenceChainTest(unittest.TestCase):
             ],
         }
         operator = CheckTrainingHangOperator(None)
-        self.assertEqual(operator._find_hang_intersection(test_metric), (2, 1))
+        self.assertEqual(operator._get_hang_overlaps(test_metric), (2, 1))
 
         test_metric: Dict[int, List[Tuple[int, bool]]] = {
             1: [
@@ -139,7 +137,7 @@ class InferenceChainTest(unittest.TestCase):
             ],
         }
         operator = CheckTrainingHangOperator(None)
-        self.assertEqual(operator._find_hang_intersection(test_metric), (2, 2))
+        self.assertEqual(operator._get_hang_overlaps(test_metric), (2, 2))
 
         test_metric: Dict[int, List[Tuple[int, bool]]] = {
             1: [
@@ -171,9 +169,7 @@ class InferenceChainTest(unittest.TestCase):
             ],
         }
         operator = CheckTrainingHangOperator(None)
-        self.assertEqual(
-            operator._find_hang_intersection(test_metric), (-1, -1)
-        )
+        self.assertEqual(operator._get_hang_overlaps(test_metric), (-1, -1))
 
     def test_check_training_hang_operator_is_hang(self):
         operator = CheckTrainingHangOperator(None)

@@ -94,9 +94,11 @@ class CheckTrainingHangOperator(InferenceOperator):
         if not diagnosis_data:
             return False
 
+        # the format of the hang metric can refer these files:
+        # dlrover/python/tests/data/xpu_timer/hang
         for data in diagnosis_data:
             # filter hang metric
-            each_metric = [
+            each_worker_metric = [
                 line
                 for line in data.data_content.splitlines()
                 if line.startswith(HANG_METRIC_PREFIX)
@@ -105,11 +107,11 @@ class CheckTrainingHangOperator(InferenceOperator):
             # if all local rank is hanged, tag worker hang
             rank_hang_size = 0
             is_worker_hang = False
-            for each_rank_metric in each_metric:
+            for each_rank_metric in each_worker_metric:
                 match = re.search(r"(\d+)(?!.*\d)", each_rank_metric)
                 if match and match.group(0) == "1":
                     rank_hang_size += 1
-            if rank_hang_size == len(each_metric):
+            if rank_hang_size == len(each_worker_metric):
                 is_worker_hang = True
 
             if data.node_rank not in worker_hang_metric:
@@ -121,7 +123,7 @@ class CheckTrainingHangOperator(InferenceOperator):
         # hang detection rules:
         # 1. 100% worker got hang metric
         # 2. last for 5+ minutes
-        hang_id, hang_last = self._find_hang_intersection(worker_hang_metric)
+        hang_id, hang_last = self._get_hang_overlaps(worker_hang_metric)
         hang_last_threshold = self._get_hang_time_last_threshold()
         if hang_id != -1 and hang_last > hang_last_threshold:
             logger.info(
@@ -135,18 +137,18 @@ class CheckTrainingHangOperator(InferenceOperator):
         # set 5 minutes for now(second)
         return 5 * 60
 
-    def _find_hang_intersection(
+    def _get_hang_overlaps(
         self, worker_hang_metric: Dict[int, List[Tuple[int, bool]]]
     ) -> Tuple[int, int]:
         """
-        Require all workers hang from latest and find the hang intersection.
+        Require all workers hang from latest and find the hang overlaps.
 
         Args:
             worker_hang_metric (Dict[int, List[Tuple[int, bool]]]): Input
                 metric in format: node_id: [(timestamp, is_hang), ...]
 
         Returns:
-            The hang intersection's id and time last in tuple format.
+            The hang overlaps' id and time last in tuple format.
         """
 
         worker_hang_length_min = 0
@@ -158,7 +160,9 @@ class CheckTrainingHangOperator(InferenceOperator):
             tuple_list.sort(key=lambda x: x[0])
             worker_hang_length = 0
 
-            for tuple_item in reversed(tuple_list):
+            # ort in descending order
+            reversed_tuple_list = reversed(tuple_list)
+            for tuple_item in reversed_tuple_list:
                 if tuple_item[1]:
                     worker_hang_length += 1
                 else:
