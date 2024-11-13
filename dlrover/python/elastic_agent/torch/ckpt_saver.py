@@ -299,7 +299,7 @@ class SharedMemoryHandler(object):
         report_event_to_master(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
-            action=ErrorMonitorConstants.ACTION_START_MEM_CKPT,
+            action=ErrorMonitorConstants.ACTION_MEM_CKPT_START,
             msg=f"step={ckpt_conf.step}",
         )
         self.metadata.set(meta_dict)
@@ -310,7 +310,7 @@ class SharedMemoryHandler(object):
         report_event_to_master(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
-            action=ErrorMonitorConstants.ACTION_COMPLETE_MEM_CKPT,
+            action=ErrorMonitorConstants.ACTION_MEM_CKPT_COMPLETE,
             msg=f"step={ckpt_conf.step}",
         )
 
@@ -334,14 +334,14 @@ class SharedMemoryHandler(object):
         report_event_to_master(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(config.rank),
-            action=ErrorMonitorConstants.ACTION_START_RESUME_MEM_CKPT,
+            action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_START,
             msg=f"step={config.step}",
         )
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
         report_event_to_master(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(config.rank),
-            action=ErrorMonitorConstants.ACTION_COMPLETE_RESUME_MEM_CKPT,
+            action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_COMPLETE,
             msg=f"step={config.step}",
         )
         return state_dict
@@ -663,14 +663,14 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             report_event_to_master(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
-                action=ErrorMonitorConstants.ACTION_START_SAVE_SHARD,
+                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_START,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             report_event_to_master(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
-                action=ErrorMonitorConstants.ACTION_COMPLETE_SAVE_SHARD,
+                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_COMPLETE,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             shm_lock.release()

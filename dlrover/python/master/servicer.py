@@ -361,8 +361,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
             success = self._report_worker_diagnosis_data(message)
-        elif isinstance(message, grpc.InfoEvent):
-            success = self._report_info_event(message)
+        elif isinstance(message, grpc.Event):
+            success = self._report_event(message)
 
         response.success = success
         return response
@@ -645,7 +645,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
 
-    def _report_info_event(self, message: grpc.InfoEvent):
+    def _report_event(self, message: grpc.Event):
         if self._error_monitor:
             self._error_monitor.report_event(
                 message.event_type,

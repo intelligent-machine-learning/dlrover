@@ -68,7 +68,7 @@ def report_event_to_master(
         labels = {}
     try:
         client = MasterClient.singleton_instance()
-        client.report_info_event(
+        client.report_event(
             event_type,
             instance,
             action,
@@ -490,7 +490,7 @@ class MasterClient(Singleton):
         response: grpc.ElasticRunConfig = self._get(request)
         return response.configs
 
-    def report_info_event(
+    def report_event(
         self,
         event_type: str,
         instance: str,
@@ -498,7 +498,7 @@ class MasterClient(Singleton):
         msg: str,
         labels: Dict[str, str],
     ):
-        message = grpc.InfoEvent(
+        message = grpc.Event(
             event_type=event_type,
             instance=instance,
             action=action,

@@ -509,7 +509,7 @@ class ElasticRunConfig(Message):
 
 
 @dataclass
-class InfoEvent(Message):
+class Event(Message):
     event_type: str = ""
     instance: str = ""
     action: str = ""
