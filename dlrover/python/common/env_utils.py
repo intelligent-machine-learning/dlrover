@@ -16,6 +16,7 @@ import os
 import psutil
 
 from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.log import default_logger as logger
 
 
 def get_node_rank():
@@ -86,9 +87,9 @@ def print_process_list():
     try:
         for p in psutil.process_iter():
             name = " ".join(p.cmdline())
-            print(f"[{str(p.pid)}/{str(p.ppid())}] {name}")
+            logger.info(f"[{str(p.pid)}/{str(p.ppid())}] {name}")
     except Exception as e:
-        print(f"error in print process: {str(e)}")
+        logger.error(f"error in print process: {str(e)}")
 
 
 def get_proc_env(pid):
@@ -100,8 +101,11 @@ def get_proc_env(pid):
                 k: v
                 for k, v in (env.split("=", 1) for env in envs if "=" in env)
             }
+    except OSError as e:
+        logger.error(f"OSError in get process {pid} env: {str(e)}")
+        return None
     except Exception as e:
-        print(f"error in get process {pid} env: {str(e)}")
+        logger.error(f"Unexpected error in get process {pid} env: {str(e)}")
         return None
 
 
