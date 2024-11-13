@@ -11,19 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
+from typing import List
+
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.inference_chain import Inference
 
 
-def has_expired(timestamp: float, time_period: float) -> bool:
+def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
     """
-    Check if a give timestamp has expired
+    Transform solutions (of Inference) to executable diagnosis action
 
     Args:
-        timestamp: data timestamp
-        time_period: expire time period in seconds
+        solutions: solutions of Inference
     Return:
-        indicate if the timestamp has expired
+        diagnosis action
     """
-    dt = datetime.fromtimestamp(timestamp)
-    expired_dt = dt + timedelta(milliseconds=time_period * 1000)
-    return expired_dt < datetime.now()
+    return DiagnosisAction()

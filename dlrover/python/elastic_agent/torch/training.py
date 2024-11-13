@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import socket
+import sys
 import tempfile
 import time
 import uuid
@@ -88,10 +89,11 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.elastic_agent.context import AgentContext
+from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -451,6 +453,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._diagnose_agent = DiagnosisAgent(
             training_log_file, failure_node_errors
         )
+        self._agent_context = get_agent_context()
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -868,7 +871,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
                 finally:
-                    self._client.report_succeeded()
+                    self._client.report_succeeded_exited()
                     logger.info("Succeeded and exit.")
 
                 return run_result
@@ -876,23 +879,25 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                context = AgentContext(
+                self._agent_context.update_context(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
                 try:
-                    action = self._diagnose_agent.diagnose_training_failure(
-                        context
-                    )
+                    action = self._diagnose_agent.diagnose_training_failure()
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
-                        action = DiagnosisActionType.RESTART_WORKER
+                        action = NodeAction(
+                            action_type=DiagnosisActionType.RESTART_WORKER,
+                        )
                     else:
-                        action = DiagnosisActionType.RELAUNCH_WORKER
-                self._process_diagnose_action(action)
+                        action = NodeAction(
+                            action_type=DiagnosisActionType.RELAUNCH_WORKER,
+                        )
+                self._process_diagnosis_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
@@ -903,11 +908,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnose_action(self, action: str):
-        if action == DiagnosisActionType.RESTART_WORKER:
+    def _process_diagnosis_action(self, action: NodeAction):
+        if action.action_type == DiagnosisActionType.RESTART_WORKER:
             self._remaining_failovers -= 1
             self._restart_workers(self._worker_group)
-        elif action == DiagnosisActionType.RELAUNCH_WORKER:
+        elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
             self._stop_workers(self._worker_group)
             self._worker_group.state = WorkerState.FAILED
 
@@ -1102,6 +1107,7 @@ def launch_agent(
     )
 
     shutdown_rdzv = True
+    result = None
     try:
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
 
@@ -1134,6 +1140,14 @@ def launch_agent(
         events.record(agent.get_event_failed())
         raise
     finally:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        client = MasterClient.singleton_instance()
+        if (exc_type is not None) or (
+            result is not None and result.is_failed()
+        ):
+            client.report_failed_exited()
+            logger.info("Failed and exit.")
+
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
         agent.stop_executor()

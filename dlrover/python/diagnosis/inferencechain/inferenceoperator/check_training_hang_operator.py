@@ -89,5 +89,7 @@ class CheckTrainingHangOperator(InferenceOperator):
             ]
             hang_metric.append(each_metric)
 
+        if len(hang_metric) > 0:
+            return True
         # TODO: implement the judgement
         return False
