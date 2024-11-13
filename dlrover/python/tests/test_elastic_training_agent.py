@@ -482,7 +482,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_no_orphan_workers(self):
         orphan_killed = True
         orphan_pid = -1
-        subprocess.run(["python", "dlrover/python/tests/orphan_process.py"])
+        subprocess.run(
+            ["/usr/local/bin/python", "dlrover/python/tests/orphan_process.py"]
+        )
         for p in psutil.process_iter():
             name = " ".join(p.cmdline())
             if "orphan_process.py" in name:
@@ -504,7 +506,11 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_orphan_workers(self):
         orphan_killed = True
         subprocess.run(
-            ["python", "dlrover/python/tests/orphan_process.py", "torch"]
+            [
+                "/usr/local/bin/python",
+                "dlrover/python/tests/orphan_process.py",
+                "torch",
+            ]
         )
         for p in psutil.process_iter():
             name = " ".join(p.cmdline())
