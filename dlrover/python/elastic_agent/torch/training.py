@@ -37,6 +37,7 @@ from typing import (
     Union,
 )
 
+import psutil
 import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
@@ -456,6 +457,51 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._agent_context = get_agent_context()
 
     @prof
+    def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        """The ASCEND framework might fork multiple sub-processes, we should
+        stop all the children processes before shutdown the workers
+        """
+        """print out a snapshot of all processes"""
+        env_utils.print_process_list()
+
+        if self._pcontext is not None:
+            pc_pids = set(self._pcontext.pids().values())
+            logger.info(f"try to kill child processes of {pc_pids}")
+            for pid in pc_pids:
+                try:
+                    pp = psutil.Process(pid)
+                    cp = pp.children()
+                    for proc in cp:
+                        logger.info(f"kill sub {proc.pid} of parent {pid}")
+                        os.kill(proc.pid, signal.SIGKILL)
+                except Exception as e:
+                    logger.warning(f"error when kill {pid}: {str(e)}")
+
+        self._shutdown(death_sig=signal.SIGKILL)
+
+        """cleanup orphan processes if exists"""
+        self._stop_orphan_workers(worker_group)
+
+        """print out a snapshot of all processes again"""
+        env_utils.print_process_list()
+
+    @prof
+    def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
+        """How we define the orphan workers
+        1. ppid == 1
+        2. is_worker_process() is True
+        """
+        try:
+            for p in psutil.process_iter():
+                if p.ppid() == 1 and env_utils.is_worker_process(p.pid):
+                    name = " ".join(p.cmdline())
+                    logger.info(f"find orphan workers {p.pid}: {name}")
+                    os.kill(p.pid, signal.SIGKILL)
+        except Exception as e:
+            logger.warning(f"_stop_orphan_workers exception: {e}")
+
+    @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
         r"""
         Runs rendezvous for the workers specified by worker spec.
@@ -797,8 +843,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(timeout)
 
             if self._config.accelerator == Accelerators.ASCEND_NPU:
-                logger.info("stop workers via SIGKILL")
-                self._shutdown(death_sig=signal.SIGKILL)
+                self._stop_workers_ascend(worker_group)
             else:
                 if version_less_than_240():
                     super()._stop_workers(worker_group)
