@@ -441,7 +441,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         config = self.config
         spec = self.spec
 
-        print(cmdline)
         self.config.accelerator = Accelerators.ASCEND_NPU
         self.spec.max_restarts = 0
         if cmdline is None:
@@ -462,9 +461,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         def stop_task(agent):
-            print("entering stop_task")
             time.sleep(90)
-            print("running _stop_workers_ascend...")
             agent._stop_workers_ascend(None)
 
         stop_task = threading.Thread(target=stop_task, args=(agent,))
@@ -538,13 +535,11 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 name = " ".join(p.cmdline())
                 if "orphan_process.py" in name:
                     orphan_killed = False
-                    # orphan_pid = p.pid
                     break
             except Exception:
                 pass
 
         self.assertTrue(orphan_killed)
-        # os.kill(orphan_pid, signal.SIGTERM)
 
     def test_stop_workers(self):
         agent = ElasticTrainingAgent(

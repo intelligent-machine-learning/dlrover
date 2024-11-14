@@ -469,7 +469,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             pc_pids = set(self._pcontext.pids().values())
             logger.info(f"try to kill child processes of {pc_pids}")
             for pid in pc_pids:
-                logger.info(f"kill child processes of process {pid}")
                 try:
                     pp = psutil.Process(pid)
                     cp = pp.children()
@@ -477,7 +476,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         logger.info(f"kill sub {proc.pid} of parent {pid}")
                         os.kill(proc.pid, signal.SIGKILL)
                 except Exception as e:
-                    logger.info(f"kill {pid}: {str(e)}")
+                    logger.warning(f"error when kill {pid}: {str(e)}")
 
         self._shutdown(death_sig=signal.SIGKILL)
 
