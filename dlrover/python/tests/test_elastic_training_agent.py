@@ -485,14 +485,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         subprocess.run(
             ["/usr/local/bin/python", "dlrover/python/tests/orphan_process.py"]
         )
+        env_utils.print_process_list()
         for p in psutil.process_iter():
             try:
-                name = " ".join(p.cmdline())
-                if "orphan_process.py" in name:
-                    self.assertFalse(env_utils.is_worker_process(p.pid))
-                    break
+                self.assertIsNotNone(env_utils.get_proc_env(p.pid))
+                self.assertFalse(env_utils.is_worker_process(p.pid))
             except Exception:
                 pass
+        self.assertIsNone(env_utils.get_proc_env(999999))
 
         self.test_stop_workers_ascend()
 
@@ -518,14 +518,18 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 "torch",
             ]
         )
+        env_utils.print_process_list()
         for p in psutil.process_iter():
             try:
+                self.assertIsNotNone(env_utils.get_proc_env(p.pid))
                 name = " ".join(p.cmdline())
                 if "orphan_process.py" in name:
                     self.assertTrue(env_utils.is_worker_process(p.pid))
-                    break
+                else:
+                    self.assertFalse(env_utils.is_worker_process(p.pid))
             except Exception:
                 pass
+        self.assertIsNone(env_utils.get_proc_env(999999))
 
         self.test_stop_workers_ascend()
 
