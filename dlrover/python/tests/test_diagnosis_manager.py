@@ -14,6 +14,7 @@
 import time
 import unittest
 from typing import List
+from unittest import mock
 
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
@@ -30,7 +31,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     is_training_hanged,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
@@ -83,8 +84,8 @@ class DiagnosisManagerTest(unittest.TestCase):
 
         data_mgr = DiagnosisDataManager(10000)
         operator = CheckTrainingHangOperator(data_mgr)
-        mgr._diagnostician.register_observing_operators([operator])
-        self.assertEqual(len(mgr._diagnostician._observing_operators), 1)
+        mgr._diagnostician.register_observers([operator])
+        self.assertEqual(len(mgr._diagnostician._observers), 1)
 
         data = DiagnosisData(
             data_type=DiagnosisDataType.XPU_TIMER_METRIC,
@@ -92,10 +93,15 @@ class DiagnosisManagerTest(unittest.TestCase):
         )
         data_mgr.store_data(data)
 
+        # mock training hang
+        mgr._diagnostician._observers[0].is_hang = mock.MagicMock(
+            return_value=True
+        )
+
         # observe training problems
         observed_problems = mgr._diagnostician.observe_training()
         self.assertTrue(is_training_hanged(observed_problems[0]))
 
         # explore solutions to observed problems
-        action = mgr._diagnostician.diagnose_problems(observed_problems)
+        action = mgr._diagnostician.resolve_problems(observed_problems)
         self.assertEqual(action.action_type, DiagnosisActionType.NONE)

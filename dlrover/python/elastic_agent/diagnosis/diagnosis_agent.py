@@ -41,7 +41,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     combine_inferences,
     is_inference_included,
 )
-from dlrover.python.diagnosis.inferencechain.coordinate_solutions import (
+from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (

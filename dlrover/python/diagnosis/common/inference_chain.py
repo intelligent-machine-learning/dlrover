@@ -21,6 +21,7 @@ class InferenceName:
     TRAINING = "training"
     NODE = "node"
     WORKER = "worker"
+    ACTION = "action"
 
 
 class InferenceAttribute:
@@ -31,9 +32,11 @@ class InferenceAttribute:
 
 
 class InferenceDescription:
+    NONE = "n/a"
     HANG = "hang"
     FAILURE = "failure"
     METRICS = "metrics"
+    EVENT = "event"
 
 
 @dataclass
