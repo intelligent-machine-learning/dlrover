@@ -9,7 +9,6 @@ coverage:
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
     - "dlrover/proto"
-    - "dlrover/python/tests"
   status:
     changes: false
     default_rules:
