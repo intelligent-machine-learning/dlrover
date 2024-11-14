@@ -18,7 +18,10 @@ from typing import Dict, Optional
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.constants import DiagnosisConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
@@ -36,6 +39,8 @@ class JobContext(Singleton):
         self._locker = threading.Lock()
 
     def enqueue_action(self, action):
+        if not action or action.action_type == DiagnosisActionType.NONE:
+            return
         self._action_queue.add_action(action)
 
     def next_action(
