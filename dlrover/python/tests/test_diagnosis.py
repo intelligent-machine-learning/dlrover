@@ -18,7 +18,6 @@ from dlrover.python.common.constants import NodeStatus
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
-    DiagnosisDataType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -26,8 +25,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NodeAction,
 )
-from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class DiagnosisTest(unittest.TestCase):
@@ -37,40 +34,32 @@ class DiagnosisTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_data_manager(self):
-        mgr = DiagnosisDataManager(5)
-        log1 = TrainingLog(0)
-        mgr.store_data(log1)
-        time.sleep(1)
-        log2 = TrainingLog(0)
-        mgr.store_data(log2)
-
-        logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
-        self.assertEqual(len(logs), 2)
-
-        time.sleep(6)
-        log3 = TrainingLog(0)
-        mgr.store_data(log3)
-        logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
-        self.assertEqual(len(logs), 1)
-
     def test_action_basic(self):
         basic_action = DiagnosisAction()
         self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
-        self.assertEqual(basic_action._instance, DiagnosisConstant.MASTER)
+        self.assertEqual(
+            basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+        )
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
         )
         self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
-        self.assertEqual(event_action._instance, DiagnosisConstant.MASTER)
+        self.assertEqual(
+            event_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+        )
         self.assertEqual(event_action.event_type, "info")
         self.assertEqual(event_action.event_instance, "job")
         self.assertEqual(event_action.event_action, "test")
         self.assertEqual(event_action.event_msg, "test123")
         self.assertEqual(event_action.event_labels, {"k1": "v1"})
 
-        node_relaunch_action = NodeAction(1, NodeStatus.FAILED, "hang")
+        node_relaunch_action = NodeAction(
+            node_id=1,
+            node_status=NodeStatus.FAILED,
+            reason="hang",
+            action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+        )
         self.assertEqual(
             node_relaunch_action.action_type,
             DiagnosisActionType.MASTER_RELAUNCH_WORKER,
@@ -81,7 +70,10 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(node_relaunch_action.reason, "hang")
 
         node_relaunch_action = NodeAction(
-            1, NodeStatus.FAILED, "hang", DiagnosisActionType.RESTART_WORKER
+            node_id=1,
+            node_status=NodeStatus.FAILED,
+            reason="hang",
+            action_type=DiagnosisActionType.RESTART_WORKER,
         )
         self.assertEqual(
             node_relaunch_action.action_type,
@@ -104,11 +96,15 @@ class DiagnosisTest(unittest.TestCase):
             DiagnosisActionType.NONE,
         )
         self.assertEqual(
-            action_queue.next_action(instance=-1).action_type,
+            action_queue.next_action(
+                instance=DiagnosisConstant.LOCAL_INSTANCE
+            ).action_type,
             DiagnosisActionType.EVENT,
         )
         self.assertEqual(
-            action_queue.next_action(instance=-1).action_type,
+            action_queue.next_action(
+                instance=DiagnosisConstant.LOCAL_INSTANCE
+            ).action_type,
             DiagnosisActionType.EVENT,
         )
         self.assertEqual(

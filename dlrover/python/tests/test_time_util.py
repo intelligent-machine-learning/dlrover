@@ -21,11 +21,11 @@ class TimeUtilTest(unittest.TestCase):
     def test_has_expired(self):
         self.assertFalse(
             tu.has_expired(
-                (datetime.now() + timedelta(seconds=1)).timestamp(), 500
+                (datetime.now() + timedelta(seconds=5)).timestamp(), 5
             )
         )
         self.assertTrue(
             tu.has_expired(
-                (datetime.now() - timedelta(seconds=1)).timestamp(), 500
+                (datetime.now() - timedelta(seconds=5)).timestamp(), 5
             )
         )

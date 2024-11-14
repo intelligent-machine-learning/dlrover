@@ -424,7 +424,7 @@ class MasterServicerTest(unittest.TestCase):
         success = self.servicer._sync_checkpoint(NodeType.WORKER, 1, message)
         self.assertTrue(success)
 
-    def test_report_worker_diagnosis_data(self):
+    def test_report_node_diagnosis_data(self):
         test = WorkerTrainingMetric(
             data_content="test123",
             node_id=env_utils.get_node_id(),
@@ -438,7 +438,7 @@ class MasterServicerTest(unittest.TestCase):
             test.to_json(),
             test.node_rank,
         )
-        self.assertTrue(self.servicer._report_worker_diagnosis_data(request))
+        self.assertTrue(self.servicer._report_node_diagnosis_data(request))
 
     def test_deal_with_reported_node_event(self):
         request = grpc.NodeEvent(node=grpc.NodeMeta())
@@ -452,7 +452,7 @@ class MasterServicerTest(unittest.TestCase):
         self.assertFalse(
             self.job_manager._job_context.job_node(
                 task_type, task_id
-            ).is_succeeded()
+            ).is_succeeded_and_exited()
         )
 
         request.event_type = NodeEventType.NODE_CHECK_FAILED
@@ -464,13 +464,29 @@ class MasterServicerTest(unittest.TestCase):
             ).is_node_check_failed()
         )
 
-        request.event_type = NodeEventType.SUCCEEDED
+        request.event_type = NodeEventType.SUCCEEDED_EXITED
         request.message = ""
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(
             self.job_manager._job_context.job_node(
                 task_type, task_id
-            ).is_succeeded()
+            ).is_succeeded_and_exited()
+        )
+        self.assertFalse(
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_node_check_failed()
+        )
+
+        task_id = 2
+        request.event_type = NodeEventType.FAILED_EXITED
+        request.node.id = task_id
+        request.message = ""
+        self.assertTrue(self.servicer._deal_with_reported_node_event(request))
+        self.assertTrue(
+            self.job_manager._job_context.job_node(
+                task_type, task_id
+            ).is_failed_and_exited()
         )
         self.assertFalse(
             self.job_manager._job_context.job_node(

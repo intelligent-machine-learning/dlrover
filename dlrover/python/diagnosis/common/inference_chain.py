@@ -21,6 +21,7 @@ class InferenceName:
     TRAINING = "training"
     NODE = "node"
     WORKER = "worker"
+    ACTION = "action"
 
 
 class InferenceAttribute:
@@ -31,9 +32,11 @@ class InferenceAttribute:
 
 
 class InferenceDescription:
+    NONE = "n/a"
     HANG = "hang"
     FAILURE = "failure"
     METRICS = "metrics"
+    EVENT = "event"
 
 
 @dataclass
@@ -102,3 +105,13 @@ def combine_inferences(
         inferences.append(inference1)
 
     return inferences
+
+
+def is_training_hanged(inf: Inference):
+    if (
+        inf.name == InferenceName.TRAINING
+        and inf.attribution == InferenceAttribute.IS
+        and inf.description == InferenceDescription.HANG
+    ):
+        return True
+    return False

@@ -11,11 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.metrics_collection_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+    ResolveTrainingHangOperator,
+)
+from dlrover.python.master.diagnosis.diagnosis_data_manager import (
+    DiagnosisDataManager,
 )
 
 
@@ -29,3 +38,21 @@ def get_worker_observe_operators():
 
 def get_worker_diagnosis_operators():
     return []
+
+
+def get_master_observing_operators(data_mgr: DiagnosisDataManager = None):
+    return [
+        CheckTrainingHangOperator(data_mgr),
+    ]
+
+
+def get_master_observer_operators(data_mgr: DiagnosisDataManager = None):
+    return [
+        CheckTrainingHangOperator(data_mgr),
+    ]
+
+
+def get_master_resolver_operators(data_mgr: DiagnosisDataManager = None):
+    return [
+        ResolveTrainingHangOperator(data_mgr),
+    ]
