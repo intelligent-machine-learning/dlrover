@@ -82,6 +82,9 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
 
         context = get_agent_context()
+
+        self.assertTrue("worker_spec", context.to_string())
+
         context.update_context(
             worker_spec=spec,
             remaining_failovers=2,
