@@ -13,6 +13,7 @@
 
 import os
 import unittest
+from unittest import mock
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
@@ -20,6 +21,10 @@ from torch.distributed.launcher.api import LaunchConfig
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    NoAction,
+    NodeAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
@@ -138,6 +143,30 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.assertEqual(test_new.data_content, test.data_content)
         self.assertEqual(test_new.data_type, test.data_type)
         self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+    def test_send_heartbeat(self):
+        agent = DiagnosisAgent.singleton_instance("", "")
+        context = agent._agent_context
+        agent._client.report_heart_beat = mock.MagicMock(
+            returnValue=NoAction()
+        )
+
+        agent.send_heartbeat()
+        self.assertTrue(
+            context._diagnosis_action_queue.next_action().action_type,
+            DiagnosisActionType.NONE,
+        )
+
+        agent._client.report_heart_beat = mock.MagicMock(
+            returnValue=NodeAction(
+                action_type=DiagnosisActionType.RESTART_WORKER
+            )
+        )
+        agent.send_heartbeat()
+        self.assertTrue(
+            context._diagnosis_action_queue.next_action().action_type,
+            DiagnosisActionType.RESTART_WORKER,
+        )
 
 
 if __name__ == "__main__":
