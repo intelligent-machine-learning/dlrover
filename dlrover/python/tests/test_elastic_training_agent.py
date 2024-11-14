@@ -198,8 +198,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         _task.start()
 
         addr, port = agent._safe_get_master_addr_port(store)
-        print(addr)
-        print(port)
         self.assertEqual(addr, "127.0.0.1")
         self.assertEqual(port, 12345)
 
@@ -468,7 +466,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         stop_task.start()
 
         run_result = agent._invoke_run()
-        print(run_result)
         self.assertEqual(run_result.state, WorkerState.FAILED)
 
         stop_task.join()
