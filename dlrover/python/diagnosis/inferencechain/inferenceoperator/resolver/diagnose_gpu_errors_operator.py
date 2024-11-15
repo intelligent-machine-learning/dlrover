@@ -75,7 +75,7 @@ class DiagnoseGPUErrorsOperator(InferenceOperator):
                         InferenceConfigKey.EVENT_TYPE: ErrorMonitorConstants.TYPE_WARN,  # noqa: E501
                         InferenceConfigKey.EVENT_INSTANCE: inf.configs[
                             InferenceConfigKey.RANK
-                        ],  # noqa: E501
+                        ],
                         InferenceConfigKey.EVENT_ACTION: inf.configs[
                             InferenceConfigKey.ERRORS
                         ],
@@ -83,7 +83,7 @@ class DiagnoseGPUErrorsOperator(InferenceOperator):
                             InferenceConfigKey.LOGS
                         ],
                         InferenceConfigKey.EVENT_LABELS: json.dumps({}),
-                        InferenceConfigKey.EXPIRED_TIME_PERIOD: "600",
+                        InferenceConfigKey.EXPIRED_TIME_PERIOD: "120",
                     },
                 )
             ]
