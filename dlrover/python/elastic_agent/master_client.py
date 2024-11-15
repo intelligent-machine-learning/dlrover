@@ -57,28 +57,6 @@ def retry_grpc_request(func):
     return wrapper
 
 
-def report_event_to_master(
-    event_type: str = "",
-    instance: str = "",
-    action: str = "",
-    msg: str = "",
-    labels: Optional[Dict[str, str]] = None,
-):
-    if labels is None:
-        labels = {}
-    try:
-        client = MasterClient.singleton_instance()
-        client.report_event(
-            event_type,
-            instance,
-            action,
-            msg,
-            labels,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to report event({e}) to master")
-
-
 class MasterClient(Singleton):
     """MasterClient provides some APIs connect with the master
     service via gRPC call.
@@ -492,12 +470,14 @@ class MasterClient(Singleton):
 
     def report_event(
         self,
-        event_type: str,
-        instance: str,
-        action: str,
-        msg: str,
-        labels: Dict[str, str],
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Optional[Dict[str, str]] = None,
     ):
+        if labels is None:
+            labels = {}
         message = grpc.Event(
             event_type=event_type,
             instance=instance,

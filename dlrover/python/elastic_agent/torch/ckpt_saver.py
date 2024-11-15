@@ -45,10 +45,7 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 from dlrover.python.common.serialize import ClassMeta
-from dlrover.python.elastic_agent.master_client import (
-    MasterClient,
-    report_event_to_master,
-)
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
@@ -248,6 +245,12 @@ class SharedMemoryHandler(object):
         self.shared_memory: Optional[SharedMemory] = None
         self.metadata = SharedDict(name=meta_name, create=host)
         self._need_creation = True
+        self._master_client = None
+
+    def get_master_client(self):
+        if self._master_client is None:
+            self._master_client = MasterClient.singleton_instance()
+        return self._master_client
 
     def close(self):
         if self.shared_memory:
@@ -296,7 +299,8 @@ class SharedMemoryHandler(object):
         ckpt_conf: CheckpointConfig = meta_dict[DLROVER_CKPT_CONFIG_KEY]
         ckpt_conf.writing_shm = True
 
-        report_event_to_master(
+        client = self.get_master_client()
+        client.report_event(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
             action=ErrorMonitorConstants.ACTION_MEM_CKPT_START,
@@ -307,7 +311,7 @@ class SharedMemoryHandler(object):
         _traverse_copy_to_shm(state_dict, meta_dict, self.shared_memory.buf)
         ckpt_conf.writing_shm = False
         self.metadata.set(meta_dict)
-        report_event_to_master(
+        client.report_event(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
             action=ErrorMonitorConstants.ACTION_MEM_CKPT_COMPLETE,
@@ -331,14 +335,16 @@ class SharedMemoryHandler(object):
             self.init_shared_memory(create=False)
         if not self.shared_memory:
             return {}
-        report_event_to_master(
+
+        client = self.get_master_client()
+        client.report_event(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(config.rank),
             action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_START,
             msg=f"step={config.step}",
         )
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
-        report_event_to_master(
+        client.report_event(
             event_type=ErrorMonitorConstants.TYPE_INFO,
             instance=str(config.rank),
             action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_COMPLETE,
@@ -446,6 +452,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     def __del__(self):
         self.close()
 
+    def get_master_client(self):
+        if self._master_client is None:
+            self._master_client = MasterClient.singleton_instance()
+        return self._master_client
+
     @classmethod
     def start_async_saving_ckpt(cls):
         """
@@ -533,12 +544,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
-    def get_master_client(self):
-        if not self._master_client:
-            self._master_client = MasterClient.singleton_instance()
-            logger.info(f"Setup master client: {self._master_client}.")
-        return self._master_client
-
     def wait_saving_checkpoint(self):
         """
         Check whether the saver finishes writing the
@@ -595,14 +600,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self._report_failure_to_master(str(e))
 
     def _report_failure_to_master(self, error_msg):
-        master_client = self.get_master_client()
-        if not master_client:
-            logger.warning(
-                "Skip ckpt saver failure reporting for master "
-                "client hasn't setup."
-            )
-            return
-
         if not error_msg:
             error_msg = "Unknown"
         error_full_msg = "Async checkpoint saver got failure:" + error_msg
@@ -615,7 +612,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
             )
 
-            master_client.report_failures(
+            client = self.get_master_client()
+            client.report_failures(
                 json.dumps(error),
                 level=TrainingExceptionLevel.PROCESS_ERROR,
             )
@@ -660,14 +658,15 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"of rank {ckpt_config.rank} from the "
                 f"shared memory into the storage {ckpt_config}."
             )
-            report_event_to_master(
+            client = self.get_master_client()
+            client.report_event(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_START,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
-            report_event_to_master(
+            client.report_event(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_COMPLETE,
@@ -687,7 +686,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
             )
-            report_event_to_master(
+            client.report_event(
                 event_type=ErrorMonitorConstants.TYPE_ERROR,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_ERROR,
