@@ -57,14 +57,10 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnosisAgent(Singleton):
-    def __init__(
-        self,
-        training_log_file: str,
-        errors: str,
-    ):
+    def __init__(self):
         self._client = MasterClient.singleton_instance()
-        self._training_log_file = training_log_file
-        self._errors = errors
+        self._training_log_file = ""
+        self._errors = ""
         self._stopped = False
         self._observe_problems: List[Inference] = [
             Inference(
@@ -78,6 +74,7 @@ class DiagnosisAgent(Singleton):
         self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
+        self._rank = -1
 
         self.start()
 
@@ -86,6 +83,16 @@ class DiagnosisAgent(Singleton):
             f"training_log_file:    {self._training_log_file}\n"
             f"errors:               {self._errors}"
         )
+
+    def update_config(
+        self, training_log_file: str = "", errors: str = "", rank: int = -1
+    ):
+        if len(training_log_file) > 0:
+            self._training_log_file = training_log_file
+        if len(errors) > 0:
+            self._errors = errors
+        if rank >= 0:
+            self._rank = rank
 
     def start(self):
         self._stopped = False
@@ -111,6 +118,9 @@ class DiagnosisAgent(Singleton):
     def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
         conclusions: List[Inference] = []
         for problem in problems:
+            if problem.configs is None:
+                problem.configs = {}
+            problem.configs[InferenceConfigKey.RANK] = str(self._rank)
             ic = InferenceChain([problem], self._diagnosis_operators)
             try:
                 infs = ic.infer()
@@ -120,9 +130,9 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to diagnose observation {problem}: {e}")
         return coordinate_solutions(conclusions)
 
-    def _observe(self) -> List[Inference]:
+    def _observe(self, observe_problems: List[Inference]) -> List[Inference]:
         observations: List[Inference] = []
-        for problem in self._observe_problems:
+        for problem in observe_problems:
             ic = InferenceChain([problem], self._observe_operators)
             try:
                 infs = ic.infer()
@@ -135,6 +145,8 @@ class DiagnosisAgent(Singleton):
     def _diagnose_observations(
         self, observations: List[Inference]
     ) -> DiagnosisAction:
+        if len(observations) == 0:
+            return NodeAction()
         conclusions: List[Inference] = []
         for ob in observations:
             ic = InferenceChain([ob], self._diagnosis_operators)
@@ -153,7 +165,7 @@ class DiagnosisAgent(Singleton):
                 logger.info("Stop periodically diagnosis.")
                 break
 
-            observations = self._observe()
+            observations = self._observe(self._observe_problems)
             if len(observations) > 0:
                 logger.info(f"Observed problems: {observations}")
                 self.diagnose_problems(observations)
@@ -247,3 +259,19 @@ class DiagnosisAgent(Singleton):
         while True:
             self.send_heartbeat()
             time.sleep(15)
+
+    def diagnose_resource_collection(self, error_logs):
+        inf = Inference(
+            name=InferenceName.RESOURCE,
+            attribution=InferenceAttribute.COLLECT,
+            description=InferenceDescription.ERROR,
+            configs={
+                InferenceConfigKey.LOGS: error_logs,
+            },
+        )
+        observe_problems = self._observe([inf])
+        action = self.diagnose_problems(observe_problems)
+        if isinstance(action, NodeAction):
+            return
+
+        self._agent_context.enqueue_diagnosis_action(action)

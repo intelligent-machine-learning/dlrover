@@ -62,6 +62,9 @@ class AgentContext(Singleton):
     def enqueue_diagnosis_action(self, action: DiagnosisAction):
         self._diagnosis_action_queue.add_action(action)
 
+    def next_diagnosis_action(self) -> DiagnosisAction:
+        return self._diagnosis_action_queue.next_action()
+
 
 def get_agent_context() -> AgentContext:
     return AgentContext.singleton_instance()

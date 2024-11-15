@@ -37,6 +37,9 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
+from dlrover.python.diagnosis.common.diagnosis_action import EventAction
+from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -465,6 +468,34 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 self.fail()
             except TimeoutError:
                 self.assertTrue(True)
+
+    def test_diagnosis(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        context = get_agent_context()
+        action = EventAction(
+            event_action="action",
+            expired_time_period=600,
+        )
+        context.enqueue_diagnosis_action(action)
+
+        time.sleep(3)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            1,
+        )
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

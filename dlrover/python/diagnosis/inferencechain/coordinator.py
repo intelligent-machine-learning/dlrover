@@ -14,6 +14,10 @@ import json
 from typing import List
 
 from dlrover.python.common.global_context import Context
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    InferenceConfigKey,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
@@ -50,12 +54,32 @@ def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
         # deal with event
         if is_same_inference(solution, event_solution):
             event_payload = solution.configs
+
+            expired_time_period = (
+                DiagnosisConstant.ACTION_EXPIRED_TIME_PERIOD_DEFAULT
+            )
+            if InferenceConfigKey.EXPIRED_TIME_PERIOD in event_payload:
+                expired_time_period = int(
+                    event_payload[InferenceConfigKey.EXPIRED_TIME_PERIOD]
+                )
+            executable_time_period = 0
+            if InferenceConfigKey.EXECUTABLE_TIME_PERIOD in event_payload:
+                executable_time_period = int(
+                    event_payload[InferenceConfigKey.EXECUTABLE_TIME_PERIOD]
+                )
+
             return EventAction(
-                event_payload["event_type"],
-                event_payload["event_instance"],
-                event_payload["event_action"],
-                event_payload["event_msg"],
-                json.loads(event_payload["event_labels"]),
+                event_type=event_payload[InferenceConfigKey.EVENT_TYPE],
+                event_instance=event_payload[
+                    InferenceConfigKey.EVENT_INSTANCE
+                ],
+                event_action=event_payload[InferenceConfigKey.EVENT_ACTION],
+                event_msg=event_payload[InferenceConfigKey.EVENT_MSG],
+                event_labels=json.loads(
+                    event_payload[InferenceConfigKey.EVENT_LABELS]
+                ),
+                expired_time_period=expired_time_period,
+                executable_time_period=executable_time_period,
             )
 
     return NoAction()

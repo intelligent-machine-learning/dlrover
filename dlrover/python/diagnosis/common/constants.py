@@ -19,6 +19,16 @@ class EnvConfigKey(object):
 class InferenceConfigKey(object):
     LOG_FILE = "log_file"
     ERRORS = "errors"
+    LOGS = "logs"
+    RANK = "rank"
+    EXPIRED_TIME_PERIOD = "expired_tie_period"
+    EXECUTABLE_TIME_PERIOD = "executable_time_period"
+
+    EVENT_TYPE = "event_type"
+    EVENT_INSTANCE = "event_instance"
+    EVENT_ACTION = "event_action"
+    EVENT_MSG = "event_msg"
+    EVENT_LABELS = "event_labels"
 
 
 class DiagnosisConstant(object):
@@ -28,6 +38,10 @@ class DiagnosisConstant(object):
     ANY_INSTANCE = -2
     LOCAL_INSTANCE = -3
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
+
+
+class DiagnosisErrorConstant(object):
+    GPU_LOST = "GPU is lost"
 
 
 class DiagnosisDataType(object):

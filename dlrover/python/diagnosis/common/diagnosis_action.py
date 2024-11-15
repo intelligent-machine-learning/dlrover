@@ -12,12 +12,11 @@
 # limitations under the License.
 
 import json
-import queue
 import threading
 from abc import ABCMeta
+from collections import deque
 from datetime import datetime
-from queue import Queue
-from typing import Dict, Optional
+from typing import Deque, Dict, Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
@@ -38,6 +37,8 @@ class DiagnosisAction(metaclass=ABCMeta):
             Defaults to current time.
         expired_time_period (Optional): Milliseconds of expired time period.
             Unit: ms. Defaults to 60 seconds.
+        executable_time_period (Optional): This action can only be executed
+            after given time period. Unit: s. Defaults to 0.
     """
 
     def __init__(
@@ -46,9 +47,11 @@ class DiagnosisAction(metaclass=ABCMeta):
         instance: int = DiagnosisConstant.LOCAL_INSTANCE,
         timestamp: float = 0,
         expired_time_period: int = 60 * 1000,
+        executable_time_period: int = 0,
     ):
         self._action_type = action_type
         self._instance: int = instance
+
         if timestamp == 0:
             self._timestamp = datetime.now().timestamp()
         else:
@@ -60,6 +63,8 @@ class DiagnosisAction(metaclass=ABCMeta):
             )
         else:
             self._expired_time_period = expired_time_period
+
+        self._executable_time_period = executable_time_period
 
     @property
     def action_type(self):
@@ -74,15 +79,35 @@ class DiagnosisAction(metaclass=ABCMeta):
         return self._timestamp
 
     @property
+    def expired_time_period(self):
+        return self._expired_time_period
+
+    @property
     def expired_timestamp(self):
         return self._timestamp + self._expired_time_period
 
     def is_expired(self) -> bool:
         return has_expired(self._timestamp, self._expired_time_period)
 
+    def is_executable(self):
+        return has_expired(self._timestamp, self._executable_time_period)
+
     def to_json(self):
         data = {k.lstrip("_"): v for k, v in self.__dict__.items()}
         return json.dumps(data)
+
+    def update_timestamp(
+        self,
+        timestamp: float = 0,
+        expired_time_period: int = 0,
+        executable_time_period: int = 0,
+    ):
+        if timestamp > 0:
+            self._timestamp = timestamp
+        if expired_time_period > 0:
+            self._expired_time_period = expired_time_period
+        if executable_time_period > 0:
+            self._expired_time_period = expired_time_period
 
     @classmethod
     def from_json(cls, json_data):
@@ -106,11 +131,13 @@ class EventAction(DiagnosisAction):
         event_labels: Optional[Dict[str, str]] = None,
         timestamp=0,
         expired_time_period=0,
+        executable_time_period=0,
     ):
         super().__init__(
-            DiagnosisActionType.EVENT,
+            action_type=DiagnosisActionType.EVENT,
             timestamp=timestamp,
             expired_time_period=expired_time_period,
+            executable_time_period=executable_time_period,
         )
         self._event_type = event_type
         self._event_instance = event_instance
@@ -172,42 +199,67 @@ class NodeAction(DiagnosisAction):
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
+    if isinstance(action1, EventAction) and isinstance(action2, EventAction):
+        action1.__class__ = EventAction
+        action2.__class__ = EventAction
+        if (
+            action1.event_type == action2.event_type
+            and action1.instance == action2.instance
+            and action1.action_type == action2.action_type
+            and action1.event_msg == action2.event_msg
+        ):
+            return True
     return False
 
 
 class DiagnosisActionQueue:
     def __init__(self):
-        self._actions: Dict[int, Queue[DiagnosisAction]] = {}
+        self._actions: Dict[int, deque[DiagnosisAction]] = {}
         self._lock = threading.Lock()
 
     def add_action(self, new_action: DiagnosisAction):
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
-                self._actions[instance] = Queue(maxsize=10)
-            ins_actions = self._actions[instance]
+                self._actions[instance] = deque()
+            actions = self._actions[instance]
             try:
-                ins_actions.put(new_action, timeout=3)
+                for action in actions:
+                    if is_same_action(new_action, action):
+                        return
+                actions.append(new_action)
                 logger.info(f"New diagnosis action {new_action}")
-            except queue.Full:
-                logger.warning(
-                    f"Diagnosis actions for {instance} is full, "
-                    f"skip action: {new_action}."
-                )
+            except Exception as e:
+                logger.warning(f"Add action errors: {e}.")
+
+    def clear(self):
+        with self._lock:
+            self._actions.clear()
 
     def next_action(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
     ) -> DiagnosisAction:
         with self._lock:
-            while True:
-                if (
-                    instance not in self._actions
-                    or self._actions[instance].empty()
-                ):
-                    return DiagnosisAction()
-                action = self._actions[instance].get()
-                if not action.is_expired():
+            if (
+                instance not in self._actions
+                or len(self._actions[instance]) == 0
+            ):
+                return NoAction()
+
+            actions = self._actions[instance]
+            waiting_actions: Deque[DiagnosisAction] = deque()
+            while len(actions) > 0:
+                action = actions.popleft()
+                if action.is_executable():
+                    while len(waiting_actions) > 0:
+                        waiting_action = waiting_actions.pop()
+                        actions.appendleft(waiting_action)
                     return action
-                else:
+                elif action.is_expired():
                     logger.info(f"Skip expired diagnosis action: {action}.")
+                elif not action.is_executable():
+                    waiting_actions.append(action)
+
+            self._actions[instance] = waiting_actions
+            return NoAction()

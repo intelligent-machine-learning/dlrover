@@ -89,7 +89,12 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
-from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    EventAction,
+    NoAction,
+    NodeAction,
+)
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
@@ -101,6 +106,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
@@ -450,8 +456,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._diagnose_agent = DiagnosisAgent(
-            training_log_file, failure_node_errors
+        self._diagnose_agent = DiagnosisAgent.singleton_instance()
+        self._diagnose_agent.update_config(
+            training_log_file=training_log_file,
+            errors=failure_node_errors,
+            rank=node_rank,
         )
         self._agent_context = get_agent_context()
 
@@ -841,6 +850,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
+
+            self._check_and_process_diagnosis_action()
             try:
                 run_result: RunResult = self._monitor_workers(
                     self._worker_group
@@ -908,13 +919,36 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnosis_action(self, action: NodeAction):
-        if action.action_type == DiagnosisActionType.RESTART_WORKER:
-            self._remaining_failovers -= 1
-            self._restart_workers(self._worker_group)
-        elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
-            self._stop_workers(self._worker_group)
-            self._worker_group.state = WorkerState.FAILED
+    def _process_diagnosis_action(self, action: DiagnosisAction):
+        if isinstance(action, NodeAction):
+            action.__class__ = NodeAction
+            if action.action_type == DiagnosisActionType.RESTART_WORKER:
+                self._remaining_failovers -= 1
+                self._restart_workers(self._worker_group)
+            elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+                self._stop_workers(self._worker_group)
+                self._worker_group.state = WorkerState.FAILED
+        elif isinstance(action, EventAction):
+            action.__class__ = EventAction
+            logger.error(action.event_msg)
+
+    def _check_and_process_diagnosis_action(self):
+        action = self._agent_context.next_diagnosis_action()
+        if isinstance(action, NoAction):
+            return
+        self._process_diagnosis_action(action)
+        # avoid to execute the same event action too frequently
+        if isinstance(action, EventAction) and not action.is_expired():
+            time_diff = timestamp_diff_in_seconds(
+                action.timestamp, datetime.now().timestamp()
+            )
+            expired_time_period = action.expired_time_period - time_diff
+            action.update_timestamp(
+                timestamp=datetime.now().timestamp(),
+                expired_time_period=expired_time_period,
+                executable_time_period=expired_time_period + 60,
+            )
+            self._agent_context.enqueue_diagnosis_action(action)
 
     def _wait_async_saver(self):
         """

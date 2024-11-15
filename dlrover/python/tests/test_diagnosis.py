@@ -23,6 +23,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
     EventAction,
+    NoAction,
     NodeAction,
 )
 
@@ -111,6 +112,52 @@ class DiagnosisTest(unittest.TestCase):
             action_queue.next_action(instance=1).action_type,
             DiagnosisActionType.NONE,
         )
+
+        ##################################################
+        action_queue.clear()
+
+        action0 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg0",
+        )
+        action_queue.add_action(action0)
+        action1 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg1",
+            executable_time_period=5,
+        )
+        action_queue.add_action(action1)
+        action2 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg2",
+        )
+        action_queue.add_action(action2)
+        action3 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg2",
+        )
+        action_queue.add_action(action3)
+
+        self.assertEqual(
+            len(action_queue._actions[DiagnosisConstant.LOCAL_INSTANCE]), 3
+        )
+        action = action_queue.next_action()
+        self.assertEqual(action.event_msg, "msg0")
+        action = action_queue.next_action()
+        self.assertEqual(action.event_msg, "msg2")
+        action = action_queue.next_action()
+        self.assertTrue(isinstance(action, NoAction))
+        time.sleep(5)
+        action = action_queue.next_action()
+        self.assertEqual(action.event_msg, "msg1")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from torch.distributed.launcher.api import LaunchConfig
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import EventAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
@@ -59,7 +60,8 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         errors = "error code is 11111"
 
-        agent = DiagnosisAgent.singleton_instance(file_path, errors)
+        agent = DiagnosisAgent.singleton_instance()
+        agent.update_config(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,
@@ -109,6 +111,8 @@ class TestDiagnosisAgent(unittest.TestCase):
             action.action_type, DiagnosisActionType.RESTART_WORKER
         )
 
+        agent.stop()
+
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(
             data_content="test123",
@@ -138,6 +142,17 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.assertEqual(test_new.data_content, test.data_content)
         self.assertEqual(test_new.data_type, test.data_type)
         self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+    def test_diagnose_resource_collection(self):
+        agent = DiagnosisAgent.singleton_instance()
+        errors_log = "aaaaaaaaaaaaaaaa\nGPU is lost!\n"
+        agent.diagnose_resource_collection(errors_log)
+
+        ctx = get_agent_context()
+        action = ctx.next_diagnosis_action()
+        self.assertTrue(isinstance(action, EventAction))
+        action.__class__ = EventAction
+        self.assertEqual(action.event_action, "GPU is lost")
 
 
 if __name__ == "__main__":

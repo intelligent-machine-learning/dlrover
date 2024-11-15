@@ -22,6 +22,9 @@ from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
+    DiagnosisAgent,
+)
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
@@ -93,6 +96,7 @@ class ResourceMonitor(Singleton):
         self._gpu_enabled = False
         self._gpu_stats: list[GPUStats] = []
         self._master_client = MasterClient.singleton_instance()
+        self._diagnosis_agent = DiagnosisAgent.singleton_instance()
 
     def start(self):
         if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
@@ -171,7 +175,8 @@ class ResourceMonitor(Singleton):
                 self._gpu_stats,
             )
         except Exception as e:
-            logger.exception(e)
+            error_logs = f"{e}"
+            self._diagnosis_agent.diagnose_resource_collection(error_logs)
 
     def _monitor_resource(self):
         logger.info("Start to monitor resource usage")

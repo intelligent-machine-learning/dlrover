@@ -17,11 +17,13 @@ from typing import Dict, List
 
 
 class InferenceName:
-    END = "end"
+    NONE = "none"
     TRAINING = "training"
     NODE = "node"
     WORKER = "worker"
     ACTION = "action"
+    RESOURCE = "resource"
+    GPU = "gpu"
 
 
 class InferenceAttribute:
@@ -37,6 +39,7 @@ class InferenceDescription:
     FAILURE = "failure"
     METRICS = "metrics"
     EVENT = "event"
+    ERROR = "error"
 
 
 @dataclass
