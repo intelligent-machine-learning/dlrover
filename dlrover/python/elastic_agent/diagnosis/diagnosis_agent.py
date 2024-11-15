@@ -15,9 +15,7 @@ import json
 import threading
 import time
 from datetime import datetime
-from typing import Dict, List
-
-from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
+from typing import List
 
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
@@ -223,9 +221,7 @@ class DiagnosisAgent(Singleton):
                 action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
 
-    def _report_failure_to_master(
-        self, failures: Dict[int, ProcessFailure], restart_count: int
-    ):
+    def _report_failure_to_master(self, failures, restart_count):
         errors = {}
         if len(failures) == 0:
             return
