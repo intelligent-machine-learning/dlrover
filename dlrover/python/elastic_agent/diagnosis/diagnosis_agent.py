@@ -248,9 +248,8 @@ class DiagnosisAgent(Singleton):
     def send_heartbeat(self):
         try:
             ts = int(time.time())
-            actions = self._client.report_heart_beat(ts)
-            for action in actions:
-                self._agent_context.enqueue_diagnosis_action(action)
+            action = self._client.report_heart_beat(ts)
+            self._agent_context.enqueue_diagnosis_action(action)
         except Exception as e:
             logger.warning(f"fail to report a heartbeat: {e}")
 

@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,7 +14,9 @@
 import json
 import os
 import shutil
+import signal
 import socket
+import subprocess
 import tempfile
 import threading
 import time
@@ -22,6 +24,7 @@ import unittest
 from unittest import mock
 from unittest.mock import patch
 
+import psutil
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
@@ -29,6 +32,7 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
@@ -197,8 +201,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         _task.start()
 
         addr, port = agent._safe_get_master_addr_port(store)
-        print(addr)
-        print(port)
         self.assertEqual(addr, "127.0.0.1")
         self.assertEqual(port, 12345)
 
@@ -434,6 +436,110 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             os.environ[AscendConstants.HCCL_PORT_START],
             str(65000),
         )
+
+    def test_stop_workers_ascend(self, cmdline=None):
+        # test Ascend NPU
+        config = self.config
+        spec = self.spec
+
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        self.spec.max_restarts = 0
+        if cmdline is None:
+            self.spec.entrypoint = "sleep"
+            self.spec.args = tuple(["180"])
+        else:
+            self.spec.entrypoint = cmdline[0]
+            self.spec.args = tuple(cmdline[1:])
+
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint=self.spec.entrypoint,
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        def stop_task(agent):
+            time.sleep(90)
+            agent._stop_workers_ascend(None)
+
+        stop_task = threading.Thread(target=stop_task, args=(agent,))
+        stop_task.start()
+
+        run_result = agent._invoke_run()
+        self.assertEqual(run_result.state, WorkerState.FAILED)
+
+        stop_task.join()
+
+        self.spec = spec
+        self.config = config
+
+    def test_no_orphan_workers(self):
+        orphan_killed = True
+        orphan_pid = -1
+        subprocess.run(
+            ["/usr/local/bin/python", "dlrover/python/tests/orphan_process.py"]
+        )
+        env_utils.print_process_list()
+        for p in psutil.process_iter():
+            try:
+                self.assertIsNotNone(env_utils.get_proc_env(p.pid))
+                self.assertFalse(env_utils.is_worker_process(p.pid))
+            except Exception:
+                pass
+        self.assertIsNone(env_utils.get_proc_env(999999))
+
+        self.test_stop_workers_ascend()
+
+        for p in psutil.process_iter():
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    orphan_killed = False
+                    orphan_pid = p.pid
+                    break
+            except Exception:
+                pass
+
+        self.assertFalse(orphan_killed)
+        os.kill(orphan_pid, signal.SIGTERM)
+
+    def test_orphan_workers(self):
+        orphan_killed = True
+        subprocess.run(
+            [
+                "/usr/local/bin/python",
+                "dlrover/python/tests/orphan_process.py",
+                "torch",
+            ]
+        )
+        env_utils.print_process_list()
+        for p in psutil.process_iter():
+            try:
+                self.assertIsNotNone(env_utils.get_proc_env(p.pid))
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    self.assertTrue(env_utils.is_worker_process(p.pid))
+                else:
+                    self.assertFalse(env_utils.is_worker_process(p.pid))
+            except Exception:
+                pass
+        self.assertIsNone(env_utils.get_proc_env(999999))
+
+        self.test_stop_workers_ascend()
+
+        for p in psutil.process_iter():
+            try:
+                name = " ".join(p.cmdline())
+                if "orphan_process.py" in name:
+                    orphan_killed = False
+                    break
+            except Exception:
+                pass
+
+        self.assertTrue(orphan_killed)
 
     def test_stop_workers(self):
         agent = ElasticTrainingAgent(

@@ -239,8 +239,10 @@ class NodeEnv(object):
     RANK = "RANK"  # It is the rank of node not the rank of process.
     WORLD_SIZE = "WORLD_SIZE"  # It is the number of nodes.
 
-    # process env
+    # worker process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+    MASTER_ADDR = "MASTER_ADDR"
+    MASTER_PORT = "MASTER_PORT"
 
     # diagnosis env
     TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
