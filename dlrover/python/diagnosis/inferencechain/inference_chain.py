@@ -46,7 +46,7 @@ class InferenceChain:
                     operator = self.get_operator(inference)
                     if not operator:
                         continue
-                    infs = operator.infer(inferences)
+                    infs = operator.infer([inference])
                     if len(infs) > 0:
                         has_new_inference = True
                         new_infs = combine_inferences(new_infs, infs)
