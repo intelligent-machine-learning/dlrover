@@ -151,5 +151,5 @@ class K8sJobErrorMonitor(ErrorMonitor):
         if self.cordon_node_eanbled:
             succeed = self._k8s_client.cordon_node(node.host_name)
             if succeed:
-                logger.info(f"Node {node.name} is marked unschedulable.")
+                logger.info(f"Host {node.host_name} is marked unschedulable.")
         return True
