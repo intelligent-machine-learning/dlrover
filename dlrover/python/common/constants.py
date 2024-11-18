@@ -239,8 +239,10 @@ class NodeEnv(object):
     RANK = "RANK"  # It is the rank of node not the rank of process.
     WORLD_SIZE = "WORLD_SIZE"  # It is the number of nodes.
 
-    # process env
+    # worker process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+    MASTER_ADDR = "MASTER_ADDR"
+    MASTER_PORT = "MASTER_PORT"
 
     # diagnosis env
     TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
@@ -340,7 +342,10 @@ class AscendConstants(object):
 
 class ErrorMonitorConstants(object):
     TYPE_INFO = "info"
+    TYPE_WARN = "warn"
     TYPE_ERROR = "error"
+
+    JOB_INSTANCE = "job"
 
     ACTION_WORKER_CREATE = "worker_create"
     ACTION_STATUS_UPDATE = "status_update"
@@ -361,3 +366,4 @@ class ErrorMonitorConstants(object):
     ACTION_MEM_CKPT_COMPLETE = "mem_ckpt_complete"
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
+    ACTION_HANG_WARN = "hang_warning"
