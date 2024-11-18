@@ -31,6 +31,7 @@ class NodeTest(unittest.TestCase):
         node.relaunch_count = 3
         node.config_resource.gpu_num = 1
         is_unrecoverable = node.is_unrecoverable_failure()
+        self.assertFalse(node.is_resource_scalable())
         self.assertEqual(is_unrecoverable, True)
         self.assertEqual("exhausted" in node.unrecoverable_failure_msg, True)
 
@@ -48,6 +49,7 @@ class NodeTest(unittest.TestCase):
         node.config_resource.memory = NodeResourceLimit.MAX_MEMORY
         node.exit_reason = NodeExitReason.OOM
         is_unrecoverable = node.is_unrecoverable_failure()
+        self.assertTrue(node.is_resource_scalable())
         self.assertEqual(is_unrecoverable, True)
         self.assertEqual("oom" in node.unrecoverable_failure_msg, True)
 

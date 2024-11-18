@@ -267,22 +267,39 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
 class AllreduceResourceOptimizerTest(unittest.TestCase):
     def test_free_node_plan(self):
         worker_resource = NodeGroupResource(8, NodeResource(1, 256))
-        self._optimizer = AllreduceJobResourceOptimizer(
-            worker_resource, "test-job"
-        )
-        self._optimizer.set_alive_node_num(4)
-        self._optimizer.set_node_unit(4)
-        self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=4)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        optimizer = AllreduceJobResourceOptimizer(worker_resource, "test-job")
+        optimizer.set_alive_node_num(4)
+        optimizer.set_node_unit(4)
+        optimizer._get_free_gpu_node = mock.MagicMock(return_value=4)
+        plan: ResourcePlan = optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 8)
 
-        self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=3)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        optimizer._get_free_gpu_node = mock.MagicMock(return_value=3)
+        plan: ResourcePlan = optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 4)
 
-        self._optimizer.set_node_unit(1)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        optimizer.set_node_unit(1)
+        plan: ResourcePlan = optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 7)
+
+    def test_adjust_oom_resource(self):
+        worker_resource = NodeGroupResource(8, NodeResource(1, 256))
+        optimizer = AllreduceJobResourceOptimizer(worker_resource, "test-job")
+        node = Node("worker", 1, config_resource=NodeResource(1, 3276))
+        optimizer.adjust_oom_resource(node)
+        self.assertEqual(node.config_resource.memory, 6552)
+
+        node = Node("worker", 1, config_resource=NodeResource(1, 32768))
+        optimizer.adjust_oom_resource(node)
+        self.assertEqual(node.config_resource.memory, 65536)
+
+        node = Node("worker", 1, config_resource=NodeResource(1, 32769))
+        optimizer.adjust_oom_resource(node)
+        self.assertEqual(node.config_resource.memory, 65536)
+
+        node = Node("worker", 1, config_resource=NodeResource(1, 65538))
+        optimizer.adjust_oom_resource(node)
+        self.assertEqual(node.config_resource.memory, 65538)
