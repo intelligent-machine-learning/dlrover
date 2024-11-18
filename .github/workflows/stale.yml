@@ -26,5 +26,5 @@ jobs:
             This pull request is being automatically closed
             due to inactivity.
           stale-label: 'stale'
-          exempt-issue-labels: "todo,doing"
-          exempt-pr-labels: "todo,doing"
+          exempt-issue-labels: "investigating,todo,wip"
+          exempt-pr-labels: "investigating,todo,wip"
