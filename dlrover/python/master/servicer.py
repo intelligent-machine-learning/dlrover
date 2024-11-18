@@ -666,7 +666,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             action.__class__.__name__,
             action.to_json(),
         )
-
         return grpc.HeartbeatResponse(action=grpc_action)
 
 
