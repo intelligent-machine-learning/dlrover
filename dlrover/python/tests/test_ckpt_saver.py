@@ -106,9 +106,12 @@ class SharedMemoryHandlerTest(unittest.TestCase):
             CheckpointSharedObjPrefix.META_NAME + str(local_rank), create=True
         )
         self._shm_handler = SharedMemoryHandler(local_rank, host=False)
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
 
     def tearDown(self):
         self._shm_handler.close()
+        self._master.stop()
 
     def test_create_tensor_meta(self):
         value = torch.rand((10, 10), dtype=torch.float32)
@@ -132,10 +135,13 @@ class CheckpointSaverTest(unittest.TestCase):
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
 
     def tearDown(self) -> None:
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        self._master.stop()
 
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
@@ -384,6 +390,13 @@ class CheckpointSaverTest(unittest.TestCase):
 
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+
+    def tearDown(self) -> None:
+        self._master.stop()
+
     def test_persist_storage(self):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:

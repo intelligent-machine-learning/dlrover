@@ -78,6 +78,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
+        error_monitor=None,
     ):
         self._task_manager: TaskManager = task_manager
         self._job_manager: JobManager = job_manager
@@ -92,11 +93,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = 0
         self._start_autoscale = False
+        self._error_monitor = error_monitor
 
         # preload module for class reflection
         self._diagnosis_data_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_data"
         )
+        self._kv_store.clear()
 
     def get(self, request, _):
         node_type = request.node_type
@@ -359,6 +362,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisReportData):
             success = self._report_node_diagnosis_data(message)
+        elif isinstance(message, grpc.Event):
+            success = self._report_event(message)
 
         response.success = success
         return response
@@ -641,6 +646,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
 
+    def _report_event(self, message: grpc.Event):
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                message.event_type,
+                message.instance,
+                message.action,
+                message.msg,
+                message.labels,
+            )
+        return True
+
     def _report_heartbeat(
         self, node_type, node_id, message: grpc.HeartBeat
     ) -> grpc.HeartbeatResponse:
@@ -651,7 +667,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             action.__class__.__name__,
             action.to_json(),
         )
-
         return grpc.HeartbeatResponse(action=grpc_action)
 
 
@@ -665,6 +680,7 @@ def create_master_service(
     job_metric_collector,
     elastic_ps_service,
     sync_service,
+    error_monitor=None,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
@@ -687,6 +703,7 @@ def create_master_service(
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,
+        error_monitor=error_monitor,
     )
 
     elastic_training_pb2_grpc.add_MasterServicer_to_server(

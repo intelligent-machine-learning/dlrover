@@ -186,4 +186,4 @@ class Diagnostician:
         return ic.infer()
 
     def diagnose_failure(self, inference: Inference) -> List[Inference]:
-        pass
+        return []

@@ -284,7 +284,7 @@ class TrainingNodeManager(object):
         return plan
 
     def reduce_pending_node_resource(self):
-        """Cut down CPU cores of pendding PS Pods"""
+        """Cut down CPU cores of pending PS Pods"""
         plan = ScalePlan()
 
         # Avoid dictionary changed size during iteration.

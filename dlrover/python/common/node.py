@@ -363,6 +363,16 @@ class Node(object):
     def is_node_check_failed(self):
         return self.reported_status == NodeEventType.NODE_CHECK_FAILED
 
+    def is_resource_scalable(self):
+        """
+        This is a temp implement:
+            resource is not scalable if resource has gpu
+        """
+
+        if self.config_resource.gpu_num > 0:
+            return False
+        return True
+
     def __repr__(self):
         return (
             f"name:{self.name};"
