@@ -975,7 +975,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 self._worker_group.state = WorkerState.FAILED
         elif isinstance(action, EventAction):
             action.__class__ = EventAction
-            logger.error(action.event_msg)
+            labels = action.event_labels
+            if labels is None:
+                labels = {}
+            self._client.report_event(
+                event_type=action.event_type,
+                instance=action.event_instance,
+                action=action.event_action,
+                msg=action.event_msg,
+                labels=labels,
+            )
 
     def _check_and_process_diagnosis_action(self):
         action = self._agent_context.next_diagnosis_action()
