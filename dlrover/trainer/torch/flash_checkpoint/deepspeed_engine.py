@@ -96,7 +96,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
     @timer
     def save_to_storage(self, step, state_dict, paths):
         """
-        Asynchonously saves the state dict into the storage. It synchonously
+        Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
         into a shared queue. The agent in the main process waits for the queue
         for save the state dict in the shared memory into the storage.

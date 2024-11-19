@@ -22,7 +22,12 @@ from dlrover.python.common.storage import (
     KeepLatestStepStrategy,
     PosixStorageWithDeletion,
 )
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import DdpCheckpointSaver
+from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.flash_checkpoint.ddp import (
     DdpCheckpointer,
     StorageType,
@@ -50,10 +55,14 @@ class DdpCheckpoinerTest(unittest.TestCase):
         DdpCheckpointSaver._saver_instance = None
         DdpCheckpointSaver.start_async_saving_ckpt()
 
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+
     def tearDown(self) -> None:
         if DdpCheckpointSaver._saver_instance:
             DdpCheckpointSaver._saver_instance.close()
         clear_sock_dir()
+        self._master.stop()
 
     def test_ddp_checkpointer(self):
         model = SimpleNet()

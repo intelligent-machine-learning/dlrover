@@ -509,6 +509,15 @@ class ElasticRunConfig(Message):
 
 
 @dataclass
+class Event(Message):
+    event_type: str = ""
+    instance: str = ""
+    action: str = ""
+    msg: str = ""
+    labels: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class DiagnosisAction(Message):
     action_cls: str = ""
     action_content: str = ""

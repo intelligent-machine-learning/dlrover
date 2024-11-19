@@ -91,7 +91,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
 class NoAction(DiagnosisAction):
     def __init__(self):
-        super(NoAction, self).__init__(action_type=DiagnosisActionType.NONE)
+        super(NoAction, self).__init__()
 
 
 class EventAction(DiagnosisAction):
