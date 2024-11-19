@@ -99,6 +99,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._diagnosis_data_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_data"
         )
+        self._kv_store.clear()
 
     def get(self, request, _):
         node_type = request.node_type
