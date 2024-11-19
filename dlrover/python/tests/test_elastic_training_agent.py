@@ -197,6 +197,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         _task = threading.Thread(target=_set_store, args=(store,))
         _task.start()
 
+        time.sleep(1)
+
         addr, port = agent._safe_get_master_addr_port(store)
         self.assertEqual(addr, "127.0.0.1")
         self.assertEqual(port, 12345)
