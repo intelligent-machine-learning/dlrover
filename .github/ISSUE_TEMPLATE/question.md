@@ -1,5 +1,5 @@
 ---
-name: Question issue template
+name: Question
 about: For questions.
 title: ''
 labels: question
