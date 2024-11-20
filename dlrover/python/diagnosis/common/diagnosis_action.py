@@ -207,6 +207,8 @@ def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
             and action1.instance == action2.instance
             and action1.action_type == action2.action_type
             and action1.event_msg == action2.event_msg
+            and not action1.is_expired()
+            and not action2.is_expired()
         ):
             return True
     return False
@@ -251,14 +253,14 @@ class DiagnosisActionQueue:
             waiting_actions: Deque[DiagnosisAction] = deque()
             while len(actions) > 0:
                 action = actions.popleft()
-                if action.is_executable():
+                if action.is_expired():
+                    logger.info(f"Skip expired diagnosis action: {action}.")
+                elif action.is_executable():
                     while len(waiting_actions) > 0:
                         waiting_action = waiting_actions.pop()
                         actions.appendleft(waiting_action)
                     return action
-                elif action.is_expired():
-                    logger.info(f"Skip expired diagnosis action: {action}.")
-                elif not action.is_executable():
+                else:
                     waiting_actions.append(action)
 
             self._actions[instance] = waiting_actions
