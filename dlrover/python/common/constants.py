@@ -367,3 +367,4 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+    ACTION_TORCH_STEP = "torch_step"

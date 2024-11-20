@@ -177,6 +177,8 @@ class ElasticLaunchConfig(LaunchConfig):
     tee: Union[Std, Dict[int, Std]] = Std.NONE
     training_log_file: str = ""
     failure_node_errors: str = ""
+    step_rank: int = -1
+    step_pattern: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -184,8 +186,12 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
-        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
+        if self.training_log_file == "":
+            self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        if self.failure_node_errors == "":
+            self.failure_node_errors = os.getenv(
+                NodeEnv.FAILURE_NODE_ERRORS, ""
+            )
         if len(self.failure_node_errors) > 0:
             errors = self.failure_node_errors.strip()
             if errors[0] != "#" or errors[-1] != "#":
@@ -1130,7 +1136,12 @@ def launch_agent(
 
     _set_paral_config()
 
-    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
+    monitor = TorchTrainingMonitor(
+        ConfigPath.RUNTIME_METRICS,
+        logfile=config.training_log_file,
+        match_pattern=config.step_pattern,
+        step_rank=config.step_rank,
+    )
     monitor.start()
 
     spec = _create_worker_spec(

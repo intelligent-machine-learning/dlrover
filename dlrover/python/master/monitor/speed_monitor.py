@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import time
+from datetime import datetime
 from typing import Dict, List, Set, Tuple
 
 from dlrover.python.common.constants import ErrorMonitorConstants
@@ -42,6 +43,15 @@ class EvaluationTime(object):
         self.eval_time = 0
 
 
+class UserStepRecord(object):
+    """Record a user step with the time and step numbers"""
+
+    def __init__(self, step=0, total=0, ts=0):
+        self.step_num = step
+        self.total_step = total
+        self.timestamp = ts
+
+
 class SpeedMonitor(object):
     """Monitor the training speed by the number of batch per second"""
 
@@ -56,6 +66,9 @@ class SpeedMonitor(object):
         self._sample_count = 0
         self._worker_eval_times: Dict[int, EvaluationTime] = {}
         self._error_monitor = error_monitor
+        self.user_step_records: List[UserStepRecord] = []
+        self.first_step_time = None
+        self.max_step_count = _dlrover_context.max_job_step_count
 
     def set_target_worker_num(self, worker_num):
         """Set the target number of workers"""
@@ -219,3 +232,53 @@ class SpeedMonitor(object):
             ):
                 return True
         return False
+
+    def collect_user_step(self, timestamp, step, total_step):
+        """Record the UserStep info into SpeedMonitor"""
+
+        dt_obj = datetime.fromtimestamp(timestamp)
+        if not self.first_step_time:
+            self.first_step_time = timestamp
+            logger.info(
+                "The first step training time is %s",
+                dt_obj.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_TRAINING_START,
+                    "",
+                    {},
+                )
+
+        if not self.user_step_records:
+            self.user_step_records.append(
+                UserStepRecord(step, total_step, timestamp)
+            )
+        elif self.user_step_records[-1].step_num + 1 == step:
+            self.user_step_records.append(
+                UserStepRecord(step, total_step, timestamp)
+            )
+            if len(self.user_step_records) > self.max_step_count:
+                self.user_step_records.pop(0)
+        else:
+            logger.error(
+                f"Abnormal step collected: {step}/{total_step} {timestamp}"
+            )
+            self.user_step_records.clear()
+            self.user_step_records.append(
+                UserStepRecord(step, total_step, timestamp)
+            )
+
+        logger.info(
+            f"Step={step}, Total Step={total_step}, Timestamp={timestamp}"
+        )
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                ErrorMonitorConstants.TYPE_INFO,
+                "job",
+                ErrorMonitorConstants.ACTION_TORCH_STEP,
+                f"Step={step}, Total Step={total_step}, Timestamp={timestamp}",
+                {},
+            )

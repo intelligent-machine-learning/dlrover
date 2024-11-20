@@ -244,6 +244,14 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
+    def report_user_step(self, ts, step, total_step):
+        message = grpc.UserStep(
+            timestamp=ts,
+            step=step,
+            total=total_step,
+        )
+        return self._report(message)
+
     def report_heart_beat(self, timestamp) -> DiagnosisAction:
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)

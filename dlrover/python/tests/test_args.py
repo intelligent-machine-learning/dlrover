@@ -14,6 +14,7 @@
 import unittest
 
 from dlrover.python.master.args import parse_master_args
+from dlrover.trainer.torch.elastic_run import parse_args
 
 
 class ArgsTest(unittest.TestCase):
@@ -27,3 +28,24 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.job_name, "test")
         self.assertTrue(parsed_args.namespace, "default")
+
+    def test_parse_agent_args(self):
+        original_args = [
+            "--training_log_file",
+            "/tmp/dlrover",
+            "--step_rank",
+            "-1",
+            "--step_pattern",
+            r"""^\s+\[(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2})\]
+            \s+iteration\s+(\d+)\/\s+(\d+)\s+\|""",
+            "sleep",
+            "60",
+        ]
+        parsed_args = parse_args(original_args)
+        self.assertEqual(parsed_args.training_log_file, "/tmp/dlrover")
+        self.assertEqual(parsed_args.step_rank, -1)
+        self.assertEqual(
+            parsed_args.step_pattern,
+            r"""^\s+\[(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2})\]
+            \s+iteration\s+(\d+)\/\s+(\d+)\s+\|""",
+        )

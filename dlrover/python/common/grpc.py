@@ -239,6 +239,13 @@ class GlobalStep(Message):
 
 
 @dataclass
+class UserStep(Message):
+    timestamp: int = 0
+    step: int = 0
+    total: int = 1
+
+
+@dataclass
 class HeartBeat(Message):
     timestamp: int = 0
 

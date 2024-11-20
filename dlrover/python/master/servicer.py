@@ -332,6 +332,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._collect_model_info(message)
         elif isinstance(message, grpc.GlobalStep):
             success = self._collect_global_step(message)
+        elif isinstance(message, grpc.UserStep):
+            success = self._collect_user_step(message)
         elif isinstance(message, grpc.ShardCheckpoint):
             success = self._restore_shard_checkpoint(message)
         elif isinstance(message, grpc.TaskResult):
@@ -434,6 +436,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         self._collect_runtime_stats()
         self._check_start_auto_scale_worker()
+        return True
+
+    def _collect_user_step(self, metrics: grpc.UserStep):
+        self._speed_monitor.collect_user_step(
+            metrics.timestamp, metrics.step, metrics.total
+        )
         return True
 
     def _restore_shard_checkpoint(self, message: grpc.ShardCheckpoint):

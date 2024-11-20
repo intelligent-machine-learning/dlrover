@@ -191,6 +191,38 @@ def parse_args(args):
         default=60000,
         help="The start of training port.",
     )
+    parser.add_argument(
+        "--failure-node-errors",
+        "--failure_node_errors",
+        type=str,
+        action=env,
+        default="",
+    )
+    parser.add_argument(
+        "--training-log-file",
+        "--training_log_file",
+        type=str,
+        action=env,
+        default="",
+        help="The training log file path.",
+    )
+    parser.add_argument(
+        "--step-rank",
+        "--step_rank",
+        type=int,
+        action=env,
+        default=0,
+        help="The rank on which training logs have step counter",
+    )
+    parser.add_argument(
+        "--step-pattern",
+        "--step_pattern",
+        type=str,
+        action=env,
+        default="",
+        help="The pattern used to match the steps",
+    )
+
     return parser.parse_args(args)
 
 
@@ -348,6 +380,12 @@ def _elastic_config_from_args(
     )
     if master_config.save_at_breakpoint:
         elastic_config.save_at_breakpoint = True
+    elastic_config.training_log_file = getattr(args, "training_log_file", "")
+    elastic_config.failure_node_errors = getattr(
+        args, "failure_node_errors", ""
+    )
+    elastic_config.step_rank = getattr(args, "step_rank", -1)
+    elastic_config.step_pattern = getattr(args, "step_pattern", "")
     elastic_config.auto_configure_params()
     elastic_config.rdzv_backend = "dlrover-master"
     elastic_config.rdzv_endpoint = ""

@@ -92,8 +92,35 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
         self.assertEqual(config.training_port, 1000)
+        self.assertEqual(config.training_log_file, "")
+        self.assertEqual(config.step_rank, 0)
+        self.assertEqual(config.step_pattern, "")
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
+
+    def test_elastic_config_from_args2(self):
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+        args = [
+            "--training_log_file",
+            "/tmp/dlrover.log",
+            "--step_pattern",
+            r"""^\s+\[(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2})\]
+            \s+iteration\s+(\d+)\/\s+(\d+)\s+\|""",
+            "--step_rank",
+            "0",
+            "sleep",
+            "60",
+        ]
+        args = parse_args(args)
+        config, cmd, cmd_args = _elastic_config_from_args(args)
+        self.assertEqual(config.training_log_file, "/tmp/dlrover.log")
+        self.assertEqual(
+            config.step_pattern,
+            r"""^\s+\[(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2})\]
+            \s+iteration\s+(\d+)\/\s+(\d+)\s+\|""",
+        )
+        self.assertEqual(config.step_rank, 0)
 
     @patch(f"{MC_PATH}.get_elastic_run_config")
     def test_elastic_config_from_master_1(self, mock_func):

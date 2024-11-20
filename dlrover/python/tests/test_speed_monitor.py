@@ -41,3 +41,23 @@ class SpeedMonitorTest(unittest.TestCase):
         monitor.update_worker_eval_time(0)
         eval_time = monitor.get_worker_eval_time(0)
         self.assertTrue(eval_time > 0.1)
+
+    def test_monitor_user_step(self):
+        monitor = SpeedMonitor()
+        ts = time.time()
+        monitor.max_step_count = 3
+        monitor.collect_user_step(ts, 1, 1000)
+        self.assertEqual(monitor.first_step_time, ts)
+        monitor.collect_user_step(time.time(), 2, 1000)
+        monitor.collect_user_step(time.time(), 3, 1000)
+        self.assertEqual(len(monitor.user_step_records), 3)
+        self.assertEqual(monitor.user_step_records[0].step_num, 1)
+        self.assertEqual(monitor.user_step_records[0].total_step, 1000)
+        self.assertEqual(monitor.user_step_records[0].timestamp, ts)
+        self.assertEqual(monitor.user_step_records[1].step_num, 2)
+        self.assertEqual(monitor.user_step_records[2].step_num, 3)
+        monitor.collect_user_step(time.time(), 4, 1000)
+        self.assertEqual(len(monitor.user_step_records), 3)
+        self.assertEqual(monitor.user_step_records[0].step_num, 2)
+        monitor.collect_user_step(time.time(), 10, 1000)
+        self.assertEqual(len(monitor.user_step_records), 1)

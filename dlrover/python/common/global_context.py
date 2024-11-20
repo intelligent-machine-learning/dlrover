@@ -35,6 +35,7 @@ class ConfigKeys(object):
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
     HANG_CPU_USAGE_RATE = "hang_cpu_usage_rate"
+    MAX_JOB_STEP_COUNT = "max_job_step_count"
 
 
 class DefaultValues(object):
@@ -54,11 +55,13 @@ class DefaultValues(object):
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
     HANG_DETECTION = 1
+    MAX_JOB_STEP_COUNT = 1000_000
 
 
 class Context(Singleton):
     def __init__(self):
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
+        self.max_job_step_count = DefaultValues.MAX_JOB_STEP_COUNT
         self.seconds_to_autoscale_worker = (
             DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
         )

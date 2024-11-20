@@ -29,6 +29,10 @@ def get_node_rank():
     return int(rank)
 
 
+def get_world_size():
+    return int(os.getenv("WORLD_SIZE", 1))
+
+
 def get_local_world_size():
     return int(os.getenv("LOCAL_WORLD_SIZE", 1))
 

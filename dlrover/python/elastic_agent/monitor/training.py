@@ -13,8 +13,10 @@
 
 import json
 import os
+import re
 import threading
 import time
+from datetime import datetime
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv
@@ -75,15 +77,25 @@ class TFTrainingReporter(Singleton):
 
 
 class TorchTrainingMonitor(Singleton):
-    def __init__(self, metrics_path):
+    def __init__(
+        self, metrics_path, logfile="", match_pattern="", step_rank=0
+    ):
         self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
         self._start_time = 0
         self._master_client = MasterClient.singleton_instance()
         self._group_rank = env_utils.get_node_rank()
+        self._rank = env_utils.get_rank()
+        self._world_size = env_utils.get_world_size()
         if os.path.exists(metrics_path):
             os.remove(metrics_path)
         self._metrics_path = metrics_path
+        self._user_step_logfile = logfile
+        self._user_step_pattern = match_pattern
+        self._user_step_rank = (
+            self._world_size + step_rank
+        ) % self._world_size
+        self.stop_step_collector = False
 
     def start(self):
         if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
@@ -99,6 +111,13 @@ class TorchTrainingMonitor(Singleton):
             daemon=True,
         )
         thread.start()
+
+        _user_step_reporter = threading.Thread(
+            target=self._user_step_report,
+            name="user_step_reporter",
+            daemon=True,
+        )
+        _user_step_reporter.start()
 
     def stop(self):
         self._resource_monitor.stop()
@@ -139,3 +158,51 @@ class TorchTrainingMonitor(Singleton):
                 self.report_resource_with_step()
             self.send_heartbeat()
             time.sleep(15)
+
+    def do_user_step_collect(self, _step_logfile, _step_pattern):
+        try:
+            with open(_step_logfile, "r") as f:
+                logger.info(f"try to collect steps from {_step_logfile}")
+                f.seek(0, 0)
+                expr = re.compile(_step_pattern)
+                while True:
+                    line = f.readline()
+                    if not line:
+                        time.sleep(2)
+                        continue
+
+                    m = expr.match(line)
+                    if m is not None:
+                        dt_obj = datetime.strptime(
+                            m.groups()[0], "%Y-%m-%d %H:%M:%S"
+                        )
+                        ts = int(dt_obj.timestamp())
+                        step = int(m.groups()[1])
+                        total_step = int(m.groups()[2])
+                        logger.info(
+                            f"Report step to master: {step}/{total_step} {ts}"
+                        )
+                        self._master_client.report_user_step(
+                            ts, step, total_step
+                        )
+
+                    if self.stop_step_collector:
+                        break
+        except Exception as e:
+            logger.warning(f"failed to collect user steps: {str(e)}")
+
+    def _user_step_report(self):
+        myrank = env_utils.get_rank()
+        logger.info(
+            f"my rank is {myrank}, step rank is {self._user_step_rank}"
+        )
+        if myrank != self._user_step_rank:
+            logger.info(f"Rank {myrank} skip user step reporting")
+            return
+
+        logger.info("Start user step reporter.")
+        while True:
+            self.do_user_step_collect(
+                self._user_step_logfile, self._user_step_pattern
+            )
+            time.sleep(10)
