@@ -39,10 +39,9 @@ class ErrorLogMonitorTest(unittest.TestCase):
         )
         self.assertTrue(relaunched)
 
-        relaunched = err_monitor.process_error(
+        self.assertFalse(err_monitor.process_error(
             node=None,
             restart_count=0,
             error_data="test",
             level=TrainingExceptionLevel.ERROR,
-        )
-        self.assertFalse(relaunched)
+        ))
