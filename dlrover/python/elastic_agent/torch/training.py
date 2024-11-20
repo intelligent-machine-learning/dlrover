@@ -186,12 +186,10 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
-        if self.training_log_file == "":
+        if os.getenv(NodeEnv.TRAINING_LOG_FILE, "") != "":
             self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        if self.failure_node_errors == "":
-            self.failure_node_errors = os.getenv(
-                NodeEnv.FAILURE_NODE_ERRORS, ""
-            )
+        if os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "") != "":
+            self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
         if len(self.failure_node_errors) > 0:
             errors = self.failure_node_errors.strip()
             if errors[0] != "#" or errors[-1] != "#":
