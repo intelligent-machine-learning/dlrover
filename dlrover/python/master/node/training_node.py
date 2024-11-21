@@ -240,7 +240,7 @@ class TrainingNodeManager(object):
 
     def update_nodes_iter(self):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
-        self._node_id_iter = itertools.count(len(nodes))
+        self._node_id_iter = itertools.count(max(nodes.keys()) + 1)
         self._node_rank_iter = itertools.count(len(nodes))
 
     def remove_node(self, node_id):
