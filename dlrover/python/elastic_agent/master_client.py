@@ -468,6 +468,25 @@ class MasterClient(Singleton):
         response: grpc.ElasticRunConfig = self._get(request)
         return response.configs
 
+    def report_event(
+        self,
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        if labels is None:
+            labels = {}
+        message = grpc.Event(
+            event_type=event_type,
+            instance=instance,
+            action=action,
+            msg=msg,
+            labels=labels,
+        )
+        self._report(message)
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:
