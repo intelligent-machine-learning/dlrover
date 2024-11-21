@@ -14,6 +14,8 @@
 
 class BasicClass(object):
     LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+    COMM_SERVICE_GRPC = "grpc"
+    COMM_SERVICE_HTTP = "http"
 
 
 class PriorityClass(object):

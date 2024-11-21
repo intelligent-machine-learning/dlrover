@@ -14,7 +14,7 @@
 import os
 
 from dlrover.proto import brain_pb2, brain_pb2_grpc
-from dlrover.python.common.grpc import build_channel, grpc_server_ready
+from dlrover.python.common.grpc import build_grpc_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
 
 DATA_STORE = "base_datastore"
@@ -268,7 +268,7 @@ def build_brain_client():
         ```
     """
     brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, "")
-    channel = build_channel(brain_addr)
+    channel = build_grpc_channel(brain_addr)
     if channel and grpc_server_ready(channel):
         return BrainClient(channel)
     else:

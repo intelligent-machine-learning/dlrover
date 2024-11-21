@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,3 +20,6 @@ class CommonUtilTest(unittest.TestCase):
     def test_get_dlrover_version(self):
         self.assertIsNotNone(cu.get_dlrover_version())
         self.assertNotEqual(cu.get_dlrover_version(), "Unknown")
+
+    def test_is_port_in_use(self):
+        self.assertFalse(cu.is_port_in_use(65530))

@@ -48,13 +48,13 @@ class LocalJobMaster(JobMaster):
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
-        self._master_server = self._create_master_grpc_service(port, args)
+        self._master_server = self._create_master_service(port, args)
         self._job_args = args
         for i in range(args.node_args[NodeType.WORKER].group_resource.count):
             self.speed_monitor.add_running_worker(NodeType.WORKER, i)
         self.speed_monitor.set_target_worker_num(1)
 
-    def _create_master_grpc_service(self, port, params: JobArgs):
+    def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,

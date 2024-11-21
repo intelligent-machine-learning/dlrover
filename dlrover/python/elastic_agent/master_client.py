@@ -86,7 +86,7 @@ class MasterClient(Singleton):
         )
         self._timeout = timeout
         self._master_addr = master_addr
-        self._channel = grpc.build_channel(master_addr)
+        self._channel = grpc.build_grpc_channel(master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -107,7 +107,7 @@ class MasterClient(Singleton):
             self._channel.close()
 
     def open_channel(self):
-        self._channel = grpc.build_channel(self._master_addr)
+        self._channel = grpc.build_grpc_channel(self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
     def find_free_port(self):

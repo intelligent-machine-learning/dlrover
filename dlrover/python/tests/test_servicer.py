@@ -38,7 +38,7 @@ from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.servicer import MasterServicer
+from dlrover.python.master.servicer import GrpcMasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import (
@@ -81,7 +81,7 @@ class MasterServicerTest(unittest.TestCase):
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         sync_service = SyncService(self.job_manager)
-        self.servicer = MasterServicer(
+        self.servicer = GrpcMasterServicer(
             task_manager=self.task_manager,
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
@@ -507,7 +507,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             "1", "default", "local", "dlrover"
         )
         self.elastic_ps_service = ElasticPsService()
-        self.servicer = MasterServicer(
+        self.servicer = GrpcMasterServicer(
             task_manager=self.task_manager,
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,

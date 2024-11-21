@@ -13,7 +13,9 @@
 import importlib
 import threading
 import time
+from abc import ABC
 from concurrent import futures
+from http.server import ThreadingHTTPServer
 from typing import Dict, List, Optional
 
 import grpc as grpc_lib
@@ -28,7 +30,7 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    TrainingLoopStatus,
+    TrainingLoopStatus, BasicClass,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -65,8 +67,8 @@ _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
 
 
-class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
-    """Master service implementation"""
+class MasterServicer(ABC):
+    """Master service base class."""
 
     def __init__(
         self,
@@ -97,6 +99,40 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._diagnosis_data_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_data"
         )
+
+
+class HttpMasterServicer(MasterServicer):
+    """Master service with http implementation."""
+
+    def __init__(
+            self,
+            task_manager,
+            job_manager,
+            speed_monitor: SpeedMonitor,
+            rdzv_managers: Dict[str, RendezvousManager],
+            diagnosis_manager: DiagnosisManager,
+            job_metric_collector=None,
+            elastic_ps_service=None,
+            sync_service=None,
+    ):
+        super(HttpMasterServicer, self).__init__(task_manager, job_manager, speed_monitor, rdzv_managers, diagnosis_manager, job_metric_collector, elastic_ps_service, sync_service)
+
+
+class GrpcMasterServicer(MasterServicer, elastic_training_pb2_grpc.MasterServicer):
+    """Master service with grpc implementation."""
+
+    def __init__(
+            self,
+            task_manager,
+            job_manager,
+            speed_monitor: SpeedMonitor,
+            rdzv_managers: Dict[str, RendezvousManager],
+            diagnosis_manager: DiagnosisManager,
+            job_metric_collector=None,
+            elastic_ps_service=None,
+            sync_service=None,
+    ):
+        super(GrpcMasterServicer, self).__init__(task_manager, job_manager, speed_monitor, rdzv_managers, diagnosis_manager, job_metric_collector, elastic_ps_service, sync_service)
 
     def get(self, request, _):
         node_type = request.node_type
@@ -665,34 +701,38 @@ def create_master_service(
     job_metric_collector,
     elastic_ps_service,
     sync_service,
+    service_type=BasicClass.COMM_SERVICE_GRPC,
+    max_threads=64,
 ) -> MasterServicer:
-    """Create GRPC server"""
-    logger.info("Creating master service")
-    server = grpc_lib.server(
-        futures.ThreadPoolExecutor(max_workers=64),
-        options=[
-            ("grpc.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),
-            (
-                "grpc.max_receive_message_length",
-                GRPC.MAX_RECEIVE_MESSAGE_LENGTH,
-            ),
-        ],
-    )
-    master_servicer = MasterServicer(
-        task_manager=task_manager,
-        job_manager=job_manager,
-        speed_monitor=speed_monitor,
-        rdzv_managers=rdzv_managers,
-        diagnosis_manager=diagnosis_manager,
-        job_metric_collector=job_metric_collector,
-        elastic_ps_service=elastic_ps_service,
-        sync_service=sync_service,
-    )
 
-    elastic_training_pb2_grpc.add_MasterServicer_to_server(
-        master_servicer, server
-    )
-    server.add_insecure_port("[::]:{}".format(port))
-    logger.info("The port of the master server is: %d", port)
+    logger.info(f"Creating master {service_type} service with port: {port}")
 
-    return server
+    if service_type == BasicClass.COMM_SERVICE_GRPC:
+        server = grpc_lib.server(
+            futures.ThreadPoolExecutor(max_workers=max_threads),
+            options=[
+                ("grpc.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),
+                (
+                    "grpc.max_receive_message_length",
+                    GRPC.MAX_RECEIVE_MESSAGE_LENGTH,
+                ),
+            ],
+        )
+        master_servicer = GrpcMasterServicer(
+            task_manager=task_manager,
+            job_manager=job_manager,
+            speed_monitor=speed_monitor,
+            rdzv_managers=rdzv_managers,
+            diagnosis_manager=diagnosis_manager,
+            job_metric_collector=job_metric_collector,
+            elastic_ps_service=elastic_ps_service,
+            sync_service=sync_service,
+        )
+
+        elastic_training_pb2_grpc.add_MasterServicer_to_server(
+            master_servicer, server
+        )
+        server.add_insecure_port("[::]:{}".format(port))
+        return server
+    else:
+        pass

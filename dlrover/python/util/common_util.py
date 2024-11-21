@@ -13,6 +13,7 @@
 
 import importlib.metadata
 import re
+import socket
 
 import dlrover.python.util.file_util as fu
 
@@ -57,3 +58,13 @@ def get_installed_version(package_name):
         return version
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def is_port_in_use(port):
+    """
+    Check if the port is in use.
+    """
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        result = sock.connect_ex(('localhost', port))
+        return result == 0

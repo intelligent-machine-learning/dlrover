@@ -27,7 +27,7 @@ from dlrover.python.common.serialize import JsonSerializable
 TIMEOUT_SEC = 5
 
 
-def build_channel(addr):
+def build_grpc_channel(addr):
     if not addr_connected(addr):
         return None
     channel = grpc.insecure_channel(

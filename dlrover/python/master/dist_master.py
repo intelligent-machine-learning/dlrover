@@ -149,14 +149,14 @@ class DistributedJobMaster(JobMaster):
         )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self.sync_service = SyncService(self.job_manager)
-        self._master_server = self._create_master_grpc_service(port, args)
+        self._master_server = self._create_master_service(port, args)
         self._job_args = args
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
         self._error_monitor = error_monitor
 
-    def _create_master_grpc_service(self, port, params: JobArgs):
+    def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,
