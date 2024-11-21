@@ -12,12 +12,12 @@
 # limitations under the License.
 
 import requests
+from util.common_util import is_port_in_use
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import EnvConfigKey
 from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
-from util.common_util import is_port_in_use
 
 
 class XpuTimerMetricsCollector(DataCollector):
@@ -64,4 +64,6 @@ class XpuTimerMetricsCollector(DataCollector):
             return ""
 
     def is_enabled(self) -> bool:
-        return self._metric_endpoint is not None and is_port_in_use(self._metric_port)
+        return self._metric_endpoint is not None and is_port_in_use(
+            self._metric_port
+        )

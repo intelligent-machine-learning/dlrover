@@ -66,5 +66,5 @@ def is_port_in_use(port=0) -> bool:
     """
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        result = sock.connect_ex(('localhost', int(port)))
+        result = sock.connect_ex(("localhost", int(port)))
         return result == 0

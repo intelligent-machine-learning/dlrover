@@ -68,7 +68,7 @@ class TestDiagnosisDataCollector(unittest.TestCase):
 
         env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind(('localhost', 18889))
+        sock.bind(("localhost", 18889))
         sock.listen(1)
         collector = XpuTimerMetricsCollector()
         self.assertTrue(collector.is_enabled())
