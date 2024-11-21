@@ -84,9 +84,23 @@ class DiagnosisAction(metaclass=ABCMeta):
         data = {k.lstrip("_"): v for k, v in self.__dict__.items()}
         return json.dumps(data)
 
+    def is_needed(self):
+        return (
+            not self.is_expired()
+            and self._action_type != DiagnosisActionType.NONE
+        )
+
     @classmethod
     def from_json(cls, json_data):
         return cls(**json.loads(json_data))
+
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period}"
+        )
 
 
 class NoAction(DiagnosisAction):
@@ -187,8 +201,9 @@ class DiagnosisActionQueue:
                 self._actions[instance] = Queue(maxsize=10)
             ins_actions = self._actions[instance]
             try:
-                ins_actions.put(new_action, timeout=3)
-                logger.info(f"New diagnosis action {new_action}")
+                if new_action.is_needed():
+                    ins_actions.put(new_action, timeout=3)
+                    logger.info(f"New diagnosis action {new_action}")
             except queue.Full:
                 logger.warning(
                     f"Diagnosis actions for {instance} is full, "

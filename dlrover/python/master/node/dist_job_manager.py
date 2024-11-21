@@ -866,10 +866,7 @@ class DistributedJobManager(JobManager):
                 msg = "Disable relaunch"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
-                if (
-                    node.is_resource_scalable()
-                    and mem >= NodeResourceLimit.MAX_MEMORY
-                ):
+                if mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "

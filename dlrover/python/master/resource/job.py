@@ -554,14 +554,8 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
-
-        if node.config_resource.memory > NodeResourceLimit.MAX_MEMORY:
-            # no memory extension if the current value > the default max
-            pass
-        else:
-            node.config_resource.memory = min(
-                node.config_resource.memory * 2, NodeResourceLimit.MAX_MEMORY
-            )
+        # no adjustment for now(for allreduce type)
+        pass
 
     def get_config_resource(self):
         job_config = JobResource()
