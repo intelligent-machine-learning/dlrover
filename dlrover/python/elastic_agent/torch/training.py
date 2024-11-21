@@ -463,6 +463,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._agent_context = get_agent_context()
 
     @prof
+    def start_diagnose_agent(self) -> None:
+        self._diagnose_agent.start()
+
+    @prof
+    def stop_diagnose_agent(self) -> None:
+        self._diagnose_agent.stop()
+
+    @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
         logger.info("stop workers via SIGKILL for Ascend NPU")
         """The ASCEND framework might fork multiple sub-processes, we should
@@ -1161,6 +1169,7 @@ def launch_agent(
         training_log_file=config.training_log_file,
         failure_node_errors=config.failure_node_errors,
     )
+    agent.start_diagnose_agent()
 
     shutdown_rdzv = True
     result = None

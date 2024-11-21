@@ -152,7 +152,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        agent._diagnose_agent.stop()
 
         # Mock node rank 1 joins the rendezvous.
         self.rdzv_handler._client._node_id = 1
@@ -182,7 +181,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        agent._diagnose_agent.stop()
 
         # Mock node rank 0 joins the rendezvous.
         self.rdzv_handler._client._node_id = 0

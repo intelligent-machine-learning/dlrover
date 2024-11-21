@@ -23,7 +23,7 @@ class KVStoreService(object):
         self._store: Dict[str, bytes] = {}
 
     def set(self, key, value):
-        logger.debug(f"KVStore set: {key}, {value}")
+        logger.info(f"KVStore set: {key}, {value}")
         with self._lock:
             self._store[key] = value
 

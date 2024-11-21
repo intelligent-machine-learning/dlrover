@@ -79,8 +79,6 @@ class DiagnosisAgent(Singleton):
         self._diagnosis_thread = None
         self._report_thread = None
 
-        self.start()
-
         logger.info(
             "Initializing diagnosis agent with\n"
             f"training_log_file:    {self._training_log_file}\n"
@@ -244,5 +242,8 @@ class DiagnosisAgent(Singleton):
     def _periodically_report(self):
         logger.info("Start diagnosis agent reporter.")
         while True:
+            if self._stopped:
+                logger.info("Stop periodically report.")
+                break
             self.send_heartbeat()
             time.sleep(15)
