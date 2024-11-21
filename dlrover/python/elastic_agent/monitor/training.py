@@ -192,6 +192,14 @@ class TorchTrainingMonitor(Singleton):
             logger.warning(f"failed to collect user steps: {str(e)}")
 
     def _user_step_report(self):
+        logger.info(
+            f"step report: {self._user_step_logfile} {self._user_step_pattern}"
+        )
+        if self._user_step_logfile == "" or self._user_step_pattern == "":
+            logger.info(
+                "stop step report because of invalid logfile or pattern"
+            )
+            return
         myrank = env_utils.get_rank()
         logger.info(
             f"my rank is {myrank}, step rank is {self._user_step_rank}"

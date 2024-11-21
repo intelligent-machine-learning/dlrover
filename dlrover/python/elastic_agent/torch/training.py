@@ -189,7 +189,9 @@ class ElasticLaunchConfig(LaunchConfig):
         if os.getenv(NodeEnv.TRAINING_LOG_FILE, "") != "":
             self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
         if os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "") != "":
-            self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
+            self.failure_node_errors = os.getenv(
+                NodeEnv.FAILURE_NODE_ERRORS, ""
+            )
         if len(self.failure_node_errors) > 0:
             errors = self.failure_node_errors.strip()
             if errors[0] != "#" or errors[-1] != "#":
