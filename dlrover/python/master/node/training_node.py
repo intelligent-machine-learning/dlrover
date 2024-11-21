@@ -198,9 +198,10 @@ class TrainingNodeManager(object):
         self._node_type = node_type
         self._new_node_name_fn = new_node_name_fn
         self._lock = threading.Lock()
-        self._node_id_iter = itertools.count(len(nodes))
-        self._node_rank_iter = itertools.count(len(nodes))
+        self._node_id_iter = None
+        self._node_rank_iter = None
         self._pending_nodes: List[Node] = []
+        self.update_nodes_iter()
 
     @property
     def pending_nodes(self):
