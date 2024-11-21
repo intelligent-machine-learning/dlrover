@@ -225,6 +225,8 @@ class DiagnosisActionQueue:
             if instance not in self._actions:
                 self._actions[instance] = deque()
             actions = self._actions[instance]
+            if len(actions) >= DiagnosisConstant.MAX_ACTION_QUEUE_SIZE:
+                return
             try:
                 for action in actions:
                     if is_same_action(new_action, action):

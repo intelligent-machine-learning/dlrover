@@ -38,6 +38,7 @@ class DiagnosisConstant(object):
     ANY_INSTANCE = -2
     LOCAL_INSTANCE = -3
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
+    MAX_ACTION_QUEUE_SIZE = 1000
 
 
 class DiagnosisErrorConstant(object):
