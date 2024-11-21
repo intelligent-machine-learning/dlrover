@@ -70,7 +70,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         _set_paral_config()
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr, 0.5)
+        MasterClient._instance = build_master_client(addr, 3)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,

@@ -14,6 +14,8 @@
 from threading import Lock
 from typing import Dict
 
+from dlrover.python.common.log import default_logger as logger
+
 
 class KVStoreService(object):
     def __init__(self):
@@ -21,12 +23,15 @@ class KVStoreService(object):
         self._store: Dict[str, bytes] = {}
 
     def set(self, key, value):
+        logger.debug(f"KVStore set: {key}, {value}")
         with self._lock:
             self._store[key] = value
 
     def get(self, key):
+        logger.debug(f"KVStore get: {key}")
         with self._lock:
             return self._store.get(key, b"")
 
     def clear(self):
+        logger.debug(f"KVStore clear: {self._store}")
         self._store.clear()
