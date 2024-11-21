@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import socket
 import unittest
 from unittest.mock import patch
 
@@ -66,8 +67,12 @@ class TestDiagnosisDataCollector(unittest.TestCase):
         self.assertFalse(collector.is_enabled())
 
         env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('localhost', 18889))
+        sock.listen(1)
         collector = XpuTimerMetricsCollector()
         self.assertTrue(collector.is_enabled())
+        sock.close()
 
         self.assertEqual(collector.collect_data(), "")
 

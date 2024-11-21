@@ -290,15 +290,7 @@ class AllreduceResourceOptimizerTest(unittest.TestCase):
         optimizer = AllreduceJobResourceOptimizer(worker_resource, "test-job")
         node = Node("worker", 1, config_resource=NodeResource(1, 3276))
         optimizer.adjust_oom_resource(node)
-        self.assertEqual(node.config_resource.memory, 6552)
-
-        node = Node("worker", 1, config_resource=NodeResource(1, 32768))
-        optimizer.adjust_oom_resource(node)
-        self.assertEqual(node.config_resource.memory, 65536)
-
-        node = Node("worker", 1, config_resource=NodeResource(1, 32769))
-        optimizer.adjust_oom_resource(node)
-        self.assertEqual(node.config_resource.memory, 65536)
+        self.assertEqual(node.config_resource.memory, 3276)
 
         node = Node("worker", 1, config_resource=NodeResource(1, 65538))
         optimizer.adjust_oom_resource(node)

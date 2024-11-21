@@ -88,6 +88,14 @@ class DiagnosisAction(metaclass=ABCMeta):
     def from_json(cls, json_data):
         return cls(**json.loads(json_data))
 
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period}"
+        )
+
 
 class NoAction(DiagnosisAction):
     def __init__(self):
