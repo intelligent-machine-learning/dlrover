@@ -240,15 +240,11 @@ class TrainingNodeManager(object):
 
     def update_nodes_iter(self):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
-
-        # update everytime
-        self._node_id_iter = itertools.count(
+        current_max_num = itertools.count(
             max(nodes.keys()) + 1 if len(nodes) > 0 else 0
         )
-
-        # update once
-        if not self._node_rank_iter:
-            self._node_rank_iter = itertools.count(len(nodes))
+        self._node_id_iter = itertools.count(current_max_num)
+        self._node_rank_iter = itertools.count(current_max_num)
 
     def get_next_node_id(self):
         self.update_nodes_iter()
