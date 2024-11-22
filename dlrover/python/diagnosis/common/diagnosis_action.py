@@ -237,11 +237,16 @@ class DiagnosisActionQueue:
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
-                self._actions[instance] = deque(maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE)
+                self._actions[instance] = deque(
+                    maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE
+                )
             actions = self._actions[instance]
             try:
                 for action in actions:
-                    if is_same_action(new_action, action) or not action.is_needed():
+                    if (
+                        is_same_action(new_action, action)
+                        or not action.is_needed()
+                    ):
                         return
                 actions.append(new_action)
                 logger.info(f"New diagnosis action {new_action}")
