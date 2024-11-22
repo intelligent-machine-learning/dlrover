@@ -85,13 +85,14 @@ class CheckTrainingHangOperator(InferenceOperator):
         ]
 
     def is_hang(self, diagnosis_data: List[DiagnosisData]):
-        logger.info(
+        logger.debug(
             "Hang detection start using diagnosis data, "
             f"data number: {len(diagnosis_data)}, "
             f"data size: {sys.getsizeof(diagnosis_data)}."
         )
         worker_hang_metric: Dict[int, List[Tuple[int, bool]]] = {}
         if not diagnosis_data:
+            logger.debug("Skip for no worker hang metric.")
             return False
 
         # the format of the hang metric can refer these files:
