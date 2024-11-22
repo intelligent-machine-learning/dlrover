@@ -109,9 +109,23 @@ class DiagnosisAction(metaclass=ABCMeta):
         if executable_time_period > 0:
             self._expired_time_period = expired_time_period
 
+    def is_needed(self):
+        return (
+            not self.is_expired()
+            and self._action_type != DiagnosisActionType.NONE
+        )
+
     @classmethod
     def from_json(cls, json_data):
         return cls(**json.loads(json_data))
+
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period}"
+        )
 
 
 class NoAction(DiagnosisAction):
@@ -223,13 +237,11 @@ class DiagnosisActionQueue:
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
-                self._actions[instance] = deque()
+                self._actions[instance] = deque(maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE)
             actions = self._actions[instance]
-            if len(actions) >= DiagnosisConstant.MAX_ACTION_QUEUE_SIZE:
-                return
             try:
                 for action in actions:
-                    if is_same_action(new_action, action):
+                    if is_same_action(new_action, action) or not action.is_needed():
                         return
                 actions.append(new_action)
                 logger.info(f"New diagnosis action {new_action}")

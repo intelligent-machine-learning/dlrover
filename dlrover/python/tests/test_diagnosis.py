@@ -41,6 +41,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(
             basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE
         )
+        self.assertFalse(basic_action.is_needed())
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
@@ -54,6 +55,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(event_action.event_action, "test")
         self.assertEqual(event_action.event_msg, "test123")
         self.assertEqual(event_action.event_labels, {"k1": "v1"})
+        self.assertTrue(event_action.is_needed())
 
         node_relaunch_action = NodeAction(
             node_id=1,
@@ -69,6 +71,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
+        self.assertTrue(event_action.is_needed())
 
         node_relaunch_action = NodeAction(
             node_id=1,
@@ -80,6 +83,7 @@ class DiagnosisTest(unittest.TestCase):
             node_relaunch_action.action_type,
             DiagnosisActionType.RESTART_WORKER,
         )
+        self.assertTrue(event_action.is_needed())
 
     def test_action_queue(self):
         action_queue = DiagnosisActionQueue()
