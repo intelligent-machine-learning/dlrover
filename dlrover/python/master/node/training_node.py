@@ -194,7 +194,6 @@ class TrainingNodeManager(object):
             new_node_name_fn: new node name function
         """
         self._job_context = get_job_context()
-        nodes = self._job_context.job_nodes_by_type(node_type)
         self._node_type = node_type
         self._new_node_name_fn = new_node_name_fn
         self._lock = threading.Lock()
@@ -247,6 +246,11 @@ class TrainingNodeManager(object):
         )
         self._node_rank_iter = itertools.count(len(nodes))
 
+    def get_next_node_id(self):
+        if self._node_id_iter is None:
+            self.update_nodes_iter()
+        return next(self._node_id_iter)
+
     def remove_node(self, node_id):
         plan = ScalePlan()
         with self._lock:
@@ -265,7 +269,7 @@ class TrainingNodeManager(object):
     def relaunch_node(self, node: Node, remove_exited_node=False):
         plan = ScalePlan()
         with self._lock:
-            new_id = next(self._node_id_iter)
+            new_id = self.get_next_node_id()
             relaunch_node = node.get_relaunch_node_info(new_id)
             self._update_node(relaunch_node)
         logger.info("Relaunch node %s to %s", node.name, new_id)
