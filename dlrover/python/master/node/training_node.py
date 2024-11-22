@@ -238,20 +238,16 @@ class TrainingNodeManager(object):
     def _update_node(self, node: Node):
         self._job_context.update_job_node(node)
 
-    def update_nodes_iter(self):
+    def update_nodes_iter(self, update_rank_iter=True):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
-
-        # update everytime
         self._node_id_iter = itertools.count(
             max(nodes.keys()) + 1 if len(nodes) > 0 else 0
         )
-
-        # update once
-        if not self._node_rank_iter:
+        if update_rank_iter:
             self._node_rank_iter = itertools.count(len(nodes))
 
     def get_next_node_id(self):
-        self.update_nodes_iter()
+        self.update_nodes_iter(update_rank_iter=False)
         return next(self._node_id_iter)
 
     def remove_node(self, node_id):
