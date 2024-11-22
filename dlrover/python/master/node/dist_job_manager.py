@@ -646,7 +646,6 @@ class DistributedJobManager(JobManager):
                 # Mock event to avoid missing events
                 event = NodeEvent(event_type, node)
                 self._process_event(event)
-        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in job_nodes.keys():
             #  Avoid dictionary keys changed during iteration

@@ -235,7 +235,7 @@ class DistributedJobMaster(JobMaster):
             self.diagnosis_manager.start_observing()
         except Exception as e:
             logger.warning(
-                "Failed to start training " f"runtime diagnosis: {str(e)}"
+                f"Failed to start training runtime diagnosis: {str(e)}"
             )
 
         # into running loop

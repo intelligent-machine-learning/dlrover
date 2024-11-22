@@ -65,7 +65,6 @@ class ParameterServerManager(TrainingNodeManager):
         self._migrated_ps_nodes: Dict[int, Node] = {}
         self._next_training_ps_cluster: List[Node] = []
         self._training_ps_cluster: List[Node] = []
-        self._node_id_iter = itertools.count(self._job_resource.ps_num)
         self._init_training_ps_cluster()
 
     def _init_training_ps_cluster(self):
@@ -89,7 +88,7 @@ class ParameterServerManager(TrainingNodeManager):
         plan = ScalePlan()
         with self._lock:
             node.is_released = True
-            new_id = next(self._node_id_iter)
+            new_id = self.get_next_node_id()
             new_node = node.get_relaunch_node_info(new_id)
             self._update_node(new_node)
             if node in self._training_ps_cluster:
@@ -139,7 +138,7 @@ class ParameterServerManager(TrainingNodeManager):
             alive_num = len(self.get_training_ps_cluster())
             task_id_iter = itertools.count(alive_num)
             for _ in range(up_num):
-                ps_id = next(self._node_id_iter)
+                ps_id = self.get_next_node_id()
                 task_id = next(task_id_iter)
                 service_addr = self._new_service_fn(NodeType.PS, ps_id)
                 ps_resource = self._job_resource.get_node_group_resource(
@@ -356,7 +355,7 @@ class ParameterServerManager(TrainingNodeManager):
         resource = copy.deepcopy(original_pod.config_resource)
         with self._lock:
             self._ps_cluster_changed = True
-            new_ps_id = next(self._node_id_iter)
+            new_ps_id = self.get_next_node_id()
             resource.cpu = cpu
             resource.memory = memory
             logger.info(
