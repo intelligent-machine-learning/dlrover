@@ -133,7 +133,7 @@ class ResourceMonitor(Singleton):
             pynvml.nvmlInit()
             self._gpu_enabled = True
         except pynvml.NVMLError_LibraryNotFound:
-            logger.warn(
+            logger.warning(
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )
