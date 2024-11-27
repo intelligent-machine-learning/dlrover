@@ -8,7 +8,9 @@ runs:
     - "/bin/bash"
     - "-c"
     - |
-      git config --global --add safe.directory /github/workspace && \
-      git submodule update --remote && \
-      cd atorch && \
-      sh dev/scripts/pre-commit.sh
+      "
+      git config --global --add safe.directory /github/workspace &&
+      git submodule init &&
+      git submodule update --remote &&
+      cd atorch && sh dev/scripts/pre-commit.sh
+      "
