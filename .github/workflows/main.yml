@@ -1,11 +1,13 @@
 ---
-name: CI
+name: main test for the project
 
 on:
   pull_request:
   workflow_dispatch:
   push:
-    branches: [master]
+    branches:
+      - master
+      - main
 
 jobs:
   pre-commit:
