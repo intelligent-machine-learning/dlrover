@@ -10,6 +10,7 @@ runs:
     - "pip install dlrover[torch]==0.3.6 \
 && echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = \
 (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
+&& git submodule update --remote \
 && cd atorch \
 && PYTHONPATH=. pytest atorch/tests/common_tests \
 && cd .. \
