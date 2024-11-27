@@ -1,9 +1,9 @@
 ---
-name: Close stale issues
+name: close stale issues and PRs
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # run every day
+    - cron: "0 0 * * *" # run every day
 
 jobs:
   stale:
@@ -25,6 +25,6 @@ jobs:
           close-pr-message: |
             This pull request is being automatically closed
             due to inactivity.
-          stale-label: 'stale'
+          stale-label: "stale"
           exempt-issue-labels: "investigating,todo,wip"
           exempt-pr-labels: "investigating,todo,wip"
