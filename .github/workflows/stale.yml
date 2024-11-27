@@ -1,5 +1,5 @@
 ---
-name: Close stale issues
+name: close stale issues
 
 on:
   schedule:
