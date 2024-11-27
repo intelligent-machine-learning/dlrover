@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#curl -Os https://uploader.codecov.io/latest/linux/codecov
-#chmod +x codecov
-#./codecov
+curl -Os https://uploader.codecov.io/latest/linux/codecov
+chmod +x codecov
+./codecov
