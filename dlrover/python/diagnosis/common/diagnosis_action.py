@@ -44,13 +44,13 @@ class DiagnosisAction(metaclass=ABCMeta):
         self,
         action_type=DiagnosisActionType.NONE,
         instance: int = DiagnosisConstant.LOCAL_INSTANCE,
-        timestamp: float = 0,
+        timestamp: int = 0,
         expired_time_period: int = 60 * 1000,
     ):
         self._action_type = action_type
         self._instance: int = instance
         if timestamp == 0:
-            self._timestamp = datetime.now().timestamp()
+            self._timestamp = int(datetime.now().timestamp())
         else:
             self._timestamp = timestamp
 
