@@ -133,6 +133,21 @@ def start_saver_process():
     return None
 
 
+def wait_socket_server(socket_server, timeout=60):
+    """
+    Socket client should not be used before socker server is created.
+    """
+
+    start_time = time.time()
+    while not socket_server.is_available():
+        time.sleep(0.1)
+        if time.time() - start_time > timeout:
+            raise TimeoutError(
+                "Timed out waiting for socket server: "
+                f"{socket_server.name}."
+            )
+
+
 class CheckpointEngine(metaclass=ABCMeta):
     """
     The checkpoint engine synchronously writes the state dict into
@@ -199,7 +214,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_lock = SharedLock(name=lock_name, create=False)
 
         # need to wait until the socket server is created(by the saver)
-        self._wait_socket_server(self._shm_lock)
+        wait_socket_server(self._shm_lock)
 
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
@@ -272,16 +287,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Close the shared memory."""
         self._shm_handler.close()
 
-    def _wait_socket_server(self, socket_server, timeout=60):
-        start_time = time.time()
-        while not socket_server.is_available():
-            time.sleep(0.1)
-            if time.time() - start_time > timeout:
-                raise TimeoutError(
-                    "Timed out waiting for socket server: "
-                    f"{socket_server.name}."
-                )
-
     def _notify_agent_to_create_saver(self):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
@@ -305,7 +310,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
-        self._wait_socket_server(queue)
+        wait_socket_server(queue)
 
         logger.info(
             "Notify agent to create a checkpoint saver using: "
@@ -326,7 +331,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                     "The event queue cannot be None on local rank 0."
                 )
 
-            self._wait_socket_server(self._event_queue)
+            wait_socket_server(self._event_queue)
 
             logger.info(f"Update saver config: {event.__dict__}")
             self._event_queue.put(event)
