@@ -1,6 +1,0 @@
-[submodule "tfplus"]
-	path = tfplus
-	url = git@github.com:intelligent-machine-learning/tfplus.git
-[submodule "atorch"]
-	path = atorch
-	url = git@github.com:intelligent-machine-learning/atorch.git
