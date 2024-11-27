@@ -24,7 +24,11 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.multi_process import (
+    LocalSocketComm,
+    SharedLock,
+    SharedQueue,
+)
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
@@ -133,7 +137,7 @@ def start_saver_process():
     return None
 
 
-def wait_socket_server(socket_server, timeout=60):
+def wait_socket_server(socket_server: LocalSocketComm, timeout=60):
     """
     Socket client should not be used before socket server is created.
     """
