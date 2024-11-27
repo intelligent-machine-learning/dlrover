@@ -2,19 +2,13 @@
 name: dlrover-python-test
 description: run pytest to execute python test cases of dlrover python
 runs:
-  using: "docker"
+  using: 'docker'
   image: "easydl/dlrover:ci"
-  env:
-    PYTHONPATH: "/github/workspace"
-    ROLE_NAME: dlrover-trainer
   args:
-    - /bin/bash
-    - -c
-    - |
-      sh scripts/ci_install.sh
-      python -m grpc_tools.protoc \
-        -I. dlrover/proto/*.proto \
-        --python_out=. --grpc_python_out=.
-      python -m pytest --durations=10 \
-        dlrover/python/tests dlrover/trainer/tests \
-        --cov-report xml --cov=dlrover
+    - "/bin/bash"
+    - "-c"
+    - "sh scripts/ci_install.sh && python -m grpc_tools.protoc -I. \
+dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+&& ROLE_NAME=dlrover-trainer \
+python -m pytest --durations=10 dlrover/python/tests dlrover/trainer/tests \
+--cov-report xml --cov=dlrover "
