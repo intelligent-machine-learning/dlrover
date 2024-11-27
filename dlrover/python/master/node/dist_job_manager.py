@@ -514,7 +514,7 @@ class DistributedJobManager(JobManager):
             )
             time.sleep(15)
 
-    def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
+    def _get_dead_node_event(self, window_interval=600) -> List[NodeEvent]:
         now = time.time()
         dead_events: List[NodeEvent] = []
         job_nodes = self.get_job_nodes()

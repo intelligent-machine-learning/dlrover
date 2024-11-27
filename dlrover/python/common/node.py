@@ -276,6 +276,7 @@ class Node(object):
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
+        new_node.reported_status = ""
         return new_node
 
     def is_unrecoverable_failure(self):
@@ -379,9 +380,10 @@ class Node(object):
             f"rank_index:{self.rank_index};"
             f"type:{self.type};"
             f"status:{self.status};"
+            f"reported_status:{self.reported_status};"
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
-            f"priroity:{self.config_resource.priority}"
+            f"priority:{self.config_resource.priority};"
         )
 
     def to_dict(self):

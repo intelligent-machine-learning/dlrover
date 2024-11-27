@@ -84,3 +84,7 @@ class NodeTest(unittest.TestCase):
         node.update_from_node(node)
         node.id = 100
         node.update_from_node(node)
+
+        node = node.get_relaunch_node_info(123)
+        self.assertEqual(node.id, 123)
+        self.assertFalse(node.reported_status)
