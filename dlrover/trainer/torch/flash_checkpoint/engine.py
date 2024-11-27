@@ -199,8 +199,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_lock = SharedLock(name=lock_name, create=False)
 
         # need to wait until the socket server is created(by the saver)
-        while not self._shm_lock.is_available():
-            time.sleep(0.1)
+        self._wait_socket_server(self._shm_lock)
 
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
