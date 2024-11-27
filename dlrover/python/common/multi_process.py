@@ -193,6 +193,10 @@ class LocalSocketComm(metaclass=ABCMeta):
         self._server = None
         self._init_socket()
 
+    @property
+    def name(self):
+        return self._name
+
     def unlink(self):
         try:
             os.unlink(self._socket_file)
