@@ -135,7 +135,7 @@ def start_saver_process():
 
 def wait_socket_server(socket_server, timeout=60):
     """
-    Socket client should not be used before socker server is created.
+    Socket client should not be used before socket server is created.
     """
 
     start_time = time.time()
@@ -159,7 +159,7 @@ class CheckpointEngine(metaclass=ABCMeta):
     the training loop and call `save_to_storage`.
 
     If the training process fail, the agent in main process can continuously
-    saves the state dict from the shared memory into the storage.
+    save the state dict from the shared memory into the storage.
 
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
