@@ -24,12 +24,10 @@ training jobs on K8s/Ray. Major features as
 - **Auto-Scaling**: The distributed training can scale up/down resources to improve the stability, throughput
 and resource utilization.
 
-What's more, DLRover provides extension libraries of PyTorch and TensorFlow to Speed Up Training.
+Furthermore, DLRover offers extension libraries for PyTorch and TensorFlow to expedite training. These are also open-source projects available in our [GitHub repositories](https://github.com/intelligent-machine-learning/dlrover/pull/).
 
 - [ATorch](https://github.com/intelligent-machine-learning/atorch): an extension library of PyTorch to Speed Up Training of Large LLM.
 - [TFPlus](https://github.com/intelligent-machine-learning/tfplus): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
-
-UPDATE 20241127: ATorch and TFPlus have moved to the independent repositories and import as git submodules. so you shoud run `git submodule update --init --recursive` to get the latest code before you build the project.
 
 ## Latest News
 
