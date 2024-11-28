@@ -219,7 +219,7 @@ class DistributedJobManager(JobManager):
         ).start()
         threading.Thread(
             target=self._diagnose_job,
-            name="diagnose_job",
+            name="job_diagnosing",
             daemon=True,
         ).start()
         if os.getenv("KUBERNETES_SERVICE_HOST"):
@@ -467,26 +467,20 @@ class DistributedJobManager(JobManager):
             time.sleep(5)
 
     def _monitor_node_heart_beat(self):
-        logger.info("Start monitoring the heartbeat of nodes.")
-        while True:
-            if self._stopped:
-                logger.info("Stop monitoring the heartbeat of nodes.")
-                break
-            with self._lock:
-                try:
-                    events = self._get_dead_node_event()
-                except Exception as e:
-                    logger.warning(e)
-                    events = []
+        with self._lock:
+            try:
+                events = self._get_dead_node_event()
+            except Exception as e:
+                logger.warning(e)
+                events = []
 
-            for event in events:
-                try:
-                    self._process_event(event)
-                except Exception as e:
-                    logger.warning(e)
-                    detail_trace_back = traceback.format_exc()
-                    logger.warning(detail_trace_back)
-            time.sleep(15)
+        for event in events:
+            try:
+                self._process_event(event)
+            except Exception as e:
+                logger.warning(e)
+                detail_trace_back = traceback.format_exc()
+                logger.warning(detail_trace_back)
 
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
@@ -494,19 +488,10 @@ class DistributedJobManager(JobManager):
             if self._stopped:
                 logger.info("Stop diagnosing job.")
                 break
-            with self._lock:
-                try:
-                    events = self._get_dead_node_event()
-                except Exception as e:
-                    logger.warning(e)
-                    events = []
-            for event in events:
-                try:
-                    self._process_event(event)
-                except Exception as e:
-                    logger.warning(e)
-                    detail_trace_back = traceback.format_exc()
-                    logger.warning(detail_trace_back)
+            # deal with heartbeat
+            self._monitor_node_heart_beat()
+
+            # deal with diagnosis action
             self._process_diagnosis_action(
                 self._job_context.next_action(
                     instance=DiagnosisConstant.MASTER_INSTANCE
