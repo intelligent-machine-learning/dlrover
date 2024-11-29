@@ -101,7 +101,7 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertEqual(
             action_queue.next_action(
-                instance=DiagnosisConstant.LOCAL_INSTANCE
+                instance=DiagnosisConstant.MASTER_INSTANCE
             ).action_type,
             DiagnosisActionType.EVENT,
         )
@@ -109,7 +109,7 @@ class DiagnosisTest(unittest.TestCase):
             action_queue.next_action(
                 instance=DiagnosisConstant.LOCAL_INSTANCE
             ).action_type,
-            DiagnosisActionType.EVENT,
+            DiagnosisActionType.NONE,
         )
         self.assertEqual(
             action_queue.next_action(instance=1).action_type,
