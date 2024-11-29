@@ -47,7 +47,7 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
         self.assertEqual(
-            event_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+            event_action._instance, DiagnosisConstant.MASTER_INSTANCE
         )
         self.assertEqual(event_action.event_type, "info")
         self.assertEqual(event_action.event_instance, "job")

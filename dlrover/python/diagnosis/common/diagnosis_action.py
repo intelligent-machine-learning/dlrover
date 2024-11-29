@@ -123,6 +123,7 @@ class EventAction(DiagnosisAction):
     ):
         super().__init__(
             DiagnosisActionType.EVENT,
+            instance=DiagnosisConstant.MASTER_INSTANCE,
             timestamp=timestamp,
             expired_time_period=expired_time_period,
         )
@@ -203,7 +204,7 @@ class DiagnosisActionQueue:
             try:
                 if new_action.is_needed():
                     ins_actions.put(new_action, timeout=3)
-                    logger.info(f"New diagnosis action {new_action}")
+                    logger.info(f"New diagnosis action: {new_action}")
             except queue.Full:
                 logger.warning(
                     f"Diagnosis actions for {instance} is full, "

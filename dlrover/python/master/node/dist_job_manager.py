@@ -36,12 +36,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionType,
-    DiagnosisConstant,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    EventAction,
     NoAction,
 )
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
@@ -670,10 +668,20 @@ class DistributedJobManager(JobManager):
         }
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
-        if not action or action.action_type == DiagnosisActionType.NONE:
+        if not action or isinstance(action, NoAction):
             return
 
-        # TODO
+        if isinstance(action, EventAction):
+            self._report_event(
+                action.event_type,
+                action.event_instance,
+                action.event_action,
+                action.event_msg,
+                action.event_labels,
+            )
+        else:
+            # TODO: deal with other action
+            pass
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
