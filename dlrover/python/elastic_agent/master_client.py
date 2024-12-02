@@ -248,6 +248,11 @@ class MasterClient(Singleton):
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)
         action = NoAction()
+
+        if not response:
+            logger.warning("No response from heartbeat reporting.")
+            return action
+
         action_cls: Optional[DiagnosisData] = getattr(
             self._diagnosis_action_module,
             response.action.action_cls,

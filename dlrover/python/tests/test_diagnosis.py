@@ -56,6 +56,15 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(event_action.event_labels, {"k1": "v1"})
         self.assertTrue(event_action.is_needed())
 
+        event_action_json = event_action.to_json()
+        self.assertIsNotNone(event_action_json)
+
+        event_action_obj = EventAction.from_json(event_action_json)
+        self.assertIsNotNone(event_action_obj)
+        self.assertEqual(
+            event_action.event_action, event_action_obj.event_action
+        )
+
         node_relaunch_action = NodeAction(
             node_id=1,
             node_status=NodeStatus.FAILED,

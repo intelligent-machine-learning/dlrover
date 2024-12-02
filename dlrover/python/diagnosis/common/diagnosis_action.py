@@ -104,7 +104,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
 
 class NoAction(DiagnosisAction):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(NoAction, self).__init__()
 
 
@@ -120,6 +120,7 @@ class EventAction(DiagnosisAction):
         event_labels: Optional[Dict[str, str]] = None,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             DiagnosisActionType.EVENT,
@@ -163,6 +164,7 @@ class NodeAction(DiagnosisAction):
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             action_type,

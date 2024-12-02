@@ -14,6 +14,9 @@
 import json
 import time
 import unittest
+from unittest import mock
+
+from common.grpc import DiagnosisAction, HeartbeatResponse
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
@@ -21,6 +24,10 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NoAction,
 )
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.tests.test_utils import start_local_master
@@ -160,3 +167,21 @@ class MasterClientTest(unittest.TestCase):
         rdzv_name = RendezvousName.ELASTIC_TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
+
+    def test_report_heartbeat(self):
+        now = time.time()
+        self._master_client._get = mock.MagicMock(side_effect=[None])
+        action = self._master_client.report_heart_beat(now)
+        self.assertTrue(isinstance(action, NoAction))
+
+        event_action = EventAction(
+            "info", "job", "test", "test123", {"k1": "v1"}
+        )
+        action_dto = DiagnosisAction(
+            action_cls=event_action.__class__.__name__,
+            action_content=event_action.to_json(),
+        )
+        response_dto = HeartbeatResponse(action_dto)
+        self._master_client._get = mock.MagicMock(return_value=response_dto)
+        action = self._master_client.report_heart_beat(now)
+        self.assertTrue(isinstance(action, EventAction))
