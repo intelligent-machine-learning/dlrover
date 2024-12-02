@@ -16,8 +16,6 @@ import time
 import unittest
 from unittest import mock
 
-from common.grpc import DiagnosisAction, HeartbeatResponse
-
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     NodeEventType,
@@ -25,6 +23,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.grpc import DiagnosisAction, HeartbeatResponse
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
