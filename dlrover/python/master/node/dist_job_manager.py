@@ -1226,10 +1226,7 @@ class DistributedJobManager(JobManager):
             if node is None:
                 return NoAction()
             if node.heartbeat_time == 0:
-                logger.info(
-                    "Start receiving heartbeat from node "
-                    f"{node_id}({node.name})"
-                )
+                logger.info(f"Start receiving heartbeat from node {node_id}")
             node.heartbeat_time = timestamp
             self._job_context.update_job_node(node)
             return self._job_context.next_action(instance=node_id)
