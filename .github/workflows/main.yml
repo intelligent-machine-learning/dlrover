@@ -8,6 +8,9 @@ on:
     branches:
       - master
       - main
+    paths-ignore:
+      - "docs/**"
+      - "examples/**"
 
 jobs:
   pre-commit:
