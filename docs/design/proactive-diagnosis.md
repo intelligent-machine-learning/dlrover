@@ -29,25 +29,32 @@ the diagnosis and handling of corresponding exception scenarios.
 ## Design
 
 The proactive diagnostic framework is mainly composed of the following roles:
-- Diagnosis Manger
-- Diagnosis Agent
-- Inference Operator(Observer & Resolver)
+- [Diagnosis Manger](#Diagnosis-Manger)
+- [Diagnosis Agent](#Diagnosis-Agent)
 
 These components are distributed across the Master and Worker Nodes, 
-working together to achieve the main functionality of proactive diagnostics. 
+working together to achieve the main functionality of proactive diagnostics.
 
-<img src="../figures/" alt="" width="1000">
+<img src="../figures/diagnosis_arc.png" alt="Proactive Diagnostic Framework">
 
 Below is a more detailed introduction to the relevant concepts.
 
 ### Diagnosis Manger
 The diagnosis-manager is implemented and runs in the Master node, with the main 
 responsibilities of driving pre-execution checks and runtime diagnostic logic(
-across all the workers). 
-Additionally, it interacts with other core roles of the master, such as the 
-job-manager, to assist in the lifecycle management of training.
+across all the workers).
 
-<img src="../figures/" alt="" width="1000">
+Runtime diagnostics primarily rely on an asynchronous scheduled thread and a 
+list of potential issues along with corresponding solutions(currently hardcoded). 
+During the training progress, this system continuously performs diagnostics and 
+determines the necessary actions to be executed. The specific diagnostic process 
+is shown in the following diagram, which is implemented through a simple inference chain. 
+The final actions can be either an event output or a specific fault-tolerance operation.
+
+<img src="../figures/diagnosis_manager_arc.png" alt="Diagnosis Manager">
+
+Then it will interact with other core roles of the master, such as the 
+job-manager, to assist in the lifecycle management of training.
 
 ### Diagnosis Agent
 The diagnosis-agent is implemented and runs on the worker node, with the main 
@@ -55,36 +62,42 @@ responsibilities of driving data collection on the training worker side,
 executing some basic diagnostic logic, and reporting necessary information to 
 Master.
 
-<img src="../figures/" alt="" width="1000">
+<img src="../figures/diagnosis_agent_arc.png" alt="Diagnosis Agent">
 
-### Inference Operator
+### Other Concepts
+#### Metric Collection
 
+- Common Metric
 
-### Metric Collection
+  
+    Common metrics mainly refer to metric information collected directly using 
+    common tools such as psutil or nvml.
 
+- XPU_TIMER Metric
+    
 
-#### Common Metric
-
-
-#### XPU_TIMER Metric
+    XPU timer metrics refer to the metrics output by the XPU-Timer. 
+    The collection of this metric is indirectly achieved by using an HTTP 
+    client to access the data exported by the XPU-Timer to Prometheus.
 
 
 ## Implementation
-
 Next, we will primarily introduce some of the existing implementations based on 
 this diagnostic framework. 
 
 This part of the work will have a long cycle and work in progress for now...
 
 ### Training Hang Detection(Basic)
+Currently, the basic capability is to determine whether a Hang situation exists. 
+This implementation mainly relies on the metrics reported by the XPU-Timer, 
+making decisions based on the global Worker metrics over a certain period to 
+determine whether the current training has stalled.
 
-If we start a daemon subprocess of the GPU training process, the daemon
-subprocess will exit if the training process fails. In this case, the
-parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
-in the main process can allocate the shared memory with the training
-process. The training process saves the state dict to the shared memory and
-the agent save them into the storage.
+<img src="../figures/training_hang_detection.png" alt="Training Agent">
 
 ### Training Hang Fault Tolerance(Advanced)
+This is an advanced capability. Besides determining whether a Hang situation 
+exists, it also precisely identifies which worker and which device is causing 
+it, and executes fault-tolerant operations accordingly.
 
 WIP
