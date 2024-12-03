@@ -88,6 +88,11 @@ this diagnostic framework.
 This part of the work will have a long cycle and work in progress for now...
 
 ### Training Hang Detection(Basic)
+
+```
+prerequisite: XPU-Timer is deployed and in used.
+```
+
 Currently, the basic capability is to determine whether a Hang situation exists. 
 This implementation mainly relies on the metrics reported by the XPU-Timer, 
 making decisions based on the global Worker metrics over a certain period to 
@@ -96,6 +101,11 @@ determine whether the current training has stalled.
 <img src="../figures/training_hang_detection.png" alt="Training Agent">
 
 ### Training Hang Fault Tolerance(Advanced)
+
+```
+prerequisite: XPU-Timer is deployed and in used.
+```
+
 This is an advanced capability. Besides determining whether a Hang situation 
 exists, it also precisely identifies which worker and which device is causing 
 it, and executes fault-tolerant operations accordingly.
