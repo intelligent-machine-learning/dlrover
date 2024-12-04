@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import patch
 
 import os
 import threading
@@ -19,6 +20,8 @@ import time
 import copy
 import requests
 import json
+import logging
+import http.client as http_client
 
 from datetime import datetime
 from collections import OrderedDict
@@ -51,11 +54,11 @@ from dlrover.python.master.monitor.metric_context import (
 from dlrover.python.master.monitor.metric_monitor import (
     GpuMetricMonitor,
     NpuMetricMonitor,
+    SimpleMetricMonitor,
 )
 
-_dlrover_context = Context.singleton_instance()
 
-class MetricMonitorTests(unittest.TestCase):
+class MetricContextTests(unittest.TestCase):
     def test_gpu_metric(self):
         gmetric = GpuMetric(
             gpu_free_mem=50,
@@ -157,7 +160,6 @@ class MetricMonitorTests(unittest.TestCase):
             gpu_tensor_util=0.4,
         )
 
-        self.assertEqual(worker1.avg_metrics, None)
         worker1.update_avg_metrics()
         self.assertEqual(
             worker1.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM], 50
@@ -217,7 +219,6 @@ class MetricMonitorTests(unittest.TestCase):
             npu_rx=1500
         )
 
-        self.assertEqual(worker1.avg_metrics, None)
         worker1.update_avg_metrics()
         self.assertEqual(
             worker1.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM], 80
@@ -238,8 +239,7 @@ class MetricMonitorTests(unittest.TestCase):
             worker1.avg_metrics.metrics[NpuMetricType.NPU_RDMA_TX], 0.0
         )
 
-
-    def test_gpu_job_metric(self):
+    def test_job_metric(self):
         jctx = get_job_metric_context()
         nmetric1 = NodeGpuMetric()
         nmetric1.node_metrics[0] = GpuMetric(
@@ -344,3 +344,607 @@ class MetricMonitorTests(unittest.TestCase):
         jctx.clear_node_metrics()
         self.assertEqual(jctx.size(), 0)
         self.assertEqual(len(jctx.get_node_metrics()), 0)
+
+
+class MockMetricResponse(object):
+    def __init__(self, json_data, status_code):
+        self.json_data = json_data
+        self.status_code = status_code
+
+    def json(self):
+        return self.json_data
+
+
+def mock_requests_conn_exception(*args, **kwargs):
+    raise requests.exceptions.ConnectionError
+
+
+def mock_requests_json_exception(*args, **kwargs):
+    raise requests.exceptions.JSONDecodeError
+
+
+def mock_requests_http_exception(*args, **kwargs):
+    raise requests.exceptions.HTTPError
+
+
+def mock_requests_timeout_exception(*args, **kwargs):
+    raise requests.exceptions.Timeout
+
+
+def mock_requests_request_exception(*args, **kwargs):
+    raise requests.exceptions.RequestException
+
+
+def mock_npu_pod_metric_request(*args, **kwargs):
+    npu_pod_sample = {
+        "success": True,
+        "message": "success",
+        "data": [
+            [
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "95"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "98"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "2",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "99"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "3",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "99"
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+    return MockMetricResponse(npu_pod_sample, 200)
+
+
+def mock_npu_job_metric_request(*args, **kwargs):
+    npu_job_sample = {
+        "success": True,
+        "message": "success",
+        "data": [
+            [
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "95"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-100",
+                        "id": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "98"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-101",
+                        "id": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "99"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod_name": "dlrover-testjob-worker-101",
+                        "id": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "ascend.NPU"
+                    },
+                    "dataMapByTime": {
+                        "1732251300000": {
+                            "count": "99"
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+    return MockMetricResponse(npu_job_sample, 200)
+
+
+def mock_gpu_pod_metric_request(*args, **kwargs):
+    gpu_pod_sample = {
+        "success": True,
+        "message": "success",
+        "data": [
+            [
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "95"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "98"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "2",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "99"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "3",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "99"
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+    return MockMetricResponse(gpu_pod_sample, 200)
+
+
+def mock_gpu_job_metric_request(*args, **kwargs):
+    gpu_job_sample = {
+        "success": True,
+        "message": "success",
+        "data": [
+            [
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "95"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-100",
+                        "gpu": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "98"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-101",
+                        "gpu": "0",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "99"
+                        }
+                    }
+                },
+                {
+                    "tags": {
+                        "pod": "dlrover-testjob-worker-101",
+                        "gpu": "1",
+                        "job": "dlrover-testjob",
+                        "gpuType": "nvidia.GPU"
+                    },
+                    "dataMapByTime": {
+                        "1732442400000": {
+                            "count": "99"
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+    return MockMetricResponse(gpu_job_sample, 200)
+
+
+def mock_gpu_job_metric_exception(*args, **kwargs):
+    pass
+
+class MetricMonitorTests(unittest.TestCase):
+    def setUp(self):
+        os.environ['DLROVER_METRIC_URL'] = 'https://metric.mock.dlrover.org'
+        os.environ['DLROVER_METRIC_TOKEN'] = 'test'
+        http_client.HTTPConnection.debuglevel = 1
+        logging.basicConfig()
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    def test_query_exception(self):
+        mon = SimpleMetricMonitor()
+
+        job_name = 'dlrover-testjob'
+        metric_type = NpuMetricType.NPU_UTIL
+        start = datetime.strptime(
+            "2024-11-22 4:55:00",
+            "%Y-%m-%d %H:%M:%S"
+        ).timestamp()
+        end = datetime.strptime(
+            "2024-11-22 4:55:45",
+            "%Y-%m-%d %H:%M:%S"
+        ).timestamp()
+
+        with patch('requests.post', side_effect=mock_requests_conn_exception):
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertEqual(rsp, None)
+
+        with patch('requests.post', side_effect=mock_requests_json_exception):
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertEqual(rsp, None)
+
+        with patch('requests.post', side_effect=mock_requests_http_exception):
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertEqual(rsp, None)
+
+        with patch('requests.post', side_effect=mock_requests_timeout_exception):
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertEqual(rsp, None)
+
+        with patch('requests.post', side_effect=mock_requests_request_exception):
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertEqual(rsp, None)
+
+    def test_query_npu_job_metrics(self):
+        with patch('requests.post', side_effect=mock_npu_job_metric_request):
+            mon = SimpleMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            metric_type = NpuMetricType.NPU_UTIL
+            start = datetime.strptime(
+                "2024-11-22 4:55:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-22 4:55:45",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+            )
+            self.assertTrue(rsp['success'])
+
+    def test_query_npu_pod_metrics(self):
+        with patch('requests.post', side_effect=mock_npu_pod_metric_request):
+            mon = SimpleMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            pod_name = 'dlrover-testjob-worker-100'
+            metric_type = NpuMetricType.NPU_UTIL
+            start = int(datetime.strptime(
+                "2024-11-22 4:55:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp())
+            end = int(datetime.strptime(
+                "2024-11-22 4:56:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp())
+
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=False,
+                pod_name=pod_name,
+            )
+            self.assertTrue(rsp['success'])
+
+    def test_query_gpu_job_metrics(self):
+        with patch('requests.post', side_effect=mock_gpu_job_metric_request):
+            mon = SimpleMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            metric_type = GpuMetricType.GPU_UTIL
+            start = datetime.strptime(
+                "2024-11-24 10:00:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-24 10:05:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=True,
+            )
+            self.assertTrue(rsp['success'])
+
+    def test_query_gpu_pod_metrics(self):
+        with patch('requests.post', side_effect=mock_gpu_pod_metric_request):
+            mon = SimpleMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            pod_name = 'dlrover-testjob-worker-100'
+            metric_type = GpuMetricType.GPU_UTIL
+            start = int(datetime.strptime(
+                "2024-11-24 10:00:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp())
+            end = int(datetime.strptime(
+                "2024-11-24 10:03:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp())
+
+            rsp = mon.query_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                is_gpu=True,
+                pod_name=pod_name
+            )
+            self.assertTrue(rsp['success'])
+
+    def test_collect_npu_job_metrics(self):
+        with patch('requests.post', side_effect=mock_npu_job_metric_request):
+            mon = NpuMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            metric_type = NpuMetricType.NPU_UTIL
+            start = datetime.strptime(
+                "2024-11-22 4:55:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-22 4:55:45",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            job_metric = mon.collect_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+            )
+
+            self.assertIsNotNone(job_metric)
+
+            for pod, node_metric in job_metric.items():
+                if pod == 'dlrover-testjob-worker-100':
+                    node_metric.update_avg_metrics()
+                    self.assertEqual(
+                        node_metric.avg_metrics.get_metric(NpuMetricType.NPU_UTIL),
+                        96.5
+                    )
+                elif pod == 'dlrover-testjob-worker-101':
+                    node_metric.update_avg_metrics()
+                    self.assertEqual(
+                        node_metric.avg_metrics.get_metric(NpuMetricType.NPU_UTIL),
+                        99.0
+                    )
+
+    def test_collect_npu_pod_metrics(self):
+        with patch('requests.post', side_effect=mock_npu_pod_metric_request):
+            mon = NpuMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            pod_name = 'dlrover-testjob-worker-100'
+            metric_type = NpuMetricType.NPU_UTIL
+            start = datetime.strptime(
+                "2024-11-22 4:55:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-22 4:55:45",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            pod_metric = mon.collect_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                pod_name='dlrover-testjob-worker-100'
+            )
+
+            self.assertIsNotNone(pod_metric)
+
+            for pod, node_metric in pod_metric.items():
+                node_metric.update_avg_metrics()
+                self.assertEqual(
+                    node_metric.avg_metrics.get_metric(NpuMetricType.NPU_UTIL),
+                    97.75
+                )
+
+    def test_collect_gpu_job_metrics(self):
+        with patch('requests.post', side_effect=mock_gpu_job_metric_request):
+            mon = GpuMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            metric_type = GpuMetricType.GPU_UTIL
+            start = datetime.strptime(
+                "2024-11-24 10:00:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-24 10:05:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            job_metric = mon.collect_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+            )
+
+            self.assertIsNotNone(job_metric)
+
+            for pod, node_metric in job_metric.items():
+                if pod == 'dlrover-testjob-worker-100':
+                    node_metric.update_avg_metrics()
+                    self.assertEqual(
+                        node_metric.avg_metrics.get_metric(GpuMetricType.GPU_UTIL),
+                        96.5
+                    )
+                elif pod == 'dlrover-testjob-worker-101':
+                    node_metric.update_avg_metrics()
+                    self.assertEqual(
+                        node_metric.avg_metrics.get_metric(GpuMetricType.GPU_UTIL),
+                        99.0
+                    )
+
+    def test_collect_gpu_pod_metrics(self):
+        with patch('requests.post', side_effect=mock_gpu_pod_metric_request):
+            mon = GpuMetricMonitor()
+
+            job_name = 'dlrover-testjob'
+            pod_name = 'dlrover-testjob-worker-100'
+            metric_type = GpuMetricType.GPU_UTIL
+            start = datetime.strptime(
+                "2024-11-24 10:00:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+            end = datetime.strptime(
+                "2024-11-24 10:05:00",
+                "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+
+            job_metric = mon.collect_job_metrics(
+                job_name,
+                metric_type,
+                start,
+                end,
+                pod_name=pod_name
+            )
+
+            self.assertIsNotNone(job_metric)
+
+            for pod, node_metric in job_metric.items():
+                node_metric.update_avg_metrics()
+                self.assertEqual(
+                    node_metric.avg_metrics.get_metric(GpuMetricType.GPU_UTIL),
+                    97.75
+                )
+

@@ -136,8 +136,7 @@ class NodeXpuMetric(object):
     list of XpuMetric with index as local rank id
     """
     def __init__(self):
-        self.node_metrics: Dict[int, XpuMetric] = {}
-        self.avg_metrics: Optional[XpuMetric] = None
+        pass
 
     @abstractmethod
     def update_avg_metrics(self):
@@ -151,9 +150,16 @@ class NodeGpuMetric(NodeXpuMetric):
     """
     def __init__(self):
         super().__init__()
+        self.node_metrics: Dict[int, GpuMetric] = {}
+        self.avg_metrics = GpuMetric()
 
     def update_avg_metrics(self):
-        self.avg_metrics = GpuMetric()
+        self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM] = 0
+        self.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM] = 0
+        self.avg_metrics.metrics[GpuMetricType.GPU_UTIL] = 0
+        self.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL] = 0.0
+        self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL] = 0.0
+
         for _, metric in self.node_metrics.items():
             self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM] += (
                 metric.get_metric(GpuMetricType.GPU_FREE_MEM)
@@ -193,11 +199,13 @@ class NodeNpuMetric(NodeXpuMetric):
     Metrics of all NPUs in a single node
 
     """
+
     def __init__(self):
         super().__init__()
+        self.node_metrics: Dict[int, NpuMetric] = {}
+        self.avg_metrics = NpuMetric()
 
     def update_avg_metrics(self):
-        self.avg_metrics = NpuMetric()
         for _, metric in self.node_metrics.items():
             self.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM] += (
                 metric.get_metric(NpuMetricType.NPU_TOTAL_MEM)
