@@ -36,12 +36,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisActionType,
-    DiagnosisConstant,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    EventAction,
     NoAction,
 )
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
@@ -219,7 +217,7 @@ class DistributedJobManager(JobManager):
         ).start()
         threading.Thread(
             target=self._diagnose_job,
-            name="diagnose_job",
+            name="job_diagnosing",
             daemon=True,
         ).start()
         if os.getenv("KUBERNETES_SERVICE_HOST"):
@@ -467,26 +465,20 @@ class DistributedJobManager(JobManager):
             time.sleep(5)
 
     def _monitor_node_heart_beat(self):
-        logger.info("Start monitoring the heartbeat of nodes.")
-        while True:
-            if self._stopped:
-                logger.info("Stop monitoring the heartbeat of nodes.")
-                break
-            with self._lock:
-                try:
-                    events = self._get_dead_node_event()
-                except Exception as e:
-                    logger.warning(e)
-                    events = []
+        with self._lock:
+            try:
+                events = self._get_dead_node_event()
+            except Exception as e:
+                logger.warning(e)
+                events = []
 
-            for event in events:
-                try:
-                    self._process_event(event)
-                except Exception as e:
-                    logger.warning(e)
-                    detail_trace_back = traceback.format_exc()
-                    logger.warning(detail_trace_back)
-            time.sleep(15)
+        for event in events:
+            try:
+                self._process_event(event)
+            except Exception as e:
+                logger.warning(e)
+                detail_trace_back = traceback.format_exc()
+                logger.warning(detail_trace_back)
 
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
@@ -494,19 +486,10 @@ class DistributedJobManager(JobManager):
             if self._stopped:
                 logger.info("Stop diagnosing job.")
                 break
-            with self._lock:
-                try:
-                    events = self._get_dead_node_event()
-                except Exception as e:
-                    logger.warning(e)
-                    events = []
-            for event in events:
-                try:
-                    self._process_event(event)
-                except Exception as e:
-                    logger.warning(e)
-                    detail_trace_back = traceback.format_exc()
-                    logger.warning(detail_trace_back)
+            # deal with heartbeat
+            self._monitor_node_heart_beat()
+
+            # deal with diagnosis action
             self._process_diagnosis_action(
                 self._job_context.next_action(
                     instance=DiagnosisConstant.MASTER_INSTANCE
@@ -514,7 +497,7 @@ class DistributedJobManager(JobManager):
             )
             time.sleep(15)
 
-    def _get_dead_node_event(self, window_interval=900) -> List[NodeEvent]:
+    def _get_dead_node_event(self, window_interval=600) -> List[NodeEvent]:
         now = time.time()
         dead_events: List[NodeEvent] = []
         job_nodes = self.get_job_nodes()
@@ -646,7 +629,6 @@ class DistributedJobManager(JobManager):
                 # Mock event to avoid missing events
                 event = NodeEvent(event_type, node)
                 self._process_event(event)
-        logger.debug(f"Got list nodes: {exist_nodes}")
 
         for node_type in job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -686,10 +668,20 @@ class DistributedJobManager(JobManager):
         }
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
-        if not action or action.action_type == DiagnosisActionType.NONE:
+        if not action or isinstance(action, NoAction):
             return
 
-        # TODO
+        if isinstance(action, EventAction):
+            self._report_event(
+                action.event_type,
+                action.event_instance,
+                action.event_action,
+                action.event_msg,
+                action.event_labels,
+            )
+        else:
+            # TODO: deal with other action
+            pass
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
@@ -866,10 +858,7 @@ class DistributedJobManager(JobManager):
                 msg = "Disable relaunch"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
-                if (
-                    node.is_resource_scalable()
-                    and mem >= NodeResourceLimit.MAX_MEMORY
-                ):
+                if mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "
@@ -1237,10 +1226,7 @@ class DistributedJobManager(JobManager):
             if node is None:
                 return NoAction()
             if node.heartbeat_time == 0:
-                logger.info(
-                    f"Start receiving heartbeat from node {node_id}"
-                    f"-{node.name}"
-                )
+                logger.info(f"Start receiving heartbeat from node {node_id}")
             node.heartbeat_time = timestamp
             self._job_context.update_job_node(node)
             return self._job_context.next_action(instance=node_id)

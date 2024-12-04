@@ -44,13 +44,13 @@ class DiagnosisAction(metaclass=ABCMeta):
         self,
         action_type=DiagnosisActionType.NONE,
         instance: int = DiagnosisConstant.LOCAL_INSTANCE,
-        timestamp: float = 0,
+        timestamp: int = 0,
         expired_time_period: int = 60 * 1000,
     ):
         self._action_type = action_type
         self._instance: int = instance
         if timestamp == 0:
-            self._timestamp = datetime.now().timestamp()
+            self._timestamp = int(datetime.now().timestamp())
         else:
             self._timestamp = timestamp
 
@@ -84,14 +84,28 @@ class DiagnosisAction(metaclass=ABCMeta):
         data = {k.lstrip("_"): v for k, v in self.__dict__.items()}
         return json.dumps(data)
 
+    def is_needed(self):
+        return (
+            not self.is_expired()
+            and self._action_type != DiagnosisActionType.NONE
+        )
+
     @classmethod
     def from_json(cls, json_data):
         return cls(**json.loads(json_data))
 
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period}"
+        )
+
 
 class NoAction(DiagnosisAction):
-    def __init__(self):
-        super(NoAction, self).__init__(action_type=DiagnosisActionType.NONE)
+    def __init__(self, **kwargs):
+        super(NoAction, self).__init__()
 
 
 class EventAction(DiagnosisAction):
@@ -106,9 +120,11 @@ class EventAction(DiagnosisAction):
         event_labels: Optional[Dict[str, str]] = None,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             DiagnosisActionType.EVENT,
+            instance=DiagnosisConstant.MASTER_INSTANCE,
             timestamp=timestamp,
             expired_time_period=expired_time_period,
         )
@@ -148,6 +164,7 @@ class NodeAction(DiagnosisAction):
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             action_type,
@@ -187,8 +204,9 @@ class DiagnosisActionQueue:
                 self._actions[instance] = Queue(maxsize=10)
             ins_actions = self._actions[instance]
             try:
-                ins_actions.put(new_action, timeout=3)
-                logger.info(f"New diagnosis action {new_action}")
+                if new_action.is_needed():
+                    ins_actions.put(new_action, timeout=3)
+                    logger.info(f"New diagnosis action: {new_action}")
             except queue.Full:
                 logger.warning(
                     f"Diagnosis actions for {instance} is full, "

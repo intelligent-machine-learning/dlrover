@@ -39,6 +39,10 @@ from dlrover.python.common.grpc import (
     ParallelConfig,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NoAction,
+)
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -819,7 +823,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
-        self.assertIn("diagnose_job", active_threads_name)
+        self.assertIn("job_diagnosing", active_threads_name)
         manager.stop()
 
     def test_concurrency_heart_beat_collecting(self):
@@ -868,6 +872,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(get_pending_timeout(), 600)
         # reset
         _dlrover_context.seconds_to_wait_pending_pod = 900
+
+    @patch.object(DistributedJobManager, "_report_event")
+    def test_process_diagnosis_action(self, mock_method):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        manager._process_diagnosis_action(None)
+        self.assertEqual(mock_method.call_count, 0)
+
+        manager._process_diagnosis_action(NoAction)
+        self.assertEqual(mock_method.call_count, 0)
+
+        manager._process_diagnosis_action(EventAction())
+        self.assertEqual(mock_method.call_count, 1)
 
 
 class LocalJobManagerTest(unittest.TestCase):

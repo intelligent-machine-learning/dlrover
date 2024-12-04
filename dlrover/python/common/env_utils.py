@@ -102,7 +102,7 @@ def get_proc_env(pid):
                 for k, v in (env.split("=", 1) for env in envs if "=" in env)
             }
     except Exception as e:
-        logger.error(f"error in get process {pid} env: {str(e)}")
+        logger.warning(f"Got error when getting process {pid} env: {str(e)}")
         return None
 
 

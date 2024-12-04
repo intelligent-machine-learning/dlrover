@@ -248,6 +248,11 @@ class MasterClient(Singleton):
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)
         action = NoAction()
+
+        if not response:
+            logger.warning("No response from heartbeat reporting.")
+            return action
+
         action_cls: Optional[DiagnosisData] = getattr(
             self._diagnosis_action_module,
             response.action.action_cls,
@@ -467,6 +472,25 @@ class MasterClient(Singleton):
         request = grpc.ElasticRunConfigRequest()
         response: grpc.ElasticRunConfig = self._get(request)
         return response.configs
+
+    def report_event(
+        self,
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        if labels is None:
+            labels = {}
+        message = grpc.Event(
+            event_type=event_type,
+            instance=instance,
+            action=action,
+            msg=msg,
+            labels=labels,
+        )
+        self._report(message)
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

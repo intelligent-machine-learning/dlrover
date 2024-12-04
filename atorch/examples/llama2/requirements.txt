@@ -1,4 +1,0 @@
-datasets>=2.14.6
-peft==0.4.0
-modelscope
-atorch>=0.1.7

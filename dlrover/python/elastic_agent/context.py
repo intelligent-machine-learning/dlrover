@@ -16,10 +16,10 @@ from typing import Optional
 from torch.distributed.elastic.agent.server import RunResult, WorkerSpec
 
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
+    NoAction,
 )
 
 
@@ -61,7 +61,7 @@ class AgentContext(Singleton):
         self._run_result = run_result
 
     def enqueue_diagnosis_action(self, action: DiagnosisAction):
-        if not action or action.action_type == DiagnosisActionType.NONE:
+        if not action or isinstance(action, NoAction):
             return
         self._diagnosis_action_queue.add_action(action)
 

@@ -595,7 +595,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
         master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
         master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
-        return (master_addr, master_port)
+        return master_addr, master_port
 
     def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
         for _ in range(5):
@@ -1342,7 +1342,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             )
             raise RuntimeError("This node is down.")
         elif self._node_rank in stragglers:
-            logger.warn("This node is a straggler!")
+            logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
         return success

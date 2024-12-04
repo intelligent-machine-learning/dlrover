@@ -60,11 +60,11 @@ def get_installed_version(package_name):
         return None
 
 
-def is_port_in_use(port):
+def is_port_in_use(port=0) -> bool:
     """
     Check if the port is in use.
     """
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        result = sock.connect_ex(('localhost', port))
+        result = sock.connect_ex(("localhost", int(port)))
         return result == 0

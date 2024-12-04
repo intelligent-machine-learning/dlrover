@@ -32,7 +32,12 @@ generate_proto_files() {
   cd "$protodir"
   for fn in $proto_files; do
     filename=$(basename "$fn" .proto)
-    python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --grpc_python_out=. "$filename".proto
+    if command -v protoc-gen-pyi
+    then
+        python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --pyi_out=. --grpc_python_out=. "$filename".proto
+    else
+        python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --grpc_python_out=. "$filename".proto
+    fi
     sed -i "s/import ${filename}_pb2/from \. import ${filename}_pb2/g" "$filename"_pb2_grpc.py
   done
   rm -rf ./*.proto
