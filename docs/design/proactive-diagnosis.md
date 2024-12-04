@@ -85,7 +85,16 @@ Master.
 Next, we will primarily introduce some of the existing implementations based on 
 this diagnostic framework. 
 
-This part of the work will have a long cycle and work in progress for now...
+This part of the work will have a long cycle and work in progress for now.
+Current implemented:
+- Heartbeat timeout. 
+
+    To figure out whether the core thread of training worker is alive.
+
+- Training hang. 
+
+    [Details](#training-hang-detectionbasic) for basic ability.
+    [Details](#training-hang-fault-toleranceadvanced) for advanced ability.
 
 ### Training Hang Detection(Basic)
 
