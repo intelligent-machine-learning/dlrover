@@ -1066,14 +1066,15 @@ class DistributedJobManager(JobManager):
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
         cpu_percent = node.used_resource.cpu / node.config_resource.cpu
-        if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
-            if node.start_hang_time == 0:
-                now = datetime.now()
-                node.start_hang_time = now.timestamp()
-        else:
-            if node.start_hang_time > 0:
-                now = datetime.now()
-            node.start_hang_time = 0
+        if not self.is_all_reduce_type_job():
+            if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+                if node.start_hang_time == 0:
+                    now = datetime.now()
+                    node.start_hang_time = now.timestamp()
+            else:
+                if node.start_hang_time > 0:
+                    now = datetime.now()
+                node.start_hang_time = 0
         self._job_context.update_job_node(node)
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
