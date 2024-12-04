@@ -21,6 +21,7 @@ pip install pyhocon
 pip install pytest-cov
 pip install pytest-ordering
 pip install packaging
+pip install tornado
 pip install tensorflow==2.13.0
 pip install deepspeed==0.12.6
 pip install accelerate==0.29.2
