@@ -12,28 +12,13 @@
 # limitations under the License.
 
 import threading
-import time
-import copy
-import array
-import json
-
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import (
-    Dict,
-    Any,
-    List,
-    Optional,
-)
+from typing import Dict
 
-from dlrover.python.common.constants import (
-    GpuMetricType,
-    NpuMetricType,
-)
-from dlrover.python.common.serialize import JsonSerializable
-from dlrover.python.common.singleton import Singleton
+from dlrover.python.common.constants import GpuMetricType, NpuMetricType
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import Singleton
 
 _dlrover_context = Context.singleton_instance()
 
@@ -43,6 +28,7 @@ class XpuMetric(metaclass=ABCMeta):
     Attributes:
         type(string): xpu type
     """
+
     def __init__(self, xpu_type):
         self.type = xpu_type
 
@@ -65,8 +51,16 @@ class GpuMetric(XpuMetric):
         gpu_sm_util(float, percent): gpu sm utilization
         gpu_tensor_util(float, percent): gpu tensor utilization
     """
-    def __init__(self, gpu_free_mem=0, gpu_used_mem=0, gpu_util=0, gpu_temperature=0, gpu_sm_util=0.0,
-                 gpu_tensor_util=0.0):
+
+    def __init__(
+        self,
+        gpu_free_mem=0,
+        gpu_used_mem=0,
+        gpu_util=0,
+        gpu_temperature=0,
+        gpu_sm_util=0.0,
+        gpu_tensor_util=0.0,
+    ):
         super().__init__("nvidia.GPU")
         self.metrics = {
             GpuMetricType.GPU_FREE_MEM: gpu_free_mem,
@@ -102,8 +96,20 @@ class NpuMetric(XpuMetric):
         npu_chip_info_bandwidth_rx(float, MB/s): RDMA rx bandwidth
         npu_chip_info_bandwidth_tx(float, MB/s): RDMA tx bandwidth
     """
-    def __init__(self, npu_total_mem=0, npu_used_mem=0, npu_util=0, npu_temperature=0, npu_health_state=1,
-                 npu_link_state=1, npu_optical_state=1, npu_network_state=1, npu_tx=0.0, npu_rx=0.0):
+
+    def __init__(
+        self,
+        npu_total_mem=0,
+        npu_used_mem=0,
+        npu_util=0,
+        npu_temperature=0,
+        npu_health_state=1,
+        npu_link_state=1,
+        npu_optical_state=1,
+        npu_network_state=1,
+        npu_tx=0.0,
+        npu_rx=0.0,
+    ):
         super().__init__("ascend.NPU")
         self.metrics = {
             NpuMetricType.NPU_TOTAL_MEM: npu_total_mem,
@@ -135,6 +141,7 @@ class NodeXpuMetric(object):
 
     list of XpuMetric with index as local rank id
     """
+
     def __init__(self):
         pass
 
@@ -148,6 +155,7 @@ class NodeGpuMetric(NodeXpuMetric):
     Metrics of all GPUs in a single node
 
     """
+
     def __init__(self):
         super().__init__()
         self.node_metrics: Dict[int, GpuMetric] = {}
@@ -161,36 +169,46 @@ class NodeGpuMetric(NodeXpuMetric):
         self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL] = 0.0
 
         for _, metric in self.node_metrics.items():
-            self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM] += (
-                metric.get_metric(GpuMetricType.GPU_FREE_MEM)
-            )
-            self.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM] += (
-                metric.get_metric(GpuMetricType.GPU_USED_MEM)
-            )
-            self.avg_metrics.metrics[GpuMetricType.GPU_UTIL] += (
-                metric.get_metric(GpuMetricType.GPU_UTIL)
-            )
-            self.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL] += (
-                metric.get_metric(GpuMetricType.GPU_SM_UTIL)
-            )
-            self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL] += (
-                metric.get_metric(GpuMetricType.GPU_TENSOR_UTIL)
-            )
+            self.avg_metrics.metrics[
+                GpuMetricType.GPU_FREE_MEM
+            ] += metric.get_metric(GpuMetricType.GPU_FREE_MEM)
+            self.avg_metrics.metrics[
+                GpuMetricType.GPU_USED_MEM
+            ] += metric.get_metric(GpuMetricType.GPU_USED_MEM)
+            self.avg_metrics.metrics[
+                GpuMetricType.GPU_UTIL
+            ] += metric.get_metric(GpuMetricType.GPU_UTIL)
+            self.avg_metrics.metrics[
+                GpuMetricType.GPU_SM_UTIL
+            ] += metric.get_metric(GpuMetricType.GPU_SM_UTIL)
+            self.avg_metrics.metrics[
+                GpuMetricType.GPU_TENSOR_UTIL
+            ] += metric.get_metric(GpuMetricType.GPU_TENSOR_UTIL)
 
         self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM] = round(
-            self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM]/len(self.node_metrics), 2
+            self.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM] = round(
-            self.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[GpuMetricType.GPU_UTIL] = round(
-            self.avg_metrics.metrics[GpuMetricType.GPU_UTIL] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[GpuMetricType.GPU_UTIL]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL] = round(
-            self.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL] = round(
-            self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL]
+            / len(self.node_metrics),
+            2,
         )
 
 
@@ -207,24 +225,30 @@ class NodeNpuMetric(NodeXpuMetric):
 
     def update_avg_metrics(self):
         for _, metric in self.node_metrics.items():
-            self.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM] += (
-                metric.get_metric(NpuMetricType.NPU_TOTAL_MEM)
-            )
-            self.avg_metrics.metrics[NpuMetricType.NPU_USED_MEM] += (
-                metric.get_metric(NpuMetricType.NPU_USED_MEM)
-            )
-            self.avg_metrics.metrics[NpuMetricType.NPU_UTIL] += (
-                metric.get_metric(NpuMetricType.NPU_UTIL)
-            )
+            self.avg_metrics.metrics[
+                NpuMetricType.NPU_TOTAL_MEM
+            ] += metric.get_metric(NpuMetricType.NPU_TOTAL_MEM)
+            self.avg_metrics.metrics[
+                NpuMetricType.NPU_USED_MEM
+            ] += metric.get_metric(NpuMetricType.NPU_USED_MEM)
+            self.avg_metrics.metrics[
+                NpuMetricType.NPU_UTIL
+            ] += metric.get_metric(NpuMetricType.NPU_UTIL)
 
         self.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM] = round(
-            self.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[NpuMetricType.NPU_USED_MEM] = round(
-            self.avg_metrics.metrics[NpuMetricType.NPU_USED_MEM] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[NpuMetricType.NPU_USED_MEM]
+            / len(self.node_metrics),
+            2,
         )
         self.avg_metrics.metrics[NpuMetricType.NPU_UTIL] = round(
-            self.avg_metrics.metrics[NpuMetricType.NPU_UTIL] / len(self.node_metrics), 2
+            self.avg_metrics.metrics[NpuMetricType.NPU_UTIL]
+            / len(self.node_metrics),
+            2,
         )
 
 
@@ -233,32 +257,35 @@ class JobMetricContext(Singleton):
     JobMetricContext includes metrics and events among all nodes
     that be shared across all components
     """
+
     def __init__(self):
         self._lock = threading.Lock()
         """
-        job metrics dict is a dict with timestamp as key, 
-        and the value is another dict with worker node id as key, 
+        job metrics dict is a dict with timestamp as key,
+        and the value is another dict with worker node id as key,
         and xpu metric as value
         """
-        self._xpu_job_metrics: OrderedDict[int, Dict[str, NodeXpuMetric]] = OrderedDict()
+        self._xpu_job_metrics: OrderedDict[
+            int, Dict[str, NodeXpuMetric]
+        ] = OrderedDict()
         self.max_metric_records = _dlrover_context.max_metric_records
 
-    def add_node_metrics(self, timestamp: int, metrics: Dict[str, NodeXpuMetric]) -> None:
+    def add_node_metrics(
+        self, timestamp: int, metrics: Dict[str, NodeXpuMetric]
+    ) -> None:
         with self._lock:
             keys = list(self._xpu_job_metrics.keys())
             if len(keys) > 0 and timestamp <= keys[-1]:
-                """ timestamp should be sorted
-                """
+                """timestamp should be sorted"""
                 return
             elif len(keys) >= self.max_metric_records:
-                """ remove first item
-                """
+                """remove first item"""
                 self._xpu_job_metrics.popitem(last=False)
             self._xpu_job_metrics[timestamp] = metrics
 
     def clear_node_metrics(self) -> None:
         with self._lock:
-            self._xpu_job_metrics = {}
+            self._xpu_job_metrics = OrderedDict()
 
     def size(self):
         with self._lock:
@@ -288,4 +315,3 @@ class JobMetricContext(Singleton):
 def get_job_metric_context() -> JobMetricContext:
     job_metric_context = JobMetricContext.singleton_instance()
     return job_metric_context
-

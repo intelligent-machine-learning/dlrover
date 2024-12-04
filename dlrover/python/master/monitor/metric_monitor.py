@@ -10,47 +10,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import threading
-import time
-import copy
-import requests
-import json
-import traceback
 
+import os
+import traceback
+from abc import ABCMeta, abstractmethod
+from datetime import datetime
+
+import requests
 from requests.exceptions import (
-    RequestException,
     ConnectionError,
     HTTPError,
+    RequestException,
     Timeout,
-    JSONDecodeError,
 )
 
-from datetime import datetime
-from abc import ABCMeta, abstractmethod
-from collections import OrderedDict
-from typing import (
-    Dict,
-    Any,
-    List,
-    Optional,
-)
-
-from dlrover.python.common.constants import (
-    GpuMetricType,
-    NpuMetricType,
-)
-
-from dlrover.python.common.serialize import JsonSerializable
-from dlrover.python.common.singleton import Singleton
+from dlrover.python.common.constants import GpuMetricType, NpuMetricType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-
 from dlrover.python.master.monitor.metric_context import (
+    GpuMetric,
     JobMetricContext,
     NodeGpuMetric,
     NodeNpuMetric,
-    GpuMetric,
     NpuMetric,
 )
 
@@ -62,18 +43,13 @@ class MetricMonitor(metaclass=ABCMeta):
     """
     metric monitor abstract api
     """
+
     def __init__(self):
         pass
 
     @abstractmethod
     def collect_job_metrics(
-            self,
-            job_name,
-            metric_type,
-            start,
-            end,
-            pod_name=None,
-            metrics=None
+        self, job_name, metric_type, start, end, pod_name=None, metrics=None
     ):
         """
         collect and update job metric
@@ -98,20 +74,18 @@ class SimpleMetricMonitor(MetricMonitor):
     """
     implementation of metric monitor that uses http REST api to query metrics
     """
+
     def __init__(self):
         super().__init__()
 
     @staticmethod
     def build_request_headers(token):
-        return {
-            'apitoken': token,
-            'Content-Type': 'application/json'
-        }
+        return {"apitoken": token, "Content-Type": "application/json"}
 
     @staticmethod
     def build_job_request_data(metric, job, start, end):
         condition = {
-            "query": f"{metric}" + r"{job=" + f"\"{job}\"" + r"}",
+            "query": f"{metric}" + r"{job=" + f'"{job}"' + r"}",
             "start": start,
             "end": end,
             "step": 60000,
@@ -120,18 +94,20 @@ class SimpleMetricMonitor(MetricMonitor):
             "metrics": [],
             "stack": "antLLM",
             "tenantId": 1,
-            "workspaceId": -1
+            "workspaceId": -1,
         }
-        return [{
-            "condition": condition,
-            "outformat": "trend",
-            "datasource": "pqlTrendQuery"
-        }]
+        return [
+            {
+                "condition": condition,
+                "outformat": "trend",
+                "datasource": "pqlTrendQuery",
+            }
+        ]
 
     @staticmethod
     def build_npu_pod_request_data(metric, pod, start, end):
         condition = {
-            "query": f"{metric}" + r"{pod_name=" + f"\"{pod}\"" + r"}",
+            "query": f"{metric}" + r"{pod_name=" + f'"{pod}"' + r"}",
             "start": start,
             "end": end,
             "step": 60000,
@@ -140,18 +116,20 @@ class SimpleMetricMonitor(MetricMonitor):
             "metrics": [],
             "stack": "antLLM",
             "tenantId": 1,
-            "workspaceId": -1
+            "workspaceId": -1,
         }
-        return [{
-            "condition": condition,
-            "outformat": "trend",
-            "datasource": "pqlTrendQuery"
-        }]
+        return [
+            {
+                "condition": condition,
+                "outformat": "trend",
+                "datasource": "pqlTrendQuery",
+            }
+        ]
 
     @staticmethod
     def build_gpu_pod_request_data(metric, pod, start, end):
         condition = {
-            "query": f"{metric}" + r"{pod=" + f"\"{pod}\"" + r"}",
+            "query": f"{metric}" + r"{pod=" + f'"{pod}"' + r"}",
             "start": start,
             "end": end,
             "step": 60000,
@@ -160,13 +138,15 @@ class SimpleMetricMonitor(MetricMonitor):
             "metrics": [],
             "stack": "antLLM",
             "tenantId": 1,
-            "workspaceId": -1
+            "workspaceId": -1,
         }
-        return [{
-            "condition": condition,
-            "outformat": "trend",
-            "datasource": "pqlTrendQuery"
-        }]
+        return [
+            {
+                "condition": condition,
+                "outformat": "trend",
+                "datasource": "pqlTrendQuery",
+            }
+        ]
 
     @staticmethod
     def adjust_timestamp(start, end):
@@ -188,7 +168,7 @@ class SimpleMetricMonitor(MetricMonitor):
             dt_obj.day,
             dt_obj.hour,
             dt_obj.minute,
-            '00'
+            "00",
         )
         end_str = "{}-{}-{} {}:{}:{}".format(
             dt_obj.year,
@@ -196,7 +176,7 @@ class SimpleMetricMonitor(MetricMonitor):
             dt_obj.day,
             dt_obj.hour,
             dt_obj.minute,
-            '59'
+            "59",
         )
         start_obj = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
         end_obj = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S")
@@ -205,7 +185,9 @@ class SimpleMetricMonitor(MetricMonitor):
 
         return new_start * 1000, new_end * 1000
 
-    def query_job_metrics(self, job_name, metric_type, start, end, is_gpu=True, pod_name=None):
+    def query_job_metrics(
+        self, job_name, metric_type, start, end, is_gpu=True, pod_name=None
+    ):
         url = os.getenv("DLROVER_METRIC_URL", "")
         if url == "":
             logger.warning("No GPU metrics url defined")
@@ -219,53 +201,55 @@ class SimpleMetricMonitor(MetricMonitor):
             start_time, end_time = self.adjust_timestamp(start, end)
             headers = self.build_request_headers(token)
             if pod_name is None:
-                data = self.build_job_request_data(metric_type, job_name, start_time, end_time)
+                data = self.build_job_request_data(
+                    metric_type, job_name, start_time, end_time
+                )
             elif is_gpu is True:
-                data = self.build_gpu_pod_request_data(metric_type, pod_name, start_time, end_time)
+                data = self.build_gpu_pod_request_data(
+                    metric_type, pod_name, start_time, end_time
+                )
             else:
-                data = self.build_npu_pod_request_data(metric_type, pod_name, start_time, end_time)
+                data = self.build_npu_pod_request_data(
+                    metric_type, pod_name, start_time, end_time
+                )
             resp = requests.post(url, headers=headers, json=data)
 
             if resp.status_code != requests.codes.ok:
-                logger.warning(f"Failed to query {job_name} {metric_type}, status_code {resp.status_code}")
+                logger.warning(
+                    f"Failed to query {job_name} {metric_type}: "
+                    f"{resp.status_code}"
+                )
                 return None
             rsp = resp.json()
-            if rsp['success'] is not True:
-                logger.warning(f"{job_name} {metric_type} response result failed")
+            if rsp["success"] is not True:
+                logger.warning(
+                    f"{job_name} {metric_type} response result failed"
+                )
                 return None
 
             return rsp
 
         except Timeout as e:
-            logger.warning("Request timed out: {e}")
+            logger.warning(f"Request timed out: {e}")
             return None
         except HTTPError as e:
-            logger.warning("Request HTTP failed: {e}")
+            logger.warning(f"Request HTTP failed: {e}")
             return None
         except ConnectionError as e:
-            logger.warning("Connection error: {e}")
+            logger.warning(f"Connection error: {e}")
             return None
         except RequestException as e:
-            logger.warning("Unexpected Request exception: {e}")
-            return None
-        except JSONDecodeError as e:
-            logger.warning("Response JSON decoding error: {e}")
+            logger.warning(f"Unexpected Request exception: {e}")
             return None
         except KeyError as e:
-            logger.warning("Key error: {e}")
+            logger.warning(f"Key error: {e}")
             return None
         except Exception as e:
-            logger.warning("Unexpected error: {e}")
+            logger.warning(f"Unexpected error: {e}")
             return None
 
     def collect_job_metrics(
-            self,
-            job_name,
-            metric_type,
-            start,
-            end,
-            pod_name=None,
-            metrics=None
+        self, job_name, metric_type, start, end, pod_name=None, metrics=None
     ):
         pass
 
@@ -273,66 +257,65 @@ class SimpleMetricMonitor(MetricMonitor):
 class GpuMetricMonitor(SimpleMetricMonitor):
     """
     metric monitor of nvidia GPU metrics
-
     """
+
     def __init__(self):
         super().__init__()
 
     def collect_job_metrics(
-            self,
-            job_name,
-            metric_type,
-            start,
-            end,
-            pod_name=None,
-            metrics=None
+        self, job_name, metric_type, start, end, pod_name=None, metrics=None
     ):
         rsp = self.query_job_metrics(
-            job_name,
-            metric_type,
-            start,
-            end,
-            is_gpu=True,
-            pod_name=pod_name)
+            job_name, metric_type, start, end, is_gpu=True, pod_name=pod_name
+        )
         if rsp is None:
             return None
 
         try:
             new_start, _ = self.adjust_timestamp(start, end)
-            start_time = f'{int(new_start)}'
+            start_time = f"{int(new_start)}"
             job_metrics = {} if metrics is None else metrics
 
-            for rank_metric in rsp['data'][0]:
+            for rank_metric in rsp["data"][0]:
                 pod = rank_metric["tags"]["pod"]
                 local_rank = int(rank_metric["tags"]["gpu"])
                 if (
-                    metric_type == GpuMetricType.GPU_FREE_MEM or
-                    metric_type == GpuMetricType.GPU_USED_MEM or
-                    metric_type == GpuMetricType.GPU_UTIL or
-                    metric_type == GpuMetricType.GPU_TEMP
+                    metric_type == GpuMetricType.GPU_FREE_MEM
+                    or metric_type == GpuMetricType.GPU_USED_MEM
+                    or metric_type == GpuMetricType.GPU_UTIL
+                    or metric_type == GpuMetricType.GPU_TEMP
                 ):
-                    data = int(rank_metric["dataMapByTime"][start_time]["count"])
+                    data = int(
+                        rank_metric["dataMapByTime"][start_time]["count"]
+                    )
                 else:
-                    data = round(float(rank_metric["dataMapByTime"][start_time]["count"]), 2)
+                    data = round(
+                        float(
+                            rank_metric["dataMapByTime"][start_time]["count"]
+                        ),
+                        2,
+                    )
 
                 if pod not in job_metrics.keys():
                     job_metrics[pod] = NodeGpuMetric()
                 if local_rank not in job_metrics[pod].node_metrics:
                     job_metrics[pod].node_metrics[local_rank] = GpuMetric()
-                job_metrics[pod].node_metrics[local_rank].set_metric(metric_type, data)
+                job_metrics[pod].node_metrics[local_rank].set_metric(
+                    metric_type, data
+                )
 
             return job_metrics
 
         except KeyError as e:
-            logger.warning("Key error: {e}")
+            logger.warning(f"Key error: {e}")
             traceback.print_exc()
             return None
         except ValueError as e:
-            logger.warning("Value error: {e}")
+            logger.warning(f"Value error: {e}")
             traceback.print_exc()
             return None
         except Exception as e:
-            logger.warning("Unexpected error: {e}")
+            logger.warning(f"Unexpected error: {e}")
             traceback.print_exc()
             return None
 
@@ -342,67 +325,67 @@ class NpuMetricMonitor(SimpleMetricMonitor):
     metric monitor of ascend NPU metrics
 
     """
+
     def __init__(self):
         super().__init__()
 
     def collect_job_metrics(
-            self,
-            job_name,
-            metric_type,
-            start,
-            end,
-            pod_name=None,
-            metrics=None
+        self, job_name, metric_type, start, end, pod_name=None, metrics=None
     ):
         rsp = self.query_job_metrics(
-            job_name,
-            metric_type,
-            start,
-            end,
-            is_gpu=False,
-            pod_name=pod_name)
+            job_name, metric_type, start, end, is_gpu=False, pod_name=pod_name
+        )
         if rsp is None:
             return None
 
         try:
             new_start, _ = self.adjust_timestamp(start, end)
-            start_time = f'{int(new_start)}'
+            start_time = f"{int(new_start)}"
             job_metrics = {} if metrics is None else metrics
 
-            for rank_metric in rsp['data'][0]:
+            for rank_metric in rsp["data"][0]:
                 pod = rank_metric["tags"]["pod_name"]
                 local_rank = int(rank_metric["tags"]["id"])
                 if (
-                    metric_type == NpuMetricType.NPU_TOTAL_MEM or
-                    metric_type == NpuMetricType.NPU_USED_MEM or
-                    metric_type == NpuMetricType.NPU_UTIL or
-                    metric_type == NpuMetricType.NPU_TEMP or
-                    metric_type == NpuMetricType.NPU_HEALTH_STATE or
-                    metric_type == NpuMetricType.NPU_LINK_STATE or
-                    metric_type == NpuMetricType.NPU_OPTICAL_STATE or
-                    metric_type == NpuMetricType.NPU_NETWORK_STATE
+                    metric_type == NpuMetricType.NPU_TOTAL_MEM
+                    or metric_type == NpuMetricType.NPU_USED_MEM
+                    or metric_type == NpuMetricType.NPU_UTIL
+                    or metric_type == NpuMetricType.NPU_TEMP
+                    or metric_type == NpuMetricType.NPU_HEALTH_STATE
+                    or metric_type == NpuMetricType.NPU_LINK_STATE
+                    or metric_type == NpuMetricType.NPU_OPTICAL_STATE
+                    or metric_type == NpuMetricType.NPU_NETWORK_STATE
                 ):
-                    data = int(rank_metric["dataMapByTime"][start_time]["count"])
+                    data = int(
+                        rank_metric["dataMapByTime"][start_time]["count"]
+                    )
                 else:
-                    data = round(float(rank_metric["dataMapByTime"][start_time]["count"]), 2)
+                    data = round(
+                        float(
+                            rank_metric["dataMapByTime"][start_time]["count"]
+                        ),
+                        2,
+                    )
 
                 if pod not in job_metrics.keys():
                     job_metrics[pod] = NodeNpuMetric()
                 if local_rank not in job_metrics[pod].node_metrics:
                     job_metrics[pod].node_metrics[local_rank] = NpuMetric()
-                job_metrics[pod].node_metrics[local_rank].set_metric(metric_type, data)
+                job_metrics[pod].node_metrics[local_rank].set_metric(
+                    metric_type, data
+                )
 
             return job_metrics
 
         except KeyError as e:
-            logger.warning("Key error: {e}")
+            logger.warning(f"Key error: {e}")
             traceback.print_exc()
             return None
         except ValueError as e:
-            logger.warning("Value error: {e}")
+            logger.warning(f"Value error: {e}")
             traceback.print_exc()
             return None
         except Exception as e:
-            logger.warning("Unexpected error: {e}")
+            logger.warning(f"Unexpected error: {e}")
             traceback.print_exc()
             return None
