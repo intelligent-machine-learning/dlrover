@@ -18,8 +18,8 @@ from typing import List
 
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import GlobalBrainClient
+from dlrover.python.common.comm import ModelInfo
 from dlrover.python.common.constants import ReporterType
-from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.master.stats.training_metrics import (

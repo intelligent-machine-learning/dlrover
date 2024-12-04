@@ -18,44 +18,47 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import tornado
-
-from dlrover.python.common.http_server import CustomHTTPServer
 from util.common_util import is_port_in_use
+
+from dlrover.python.common.http_server import TornadoHTTPServer
 
 TEST_SERVER_ADDR = "localhost"
 TEST_SERVER_PORT = 8000
 
 
 class HttpServerClientTest(unittest.TestCase):
-
     def setUp(self):
         self.server = None
 
     def tearDown(self):
         if self.server is not None:
-            self.server.stop_serving()
+            self.server.stop()
             self.server = None
 
-    def test_server_basic(self):
-        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler)
+    def test_tornado_server_basic(self):
+        self.server = TornadoHTTPServer(
+            TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler
+        )
         self.assertIsNotNone(self.server)
         self.assertFalse(is_port_in_use(TEST_SERVER_PORT))
 
         self.assertFalse(self.server.is_serving())
-        self.server.start_serving()
+        self.server.start()
         self.assertTrue(self.server.is_serving())
         self.assertTrue(is_port_in_use(TEST_SERVER_PORT))
-        self.server.start_serving()
+        self.server.start()
         self.assertTrue(self.server.is_serving())
 
         active_threads_name = [t.name for t in threading.enumerate()]
-        self.assertIn(CustomHTTPServer.SERVING_THREAD_NAME, active_threads_name)
+        self.assertIn(
+            TornadoHTTPServer.SERVING_THREAD_NAME, active_threads_name
+        )
         time.sleep(1)
 
         # test get request
         self._test_get_request()
 
-        self.server.stop_serving()
+        self.server.stop()
         self.assertFalse(self.server.is_serving())
 
     def _test_get_request(self):
@@ -68,17 +71,17 @@ class HttpServerClientTest(unittest.TestCase):
             raise e
 
     def test_server_concurrency(self):
-        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler)
-        self.server.start_serving()
+        self.server = TornadoHTTPServer(
+            TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler
+        )
+        self.server.start()
 
         futures = []
         result_num = 0
         client_size = 100
         with ThreadPoolExecutor(max_workers=client_size) as executor:
             for i in range(client_size):
-                futures.append(
-                    executor.submit(self._test_get_request)
-                )
+                futures.append(executor.submit(self._test_get_request))
 
             for future in as_completed(futures):
                 if future.result().status_code == 200:
@@ -86,7 +89,7 @@ class HttpServerClientTest(unittest.TestCase):
         self.assertEqual(len(futures), client_size)
         self.assertEqual(result_num, client_size)
 
-        self.server.stop_serving()
+        self.server.stop()
 
 
 class TestRequestHandler(tornado.web.RequestHandler):

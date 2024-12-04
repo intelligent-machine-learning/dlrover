@@ -20,7 +20,7 @@ from contextlib import closing
 from typing import Dict, Optional
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
-from dlrover.python.common import env_utils, grpc
+from dlrover.python.common import comm, env_utils
 from dlrover.python.common.constants import (
     NetworkFailureReason,
     NodeEnv,
@@ -86,7 +86,7 @@ class MasterClient(Singleton):
         )
         self._timeout = timeout
         self._master_addr = master_addr
-        self._channel = grpc.build_grpc_channel(master_addr)
+        self._channel = comm.build_grpc_channel(master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -107,7 +107,7 @@ class MasterClient(Singleton):
             self._channel.close()
 
     def open_channel(self):
-        self._channel = grpc.build_grpc_channel(self._master_addr)
+        self._channel = comm.build_grpc_channel(self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
     def find_free_port(self):
@@ -120,7 +120,7 @@ class MasterClient(Singleton):
             return port
 
     @retry_grpc_request
-    def _report(self, message: grpc.Message):
+    def _report(self, message: comm.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
         request.node_type = self._node_type
@@ -128,23 +128,23 @@ class MasterClient(Singleton):
         return self._stub.report(request, timeout=self._timeout)
 
     @retry_grpc_request
-    def _get(self, message: grpc.Message):
+    def _get(self, message: comm.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
         response = self._stub.get(request, timeout=self._timeout)
-        res_message = grpc.deserialize_message(response.data)
+        res_message = comm.deserialize_message(response.data)
         return res_message
 
     def kv_store_set(self, key, value):
-        message = grpc.KeyValuePair(key, value)
+        message = comm.KeyValuePair(key, value)
         response = self._report(message)
         return response.success
 
     def kv_store_get(self, key):
-        request = grpc.KeyValuePair(key)
-        result: grpc.KeyValuePair = self._get(request)
+        request = comm.KeyValuePair(key)
+        result: comm.KeyValuePair = self._get(request)
         return result.value
 
     def get_task(self, dataset_name):
@@ -159,7 +159,7 @@ class MasterClient(Singleton):
             c.f. /dlrover/proto/dlrover.proto
         """
 
-        req = grpc.TaskRequest(dataset_name)
+        req = comm.TaskRequest(dataset_name)
 
         success = False
         res = None
@@ -175,7 +175,7 @@ class MasterClient(Singleton):
         if not success:
             logger.warning(exception)
         if not res:
-            res = grpc.Task()
+            res = comm.Task()
         return success, res
 
     def report_task_result(self, dataset_name, task_id, err_msg):
@@ -188,7 +188,7 @@ class MasterClient(Singleton):
           err_msg: string
           the error message on training.
         """
-        message = grpc.TaskResult(dataset_name, task_id, err_msg)
+        message = comm.TaskResult(dataset_name, task_id, err_msg)
         return self._report(message)
 
     def report_dataset_shard_params(
@@ -202,7 +202,7 @@ class MasterClient(Singleton):
         task_type=elastic_training_pb2.NONE,
         storage_type="",
     ):
-        message = grpc.DatasetShardParams(
+        message = comm.DatasetShardParams(
             batch_size=batch_size,
             num_epochs=num_epochs,
             dataset_size=dataset_size,
@@ -215,20 +215,20 @@ class MasterClient(Singleton):
         return self._report(message)
 
     def ready_for_ps_relaunch(self):
-        message = grpc.PsReady()
+        message = comm.PsReady()
         return self._report(message)
 
     def get_shard_checkpoint(self, dataset_name):
-        req = grpc.ShardCheckpointRequest(dataset_name)
-        res: grpc.ShardCheckpoint = self._get(req)
+        req = comm.ShardCheckpointRequest(dataset_name)
+        res: comm.ShardCheckpoint = self._get(req)
         return res.content
 
     def report_shard_checkpoint(self, shard_checkpoint):
-        request = grpc.ShardCheckpoint(shard_checkpoint)
+        request = comm.ShardCheckpoint(shard_checkpoint)
         return self._report(request)
 
     def report_used_resource(self, memory, cpu, gpu_stats):
-        message = grpc.ResourceStats(memory, cpu, gpu_stats)
+        message = comm.ResourceStats(memory, cpu, gpu_stats)
         return self._report(message)
 
     def report_model_info(self, model_info):
@@ -237,7 +237,7 @@ class MasterClient(Singleton):
     def report_global_step(
         self, global_step, timestamp, elapsed_time_per_step=0
     ):
-        message = grpc.GlobalStep(
+        message = comm.GlobalStep(
             timestamp=timestamp,
             step=global_step,
             elapsed_time_per_step=elapsed_time_per_step,
@@ -245,8 +245,8 @@ class MasterClient(Singleton):
         return self._report(message)
 
     def report_heart_beat(self, timestamp) -> DiagnosisAction:
-        message = grpc.HeartBeat(timestamp=timestamp)
-        response: grpc.HeartbeatResponse = self._get(message)
+        message = comm.HeartBeat(timestamp=timestamp)
+        response: comm.HeartbeatResponse = self._get(message)
         action = NoAction()
 
         if not response:
@@ -267,16 +267,16 @@ class MasterClient(Singleton):
         return action
 
     def get_cluster_version(self, version_type, task_type, task_id):
-        request = grpc.ClusterVersionRequest(
+        request = comm.ClusterVersionRequest(
             task_type=task_type,
             task_id=task_id,
             version_type=version_type,
         )
-        result: grpc.ClusterVersion = self._get(request)
+        result: comm.ClusterVersion = self._get(request)
         return result.version
 
     def update_node_addr(self, task_type, task_id, node_addr):
-        message = grpc.NodeAddress(type=task_type, id=task_id, addr=node_addr)
+        message = comm.NodeAddress(type=task_type, id=task_id, addr=node_addr)
         res = self._report(message)
         return res
 
@@ -288,12 +288,12 @@ class MasterClient(Singleton):
         event_elapsed_time=0,
         node_rank=-1,
     ):
-        message = grpc.NodeEvent(
+        message = comm.NodeEvent(
             event_type=event_type,
             event_message=event_msg,
             event_time=event_time,
             event_elapsed_time=event_elapsed_time,
-            node=grpc.NodeMeta(
+            node=comm.NodeMeta(
                 type=self._node_type, id=self._node_id, addr=self._node_ip
             ),
         )
@@ -319,7 +319,7 @@ class MasterClient(Singleton):
     def update_cluster_version(
         self, version_type, version, task_type, task_id
     ):
-        message = grpc.ClusterVersion(
+        message = comm.ClusterVersion(
             task_type=task_type,
             task_id=task_id,
             version_type=version_type,
@@ -328,17 +328,17 @@ class MasterClient(Singleton):
         self._report(message)
 
     def query_ps_nodes(self):
-        request = grpc.PsNodesRequest()
-        result: grpc.PsNodes = self._get(request)
+        request = comm.PsNodesRequest()
+        result: comm.PsNodes = self._get(request)
         return result.nodes, result.ps_failure
 
     def query_training_status(self):
-        request = grpc.TrainingStatusRequest()
-        response: grpc.TrainingStatus = self._get(request)
+        request = comm.TrainingStatusRequest()
+        response: comm.TrainingStatus = self._get(request)
         return response.status
 
     def join_sync(self, sync_name):
-        message = grpc.SyncJoin(sync_name)
+        message = comm.SyncJoin(sync_name)
         logger.info(
             " {}:{} join sync {}".format(
                 self._node_id, self._node_type, sync_name
@@ -348,50 +348,50 @@ class MasterClient(Singleton):
         return response.success
 
     def sync_finished(self, sync_name):
-        message = grpc.SyncFinish(sync_name)
+        message = comm.SyncFinish(sync_name)
         response = self._report(message)
         return response.success
 
     def barrier(self, barrier_name, notify=False):
-        message = grpc.SyncBarrier(barrier_name, notify)
+        message = comm.SyncBarrier(barrier_name, notify)
         response = self._report(message)
         return response.success
 
     def get_running_nodes(self):
-        request = grpc.RunningNodesRequest()
-        result: grpc.RunningNodes = self._get(request)
+        request = comm.RunningNodesRequest()
+        result: comm.RunningNodes = self._get(request)
         return result.nodes
 
     def num_nodes_waiting(self, rdzv_name):
-        request = grpc.WaitingNodeNumRequest(rdzv_name=rdzv_name)
+        request = comm.WaitingNodeNumRequest(rdzv_name=rdzv_name)
         try:
-            result: grpc.RendezvousState = self._get(request)
+            result: comm.RendezvousState = self._get(request)
             return result.waiting_num
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
             return 0
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
-        request = grpc.JoinRendezvousRequest(
+        request = comm.JoinRendezvousRequest(
             node_id=self._node_id,
             node_rank=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
             node_ip=self._node_ip,
         )
-        result: grpc.RendezvousState = self._get(request)
+        result: comm.RendezvousState = self._get(request)
         return result.round
 
     def get_comm_world(self, rdzv_name, node_rank):
-        request = grpc.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)
-        result: grpc.RendezvousState = self._get(request)
+        request = comm.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)
+        result: comm.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 
     def check_fault_node(self, timeout=300):
-        request = grpc.NetworkReadyRequest()
+        request = comm.NetworkReadyRequest()
         start = time.time()
         while True:
-            result: grpc.NetworkCheckResult = self._get(request)
+            result: comm.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
@@ -402,10 +402,10 @@ class MasterClient(Singleton):
         return result.nodes
 
     def check_straggler(self, timeout=300):
-        request = grpc.StragglerExistRequest()
+        request = comm.StragglerExistRequest()
         start = time.time()
         while True:
-            result: grpc.NetworkCheckResult = self._get(request)
+            result: comm.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
@@ -418,7 +418,7 @@ class MasterClient(Singleton):
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit, joint_timeout
     ):
-        message = grpc.RendezvousParams(
+        message = comm.RendezvousParams(
             min_nodes,
             max_nodes,
             waiting_timeout,
@@ -429,48 +429,48 @@ class MasterClient(Singleton):
         return response.success
 
     def report_failures(self, error_data, restart_count=-1, level=""):
-        message = grpc.NodeFailure(error_data, restart_count, level)
+        message = comm.NodeFailure(error_data, restart_count, level)
         self._report(message)
 
-    def report_paral_config(self, config: grpc.ParallelConfig):
+    def report_paral_config(self, config: comm.ParallelConfig):
         self._report(config)
 
     def report_diagnosis_agent_metrics(self, data: DiagnosisData):
-        message = grpc.DiagnosisReportData(
+        message = comm.DiagnosisReportData(
             data.__class__.__name__,
             data.to_json(),
             data.node_rank,
         )
         self._report(message)
 
-    def get_paral_config(self) -> grpc.ParallelConfig:
-        request = grpc.ParallelConfigRequest()
+    def get_paral_config(self) -> comm.ParallelConfig:
+        request = comm.ParallelConfigRequest()
         result = self._get(request)
         return result
 
     def need_to_restart_training(self):
-        request = grpc.CheckHardwareResetRequest()
+        request = comm.CheckHardwareResetRequest()
         try:
-            result: grpc.ParallelConfig = self._get(request)
+            result: comm.ParallelConfig = self._get(request)
             return result.restart
         except Exception:
             logger.warning("Fail to verify restarting training processes.")
             return False
 
     def sync_checkpoint(self, step):
-        request = grpc.NodeCheckpointState()
+        request = comm.NodeCheckpointState()
         request.step = step
         response = self._report(request)
         return response.success
 
-    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
-        request = grpc.SyncTrainingPort(port=port)
-        response: grpc.SyncTrainingPort = self._get(request)
+    def sync_training_ports(self, port) -> comm.SyncTrainingPort:
+        request = comm.SyncTrainingPort(port=port)
+        response: comm.SyncTrainingPort = self._get(request)
         return response
 
     def get_elastic_run_config(self) -> Dict[str, str]:
-        request = grpc.ElasticRunConfigRequest()
-        response: grpc.ElasticRunConfig = self._get(request)
+        request = comm.ElasticRunConfigRequest()
+        response: comm.ElasticRunConfig = self._get(request)
         return response.configs
 
     def report_event(
@@ -483,7 +483,7 @@ class MasterClient(Singleton):
     ):
         if labels is None:
             labels = {}
-        message = grpc.Event(
+        message = comm.Event(
             event_type=event_type,
             instance=instance,
             action=action,

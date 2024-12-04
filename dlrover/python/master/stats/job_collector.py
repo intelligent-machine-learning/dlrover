@@ -17,8 +17,8 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
+from dlrover.python.common.comm import ModelInfo
 from dlrover.python.common.constants import MemoryUnit
-from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
