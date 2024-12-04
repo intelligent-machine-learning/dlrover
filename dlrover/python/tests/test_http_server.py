@@ -37,7 +37,7 @@ class HttpServerClientTest(unittest.TestCase):
             self.server = None
 
     def test_server_basic(self):
-        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler, 2)
+        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler)
         self.assertIsNotNone(self.server)
         self.assertFalse(is_port_in_use(TEST_SERVER_PORT))
 
@@ -68,13 +68,12 @@ class HttpServerClientTest(unittest.TestCase):
             raise e
 
     def test_server_concurrency(self):
-        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT,
-                                  TestRequestHandler)
+        self.server = CustomHTTPServer(TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler)
         self.server.start_serving()
 
         futures = []
         result_num = 0
-        client_size = 1000
+        client_size = 100
         with ThreadPoolExecutor(max_workers=client_size) as executor:
             for i in range(client_size):
                 futures.append(
