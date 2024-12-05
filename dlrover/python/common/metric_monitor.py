@@ -27,7 +27,7 @@ from requests.exceptions import (
 from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.monitor.metric_context import (
+from dlrover.python.common.metric_context import (
     GpuMetric,
     JobMetricContext,
     GpuNodeMetric,
