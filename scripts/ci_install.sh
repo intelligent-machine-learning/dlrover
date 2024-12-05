@@ -16,12 +16,18 @@ pip install kubernetes
 pip install grpcio-tools
 pip install psutil
 pip install deprecated
-pip install 'ray[default]'
 pip install pyhocon
 pip install pytest-cov
 pip install pytest-ordering
 pip install packaging
 pip install tornado
+
+if [ "$1" = "basic" ]; then
+  echo "'Basic' dependencies only."
+  exit 0
+fi
+
+pip install 'ray[default]'
 pip install tensorflow==2.13.0
 pip install deepspeed==0.12.6
 pip install accelerate==0.29.2

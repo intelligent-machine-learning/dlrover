@@ -18,9 +18,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import tornado
-from util.common_util import is_port_in_use
 
 from dlrover.python.common.http_server import TornadoHTTPServer
+from dlrover.python.util.common_util import is_port_in_use
 
 TEST_SERVER_ADDR = "localhost"
 TEST_SERVER_PORT = 8000
