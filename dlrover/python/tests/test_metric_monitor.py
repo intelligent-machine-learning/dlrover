@@ -23,14 +23,14 @@ from unittest.mock import patch
 import requests
 
 from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
-from dlrover.python.common.metric_context import (
+from dlrover.python.common.metric import (
     GpuMetric,
     GpuNodeMetric,
     NpuMetric,
     NpuNodeMetric,
-    get_job_metric_context,
 )
-from dlrover.python.common.metric_monitor import (
+from dlrover.python.common.metric.context import get_job_metric_context
+from dlrover.python.common.metric.monitor import (
     GpuMetricMonitor,
     NpuMetricMonitor,
     SimpleMetricMonitor,

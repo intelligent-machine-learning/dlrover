@@ -27,13 +27,13 @@ from requests.exceptions import (
 from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.metric_context import (
+from dlrover.python.common.metric import (
     GpuMetric,
     GpuNodeMetric,
-    JobMetricContext,
     NpuMetric,
     NpuNodeMetric,
 )
+from dlrover.python.common.metric.context import JobMetricContext
 
 _dlrover_context = Context.singleton_instance()
 _metric_context = JobMetricContext.singleton_instance()
