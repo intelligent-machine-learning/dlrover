@@ -29,10 +29,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric_context import (
     GpuMetric,
-    JobMetricContext,
     GpuNodeMetric,
-    NpuNodeMetric,
+    JobMetricContext,
     NpuMetric,
+    NpuNodeMetric,
 )
 
 _dlrover_context = Context.singleton_instance()

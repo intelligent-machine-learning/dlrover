@@ -26,8 +26,8 @@ from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
 from dlrover.python.common.metric_context import (
     GpuMetric,
     GpuNodeMetric,
-    NpuNodeMetric,
     NpuMetric,
+    NpuNodeMetric,
     get_job_metric_context,
 )
 from dlrover.python.common.metric_monitor import (
