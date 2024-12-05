@@ -22,11 +22,11 @@ from unittest.mock import patch
 
 import requests
 
-from dlrover.python.common.constants import GpuMetricType, NpuMetricType
+from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
 from dlrover.python.master.monitor.metric_context import (
     GpuMetric,
-    NodeGpuMetric,
-    NodeNpuMetric,
+    GpuNodeMetric,
+    NpuNodeMetric,
     NpuMetric,
     get_job_metric_context,
 )
@@ -47,28 +47,28 @@ class MetricContextTests(unittest.TestCase):
             gpu_sm_util=0.05,
             gpu_tensor_util=0.1,
         )
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_FREE_MEM), 50)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_USED_MEM), 30)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_UTIL), 95)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_TEMP), 60)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_SM_UTIL), 0.05)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_FREE_MEM), 50)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_USED_MEM), 30)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_UTIL), 95)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_TEMP), 60)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_SM_UTIL), 0.05)
         self.assertEqual(
-            gmetric.get_metric(GpuMetricType.GPU_TENSOR_UTIL), 0.1
+            gmetric.get_metric(GpuMetricEnum.GPU_TENSOR_UTIL), 0.1
         )
 
-        gmetric.set_metric(GpuMetricType.GPU_FREE_MEM, 10)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_FREE_MEM), 10)
-        gmetric.set_metric(GpuMetricType.GPU_USED_MEM, 70)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_USED_MEM), 70)
-        gmetric.set_metric(GpuMetricType.GPU_UTIL, 10)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_UTIL), 10)
-        gmetric.set_metric(GpuMetricType.GPU_TEMP, 80)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_TEMP), 80)
-        gmetric.set_metric(GpuMetricType.GPU_SM_UTIL, 0.25)
-        self.assertEqual(gmetric.get_metric(GpuMetricType.GPU_SM_UTIL), 0.25)
-        gmetric.set_metric(GpuMetricType.GPU_TENSOR_UTIL, 0.3)
+        gmetric.set_metric(GpuMetricEnum.GPU_FREE_MEM, 10)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_FREE_MEM), 10)
+        gmetric.set_metric(GpuMetricEnum.GPU_USED_MEM, 70)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_USED_MEM), 70)
+        gmetric.set_metric(GpuMetricEnum.GPU_UTIL, 10)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_UTIL), 10)
+        gmetric.set_metric(GpuMetricEnum.GPU_TEMP, 80)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_TEMP), 80)
+        gmetric.set_metric(GpuMetricEnum.GPU_SM_UTIL, 0.25)
+        self.assertEqual(gmetric.get_metric(GpuMetricEnum.GPU_SM_UTIL), 0.25)
+        gmetric.set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 0.3)
         self.assertEqual(
-            gmetric.get_metric(GpuMetricType.GPU_TENSOR_UTIL), 0.3
+            gmetric.get_metric(GpuMetricEnum.GPU_TENSOR_UTIL), 0.3
         )
 
     def test_npu_metric(self):
@@ -84,48 +84,48 @@ class MetricContextTests(unittest.TestCase):
             npu_tx=2000,
             npu_rx=1500,
         )
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_TOTAL_MEM), 80)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_USED_MEM), 75)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_UTIL), 95)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_TEMP), 70)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_HEALTH_STATE), 1)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_LINK_STATE), 0)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_TOTAL_MEM), 80)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_USED_MEM), 75)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_UTIL), 95)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_TEMP), 70)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_HEALTH_STATE), 1)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_LINK_STATE), 0)
         self.assertEqual(
-            gmetric.get_metric(NpuMetricType.NPU_OPTICAL_STATE), 0
+            gmetric.get_metric(NpuMetricEnum.NPU_OPTICAL_STATE), 0
         )
         self.assertEqual(
-            gmetric.get_metric(NpuMetricType.NPU_NETWORK_STATE), 0
+            gmetric.get_metric(NpuMetricEnum.NPU_NETWORK_STATE), 0
         )
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_RDMA_TX), 2000)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_RDMA_RX), 1500)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_RDMA_TX), 2000)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_RDMA_RX), 1500)
 
-        gmetric.set_metric(NpuMetricType.NPU_TOTAL_MEM, 80)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_TOTAL_MEM), 80)
-        gmetric.set_metric(NpuMetricType.NPU_USED_MEM, 20)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_USED_MEM), 20)
-        gmetric.set_metric(NpuMetricType.NPU_UTIL, 2)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_UTIL), 2)
-        gmetric.set_metric(NpuMetricType.NPU_TEMP, 30)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_TEMP), 30)
-        gmetric.set_metric(NpuMetricType.NPU_HEALTH_STATE, 0)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_HEALTH_STATE), 0)
-        gmetric.set_metric(NpuMetricType.NPU_LINK_STATE, 1)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_LINK_STATE), 1)
-        gmetric.set_metric(NpuMetricType.NPU_OPTICAL_STATE, 1)
+        gmetric.set_metric(NpuMetricEnum.NPU_TOTAL_MEM, 80)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_TOTAL_MEM), 80)
+        gmetric.set_metric(NpuMetricEnum.NPU_USED_MEM, 20)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_USED_MEM), 20)
+        gmetric.set_metric(NpuMetricEnum.NPU_UTIL, 2)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_UTIL), 2)
+        gmetric.set_metric(NpuMetricEnum.NPU_TEMP, 30)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_TEMP), 30)
+        gmetric.set_metric(NpuMetricEnum.NPU_HEALTH_STATE, 0)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_HEALTH_STATE), 0)
+        gmetric.set_metric(NpuMetricEnum.NPU_LINK_STATE, 1)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_LINK_STATE), 1)
+        gmetric.set_metric(NpuMetricEnum.NPU_OPTICAL_STATE, 1)
         self.assertEqual(
-            gmetric.get_metric(NpuMetricType.NPU_OPTICAL_STATE), 1
+            gmetric.get_metric(NpuMetricEnum.NPU_OPTICAL_STATE), 1
         )
-        gmetric.set_metric(NpuMetricType.NPU_NETWORK_STATE, 1)
+        gmetric.set_metric(NpuMetricEnum.NPU_NETWORK_STATE, 1)
         self.assertEqual(
-            gmetric.get_metric(NpuMetricType.NPU_NETWORK_STATE), 1
+            gmetric.get_metric(NpuMetricEnum.NPU_NETWORK_STATE), 1
         )
-        gmetric.set_metric(NpuMetricType.NPU_RDMA_TX, 100)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_RDMA_TX), 100)
-        gmetric.set_metric(NpuMetricType.NPU_RDMA_RX, 100)
-        self.assertEqual(gmetric.get_metric(NpuMetricType.NPU_RDMA_RX), 100)
+        gmetric.set_metric(NpuMetricEnum.NPU_RDMA_TX, 100)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_RDMA_TX), 100)
+        gmetric.set_metric(NpuMetricEnum.NPU_RDMA_RX, 100)
+        self.assertEqual(gmetric.get_metric(NpuMetricEnum.NPU_RDMA_RX), 100)
 
     def test_node_gpu_metric(self):
-        worker1 = NodeGpuMetric()
+        worker1 = GpuNodeMetric()
         worker1.node_metrics[0] = GpuMetric(
             gpu_free_mem=50,
             gpu_used_mem=30,
@@ -153,26 +153,26 @@ class MetricContextTests(unittest.TestCase):
 
         worker1.update_avg_metrics()
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_FREE_MEM], 50
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_FREE_MEM], 50
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_USED_MEM], 30
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_USED_MEM], 30
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_UTIL], 90
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_UTIL], 90
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_TEMP], 0
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_TEMP], 0
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_SM_UTIL], 0.02
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_SM_UTIL], 0.02
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[GpuMetricType.GPU_TENSOR_UTIL], 0.23
+            worker1.avg_metrics.metrics[GpuMetricEnum.GPU_TENSOR_UTIL], 0.23
         )
 
     def test_node_npu_metric(self):
-        worker1 = NodeNpuMetric()
+        worker1 = NpuNodeMetric()
         worker1.node_metrics[0] = NpuMetric(
             npu_total_mem=80,
             npu_used_mem=75,
@@ -212,27 +212,27 @@ class MetricContextTests(unittest.TestCase):
 
         worker1.update_avg_metrics()
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_TOTAL_MEM], 80
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_TOTAL_MEM], 80
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_USED_MEM], 70
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_USED_MEM], 70
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_UTIL], 97.33
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_UTIL], 97.33
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_TEMP], 0
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_TEMP], 0
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_RDMA_RX], 0.0
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_RDMA_RX], 0.0
         )
         self.assertEqual(
-            worker1.avg_metrics.metrics[NpuMetricType.NPU_RDMA_TX], 0.0
+            worker1.avg_metrics.metrics[NpuMetricEnum.NPU_RDMA_TX], 0.0
         )
 
     def test_job_metric(self):
         jctx = get_job_metric_context()
-        nmetric1 = NodeGpuMetric()
+        nmetric1 = GpuNodeMetric()
         nmetric1.node_metrics[0] = GpuMetric(
             gpu_free_mem=50,
             gpu_used_mem=30,
@@ -258,7 +258,7 @@ class MetricContextTests(unittest.TestCase):
             gpu_tensor_util=0.4,
         )
 
-        nmetric2 = NodeGpuMetric()
+        nmetric2 = GpuNodeMetric()
         nmetric2.node_metrics[0] = GpuMetric(
             gpu_free_mem=10,
             gpu_used_mem=70,
@@ -564,7 +564,7 @@ class MetricMonitorTests(unittest.TestCase):
         mon = SimpleMetricMonitor()
 
         job_name = "dlrover-testjob"
-        metric_type = NpuMetricType.NPU_UTIL
+        metric_type = NpuMetricEnum.NPU_UTIL
         start = datetime.strptime(
             "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
         ).timestamp()
@@ -621,7 +621,7 @@ class MetricMonitorTests(unittest.TestCase):
             mon = SimpleMetricMonitor()
 
             job_name = "dlrover-testjob"
-            metric_type = NpuMetricType.NPU_UTIL
+            metric_type = NpuMetricEnum.NPU_UTIL
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -644,7 +644,7 @@ class MetricMonitorTests(unittest.TestCase):
 
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
-            metric_type = NpuMetricType.NPU_UTIL
+            metric_type = NpuMetricEnum.NPU_UTIL
             start = int(
                 datetime.strptime(
                     "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
@@ -671,7 +671,7 @@ class MetricMonitorTests(unittest.TestCase):
             mon = SimpleMetricMonitor()
 
             job_name = "dlrover-testjob"
-            metric_type = GpuMetricType.GPU_UTIL
+            metric_type = GpuMetricEnum.GPU_UTIL
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -694,7 +694,7 @@ class MetricMonitorTests(unittest.TestCase):
 
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
-            metric_type = GpuMetricType.GPU_UTIL
+            metric_type = GpuMetricEnum.GPU_UTIL
             start = int(
                 datetime.strptime(
                     "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
@@ -721,7 +721,7 @@ class MetricMonitorTests(unittest.TestCase):
             mon = NpuMetricMonitor()
 
             job_name = "dlrover-testjob"
-            metric_type = NpuMetricType.NPU_UTIL
+            metric_type = NpuMetricEnum.NPU_UTIL
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -743,7 +743,7 @@ class MetricMonitorTests(unittest.TestCase):
                     node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
-                            NpuMetricType.NPU_UTIL
+                            NpuMetricEnum.NPU_UTIL
                         ),
                         96.5,
                     )
@@ -751,7 +751,7 @@ class MetricMonitorTests(unittest.TestCase):
                     node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
-                            NpuMetricType.NPU_UTIL
+                            NpuMetricEnum.NPU_UTIL
                         ),
                         99.0,
                     )
@@ -762,7 +762,7 @@ class MetricMonitorTests(unittest.TestCase):
 
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
-            metric_type = NpuMetricType.NPU_UTIL
+            metric_type = NpuMetricEnum.NPU_UTIL
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -783,7 +783,7 @@ class MetricMonitorTests(unittest.TestCase):
             for pod, node_metric in pod_metric.items():
                 node_metric.update_avg_metrics()
                 self.assertEqual(
-                    node_metric.avg_metrics.get_metric(NpuMetricType.NPU_UTIL),
+                    node_metric.avg_metrics.get_metric(NpuMetricEnum.NPU_UTIL),
                     97.75,
                 )
 
@@ -792,7 +792,7 @@ class MetricMonitorTests(unittest.TestCase):
             mon = GpuMetricMonitor()
 
             job_name = "dlrover-testjob"
-            metric_type = GpuMetricType.GPU_UTIL
+            metric_type = GpuMetricEnum.GPU_UTIL
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -814,7 +814,7 @@ class MetricMonitorTests(unittest.TestCase):
                     node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
-                            GpuMetricType.GPU_UTIL
+                            GpuMetricEnum.GPU_UTIL
                         ),
                         96.5,
                     )
@@ -822,7 +822,7 @@ class MetricMonitorTests(unittest.TestCase):
                     node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
-                            GpuMetricType.GPU_UTIL
+                            GpuMetricEnum.GPU_UTIL
                         ),
                         99.0,
                     )
@@ -833,7 +833,7 @@ class MetricMonitorTests(unittest.TestCase):
 
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
-            metric_type = GpuMetricType.GPU_UTIL
+            metric_type = GpuMetricEnum.GPU_UTIL
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -850,6 +850,6 @@ class MetricMonitorTests(unittest.TestCase):
             for pod, node_metric in job_metric.items():
                 node_metric.update_avg_metrics()
                 self.assertEqual(
-                    node_metric.avg_metrics.get_metric(GpuMetricType.GPU_UTIL),
+                    node_metric.avg_metrics.get_metric(GpuMetricEnum.GPU_UTIL),
                     97.75,
                 )

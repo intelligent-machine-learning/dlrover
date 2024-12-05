@@ -96,9 +96,9 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
-class GpuMetricType(object):
+class GpuMetricEnum(object):
     """
-    it is the metrics of nvidia GPU, collected by DCGM
+    it is the metrics enum of nvidia GPU, collected by DCGM
     """
 
     GPU_FREE_MEM = "DCGM_FI_DEV_FB_FREE"
@@ -110,9 +110,9 @@ class GpuMetricType(object):
     GPU_TENSOR_UTIL = "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"
 
 
-class NpuMetricType(object):
+class NpuMetricEnum(object):
     """
-    it is the metrics of NPU
+    it is the metrics enum of Ascend NPU, collected by DCMI
     """
 
     NPU_TOTAL_MEM = "npu_chip_info_total_memory"

@@ -24,14 +24,14 @@ from requests.exceptions import (
     Timeout,
 )
 
-from dlrover.python.common.constants import GpuMetricType, NpuMetricType
+from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.metric_context import (
     GpuMetric,
     JobMetricContext,
-    NodeGpuMetric,
-    NodeNpuMetric,
+    GpuNodeMetric,
+    NpuNodeMetric,
     NpuMetric,
 )
 
@@ -49,14 +49,14 @@ class MetricMonitor(metaclass=ABCMeta):
 
     @abstractmethod
     def collect_job_metrics(
-        self, job_name, metric_type, start, end, pod_name=None, metrics=None
+        self, job_name, metric_enum, start, end, pod_name=None, metrics=None
     ):
         """
         collect and update job metric
 
         Args:
             job_name: job name
-            metric_type: metric type
+            metric_enum: metric enum
             start: start timestamp
             end: end timestamp
             pod_name: pod name as a pod filter
@@ -280,10 +280,10 @@ class GpuMetricMonitor(SimpleMetricMonitor):
                 pod = rank_metric["tags"]["pod"]
                 local_rank = int(rank_metric["tags"]["gpu"])
                 if (
-                    metric_type == GpuMetricType.GPU_FREE_MEM
-                    or metric_type == GpuMetricType.GPU_USED_MEM
-                    or metric_type == GpuMetricType.GPU_UTIL
-                    or metric_type == GpuMetricType.GPU_TEMP
+                    metric_type == GpuMetricEnum.GPU_FREE_MEM
+                    or metric_type == GpuMetricEnum.GPU_USED_MEM
+                    or metric_type == GpuMetricEnum.GPU_UTIL
+                    or metric_type == GpuMetricEnum.GPU_TEMP
                 ):
                     data = int(
                         rank_metric["dataMapByTime"][start_time]["count"]
@@ -297,7 +297,7 @@ class GpuMetricMonitor(SimpleMetricMonitor):
                     )
 
                 if pod not in job_metrics.keys():
-                    job_metrics[pod] = NodeGpuMetric()
+                    job_metrics[pod] = GpuNodeMetric()
                 if local_rank not in job_metrics[pod].node_metrics:
                     job_metrics[pod].node_metrics[local_rank] = GpuMetric()
                 job_metrics[pod].node_metrics[local_rank].set_metric(
@@ -330,10 +330,10 @@ class NpuMetricMonitor(SimpleMetricMonitor):
         super().__init__()
 
     def collect_job_metrics(
-        self, job_name, metric_type, start, end, pod_name=None, metrics=None
+        self, job_name, metric_enum, start, end, pod_name=None, metrics=None
     ):
         rsp = self.query_job_metrics(
-            job_name, metric_type, start, end, is_gpu=False, pod_name=pod_name
+            job_name, metric_enum, start, end, is_gpu=False, pod_name=pod_name
         )
         if rsp is None:
             return None
@@ -347,14 +347,14 @@ class NpuMetricMonitor(SimpleMetricMonitor):
                 pod = rank_metric["tags"]["pod_name"]
                 local_rank = int(rank_metric["tags"]["id"])
                 if (
-                    metric_type == NpuMetricType.NPU_TOTAL_MEM
-                    or metric_type == NpuMetricType.NPU_USED_MEM
-                    or metric_type == NpuMetricType.NPU_UTIL
-                    or metric_type == NpuMetricType.NPU_TEMP
-                    or metric_type == NpuMetricType.NPU_HEALTH_STATE
-                    or metric_type == NpuMetricType.NPU_LINK_STATE
-                    or metric_type == NpuMetricType.NPU_OPTICAL_STATE
-                    or metric_type == NpuMetricType.NPU_NETWORK_STATE
+                    metric_enum == NpuMetricEnum.NPU_TOTAL_MEM
+                    or metric_enum == NpuMetricEnum.NPU_USED_MEM
+                    or metric_enum == NpuMetricEnum.NPU_UTIL
+                    or metric_enum == NpuMetricEnum.NPU_TEMP
+                    or metric_enum == NpuMetricEnum.NPU_HEALTH_STATE
+                    or metric_enum == NpuMetricEnum.NPU_LINK_STATE
+                    or metric_enum == NpuMetricEnum.NPU_OPTICAL_STATE
+                    or metric_enum == NpuMetricEnum.NPU_NETWORK_STATE
                 ):
                     data = int(
                         rank_metric["dataMapByTime"][start_time]["count"]
@@ -368,11 +368,11 @@ class NpuMetricMonitor(SimpleMetricMonitor):
                     )
 
                 if pod not in job_metrics.keys():
-                    job_metrics[pod] = NodeNpuMetric()
+                    job_metrics[pod] = NpuNodeMetric()
                 if local_rank not in job_metrics[pod].node_metrics:
                     job_metrics[pod].node_metrics[local_rank] = NpuMetric()
                 job_metrics[pod].node_metrics[local_rank].set_metric(
-                    metric_type, data
+                    metric_enum, data
                 )
 
             return job_metrics
