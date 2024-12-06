@@ -16,7 +16,7 @@ from collections import OrderedDict
 from typing import Dict
 
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.metric import XpuNodeMetric
+from dlrover.python.common.metric.metric import XpuNodeMetric
 from dlrover.python.common.singleton import Singleton
 
 _dlrover_context = Context.singleton_instance()
