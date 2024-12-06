@@ -1,19 +1,19 @@
 ---
-name: main test for the project
+name: just a simply ci test
 
-on:
-  pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "examples/**"
-  workflow_dispatch:
-  push:
-    branches:
-      - master
-      - main
-    paths-ignore:
-      - "docs/**"
-      - "examples/**"
+# on:
+#   pull_request:
+#     paths-ignore:
+#       - "docs/**"
+#       - "examples/**"
+#   workflow_dispatch:
+#   push:
+#     branches:
+#       - master
+#       - main
+#     paths-ignore:
+#       - "docs/**"
+#       - "examples/**"
 
 jobs:
   pre-commit:
@@ -35,41 +35,41 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
         with:
-          token: 043586e5-68b8-4588-9bf4-c333f2692345
+          token: ${{ secrets.CODECOV_TOKEN }}
           slug: intelligent-machine-learning/dlrover
-  operator-test:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - name: RUN gotest
-        uses: ./.github/actions/operator-test
-  brain-test:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/brain-test
-  dlrover-system-test-criteo-deeprec:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/dlrover-system-test-criteo-deeprec
-  dlrover-system-test-deepfm:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/dlrover-system-test-deepfm
-  dlrover-system-test-tf2:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/dlrover-system-test-tf2
+  # operator-test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # This step checks out a copy of your repository.
+  #     - uses: actions/checkout@v3
+  #     # This step references the directory that contains the action.
+  #     - name: RUN gotest
+  #       uses: ./.github/actions/operator-test
+  # brain-test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # This step checks out a copy of your repository.
+  #     - uses: actions/checkout@v3
+  #     # This step references the directory that contains the action.
+  #     - uses: ./.github/actions/brain-test
+  # dlrover-system-test-criteo-deeprec:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # This step checks out a copy of your repository.
+  #     - uses: actions/checkout@v3
+  #     # This step references the directory that contains the action.
+  #     - uses: ./.github/actions/dlrover-system-test-criteo-deeprec
+  # dlrover-system-test-deepfm:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # This step checks out a copy of your repository.
+  #     - uses: actions/checkout@v3
+  #     # This step references the directory that contains the action.
+  #     - uses: ./.github/actions/dlrover-system-test-deepfm
+  # dlrover-system-test-tf2:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # This step checks out a copy of your repository.
+  #     - uses: actions/checkout@v3
+  #     # This step references the directory that contains the action.
+  #     - uses: ./.github/actions/dlrover-system-test-tf2

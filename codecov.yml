@@ -1,25 +1,24 @@
----
 coverage:
   precision: 2
   range:
     - 60.0
     - 80.0
   round: down
-  ignore:
-    - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
-    - "dlrover/trainer/torch/node_check/utils.py"
-    - "dlrover/proto"
   status:
     changes: false
     default_rules:
       flag_coverage_not_uploaded_behavior: include
     patch:
       default:
-        target: 80%
-        threshold: 3%
         removed_code_behavior: fully_covered_patch
+        target: 80.0
+        threshold: 3.0
     project:
       default:
-        target: 80%
-        threshold: 3%
         removed_code_behavior: fully_covered_patch
+        target: 80.0
+        threshold: 3.0
+ignore:
+  - ^dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py.*
+  - ^dlrover/trainer/torch/node_check/utils.py.*
+  - ^dlrover/proto.*
