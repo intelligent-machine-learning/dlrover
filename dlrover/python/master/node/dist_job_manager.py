@@ -665,6 +665,7 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.JOB_KEY: self._job_args.job_name,
             ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
+            ElasticJobLabel.REPLICA_INDEX_KEY: node.id
         }
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
@@ -687,7 +688,7 @@ class DistributedJobManager(JobManager):
         node_type = event.node.type
         node_status = event.node.status
         node_id = event.node.id
-        job_nodes = self.get_job_nodes()
+        node_name = event.node.name
 
         # Skip deleted event of pod if the cluster has relaunched a new pod
         # with the same type and rank as the deleted pod.
@@ -713,11 +714,13 @@ class DistributedJobManager(JobManager):
                 )
             ):
                 logger.info(
-                    f"Skip deleted event for pod : {pod_labels_selector} "
-                    f"for same running pod already exists."
+                    f"Skip deleted event for node: {node_id}({node_name}) "
+                    "because same running pod already exists by "
+                    f"labels: {pod_labels_selector} "
                 )
                 return
 
+        job_nodes = self.get_job_nodes()
         if node_id not in job_nodes[node_type]:
             logger.info(f"The node {event.node.name} is released.")
             return
