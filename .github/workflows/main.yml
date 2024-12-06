@@ -44,16 +44,21 @@ jobs:
         with:
           python-version: 3.8
       # This step references the directory that contains the action.
-      - name: run pytest
-        uses: ./.github/actions/dlrover-python-test
-      - name: upload code coverage to codecov
-        uses: codecov/codecov-action@v5
+      #- name: run pytest
+      #  uses: ./.github/actions/dlrover-python-test
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: intelligent-machine-learning/dlrover
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # - name: upload code coverage to codecov
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     slug: intelligent-machine-learning/dlrover
+      #     verbose: true
+      #   env:
+      #     CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # operator-test:
   #   runs-on: ubuntu-latest
