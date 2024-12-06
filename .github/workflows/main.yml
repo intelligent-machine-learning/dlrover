@@ -1,6 +1,15 @@
 ---
 name: just a simply ci test
 
+on:
+  push:
+  #   branches:
+  #     - master
+  #     - main
+  # pull_request:
+  #   branches:
+  #     - master
+  #     - main
 # on:
 #   pull_request:
 #     paths-ignore:
