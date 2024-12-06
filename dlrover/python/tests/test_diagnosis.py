@@ -14,8 +14,17 @@
 import time
 import unittest
 
-from dlrover.python.diagnosis.common.diagnosis_data import CudaLog
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
+from dlrover.python.common.constants import NodeStatus
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    DiagnosisActionQueue,
+    EventAction,
+    NodeAction,
+)
 
 
 class DiagnosisTest(unittest.TestCase):
@@ -25,23 +34,96 @@ class DiagnosisTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_data_manager(self):
-        mgr = DiagnosisDataManager(5)
-        data_type = "type"
-        log1 = CudaLog(0)
-        mgr.store_data(data_type, log1)
+    def test_action_basic(self):
+        basic_action = DiagnosisAction()
+        self.assertEqual(basic_action.action_type, DiagnosisActionType.NONE)
+        self.assertEqual(
+            basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+        )
+        self.assertFalse(basic_action.is_needed())
+
+        event_action = EventAction(
+            "info", "job", "test", "test123", {"k1": "v1"}
+        )
+        self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
+        self.assertEqual(
+            event_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(event_action.event_type, "info")
+        self.assertEqual(event_action.event_instance, "job")
+        self.assertEqual(event_action.event_action, "test")
+        self.assertEqual(event_action.event_msg, "test123")
+        self.assertEqual(event_action.event_labels, {"k1": "v1"})
+        self.assertTrue(event_action.is_needed())
+
+        event_action_json = event_action.to_json()
+        self.assertIsNotNone(event_action_json)
+
+        event_action_obj = EventAction.from_json(event_action_json)
+        self.assertIsNotNone(event_action_obj)
+        self.assertEqual(
+            event_action.event_action, event_action_obj.event_action
+        )
+
+        node_relaunch_action = NodeAction(
+            node_id=1,
+            node_status=NodeStatus.FAILED,
+            reason="hang",
+            action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+        )
+        self.assertEqual(
+            node_relaunch_action.action_type,
+            DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+        )
+        self.assertEqual(node_relaunch_action._instance, 1)
+        self.assertEqual(node_relaunch_action.node_id, 1)
+        self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
+        self.assertEqual(node_relaunch_action.reason, "hang")
+        self.assertTrue(event_action.is_needed())
+
+        node_relaunch_action = NodeAction(
+            node_id=1,
+            node_status=NodeStatus.FAILED,
+            reason="hang",
+            action_type=DiagnosisActionType.RESTART_WORKER,
+        )
+        self.assertEqual(
+            node_relaunch_action.action_type,
+            DiagnosisActionType.RESTART_WORKER,
+        )
+        self.assertTrue(event_action.is_needed())
+
+    def test_action_queue(self):
+        action_queue = DiagnosisActionQueue()
+        action0 = EventAction("test0", expired_time_period=100000)
+        action1 = EventAction("test1", expired_time_period=1)
+        action2 = EventAction("test2", expired_time_period=100000)
+
+        action_queue.add_action(action0)
+        action_queue.add_action(action1)
+        action_queue.add_action(action2)
+
         time.sleep(1)
-        log2 = CudaLog(0)
-        mgr.store_data(data_type, log2)
-
-        logs = mgr.get_data(data_type)
-        self.assertEqual(len(logs), 2)
-
-        time.sleep(6)
-        log3 = CudaLog(0)
-        mgr.store_data(data_type, log3)
-        logs = mgr.get_data(data_type)
-        self.assertEqual(len(logs), 1)
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
+        self.assertEqual(
+            action_queue.next_action(
+                instance=DiagnosisConstant.MASTER_INSTANCE
+            ).action_type,
+            DiagnosisActionType.EVENT,
+        )
+        self.assertEqual(
+            action_queue.next_action(
+                instance=DiagnosisConstant.LOCAL_INSTANCE
+            ).action_type,
+            DiagnosisActionType.NONE,
+        )
+        self.assertEqual(
+            action_queue.next_action(instance=1).action_type,
+            DiagnosisActionType.NONE,
+        )
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -144,6 +144,7 @@ class DistributedJobMaster(JobMaster):
             ),
         }
         self.diagnosis_manager = DiagnosisManager()
+        self._error_monitor = error_monitor
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -154,7 +155,6 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
-        self._error_monitor = error_monitor
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
@@ -167,6 +167,7 @@ class DistributedJobMaster(JobMaster):
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
+            self._error_monitor,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):
@@ -234,7 +235,7 @@ class DistributedJobMaster(JobMaster):
             self.diagnosis_manager.start_observing()
         except Exception as e:
             logger.warning(
-                "Failed to start training " f"runtime diagnosis: {str(e)}"
+                f"Failed to start training runtime diagnosis: {str(e)}"
             )
 
         # into running loop

@@ -13,17 +13,20 @@
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest import mock
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
-from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnoseAction
-from dlrover.python.diagnosis.datacollector.training_log_collector import (
-    TrainingLogCollector,
+from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    NoAction,
+    NodeAction,
 )
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
+from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -40,7 +43,7 @@ from dlrover.python.tests.test_utils import start_local_master
 
 class TestDiagnosisAgent(unittest.TestCase):
     def setUp(self):
-        self.master_proc, self.addr = start_local_master()
+        self._master, self.addr = start_local_master()
         MasterClient._instance = build_master_client(self.addr, 1)
         launch_config = LaunchConfig(
             min_nodes=1,
@@ -52,7 +55,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.config = ElasticLaunchConfig(**launch_config.__dict__)
 
     def tearDown(self):
-        pass
+        os.environ.clear()
 
     def test_diagnose_training(self):
         file = "data/training.log"
@@ -60,6 +63,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         file_path = os.path.join(path, file)
 
         errors = "error code is 11111"
+
         agent = DiagnosisAgent.singleton_instance(file_path, errors)
 
         spec = _create_worker_spec(
@@ -76,46 +80,96 @@ class TestDiagnosisAgent(unittest.TestCase):
             ),
             failures={},
         )
-        wc = WorkerContext(
+
+        context = get_agent_context()
+
+        self.assertTrue("worker_spec", context.to_string())
+
+        context.update_context(
             worker_spec=spec,
             remaining_failovers=2,
             restart_count=3,
             run_result=run_result,
         )
 
-        action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
+        action = agent.diagnose_training_failure()
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
 
         agent._errors = "error code is 507035"
-        action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+        action = agent.diagnose_training_failure()
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+        )
 
         agent._errors = "error code is 11111"
-        wc.remaining_failovers = 0
-        action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+        context.remaining_failovers = 0
+        action = agent.diagnose_training_failure()
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+        )
 
         agent._errors = " #"
-        wc.remaining_failovers = 2
-        action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
-
-    @patch(
-        "dlrover.python.diagnosis.datacollector.training_log_collector"
-        ".read_last_n_lines"
-    )
-    def test_log_collect(self, mock_file_util):
-        mock_file_util.return_value = [
-            "test0",
-            "DLRover agent started with:",
-            "test1",
-        ]
-        training_log_collector = TrainingLogCollector(
-            log_file="test", n_line=3
+        context.remaining_failovers = 2
+        action = agent.diagnose_training_failure()
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
         )
-        result = training_log_collector.collect_data()
-        self.assertTrue("test0" not in result.logs)
-        self.assertTrue("test1" in result.logs)
+
+    def test_worker_training_metric(self):
+        test = WorkerTrainingMetric(
+            data_content="test123",
+            node_id=env_utils.get_node_id(),
+            node_type=env_utils.get_node_type(),
+            node_rank=env_utils.get_node_rank(),
+            is_final_result=True,
+        )
+
+        test_str = test.to_json()
+        self.assertTrue('"data_content": "test123"' in test_str)
+
+        test_new = WorkerTrainingMetric.from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+        test_new = globals().get("WorkerTrainingMetric").from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+        test_new = globals().get(test.__class__.__name__).from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+    def test_send_heartbeat(self):
+        agent = DiagnosisAgent.singleton_instance("", "")
+        context = agent._agent_context
+        agent._client.report_heart_beat = mock.MagicMock(
+            returnValue=NoAction()
+        )
+
+        agent.send_heartbeat()
+        self.assertTrue(
+            context._diagnosis_action_queue.next_action().action_type,
+            DiagnosisActionType.NONE,
+        )
+
+        agent._client.report_heart_beat = mock.MagicMock(
+            returnValue=NodeAction(
+                action_type=DiagnosisActionType.RESTART_WORKER
+            )
+        )
+        agent.send_heartbeat()
+        self.assertTrue(
+            context._diagnosis_action_queue.next_action().action_type,
+            DiagnosisActionType.RESTART_WORKER,
+        )
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ import threading
 import time
 import traceback
 
+from dlrover.python.common.constants import NodeEventType
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.estimator_executor import (
@@ -71,8 +72,8 @@ class TFRayWorker:
             except Exception as e:
                 logger.error(e)
                 detail_trace_back = traceback.format_exc()
-                master_client.update_node_event(
-                    self.task_type, self.task_id, str(detail_trace_back)
+                master_client.report_node_event(
+                    NodeEventType.ERROR, str(detail_trace_back)
                 )
 
         t = threading.Thread(target=run)
@@ -176,8 +177,8 @@ class TFRayWorker:
             self.estimator.train_and_evaluate()
         if self.task_id == 0 and self.task_type == TFConstants.Chief():
             logger.info("training finished since there is no data anymore")
-            master_client.update_node_event(
-                task_type, task_id, "train_success"
+            master_client.report_node_event(
+                NodeEventType.FINISHED, "train_success"
             )
 
     def health_check(self):

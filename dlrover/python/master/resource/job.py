@@ -536,7 +536,7 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         pass
 
     def get_job_resource_plan(self) -> ResourcePlan:
-        """Check wether there are free nodes in the cluster."""
+        """Check whether there are free nodes in the cluster."""
         plan = ResourcePlan()
         worker_config = copy.deepcopy(self._original_worker_resource)
         max_node_num = self._original_worker_resource.count
@@ -554,7 +554,8 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
-        node.config_resource.memory *= 2
+        # no adjustment for now(for allreduce type)
+        pass
 
     def get_config_resource(self):
         job_config = JobResource()

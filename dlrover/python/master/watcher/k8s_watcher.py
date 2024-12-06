@@ -165,10 +165,16 @@ class PodWatcher(NodeWatcher):
     """PodWatcher monitors all Pods of a k8s Job."""
 
     def __init__(self, job_name, namespace):
+        super().__init__(job_name)
         self._job_name = job_name
         self._namespace = namespace
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        logger.info(
+            f"Initialize PodWatcher with "
+            f"namespace: {self._namespace}, "
+            f"job-selector: {self._job_selector}"
+        )
 
     def watch(self):
         resource_version = None
@@ -211,6 +217,7 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             metadata: client.V1ObjectMeta = pod.metadata
+            pod_name = metadata.name
             pod_type = metadata.labels[replica_type_key]
             if pod_type == NodeType.DLROVER_MASTER:
                 continue
@@ -231,7 +238,7 @@ class PodWatcher(NodeWatcher):
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
-                name=metadata.name,
+                name=pod_name,
                 rank_index=task_id,
                 status=status,
                 start_time=start_time,
@@ -241,6 +248,13 @@ class PodWatcher(NodeWatcher):
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
+
+            # delete pod if pod already succeeded(no need for failed pod,
+            # cuz the deletion will be done in relaunch operation)
+            if pod.status.phase == NodeStatus.SUCCEEDED:
+                logger.info(f"Delete succeeded pod: {pod_name}")
+                self._k8s_client.delete_pod(pod_name)
+
         return nodes
 
 

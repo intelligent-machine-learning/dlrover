@@ -11,29 +11,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import os
 import socket
 import threading
 import time
 from contextlib import closing
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
-from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
+from dlrover.python.common.constants import (
+    NetworkFailureReason,
+    NodeEnv,
+    NodeEventType,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_data import (
-    ChipMetrics,
-    CudaLog,
-    TrainingLog,
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
 )
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 
 
 def retry_grpc_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 10)
-        execption = None
+        exception = None
         for i in range(retry):
             try:
                 return func(self, *args, **kwargs)
@@ -43,11 +48,11 @@ def retry_grpc_request(func):
                 logger.warning(
                     f"Retry {i} to {class_name}.{func_name} with failure",
                 )
-                execption = e
+                exception = e
                 time.sleep(5)
-        if execption:
-            logger.error(execption)
-            raise execption
+        if exception:
+            logger.error(exception)
+            raise exception
 
     return wrapper
 
@@ -88,6 +93,10 @@ class MasterClient(Singleton):
         self._node_ip = os.getenv("NODE_IP", "")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = self.find_free_port()
+
+        self._diagnosis_action_module = importlib.import_module(
+            "dlrover.python.diagnosis.common.diagnosis_action"
+        )
 
     def __del__(self):
         if self._channel:
@@ -235,9 +244,27 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
-    def report_heart_beat(self, timestamp):
+    def report_heart_beat(self, timestamp) -> DiagnosisAction:
         message = grpc.HeartBeat(timestamp=timestamp)
-        return self._report(message)
+        response: grpc.HeartbeatResponse = self._get(message)
+        action = NoAction()
+
+        if not response:
+            logger.warning("No response from heartbeat reporting.")
+            return action
+
+        action_cls: Optional[DiagnosisData] = getattr(
+            self._diagnosis_action_module,
+            response.action.action_cls,
+        )
+        if action_cls is None:
+            logger.warning(
+                "Invalid diagnosis action "
+                f"action type: {response.action.action_cls}"
+            )
+        else:
+            action = action_cls.from_json(response.action.action_content)
+        return action
 
     def get_cluster_version(self, version_type, task_type, task_id):
         request = grpc.ClusterVersionRequest(
@@ -253,13 +280,41 @@ class MasterClient(Singleton):
         res = self._report(message)
         return res
 
-    def update_node_event(self, task_type, task_id, event):
+    def report_node_event(
+        self,
+        event_type,
+        event_msg="",
+        event_time=0,
+        event_elapsed_time=0,
+        node_rank=-1,
+    ):
         message = grpc.NodeEvent(
-            event_type="1",
-            message="train_success",
-            node=grpc.NodeMeta(type=task_type, id=task_id),
+            event_type=event_type,
+            event_message=event_msg,
+            event_time=event_time,
+            event_elapsed_time=event_elapsed_time,
+            node=grpc.NodeMeta(
+                type=self._node_type, id=self._node_id, addr=self._node_ip
+            ),
         )
+
+        if node_rank != -1:
+            message.node.rank = node_rank
+
         return self._report(message)
+
+    def report_network_check_status(self, node_rank, status, elapsed_time):
+        return self.report_node_event(
+            event_type=status,
+            event_elapsed_time=elapsed_time,
+            node_rank=node_rank,
+        )
+
+    def report_failed_exited(self):
+        return self.report_node_event(NodeEventType.FAILED_EXITED)
+
+    def report_succeeded_exited(self):
+        return self.report_node_event(NodeEventType.SUCCEEDED_EXITED)
 
     def update_cluster_version(
         self, version_type, version, task_type, task_id
@@ -373,12 +428,6 @@ class MasterClient(Singleton):
         response = self._report(message)
         return response.success
 
-    def report_network_status(self, node_rank, status, elasped_time):
-        message = grpc.NetworkStatus(
-            rank=node_rank, status=status, elasped_time=elasped_time
-        )
-        self._report(message)
-
     def report_failures(self, error_data, restart_count=-1, level=""):
         message = grpc.NodeFailure(error_data, restart_count, level)
         self._report(message)
@@ -386,16 +435,12 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
-    def report_diagnosis_training_log(self, training_log: TrainingLog):
-        message = grpc.DiagnosisTrainingLog(training_log.timestamp)
-        self._report(message)
-
-    def report_diagnosis_chip_metrics(self, chip_metrics: ChipMetrics):
-        message = grpc.DiagnosisChipMetrics(chip_metrics.timestamp)
-        self._report(message)
-
-    def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
-        message = grpc.DiagnosisCudaLog(cuda_log.timestamp)
+    def report_diagnosis_agent_metrics(self, data: DiagnosisData):
+        message = grpc.DiagnosisReportData(
+            data.__class__.__name__,
+            data.to_json(),
+            data.node_rank,
+        )
         self._report(message)
 
     def get_paral_config(self) -> grpc.ParallelConfig:
@@ -427,6 +472,25 @@ class MasterClient(Singleton):
         request = grpc.ElasticRunConfigRequest()
         response: grpc.ElasticRunConfig = self._get(request)
         return response.configs
+
+    def report_event(
+        self,
+        event_type: str = "",
+        instance: str = "",
+        action: str = "",
+        msg: str = "",
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        if labels is None:
+            labels = {}
+        message = grpc.Event(
+            event_type=event_type,
+            instance=instance,
+            action=action,
+            msg=msg,
+            labels=labels,
+        )
+        self._report(message)
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

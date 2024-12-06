@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import socket
+import sys
 import tempfile
 import time
 import uuid
@@ -36,6 +37,7 @@ from typing import (
     Union,
 )
 
+import psutil
 import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
@@ -76,7 +78,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeErrorMessage,
-    NodeStatus,
+    NodeEventType,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -87,11 +89,12 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnoseAction
+from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
+from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
@@ -194,6 +197,11 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
+        logger.info(
+            f"Use {self.accelerator} device for training, "
+            f"cuda is available: {torch.cuda.is_available()}."
+        )
+
         if not self.auto_config:
             return
 
@@ -285,7 +293,7 @@ class MasterRendezvousHandler(RendezvousHandler):
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
-        like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
+        {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
         of it node ID in the world.
         """
@@ -446,6 +454,52 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._diagnose_agent = DiagnosisAgent(
             training_log_file, failure_node_errors
         )
+        self._agent_context = get_agent_context()
+
+    @prof
+    def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        """The ASCEND framework might fork multiple sub-processes, we should
+        stop all the children processes before shutdown the workers
+        """
+        """print out a snapshot of all processes"""
+        env_utils.print_process_list()
+
+        if self._pcontext is not None:
+            pc_pids = set(self._pcontext.pids().values())
+            logger.info(f"try to kill child processes of {pc_pids}")
+            for pid in pc_pids:
+                try:
+                    pp = psutil.Process(pid)
+                    cp = pp.children()
+                    for proc in cp:
+                        logger.info(f"kill sub {proc.pid} of parent {pid}")
+                        os.kill(proc.pid, signal.SIGKILL)
+                except Exception as e:
+                    logger.warning(f"error when kill {pid}: {str(e)}")
+
+        self._shutdown(death_sig=signal.SIGKILL)
+
+        """cleanup orphan processes if exists"""
+        self._stop_orphan_workers(worker_group)
+
+        """print out a snapshot of all processes again"""
+        env_utils.print_process_list()
+
+    @prof
+    def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
+        """How we define the orphan workers
+        1. ppid == 1
+        2. is_worker_process() is True
+        """
+        try:
+            for p in psutil.process_iter():
+                if p.ppid() == 1 and env_utils.is_worker_process(p.pid):
+                    name = " ".join(p.cmdline())
+                    logger.info(f"find orphan workers {p.pid}: {name}")
+                    os.kill(p.pid, signal.SIGKILL)
+        except Exception as e:
+            logger.warning(f"_stop_orphan_workers exception: {e}")
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -485,7 +539,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     spec.master_port,
                 )
 
-        master_addr, master_port = self._get_master_addr_port(store)
+        master_addr, master_port = self._safe_get_master_addr_port(store)
 
         # compatible with torch 2.4
         if not version_less_than_240():
@@ -541,7 +595,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
         master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
         master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
-        return (master_addr, master_port)
+        return master_addr, master_port
+
+    def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        for _ in range(5):
+            try:
+                return self._get_master_addr_port(store)
+            except Exception as e:
+                logger.warning(
+                    f"_get_master_addr_port failed with exception {e}"
+                )
+                time.sleep(10)
+
+        raise ValueError("invalid value in _get_master_addr_port")
 
     def _get_socket_with_port(self) -> socket.socket:
         """Return a free port on localhost.
@@ -777,8 +843,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(timeout)
 
             if self._config.accelerator == Accelerators.ASCEND_NPU:
-                logger.info("stop workers via SIGKILL")
-                self._shutdown(death_sig=signal.SIGKILL)
+                self._stop_workers_ascend(worker_group)
             else:
                 if version_less_than_240():
                     super()._stop_workers(worker_group)
@@ -850,29 +915,34 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info("Async saver stopped.")
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
+                finally:
+                    self._client.report_succeeded_exited()
+                    logger.info("Succeeded and exit.")
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._save_ckpt_to_storage()
 
-                worker_context = WorkerContext(
+                self._agent_context.update_context(
                     worker_spec=self._worker_group.spec,
                     remaining_failovers=self._remaining_failovers,
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
                 try:
-                    action = self._diagnose_agent.diagnose_training_failure(
-                        worker_context
-                    )
+                    action = self._diagnose_agent.diagnose_training_failure()
                 except Exception as e:
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
-                        action = DiagnoseAction.RESTART_WORKER
+                        action = NodeAction(
+                            action_type=DiagnosisActionType.RESTART_WORKER,
+                        )
                     else:
-                        action = DiagnoseAction.RELAUNCH_WORKER
-                self._process_diagnose_action(action)
+                        action = NodeAction(
+                            action_type=DiagnosisActionType.RELAUNCH_WORKER,
+                        )
+                self._process_diagnosis_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
@@ -883,11 +953,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnose_action(self, action: str):
-        if action == DiagnoseAction.RESTART_WORKER:
+    def _process_diagnosis_action(self, action: NodeAction):
+        if action.action_type == DiagnosisActionType.RESTART_WORKER:
             self._remaining_failovers -= 1
             self._restart_workers(self._worker_group)
-        elif action == DiagnoseAction.RELAUNCH_WORKER:
+        elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
             self._stop_workers(self._worker_group)
             self._worker_group.state = WorkerState.FAILED
 
@@ -1082,6 +1152,7 @@ def launch_agent(
     )
 
     shutdown_rdzv = True
+    result = None
     try:
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
 
@@ -1114,6 +1185,14 @@ def launch_agent(
         events.record(agent.get_event_failed())
         raise
     finally:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        client = MasterClient.singleton_instance()
+        if (exc_type is not None) or (
+            result is not None and result.is_failed()
+        ):
+            client.report_failed_exited()
+            logger.info("Failed and exit.")
+
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
         agent.stop_executor()
@@ -1218,8 +1297,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
             )
-            status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_network_status(
+            status = (
+                NodeEventType.NODE_CHECK_SUCCEEDED
+                if result
+                else NodeEventType.NODE_CHECK_FAILED
+            )
+            self._client.report_network_check_status(
                 self._node_rank,
                 status,
                 elapsed_time,
@@ -1259,7 +1342,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             )
             raise RuntimeError("This node is down.")
         elif self._node_rank in stragglers:
-            logger.warn("This node is a straggler!")
+            logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
         return success

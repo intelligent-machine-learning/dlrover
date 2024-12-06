@@ -46,6 +46,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DdpCheckpointSaver,
     FsdpDcpSaver,
     SharedMemoryHandler,
+    TempDirCheckpointSaver,
     _create_shared_memory,
     _traverse_state_dict,
 )
@@ -75,6 +76,28 @@ class SimpleNet(nn.Module):
         return output
 
 
+class SimpleShardingSaver(TempDirCheckpointSaver):
+    def persist_to_storage(
+        self, local_shard_id, ckpt_config: CheckpointConfig
+    ):
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        for sd_name, sd in state_dict.items():
+            if sd_name not in ckpt_config.paths:
+                continue
+            path = ckpt_config.paths[sd_name]
+            torch.save(sd, path)
+
+    def get_tracker_file(self):
+        return os.path.join(self.checkpoint_dir, "tracker.txt")
+
+    def update_tracker_file(self, step):
+        tracker_file = self.get_tracker_file()
+        tracker_dir = os.path.dirname(tracker_file)
+        os.makedirs(tracker_dir, exist_ok=True)
+        with open(tracker_file, "w") as f:
+            f.write(str(step))
+
+
 class SharedMemoryHandlerTest(unittest.TestCase):
     def setUp(self):
         local_rank = 1
@@ -83,9 +106,12 @@ class SharedMemoryHandlerTest(unittest.TestCase):
             CheckpointSharedObjPrefix.META_NAME + str(local_rank), create=True
         )
         self._shm_handler = SharedMemoryHandler(local_rank, host=False)
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
 
     def tearDown(self):
         self._shm_handler.close()
+        self._master.stop()
 
     def test_create_tensor_meta(self):
         value = torch.rand((10, 10), dtype=torch.float32)
@@ -109,10 +135,13 @@ class CheckpointSaverTest(unittest.TestCase):
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
 
     def tearDown(self) -> None:
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        self._master.stop()
 
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
@@ -156,6 +185,22 @@ class CheckpointSaverTest(unittest.TestCase):
             id(master_client),
             id(AsyncCheckpointSaver._saver_instance._master_client),
         )
+
+        # test
+        test_path = "/tmp/test_ckpt"
+        AsyncCheckpointSaver._saver_instance.checkpoint_dir = test_path
+        os.makedirs(test_path, exist_ok=True)
+        os.makedirs(os.path.join(test_path, "td1"), exist_ok=True)
+        with open(
+            os.path.join(test_path, "tf1"), "w", encoding="utf-8"
+        ) as file:
+            file.write("test")
+        AsyncCheckpointSaver._saver_instance._remove_sub_dir_of_target_path(
+            test_path
+        )
+        self.assertTrue(os.path.exists(test_path))
+        self.assertTrue(os.path.exists(os.path.join(test_path, "tf1")))
+        self.assertFalse(os.path.exists(os.path.join(test_path, "td1")))
 
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
@@ -300,8 +345,58 @@ class CheckpointSaverTest(unittest.TestCase):
         )
         saver._report_failure_to_master("test-error")
 
+    def test_dist_make_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "checkpoint.pt"
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+            saver._node_rank = 0
+            saver._dist_make_dir(path)
+            saver._node_rank = 1
+            saver._dist_make_dir(path)
+            self.assertTrue(saver.storage.exists(path))
+            saver.close()
+
+    def test_save_step_checkpoint(self):
+        model = SimpleNet()
+        step = 100
+        shard_num = 2
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver_classes = [SimpleShardingSaver, DdpCheckpointSaver]
+            for saver_class in saver_classes:
+                saver = saver_class(
+                    tmpdir,
+                    self.storage.get_class_meta(),
+                    local_shard_num=shard_num,
+                    global_shard_num=shard_num,
+                )
+                path = Path(tmpdir) / "checkpoint.pt"
+                paths = {CheckpointConstant.MODEL_STATES_NAME: path}
+                for i in range(saver.local_shard_num):
+                    ckpt_config = CheckpointConfig(
+                        step=step, paths=paths, rank=i
+                    )
+                    state_dict = {
+                        CheckpointConstant.MODEL_STATES_NAME: state_dict,
+                        DLROVER_CKPT_CONFIG_KEY: ckpt_config,
+                    }
+                    saver._shm_handlers[i].save_state_dict(state_dict)
+                saver.save_step_checkpoint(step)
+                self.assertTrue(saver._latest_step == step)
+                saver.close()
+
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+
+    def tearDown(self) -> None:
+        self._master.stop()
+
     def test_persist_storage(self):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:

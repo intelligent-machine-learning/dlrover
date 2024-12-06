@@ -15,6 +15,7 @@ import copy
 import time
 
 from dlrover.python.common.constants import (
+    NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
@@ -216,6 +217,7 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
+        self.reported_status: str = ""
 
     def exited(self):
         return self.status in [
@@ -274,6 +276,7 @@ class Node(object):
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
+        new_node.reported_status = ""
         return new_node
 
     def is_unrecoverable_failure(self):
@@ -340,15 +343,47 @@ class Node(object):
         ):
             return True
 
+    def update_reported_status(self, status: str):
+        # no updating if already exited(succeeded or failed)
+        if self.is_exited_reported():
+            return
+        self.reported_status = status
+
+    def is_exited_reported(self):
+        return (
+            self.reported_status == NodeEventType.SUCCEEDED_EXITED
+            or self.reported_status == NodeEventType.FAILED_EXITED
+        )
+
+    def is_succeeded_and_exited(self) -> bool:
+        return self.reported_status == NodeEventType.SUCCEEDED_EXITED
+
+    def is_failed_and_exited(self) -> bool:
+        return self.reported_status == NodeEventType.FAILED_EXITED
+
+    def is_node_check_failed(self):
+        return self.reported_status == NodeEventType.NODE_CHECK_FAILED
+
+    def is_resource_scalable(self):
+        """
+        This is a temp implement:
+            resource is not scalable if resource has gpu
+        """
+
+        if self.config_resource.gpu_num > 0:
+            return False
+        return True
+
     def __repr__(self):
         return (
             f"name:{self.name};"
             f"rank_index:{self.rank_index};"
             f"type:{self.type};"
             f"status:{self.status};"
+            f"reported_status:{self.reported_status};"
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
-            f"priroity:{self.config_resource.priority}"
+            f"priority:{self.config_resource.priority};"
         )
 
     def to_dict(self):
@@ -357,3 +392,8 @@ class Node(object):
         d.pop("config_resource", None)
         d.pop("used_resource", None)
         return d
+
+    def update_from_node(self, node):
+        if self == node:
+            return
+        self.__dict__.update(node.__dict__)

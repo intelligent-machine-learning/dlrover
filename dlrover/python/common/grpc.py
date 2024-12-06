@@ -326,14 +326,11 @@ class NodeAddress(NodeMeta):
 
 
 @dataclass
-class NetworkStatus(NodeMeta):
-    elasped_time: float = 0.0
-
-
-@dataclass
 class NodeEvent(Message):
     event_type: str = ""
-    message: str = ""
+    event_message: str = ""
+    event_time: float = 0.0
+    event_elapsed_time: float = 0.0
     node: NodeMeta = NodeMeta()
 
 
@@ -489,18 +486,10 @@ class NodeCheckpointState(Message):
 
 
 @dataclass
-class DiagnosisTrainingLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisCudaLog(Message):
-    timestamp: int = 0
-
-
-@dataclass
-class DiagnosisChipMetrics(Message):
-    timestamp: int = 0
+class DiagnosisReportData(Message):
+    data_cls: str = ""
+    data_content: str = ""
+    node_rank: int = -1
 
 
 @dataclass
@@ -517,3 +506,23 @@ class ElasticRunConfigRequest(Message):
 @dataclass
 class ElasticRunConfig(Message):
     configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Event(Message):
+    event_type: str = ""
+    instance: str = ""
+    action: str = ""
+    msg: str = ""
+    labels: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class DiagnosisAction(Message):
+    action_cls: str = ""
+    action_content: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)

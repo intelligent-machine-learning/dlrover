@@ -1,3 +1,4 @@
+---
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
@@ -28,8 +29,8 @@ spec:
                 limits:
                   cpu: "8"
                   memory: 16Gi
-                  nvidia.com/gpu: 1 # optional
+                  nvidia.com/gpu: 1  # optional
                 requests:
                   cpu: "4"
                   memory: 16Gi
-                  nvidia.com/gpu: 1 # optional
+                  nvidia.com/gpu: 1  # optional

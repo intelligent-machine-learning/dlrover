@@ -22,11 +22,16 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 
 from dlrover.python.common.multi_process import SOCKET_TMP_DIR
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     CheckpointConfig,
     SharedMemoryHandler,
 )
+from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.flash_checkpoint.replica import (
     FullCkptReplicaManager,
     ShardCkptReplicaManager,
@@ -99,6 +104,11 @@ def run_checkpoint_backup(rank, world_size):
 class CheckpointBackupTest(unittest.TestCase):
     def setUp(self) -> None:
         shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
+        self._master, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 1)
+
+    def tearDown(self) -> None:
+        self._master.stop()
 
     @mock.patch("torch.distributed.new_group")
     @mock.patch("torch.distributed.get_rank")

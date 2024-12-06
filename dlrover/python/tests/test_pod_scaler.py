@@ -40,6 +40,9 @@ class PodScalerTest(unittest.TestCase):
         os.environ["POD_IP"] = "127.0.0.1"
         mock_k8s_client()
 
+    def tearDown(self) -> None:
+        os.environ.clear()
+
     def test_init_pod_template(self):
         error_monitor = SimpleErrorMonitor()
         scaler = PodScaler("elasticjob-sample", "default", error_monitor)
