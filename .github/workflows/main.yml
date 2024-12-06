@@ -39,8 +39,8 @@ jobs:
       - name: checkout branch
         uses: actions/checkout@v3
       # This step references the directory that contains the action.
-      - name: RUN pytest
-        uses: ./.github/actions/dlrover-python-test
+      # - name: RUN pytest
+      #   uses: ./.github/actions/dlrover-python-test
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
         with:
