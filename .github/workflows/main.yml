@@ -37,7 +37,16 @@ jobs:
     steps:
       # This step checks out a copy of your repository.
       - name: checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@main
+
+      - name: setup Python
+        uses: actions/setup-python@main
+        with:
+          python-version: 3.8
+      - name: generate coverage report
+        run: |
+          pip install pytest pytest-cov
+          pytest --cov=./ --cov-report=xml
       # This step references the directory that contains the action.
       # - name: RUN pytest
       #   uses: ./.github/actions/dlrover-python-test
