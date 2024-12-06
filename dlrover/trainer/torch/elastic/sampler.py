@@ -156,13 +156,17 @@ class ElasticDistributedSampler(DistributedSampler):
         # eliminate the impact caused by completed_num potentially
         # not being divisible by num_replicas
         if self.drop_last and self.total_size % self.num_replicas != 0:
-            self.total_size = math.ceil(
-                (self.total_size - self.num_replicas) / self.num_replicas
-            ) * self.num_replicas
+            self.total_size = (
+                math.ceil(
+                    (self.total_size - self.num_replicas) / self.num_replicas
+                )
+                * self.num_replicas
+            )
         else:
-            self.total_size = math.ceil(
-                self.total_size / self.num_replicas
-            ) * self.num_replicas
+            self.total_size = (
+                math.ceil(self.total_size / self.num_replicas)
+                * self.num_replicas
+            )
         logger.info(
             "Load epoch = %s, completed num = %s, num_samples = %s",
             self.epoch,
