@@ -34,7 +34,7 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    TrainingLoopStatus,
+    TrainingLoopStatus, CommunicationType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
@@ -768,12 +768,12 @@ def create_master_service(
     elastic_ps_service,
     sync_service,
     error_monitor=None,
-    service_type=BasicClass.COMM_SERVICE_GRPC,
+    service_type=CommunicationType.COMM_SERVICE_GRPC,
     max_threads=64,
 ):
     logger.info(f"Creating master {service_type} service with port: {port}")
 
-    if service_type == BasicClass.COMM_SERVICE_GRPC:
+    if service_type == CommunicationType.COMM_SERVICE_GRPC:
         server = grpc_lib.server(
             futures.ThreadPoolExecutor(max_workers=max_threads),
             options=[

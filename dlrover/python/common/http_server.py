@@ -21,6 +21,8 @@ from dlrover.python.common.log import default_logger as logger
 
 
 class CustomHTTPServer(abc.ABC):
+    """Self designed http server."""
+
     def __init__(self, address, port, handler_class):
         self._address = address
         self._port = port
@@ -44,8 +46,13 @@ class CustomHTTPServer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def stop(self):
-        """Stop the server."""
+    def stop(self, grace=None):
+        """
+        Stop the server.
+
+        Arg:
+            grace (Optional[float]): Grace period.
+        """
         pass
 
 

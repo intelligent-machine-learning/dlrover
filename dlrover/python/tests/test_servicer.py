@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest import mock
 
-import ray
+# import ray
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
@@ -25,7 +25,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PSClusterVersionType,
-    RendezvousName,
+    RendezvousName, CommunicationType,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
@@ -38,7 +38,8 @@ from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.servicer import GrpcMasterServicer
+from dlrover.python.master.servicer import GrpcMasterServicer, \
+    create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import (
@@ -51,7 +52,68 @@ from dlrover.python.util.queue.queue import RayEventQueue
 ray_event_queue = RayEventQueue.singleton_instance()
 
 
-class MasterServicerTest(unittest.TestCase):
+class MasterServicerBasicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.grpc_servicer = create_master_service(
+            8080,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            service_type=CommunicationType.COMM_SERVICE_GRPC,
+        )
+
+    def tearDown(self) -> None:
+        pass
+
+    def test_http_start_and_stop(self):
+        http_servicer = create_master_service(
+            8081,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            service_type=CommunicationType.COMM_SERVICE_HTTP,
+        )
+        self.assertIsNotNone(http_servicer)
+        self.assertFalse(http_servicer.is_serving())
+
+        http_servicer.start()
+        self.assertTrue(http_servicer.is_serving())
+
+        http_servicer.stop()
+        self.assertFalse(http_servicer.is_serving())
+
+    def test_grpc_start_and_stop(self):
+        grpc_servicer = create_master_service(
+            8081,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            service_type=CommunicationType.COMM_SERVICE_GRPC,
+        )
+        self.assertIsNotNone(grpc_servicer)
+        grpc_servicer.start()
+        grpc_servicer.stop(grace=None)
+
+
+class MasterServicerFunctionalTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
         params = MockK8sPSJobArgs()
