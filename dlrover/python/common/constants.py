@@ -96,6 +96,37 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
+class GpuMetricEnum(object):
+    """
+    it is the metrics enum of nvidia GPU, collected by DCGM
+    """
+
+    GPU_FREE_MEM = "DCGM_FI_DEV_FB_FREE"
+    GPU_USED_MEM = "DCGM_FI_DEV_FB_USED"
+    GPU_UTIL = "DCGM_FI_DEV_GPU_UTIL"
+    GPU_TEMP = "DCGM_FI_DEV_GPU_TEMP"
+    GPU_SM_UTIL = "DCGM_FI_PROF_SM_OCCUPANCY"
+    GPU_SM_ACTIVE = "DCGM_FI_PROF_SM_ACTIVE"
+    GPU_TENSOR_UTIL = "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"
+
+
+class NpuMetricEnum(object):
+    """
+    it is the metrics enum of Ascend NPU, collected by DCMI
+    """
+
+    NPU_TOTAL_MEM = "npu_chip_info_total_memory"
+    NPU_USED_MEM = "npu_chip_info_used_memory"
+    NPU_UTIL = "npu_chip_info_utilization"
+    NPU_TEMP = "npu_chip_info_temperature"
+    NPU_HEALTH_STATE = "npu_chip_info_health_status"
+    NPU_LINK_STATE = "npu_chip_info_link_status"
+    NPU_OPTICAL_STATE = "npu_chip_optical_state"
+    NPU_NETWORK_STATE = "npu_chip_info_network_status"
+    NPU_RDMA_RX = "npu_chip_info_bandwidth_rx"
+    NPU_RDMA_TX = "npu_chip_info_bandwidth_tx"
+
+
 class NodeExitReason(object):
     KILLED = "Deleted"
     OOM = "OOMKilled"
