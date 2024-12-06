@@ -39,17 +39,13 @@ jobs:
       - name: checkout branch
         uses: actions/checkout@main
 
-      - name: setup Python
+      - name: setup python specific version
         uses: actions/setup-python@main
         with:
           python-version: 3.8
-      - name: generate coverage report
-        run: |
-          pip install pytest pytest-cov
-          pytest --cov=./ --cov-report=xml
       # This step references the directory that contains the action.
-      # - name: RUN pytest
-      #   uses: ./.github/actions/dlrover-python-test
+      - name: run pytest
+        uses: ./.github/actions/dlrover-python-test
       - name: Upload code coverage to codecov service
         uses: codecov/codecov-action@v5
         with:
