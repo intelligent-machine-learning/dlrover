@@ -3,11 +3,17 @@ name: main test for the project
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "examples/**"
   workflow_dispatch:
   push:
     branches:
       - master
       - main
+    paths-ignore:
+      - "docs/**"
+      - "examples/**"
 
 jobs:
   pre-commit:
