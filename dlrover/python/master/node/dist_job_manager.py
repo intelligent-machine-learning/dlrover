@@ -1065,16 +1065,22 @@ class DistributedJobManager(JobManager):
             )
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
-        cpu_percent = node.used_resource.cpu / node.config_resource.cpu
-        if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
-            if node.start_hang_time == 0:
-                now = datetime.now()
-                node.start_hang_time = now.timestamp()
+        if node.config_resource.cpu:
+            cpu_percent = node.used_resource.cpu / node.config_resource.cpu
+            if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+                if node.start_hang_time == 0:
+                    now = datetime.now()
+                    node.start_hang_time = now.timestamp()
+            else:
+                if node.start_hang_time > 0:
+                    now = datetime.now()
+                node.start_hang_time = 0
+            self._job_context.update_job_node(node)
         else:
-            if node.start_hang_time > 0:
-                now = datetime.now()
-            node.start_hang_time = 0
-        self._job_context.update_job_node(node)
+            logger.warning(
+                "CPU requests not configure "
+                "and can not determine if the job node is hung"
+            )
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         node = self._job_context.job_node(node_type, node_id)
