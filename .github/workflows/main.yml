@@ -46,7 +46,7 @@ jobs:
       # This step references the directory that contains the action.
       - name: run pytest
         uses: ./.github/actions/dlrover-python-test
-      - name: Upload code coverage to codecov service
+      - name: upload code coverage to codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
