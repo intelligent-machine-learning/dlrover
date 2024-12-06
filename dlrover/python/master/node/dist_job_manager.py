@@ -665,7 +665,7 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.JOB_KEY: self._job_args.job_name,
             ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
-            ElasticJobLabel.REPLICA_INDEX_KEY: node.id
+            ElasticJobLabel.REPLICA_INDEX_KEY: node.id,
         }
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
