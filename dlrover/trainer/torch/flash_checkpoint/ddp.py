@@ -115,3 +115,11 @@ class DdpCheckpointer(Checkpointer):
 
     def load_checkpoint(self, resume_path=""):
         return self._engine.load(resume_path)
+
+    def wait_latest_checkpoint(self, timeout=1800):
+        """
+        Wait for the latest checkpoint.
+        Args:
+            timeout (second): The timeout to wait.
+        """
+        self._engine.wait_latest_checkpoint(timeout)
