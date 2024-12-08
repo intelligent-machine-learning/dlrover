@@ -254,3 +254,11 @@ class DeepSpeedCheckpointer(Checkpointer):
         )
         torch.load = torch_native_load
         return load_path, client_states
+    
+    def wait_latest_checkpoint(self, timeout=1800):
+        """
+        Wait for the latest checkpoint.
+        Args:
+            timeout (second): The timeout to wait.
+        """
+        self._async_save_engine.wait_latest_checkpoint(timeout)

@@ -381,3 +381,11 @@ class FlashCkptTrainer(Trainer):
         with open(tracer_file, "r") as f:
             step = int(f.read())
         return step
+
+    def wait_latest_checkpoint(self, timeout=1800):
+        """
+        Wait for the latest checkpoint.
+        Args:
+            timeout (second): The timeout to wait.
+        """
+        self.flash_checkpointer.async_save_engine.wait_latest_checkpoint(timeout)
