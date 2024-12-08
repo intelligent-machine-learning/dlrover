@@ -247,7 +247,6 @@ def load_checkpoint(
     return iteration
 
 
-
 def wait_latest_checkpoint(timeout=1800):
     """
     Wait for the latest checkpoint.

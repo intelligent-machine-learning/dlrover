@@ -721,4 +721,3 @@ def wait_latest_checkpoint(timeout=1800):
         checkpoint_dir=args.save
     )
     checkpointer.engine.wait_latest_checkpoint(timeout)
-    

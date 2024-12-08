@@ -388,4 +388,6 @@ class FlashCkptTrainer(Trainer):
         Args:
             timeout (second): The timeout to wait.
         """
-        self.flash_checkpointer.async_save_engine.wait_latest_checkpoint(timeout)
+        self.flash_checkpointer.async_save_engine.wait_latest_checkpoint(
+            timeout
+        )

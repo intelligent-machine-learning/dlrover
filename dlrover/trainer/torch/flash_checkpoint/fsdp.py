@@ -147,7 +147,7 @@ class FsdpShardCheckpointer(Checkpointer):
                 )
                 optimizer.load_state_dict(flattened_osd)
             return state_dict
-        
+
     def wait_latest_checkpoint(self, timeout=1800):
         """
         Wait for the latest checkpoint.
@@ -290,7 +290,7 @@ class FsdpFullCheckpointer(Checkpointer):
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optim_state_dict)
         return state_dict
-    
+
     def wait_latest_checkpoint(self, timeout=1800):
         """
         Wait for the latest checkpoint.
