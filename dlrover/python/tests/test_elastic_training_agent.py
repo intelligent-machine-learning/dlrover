@@ -702,7 +702,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         config = ElasticLaunchConfig(1, 1, 1)
         entrypoint = "python"
         args = "--version"
-        node_health_check(config, entrypoint, args)
+        node_health_check(config, entrypoint, args, 2)
         mock_run.assert_called()
 
     @mock.patch.object(NodeCheckElasticAgent, "run")

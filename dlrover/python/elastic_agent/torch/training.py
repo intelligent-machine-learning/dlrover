@@ -455,6 +455,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             training_log_file, failure_node_errors
         )
         self._agent_context = get_agent_context()
+        self._check_round = 2
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
@@ -815,7 +816,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             try:
                 if self._config.network_check:
-                    run_network_check(self._config, self._entrypoint)
+                    run_network_check(self._config, self._entrypoint, self._check_round)
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
@@ -826,6 +827,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info(
                         "Exit elastic-training rendezvous when there are "
                         "agents to join the network-check rendezvous."
+                    )
+                    self._check_round = 1
+                    logger.info(
+                        f"Out-of-sync rendezvous happended for the first time, "
+                        f"set _check_round to {self._check_round}"
+                    )
+                else:
+                    logger.info(
+                        f"Out-of-sync rendezvous happended again "
+                        f"with _check_round as {self._check_round}"
                     )
                 time.sleep(_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
@@ -1461,13 +1472,14 @@ def node_health_check(
     config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
+    check_round: int,
 ) -> bool:
     agent = _create_check_agent(
         config,
         entrypoint,
         args,
         RendezvousName.NETWORK_CHECK,
-        check_round=2,
+        check_round=check_round,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
@@ -1496,7 +1508,7 @@ def comm_perf_check(
     return result
 
 
-def run_network_check(config: ElasticLaunchConfig, entrypoint):
+def run_network_check(config: ElasticLaunchConfig, entrypoint, check_round):
     if config.accelerator == Accelerators.NVIDIA_GPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
@@ -1509,7 +1521,10 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         # will retry to check network after the new node is starting.
         # DLRover will replace the abnormal node with a new node.
         success = node_health_check(
-            config=config, entrypoint=entrypoint, args=cmd_args
+            config=config,
+            entrypoint=entrypoint,
+            args=cmd_args,
+            check_round=check_round,
         )
         if success:
             break
