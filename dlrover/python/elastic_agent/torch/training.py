@@ -106,6 +106,11 @@ from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
 )
+from dlrover.python.util.numa_util import (
+    get_gpu_affinity,
+    get_npu_affinity,
+)
+
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -177,6 +182,7 @@ class ElasticLaunchConfig(LaunchConfig):
     tee: Union[Std, Dict[int, Std]] = Std.NONE
     training_log_file: str = ""
     failure_node_errors: str = ""
+    numa_affinity: bool = False
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -455,6 +461,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
             training_log_file, failure_node_errors
         )
         self._agent_context = get_agent_context()
+        self._rank_cpu_affinity = {}
+        if self._config.numa_affinity:
+            for rank in range(self._config.nproc_per_node):
+                if self._config.accelerator == Accelerators.ASCEND_NPU:
+                    self._rank_cpu_affinity[rank] = get_npu_affinity(rank)
+                else:
+                    self._rank_cpu_affinity[rank] = get_gpu_affinity(rank)
+                logger.info(
+                    f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
+                )
+
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
@@ -883,6 +900,22 @@ class ElasticTrainingAgent(LocalElasticAgent):
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
 
+        # set workers numa-affinity if necessary
+        if self._config.numa_affinity:
+            for local_rank, pid in self._pcontext.pids():
+                if self._rank_cpu_affinity[local_rank] is not None:
+                    try:
+                        os.sched_setaffinity(
+                            pid,
+                            self._rank_cpu_affinity[local_rank]
+                        )
+                        logger.info(
+                            f'set rank {local_rank} affinity: '
+                            f'{self._rank_cpu_affinity[local_rank]}'
+                        )
+                    except Exception as e:
+                        logger.warning(f'{e}')
+
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -1126,6 +1159,7 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
         f"  training_log     : {config.training_log_file}\n"
         f"  failure_errors   : {config.failure_node_errors}\n"
+        f"  numa_affinity    : {config.numa_affinity}\n"
     )
 
     _set_paral_config()
