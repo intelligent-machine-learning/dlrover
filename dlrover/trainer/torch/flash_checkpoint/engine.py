@@ -191,6 +191,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
+        self.latest_step = 0
         self._save_timeout = save_timeout
         self._local_rank = env_utils.get_local_rank()
         self._cached_step = -1
@@ -410,6 +411,27 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "from the replica in the memory of the alive node."
             )
         dist.barrier()
+
+    def wait_latest_checkpoint(self, timeout=1800):
+        """
+        Wait for the saver finish persisting the checkpoint of latest step.
+        """
+        start = time.time()
+        while True:
+            tracker_file = os.path.join(
+                self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(tracker_file, "r") as f:
+                step = int(f.read())
+                if step == self.latest_step:
+                    break
+            if time.time() - start > timeout:
+                logger.info(
+                    f"Timeout ({timeout})s to wait for "
+                    "the latest step checkpoint."
+                )
+                break
+            time.sleep(3)
 
     @abstractmethod
     def get_saving_ranks(self):

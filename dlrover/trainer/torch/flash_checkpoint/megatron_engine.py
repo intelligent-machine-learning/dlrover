@@ -237,16 +237,19 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        succeed = True
+        success = True
         if step > self._cached_step:
-            succeed = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths)
 
         if dist.is_initialized():
             dist.barrier()
 
-        if succeed and self._local_rank == 0:
+        if success and self._local_rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+
+        if success:
+            self.latest_step = step
 
     def get_local_shard_num(self):
         local_world_size = env_utils.get_local_world_size()

@@ -708,3 +708,16 @@ def get_checkpoint_storage(deletion_strategy=None):
     else:
         storage = PosixDiskStorage()
     return storage
+
+
+def wait_latest_checkpoint(timeout=1800):
+    """
+    Wait for the latest checkpoint.
+    Args:
+        timeout (second): The timeout to wait.
+    """
+    args = get_args()
+    checkpointer = MegatronDistCheckpointer.singleton_instance(
+        checkpoint_dir=args.save
+    )
+    checkpointer.engine.wait_latest_checkpoint(timeout)

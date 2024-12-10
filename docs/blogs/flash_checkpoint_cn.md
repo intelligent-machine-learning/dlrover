@@ -107,6 +107,11 @@ if iter_num % save_storage_interval == 0:
 ckpt_dict = checkpointer.load_checkpoint()
 model.load_state_dict(ckpt_dict["model"])
 optimizer.load_state_dict(ckpt_dict["optimizer"]
+
+# Wait for the latest checkpoint before exit. The process to asynchronously
+# persist the checkpoint from the memory to the storage will exist if the
+# main process exits.
+checkpointer.wait_latest_checkpoint(timeout=1800)
 ```
 
 #### FSDP
@@ -141,6 +146,11 @@ with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
         checkpointer.save_checkpoint(
             step, state_dict, ckpt_dir, storage_type=StorageType.DISK
         )
+
+# Wait for the latest checkpoint before exit. The process to asynchronously
+# persist the checkpoint from the memory to the storage will exist if the
+# main process exits.
+checkpointer.wait_latest_checkpoint(timeout=1800)
 ```
 
 加载 Checkpoint 的 API 与 PyTorch 的  Distributed Checkpoint API 保持一致，只需要将
