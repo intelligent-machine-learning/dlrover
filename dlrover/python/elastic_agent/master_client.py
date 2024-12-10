@@ -46,7 +46,7 @@ def retry_grpc_request(func):
                 class_name = self.__class__.__name__
                 func_name = func.__name__
                 logger.warning(
-                    f"Retry {i} to {class_name}.{func_name} with failure",
+                    f"Retry {i} to {class_name}.{func_name} with failure {e}",
                 )
                 exception = e
                 time.sleep(5)
