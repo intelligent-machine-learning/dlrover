@@ -127,6 +127,23 @@ class MockK8sAllreduceJobArgs(JobArgs):
         self.distribution_strategy = DistributionStrategy.ALLREDUCE
 
 
+class MockK8sJobWithoutCPURequestArgs(JobArgs):
+    def __init__(self):
+        super(MockK8sJobWithoutCPURequestArgs, self).__init__(
+            PlatformType.KUBERNETES, "default", "test"
+        )
+
+    def initilize(self, worker_count=16):
+        worker_resource = NodeGroupResource(
+            worker_count, NodeResource(0, 0, "a100", 8)
+        )
+        self.node_args[NodeType.WORKER] = NodeArgs(
+            worker_resource, True, 3, 0, ""
+        )
+        self.job_uuid = "11111"
+        self.distribution_strategy = DistributionStrategy.ALLREDUCE
+
+
 class MockRayJobArgs(JobArgs):
     def __init__(self):
         super(MockRayJobArgs, self).__init__(
