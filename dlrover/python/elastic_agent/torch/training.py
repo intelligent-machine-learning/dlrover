@@ -816,7 +816,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             try:
                 if self._config.network_check:
-                    run_network_check(self._config, self._entrypoint, self._check_round)
+                    run_network_check(
+                        self._config, self._entrypoint, self._check_round
+                    )
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
@@ -830,7 +832,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                     self._check_round = 1
                     logger.info(
-                        f"Out-of-sync rendezvous happended for the first time, "
+                        f"Out-of-sync rendezvous happened, "
                         f"set _check_round to {self._check_round}"
                     )
                 else:
