@@ -534,20 +534,22 @@ class FsdpCheckpointEngine(CheckpointEngine):
             state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the storage path to save the state dict.
         """
-        succeed = True
+        success = True
         if step > self._cached_step:
-            succeed = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths)
 
         if dist.is_initialized():
             dist.barrier()
 
         # Only local rank 0 on each node notifies the event to save.
-        if self._local_rank == 0 and succeed:
+        if self._local_rank == 0 and success:
             logger.info(
                 "Put a save event to notify the agent persists checkpoint."
             )
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+        if success:
+            self.latest_step = step
 
     def get_saver_class(self):
         """
