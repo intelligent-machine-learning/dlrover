@@ -102,15 +102,11 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
 )
-from dlrover.python.util.numa_util import (
-    get_gpu_affinity,
-    get_npu_affinity,
-)
-
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -469,9 +465,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     self._rank_cpu_affinity[rank] = get_gpu_affinity(rank)
                 logger.info(
-                    f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
+                    f"get rank {rank} affinity: "
+                    f"{self._rank_cpu_affinity[rank]}"
                 )
-
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
@@ -877,6 +873,41 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _stop_timeout_handler(self, signum, frame):
         raise TimeoutError("Timed out waiting for stopping workers.")
 
+    def _set_numa_affinity(self):
+        """set numa affinity to workers processes,
+        as well as its children processes
+        """
+        for local_rank, pid in self._pcontext.pids().items():
+            if self._rank_cpu_affinity[local_rank] is not None:
+                try:
+                    os.sched_setaffinity(
+                        pid, self._rank_cpu_affinity[local_rank]
+                    )
+                    logger.info(
+                        f"set rank {local_rank} worker {pid} affinity: "
+                        f"{self._rank_cpu_affinity[local_rank]}"
+                    )
+                    pp = psutil.Process(pid)
+                    cp = pp.children(recursive=True)
+
+                    for p in cp:
+                        os.sched_setaffinity(
+                            p, self._rank_cpu_affinity[local_rank]
+                        )
+                        logger.info(
+                            f"set rank {local_rank} child {p} affinity: "
+                            f"{self._rank_cpu_affinity[local_rank]}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"set rank {local_rank} affinity failed: {e} "
+                        f"{self._rank_cpu_affinity[local_rank]}"
+                    )
+            else:
+                logger.warning(
+                    f"rank {local_rank} worker {pid} invalid affinity"
+                )
+
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
         self.sync_training_ports()
@@ -902,19 +933,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         # set workers numa-affinity if necessary
         if self._config.numa_affinity:
-            for local_rank, pid in self._pcontext.pids():
-                if self._rank_cpu_affinity[local_rank] is not None:
-                    try:
-                        os.sched_setaffinity(
-                            pid,
-                            self._rank_cpu_affinity[local_rank]
-                        )
-                        logger.info(
-                            f'set rank {local_rank} affinity: '
-                            f'{self._rank_cpu_affinity[local_rank]}'
-                        )
-                    except Exception as e:
-                        logger.warning(f'{e}')
+            self._set_numa_affinity()
 
         while True:
             assert self._worker_group.state != WorkerState.INIT
