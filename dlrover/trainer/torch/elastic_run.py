@@ -191,6 +191,12 @@ def parse_args(args):
         default=60000,
         help="The start of training port.",
     )
+    parser.add_argument(
+        "--numa-affinity",
+        "--numa_affinity",
+        action=check_env,
+        help="bool, set workers processes cpu numa affinity or not",
+    )
     return parser.parse_args(args)
 
 
@@ -317,6 +323,11 @@ def _elastic_config_from_args(
         logger.info("Enable network checking by master")
         elastic_config.network_check = True
 
+    elastic_config.numa_affinity = getattr(args, "numa_affinity", False)
+    if master_config.numa_affinity:
+        logger.info("Enable numa affinity by master")
+        elastic_config.numa_affinity = True
+
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
     if master_config.comm_perf_test:
         logger.info("Enable comm_perf_test by master")
@@ -390,6 +401,10 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
     elastic_config.save_at_breakpoint = False
     if "save_at_breakpoint" in master_configs:
         elastic_config.save_at_breakpoint = True
+
+    elastic_config.numa_affinity = False
+    if "numa_affinity" in master_configs:
+        elastic_config.numa_affinity = True
 
     return elastic_config
 
