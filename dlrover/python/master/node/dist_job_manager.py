@@ -750,6 +750,7 @@ class DistributedJobManager(JobManager):
                 host_ip=event.node.host_ip,
                 restart_training=event.node.restart_training,
                 relaunch_count=event.node.relaunch_count,
+                is_released=event.node.is_released,
             )
             self._job_context.update_job_node(cur_node)
 
