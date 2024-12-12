@@ -120,6 +120,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         if self._local_rank == 0 and success:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+        if success:
+            self.latest_step = step
         return success
 
     def get_local_shard_num(self):
