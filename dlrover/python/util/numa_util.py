@@ -26,6 +26,27 @@ def get_npu_pci_bus(rank):
     Returns:
         NPU pci bus info, None if failed
     """
+    """ e.g.
+    NPU ID                         : 0
+        Product Name                   : xxxxxxxxxx
+        Model                          : NA
+        Manufacturer                   : xxxxxx
+        Serial Number                  : xxxxxxxxxxx
+        Software Version               : xxxxxxx
+        Firmware Version               : xxxxxxxxxx
+        Compatibility                  : OK
+        Board ID                       : 0x65
+        PCB ID                         : A
+        BOM ID                         : 1
+        PCIe Bus Info                  : 0000:5A:00.0
+        Slot ID                        : 0
+        Class ID                       : NA
+        PCI Vendor ID                  : xxxx
+        PCI Device ID                  : xxxx
+        Subsystem Vendor ID            : xxxx
+        Subsystem Device ID            : xxxx
+        Chip Count                     : 1
+    """
     cmd = ["npu-smi", "info", "-t", "board", "-i", "{}".format(rank)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode == 0:
@@ -60,6 +81,9 @@ def get_gpu_pci_bus(rank):
 
     Returns:
         GPU pci bus info, None if failed
+    """
+    """ e.g.
+    00000000:18:00.0
     """
     cmd = [
         "nvidia-smi",
