@@ -39,6 +39,10 @@ from dlrover.python.common.grpc import (
     ParallelConfig,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NoAction,
+)
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -70,6 +74,7 @@ from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,
+    MockK8sJobWithoutCPURequestArgs,
     MockK8sPSJobArgs,
     create_pod,
     create_task_manager,
@@ -675,6 +680,34 @@ class DistributedJobManagerTest(unittest.TestCase):
         hang = manager.all_running_node_hanged()
         self.assertFalse(hang)
 
+    def test_no_cpu_request_node_hang(self):
+        params = MockK8sJobWithoutCPURequestArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+
+        job_nodes = self.job_context.job_nodes()
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.5, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+        for _, nodes in job_nodes.items():
+            for _, node in nodes.items():
+                node.start_hang_time = time.time() - 3600 * 4
+                node.status = NodeStatus.RUNNING
+                self.job_context.update_job_node(node)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertTrue(hang)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.5, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertTrue(hang)
+
     def test_early_stop_part1(self):
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -819,7 +852,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
-        self.assertIn("diagnose_job", active_threads_name)
+        self.assertIn("job_diagnosing", active_threads_name)
         manager.stop()
 
     def test_concurrency_heart_beat_collecting(self):
@@ -868,6 +901,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(get_pending_timeout(), 600)
         # reset
         _dlrover_context.seconds_to_wait_pending_pod = 900
+
+    @patch.object(DistributedJobManager, "_report_event")
+    def test_process_diagnosis_action(self, mock_method):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        manager._process_diagnosis_action(None)
+        self.assertEqual(mock_method.call_count, 0)
+
+        manager._process_diagnosis_action(NoAction)
+        self.assertEqual(mock_method.call_count, 0)
+
+        manager._process_diagnosis_action(EventAction())
+        self.assertEqual(mock_method.call_count, 1)
 
 
 class LocalJobManagerTest(unittest.TestCase):

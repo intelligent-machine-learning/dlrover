@@ -10,14 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
+from dlrover.python.common.serialize import JsonSerializable
+
 
 @dataclass
-class NodeTopologyMeta(object):
+class NodeTopologyMeta(JsonSerializable):
     node_id: int = 0
     node_rank: int = 0
     process_num: int = 0

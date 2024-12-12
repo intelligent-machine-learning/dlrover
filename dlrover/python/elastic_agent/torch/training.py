@@ -1385,7 +1385,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             )
             raise RuntimeError("This node is down.")
         elif self._node_rank in stragglers:
-            logger.warn("This node is a straggler!")
+            logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
         return success

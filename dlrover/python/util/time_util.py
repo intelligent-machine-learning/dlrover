@@ -14,18 +14,18 @@
 from datetime import datetime, timedelta
 
 
-def has_expired(timestamp: float, time_period: float) -> bool:
+def has_expired(timestamp: int, time_period: int) -> bool:
     """
     Check if a give timestamp has expired
 
     Args:
-        timestamp: data timestamp
+        timestamp: data timestamp in seconds
         time_period: expire time period in seconds
     Return:
         indicate if the timestamp has expired
     """
     dt = datetime.fromtimestamp(timestamp)
-    expired_dt = dt + timedelta(milliseconds=time_period * 1000)
+    expired_dt = dt + timedelta(seconds=time_period)
     return expired_dt < datetime.now()
 
 

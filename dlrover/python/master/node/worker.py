@@ -156,7 +156,7 @@ class WorkerManager(TrainingNodeManager):
         """Launch up_num workers."""
         plan = ScalePlan()
         for _ in range(up_num):
-            worker_id = next(self._node_id_iter)
+            worker_id = self.get_next_node_id()
             task_id = next(self._node_rank_iter)
             worker_resource = self._job_resource.get_node_group_resource(
                 NodeType.WORKER
@@ -248,7 +248,7 @@ class WorkerManager(TrainingNodeManager):
             old_node.migrated = True
             old_node.relaunchable = False
             old_node.is_released = True
-            node_id = next(self._node_id_iter)
+            node_id = self.get_next_node_id()
             task_id = old_node.rank_index
             new_node = Node(
                 NodeType.WORKER,

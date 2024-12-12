@@ -1,2 +1,0 @@
-from .outer_optim_model_averager import OuterOptimPeriodicModelAverager
-from .stateful_post_localSGD_optimizer import StatefulPostLocalSGDOptimizer
