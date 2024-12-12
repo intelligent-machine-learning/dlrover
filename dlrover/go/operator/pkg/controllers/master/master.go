@@ -38,6 +38,7 @@ const (
 	defaultImagePullPolicy     = "Always"
 	envMasterAddrKey           = "DLROVER_MASTER_ADDR"
 	envBrainServiceAddrKey     = "DLROVER_BRAIN_SERVICE_ADDR"
+	defaultBrainServiceAddr    = "dlrover-brain.dlrover.svc.cluster.local:50001"
 	envPodIP                   = "POD_IP"
 
 	// ReplicaTypeJobMaster is the type for DLRover ElasticJob Master replica.
@@ -60,8 +61,12 @@ func (m *Manager) newJobMaster(
 	)
 	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeJobMaster)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
-	if job.Spec.BrainService != "" {
-		setBrainServiceIntoContainer(&pod.Spec.Containers[0], job.Spec.BrainService)
+	if job.Spec.OptimizeMode == "cluster" {
+		brainServiceAddr := defaultBrainServiceAddr
+		if job.Spec.BrainService != "" {
+			brainServiceAddr = job.Spec.BrainService
+		}
+		setBrainServiceIntoContainer(&pod.Spec.Containers[0], brainServiceAddr)
 	}
 	return pod
 }
