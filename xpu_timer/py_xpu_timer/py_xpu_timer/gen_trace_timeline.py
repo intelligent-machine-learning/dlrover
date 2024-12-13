@@ -1,3 +1,16 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import sys
 from argparse import ArgumentParser
@@ -7,7 +20,10 @@ from typing import Dict, List
 
 from py_xpu_timer import hosting_service_pb2  # type: ignore[attr-defined]
 from py_xpu_timer import hook_pb2
-from py_xpu_timer.perfetto_trace_pb2 import Trace, TrackEvent  # type: ignore[attr-defined]
+from py_xpu_timer.perfetto_trace_pb2 import (  # type: ignore[attr-defined]
+    Trace,
+    TrackEvent,
+)
 from py_xpu_timer.util import GetRankHelper, parallel_job
 from tqdm import tqdm
 
@@ -26,7 +42,11 @@ class TracingData:
     COMPUTE_LINE = 1
     IO_LINE = 2
     HOST_LINE = 0
-    global_line_offset: Dict[str, int] = {"compute": COMPUTE_LINE, "io": IO_LINE, "host": HOST_LINE}
+    global_line_offset: Dict[str, int] = {
+        "compute": COMPUTE_LINE,
+        "io": IO_LINE,
+        "host": HOST_LINE,
+    }
     local_line_offset: Dict[str, int] = {
         "matmul": COMPUTE_LINE,
         "nccl": IO_LINE,
@@ -74,9 +94,19 @@ class TracingData:
     timeline_version = 2
 
     @staticmethod
-    def parse_one_host_trace_data(packet, rank, host_traces, header_uuid, base_uuid, group_index, launchtime_data):
+    def parse_one_host_trace_data(
+        packet,
+        rank,
+        host_traces,
+        header_uuid,
+        base_uuid,
+        group_index,
+        launchtime_data,
+    ):
         host = packet.add()
-        host.track_descriptor.uuid = base_uuid + TracingData.global_line_offset["host"]
+        host.track_descriptor.uuid = (
+            base_uuid + TracingData.global_line_offset["host"]
+        )
         host.track_descriptor.parent_uuid = header_uuid
         host.track_descriptor.thread.pid = group_index
         host.track_descriptor.thread.tid = host.track_descriptor.uuid
@@ -84,7 +114,9 @@ class TracingData:
         for host_trace in host_traces:
             uuid = host.track_descriptor.uuid
             start = packet.add()
-            iid = TracingData.tracing_code_to_interned_data[host_trace.name.replace("@", ".")]
+            iid = TracingData.tracing_code_to_interned_data[
+                host_trace.name.replace("@", ".")
+            ]
             start_ns = host_trace.start_us * 1000
             dur_in_ns = host_trace.dur_us * 1000
 
@@ -147,14 +179,18 @@ class TracingData:
         packet = trace.packet
         base_uuid = header_uuid + (rank + 1) * 10000
         compute = packet.add()
-        compute.track_descriptor.uuid = base_uuid + TracingData.global_line_offset["compute"]
+        compute.track_descriptor.uuid = (
+            base_uuid + TracingData.global_line_offset["compute"]
+        )
         compute.track_descriptor.parent_uuid = header_uuid
         compute.track_descriptor.thread.pid = group_index
         compute.track_descriptor.thread.tid = compute.track_descriptor.uuid
         compute.track_descriptor.thread.thread_name = f"rank {rank} compute"
 
         coll = packet.add()
-        coll.track_descriptor.uuid = base_uuid + TracingData.global_line_offset["io"]
+        coll.track_descriptor.uuid = (
+            base_uuid + TracingData.global_line_offset["io"]
+        )
         coll.track_descriptor.parent_uuid = header_uuid
         coll.track_descriptor.thread.pid = group_index
         coll.track_descriptor.thread.tid = coll.track_descriptor.uuid
@@ -179,7 +215,11 @@ class TracingData:
                 tracing.parse_pb(packet, base_uuid, matmul_debug_info)
                 if launchtime:
                     launchtime_data.append(
-                        (tracing.start_us - tracing.delay_us, 10, tracing.flow_id)
+                        (
+                            tracing.start_us - tracing.delay_us,
+                            10,
+                            tracing.flow_id,
+                        )
                     )  # 10 is for launch duration, fake to 10us
             if hasattr(timeline_traces, "host_traces"):
                 TracingData.parse_one_host_trace_data(
@@ -191,9 +231,14 @@ class TracingData:
                     group_index,
                     launchtime_data,
                 )
-        return trace.SerializeToString(), (timeline_traces.rank, matmul_debug_info)
+        return trace.SerializeToString(), (
+            timeline_traces.rank,
+            matmul_debug_info,
+        )
 
-    def __init__(self, path, each_trace, debug_data=None, rank=None, launchtime=False):
+    def __init__(
+        self, path, each_trace, debug_data=None, rank=None, launchtime=False
+    ):
         abs_path = str(path.absolute())
         naming_dict: Dict[int, str] = {}
         with open(abs_path + ".meta") as f:
@@ -242,7 +287,9 @@ class TracingData:
                 annotation.uint_value = value
             cublas_api = debug_annotations.add()
             cublas_api.name_iid = 13
-            cublas_api.string_value_iid = TracingData.debug_annotation_string_values[self.debug_data.api]
+            cublas_api.string_value_iid = (
+                TracingData.debug_annotation_string_values[self.debug_data.api]
+            )
 
             cublas_algo = debug_annotations.add()
             cublas_algo.name_iid = 21  # cublas algo
@@ -259,7 +306,9 @@ class TracingData:
             tflops = debug_annotations.add()
             tflops.name_iid = 10  # tflops
             tflops.double_value = round(flop / self.dur / 1e6, 2)
-            matmul_debug_info[self.debug_data.SerializeToString()].append(tflops.double_value)
+            matmul_debug_info[self.debug_data.SerializeToString()].append(
+                tflops.double_value
+            )
 
         elif isinstance(self.debug_data, hook_pb2.FaDebugData):
             for field, value in zip("bssh", self.debug_data.shapes):
@@ -270,16 +319,22 @@ class TracingData:
         elif isinstance(self.debug_data, hook_pb2.GroupedMatmulDebugData):
             tflops = debug_annotations.add()
             tflops.name_iid = 10
-            tflops.double_value = round(self.debug_data.tflops / self.dur / 1e6, 2)
+            tflops.double_value = round(
+                self.debug_data.tflops / self.dur / 1e6, 2
+            )
 
         elif isinstance(self.debug_data, hook_pb2.NcclDebugData):
             grids = debug_annotations.add()
             grids.name_iid = 8  # grids
-            grids.string_value = f"[{','.join(map(str,self.debug_data.grids))}]"
+            grids.string_value = (
+                f"[{','.join(map(str,self.debug_data.grids))}]"
+            )
 
             blocks = debug_annotations.add()
             blocks.name_iid = 7  # block
-            blocks.string_value = f"[{','.join(map(str,self.debug_data.blocks))}]"
+            blocks.string_value = (
+                f"[{','.join(map(str,self.debug_data.blocks))}]"
+            )
 
             comm_hash = debug_annotations.add()
             comm_hash.name_iid = 3  # hash
@@ -307,12 +362,18 @@ class TracingData:
 
             bandwidth = debug_annotations.add()
             bandwidth.name_iid = 24  # GiB/s
-            bandwidth.double_value = round(self.debug_data.problem_size / (1 << 30) / self.dur * 1e6, 2)
+            bandwidth.double_value = round(
+                self.debug_data.problem_size / (1 << 30) / self.dur * 1e6, 2
+            )
 
             if self.debug_data.send_recv_type != 0:
                 send_recv_type = debug_annotations.add()
                 send_recv_type.name_iid = 28
-                send_recv_type.string_value = "NcclSend" if self.debug_data.send_recv_type == 1 else "NcclRecv"
+                send_recv_type.string_value = (
+                    "NcclSend"
+                    if self.debug_data.send_recv_type == 1
+                    else "NcclRecv"
+                )
 
         elif isinstance(self.debug_data, hook_pb2.MemoryDebugData):
             direction = debug_annotations.add()
@@ -320,7 +381,9 @@ class TracingData:
             direction.string_value = self.debug_data.direction
             bandwidth = debug_annotations.add()
             bandwidth.name_iid = 24  # GiB/s
-            bandwidth.double_value = round(self.debug_data.size / (1 << 30) / self.dur * 1e6, 2)
+            bandwidth.double_value = round(
+                self.debug_data.size / (1 << 30) / self.dur * 1e6, 2
+            )
             copy_bytes = debug_annotations.add()
             copy_bytes.name_iid = 25  # bytes
             copy_bytes.uint_value = self.debug_data.size
@@ -332,7 +395,9 @@ class TracingData:
         start = packet.add()
         self.iid = TracingData.tracing_code_to_interned_data[self.name]
         self.start = self.start_us * 1000
-        dur_in_ns = (self.dur - 10) * 1000 if self.dur > 100 else self.dur * 1000
+        dur_in_ns = (
+            (self.dur - 10) * 1000 if self.dur > 100 else self.dur * 1000
+        )
 
         start.timestamp = self.start
         start.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
@@ -362,7 +427,9 @@ class TracingData:
         rank_annotation.uint_value = self.rank
 
         if self.debug_data is not None:
-            self.add_annotation(start.track_event.debug_annotations, matmul_debug_info, packet)
+            self.add_annotation(
+                start.track_event.debug_annotations, matmul_debug_info, packet
+            )
 
         end = packet.add()
         end.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
@@ -379,7 +446,9 @@ class TracingData:
             self.flow_id = (high_bits | low_bits) & ((1 << 64) - 1)
         elif self.kernel_type == "matmul":
             # self.trace_id is small than 0xFFFFFFFF
-            self.flow_id = (self.kernel_code << 32 | self.trace_id) & ((1 << 64) - 1)
+            self.flow_id = (self.kernel_code << 32 | self.trace_id) & (
+                (1 << 64) - 1
+            )
         else:
             self.flow_id = -1
 
@@ -412,12 +481,19 @@ def add_interned_data(trace):
     trace_header.sequence_flags = 3
 
 
-def serialize_to_file_in_chunks(protobuf_message, file_path, chunk_size=1024 * 1024):
+def serialize_to_file_in_chunks(
+    protobuf_message, file_path, chunk_size=1024 * 1024
+):
     print("Serizlize tarce to bytes, it's slow...")
     serialized_data = protobuf_message.SerializeToString()
     total_size = len(serialized_data)
     with open(file_path, "wb") as f:
-        with tqdm(total=total_size, unit="B", unit_scale=True, desc=f"Serializing to {file_path}") as progress_bar:
+        with tqdm(
+            total=total_size,
+            unit="B",
+            unit_scale=True,
+            desc=f"Serializing to {file_path}",
+        ) as progress_bar:
             for i in range(0, total_size, chunk_size):
                 end = min(i + chunk_size, total_size)
                 f.write(serialized_data[i:end])
@@ -433,7 +509,9 @@ def parse_group(group_name, timelines, group_index, add_iternal, fd, args):
     header.track_descriptor.process.pid = group_index
     header.track_descriptor.process.process_name = group_name
 
-    args = [(path, header_uuid, group_index, args.launchtime) for path in timelines]
+    args = [
+        (path, header_uuid, group_index, args.launchtime) for path in timelines
+    ]
     TracingData.parse_one_trace_data(args[0])
     sub_traces_matmul_info = parallel_job(
         TracingData.parse_one_trace_data,
@@ -453,7 +531,9 @@ def parse_group(group_name, timelines, group_index, add_iternal, fd, args):
         all_matmul_info.mm_infos[rank].CopyFrom(mm_infos)
 
     fd.write(trace.SerializeToString())
-    for sub_trace, matmul_info in tqdm(sub_traces_matmul_info, desc=f"Write {group_name}"):
+    for sub_trace, matmul_info in tqdm(
+        sub_traces_matmul_info, desc=f"Write {group_name}"
+    ):
         if matmul_info is not None:
             parse_matmul_info(matmul_info)
         if add_iternal:
@@ -480,7 +560,9 @@ def parse_timeline_stack(tracestack_path):
             timeline.ParseFromString(f.read())
         return timeline
 
-    timelines = [parse_single(p) for p in path.glob("*tracing_kernel_callstack")]
+    timelines = [
+        parse_single(p) for p in path.glob("*tracing_kernel_callstack")
+    ]
     result = {}
     for timeline in timelines:
         for kernel_name, frames in timeline.named_frames.items():
@@ -506,18 +588,30 @@ def parse_timeline_stack(tracestack_path):
 def generate_perfetto_trace(args):
     timeline_dir = args.path
     files = Path(timeline_dir)
-    timeline_dict = {i: f for i, f in enumerate(sorted(list(files.glob("*timeline"))))}
+    timeline_dict = {
+        i: f for i, f in enumerate(sorted(list(files.glob("*timeline"))))
+    }
     if not timeline_dict:
-        print("There are no timeline files, exit...", file=sys.stderr, flush=True)
+        print(
+            "There are no timeline files, exit...", file=sys.stderr, flush=True
+        )
         exit(1)
     groups_dict = {}
     if args.groups:
         # args.groups: tp4-cp2-dp4-pp2
-        groups_dict = OrderedDict((pair[:2], int(pair[2:])) for pair in args.groups.split("-"))
+        groups_dict = OrderedDict(
+            (pair[:2], int(pair[2:])) for pair in args.groups.split("-")
+        )
     else:
         groups_dict["dp"] = len(timeline_dict)
     rank_helper = GetRankHelper(groups_dict)
-    timelines = {group: [timeline_dict[i] for i in rank_helper.get_ranks(group, group_0=True)] for group in groups_dict}
+    timelines = {
+        group: [
+            timeline_dict[i]
+            for i in rank_helper.get_ranks(group, group_0=True)
+        ]
+        for group in groups_dict
+    }
     # perpare interned data
     # https://perfetto.dev/docs/reference/synthetic-track-event#interning
     all_kernel_names = set()
@@ -532,16 +626,28 @@ def generate_perfetto_trace(args):
         # perfetto's internal id is start at 1
         name = name.replace("xpu_timer_", "")
         TracingData.tracing_code_to_interned_data[name] = iid + 1
-    TracingData.tracing_code_to_interned_data["launch_kernel"] = len(all_kernel_names) + 1
+    TracingData.tracing_code_to_interned_data["launch_kernel"] = (
+        len(all_kernel_names) + 1
+    )
 
     all_matmul_info = hook_pb2.RankMatmulInfo()
-    trace_name = args.output if args.output else "_".join([f"{k}{v}" for k, v in groups_dict.items()])
+    trace_name = (
+        args.output
+        if args.output
+        else "_".join([f"{k}{v}" for k, v in groups_dict.items()])
+    )
     fd = open(f"{timeline_dir}/trace_{trace_name}.bin", "wb")
     add_internel = True
     for index, (name, files) in enumerate(timelines.items()):
-        all_matmul_info.MergeFrom(parse_group(name, files, index, add_internel, fd, args))
+        all_matmul_info.MergeFrom(
+            parse_group(name, files, index, add_internel, fd, args)
+        )
         add_internel = False
-    serialize_to_file_in_chunks(all_matmul_info, f"{timeline_dir}/matmul_{trace_name}.bin", chunk_size=1024 * 1024)
+    serialize_to_file_in_chunks(
+        all_matmul_info,
+        f"{timeline_dir}/matmul_{trace_name}.bin",
+        chunk_size=1024 * 1024,
+    )
 
 
 def main():
@@ -550,12 +656,26 @@ def main():
     parser.add_argument("--no-matmul", action="store_true")
     parser.add_argument("--no-nccl", action="store_true")
     parser.add_argument("-c", type=int, default=16, required=False)
-    parser.add_argument("--timeline-version", type=int, default=2, required=False)
-    parser.add_argument("--no-launchtime", action="store_false", dest="launchtime")
     parser.add_argument(
-        "--groups", type=str, default="", required=False, help='Group configurations like "tp4-cp2-dp4-pp2"'
+        "--timeline-version", type=int, default=2, required=False
     )
-    parser.add_argument("--output", type=str, default="", required=False, help="Output name for timeline file")
+    parser.add_argument(
+        "--no-launchtime", action="store_false", dest="launchtime"
+    )
+    parser.add_argument(
+        "--groups",
+        type=str,
+        default="",
+        required=False,
+        help='Group configurations like "tp4-cp2-dp4-pp2"',
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="",
+        required=False,
+        help="Output name for timeline file",
+    )
     args = parser.parse_args()
     TracingData.timeline_version = args.timeline_version
 

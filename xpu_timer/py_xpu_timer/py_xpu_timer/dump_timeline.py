@@ -1,3 +1,16 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import asyncio
 import time
@@ -34,7 +47,10 @@ def parse_host_ranks(host_list, rank_list, port, dry_run=False):
             combined_hosts.append(f"{host}-{r}:{port}")
     if dry_run:
         return combined_hosts
-    return [f"http://{host}/HostingService/DumpKernelTrace" for host in combined_hosts]
+    return [
+        f"http://{host}/HostingService/DumpKernelTrace"
+        for host in combined_hosts
+    ]
 
 
 def AES128_CBC(text):
@@ -60,28 +76,67 @@ def main():
     #       -d "{\"dump_path\":\"/root/cc/dd/ee\", \"dump_count\": 110, \"dump_time\": $((curr+3))}" \
     #       127.0.0.1:18888/HostingService/DumpKernelTrace
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", action="append", required=True, help="Specify the host")
-    parser.add_argument("--rank", action="append", required=True, help="Specify the host rank range")
-    parser.add_argument("--port", type=int, default=18888, help="Specify the port on host")
-    parser.add_argument("--dump-path", type=str, default="/root/timeline", help="Specify dump path")
-    parser.add_argument("--dump-count", type=int, default=1000, help="Specify how many events to dump")
-    parser.add_argument("--delay", type=int, default=5, help="Specify when dump after request")
-    parser.add_argument("--reset", action="store_true", help="Specify reset dump flag")
+    parser.add_argument(
+        "--host", action="append", required=True, help="Specify the host"
+    )
+    parser.add_argument(
+        "--rank",
+        action="append",
+        required=True,
+        help="Specify the host rank range",
+    )
+    parser.add_argument(
+        "--port", type=int, default=18888, help="Specify the port on host"
+    )
+    parser.add_argument(
+        "--dump-path",
+        type=str,
+        default="/root/timeline",
+        help="Specify dump path",
+    )
+    parser.add_argument(
+        "--dump-count",
+        type=int,
+        default=1000,
+        help="Specify how many events to dump",
+    )
+    parser.add_argument(
+        "--delay", type=int, default=5, help="Specify when dump after request"
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="Specify reset dump flag"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Dry run")
-    parser.add_argument("--no-nccl", action="store_true", help="Disable nccl trace")
-    parser.add_argument("--no-matmul", action="store_true", help="Disable matmul(fa) trace")
-    parser.add_argument("--no-memory", action="store_true", help="Disable memory trace")
-    parser.add_argument("--oss-path", type=str, default="", help="Specify oss dump path")
-    parser.add_argument("--oss-ak", type=str, default="", help="Specify oss ak")
-    parser.add_argument("--oss-sk", type=str, default="", help="Specify oss sk")
-    parser.add_argument("--oss-endpoint", type=str, default="", help="Specify oss endpoint")
+    parser.add_argument(
+        "--no-nccl", action="store_true", help="Disable nccl trace"
+    )
+    parser.add_argument(
+        "--no-matmul", action="store_true", help="Disable matmul(fa) trace"
+    )
+    parser.add_argument(
+        "--no-memory", action="store_true", help="Disable memory trace"
+    )
+    parser.add_argument(
+        "--oss-path", type=str, default="", help="Specify oss dump path"
+    )
+    parser.add_argument(
+        "--oss-ak", type=str, default="", help="Specify oss ak"
+    )
+    parser.add_argument(
+        "--oss-sk", type=str, default="", help="Specify oss sk"
+    )
+    parser.add_argument(
+        "--oss-endpoint", type=str, default="", help="Specify oss endpoint"
+    )
 
     args = parser.parse_args()
 
     if len(args.host) != len(args.rank):
         parser.error("--host and --rank must be provided in pairs")
 
-    dump_kernel_type = 7  # [00][11] // first bits is matmul, second bits is nccl
+    dump_kernel_type = (
+        7  # [00][11] // first bits is matmul, second bits is nccl
+    )
     if args.no_nccl:
         dump_kernel_type -= 2
         print("Disable nccl traces")
@@ -93,7 +148,9 @@ def main():
         print("Disable memory traces")
     if dump_kernel_type == 0:
         raise ValueError("No Kernel to trace")
-    combined_hosts = parse_host_ranks(args.host, args.rank, args.port, args.dry_run)
+    combined_hosts = parse_host_ranks(
+        args.host, args.rank, args.port, args.dry_run
+    )
     now = int(time.time())
     print(f"dumping to {args.dump_path}, with count {args.dump_count}")
     data = {

@@ -464,7 +464,7 @@ export XPU_TIMER_EXIT_HOOK_PLUGIN=/path/to/your.py,/another/py_plug.py
 You can use our devel image to run demo. All deps are installed.
 
 ```bash
-docker run -it --rm --gpus all --entrypoint bash easydl/xpu-timer-dev:1.0
+docker run -it --rm --gpus all --entrypoint bash easydl/xpu-timer-dev:cuda12.4-torch250
 
 cd /build/demo/train_fsdp/
 bash train.sh

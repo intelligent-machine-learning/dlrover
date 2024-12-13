@@ -1,3 +1,16 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # flake8: noqa: E501,E722,F841,E401
 import argparse
 import copy
@@ -109,8 +122,16 @@ class StacktraceDriver:
         self.fifo_path = f"/tmp/xpu_timer_gdb_pipe_{args.rank}"
 
         self.gdb_bin = args.gdb_bin
-        self.pstack_bin = shutil.which(args.pstack_bin) or shutil.which("pstack") or "pstack NOT_FOUND"
-        self.pyspy_bin = shutil.which(args.pyspy_bin) or shutil.which("py-spy") or "py-spy NOT_FOUND"
+        self.pstack_bin = (
+            shutil.which(args.pstack_bin)
+            or shutil.which("pstack")
+            or "pstack NOT_FOUND"
+        )
+        self.pyspy_bin = (
+            shutil.which(args.pyspy_bin)
+            or shutil.which("py-spy")
+            or "py-spy NOT_FOUND"
+        )
         self.pid = str(args.pid)
         self.rank = str(args.rank)
         self.world_size = str(args.world_size)
@@ -180,7 +201,9 @@ class StacktraceDriver:
             next(next_line_iter)
             for this_line, next_line in zip(this_line_iter, next_line_iter):
                 if this_line.startswith("Thread"):
-                    threads.append(PstackStacktrace(this_line.strip(), self.result))
+                    threads.append(
+                        PstackStacktrace(this_line.strip(), self.result)
+                    )
                 else:
                     frames.append(this_line.strip())
                 if next_line.startswith("Thread"):
@@ -296,28 +319,46 @@ def find_gpu_pid_in_container():
 
     pid_dir_pattern = re.compile(r"^\d+$")
 
-    pid_dirs = [p for p in proc_path.iterdir() if p.is_dir() and pid_dir_pattern.match(p.name)]
+    pid_dirs = [
+        p
+        for p in proc_path.iterdir()
+        if p.is_dir() and pid_dir_pattern.match(p.name)
+    ]
 
-    pid_dict = parallel_job(parse_one_pid_file, tuple(pid_dirs), f"Parsing pids", concurrency=16)
+    pid_dict = parallel_job(
+        parse_one_pid_file, tuple(pid_dirs), f"Parsing pids", concurrency=16
+    )
     for i in pid_dict:
         pid_host_to_container.update(i)
     if not pid_host_to_container:
         return []
 
-    nvidia_smi = ["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader,nounits"]
-    process = subprocess.Popen(nvidia_smi, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    nvidia_smi = [
+        "nvidia-smi",
+        "--query-compute-apps=pid",
+        "--format=csv,noheader,nounits",
+    ]
+    process = subprocess.Popen(
+        nvidia_smi, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
 
     stdout, stderr = process.communicate()
     gpu_pid_on_host = stdout.splitlines()
 
-    return [int(pid_host_to_container[i]) for i in gpu_pid_on_host if i in pid_host_to_container]
+    return [
+        int(pid_host_to_container[i])
+        for i in gpu_pid_on_host
+        if i in pid_host_to_container
+    ]
 
 
 def get_process_state(pid):
     status_file = f"/proc/{pid}/status"
 
     if not os.path.exists(status_file):
-        print(f"Process with PID {pid} not found.", file=sys.stderr, flush=True)
+        print(
+            f"Process with PID {pid} not found.", file=sys.stderr, flush=True
+        )
         return None
 
     with open(status_file, "r") as file:
@@ -375,8 +416,12 @@ def main():
 
     parser.add_argument("--pid", type=int, required=False, default=-1)
     parser.add_argument("--gdb-bin", type=str, default="/opt/conda/bin/gdb")
-    parser.add_argument("--pyspy-bin", type=str, default="/opt/conda/bin/py-spy")
-    parser.add_argument("--pstack-bin", type=str, default="/opt/conda/bin/pstack")
+    parser.add_argument(
+        "--pyspy-bin", type=str, default="/opt/conda/bin/py-spy"
+    )
+    parser.add_argument(
+        "--pstack-bin", type=str, default="/opt/conda/bin/pstack"
+    )
     parser.add_argument("--rank", type=int, default=-1)
     parser.add_argument("--world-size", type=int, default=-1)
     parser.add_argument("--gdb", action="store_true")
@@ -385,7 +430,9 @@ def main():
     args = HashableNamespace()
     parser.parse_args(namespace=args)
     if not any((args.gdb, args.pyspy)):
-        print(f'You should open at least one switch, "--gdb",  "--pyspy", exit...')
+        print(
+            f'You should open at least one switch, "--gdb",  "--pyspy", exit...'
+        )
         return
     d = Path(args.dump_path)
     if d.exists() and not d.is_dir():

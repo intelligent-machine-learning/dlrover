@@ -6,7 +6,7 @@ namespace xpu_timer {
 namespace metrics {
 
 BaseMetrics::BaseMetrics(Labels label, uint64_t problem_size, std::string name,
-                         const std::string_view& type)
+                         const std::string_view &type)
     : problem_size_(problem_size), name_(name), type_(std::string(type)) {
   label_ = config::BvarMetricsConfig::common_label;
   label_.insert(label.begin(), label.end());
@@ -40,19 +40,19 @@ TimeoutMixin::TimeoutMixin() {
   inner_counter_ = std::make_unique<bvar::Adder<uint64_t>>();
   timout_counter_ = std::make_unique<bvar::Window<bvar::Adder<uint64_t>>>(
       inner_counter_.get(), config::BvarMetricsConfig::timeout_window_second);
-  timeoutAdd();  // add 1 to avoid delete metric which is created but not push
+  timeoutAdd(); // add 1 to avoid delete metric which is created but not push
 }
 
 ThroughPutMetrics::ThroughPutMetrics(Labels label, uint64_t problem_size,
                                      std::string name,
-                                     const std::string_view& type)
+                                     const std::string_view &type)
     : BaseMetrics(label, problem_size, name, type) {
   latency_recorder_ = std::make_unique<bvar::LatencyRecorder>(
       config::BvarMetricsConfig::bvar_window_size);
   push_interval_ = config::BvarMetricsConfig::local_push_interval;
 }
-void ThroughPutMetrics::pushMetrics(const std::vector<uint64_t>& value) {
-  *latency_recorder_ << value[0];  // push latency to latency_recorder_
+void ThroughPutMetrics::pushMetrics(const std::vector<uint64_t> &value) {
+  *latency_recorder_ << value[0]; // push latency to latency_recorder_
 }
 
 std::vector<uint64_t> ThroughPutMetrics::getBvarValue() {
@@ -63,15 +63,15 @@ std::vector<uint64_t> ThroughPutMetrics::getBvarValue() {
   return {avg_latency, min_latency, p99_latency, max_latency};
 }
 
-void ThroughPutMetrics::getMetrics(BrpcMetrics* request) {
-  xpu_timer::server::KernelBrpcMetrics* metrics =
+void ThroughPutMetrics::getMetrics(BrpcMetrics *request) {
+  xpu_timer::server::KernelBrpcMetrics *metrics =
       request->mutable_kernel_metrics();
   metrics->set_avg_latency(latency_recorder_->latency());
   request->set_name(name_);
   request->set_local_rank(config::GlobalConfig::local_rank);
 }
 
-void MatCommuMetrics::pushMetrics(const std::vector<uint64_t>& value) {
+void MatCommuMetrics::pushMetrics(const std::vector<uint64_t> &value) {
   TimeoutMixin::timeoutAdd();
   ThroughPutMetrics::pushMetrics(value);
   MatCommuMetrics::getPerformance(/*problem_size*/ value[0]);
@@ -84,10 +84,9 @@ std::vector<uint64_t> MatCommuMetrics::getBvarValue() {
 }
 
 MatCommuMetrics::MatCommuMetrics(Labels label, uint64_t problem_size,
-                                 std::string name, const std::string_view& type,
+                                 std::string name, const std::string_view &type,
                                  performance_fn pfn, bucket_fn bfn)
-    : BucketingMixin(bfn),
-      PerformanceMixin(pfn),
+    : BucketingMixin(bfn), PerformanceMixin(pfn),
       ThroughPutMetrics(label, problem_size, name, type) {}
 
 std::string MatCommuMetrics::computeBucket() {
@@ -101,7 +100,7 @@ void MatCommuMetrics::getPerformance(uint64_t latency_in_us) {
 
 ThroughPutSumMetrics::ThroughPutSumMetrics(Labels label, uint64_t problem_size,
                                            std::string name,
-                                           const std::string_view& type,
+                                           const std::string_view &type,
                                            performance_fn pfn, bucket_fn bfn)
     : MatCommuMetrics(label, problem_size, name, type, pfn, bfn) {
   push_interval_ = config::BvarMetricsConfig::push_interval;
@@ -114,7 +113,7 @@ void TimeoutMixin::timeoutAdd() { *inner_counter_ << 1; }
 BucketingMixinBase::~BucketingMixinBase() {}
 PerformanceMixinBase::~PerformanceMixinBase() {}
 
-void ThroughPutSumMetrics::getMetrics(BrpcMetrics* request) {
+void ThroughPutSumMetrics::getMetrics(BrpcMetrics *request) {
   std::vector<uint64_t> res = ThroughPutMetrics::getBvarValue();
   uint64_t sum_latency_us = sum_latency_in_us.reset();
   uint64_t problem_size = sum_problem_size.reset();
@@ -126,18 +125,18 @@ void ThroughPutSumMetrics::getMetrics(BrpcMetrics* request) {
         PerformanceMixin::computePerformance(sum_latency_us, problem_size);
   }
 
-  xpu_timer::server::KernelBrpcMetrics* metrics =
+  xpu_timer::server::KernelBrpcMetrics *metrics =
       request->mutable_kernel_metrics();
-  metrics->set_avg_latency(res[0]);  // avg
-  metrics->set_min_latency(res[1]);  // min
-  metrics->set_p99_latency(res[2]);  // p99
-  metrics->set_max_latency(res[3]);  // max
+  metrics->set_avg_latency(res[0]); // avg
+  metrics->set_min_latency(res[1]); // min
+  metrics->set_p99_latency(res[2]); // p99
+  metrics->set_max_latency(res[3]); // max
   metrics->set_performance(performance);
   request->set_name(name_);
   request->set_local_rank(config::GlobalConfig::local_rank);
 }
 
-void ThroughPutSumMetrics::pushMetrics(const std::vector<uint64_t>& value) {
+void ThroughPutSumMetrics::pushMetrics(const std::vector<uint64_t> &value) {
   // value {latency, problem_size}
   TimeoutMixin::timeoutAdd();
   ThroughPutMetrics::pushMetrics(value);
@@ -146,13 +145,13 @@ void ThroughPutSumMetrics::pushMetrics(const std::vector<uint64_t>& value) {
 }
 
 CountingMetrics::CountingMetrics(Labels label, uint64_t problem_size,
-                                 std::string name, const std::string_view& type)
+                                 std::string name, const std::string_view &type)
     : BaseMetrics(label, problem_size, name, type) {
   counter_ = std::make_unique<bvar::Adder<uint64_t>>();
   push_interval_ = config::BvarMetricsConfig::push_interval;
 }
 
-void CountingMetrics::pushMetrics(const std::vector<uint64_t>& value) {
+void CountingMetrics::pushMetrics(const std::vector<uint64_t> &value) {
   // CountingMetrics only have 1 value
   *counter_ << value[0];
 }
@@ -162,20 +161,20 @@ std::vector<uint64_t> CountingMetrics::getBvarValue() {
 }
 
 MemMetrics::MemMetrics(Labels label, uint64_t problem_size, std::string name,
-                       const std::string_view& type)
+                       const std::string_view &type)
     : CountingMetrics(label, problem_size, name, type) {}
 
-void MemMetrics::getMetrics(BrpcMetrics* request) {
-  xpu_timer::server::MemBrpcMetrics* metrics = request->mutable_mem_metrics();
+void MemMetrics::getMetrics(BrpcMetrics *request) {
+  xpu_timer::server::MemBrpcMetrics *metrics = request->mutable_mem_metrics();
   std::vector<uint64_t> count = CountingMetrics::getBvarValue();
   metrics->set_counter(count[0]);
   request->set_name(name_);
   request->set_local_rank(config::GlobalConfig::local_rank);
 }
 
-void MemMetrics::pushMetrics(const std::vector<uint64_t>& value) {
+void MemMetrics::pushMetrics(const std::vector<uint64_t> &value) {
   CountingMetrics::pushMetrics({1});
 }
 
-}  // namespace metrics
-}  // namespace xpu_timer
+} // namespace metrics
+} // namespace xpu_timer

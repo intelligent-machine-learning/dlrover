@@ -6,6 +6,6 @@ namespace xpu_timer {
 namespace server {
 
 void xpuTimerDaemonSetUpPython();
-void runPythonPlugin(const SignalFrameRequest* request);
-}  // namespace server
-}  // namespace xpu_timer
+void runPythonPlugin(const SignalFrameRequest *request);
+} // namespace server
+} // namespace xpu_timer

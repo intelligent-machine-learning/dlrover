@@ -10,13 +10,10 @@
 namespace xpu_timer {
 namespace py_tracing_manager {
 
-PyTracingLibrary::PyTracingLibrary(const std::string& library_path)
-    : LibraryLoader(library_path),
-      register_tracing_(nullptr),
-      get_tracing_data_(nullptr),
-      get_partial_tracing_data_(nullptr),
-      return_tracing_data_(nullptr),
-      switch_tracing_(nullptr) {
+PyTracingLibrary::PyTracingLibrary(const std::string &library_path)
+    : LibraryLoader(library_path), register_tracing_(nullptr),
+      get_tracing_data_(nullptr), get_partial_tracing_data_(nullptr),
+      return_tracing_data_(nullptr), switch_tracing_(nullptr) {
   const std::string err =
       "libpy_tracing.so, skip recording python gc in timeline ";
   SETUP_SYMBOL_FOR_LOAD_LIBRARY(handle_, "xpu_timer_register_tracing",
@@ -39,16 +36,17 @@ PyTracingLibrary::PyTracingLibrary(const std::string& library_path)
   can_use_ = true;
 }
 
-std::vector<std::string> PyTracingLibrary::Register(
-    const std::vector<std::string>& names) {
-  if (!can_use_) return {};
+std::vector<std::string>
+PyTracingLibrary::Register(const std::vector<std::string> &names) {
+  if (!can_use_)
+    return {};
   std::vector<std::string> result;
   // this take own ship of all errors
-  char** errors = (char**)malloc(names.size() * sizeof(char*));
-  std::memset(errors, 0, names.size() * sizeof(char*));
+  char **errors = (char **)malloc(names.size() * sizeof(char *));
+  std::memset(errors, 0, names.size() * sizeof(char *));
 
-  std::vector<const char*> c_str_array;
-  for (const auto& str : names) {
+  std::vector<const char *> c_str_array;
+  for (const auto &str : names) {
     c_str_array.push_back(str.c_str());
   }
   register_tracing_(c_str_array.data(), c_str_array.size(), errors);
@@ -64,32 +62,35 @@ std::vector<std::string> PyTracingLibrary::Register(
 }
 
 int64_t PyTracingLibrary::GetTracingCount(int name) {
-  if (can_use_) return get_tracing_count_(name);
+  if (can_use_)
+    return get_tracing_count_(name);
   return -1;
 }
 
-XpuTimerPyTracingDataArray* PyTracingLibrary::GetFullTracingData(int name) {
+XpuTimerPyTracingDataArray *PyTracingLibrary::GetFullTracingData(int name) {
   if (can_use_) {
     return get_tracing_data_(name);
   }
   return nullptr;
 }
 
-XpuTimerPyTracingDataArray* PyTracingLibrary::GetPartialTracingData(int name) {
+XpuTimerPyTracingDataArray *PyTracingLibrary::GetPartialTracingData(int name) {
   if (can_use_) {
     return get_partial_tracing_data_(name);
   }
   return nullptr;
 }
 
-void PyTracingLibrary::ReturnTracingData(XpuTimerPyTracingDataArray* data,
+void PyTracingLibrary::ReturnTracingData(XpuTimerPyTracingDataArray *data,
                                          int type, int name) {
-  if (can_use_ && data) return_tracing_data_(data, type, name);
+  if (can_use_ && data)
+    return_tracing_data_(data, type, name);
 }
 
 void PyTracingLibrary::SwitchTracing(int flag) {
-  if (can_use_) switch_tracing_(flag);
+  if (can_use_)
+    switch_tracing_(flag);
 }
 
-}  // namespace py_tracing_manager
-}  // namespace xpu_timer
+} // namespace py_tracing_manager
+} // namespace xpu_timer

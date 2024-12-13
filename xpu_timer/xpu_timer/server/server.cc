@@ -19,7 +19,7 @@ DEFINE_int32(local_world_size, 0, "local world size");
 DEFINE_int32(prometheus_port, 18889, "port of prometheus service");
 DEFINE_int32(try_start, 0, "try start, for check runtime env");
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
   if (FLAGS_try_start) {
     LOG(INFO) << "xpu_timer_daemon test ok";
@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
     std::ofstream out_file("/tmp/xpu_timer_daemon.pid");
     if (!out_file) {
       LOG(ERROR) << "Error opening file for writing";
-      return 0;  // TODO start server maybe
+      return 0; // TODO start server maybe
     }
     out_file << pid << std::endl;
   }

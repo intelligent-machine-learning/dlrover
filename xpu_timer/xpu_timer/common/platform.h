@@ -5,7 +5,7 @@ namespace xpu_timer {
 namespace platform {
 std::string getDeviceName();
 }
-}  // namespace xpu_timer
+} // namespace xpu_timer
 
 #if defined(XPU_NVIDIA)
 #include <cuda.h>

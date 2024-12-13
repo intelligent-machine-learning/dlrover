@@ -1,3 +1,16 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 import shutil
@@ -21,14 +34,18 @@ def check_git_modifications():
         raise Exception("When build with release, git tree must be clean")
 
     # Check for staged but not committed changes
-    result = subprocess.run(["git", "diff", "--cached", "--quiet"], stderr=subprocess.PIPE)
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"], stderr=subprocess.PIPE
+    )
     if result.returncode != 0:
         raise Exception("When build with release, git tree must be clean")
 
 
 def pipe_commands(commands):
     if len(commands) == 1:
-        return subprocess.Popen(commands[0], stdout=subprocess.PIPE).communicate()
+        return subprocess.Popen(
+            commands[0], stdout=subprocess.PIPE
+        ).communicate()
 
     cur = None
     for command in commands:
@@ -37,7 +54,9 @@ def pipe_commands(commands):
             stdout=subprocess.PIPE,
             stdin=cur.stdout if cur is not None else None,
         )
-    return [i.decode().strip() if i is not None else i for i in cur.communicate()]
+    return [
+        i.decode().strip() if i is not None else i for i in cur.communicate()
+    ]
 
 
 def find_python_releated():
@@ -68,7 +87,10 @@ class BaseBuildRender(ABC):
             """
         ).format(parallel=self.args.build_parallel)
 
-        self.bazelrc_config = [base, f"build --repo_env=OPENSSL_HOME={self.args.ssl_path}"]
+        self.bazelrc_config = [
+            base,
+            f"build --repo_env=OPENSSL_HOME={self.args.ssl_path}",
+        ]
 
         release = textwrap.dedent(
             """
@@ -164,5 +186,10 @@ class BaseBuildRender(ABC):
         parser.add_argument("--sdk-path", help="Path to the SDK", default=None)
         parser.add_argument("--ssl-path", help="Path to ssl", default=None)
         parser.add_argument("--build-parallel", type=str, default="16")
-        parser.add_argument("--build-type", type=str, default="release", choices=["test", "release", "debug"])
+        parser.add_argument(
+            "--build-type",
+            type=str,
+            default="release",
+            choices=["test", "release", "debug"],
+        )
         parser.add_argument("--cache", action="store_true")

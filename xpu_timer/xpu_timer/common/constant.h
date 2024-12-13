@@ -7,7 +7,7 @@ namespace constant {
 static constexpr bool SKIP_TP = true;
 
 struct Metrics {
- public:
+public:
   static constexpr int AVG_LATENCY = 0;
   static constexpr int MAX_LATENCY = 1;
   static constexpr int P99_LATENCY = 2;
@@ -73,11 +73,11 @@ struct Metrics {
 };
 
 struct KernelTraceConstant {
- public:
+public:
   static constexpr int DEFAULT_TRACE_COUNT = 1000;
   static constexpr std::string_view DEFAULT_TRACE_DUMP_PATH = "/root/timeline";
 };
 
-}  // namespace constant
+} // namespace constant
 
-}  // namespace xpu_timer
+} // namespace xpu_timer

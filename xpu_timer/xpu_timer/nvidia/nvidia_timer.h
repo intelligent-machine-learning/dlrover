@@ -32,37 +32,37 @@ namespace xpu_timer {
 namespace nvidia {
 
 class NcclCommWrapper {
- public:
-#define DEF_COMM_INFO(FIELD, TYPE)                   \
-  typedef TYPE (*get_Comm_##FIELD##_Fn)(ncclComm_t); \
+public:
+#define DEF_COMM_INFO(FIELD, TYPE)                                             \
+  typedef TYPE (*get_Comm_##FIELD##_Fn)(ncclComm_t);                           \
   TYPE FIELD;
 
   DEF_COMM_INFO(commHash, uint64_t)
   DEF_COMM_INFO(rank, int)
   DEF_COMM_INFO(nRanks, int)
   DEF_COMM_INFO(nNodes, int)
-  DEF_COMM_INFO(devComm, void*)
+  DEF_COMM_INFO(devComm, void *)
 #undef DEF_COMM_INFO
 
- public:
+public:
   NcclCommWrapper(ncclComm_t comm);
 
 #if defined(XPU_NVIDIA)
- public:
-  static void* handle;  // dlopen libparse_params.so
+public:
+  static void *handle; // dlopen libparse_params.so
   static std::string getNcclVersion();
   static void registerFunction();
 
-#define DEF_COMM_INFO_FUNCTION(FIELD, TYPE) \
+#define DEF_COMM_INFO_FUNCTION(FIELD, TYPE)                                    \
   static get_Comm_##FIELD##_Fn get_Comm_##FIELD##_func;
 
   DEF_COMM_INFO_FUNCTION(commHash, uint64_t)
   DEF_COMM_INFO_FUNCTION(rank, int)
   DEF_COMM_INFO_FUNCTION(nRanks, int)
   DEF_COMM_INFO_FUNCTION(nNodes, int)
-  DEF_COMM_INFO_FUNCTION(devComm, void*)
+  DEF_COMM_INFO_FUNCTION(devComm, void *)
 #undef DEF_COMM_INFO_FUNCTION
-#endif  // XPU_NVIDIA
+#endif // XPU_NVIDIA
 };
 
 namespace config = xpu_timer::util::config;
@@ -94,12 +94,12 @@ class EventStartTimeHelper {
      and torch kernel
      */
 
- public:
+public:
   EventStartTimeHelper(cudaStream_t s);
   void reset();
-  time_t getTime(cudaEvent_t kernel_launch_start, bool* is_validate_to_trace);
+  time_t getTime(cudaEvent_t kernel_launch_start, bool *is_validate_to_trace);
 
- private:
+private:
   // start event on this stream
   cudaEvent_t start_event_;
   // time in us
@@ -111,7 +111,7 @@ class InterceptManager;
 
 class NvidiaGpuTimer : public XpuTimer {
   /* Use cuda event to timing kernel. */
- public:
+public:
   using FnReturn = std::tuple<const std::string, uint64_t, Labels>;
   using InnerInterceptManager = InterceptManager;
 
@@ -119,8 +119,8 @@ class NvidiaGpuTimer : public XpuTimer {
     cudaEventCreate(&start_event_);
     cudaEventCreate(&stop_event_);
     hang_counter_ = 0;
-    trace = new hook::KernelTrace();  // NvidiaGpuTimer is pooling, trace should
-                                      // never free.
+    trace = new hook::KernelTrace(); // NvidiaGpuTimer is pooling, trace should
+                                     // never free.
   }
 
   /*
@@ -136,7 +136,7 @@ class NvidiaGpuTimer : public XpuTimer {
   void reBuild() override;
   uint64_t getDuration() override;
   const std::string getName() override;
-  const std::string_view& getType() override;
+  const std::string_view &getType() override;
   const uint64_t getProblemSize() override;
   time_t getExecuteTimeStamp() override;
   time_t getLaunchTimeStamp() override;
@@ -155,13 +155,13 @@ class NvidiaGpuTimer : public XpuTimer {
    * Overload from the XpuTimer
    * ===================================
    */
-  static void doPrepare();  // parse nccl syms if needed.
-  static void dumpTraceMeta(const std::string& path,
-                            const std::vector<std::string>&
-                                extra);  // dump timeline tracing meta info
+  static void doPrepare(); // parse nccl syms if needed.
+  static void dumpTraceMeta(
+      const std::string &path,
+      const std::vector<std::string> &extra); // dump timeline tracing meta info
   static void
-  doPrepareForDumpTrace();  // reset start timer on each stream, it use to get
-                            // timestamp for kernel when is running on GPU.
+  doPrepareForDumpTrace(); // reset start timer on each stream, it use to get
+                           // timestamp for kernel when is running on GPU.
 
   /*
    * ===================================
@@ -172,58 +172,58 @@ class NvidiaGpuTimer : public XpuTimer {
   // the event is in object pool, we reset it by different kernel.
   // this is for nccl kernel
   void reset(cudaStream_t s,
-             std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb,
-             const std::string_view& type);
+             std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb,
+             const std::string_view &type);
   // this is for matmul kernel
-  void reset(cudaStream_t s, const std::string_view& type,
-             const std::initializer_list<int64_t>& bmnk,
-             const std::initializer_list<int64_t>& ld,
-             const std::initializer_list<int64_t>& stride, const int trans_a,
-             const int trans_b, const int algo, const std::string&& name_prefix,
-             cudaDataType_t dtype, const std::string& api, uint8_t bias = 0);
-  void reset(std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb,
-             const std::string_view& type);
+  void reset(cudaStream_t s, const std::string_view &type,
+             const std::initializer_list<int64_t> &bmnk,
+             const std::initializer_list<int64_t> &ld,
+             const std::initializer_list<int64_t> &stride, const int trans_a,
+             const int trans_b, const int algo, const std::string &&name_prefix,
+             cudaDataType_t dtype, const std::string &api, uint8_t bias = 0);
+  void reset(std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb,
+             const std::string_view &type);
   // kernel trace object
-  hook::KernelTrace* trace;
+  hook::KernelTrace *trace;
 
   // seqnum for each nccl comm, key is comm hash, value is auto inc from 0
   static std::unordered_map<uint64_t, uint64_t> nccl_seq_num;
 
   static double mmPerformance(uint64_t latency_in_us, uint64_t problem_size) {
-    return (double)(problem_size) / latency_in_us / 1e6;  // Tflops
+    return (double)(problem_size) / latency_in_us / 1e6; // Tflops
   };
 
   static double collPerformance(uint64_t latency_in_us, uint64_t problem_size) {
-    return (double)(problem_size) / 1e3 / latency_in_us;  // Gbps
+    return (double)(problem_size) / 1e3 / latency_in_us; // Gbps
   }
 
   static std::string collBucketFn(double performance, uint64_t problem_size,
-                                  Labels* label);
+                                  Labels *label);
 
-  static int getMatmulBucket(double performance, const std::string& dtype) {
+  static int getMatmulBucket(double performance, const std::string &dtype) {
     return (int)(performance / CudaDataTypeUtils::getGpuHardwareFlops(dtype));
   }
 
   static std::string matmulBucketFn(double peformance, uint64_t problem_size,
-                                    Labels* label);
+                                    Labels *label);
 
- private:
-  void reset_cb(std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb);
-  void reset_stream(cudaStream_t s, const std::string_view& type);
+private:
+  void reset_cb(std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb);
+  void reset_stream(cudaStream_t s, const std::string_view &type);
 
   class MatmulBuilderCallback {
-   public:
+  public:
     static constexpr int UNUSE = -1;
-    MatmulBuilderCallback() {};
-    NvidiaGpuTimer::FnReturn operator()(NvidiaGpuTimer*);
-    void reset(const std::initializer_list<int64_t>& bmnk,
-               const std::initializer_list<int64_t>& ld,
-               const std::initializer_list<int64_t>& stride, const int trans_a,
+    MatmulBuilderCallback(){};
+    NvidiaGpuTimer::FnReturn operator()(NvidiaGpuTimer *);
+    void reset(const std::initializer_list<int64_t> &bmnk,
+               const std::initializer_list<int64_t> &ld,
+               const std::initializer_list<int64_t> &stride, const int trans_a,
                const int trans_b, const int algo,
-               const std::string&& name_prefix, cudaDataType_t dtype,
-               const std::string& api, uint8_t bias);
+               const std::string &&name_prefix, cudaDataType_t dtype,
+               const std::string &api, uint8_t bias);
 
-   private:
+  private:
     std::array<int, 4> bmnk_;
     std::array<int, 3> ld_;
     std::array<int64_t, 3> stride_;
@@ -236,8 +236,8 @@ class NvidiaGpuTimer : public XpuTimer {
     uint8_t bias_;
   };
 
-  cudaEvent_t start_event_, stop_event_;  // owned
-  cudaStream_t stream_;                   // not owned
+  cudaEvent_t start_event_, stop_event_; // owned
+  cudaStream_t stream_;                  // not owned
   // return kernel name, it's callback function and called in background thread,
   // be careful of the lifetime of object in closure.
   std::function<const std::string()> rebuild_cb_;
@@ -273,7 +273,7 @@ class NvidiaGpuTimer : public XpuTimer {
   // trace id for each type of kernel
   uint64_t trace_id_;
   // each stream has a helper to get kernel real running time,
-  static std::unordered_map<cudaStream_t, EventStartTimeHelper*>
+  static std::unordered_map<cudaStream_t, EventStartTimeHelper *>
       stream_timer_helper_;
   // hang counter, poller interval is 100us, hang counter added to
   // 10000, we check the timeout timestamp.
@@ -290,13 +290,13 @@ class NvidiaGpuTimer : public XpuTimer {
 };
 
 class FaParser : LibraryLoader {
- public:
-  FaParser(const std::string& library_path);
-  std::vector<uint64_t> getFaFwdShape(void**);
-  std::vector<uint64_t> getFaBwdShape(void**);
+public:
+  FaParser(const std::string &library_path);
+  std::vector<uint64_t> getFaFwdShape(void **);
+  std::vector<uint64_t> getFaBwdShape(void **);
 
- private:
-  using getShapeFn = std::vector<uint64_t> (*)(void**);
+private:
+  using getShapeFn = std::vector<uint64_t> (*)(void **);
   getShapeFn get_fwd_shape_;
   getShapeFn get_bwd_shape_;
   void LoadFn();
@@ -305,7 +305,7 @@ class FaParser : LibraryLoader {
 using InterceptSymbolPb = ::xpu_timer::hook::InterceptSymbol;
 
 struct InterceptSymbol {
-  explicit InterceptSymbol(const InterceptSymbolPb& pb);
+  explicit InterceptSymbol(const InterceptSymbolPb &pb);
   std::string func_name;
   std::string coll_type;
   std::string algo;
@@ -316,27 +316,27 @@ struct InterceptSymbol {
 };
 
 class InterceptManager {
- public:
+public:
   enum SendRecvType {
-    NoSendOrRecv = 0,  // no send or recv
-    Send = 1,          // send
-    Recv = 2           // recv
+    NoSendOrRecv = 0, // no send or recv
+    Send = 1,         // send
+    Recv = 2          // recv
   };
 
- private:
+private:
   FaParser fa_parser_{"libparse_params.so"};
-  ptrdiff_t getOffset(const void* symbol);
-  std::vector<uint64_t> getFaFwdShape(void** args);
-  std::vector<uint64_t> getFaBwdShape(void** args);
-  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> handleFa(
-      void** args, const InterceptSymbol* sym);
-  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> handleNccl(
+  ptrdiff_t getOffset(const void *symbol);
+  std::vector<uint64_t> getFaFwdShape(void **args);
+  std::vector<uint64_t> getFaBwdShape(void **args);
+  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+  handleFa(void **args, const InterceptSymbol *sym);
+  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> handleNccl(
 #if defined(CUDA_LAUNCH_EXC)
-      const cudaLaunchConfig_t* config,
+      const cudaLaunchConfig_t *config,
 #else
-      const void* config,  // not used
+      const void *config, // not used
 #endif
-      const void* func, void** args, const InterceptSymbol* sym, bool* skip);
+      const void *func, void **args, const InterceptSymbol *sym, bool *skip);
 
   struct NcclInfo {
     size_t count;
@@ -348,34 +348,34 @@ class InterceptManager {
   // Record NCCL info from NCCL kernel like ncclAllReduce, ncclAllGather.
   // key: the address of devComm, which is the member of comm (ncclComm_t type).
   // value: the queue contains NCCL info with the same devCom.
-  static std::unordered_map<void*, std::shared_ptr<std::queue<NcclInfo>>>
+  static std::unordered_map<void *, std::shared_ptr<std::queue<NcclInfo>>>
       nccl_info_map_;
-  static std::unordered_set<const void*> fns_to_skip_;
-  static std::unordered_map<const void*, const InterceptSymbol*> fns_to_name_;
+  static std::unordered_set<const void *> fns_to_skip_;
+  static std::unordered_map<const void *, const InterceptSymbol *> fns_to_name_;
   static std::unordered_map<ptrdiff_t, const InterceptSymbol> addr_to_name_;
 
-  static std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
+  static std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
       cuda_launch_kernel_exc_default_;
-  static std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
+  static std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
       cuda_launch_kernel_default_;
   static bool skip_tp_;
   static int tp_size_;
 
- public:
-  bool isIntercepted(const void* func, const InterceptSymbol** sym);
+public:
+  bool isIntercepted(const void *func, const InterceptSymbol **sym);
 #if defined(CUDA_LAUNCH_EXC)
-  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-  handleCudaLaunchKernelExC(const cudaLaunchConfig_t* config, const void* func,
-                            void** args, const InterceptSymbol* sym,
-                            bool* skip);
+  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+  handleCudaLaunchKernelExC(const cudaLaunchConfig_t *config, const void *func,
+                            void **args, const InterceptSymbol *sym,
+                            bool *skip);
 #endif
-  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-  handleCudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim,
-                         void** args, size_t sharedMem, cudaStream_t stream,
-                         const InterceptSymbol* sym, bool* skip);
-  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> deviceMemory(
-      const std::string& name, const size_t size, const std::string& kind,
-      bool is_host);
+  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+  handleCudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
+                         void **args, size_t sharedMem, cudaStream_t stream,
+                         const InterceptSymbol *sym, bool *skip);
+  std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+  deviceMemory(const std::string &name, const size_t size,
+               const std::string &kind, bool is_host);
 
   template <bool skip = false>
   void interceptNcclInfo(size_t count, ncclDataType_t datatype,
@@ -391,13 +391,14 @@ class InterceptManager {
       // current we skip tp for better performance. see
       // https://forums.developer.nvidia.com/t/overhead-of-cudaeventrecord-cudalaunchkernelexc-in-multithreading/300769
       // in detail
-      if (skip_tp_ && comm->nNodes == 1) return;
+      if (skip_tp_ && comm->nNodes == 1)
+        return;
     }
     // In NVIDIA, the address of ncclComm_t->devComm is used as the key, whereas
     // in HPU, the value of ncllComm_t->devComm is used as the key. To
     // distinguish between them, we implement two different constructor
     // functions in the NcclCommWrapper.
-    void* devcom_t = comm->devComm;
+    void *devcom_t = comm->devComm;
     auto it = nccl_info_map_.find(devcom_t);
     if (it == nccl_info_map_.end()) {
       auto q = std::make_shared<std::queue<NcclInfo>>();
@@ -411,5 +412,5 @@ class InterceptManager {
   static void setUp();
 };
 
-}  // namespace nvidia
-}  // namespace xpu_timer
+} // namespace nvidia
+} // namespace xpu_timer

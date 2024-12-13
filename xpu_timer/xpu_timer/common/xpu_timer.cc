@@ -5,7 +5,7 @@
 #include "xpu_timer/common/logging.h"
 
 namespace xpu_timer {
-LibraryLoader::LibraryLoader(const std::string& library_path)
+LibraryLoader::LibraryLoader(const std::string &library_path)
     : handle_(nullptr), can_use_(false), library_path_(library_path) {
   LoadLibrary();
 }
@@ -18,4 +18,4 @@ void LibraryLoader::LoadLibrary() {
     return;
   }
 }
-}  // namespace xpu_timer
+} // namespace xpu_timer

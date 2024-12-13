@@ -17,7 +17,7 @@ namespace stack_util {
 using namespace util;
 using namespace server;
 
-PyStackInProcess::PyStackInProcess(const std::string& library_path)
+PyStackInProcess::PyStackInProcess(const std::string &library_path)
     : LibraryLoader(library_path), get_py_stack_fn_(nullptr), dump_count_(0) {
   total_dump_count_ =
       util::EnvVarRegistry::GetEnvVar<int>("XPU_TIMER_DUMP_STACK_COUNT");
@@ -37,23 +37,27 @@ PyStackInProcess::PyStackInProcess(const std::string& library_path)
 };
 
 PyStack PyStackInProcess::getPyStack() {
-  if (!can_use_) return {};
+  if (!can_use_)
+    return {};
   return get_py_stack_fn_();
 }
 
 bool PyStackInProcess::isFull() {
-  if (!can_use_) return true;
+  if (!can_use_)
+    return true;
   return dump_count_ > total_dump_count_;
 }
 
-void PyStackInProcess::insertPyStack(const std::string& kernel_name,
-                                     const PyStack& stack) {
-  if (!can_use_) return;
+void PyStackInProcess::insertPyStack(const std::string &kernel_name,
+                                     const PyStack &stack) {
+  if (!can_use_)
+    return;
   // not thread safe, pytorch is single thread launch kernel, maybe add lock in
   // future.
   // if kernel_name is same, we only peak first callstack, may be add hash of
   // vector<stack> to hold all stacks.
-  if (stack.empty()) return;
+  if (stack.empty())
+    return;
   auto it = stack_maps_.find(kernel_name);
   if (it == stack_maps_.end()) {
     stack_maps_.emplace(std::piecewise_construct,
@@ -61,21 +65,22 @@ void PyStackInProcess::insertPyStack(const std::string& kernel_name,
                         std::forward_as_tuple(std::move(stack)));
   }
   dump_count_++;
-  if (dump_count_ == total_dump_count_) XLOG(INFO) << "Kernel trace dump ready";
+  if (dump_count_ == total_dump_count_)
+    XLOG(INFO) << "Kernel trace dump ready";
 }
 
-void PyStackInProcess::dumpPyStack(const std::string& path, int rank) {
+void PyStackInProcess::dumpPyStack(const std::string &path, int rank) {
   if (!can_use_) {
     XLOG(INFO) << "Skip Dump timeline stack to " << path;
     return;
   }
   PythonStackInTimeline timeline;
   timeline.set_rank(rank);
-  auto& frames_map = *timeline.mutable_named_frames();
-  for (const auto& kernel_stack : stack_maps_) {
+  auto &frames_map = *timeline.mutable_named_frames();
+  for (const auto &kernel_stack : stack_maps_) {
     for (int i = kernel_stack.second.size() - 1; i >= 0; i--) {
-      auto& stack = kernel_stack.second[i];
-      PySpyFrame* frame = frames_map[kernel_stack.first].add_frames();
+      auto &stack = kernel_stack.second[i];
+      PySpyFrame *frame = frames_map[kernel_stack.first].add_frames();
       frame->set_func_name(stack.function_name);
       frame->set_file_name(stack.filename + ":" + std::to_string(stack.line));
     }
@@ -90,5 +95,5 @@ void PyStackInProcess::dumpPyStack(const std::string& path, int rank) {
   XLOG(INFO) << "Dump timeline stack to " << file_path;
 }
 
-}  // namespace stack_util
-}  // namespace xpu_timer
+} // namespace stack_util
+} // namespace xpu_timer

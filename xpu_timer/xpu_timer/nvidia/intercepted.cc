@@ -19,7 +19,7 @@
 namespace xpu_timer {
 namespace nvidia {
 
-FaParser::FaParser(const std::string& library_path)
+FaParser::FaParser(const std::string &library_path)
     : LibraryLoader(library_path) {
   const std::string err = "libparse_params.so, skip get fa shape";
   SETUP_SYMBOL_FOR_LOAD_LIBRARY(handle_, "parse_fwd_shape", get_fwd_shape_,
@@ -29,26 +29,28 @@ FaParser::FaParser(const std::string& library_path)
   XLOG(INFO) << "Load fn `parse_bwd_shape` OK";
   can_use_ = true;
 }
-std::vector<uint64_t> FaParser::getFaFwdShape(void** args) {
-  if (can_use_) return get_fwd_shape_(args);
+std::vector<uint64_t> FaParser::getFaFwdShape(void **args) {
+  if (can_use_)
+    return get_fwd_shape_(args);
   return {0, 0, 0, 0, 0};
 }
 
-std::vector<uint64_t> FaParser::getFaBwdShape(void** args) {
-  if (can_use_) return get_bwd_shape_(args);
+std::vector<uint64_t> FaParser::getFaBwdShape(void **args) {
+  if (can_use_)
+    return get_bwd_shape_(args);
   return {0, 0, 0, 0, 0};
 }
 
-ptrdiff_t InterceptManager::getOffset(const void* symbol) {
+ptrdiff_t InterceptManager::getOffset(const void *symbol) {
   Dl_info info;
   if (dladdr(symbol, &info) != 0) {
-    return (char*)symbol - (char*)info.dli_fbase;
+    return (char *)symbol - (char *)info.dli_fbase;
   }
   return 0;
 }
 
-bool InterceptManager::isIntercepted(const void* func,
-                                     const InterceptSymbol** sym) {
+bool InterceptManager::isIntercepted(const void *func,
+                                     const InterceptSymbol **sym) {
   if (fns_to_skip_.find(func) != fns_to_skip_.end()) {
     return false;
   }
@@ -66,22 +68,22 @@ bool InterceptManager::isIntercepted(const void* func,
   return true;
 }
 
-std::vector<uint64_t> InterceptManager::getFaFwdShape(void** args) {
+std::vector<uint64_t> InterceptManager::getFaFwdShape(void **args) {
   return fa_parser_.getFaFwdShape(args);
 }
-std::vector<uint64_t> InterceptManager::getFaBwdShape(void** args) {
+std::vector<uint64_t> InterceptManager::getFaBwdShape(void **args) {
   return fa_parser_.getFaBwdShape(args);
 }
 
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
 InterceptManager::handleNccl(
 #if defined(CUDA_LAUNCH_EXC)
-    const cudaLaunchConfig_t* config,
+    const cudaLaunchConfig_t *config,
 #else
-    const void* config,  // not used
+    const void *config, // not used
 #endif
-    const void* func, void** args, const InterceptSymbol* sym, bool* skip) {
-  void* dev_comm = args[0];
+    const void *func, void **args, const InterceptSymbol *sym, bool *skip) {
+  void *dev_comm = args[0];
   auto it = nccl_info_map_.find(dev_comm);
   // TODO add prometheus metric when not found.
   if (it == nccl_info_map_.end()) {
@@ -102,14 +104,14 @@ InterceptManager::handleNccl(
   dim3 grid_dim = config->gridDim;
   dim3 block_dim = config->blockDim;
   auto fn = [sym, nccl_info, grid_dim,
-             block_dim](NvidiaGpuTimer* timer) -> NvidiaGpuTimer::FnReturn {
+             block_dim](NvidiaGpuTimer *timer) -> NvidiaGpuTimer::FnReturn {
 #else
   auto fn = [sym,
-             nccl_info](NvidiaGpuTimer* timer) -> NvidiaGpuTimer::FnReturn {
+             nccl_info](NvidiaGpuTimer *timer) -> NvidiaGpuTimer::FnReturn {
 #endif
     timer->trace->Clear();
     timer->trace->set_kernel_type(constant::Metrics::CollMetrics::KERNEL_TYPE);
-    hook::NcclDebugData* nccl_debug = timer->trace->mutable_nccl_debug();
+    hook::NcclDebugData *nccl_debug = timer->trace->mutable_nccl_debug();
 
 #if defined(CUDA_LAUNCH_EXC)
     nccl_debug->add_grids(grid_dim.x);
@@ -161,8 +163,8 @@ InterceptManager::handleNccl(
   return fn;
 }
 
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-InterceptManager::handleFa(void** args, const InterceptSymbol* sym) {
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+InterceptManager::handleFa(void **args, const InterceptSymbol *sym) {
   std::vector<uint64_t> fa_params;
   if (sym->operation == "FaBwd")
     fa_params = getFaBwdShape(args);
@@ -172,7 +174,7 @@ InterceptManager::handleFa(void** args, const InterceptSymbol* sym) {
     fa_params = {0, 0, 0, 0, 0};
 
   auto fn = [sym,
-             fa_params](NvidiaGpuTimer* timer) -> NvidiaGpuTimer::FnReturn {
+             fa_params](NvidiaGpuTimer *timer) -> NvidiaGpuTimer::FnReturn {
     timer->trace->Clear();
     timer->trace->set_kernel_type(
         constant::Metrics::MatmulMetrics::KERNEL_TYPE);
@@ -180,7 +182,7 @@ InterceptManager::handleFa(void** args, const InterceptSymbol* sym) {
     std::ostringstream oss;
     oss << "xpu_timer_" << sym->func_name << "_bssh_";
 
-    hook::FaDebugData* fa_debug = timer->trace->mutable_fa_debug();
+    hook::FaDebugData *fa_debug = timer->trace->mutable_fa_debug();
     for (int i = 0; i < 4; i++) {
       oss << fa_params[i] << "_";
       fa_debug->add_shapes(fa_params[i]);
@@ -208,37 +210,37 @@ InterceptManager::handleFa(void** args, const InterceptSymbol* sym) {
 }
 
 #if defined(CUDA_LAUNCH_EXC)
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-InterceptManager::handleCudaLaunchKernelExC(const cudaLaunchConfig_t* config,
-                                            const void* func, void** args,
-                                            const InterceptSymbol* sym,
-                                            bool* skip) {
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+InterceptManager::handleCudaLaunchKernelExC(const cudaLaunchConfig_t *config,
+                                            const void *func, void **args,
+                                            const InterceptSymbol *sym,
+                                            bool *skip) {
   if (sym->func_type == "NCCL")
     return handleNccl(config, func, args, sym, skip);
   return cuda_launch_kernel_exc_default_;
 }
 #endif
 
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-InterceptManager::handleCudaLaunchKernel(const void* func, dim3 gridDim,
-                                         dim3 blockDim, void** args,
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+InterceptManager::handleCudaLaunchKernel(const void *func, dim3 gridDim,
+                                         dim3 blockDim, void **args,
                                          size_t sharedMem, cudaStream_t stream,
-                                         const InterceptSymbol* sym,
-                                         bool* skip) {
+                                         const InterceptSymbol *sym,
+                                         bool *skip) {
   if (sym->func_type == "FA")
     return handleFa(args, sym);
   else if (sym->func_type == "NCCL")
     return handleNccl(nullptr, func, args, sym, skip);
   return cuda_launch_kernel_default_;
 }
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-InterceptManager::deviceMemory(const std::string& name, const size_t size,
-                               const std::string& kind, bool is_host) {
-  return [name, size, kind, is_host](NvidiaGpuTimer* timer) {
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+InterceptManager::deviceMemory(const std::string &name, const size_t size,
+                               const std::string &kind, bool is_host) {
+  return [name, size, kind, is_host](NvidiaGpuTimer *timer) {
     timer->trace->Clear();
     timer->trace->set_kernel_type(
         xpu_timer::constant::Metrics::MemMetrics::KERNEL_TYPE);
-    hook::MemoryDebugData* memory_debug = timer->trace->mutable_memory_debug();
+    hook::MemoryDebugData *memory_debug = timer->trace->mutable_memory_debug();
     memory_debug->set_size(size);
     if (!kind.empty()) {
       memory_debug->set_direction(kind);
@@ -252,7 +254,7 @@ InterceptManager::deviceMemory(const std::string& name, const size_t size,
   };
 }
 
-InterceptSymbol::InterceptSymbol(const InterceptSymbolPb& pb) {
+InterceptSymbol::InterceptSymbol(const InterceptSymbolPb &pb) {
   func_name = pb.func_name();
   coll_type = pb.coll_type();
   algo = pb.algo();
@@ -275,7 +277,7 @@ void InterceptManager::resetSymsMap() {
       util::EnvVarRegistry::GetEnvVar<std::string>("XPU_TIMER_SYMS_FILE");
   if (path == util::EnvVarRegistry::STRING_DEFAULT_VALUE) {
     Dl_info dl_info;
-    void* symbol = (void*)::xpu_timer::util::REGISTER_ENV;
+    void *symbol = (void *)::xpu_timer::util::REGISTER_ENV;
     if (dladdr(symbol, &dl_info) == 0) {
       XLOG(WARNING) << "Symsbol of xpuTimerNvidia is not found";
       return;
@@ -299,11 +301,11 @@ void InterceptManager::resetSymsMap() {
     ::xpu_timer::hook::InterceptSymbolByOffset intercepted_symbols;
     // TODO(lizhi) push error metric to prometheus
     intercepted_symbols.ParseFromIstream(&file);
-    for (const auto& entry : intercepted_symbols.symbols()) {
+    for (const auto &entry : intercepted_symbols.symbols()) {
       int64_t offset = entry.first;
       std::stringstream ss;
       ss << "0x" << std::setfill('0') << std::setw(16) << std::hex << offset;
-      const InterceptSymbolPb& symbol = entry.second;
+      const InterceptSymbolPb &symbol = entry.second;
       addr_to_name_.emplace(offset, symbol);
       XLOG(INFO) << "read symbols " << symbol.func_name() << " with type "
                  << symbol.dtype() << " with offset " << ss.str();
@@ -316,26 +318,26 @@ void InterceptManager::resetSymsMap() {
  * InterceptManager Static variables
  * ===================================
  */
-std::unordered_map<void*,
+std::unordered_map<void *,
                    std::shared_ptr<std::queue<InterceptManager::NcclInfo>>>
     InterceptManager::nccl_info_map_;
 
-std::unordered_set<const void*> InterceptManager::fns_to_skip_;
-std::unordered_map<const void*, const InterceptSymbol*>
+std::unordered_set<const void *> InterceptManager::fns_to_skip_;
+std::unordered_map<const void *, const InterceptSymbol *>
     InterceptManager::fns_to_name_;
 std::unordered_map<ptrdiff_t, const InterceptSymbol>
     InterceptManager::addr_to_name_;
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-    InterceptManager::cuda_launch_kernel_exc_default_ = [](NvidiaGpuTimer*) {
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+    InterceptManager::cuda_launch_kernel_exc_default_ = [](NvidiaGpuTimer *) {
       return std::make_tuple("CudaLaunchKernelExC_UNKNOWN", 0,
                              xpu_timer::Labels{});
     };
-std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)>
-    InterceptManager::cuda_launch_kernel_default_ = [](NvidiaGpuTimer*) {
+std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)>
+    InterceptManager::cuda_launch_kernel_default_ = [](NvidiaGpuTimer *) {
       return std::make_tuple("CudaLaunchKernel_UNKNOWN", 0,
                              xpu_timer::Labels{});
     };
 bool InterceptManager::skip_tp_{false};
 int InterceptManager::tp_size_{0};
-}  // namespace nvidia
-}  // namespace xpu_timer
+} // namespace nvidia
+} // namespace xpu_timer

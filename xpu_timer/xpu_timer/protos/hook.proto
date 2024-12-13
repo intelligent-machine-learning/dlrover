@@ -14,15 +14,13 @@ message InterceptSymbol {
   bool only_trace = 7;
 };
 
-message InterceptSymbolByOffset {
-  map<int64, InterceptSymbol> symbols = 1;
-}
+message InterceptSymbolByOffset { map<int64, InterceptSymbol> symbols = 1; }
 
 message NcclDebugData {
-  repeated uint32 grids = 1;   // dim3
-  repeated uint32 blocks = 2;  // dim3
+  repeated uint32 grids = 1;  // dim3
+  repeated uint32 blocks = 2; // dim3
   uint64 comm_hash = 3;
-  uint64 input_size_in_bytes = 4;  // diff coll operator are different
+  uint64 input_size_in_bytes = 4; // diff coll operator are different
   string dtype = 5;
   uint32 ranks = 6;
   uint32 nodes = 7;
@@ -32,22 +30,22 @@ message NcclDebugData {
 }
 
 message MatmulDebugData {
-  repeated uint32 shapes = 1;  // b m n k
+  repeated uint32 shapes = 1; // b m n k
   string dtype = 2;
   string trans = 3;
-  repeated int64 lds = 4;      // ld a b c
-  repeated int64 strides = 5;  // strides a b c
+  repeated int64 lds = 4;     // ld a b c
+  repeated int64 strides = 5; // strides a b c
   int32 algo = 6;
   string api = 7;
 }
 
 message FaDebugData {
-  repeated uint32 shapes = 1;  // b s s h
+  repeated uint32 shapes = 1; // b s s h
 }
 
 message GroupedMatmulDebugData {
   message BMNK {
-    repeated uint32 shapes = 1;  // b m n k
+    repeated uint32 shapes = 1; // b m n k
   }
   repeated BMNK bmnks = 1;
   string dtype = 2;
@@ -56,7 +54,7 @@ message GroupedMatmulDebugData {
 }
 
 message MemoryDebugData {
-  uint64 size = 1;  // bytes
+  uint64 size = 1; // bytes
   string direction = 2;
 }
 
@@ -90,9 +88,7 @@ message HostTrace {
   uint32 dur_us = 2;
   string name = 3;
   uint32 count = 4;
-  oneof debug_data {
-    GcDebugData gc_debug = 5;
-  }
+  oneof debug_data { GcDebugData gc_debug = 5; }
 }
 
 message MatmulInfo {
@@ -100,13 +96,9 @@ message MatmulInfo {
   repeated double tflops = 2;
 }
 
-message MatmulInfos {
-  repeated MatmulInfo infos = 1;
-}
+message MatmulInfos { repeated MatmulInfo infos = 1; }
 
-message RankMatmulInfo {
-  map<int64, MatmulInfos> mm_infos = 1;
-}
+message RankMatmulInfo { map<int64, MatmulInfos> mm_infos = 1; }
 
 message KernelTraces {
   repeated KernelTrace traces = 1;

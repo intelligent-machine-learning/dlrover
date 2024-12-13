@@ -10,29 +10,29 @@ struct stack {
   int line;
 };
 
-PyCodeObject* getCodeOfFrame(PyFrameObject* frame);
-PyFrameObject* getFrameFromThreadState(PyThreadState* tstate);
+PyCodeObject *getCodeOfFrame(PyFrameObject *frame);
+PyFrameObject *getFrameFromThreadState(PyThreadState *tstate);
 
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
 #include <pyframe.h>
 #include <pystate.h>
 
-PyCodeObject* getCodeOfFrame(PyFrameObject* frame) {
+PyCodeObject *getCodeOfFrame(PyFrameObject *frame) {
   return PyFrame_GetCode(frame);
 }
 
-PyFrameObject* getFrameFromThreadState(PyThreadState* tstate) {
+PyFrameObject *getFrameFromThreadState(PyThreadState *tstate) {
   return PyThreadState_GetFrame(tstate);
 }
 
 #else
 
-PyFrameObject* getFrameFromThreadState(PyThreadState* tstate) {
+PyFrameObject *getFrameFromThreadState(PyThreadState *tstate) {
   return tstate->frame;
 }
 
-PyCodeObject* getCodeOfFrame(PyFrameObject* frame) { return frame->f_code; }
+PyCodeObject *getCodeOfFrame(PyFrameObject *frame) { return frame->f_code; }
 
 #endif
 
@@ -48,23 +48,24 @@ std::vector<stack> gather_python_callstack() {
     return call_stack;
   }
   // check has gil, avoid recursive lock
-  if (!PyGILState_Check()) return call_stack;
+  if (!PyGILState_Check())
+    return call_stack;
 
-  PyThreadState* TState = PyThreadState_Get();
+  PyThreadState *TState = PyThreadState_Get();
 
-  for (PyFrameObject* frame = getFrameFromThreadState(TState); frame != NULL;
+  for (PyFrameObject *frame = getFrameFromThreadState(TState); frame != NULL;
        frame = frame->f_back) {
     stack frame_info;
     int line = PyFrame_GetLineNumber(frame);
-    PyCodeObject* code = getCodeOfFrame(frame);
-    PyObject* filename =
+    PyCodeObject *code = getCodeOfFrame(frame);
+    PyObject *filename =
         PyUnicode_FromString(PyUnicode_AsUTF8(code->co_filename));
     if (filename) {
       frame_info.filename = PyUnicode_AsUTF8(filename);
       Py_DECREF(filename);
     }
 
-    PyObject* name = PyUnicode_FromString(PyUnicode_AsUTF8(code->co_name));
+    PyObject *name = PyUnicode_FromString(PyUnicode_AsUTF8(code->co_name));
     if (name) {
       frame_info.function_name = PyUnicode_AsUTF8(name);
       Py_DECREF(name);

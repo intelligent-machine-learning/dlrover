@@ -4,8 +4,8 @@
 extern "C" {
 
 #define GET_COMM_INFO(FIELD, TYPE)                                             \
-  __attribute__((visibility("default"))) TYPE get_Comm_##FIELD##_FUNCTION_TAG( \
-      ncclComm_t comm) {                                                       \
+  __attribute__((visibility("default")))                                       \
+      TYPE get_Comm_##FIELD##_FUNCTION_TAG(ncclComm_t comm) {                  \
     return comm->FIELD;                                                        \
   }                                                                            \
   __asm__(".symver get_Comm_" #FIELD "_FUNCTION_TAG,get_Comm_" #FIELD          \
@@ -20,8 +20,8 @@ GET_COMM_INFO(nNodes, int)
 
 // We need the address of comm->devComm to use as the key, so we save
 // &comm->devComm.
-__attribute__((visibility("default"))) void* get_Comm_devComm_FUNCTION_TAG(
-    ncclComm_t comm) {
+__attribute__((visibility("default"))) void *
+get_Comm_devComm_FUNCTION_TAG(ncclComm_t comm) {
   return &comm->devComm;
 }
 __asm__(".symver get_Comm_devComm_FUNCTION_TAG,get_Comm_devComm@VERSION_TAG");

@@ -35,5 +35,5 @@ std::string getDeviceName() {
 }
 
 #endif
-}  // namespace platform
-}  // namespace xpu_timer
+} // namespace platform
+} // namespace xpu_timer

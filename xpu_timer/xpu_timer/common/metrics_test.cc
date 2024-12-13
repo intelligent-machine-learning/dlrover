@@ -11,7 +11,7 @@ int main() {
   uint64_t problem_size = 2;
   xpu_timer::Labels label;
   label["operation"] = "matmul";
-  const char* cstr = "mm";
+  const char *cstr = "mm";
   const std::string_view type(cstr);
 
   std::string ttt = "mm";
@@ -56,7 +56,7 @@ int main() {
   uint64_t problem_size_mem = 2;
   xpu_timer::Labels label_mem;
   label_mem["operation"] = "CudaMem";
-  const char* cstr_mem = "memory";
+  const char *cstr_mem = "memory";
   std::string_view type_mem(cstr);
 
   std::cout << "MemMetrics" << std::endl;

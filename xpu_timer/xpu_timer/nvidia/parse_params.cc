@@ -9,8 +9,8 @@ extern "C" {
 #endif
 
 EXPOSE_API
-std::vector<uint64_t> parse_fwd_shape(void** args) {
-  Flash_fwd_params* params = (Flash_fwd_params*)(args[0]);
+std::vector<uint64_t> parse_fwd_shape(void **args) {
+  Flash_fwd_params *params = (Flash_fwd_params *)(args[0]);
   uint64_t batch = params->b;
   uint64_t dim = params->d;
   uint64_t seqlen_q = params->seqlen_q;
@@ -21,8 +21,8 @@ std::vector<uint64_t> parse_fwd_shape(void** args) {
 }
 
 EXPOSE_API
-std::vector<uint64_t> parse_bwd_shape(void** args) {
-  Flash_bwd_params* params = (Flash_bwd_params*)(args[0]);
+std::vector<uint64_t> parse_bwd_shape(void **args) {
+  Flash_bwd_params *params = (Flash_bwd_params *)(args[0]);
   uint64_t batch = params->b;
   uint64_t dim = params->d;
   uint64_t seqlen_q = params->seqlen_q;

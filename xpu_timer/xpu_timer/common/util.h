@@ -59,7 +59,7 @@ void setUpBvarMetricsConfig();
 void setUpDlopenLibrary();
 int getMinDeviceRank();
 
-}  // namespace config
+} // namespace config
 namespace detail {
 struct InterProcessBarrierImpl {
   struct Inner {
@@ -72,30 +72,30 @@ struct InterProcessBarrierImpl {
   ~InterProcessBarrierImpl();
   std::string name_;
 };
-}  // namespace detail
+} // namespace detail
 
-std::string getUniqueFileNameByCluster(const std::string& suffix);
+std::string getUniqueFileNameByCluster(const std::string &suffix);
 void REGISTER_ENV();
 void InterProcessBarrier(int world_size, int rank,
                          std::string name = "barrier");
 
-std::string execShellCommand(const char* cmd);
-std::vector<std::string> split(const std::string& str,
-                               const std::string& delimiter);
+std::string execShellCommand(const char *cmd);
+std::vector<std::string> split(const std::string &str,
+                               const std::string &delimiter);
 
-bool AES128_CBC(const std::string& ciphertext, std::string* text);
+bool AES128_CBC(const std::string &ciphertext, std::string *text);
 
 class ScopeGuard {
- public:
+public:
   explicit ScopeGuard(std::function<void()> cb) : cb_(cb) {}
 
   ~ScopeGuard() { cb_(); }
 
- private:
+private:
   std::function<void()> cb_;
 };
 
-int ensureDirExists(const std::string& path);
+int ensureDirExists(const std::string &path);
 
 namespace detail {
 struct ShmSwitch {
@@ -108,19 +108,18 @@ struct ShmSwitch {
   alignas(8) int start_dump;
   alignas(8) int64_t timestamp;
   alignas(8) bool reset_flag;
-  alignas(8) uint32_t dump_kernel_type;  // in bits, 0 is matmul, 1 is comm
+  alignas(8) uint32_t dump_kernel_type; // in bits, 0 is matmul, 1 is comm
   void reset();
-  void reset(const std::string& path, const std::string& oss_args,
+  void reset(const std::string &path, const std::string &oss_args,
              uint32_t count, int64_t stamp, uint32_t dump_kernel);
-  void reset(const std::string& path, const std::string& oss_args,
+  void reset(const std::string &path, const std::string &oss_args,
              uint32_t count, int64_t stamp, uint32_t dump_kernel,
              bool reset_signal);
 };
-}  // namespace detail
+} // namespace detail
 
-template <typename T>
-class ShmType {
- public:
+template <typename T> class ShmType {
+public:
   explicit ShmType(int local_world_size, int local_rank, bool main = true) {
     shm_name_ = std::string(T::ShmName);
     std::string obj_name(T::ObjName);
@@ -150,39 +149,38 @@ class ShmType {
   }
   ~ShmType() { bip::shared_memory_object::remove(shm_name_.c_str()); }
 
-  T* getObj() { return obj_; }
+  T *getObj() { return obj_; }
 
- private:
-  T* obj_;
-  bip::managed_shared_memory* shm_area_;
+private:
+  T *obj_;
+  bip::managed_shared_memory *shm_area_;
   std::string shm_name_;
 };
 
 using ShmSwitch = ShmType<detail::ShmSwitch>;
 
-template <typename T>
-class BlockingDeque {
+template <typename T> class BlockingDeque {
   /* Blocking deque, this is use for queuing XpuTimer object, backgroud thread
    * get object from the queue and parse the duration and name, then pushing to
    * prometheus. The working queue call push in launch kernel thread, and pop in
    * backgroud thread, usually, pop is more offen than push, so we let pop
    * blocking.
    */
- private:
-  std::deque<T*> deque_;
+private:
+  std::deque<T *> deque_;
   mutable std::mutex mutex_;
   std::condition_variable cond_var_;
 
- public:
-  void push(T* valuePtr) {
+public:
+  void push(T *valuePtr) {
     std::lock_guard<std::mutex> lock(mutex_);
     deque_.push_back(valuePtr);
     cond_var_.notify_one();
     // cond_var_.notify_all(); // maybe, check thread nums.
   }
 
-  T* pop(std::function<bool(T*)> is_hang, std::function<bool(T*)> is_ready,
-         int* size) {
+  T *pop(std::function<bool(T *)> is_hang, std::function<bool(T *)> is_ready,
+         int *size) {
     std::unique_lock<std::mutex> lock(mutex_);
     *size = deque_.size();
     if (!cond_var_.wait_for(lock, std::chrono::seconds(5),
@@ -190,14 +188,16 @@ class BlockingDeque {
       LOG(INFO) << "No event to pop for 5 seconds, return null";
       return nullptr;
     }
-    T* value_ptr = deque_.front();
-    if (is_hang(value_ptr)) return value_ptr;
-    if (!is_ready(value_ptr)) return nullptr;
+    T *value_ptr = deque_.front();
+    if (is_hang(value_ptr))
+      return value_ptr;
+    if (!is_ready(value_ptr))
+      return nullptr;
     deque_.pop_front();
     return value_ptr;
   }
 
-  void printHangName(std::vector<std::string>* hang_items) {
+  void printHangName(std::vector<std::string> *hang_items) {
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto it : deque_) {
       it->reBuild();
@@ -207,31 +207,30 @@ class BlockingDeque {
   }
 };
 
-template <typename T>
-class TimerPool {
+template <typename T> class TimerPool {
   /* This is a deque for pooling XpuTimer object.
    */
- public:
+public:
   TimerPool() = default;
 
-  TimerPool(const TimerPool&) = delete;
-  TimerPool& operator=(const TimerPool&) = delete;
+  TimerPool(const TimerPool &) = delete;
+  TimerPool &operator=(const TimerPool &) = delete;
 
-  template <bool Create = true>
-  T* getObject() {
+  template <bool Create = true> T *getObject() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (pool_.empty()) {
-      if constexpr (Create) return new T();
+      if constexpr (Create)
+        return new T();
       return nullptr;
     } else {
-      T* obj = pool_.front();
+      T *obj = pool_.front();
       pool_.pop_front();
       return obj;
     }
   }
 
   // Return an object to the pool
-  void returnObject(T* obj, int* size) {
+  void returnObject(T *obj, int *size) {
     *size = 0;
     if (obj) {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -240,35 +239,34 @@ class TimerPool {
     }
   }
 
- private:
-  std::deque<T*> pool_;
+private:
+  std::deque<T *> pool_;
   std::mutex mutex_;
 };
 
 class EnvVarRegistry {
- public:
+public:
   using VarType = std::variant<int, bool, std::string>;
   static constexpr std::string_view STRING_DEFAULT_VALUE = "NOT_SET";
   static constexpr int INT_DEFAULT_VALUE = 0;
   static constexpr bool BOOL_DEFAULT_VALUE = false;
 
-  static inline VarType convert_to_variant(const std::string_view& sv) {
+  static inline VarType convert_to_variant(const std::string_view &sv) {
     return std::string(sv);
   }
 
-  static inline VarType convert_to_variant(const char* s) {
+  static inline VarType convert_to_variant(const char *s) {
     return std::string(s);
   }
 
-  template <typename T>
-  static inline VarType convert_to_variant(const T& val) {
+  template <typename T> static inline VarType convert_to_variant(const T &val) {
     return val;
   }
 
-  static void RegisterEnvVar(const std::string& name, VarType default_value) {
-    auto& registry = GetRegistry();
+  static void RegisterEnvVar(const std::string &name, VarType default_value) {
+    auto &registry = GetRegistry();
     std::string str_val = std::visit(
-        [](const auto& value) -> std::string {
+        [](const auto &value) -> std::string {
           std::stringstream ss;
           ss << value;
           return ss.str();
@@ -279,8 +277,8 @@ class EnvVarRegistry {
   }
 
   template <typename T, bool Print = true>
-  static T GetEnvVar(const std::string& name) {
-    auto& registry = GetRegistry();
+  static T GetEnvVar(const std::string &name) {
+    auto &registry = GetRegistry();
     bool has_env = true;
     // if has register env, we get env as below
     // 1. return value if find in environment
@@ -295,14 +293,14 @@ class EnvVarRegistry {
         return result;
       }
 
-      auto& pt = GetPtree();
+      auto &pt = GetPtree();
       if (auto it = pt.find(name); it != pt.not_found()) {
         auto result = pt.get<T>(name);
         if constexpr (Print)
           LOG(INFO) << "[ENV] Get " << name << "=" << result << " from config";
         return result;
       }
-      if (const T* result_p = std::get_if<T>(&it->second)) {
+      if (const T *result_p = std::get_if<T>(&it->second)) {
         if constexpr (Print)
           LOG(INFO) << "[ENV] Get " << name << "=" << *result_p
                     << " from register default";
@@ -330,8 +328,8 @@ class EnvVarRegistry {
     return result;
   }
 
-  static std::string getLibPath(const std::string& lib_name) {
-    const std::string& env_name = "XPU_TIMER_" + lib_name + "_LIB_PATH";
+  static std::string getLibPath(const std::string &lib_name) {
+    const std::string &env_name = "XPU_TIMER_" + lib_name + "_LIB_PATH";
     auto lib_path = GetEnvVar<std::string>(env_name);
     if (lib_path != STRING_DEFAULT_VALUE) {
       LOG(INFO) << "[ENV] Get lib path for dlopen " << lib_name << "="
@@ -350,10 +348,10 @@ class EnvVarRegistry {
     return lib_path;
   }
 
- private:
+private:
   template <typename T>
-  static T getEnvInner(std::string env_name, bool* has_env) {
-    const char* env = std::getenv(env_name.c_str());
+  static T getEnvInner(std::string env_name, bool *has_env) {
+    const char *env = std::getenv(env_name.c_str());
     if (!env) {
       *has_env = false;
       return T{};
@@ -368,12 +366,11 @@ class EnvVarRegistry {
       static_assert(std::is_same_v<T, int> || std::is_same_v<T, bool> ||
                         std::is_same_v<T, std::string>,
                     "Unsupported type");
-      return T{};  // never goes here
+      return T{}; // never goes here
     }
   }
 
-  template <typename T>
-  static T getDefault() {
+  template <typename T> static T getDefault() {
     if constexpr (std::is_same_v<T, int>) {
       return EnvVarRegistry::INT_DEFAULT_VALUE;
     } else if constexpr (std::is_same_v<T, bool>) {
@@ -384,22 +381,22 @@ class EnvVarRegistry {
       static_assert(std::is_same_v<T, int> || std::is_same_v<T, bool> ||
                         std::is_same_v<T, std::string>,
                     "Unsupported type");
-      return T{};  // never goes here
+      return T{}; // never goes here
     }
   }
 
-  static std::unordered_map<std::string, VarType>& GetRegistry() {
+  static std::unordered_map<std::string, VarType> &GetRegistry() {
     static std::unordered_map<std::string, VarType> registry;
     return registry;
   }
 
-  static boost::property_tree::ptree& GetPtree() {
+  static boost::property_tree::ptree &GetPtree() {
     static boost::property_tree::ptree pt;
     static bool pt_init_flag = false;
 
     if (!pt_init_flag) {
       pt_init_flag = true;
-      const char* config_path = std::getenv("XPU_TIMER_CONFIG");
+      const char *config_path = std::getenv("XPU_TIMER_CONFIG");
       if (config_path && config_path != EnvVarRegistry::STRING_DEFAULT_VALUE) {
         if (std::filesystem::exists(config_path))
           boost::property_tree::ini_parser::read_ini(config_path, pt);
@@ -412,9 +409,9 @@ class EnvVarRegistry {
   }
 };
 
-#define REGISTER_ENV_VAR(name, value)                \
-  ::xpu_timer::util::EnvVarRegistry::RegisterEnvVar( \
+#define REGISTER_ENV_VAR(name, value)                                          \
+  ::xpu_timer::util::EnvVarRegistry::RegisterEnvVar(                           \
       name, ::xpu_timer::util::EnvVarRegistry::convert_to_variant(value))
 
-}  // namespace util
-}  // namespace xpu_timer
+} // namespace util
+} // namespace xpu_timer
