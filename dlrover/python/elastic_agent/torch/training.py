@@ -1383,8 +1383,8 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
-            elif stragglers and not self._config.exclude_straggler:
-                pass
+            elif stragglers and self._config.exclude_straggler:
+                continue
             else:
                 return success
 
