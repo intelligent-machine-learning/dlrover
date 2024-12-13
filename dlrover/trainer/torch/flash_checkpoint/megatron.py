@@ -245,3 +245,16 @@ def load_checkpoint(
     )
     torch.load = torch_native_load
     return iteration
+
+
+def wait_latest_checkpoint(timeout=1800):
+    """
+    Wait for the latest checkpoint.
+    Args:
+        timeout (second): The timeout to wait.
+    """
+    args = get_args()
+    checkpointer = MegatronCheckpointer.singleton_instance(
+        checkpoint_dir=args.save
+    )
+    checkpointer.engine.wait_latest_checkpoint(timeout)
