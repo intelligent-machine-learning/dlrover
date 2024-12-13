@@ -1,0 +1,54 @@
+load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "hosting_service_proto",
+    srcs = [
+        "hosting_service.proto",
+    ],
+    deps = ["@com_google_protobuf//:empty_proto"],
+)
+
+py_proto_library(
+    name = "py_hosting_service_proto",
+    srcs = [
+        "hosting_service.proto",
+    ],
+    deps = ["@com_google_protobuf//:protobuf_python"],
+)
+
+cc_proto_library(
+    name = "cc_hosting_service_proto",
+    deps = [
+        ":hosting_service_proto",
+    ],
+)
+
+proto_library(
+    name = "hook_proto",
+    srcs = [
+        "hook.proto",
+    ],
+    deps = [":hosting_service_proto"],
+)
+
+py_proto_library(
+    name = "py_hook_proto",
+    srcs = [
+        "hook.proto",
+    ],
+    deps = [
+        ":py_hosting_service_proto",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+cc_proto_library(
+    name = "cc_hook_proto",
+    deps = [
+        ":hook_proto",
+    ],
+)

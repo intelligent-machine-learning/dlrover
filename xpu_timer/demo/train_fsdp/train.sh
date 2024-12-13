@@ -1,0 +1,2 @@
+export XPU_TIMER_HOST_TRACING_FUNC=transformers.models.gpt_neox.modeling_gpt_neox@GPTNeoXAttention@forward,transformers.models.gpt_neox.modeling_gpt_neox@GPTNeoXRotaryEmbedding@forward,transformers.models.gpt_neox.modeling_gpt_neox@GPTNeoXMLP@forward,transformers.models.gpt_neox.modeling_gpt_neox@GPTNeoXLayer@forward
+xpu_timer_launch python -m torch.distributed.launch --nproc_per_node=8 train_fsdp.py

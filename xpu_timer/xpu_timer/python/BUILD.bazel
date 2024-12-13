@@ -1,0 +1,67 @@
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "tracing_data_h",
+    hdrs = ["py_tracing_data.h"],
+)
+
+cc_library(
+    name = "tracing",
+    srcs = [
+        "py_syshook.c",
+        "py_tracing.c",
+    ],
+    hdrs = ["py_tracing.h"],
+    deps = [
+        ":tracing_data_h",
+        "@python_lib//:python",
+        "@uthash_archive//:uthash",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "tracing_cpp",
+    srcs = [
+        "py_tracing_manager.cc",
+    ],
+    hdrs = ["py_tracing_manager.h"],
+    deps = [
+        ":tracing",
+        "//xpu_timer/common:logging",
+        "//xpu_timer/common:util",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "tracing_lib_loader",
+    srcs = [
+        "py_tracing_loader.cc",
+    ],
+    hdrs = [
+        "py_tracing_loader.h",
+    ],
+    deps = [
+        ":tracing_data_h",
+        "//xpu_timer/common:logging",
+        "//xpu_timer/common:xpu_timer",
+    ],
+)
+
+cc_binary(
+    name = "libpy_tracing.so",
+    copts = [
+        "-std=c++17",
+        "-fPIC",
+    ],
+    linkopts = [
+        "-shared",
+    ],
+    linkshared = 1,
+    deps = [
+        ":tracing",
+        ":tracing_cpp",
+        ":tracing_data_h",
+    ],
+)

@@ -1,0 +1,21 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@xpu_timer_cfg//:xpu_config.bzl", "XPU_TIMER_CONFIG")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["workspace.bzl"])
+
+cc_binary(
+    name = "libevent_hook.so",
+    copts = [
+        "-fPIC",
+    ],
+    linkopts = [
+        "-ldl",
+        "-shared",
+        "-Wl,-rpath,'$$ORIGIN'",
+        "-Wl,-rpath,'$$ORIGIN/../lib/'",
+    ] + XPU_TIMER_CONFIG.linkopt,
+    linkshared = 1,
+    deps = XPU_TIMER_CONFIG.deps + XPU_TIMER_CONFIG.hook_deps
+)

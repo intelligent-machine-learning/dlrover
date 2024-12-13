@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+libhook_dir=`realpath $(dirname $0)`
+libhook_path=`realpath $(dirname $0)/libevent_hook.so`
+intercepted_symbol_path=`realpath $(dirname $0)/intercepted.sym.default`
+new_intercepted_symbol_path=`realpath $(dirname $0)/intercepted.sym`
+
+if [ -f $new_intercepted_symbol_path ];then
+    intercepted_symbol_path=$new_intercepted_symbol_path
+fi
+
+if [[ *"$LD_PRELOAD"* == $libhook_path ]]; then
+    echo $LD_PRELOAD
+else
+    if [[ -z $LD_PRELOAD ]]; then
+        echo $libhook_path
+    else
+        echo $LD_PRELOAD:$libhook_path
+    fi
+fi
+echo -e "command prefix is\nLD_PRELOAD=$LD_PRELOAE:$libhook_path XPU_TIMER_SYMS_FILE=$intercepted_symbol_path"
+python3 -c "import py_xpu_timer"
