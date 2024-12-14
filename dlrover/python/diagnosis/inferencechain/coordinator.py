@@ -30,6 +30,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     is_same_inference,
 )
+from dlrover.python.common.log import default_logger as logger
 
 _dlrover_ctx = Context.singleton_instance()
 
@@ -44,12 +45,15 @@ def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
         diagnosis action
     """
 
+    if len(solutions) == 0:
+        return NoAction
+
+    logger.info(f"coordinate solutions: {solutions}")
     event_solution = Inference(
         name=InferenceName.ACTION,
         attribution=InferenceAttribute.IS,
         description=InferenceDescription.EVENT,
     )
-
     for solution in solutions:
         # deal with event
         if is_same_inference(solution, event_solution):

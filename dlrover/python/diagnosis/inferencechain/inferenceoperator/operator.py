@@ -23,11 +23,14 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_tr
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.diagnose_gpu_errors_operator import (  # noqa: E501
-    DiagnoseGPUErrorsOperator,
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
+    ResolveGPUErrorsOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
+    ResourceCollectionOperator,
 )
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
@@ -42,12 +45,13 @@ def get_worker_observe_operators():
     return [
         MetricsCollectionOperator(),
         CheckResourceCollectionOperator(),
+        ResourceCollectionOperator(),
     ]
 
 
-def get_worker_diagnosis_operators():
+def get_worker_resolve_operators():
     return [
-        DiagnoseGPUErrorsOperator(),
+        ResolveGPUErrorsOperator(),
     ]
 
 

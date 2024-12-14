@@ -19,6 +19,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisErrorConstant,
     InferenceConfigKey,
+    DiagnosisConstant,
 )
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -29,9 +30,9 @@ from dlrover.python.diagnosis.common.inference_chain import (
 )
 
 
-class DiagnoseGPUErrorsOperator(InferenceOperator):
+class ResolveGPUErrorsOperator(InferenceOperator):
     """
-    DiagnoseGPUErrorsOperator is to diagnose GPU errors
+    ResolveGPUErrorsOperator is to diagnose GPU errors
     """
 
     def __init__(self):
@@ -73,9 +74,7 @@ class DiagnoseGPUErrorsOperator(InferenceOperator):
                     description=InferenceDescription.EVENT,
                     configs={
                         InferenceConfigKey.EVENT_TYPE: ErrorMonitorConstants.TYPE_WARN,  # noqa: E501
-                        InferenceConfigKey.EVENT_INSTANCE: inf.configs[
-                            InferenceConfigKey.RANK
-                        ],
+                        InferenceConfigKey.EVENT_INSTANCE: f"{DiagnosisConstant.LOCAL_INSTANCE}",
                         InferenceConfigKey.EVENT_ACTION: inf.configs[
                             InferenceConfigKey.ERRORS
                         ],

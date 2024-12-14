@@ -27,6 +27,7 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
     EnvConfigKey,
     InferenceConfigKey,
+    DiagnosisErrorConstant,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -50,6 +51,12 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
+    ResourceCollectionOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
+    ResolveGPUErrorsOperator,
 )
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -482,6 +489,55 @@ class InferenceChainTest(unittest.TestCase):
         env_utils.set_env(NodeEnv.NODE_RANK, 1)
         infs = operator.infer([])
         self.assertEqual(len(infs), 0)
+
+    @patch(
+        "dlrover.python.elastic_agent.monitor.resource"
+        ".ResourceMonitor.report_resource"
+    )
+    def test_resource_collect_operator(self, mock_resource_monitor):
+        error_log = "GPU is lost"
+        mock_resource_monitor.return_value = error_log
+
+        res_collect_operator = ResourceCollectionOperator()
+        res_collect_inf = Inference(
+            name=InferenceName.WORKER,
+            attribution=InferenceAttribute.COLLECT,
+            description=InferenceDescription.RESOURCE,
+        )
+        self.assertTrue(res_collect_operator.is_compatible(res_collect_inf))
+
+        gpu_error_inf = Inference(
+            name=InferenceName.GPU,
+            attribution=InferenceAttribute.IS,
+            description=InferenceDescription.ERROR,
+        )
+
+        infs = res_collect_operator.infer([])
+        self.assertEqual(len(infs), 1)
+
+        self.assertTrue(is_same_inference(infs[0], gpu_error_inf))
+        self.assertEqual(infs[0].configs[InferenceConfigKey.LOGS], error_log)
+
+    def test_resolve_gpu_error_operator(self):
+        error_log = DiagnosisErrorConstant.GPU_LOST
+
+        operator = ResolveGPUErrorsOperator()
+        gpu_error_inf = Inference(
+            name=InferenceName.GPU,
+            attribution=InferenceAttribute.IS,
+            description=InferenceDescription.ERROR,
+            configs={
+                InferenceConfigKey.LOGS: error_log,
+                InferenceConfigKey.ERRORS: DiagnosisErrorConstant.GPU_LOST,
+            },
+        )
+        self.assertTrue(operator.is_compatible(gpu_error_inf))
+
+        infs = operator.infer([gpu_error_inf])
+        self.assertEqual(len(infs), 1)
+
+        self.assertEqual(infs[0].name, InferenceName.ACTION)
+        self.assertEqual(infs[0].configs[InferenceConfigKey.EVENT_TYPE], ErrorMonitorConstants.TYPE_WARN)
 
 
 if __name__ == "__main__":

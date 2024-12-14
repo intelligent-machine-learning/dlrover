@@ -40,6 +40,7 @@ class InferenceDescription:
     METRICS = "metrics"
     EVENT = "event"
     ERROR = "error"
+    RESOURCE = "resource"
 
 
 @dataclass
