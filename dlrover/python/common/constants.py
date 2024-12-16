@@ -279,9 +279,6 @@ class NodeEnv(object):
     TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
     FAILURE_NODE_ERRORS = "FAILURE_NODE_ERRORS"
 
-    # grpc env
-    MASTER_CLIENT_TIMEOUT = "MASTER_CLIENT_TIMEOUT"
-
 
 class DatasetType(object):
     TEXT = "text"

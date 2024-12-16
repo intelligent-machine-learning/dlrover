@@ -501,7 +501,7 @@ class MasterClient(Singleton):
         return cls._instance
 
 
-def build_master_client(master_addr=None, timeout=15):
+def build_master_client(master_addr=None, timeout=5):
     """
     Build a master client.
 
@@ -514,13 +514,6 @@ def build_master_client(master_addr=None, timeout=15):
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_id = env_utils.get_node_id()
     node_type = env_utils.get_node_type()
-
-    try:
-        _timeout = int(os.getenv(NodeEnv.MASTER_CLIENT_TIMEOUT, ""))
-        logger.info(f"set master_client timeout to env {_timeout}")
-    except Exception:
-        _timeout = timeout
-        logger.info(f"set master_client timeout to {_timeout}")
 
     master_client = None
     logger.info(f"Build master client with addr {master_addr}.")
