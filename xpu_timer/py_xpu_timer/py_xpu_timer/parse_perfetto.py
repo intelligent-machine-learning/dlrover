@@ -1,16 +1,3 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # flake8: noqa: E402
 import random
 from argparse import ArgumentParser
@@ -165,19 +152,9 @@ class PerfettoParser:
         return df
 
 
-def diff_performance(
-    diff_data: Dict[str, pd.DataFrame],
-    key: str,
-    ax,
-    colors,
-    density=True,
-    title=None,
-):
+def diff_performance(diff_data: Dict[str, pd.DataFrame], key: str, ax, colors, density=True, title=None):
 
-    df = pd.concat(
-        [df[[key]].add_suffix(f"({name})") for name, df in diff_data.items()],
-        axis=1,
-    )
+    df = pd.concat([df[[key]].add_suffix(f"({name})") for name, df in diff_data.items()], axis=1)
     df.plot(
         ax=ax,
         kind="hist",
@@ -196,10 +173,7 @@ def diff_performance(
 
 def analysis_launch_time(trace):
     new_data = trace[["name", "hash", "seq", "ts"]]
-    group_data = {
-        k: v.drop(columns=["hash"])
-        for k, v in new_data.groupby(["hash", "seq"])
-    }
+    group_data = {k: v.drop(columns=["hash"]) for k, v in new_data.groupby(["hash", "seq"])}
 
     def parse_one(frame):
         first_launch = frame.ts.min()
@@ -216,10 +190,7 @@ def analysis_launch_time(trace):
 
 def analysis_dur(trace):
     new_data = trace[["name", "hash", "seq", "dur"]]
-    group_data = {
-        k: v.drop(columns=["hash"])
-        for k, v in new_data.groupby(["hash", "seq"])
-    }
+    group_data = {k: v.drop(columns=["hash"]) for k, v in new_data.groupby(["hash", "seq"])}
 
     def parse_one(frame):
         frame["dur_ms"] = frame.dur / 1e6
@@ -231,9 +202,7 @@ def analysis_dur(trace):
 
 
 def plot_diff(named_path, image_path):
-    colors = list(
-        random.sample(mcolors.TABLEAU_COLORS.keys(), len(named_path))
-    )
+    colors = list(random.sample(mcolors.TABLEAU_COLORS.keys(), len(named_path)))
 
     fig = plt.figure(figsize=(24, 16), dpi=300)
     gs = gridspec.GridSpec(3, 2, height_ratios=[5, 2, 2])
@@ -252,9 +221,7 @@ def plot_diff(named_path, image_path):
         nccl_dur_time[name] = analysis_dur(nccl_info)
         nccl_launch_diff_time[name] = analysis_launch_time(nccl_info)
 
-    diff_performance(
-        nccl_dur_time, "dur_ms", nccl_dur_time_ax, colors, title="NCCL dur(ms)"
-    )
+    diff_performance(nccl_dur_time, "dur_ms", nccl_dur_time_ax, colors, title="NCCL dur(ms)")
     diff_performance(
         nccl_launch_diff_time,
         "relative_ts_ms",
@@ -262,9 +229,7 @@ def plot_diff(named_path, image_path):
         colors,
         title="NCCL launch diff(ms)",
     )
-    diff_performance(
-        matmul_dir_time, "TFLOPS", matmul_ax, colors, title="Matmul TFLOPS "
-    )
+    diff_performance(matmul_dir_time, "TFLOPS", matmul_ax, colors, title="Matmul TFLOPS ")
 
     plt.tight_layout()
 
@@ -326,12 +291,8 @@ def plot_xccl_box(path, image_path):
 
 def main():
     parser = ArgumentParser(usage="""python parse_perfetto.py""")
-    parser.add_argument(
-        "--path", action="append", required=True, help="Trace path for diff"
-    )
-    parser.add_argument(
-        "--name", action="append", required=False, help="Trace name for diff"
-    )
+    parser.add_argument("--path", action="append", required=True, help="Trace path for diff")
+    parser.add_argument("--name", action="append", required=False, help="Trace name for diff")
     parser.add_argument(
         "--type",
         default="tflops-box",
@@ -344,16 +305,10 @@ def main():
     dir_path.mkdir(parents=True, exist_ok=True)
     if args.type == "tflops-box":
         for p in args.path:
-            plot_tflops_box(
-                p,
-                f"{args.output}/{Path(p).name.strip('.bin')}_tflops_boxplot.svg",
-            )
+            plot_tflops_box(p, f"{args.output}/{Path(p).name.strip('.bin')}_tflops_boxplot.svg")
     if args.type == "xccl-box":
         for p in args.path:
-            plot_xccl_box(
-                p,
-                f"{args.output}/{Path(p).name.strip('.bin')}_xccl_boxplot.svg",
-            )
+            plot_xccl_box(p, f"{args.output}/{Path(p).name.strip('.bin')}_xccl_boxplot.svg")
     elif args.type == "performance-diff":
         diff_data = {}
         if args.name:

@@ -26,9 +26,9 @@ using PyStack = std::vector<PyStackTrace>;
 class XpuTimer {
   /* This is interface for timing kernel using xpu event.
    */
-public:
+ public:
   // lifetime of py_stack is managed in ::xpu_timer::GpuTimerManager::doWork
-  PyStack *py_stack{nullptr};
+  PyStack* py_stack{nullptr};
   // this rebuild the XpuTimer object, typically, this function is called on
   // background thread, not to waste cycles in thread which launching kernel.
   virtual void reBuild() = 0;
@@ -48,7 +48,7 @@ public:
   virtual const std::string getName() = 0;
   // return type of the kernel. the type should be static string_view in global
   // scope.
-  virtual const std::string_view &getType() = 0;
+  virtual const std::string_view& getType() = 0;
   // return problem size of the kernel.
   virtual const uint64_t getProblemSize() = 0;
   // start record event.
@@ -79,26 +79,26 @@ public:
   static void doPrepare();
 
   // dump the trace meta, mapping from trace_code -> kernel_name
-  static void dumpTraceMeta(const std::string &path,
-                            const std::vector<std::string> &extra);
+  static void dumpTraceMeta(const std::string& path,
+                            const std::vector<std::string>& extra);
 
   // reset timer for each stream, it's use for dumping trace, to get real
   // timestamp when kernel launched on this stream
   static void doPrepareForDumpTrace();
 
   // get bucket level, depends on different platform with different dtype
-  static int getBucket(double performance, const std::string &dtype);
+  static int getBucket(double performance, const std::string& dtype);
 };
 
 class LibraryLoader {
-protected:
-  void *handle_;
+ protected:
+  void* handle_;
   bool can_use_;
   const std::string library_path_;
   void LoadLibrary();
 
-public:
-  LibraryLoader(const std::string &library_path);
+ public:
+  LibraryLoader(const std::string& library_path);
 };
 
-} // namespace xpu_timer
+}  // namespace xpu_timer

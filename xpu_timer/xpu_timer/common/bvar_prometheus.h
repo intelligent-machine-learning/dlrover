@@ -24,7 +24,7 @@ class ClientStub;
 }
 
 class MetricsManager {
-public:
+ public:
   // Manage metrics. There are two types of metrics.
   // 	1. kernel metric
   // 	2. bucketing metric
@@ -37,23 +37,23 @@ public:
 
   ~MetricsManager();
 
-  void updateMetrics(XpuTimer *work_item, metrics::performance_fn pfn,
+  void updateMetrics(XpuTimer* work_item, metrics::performance_fn pfn,
                      metrics::bucket_fn bfn);
   void DeleteMetrics(bool exit = false);
   void registerMetrics(std::string name, std::string gauge_prefix,
                        Labels label);
   void deregisterMetrics();
   void pushMetricsToRemote();
-  void pushCommonMetricsToRemote(const std::string &metric_name,
-                                 const metrics::CommonMetrics &params);
+  void pushCommonMetricsToRemote(const std::string& metric_name,
+                                 const metrics::CommonMetrics& params);
   void pushThroughtPutSumMetricsToRemote(
       std::shared_ptr<metrics::ThroughPutSumMetrics> t);
   void pushMemMetricsToRemote(std::shared_ptr<metrics::MemMetrics> t);
-  void updateMatCommuMetrics(XpuTimer *work_item, metrics::performance_fn pfn,
+  void updateMatCommuMetrics(XpuTimer* work_item, metrics::performance_fn pfn,
                              metrics::bucket_fn bfn);
-  void updateMemMetrics(XpuTimer *work_item);
+  void updateMemMetrics(XpuTimer* work_item);
 
-private:
+ private:
   std::unordered_set<std::string> common_metrics_;
   std::unordered_map<std::string, std::shared_ptr<metrics::TimeoutMixinBase>>
       timeout_metrics_;
@@ -65,7 +65,7 @@ private:
   std::unordered_map<std::string, std::shared_ptr<metrics::MemMetrics>>
       mem_metrics_;
 
-  std::shared_ptr<server::ClientStub> client_stub_; // not owned
+  std::shared_ptr<server::ClientStub> client_stub_;  // not owned
   std::atomic<bool> should_run_;
   std::thread deregister_thread_;
   std::mutex mu_;
@@ -75,4 +75,4 @@ private:
 
   void checkMetrics();
 };
-} // namespace xpu_timer
+}  // namespace xpu_timer

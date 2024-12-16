@@ -8,8 +8,7 @@ void setLoggingPath(bool is_brpc_server) {
   if (logging_path != util::EnvVarRegistry::STRING_DEFAULT_VALUE)
     util::ensureDirExists(logging_path);
   // brpc server must logging to file
-  if (logging_path == "stdout" && !is_brpc_server)
-    return;
+  if (logging_path == "stdout" && !is_brpc_server) return;
   std::string rank_str = std::to_string(util::config::GlobalConfig::rank);
   std::string log_file_name =
       is_brpc_server ? "/xpu_timer_daemon.log" : "/xpu_hook.log." + rank_str;
@@ -37,4 +36,4 @@ void setLoggingPath(bool is_brpc_server) {
     log_settings.delete_old = logging::DELETE_OLD_LOG_FILE;
   logging::InitLogging(log_settings);
 }
-} // namespace xpu_timer
+}  // namespace xpu_timer

@@ -18,7 +18,7 @@ namespace metrics {
 
 using BrpcMetrics = xpu_timer::server::BrpcMetrics;
 using performance_fn = std::function<double(uint64_t, uint64_t)>;
-using bucket_fn = std::function<std::string(double, uint64_t, Labels *)>;
+using bucket_fn = std::function<std::string(double, uint64_t, Labels*)>;
 
 // there three kind of metrics, i.e. CommonMetrics, MatCollMetrics, MemMemtrics
 struct CommonMetrics {
@@ -36,19 +36,19 @@ struct CommonMetrics {
 };
 
 class BaseMetrics {
-public:
-  virtual void pushMetrics(const std::vector<uint64_t> &value) = 0;
-  virtual void getMetrics(BrpcMetrics *request) = 0;
+ public:
+  virtual void pushMetrics(const std::vector<uint64_t>& value) = 0;
+  virtual void getMetrics(BrpcMetrics* request) = 0;
   virtual ~BaseMetrics() = 0;
   BaseMetrics(Labels label, uint64_t problem_size, std::string name,
-              const std::string_view &type);
+              const std::string_view& type);
 
   bool canPush();
   std::string getName();
   std::string getGaugePrefix();
   Labels getLabel();
 
-protected:
+ protected:
   Labels label_;
   uint64_t problem_size_;
   std::string name_;
@@ -59,75 +59,75 @@ protected:
 };
 
 class TimeoutMixinBase {
-public:
+ public:
   virtual bool isTimeout() = 0;
   virtual ~TimeoutMixinBase() = 0;
 };
 
 class TimeoutMixin : public TimeoutMixinBase {
-public:
+ public:
   explicit TimeoutMixin();
   bool isTimeout() override;
-  virtual ~TimeoutMixin(){};
+  virtual ~TimeoutMixin() {};
 
-protected:
+ protected:
   void timeoutAdd();
 
-private:
+ private:
   std::unique_ptr<bvar::Adder<uint64_t>> inner_counter_;
   std::unique_ptr<bvar::Window<bvar::Adder<uint64_t>>> timout_counter_;
 };
 
 class ThroughPutMetrics : public BaseMetrics {
-public:
+ public:
   ThroughPutMetrics(Labels label, uint64_t problem_size, std::string name,
-                    const std::string_view &type);
-  void pushMetrics(const std::vector<uint64_t> &value);
-  virtual ~ThroughPutMetrics(){};
+                    const std::string_view& type);
+  void pushMetrics(const std::vector<uint64_t>& value);
+  virtual ~ThroughPutMetrics() {};
 
   std::vector<uint64_t> getBvarValue();
-  void getMetrics(BrpcMetrics *request);
+  void getMetrics(BrpcMetrics* request);
 
-protected:
+ protected:
   std::unique_ptr<bvar::LatencyRecorder> latency_recorder_;
 };
 
 class BucketingMixinBase {
-public:
+ public:
   virtual std::string computeBucket(double performance, uint64_t problem_size,
-                                    Labels *label) = 0;
+                                    Labels* label) = 0;
   virtual ~BucketingMixinBase() = 0;
 };
 
 class BucketingMixin : public BucketingMixinBase {
-public:
+ public:
   BucketingMixin(bucket_fn func) : func_(func) {}
-  virtual ~BucketingMixin(){};
+  virtual ~BucketingMixin() {};
   std::string computeBucket(double performance, uint64_t problem_size,
-                            Labels *label) override {
+                            Labels* label) override {
     return func_(performance, problem_size, label);
   }
 
-protected:
+ protected:
   bucket_fn func_;
 };
 
 class PerformanceMixinBase {
-public:
+ public:
   virtual double computePerformance(uint64_t latency_in_us,
                                     uint64_t problem_size) = 0;
   virtual ~PerformanceMixinBase() = 0;
 };
 
 class PerformanceMixin : public PerformanceMixinBase {
-public:
+ public:
   PerformanceMixin(performance_fn func) : func_(func) {}
   virtual ~PerformanceMixin() {}
   double computePerformance(uint64_t latency_in_us, uint64_t problem_size) {
     return func_(latency_in_us, problem_size);
   }
 
-protected:
+ protected:
   performance_fn func_;
 };
 
@@ -135,55 +135,55 @@ class MatCommuMetrics : public BucketingMixin,
                         public PerformanceMixin,
                         public ThroughPutMetrics,
                         public TimeoutMixin {
-public:
+ public:
   MatCommuMetrics(Labels label, uint64_t problem_size, std::string name,
-                  const std::string_view &type, performance_fn pfn,
+                  const std::string_view& type, performance_fn pfn,
                   bucket_fn bfn);
 
-  void pushMetrics(const std::vector<uint64_t> &value);
+  void pushMetrics(const std::vector<uint64_t>& value);
   std::vector<uint64_t> getBvarValue();
   std::string computeBucket();
   void getPerformance(uint64_t latency_in_us);
-  virtual ~MatCommuMetrics(){};
+  virtual ~MatCommuMetrics() {};
 
-private:
+ private:
   uint64_t performance_;
 };
 
 class ThroughPutSumMetrics : public MatCommuMetrics {
-public:
+ public:
   ThroughPutSumMetrics(Labels label, uint64_t problem_size, std::string name,
-                       const std::string_view &type, performance_fn pfn,
+                       const std::string_view& type, performance_fn pfn,
                        bucket_fn bfn);
   bvar::Adder<uint64_t> sum_problem_size;
   bvar::Adder<uint64_t> sum_latency_in_us;
 
-  void pushMetrics(const std::vector<uint64_t> &value);
-  void getMetrics(BrpcMetrics *request);
-  ~ThroughPutSumMetrics(){};
+  void pushMetrics(const std::vector<uint64_t>& value);
+  void getMetrics(BrpcMetrics* request);
+  ~ThroughPutSumMetrics() {};
 };
 
 class CountingMetrics : public BaseMetrics {
-public:
+ public:
   CountingMetrics(Labels label, uint64_t problem_size, std::string name,
-                  const std::string_view &type);
+                  const std::string_view& type);
   std::vector<uint64_t> getBvarValue();
-  void pushMetrics(const std::vector<uint64_t> &value) override;
-  virtual ~CountingMetrics(){};
+  void pushMetrics(const std::vector<uint64_t>& value) override;
+  virtual ~CountingMetrics() {};
 
-protected:
+ protected:
   std::unique_ptr<bvar::Adder<uint64_t>> counter_;
 };
 
 class MemMetrics : public CountingMetrics {
-public:
+ public:
   MemMetrics(Labels label, uint64_t problem_size, std::string name,
-             const std::string_view &type);
+             const std::string_view& type);
 
-  void pushMetrics(const std::vector<uint64_t> &value);
-  void getMetrics(BrpcMetrics *request);
-  ~MemMetrics(){};
+  void pushMetrics(const std::vector<uint64_t>& value);
+  void getMetrics(BrpcMetrics* request);
+  ~MemMetrics() {};
 };
 
-} // end of namespace metrics
-} // namespace xpu_timer
+}  // end of namespace metrics
+}  // namespace xpu_timer

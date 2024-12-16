@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-void cudaMallocWrapper(void **devPtr, size_t size) {
+void cudaMallocWrapper(void** devPtr, size_t size) {
   cudaError_t err = cudaMalloc(devPtr, size);
 
   if (err != cudaSuccess) {
@@ -17,8 +17,8 @@ int main() {
   int device = 0;
   cudaSetDevice(device);
 
-  float *devPtr1;
-  cudaMallocWrapper((void **)&devPtr1, sizeof(float) * 100);
+  float* devPtr1;
+  cudaMallocWrapper((void**)&devPtr1, sizeof(float) * 100);
 
   cudaMemPoolProps poolProps = {};
   poolProps.allocType = cudaMemAllocationTypePinned;
@@ -34,7 +34,7 @@ int main() {
     return 1;
   }
 
-  void *devPtr = NULL;
+  void* devPtr = NULL;
   size_t size = 1024 * sizeof(int);
   cudaError_t cudaStatus = cudaMallocFromPoolAsync(&devPtr, size, pool, 0);
   if (cudaStatus != cudaSuccess) {
@@ -43,7 +43,7 @@ int main() {
     return 1;
   }
 
-  int *hostPtr = new int[1024];
+  int* hostPtr = new int[1024];
   cudaMemcpy(hostPtr, devPtr, size, cudaMemcpyDeviceToHost);
 
   cudaFree(devPtr);

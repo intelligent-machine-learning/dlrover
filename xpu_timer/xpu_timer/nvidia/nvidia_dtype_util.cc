@@ -108,26 +108,26 @@ const std::unordered_map<std::string, std::unordered_map<std::string, double>>
 };
 
 // Implementations of static methods
-const std::string &CudaDataTypeUtils::getCudaDtype(cudaDataType_t dtype) {
+const std::string& CudaDataTypeUtils::getCudaDtype(cudaDataType_t dtype) {
   auto it = cudaDataTypeToStringMap.find(dtype);
   return it == cudaDataTypeToStringMap.end() ? UNKNOWN_CUDA_DTYPE : it->second;
 }
 
-const std::string &
-CudaDataTypeUtils::getNcclDataType(const ncclDataType_t &dtype) {
+const std::string& CudaDataTypeUtils::getNcclDataType(
+    const ncclDataType_t& dtype) {
   auto it = ncclDataTypeToStringMap.find(dtype);
   return it == ncclDataTypeToStringMap.end() ? UNKNOWN_CUDA_DTYPE : it->second;
 }
 
-uint64_t CudaDataTypeUtils::getDtypeSizeInBytes(const std::string &dtype) {
+uint64_t CudaDataTypeUtils::getDtypeSizeInBytes(const std::string& dtype) {
   auto it = dtypeSizeInBytes.find(dtype);
   return it == dtypeSizeInBytes.end() ? 0 : it->second;
 }
 
-void CudaDataTypeUtils::setGpu(const std::string &gpu) { gpu_ = gpu; }
+void CudaDataTypeUtils::setGpu(const std::string& gpu) { gpu_ = gpu; }
 
-double CudaDataTypeUtils::getGpuHardwareFlops(const std::string &dtype) {
-  static const std::unordered_map<std::string, double> *gpu_ptr = nullptr;
+double CudaDataTypeUtils::getGpuHardwareFlops(const std::string& dtype) {
+  static const std::unordered_map<std::string, double>* gpu_ptr = nullptr;
   if (!gpu_ptr) {
     auto it = gpuHardwareFlops.find(gpu_);
     if (it != gpuHardwareFlops.end()) {
@@ -145,5 +145,5 @@ double CudaDataTypeUtils::getGpuHardwareFlops(const std::string &dtype) {
   return 312.;
 }
 
-} // namespace nvidia
-} // namespace xpu_timer
+}  // namespace nvidia
+}  // namespace xpu_timer

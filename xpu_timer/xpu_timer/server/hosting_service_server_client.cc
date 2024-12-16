@@ -20,10 +20,10 @@ namespace server {
 namespace detail {
 
 // boot dump process
-int callShellByBoost(const std::string &bin_path,
-                     const std::initializer_list<std::string> &args,
-                     butil::IOBuf *stdout_buf, butil::IOBuf *stderr_buf,
-                     const std::string &hang_kernels) {
+int callShellByBoost(const std::string& bin_path,
+                     const std::initializer_list<std::string>& args,
+                     butil::IOBuf* stdout_buf, butil::IOBuf* stderr_buf,
+                     const std::string& hang_kernels) {
   bp::environment env = boost::this_process::environment();
   env.erase("LD_PRELOAD");
   bp::ipstream out_stream;
@@ -56,7 +56,7 @@ int callShellByBoost(const std::string &bin_path,
   }
   return exit_code;
 }
-} // namespace detail
+}  // namespace detail
 
 void StringStacktraceJob::run() {
   brpc::ClosureGuard done_guard(done);
@@ -86,7 +86,7 @@ void StringStacktraceJob::run() {
  * ===================================
  */
 std::shared_ptr<prometheus::Registry> LocalPrometheusService::registry_;
-prometheus::Exposer *LocalPrometheusService::exposer_ = nullptr;
+prometheus::Exposer* LocalPrometheusService::exposer_ = nullptr;
 std::vector<LocalPrometheusService::Gauge_t_MapArray>
     LocalPrometheusService::all_gauges_;
 std::unordered_map<std::string, LocalPrometheusService::Family_t_Array>
@@ -94,16 +94,16 @@ std::unordered_map<std::string, LocalPrometheusService::Family_t_Array>
 butil::Mutex LocalPrometheusService::mu_;
 
 LocalPrometheusService::LocalPrometheusService(
-    const std::string &gauge_prefix, const std::string &kernel_name,
-    const std::map<std::string, std::string> &label, int rank) noexcept {
+    const std::string& gauge_prefix, const std::string& kernel_name,
+    const std::map<std::string, std::string>& label, int rank) noexcept {
   rank_ = rank;
   kernel_name_ = kernel_name;
   gauge_prefix_ = gauge_prefix;
 
   BAIDU_SCOPED_LOCK(LocalPrometheusService::mu_);
 
-  auto &all_familys = all_familys_[gauge_prefix];
-  auto &all_gauges = all_gauges_[rank][kernel_name];
+  auto& all_familys = all_familys_[gauge_prefix];
+  auto& all_gauges = all_gauges_[rank][kernel_name];
   gauges_ = &all_gauges;
   if (gauge_prefix_ == constant::Metrics::CollMetrics::GAUGE_PREFIX)
     max_cap_ = constant::Metrics::CollMetrics::CAP;
@@ -115,12 +115,12 @@ LocalPrometheusService::LocalPrometheusService(
     max_cap_ = constant::Metrics::MemMetrics::CAP;
 
   for (int i = 0; i < max_cap_; i++) {
-    auto &gauge = all_familys[i]->Add(label);
+    auto& gauge = all_familys[i]->Add(label);
     gauges_->at(i) = &gauge;
   }
 }
 LocalPrometheusService::LocalPrometheusService(
-    LocalPrometheusService &&other) noexcept {
+    LocalPrometheusService&& other) noexcept {
   rank_ = other.rank_;
   gauges_ = std::move(other.gauges_);
   kernel_name_ = std::move(other.kernel_name_);
@@ -130,13 +130,12 @@ LocalPrometheusService::LocalPrometheusService(
 
 LocalPrometheusService::~LocalPrometheusService() {
   BAIDU_SCOPED_LOCK(LocalPrometheusService::mu_);
-  auto &all_familys = all_familys_[gauge_prefix_];
+  auto& all_familys = all_familys_[gauge_prefix_];
 
   // delete key
   all_gauges_[rank_].erase(kernel_name_);
   // delete pointer
-  for (int i = 0; i < max_cap_; i++)
-    all_familys[i]->Remove(gauges_->at(i));
+  for (int i = 0; i < max_cap_; i++) all_familys[i]->Remove(gauges_->at(i));
 }
 
 void LocalPrometheusService::setUp(int port, int local_world_size) {
@@ -155,9 +154,9 @@ void LocalPrometheusService::setUp(int port, int local_world_size) {
   all_gauges_.reserve(local_world_size);
 }
 
-void LocalPrometheusService::push(const BrpcMetrics *metrics) noexcept {
+void LocalPrometheusService::push(const BrpcMetrics* metrics) noexcept {
   if (metrics->has_kernel_metrics()) {
-    const KernelBrpcMetrics &kernel_metrics = metrics->kernel_metrics();
+    const KernelBrpcMetrics& kernel_metrics = metrics->kernel_metrics();
     gauges_->at(constant::Metrics::AVG_LATENCY)
         ->Set(kernel_metrics.avg_latency());
     gauges_->at(constant::Metrics::MAX_LATENCY)
@@ -169,14 +168,13 @@ void LocalPrometheusService::push(const BrpcMetrics *metrics) noexcept {
     gauges_->at(constant::Metrics::PERFORMANCE)
         ->Set(kernel_metrics.performance());
   } else if (metrics->has_common_metrics()) {
-    const CommonBrpcMetrics &common_metrics = metrics->common_metrics();
+    const CommonBrpcMetrics& common_metrics = metrics->common_metrics();
     for (int i = 0; i < common_metrics.metrics_size(); ++i) {
       int64_t m = common_metrics.metrics(i);
-      if (m != -1)
-        gauges_->at(i)->Set(m);
+      if (m != -1) gauges_->at(i)->Set(m);
     }
   } else if (metrics->has_mem_metrics()) {
-    const MemBrpcMetrics &mem_metrics = metrics->mem_metrics();
+    const MemBrpcMetrics& mem_metrics = metrics->mem_metrics();
     gauges_->at(constant::Metrics::COUNTER)->Set(mem_metrics.counter());
   }
 }
@@ -199,13 +197,13 @@ HostingServiceImpl::HostingServiceImpl(int local_world_size)
                                               local_world_size_, true);
 }
 void HostingServiceImpl::DumpStringStacktrace(
-    google::protobuf::RpcController *cntl_base,
-    const StacktraceRequest *request, StacktraceResponse *response,
-    google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base,
+    const StacktraceRequest* request, StacktraceResponse* response,
+    google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+  brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
-  StringStacktraceJob *job = new StringStacktraceJob;
+  StringStacktraceJob* job = new StringStacktraceJob;
   job->cntl = cntl;
   job->request = request;
   job->response = response;
@@ -221,20 +219,20 @@ void HostingServiceImpl::DumpStringStacktrace(
 }
 
 void HostingServiceImpl::RegisterPrometheus(
-    google::protobuf::RpcController *cntl_base,
-    const RegisterPrometheusRequest *request,
-    RegisterPrometheusResponse *response, google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base,
+    const RegisterPrometheusRequest* request,
+    RegisterPrometheusResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  const std::string &kernel_name = request->kernel_name();
-  const std::string &gauge_prefix = request->gauge_prefix();
+  const std::string& kernel_name = request->kernel_name();
+  const std::string& gauge_prefix = request->gauge_prefix();
   // caller ensure each name only call once
   std::map<std::string, std::string> prometheus_labels;
   int rank = request->rank();
   int local_rank = request->local_rank();
-  for (const auto &pair : request->labels())
+  for (const auto& pair : request->labels())
     prometheus_labels[pair.first] = pair.second;
 
-  if (local_rank < local_world_size_) { // only for safe, always true
+  if (local_rank < local_world_size_) {  // only for safe, always true
     BAIDU_SCOPED_LOCK(*mus_[local_rank]);
     prometheus_services_[local_rank].insert(
         {kernel_name,
@@ -249,16 +247,16 @@ void HostingServiceImpl::RegisterPrometheus(
 }
 
 void HostingServiceImpl::PushPrometheus(
-    google::protobuf::RpcController *cntl_base, const BrpcMetrics *request,
-    google::protobuf::Empty *response, google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base, const BrpcMetrics* request,
+    google::protobuf::Empty* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   int local_rank = request->local_rank();
-  const std::string &name = request->name();
+  const std::string& name = request->name();
 
-  if (local_rank < local_world_size_) { // only for safe, always true
+  if (local_rank < local_world_size_) {  // only for safe, always true
     BAIDU_SCOPED_LOCK(*mus_[local_rank]);
-    std::unordered_map<std::string, std::unique_ptr<LocalPrometheusService>>
-        &m = prometheus_services_[local_rank];
+    std::unordered_map<std::string, std::unique_ptr<LocalPrometheusService>>&
+        m = prometheus_services_[local_rank];
     if (auto it = m.find(name); it != m.end()) {
       m[name]->push(request);
     }
@@ -266,11 +264,11 @@ void HostingServiceImpl::PushPrometheus(
 }
 
 void HostingServiceImpl::DumpKernelTrace(
-    google::protobuf::RpcController *cntl_base,
-    const DumpKernelTraceRequest *request, DumpKernelTraceResponse *response,
-    google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base,
+    const DumpKernelTraceRequest* request, DumpKernelTraceResponse* response,
+    google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  const std::string &dump_path = request->dump_path();
+  const std::string& dump_path = request->dump_path();
   uint32_t dump_count = request->dump_count();
   uint32_t dump_kernel_type = request->dump_kernel_type();
   if (dump_kernel_type == 0)
@@ -295,7 +293,7 @@ void HostingServiceImpl::DumpKernelTrace(
     return;
   }
   // oss
-  const DumpKernelTraceRequest::OssArgs &oss_dump_args = request->oss_args();
+  const DumpKernelTraceRequest::OssArgs& oss_dump_args = request->oss_args();
   std::string oss_dump_args_str;
   oss_dump_args.SerializeToString(&oss_dump_args_str);
   switch_->getObj()->reset(dump_path, oss_dump_args_str, dump_count, dump_time,
@@ -307,17 +305,17 @@ void HostingServiceImpl::DumpKernelTrace(
 }
 
 void HostingServiceImpl::DeRegisterPrometheus(
-    google::protobuf::RpcController *cntl_base,
-    const DeRegisterPrometheusRequest *request,
-    RegisterPrometheusResponse *response, google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base,
+    const DeRegisterPrometheusRequest* request,
+    RegisterPrometheusResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  const std::string &name = request->name();
+  const std::string& name = request->name();
   int local_rank = request->local_rank();
   int rank = request->rank();
   if (local_rank < local_world_size_) {
     BAIDU_SCOPED_LOCK(*mus_[local_rank]);
-    std::unordered_map<std::string, std::unique_ptr<LocalPrometheusService>>
-        &m = prometheus_services_[local_rank];
+    std::unordered_map<std::string, std::unique_ptr<LocalPrometheusService>>&
+        m = prometheus_services_[local_rank];
     if (auto it = m.find(name); it != m.end()) {
       LOG(INFO) << "DeRegister name " << name << " rank " << rank
                 << " local_rank " << local_rank;
@@ -327,9 +325,9 @@ void HostingServiceImpl::DeRegisterPrometheus(
   }
 }
 void HostingServiceImpl::PushSignalFrameInfo(
-    google::protobuf::RpcController *cntl_base,
-    const SignalFrameRequest *request, google::protobuf::Empty *response,
-    google::protobuf::Closure *done) {
+    google::protobuf::RpcController* cntl_base,
+    const SignalFrameRequest* request, google::protobuf::Empty* response,
+    google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   // We need to held gil lock, this is conflict with bthread, so we add
   // -usercode_in_pthread in xpu_timer_daemon
@@ -342,23 +340,23 @@ void HostingServiceImpl::PushSignalFrameInfo(
  * MainServer variables and public functions
  * ===================================
  */
-MainServer::MainServer(const std::string &endpoint, int thread_num,
+MainServer::MainServer(const std::string& endpoint, int thread_num,
                        int prometheus_port, int local_world_size)
-    : endpoint_(endpoint), thread_num_(thread_num),
+    : endpoint_(endpoint),
+      thread_num_(thread_num),
       local_world_size_(local_world_size) {
   LocalPrometheusService::setUp(prometheus_port, local_world_size);
   // thread_num is local world size
-  if (thread_num == 0)
-    thread_num_ = 1;
+  if (thread_num == 0) thread_num_ = 1;
   thread_num_ = thread_num_ * 10;
 }
 
 void MainServer::join() { server_.RunUntilAskedToQuit(); }
 
-void MainServer::addService(const std::string_view &service_name) {
+void MainServer::addService(const std::string_view& service_name) {
   if (service_name == MainServer::HOSTING_SERVICE) {
     if (auto it = services_.find(service_name); it == services_.end()) {
-      HostingServiceImpl *hosting_service_impl =
+      HostingServiceImpl* hosting_service_impl =
           new HostingServiceImpl(local_world_size_);
       if (server_.AddService(hosting_service_impl,
                              brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
@@ -373,7 +371,7 @@ void MainServer::addService(const std::string_view &service_name) {
   }
 }
 
-void MainServer::start(const std::string_view &server_type) {
+void MainServer::start(const std::string_view& server_type) {
   if (server_type == MainServer::DUMMY_SERVER) {
     options_.num_threads = 0;
   } else if (server_type == MainServer::LOCAL_RANK_0_SERVER) {
@@ -407,8 +405,8 @@ ClientStub::ClientStub(std::string endpoint) {
   stub_ = new HostingService_Stub(channel_);
 }
 
-void ClientStub::HandleDumpResponse(brpc::Controller *cntl,
-                                    StacktraceResponse *response) {
+void ClientStub::HandleDumpResponse(brpc::Controller* cntl,
+                                    StacktraceResponse* response) {
   std::unique_ptr<brpc::Controller> cntl_guard(cntl);
   std::unique_ptr<StacktraceResponse> response_guard(response);
 
@@ -422,29 +420,29 @@ void ClientStub::HandleDumpResponse(brpc::Controller *cntl,
 }
 
 void ClientStub::requestDump(bool sync, int pid, int rank, int world_size,
-                             const std::string &dump_path,
-                             const std::vector<std::string> &hang_kernels) {
+                             const std::string& dump_path,
+                             const std::vector<std::string>& hang_kernels) {
   StacktraceRequest request;
   request.set_pid(pid);
   request.set_rank(rank);
   request.set_world_size(world_size);
   request.set_dump_path(dump_path);
-  for (const auto &hang_kernel : hang_kernels)
+  for (const auto& hang_kernel : hang_kernels)
     request.mutable_hang_kernels()->add_hang_kernels(hang_kernel);
-  StacktraceResponse *response = new StacktraceResponse();
-  brpc::Controller *cntl = new brpc::Controller();
+  StacktraceResponse* response = new StacktraceResponse();
+  brpc::Controller* cntl = new brpc::Controller();
   if (sync) {
     stub_->DumpStringStacktrace(cntl, &request, response, NULL);
     ClientStub::HandleDumpResponse(cntl, response);
   } else {
-    google::protobuf::Closure *done =
+    google::protobuf::Closure* done =
         brpc::NewCallback(&ClientStub::HandleDumpResponse, cntl, response);
     stub_->DumpStringStacktrace(cntl, &request, response, done);
   }
 }
 
 void ClientStub::HandleRegisterPrometheusResponse(
-    brpc::Controller *cntl, RegisterPrometheusResponse *response) {
+    brpc::Controller* cntl, RegisterPrometheusResponse* response) {
   std::unique_ptr<brpc::Controller> cntl_guard(cntl);
   std::unique_ptr<RegisterPrometheusResponse> response_guard(response);
 
@@ -457,7 +455,7 @@ void ClientStub::HandleRegisterPrometheusResponse(
 }
 
 void ClientStub::HandlePushPrometheusResponse(
-    brpc::Controller *cntl, google::protobuf::Empty *response) {
+    brpc::Controller* cntl, google::protobuf::Empty* response) {
   std::unique_ptr<brpc::Controller> cntl_guard(cntl);
   std::unique_ptr<google::protobuf::Empty> response_guard(response);
 
@@ -469,7 +467,7 @@ void ClientStub::HandlePushPrometheusResponse(
 }
 
 void ClientStub::HandleDeregisterPrometheusResponse(
-    brpc::Controller *cntl, RegisterPrometheusResponse *response) {
+    brpc::Controller* cntl, RegisterPrometheusResponse* response) {
   std::unique_ptr<brpc::Controller> cntl_guard(cntl);
   std::unique_ptr<RegisterPrometheusResponse> response_guard(response);
   if (cntl->Failed()) {
@@ -478,8 +476,8 @@ void ClientStub::HandleDeregisterPrometheusResponse(
   }
 }
 
-void ClientStub::HandlePushSignalFrameInfo(brpc::Controller *cntl,
-                                           google::protobuf::Empty *response,
+void ClientStub::HandlePushSignalFrameInfo(brpc::Controller* cntl,
+                                           google::protobuf::Empty* response,
                                            int signal, int rank) {
   std::unique_ptr<brpc::Controller> cntl_guard(cntl);
   std::unique_ptr<google::protobuf::Empty> response_guard(response);
@@ -491,47 +489,47 @@ void ClientStub::HandlePushSignalFrameInfo(brpc::Controller *cntl,
 }
 
 void ClientStub::requestRegisterPrometheus(
-    bool sync, const std::string &kernel_name, const std::string &gauge_prefix,
+    bool sync, const std::string& kernel_name, const std::string& gauge_prefix,
     int rank, int local_rank,
-    const std::map<std::string, std::string> &labels) {
+    const std::map<std::string, std::string>& labels) {
   RegisterPrometheusRequest request;
-  for (auto const &pair : labels) {
+  for (auto const& pair : labels) {
     (*request.mutable_labels())[pair.first] = pair.second;
   }
   request.set_gauge_prefix(gauge_prefix);
   request.set_rank(rank);
   request.set_local_rank(local_rank);
   request.set_kernel_name(kernel_name);
-  RegisterPrometheusResponse *response = new RegisterPrometheusResponse();
+  RegisterPrometheusResponse* response = new RegisterPrometheusResponse();
   response->set_ret_code(1);
-  brpc::Controller *cntl = new brpc::Controller();
+  brpc::Controller* cntl = new brpc::Controller();
   if (sync) {
     stub_->RegisterPrometheus(cntl, &request, response, NULL);
     ClientStub::HandleRegisterPrometheusResponse(cntl, response);
   } else {
-    google::protobuf::Closure *done = brpc::NewCallback(
+    google::protobuf::Closure* done = brpc::NewCallback(
         &ClientStub::HandleRegisterPrometheusResponse, cntl, response);
     stub_->RegisterPrometheus(cntl, &request, response, done);
   }
 }
 
-void ClientStub::pushPrometheusMetrics(bool sync, const BrpcMetrics *request) {
-  google::protobuf::Empty *response = new google::protobuf::Empty();
-  brpc::Controller *cntl = new brpc::Controller();
+void ClientStub::pushPrometheusMetrics(bool sync, const BrpcMetrics* request) {
+  google::protobuf::Empty* response = new google::protobuf::Empty();
+  brpc::Controller* cntl = new brpc::Controller();
   if (sync) {
     stub_->PushPrometheus(cntl, request, response, NULL);
     ClientStub::HandlePushPrometheusResponse(cntl, response);
   } else {
-    google::protobuf::Closure *done = brpc::NewCallback(
+    google::protobuf::Closure* done = brpc::NewCallback(
         &ClientStub::HandlePushPrometheusResponse, cntl, response);
     stub_->PushPrometheus(cntl, request, response, done);
   }
 }
 
-void ClientStub::pushPrometheusMemMetrics(bool sync, const std::string &name,
+void ClientStub::pushPrometheusMemMetrics(bool sync, const std::string& name,
                                           int local_rank, uint64_t counter) {
   BrpcMetrics request;
-  MemBrpcMetrics *metrics = request.mutable_mem_metrics();
+  MemBrpcMetrics* metrics = request.mutable_mem_metrics();
 
   metrics->set_counter(counter);
   request.set_name(name);
@@ -541,11 +539,11 @@ void ClientStub::pushPrometheusMemMetrics(bool sync, const std::string &name,
 }
 
 void ClientStub::pushPrometheusThroughputMetrics(
-    bool sync, const std::string &name, int local_rank, uint64_t avg_latency,
+    bool sync, const std::string& name, int local_rank, uint64_t avg_latency,
     uint64_t min_latency, uint64_t max_latency, uint64_t p99_latency,
     double performance) {
   BrpcMetrics request;
-  KernelBrpcMetrics *metrics = request.mutable_kernel_metrics();
+  KernelBrpcMetrics* metrics = request.mutable_kernel_metrics();
 
   metrics->set_avg_latency(avg_latency);
   metrics->set_max_latency(max_latency);
@@ -560,11 +558,11 @@ void ClientStub::pushPrometheusThroughputMetrics(
 }
 
 void ClientStub::pushPrometheusCommonMetrics(
-    bool sync, const std::string &name, int64_t local_rank, int64_t hang,
+    bool sync, const std::string& name, int64_t local_rank, int64_t hang,
     int64_t start_dump, int64_t end_dump, int64_t pool_queue_size,
     int64_t work_queue_size, int64_t gc_count, int64_t data_loader_count) {
   BrpcMetrics request;
-  CommonBrpcMetrics *common_metrics = request.mutable_common_metrics();
+  CommonBrpcMetrics* common_metrics = request.mutable_common_metrics();
 
   common_metrics->add_metrics(hang);
   common_metrics->add_metrics(start_dump);
@@ -580,36 +578,36 @@ void ClientStub::pushPrometheusCommonMetrics(
   pushPrometheusMetrics(sync, &request);
 }
 
-void ClientStub::requestDeRegisterPrometheus(bool sync, const std::string &name,
+void ClientStub::requestDeRegisterPrometheus(bool sync, const std::string& name,
                                              int rank, int local_rank) {
   DeRegisterPrometheusRequest request;
   request.set_rank(rank);
   request.set_local_rank(local_rank);
   request.set_name(name);
-  RegisterPrometheusResponse *response = new RegisterPrometheusResponse();
+  RegisterPrometheusResponse* response = new RegisterPrometheusResponse();
   response->set_ret_code(1);
-  brpc::Controller *cntl = new brpc::Controller();
+  brpc::Controller* cntl = new brpc::Controller();
   if (sync) {
     stub_->DeRegisterPrometheus(cntl, &request, response, NULL);
     ClientStub::HandleDeregisterPrometheusResponse(cntl, response);
   } else {
-    google::protobuf::Closure *done = brpc::NewCallback(
+    google::protobuf::Closure* done = brpc::NewCallback(
         &ClientStub::HandleDeregisterPrometheusResponse, cntl, response);
     stub_->DeRegisterPrometheus(cntl, &request, response, done);
   }
 }
 
-void ClientStub::pushSignalFrameInfo(const SignalFrameRequest *request) {
+void ClientStub::pushSignalFrameInfo(const SignalFrameRequest* request) {
   // when program has been signaled, it will exit, the training process do
   // not care the response, so we async doing the response and sync call
   // on xpu_deamon_server
-  google::protobuf::Empty *response = new google::protobuf::Empty();
-  brpc::Controller *cntl = new brpc::Controller();
-  google::protobuf::Closure *done =
+  google::protobuf::Empty* response = new google::protobuf::Empty();
+  brpc::Controller* cntl = new brpc::Controller();
+  google::protobuf::Closure* done =
       brpc::NewCallback(&ClientStub::HandlePushSignalFrameInfo, cntl, response,
                         request->signal(), request->rank());
   stub_->PushSignalFrameInfo(cntl, request, response, done);
 }
 
-} // namespace server
-} // namespace xpu_timer
+}  // namespace server
+}  // namespace xpu_timer

@@ -32,7 +32,7 @@ namespace xpu_timer {
  * KernelTraceManager public functions
  * ===================================
  */
-KernelTraceManager &KernelTraceManager::getInstance() {
+KernelTraceManager& KernelTraceManager::getInstance() {
   std::call_once(init_flag_, &KernelTraceManager::initSingleton);
   return *instance_;
 }
@@ -70,7 +70,7 @@ void KernelTraceManager::initSingleton() {
       EnvVarRegistry::GetEnvVar<std::string>("XPU_TIMER_HOST_TRACING_FUNC");
   if (tracing_functions != util::EnvVarRegistry::STRING_DEFAULT_VALUE) {
     std::vector<std::string> funcs = util::split(tracing_functions, ",");
-    for (const auto &func : funcs)
+    for (const auto& func : funcs)
       instance_->host_tracing_functions_.push_back(func);
   }
 
@@ -96,10 +96,8 @@ bool KernelTraceManager::triggerTrace() {
     reset("reset");
     return false;
   }
-  if (has_trigger_trace_)
-    return true;
-  if (switch_->getObj()->start_dump == 0)
-    return false;
+  if (has_trigger_trace_) return true;
+  if (switch_->getObj()->start_dump == 0) return false;
   auto now = std::chrono::system_clock::now();
   time_t now_time_t = std::chrono::system_clock::to_time_t(now);
   int64_t now_timestamp = static_cast<std::int64_t>(now_time_t);
@@ -112,7 +110,7 @@ bool KernelTraceManager::triggerTrace() {
   return false;
 }
 
-void KernelTraceManager::reset(const std::string &barrier_name) {
+void KernelTraceManager::reset(const std::string& barrier_name) {
   has_do_prepare_for_dump_ = false;
   has_trigger_trace_ = false;
   py_tracing_library_->SwitchTracing(0);
@@ -124,7 +122,8 @@ void KernelTraceManager::reset(const std::string &barrier_name) {
              << switch_->getObj()->start_dump;
 }
 
-template <> bool KernelTraceManager::pushTrace(XPU_TIMER *work_item);
+template <>
+bool KernelTraceManager::pushTrace(XPU_TIMER* work_item);
 
 bool KernelTraceManager::prepareDump() {
   // this function is not reentrant, we use has_do_prepare_for_dump_ to guard
@@ -153,21 +152,18 @@ void KernelTraceManager::dumpPyTracing() {
   // 4. return to pool of trace data
   for (size_t name_index = 0; name_index < host_tracing_functions_.size();
        name_index++) {
-    std::vector<XpuTimerPyTracingDataArray *> holders;
-    const std::string &name = host_tracing_functions_[name_index];
-    XpuTimerPyTracingDataArray *tracing_data =
+    std::vector<XpuTimerPyTracingDataArray*> holders;
+    const std::string& name = host_tracing_functions_[name_index];
+    XpuTimerPyTracingDataArray* tracing_data =
         py_tracing_library_->GetPartialTracingData(name_index);
-    if (tracing_data)
-      holders.push_back(tracing_data);
+    if (tracing_data) holders.push_back(tracing_data);
     while (1) {
-      XpuTimerPyTracingDataArray *tracing_data =
+      XpuTimerPyTracingDataArray* tracing_data =
           py_tracing_library_->GetFullTracingData(name_index);
-      if (!tracing_data)
-        break;
+      if (!tracing_data) break;
       holders.push_back(tracing_data);
     }
-    if (!holders.size())
-      continue;
+    if (!holders.size()) continue;
     int inner_index = 0;
     for (auto each_tracing_data : holders) {
       for (uint32_t i = 0; i < each_tracing_data->cur; i++) {
@@ -182,7 +178,7 @@ void KernelTraceManager::dumpPyTracing() {
         trace->set_name(name);
         // add gc debug data
         if (each_tracing_data->data[i].type == PAYLOAD_GC) {
-          hook::GcDebugData *gc_debug = trace->mutable_gc_debug();
+          hook::GcDebugData* gc_debug = trace->mutable_gc_debug();
           gc_debug->set_collected(
               each_tracing_data->data[i].payload.gc_debug[0]);
           gc_debug->set_uncollectable(
@@ -205,9 +201,9 @@ int64_t KernelTraceManager::getDataLoaderCount() {
   return py_tracing_library_->GetTracingCount(PY_TORCH_DATALOADER);
 }
 
-void uploadOss(const std::string &oss_bin_path,
+void uploadOss(const std::string& oss_bin_path,
                const server::DumpKernelTraceRequest::OssArgs oss_args,
-               const std::string &timeline_path) {
+               const std::string& timeline_path) {
   bp::environment env = boost::this_process::environment();
   env.erase("LD_PRELOAD");
   std::string oss_ak;
@@ -246,14 +242,12 @@ void uploadOss(const std::string &oss_bin_path,
 
   std::thread reader_stdout([&out_stream] {
     std::string line;
-    while (std::getline(out_stream, line))
-      XLOG(INFO) << line;
+    while (std::getline(out_stream, line)) XLOG(INFO) << line;
   });
 
   std::thread reader_stderr([&err_stream] {
     std::string line;
-    while (std::getline(err_stream, line))
-      XLOG(INFO) << line;
+    while (std::getline(err_stream, line)) XLOG(INFO) << line;
   });
 
   oss_cmd.wait();
@@ -270,9 +264,9 @@ void uploadOss(const std::string &oss_bin_path,
 }
 
 void KernelTraceManager::dumpKernelTraceAndHostTrace(
-    stack_util::PyStackInProcess *py_stack_util) {
+    stack_util::PyStackInProcess* py_stack_util) {
   py_tracing_library_->SwitchTracing(0);
-  const std::string &dump_path = switch_->getObj()->dump_path;
+  const std::string& dump_path = switch_->getObj()->dump_path;
   util::ScopeGuard guard([this]() {
     reset("after_dump");
     kernel_trace_.mutable_traces()->Clear();
@@ -308,7 +302,7 @@ void KernelTraceManager::dumpKernelTraceAndHostTrace(
              << file_path << " with " << kernel_trace_count_ << " events";
 
   auto bin_path = bp::search_path("ossutil");
-  const std::string &oss_bin_path = bin_path.string();
+  const std::string& oss_bin_path = bin_path.string();
   server::DumpKernelTraceRequest::OssArgs oss_args;
   oss_args.ParseFromString(switch_->getObj()->oss_dump_args);
   if (oss_bin_path.empty() || oss_args.oss_path().empty()) {
@@ -319,10 +313,10 @@ void KernelTraceManager::dumpKernelTraceAndHostTrace(
   uploading.detach();
 }
 
-template <> bool KernelTraceManager::pushTrace(XPU_TIMER *work_item) {
+template <>
+bool KernelTraceManager::pushTrace(XPU_TIMER* work_item) {
   // return true means not ready to dump
-  if (prepareDump())
-    return true;
+  if (prepareDump()) return true;
   if (!kernel_dump_type_[work_item->trace->kernel_type()]) {
     return true;
   }
@@ -362,19 +356,28 @@ template <> bool KernelTraceManager::pushTrace(XPU_TIMER *work_item) {
  * GpuTimerManager public functions
  * ===================================
  */
-template <> void GpuTimerManager<XPU_TIMER>::initSingleton();
-template <> void GpuTimerManager<XPU_TIMER>::stopWork();
-template <> void GpuTimerManager<XPU_TIMER>::doWork();
 template <>
-GpuTimerManager<XPU_TIMER> &GpuTimerManager<XPU_TIMER>::getInstance();
-template <> void GpuTimerManager<XPU_TIMER>::startWork();
-template <> XPU_TIMER *GpuTimerManager<XPU_TIMER>::getEvent();
-template <> void GpuTimerManager<XPU_TIMER>::recordEvent(XPU_TIMER *event);
-template <> void GpuTimerManager<XPU_TIMER>::startDaemon(int port);
-template <> void GpuTimerManager<XPU_TIMER>::doHang();
+void GpuTimerManager<XPU_TIMER>::initSingleton();
 template <>
-void GpuTimerManager<XPU_TIMER>::pushItemsToMetricsManager(XPU_TIMER *event);
-template <> void GpuTimerManager<XPU_TIMER>::doHang() {
+void GpuTimerManager<XPU_TIMER>::stopWork();
+template <>
+void GpuTimerManager<XPU_TIMER>::doWork();
+template <>
+GpuTimerManager<XPU_TIMER>& GpuTimerManager<XPU_TIMER>::getInstance();
+template <>
+void GpuTimerManager<XPU_TIMER>::startWork();
+template <>
+XPU_TIMER* GpuTimerManager<XPU_TIMER>::getEvent();
+template <>
+void GpuTimerManager<XPU_TIMER>::recordEvent(XPU_TIMER* event);
+template <>
+void GpuTimerManager<XPU_TIMER>::startDaemon(int port);
+template <>
+void GpuTimerManager<XPU_TIMER>::doHang();
+template <>
+void GpuTimerManager<XPU_TIMER>::pushItemsToMetricsManager(XPU_TIMER* event);
+template <>
+void GpuTimerManager<XPU_TIMER>::doHang() {
   if (has_do_hang_) {
     XLOG(INFO) << "Has dump stack, ignore";
     return;
@@ -404,14 +407,15 @@ template <> void GpuTimerManager<XPU_TIMER>::doHang() {
   metrics_manager_->pushCommonMetricsToRemote("common", comm_metrics);
   bool exit =
       ::xpu_timer::util::EnvVarRegistry::GetEnvVar<bool>("XPU_TIMER_HANG_KILL");
-  if (exit)
-    std::exit(0);
+  if (exit) std::exit(0);
 }
-template <> XPU_TIMER *GpuTimerManager<XPU_TIMER>::getEvent() {
+template <>
+XPU_TIMER* GpuTimerManager<XPU_TIMER>::getEvent() {
   return event_pool_.getObject();
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::startDaemon(int port) {
+template <>
+void GpuTimerManager<XPU_TIMER>::startDaemon(int port) {
   bp::environment env = boost::this_process::environment();
   env.erase("LD_PRELOAD");
   std::string xpu_daemon_path =
@@ -428,7 +432,7 @@ template <> void GpuTimerManager<XPU_TIMER>::startDaemon(int port) {
     XLOG(INFO) << "Find xpu timer daemon, kill it, code is " << ec;
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
-  auto env_setup = [](auto &exec) {
+  auto env_setup = [](auto& exec) {
     // set session id, this for when local rank 0 exit, this process will find
     // init process to host it's self.
     setsid();
@@ -447,8 +451,7 @@ template <> void GpuTimerManager<XPU_TIMER>::startDaemon(int port) {
     // output/error functionality in the child, by the way, child(gdb/py-spy) process use
     // anonymous pipe to communicate with daemon server in boost.
     // clang-format on
-    for (int fd = 0; fd < sysconf(_SC_OPEN_MAX); ++fd)
-      close(fd);
+    for (int fd = 0; fd < sysconf(_SC_OPEN_MAX); ++fd) close(fd);
   };
   if (xpu_daemon_path == util::EnvVarRegistry::STRING_DEFAULT_VALUE) {
     auto bin_path = bp::search_path("xpu_timer_daemon");
@@ -477,7 +480,8 @@ template <> void GpuTimerManager<XPU_TIMER>::startDaemon(int port) {
   instance_->daemon_->detach();
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::recordEvent(XPU_TIMER *event) {
+template <>
+void GpuTimerManager<XPU_TIMER>::recordEvent(XPU_TIMER* event) {
   event->endRecord();
   // 10000 stack will captured
   if (!py_stack_util_->isFull()) {
@@ -486,7 +490,8 @@ template <> void GpuTimerManager<XPU_TIMER>::recordEvent(XPU_TIMER *event) {
   working_queue_.push(event);
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::initSingleton() {
+template <>
+void GpuTimerManager<XPU_TIMER>::initSingleton() {
   // register env first
   util::REGISTER_ENV();
   instance_ = new GpuTimerManager<XPU_TIMER>;
@@ -500,9 +505,9 @@ template <> void GpuTimerManager<XPU_TIMER>::initSingleton() {
   std::atexit([] { delete instance_; });
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::stopWork() {
-  if (!config::GlobalConfig::enable)
-    return;
+template <>
+void GpuTimerManager<XPU_TIMER>::stopWork() {
+  if (!config::GlobalConfig::enable) return;
 
   should_run_.store(false);
   XLOG(INFO) << "Stoping poller thread...";
@@ -514,16 +519,17 @@ template <> void GpuTimerManager<XPU_TIMER>::stopWork() {
   XLOG(INFO) << "Thread is stopped, exit process";
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::doWork() {
+template <>
+void GpuTimerManager<XPU_TIMER>::doWork() {
   bool need_sleep = true;
   time_t timeout = EnvVarRegistry::GetEnvVar<int>("XPU_TIMER_HANG_TIMEOUT");
   bool is_ready = false;
   bool is_hang = false;
-  auto is_hang_fn = [&is_hang, timeout](XPU_TIMER *value) -> bool {
+  auto is_hang_fn = [&is_hang, timeout](XPU_TIMER* value) -> bool {
     is_hang = value->isHang(timeout);
     return is_hang;
   };
-  auto is_ready_fn = [&is_ready](XPU_TIMER *value) -> bool {
+  auto is_ready_fn = [&is_ready](XPU_TIMER* value) -> bool {
     is_ready = value->isReady();
     return is_ready;
   };
@@ -535,7 +541,7 @@ template <> void GpuTimerManager<XPU_TIMER>::doWork() {
       std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
 
-    XPU_TIMER *work_item =
+    XPU_TIMER* work_item =
         working_queue_.pop(is_hang_fn, is_ready_fn, &work_queue_size);
     if (!work_item) {
       need_sleep = true;
@@ -558,7 +564,7 @@ template <> void GpuTimerManager<XPU_TIMER>::doWork() {
       work_item->py_stack = nullptr;
     }
 
-    if (loop_count_ >= 1000) { // 1000 is for warmup
+    if (loop_count_ >= 1000) {  // 1000 is for warmup
 
       // since 1000 event timeline about 5KiB, dump is fast, so we dump in
       // background thread blocking
@@ -579,8 +585,8 @@ template <> void GpuTimerManager<XPU_TIMER>::doWork() {
       pushItemsToMetricsManager(work_item);
     }
     event_pool_.returnObject(work_item, &pool_queue_size);
-    if (loop_count_ % 50000 == 0) { // about 10 seconds
-      loop_count_ = 1001;           // warmup is 1000, sets to 1001.
+    if (loop_count_ % 50000 == 0) {  // about 10 seconds
+      loop_count_ = 1001;            // warmup is 1000, sets to 1001.
       xpu_timer::metrics::CommonMetrics comm_metrics;
       comm_metrics.pool_queue_size = pool_queue_size;
       comm_metrics.work_queue_size = work_queue_size;
@@ -601,14 +607,14 @@ template <> void GpuTimerManager<XPU_TIMER>::doWork() {
 }
 
 template <>
-GpuTimerManager<XPU_TIMER> &GpuTimerManager<XPU_TIMER>::getInstance() {
+GpuTimerManager<XPU_TIMER>& GpuTimerManager<XPU_TIMER>::getInstance() {
   std::call_once(init_flag_, &GpuTimerManager<XPU_TIMER>::initSingleton);
   return *instance_;
 }
 
 template <>
 void GpuTimerManager<XPU_TIMER>::pushItemsToMetricsManager(
-    XPU_TIMER *work_item) {
+    XPU_TIMER* work_item) {
   if (work_item->getType() == constant::Metrics::MatmulMetrics::TYPE) {
     metrics_manager_->updateMetrics(work_item, XPU_TIMER::mmPerformance,
                                     XPU_TIMER::matmulBucketFn);
@@ -620,13 +626,13 @@ void GpuTimerManager<XPU_TIMER>::pushItemsToMetricsManager(
   }
 }
 
-template <> void GpuTimerManager<XPU_TIMER>::startWork() {
+template <>
+void GpuTimerManager<XPU_TIMER>::startWork() {
   // ===================================
   // Global config setup
   // ===================================
   config::setUpConfig();
-  if (!config::GlobalConfig::enable)
-    return;
+  if (!config::GlobalConfig::enable) return;
   int local_rank = config::GlobalConfig::local_rank;
   int brpc_port;
   int prometheus_port = EnvVarRegistry::GetEnvVar<int>("XPU_TIMER_PORT");
@@ -634,7 +640,7 @@ template <> void GpuTimerManager<XPU_TIMER>::startWork() {
     brpc_port = prometheus_port - 1;
   } else {
     int port_offset = util::config::getMinDeviceRank() *
-                      20; // num of devices is smaller than 20
+                      20;  // num of devices is smaller than 20
     brpc_port =
         EnvVarRegistry::GetEnvVar<int>("XPU_TIMER_BASEPORT") + port_offset;
     prometheus_port = brpc_port + 1;
@@ -681,4 +687,4 @@ template <> void GpuTimerManager<XPU_TIMER>::startWork() {
 #endif
 }
 
-} // namespace xpu_timer
+}  // namespace xpu_timer

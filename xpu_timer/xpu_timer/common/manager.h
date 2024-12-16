@@ -35,28 +35,29 @@ class PyGcLibrary;
 }
 
 class KernelTraceManager {
-public:
+ public:
   // default trace events, not configurable. 1000 events of matmul and nccl is
   // enough.
-  KernelTraceManager(const KernelTraceManager &) = delete;
-  KernelTraceManager &operator=(const KernelTraceManager &) = delete;
-  static KernelTraceManager &getInstance();
+  KernelTraceManager(const KernelTraceManager&) = delete;
+  KernelTraceManager& operator=(const KernelTraceManager&) = delete;
+  static KernelTraceManager& getInstance();
 
   // save trace data on disk, each trace file is 24Bytes.
   // timeline_path
   //   ├──00000-00002.timeline
   //   ├──00001-00002.timeline
   //   └── timeline.meta     // only rank0 dump
-  void dumpKernelTraceAndHostTrace(stack_util::PyStackInProcess *py_stack_util);
+  void dumpKernelTraceAndHostTrace(stack_util::PyStackInProcess* py_stack_util);
   void dumpPyTracing();
   bool prepareDump();
   int64_t getGcCount();
   int64_t getDataLoaderCount();
-  template <typename T> bool pushTrace(T *work_item);
+  template <typename T>
+  bool pushTrace(T* work_item);
   bool triggerTrace();
 
-private:
-  inline static KernelTraceManager *instance_ = nullptr;
+ private:
+  inline static KernelTraceManager* instance_ = nullptr;
   inline static std::once_flag init_flag_;
 
   // how many trace we collected, based on environment variable
@@ -77,7 +78,7 @@ private:
   std::unique_ptr<util::ShmSwitch> switch_;
 
   std::vector<std::string> host_tracing_functions_;
-  py_tracing_manager::PyTracingLibrary *py_tracing_library_;
+  py_tracing_manager::PyTracingLibrary* py_tracing_library_;
   uint64_t last_kernel_launch_time_;
 
   KernelTraceManager() = default;
@@ -85,10 +86,11 @@ private:
   ~KernelTraceManager() {}
 
   static void initSingleton();
-  void reset(const std::string &barrier_name);
+  void reset(const std::string& barrier_name);
 };
 
-template <typename T> class GpuTimerManager {
+template <typename T>
+class GpuTimerManager {
   /*
    * TODO check the overhead of mutex.
    * since the critical section is tiny(only take fron deque, deque will not
@@ -124,23 +126,23 @@ template <typename T> class GpuTimerManager {
                                        thread
 
    */
-public:
-  GpuTimerManager(const GpuTimerManager &) = delete;
-  GpuTimerManager &operator=(const GpuTimerManager &) = delete;
+ public:
+  GpuTimerManager(const GpuTimerManager&) = delete;
+  GpuTimerManager& operator=(const GpuTimerManager&) = delete;
 
-  static GpuTimerManager &getInstance();
+  static GpuTimerManager& getInstance();
   // get event from pool, event is inherit by XpuTimer
-  T *getEvent();
+  T* getEvent();
   // record current, depends on platform
-  void recordEvent(T *event);
+  void recordEvent(T* event);
   typename T::InnerInterceptManager intercept_manager;
 
-private:
+ private:
   GpuTimerManager() = default;
 
   ~GpuTimerManager() { stopWork(); }
 
-  inline static GpuTimerManager *instance_ = nullptr;
+  inline static GpuTimerManager* instance_ = nullptr;
   inline static std::once_flag init_flag_;
   static void initSingleton();
 
@@ -154,17 +156,17 @@ private:
   // metrics manager own
   // get bvar and prometheus object depends on T.
 
-  void pushItemsToMetricsManager(T *work_item);
+  void pushItemsToMetricsManager(T* work_item);
   // dump stack /prometheus client
   std::shared_ptr<ClientStub> dump_stub_;
   // rank0 start a new process help to dump stack
-  bp::child *daemon_;
+  bp::child* daemon_;
   // daemon server addr, uds or ip
   std::string daemon_addr_;
-  MetricsManager *metrics_manager_;
+  MetricsManager* metrics_manager_;
 
   // dump python stack in launch thread
-  stack_util::PyStackInProcess *py_stack_util_;
+  stack_util::PyStackInProcess* py_stack_util_;
   bool has_do_hang_{false};
   uint64_t loop_count_{1};
 
@@ -179,4 +181,4 @@ private:
   void pushremoteMetrics();
 };
 
-} // namespace xpu_timer
+}  // namespace xpu_timer

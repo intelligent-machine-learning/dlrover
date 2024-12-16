@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <cstdlib> // for setenv and unsetenv
+#include <cstdlib>  // for setenv and unsetenv
 
 #include "tools/cpp/runfiles/runfiles.h"
 #define private public
@@ -13,7 +13,7 @@ namespace xpu_timer {
 namespace util {
 
 class CommonEnvTest : public ::testing::Test {
-protected:
+ protected:
 };
 
 TEST_F(CommonEnvTest, TestEnv) {
@@ -52,7 +52,7 @@ TEST_F(CommonEnvTest, TestEnv) {
 
   // test config file, bazel::tools::cpp::runfiles::Runfiles file can not use in
   // our source so we modify the ptree
-  auto &pt = EnvVarRegistry::GetPtree();
+  auto& pt = EnvVarRegistry::GetPtree();
   pt.put("XPU_TIMER_TIMELINE_TRACE_COUNT", 200);
   pt.put("XPU_TIMER_TIMELINE_PATH", "/root/test");
   REGISTER_ENV_VAR("XPU_TIMER_TIMELINE_TRACE_COUNT", -1);
@@ -69,10 +69,10 @@ TEST_F(CommonEnvTest, TestEnv) {
             "FROM_ENV");
 }
 
-} // namespace util
-} // namespace xpu_timer
+}  // namespace util
+}  // namespace xpu_timer
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

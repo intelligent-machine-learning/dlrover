@@ -50,10 +50,10 @@ void EventStartTimeHelper::reset() {
 }
 
 time_t EventStartTimeHelper::getTime(cudaEvent_t start_launch_event,
-                                     bool *is_validate_to_trace) {
-  float elapsed_time; // ms
+                                     bool* is_validate_to_trace) {
+  float elapsed_time;  // ms
   cudaEventElapsedTime(&elapsed_time, start_event_, start_launch_event);
-  double es = ((double)elapsed_time * 1000); // ms->us
+  double es = ((double)elapsed_time * 1000);  // ms->us
   // Skip events that begin before the EventStartTimeHelper.
   *is_validate_to_trace = (es > 0);
   return cpu_time_ + time_t(es);
@@ -71,7 +71,7 @@ time_t EventStartTimeHelper::getTime(cudaEvent_t start_launch_event,
 std::unordered_map<uint64_t, uint64_t> NvidiaGpuTimer::nccl_seq_num{};
 std::unordered_map<std::string, int> NvidiaGpuTimer::tracing_metas_{};
 std::unordered_map<int, uint64_t> NvidiaGpuTimer::trace_id_counter_{};
-std::unordered_map<cudaStream_t, EventStartTimeHelper *>
+std::unordered_map<cudaStream_t, EventStartTimeHelper*>
     NvidiaGpuTimer::stream_timer_helper_{};
 int NvidiaGpuTimer::kernel_encoding_counter_(0);
 
@@ -83,7 +83,7 @@ int NvidiaGpuTimer::kernel_encoding_counter_(0);
  * overrides from the base interface.
  * ===================================
  */
-const std::string_view &NvidiaGpuTimer::getType() { return type_; }
+const std::string_view& NvidiaGpuTimer::getType() { return type_; }
 
 const uint64_t NvidiaGpuTimer::getProblemSize() { return problem_size_; }
 
@@ -104,11 +104,9 @@ uint64_t NvidiaGpuTimer::getTraceId() { return trace_id_; }
 const std::string NvidiaGpuTimer::getName() { return name_; }
 
 bool NvidiaGpuTimer::isReady() {
-  if (is_host_)
-    return true;
+  if (is_host_) return true;
   bool ready = cudaEventQuery(stop_event_) != cudaErrorNotReady;
-  if (!ready)
-    hang_counter_ += 1;
+  if (!ready) hang_counter_ += 1;
   return ready;
 }
 
@@ -126,9 +124,9 @@ uint64_t NvidiaGpuTimer::getDuration() {
         finish_time_ - launch_time_);
     return dur_us.count();
   }
-  float elapsed_time; // ms
+  float elapsed_time;  // ms
   cudaEventElapsedTime(&elapsed_time, start_event_, stop_event_);
-  return uint64_t(elapsed_time * 1000); // ms -> us
+  return uint64_t(elapsed_time * 1000);  // ms -> us
 }
 
 void NvidiaGpuTimer::reBuild() { name_ = rebuild_cb_(); }
@@ -136,8 +134,7 @@ void NvidiaGpuTimer::reBuild() { name_ = rebuild_cb_(); }
 Labels NvidiaGpuTimer::getExtraLabels() { return extra_labels_; }
 
 bool NvidiaGpuTimer::isHang(time_t timeout) {
-  if (hang_counter_ < hang_counter_estimator_)
-    return false;
+  if (hang_counter_ < hang_counter_estimator_) return false;
   hang_counter_ = 0;
 
   static const std::chrono::seconds timeout_second =
@@ -164,8 +161,7 @@ bool NvidiaGpuTimer::isHost() { return is_host_; }
  */
 
 void NvidiaGpuTimer::doPrepareForDumpTrace() {
-  for (auto it : stream_timer_helper_)
-    it.second->reset();
+  for (auto it : stream_timer_helper_) it.second->reset();
 }
 
 void NvidiaGpuTimer::doPrepare() {
@@ -182,8 +178,8 @@ void NvidiaGpuTimer::doPrepare() {
   }
 }
 
-void NvidiaGpuTimer::dumpTraceMeta(const std::string &path,
-                                   const std::vector<std::string> &extra) {
+void NvidiaGpuTimer::dumpTraceMeta(const std::string& path,
+                                   const std::vector<std::string>& extra) {
   if (util::ensureDirExists(path)) {
     XLOG(ERROR) << "Could not create dir for timeline.meta";
     return;
@@ -193,10 +189,10 @@ void NvidiaGpuTimer::dumpTraceMeta(const std::string &path,
       dir / util::getUniqueFileNameByCluster(".timeline.meta");
   ;
   std::ostringstream oss;
-  for (const auto &it : tracing_metas_) {
+  for (const auto& it : tracing_metas_) {
     oss << it.second << "," << it.first << std::endl;
   }
-  for (const auto &it : extra) {
+  for (const auto& it : extra) {
     oss << "xpu_timer_host_trace," << it << std::endl;
   }
   std::ofstream file(file_path);
@@ -208,8 +204,8 @@ void NvidiaGpuTimer::dumpTraceMeta(const std::string &path,
 }
 
 std::string NvidiaGpuTimer::collBucketFn(double performance,
-                                         uint64_t problem_size, Labels *label) {
-  if (problem_size <= 8192) { // 8192 bits
+                                         uint64_t problem_size, Labels* label) {
+  if (problem_size <= 8192) {  // 8192 bits
     (*label)["small"] = "1";
   } else {
     (*label)["small"] = "0";
@@ -217,8 +213,8 @@ std::string NvidiaGpuTimer::collBucketFn(double performance,
   double throughtput_gbps = performance;
   int level =
       int(throughtput_gbps * config::BvarMetricsConfig::comm_bucket_count /
-          config::BvarMetricsConfig::nic_bandwidth_gbps); // bucketing up to
-                                                          // 400Gbps
+          config::BvarMetricsConfig::nic_bandwidth_gbps);  // bucketing up to
+                                                           // 400Gbps
   std::string string_level;
   std::string bucket_name;
   if (level > config::BvarMetricsConfig::comm_bucket_count) {
@@ -237,7 +233,7 @@ std::string NvidiaGpuTimer::collBucketFn(double performance,
 
 std::string NvidiaGpuTimer::matmulBucketFn(double peformance,
                                            uint64_t problem_size,
-                                           Labels *label) {
+                                           Labels* label) {
   double tflops = peformance;
   int level = getMatmulBucket(
       tflops * config::BvarMetricsConfig::mm_bucket_count, (*label)["dtype"]);
@@ -267,7 +263,7 @@ std::string NvidiaGpuTimer::matmulBucketFn(double peformance,
  */
 
 void NvidiaGpuTimer::reset_cb(
-    std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb) {
+    std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb) {
   auto rebuild_fn = [this, cb]() {
     auto tup = cb(this);
     std::string name;
@@ -310,16 +306,15 @@ void NvidiaGpuTimer::reset_cb(
 }
 
 void NvidiaGpuTimer::reset(
-    cudaStream_t s,
-    std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb,
-    const std::string_view &type) {
+    cudaStream_t s, std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb,
+    const std::string_view& type) {
   reset_stream(s, type);
   reset_cb(cb);
 }
 
 void NvidiaGpuTimer::reset(
-    std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer *)> cb,
-    const std::string_view &type) {
+    std::function<NvidiaGpuTimer::FnReturn(NvidiaGpuTimer*)> cb,
+    const std::string_view& type) {
   is_host_ = true;
   type_ = type;
   launch_time_ = std::chrono::system_clock::now();
@@ -327,7 +322,7 @@ void NvidiaGpuTimer::reset(
 }
 
 void NvidiaGpuTimer::reset_stream(cudaStream_t s,
-                                  const std::string_view &type) {
+                                  const std::string_view& type) {
   is_host_ = false;
   stream_ = s;
   // record event of kernel launch
@@ -339,13 +334,13 @@ void NvidiaGpuTimer::reset_stream(cudaStream_t s,
   type_ = type;
 }
 
-void NvidiaGpuTimer::reset(cudaStream_t s, const std::string_view &type,
-                           const std::initializer_list<int64_t> &bmnk,
-                           const std::initializer_list<int64_t> &ld,
-                           const std::initializer_list<int64_t> &stride,
+void NvidiaGpuTimer::reset(cudaStream_t s, const std::string_view& type,
+                           const std::initializer_list<int64_t>& bmnk,
+                           const std::initializer_list<int64_t>& ld,
+                           const std::initializer_list<int64_t>& stride,
                            const int trans_a, const int trans_b, const int algo,
-                           const std::string &&name_prefix,
-                           cudaDataType_t dtype, const std::string &api,
+                           const std::string&& name_prefix,
+                           cudaDataType_t dtype, const std::string& api,
                            uint8_t bias) {
   reset_stream(s, type);
   inner_rebuild_cb_.reset(bmnk, ld, stride, trans_a, trans_b, algo,
@@ -361,20 +356,20 @@ bool NvidiaGpuTimer::isValidateToTrace() { return is_validate_to_trace_; }
  * ===================================
  */
 
-NvidiaGpuTimer::FnReturn
-NvidiaGpuTimer::MatmulBuilderCallback::operator()(NvidiaGpuTimer *timer) {
+NvidiaGpuTimer::FnReturn NvidiaGpuTimer::MatmulBuilderCallback::operator()(
+    NvidiaGpuTimer* timer) {
   std::ostringstream oss;
   std::string compute_dtype = CudaDataTypeUtils::getCudaDtype(dtype_);
   timer->trace->Clear();
   timer->trace->set_kernel_type(constant::Metrics::MatmulMetrics::KERNEL_TYPE);
 
-  hook::MatmulDebugData *mm_debug = timer->trace->mutable_mm_debug();
+  hook::MatmulDebugData* mm_debug = timer->trace->mutable_mm_debug();
 
   mm_debug->set_dtype(compute_dtype);
 
   oss << name_prefix_;
   uint64_t flop = 2;
-  for (const auto &v : bmnk_) {
+  for (const auto& v : bmnk_) {
     oss << v << "_";
     mm_debug->add_shapes(v);
     flop = flop * v;
@@ -392,11 +387,11 @@ NvidiaGpuTimer::MatmulBuilderCallback::operator()(NvidiaGpuTimer *timer) {
 }
 
 void NvidiaGpuTimer::MatmulBuilderCallback::reset(
-    const std::initializer_list<int64_t> &bmnk,
-    const std::initializer_list<int64_t> &ld,
-    const std::initializer_list<int64_t> &stride, const int trans_a,
-    const int trans_b, const int algo, const std::string &&name_prefix,
-    cudaDataType_t dtype, const std::string &api, uint8_t bias) {
+    const std::initializer_list<int64_t>& bmnk,
+    const std::initializer_list<int64_t>& ld,
+    const std::initializer_list<int64_t>& stride, const int trans_a,
+    const int trans_b, const int algo, const std::string&& name_prefix,
+    cudaDataType_t dtype, const std::string& api, uint8_t bias) {
   std::copy(bmnk.begin(), bmnk.end(), bmnk_.begin());
   std::copy(ld.begin(), ld.end(), ld_.begin());
   std::copy(stride.begin(), stride.end(), stride_.begin());
@@ -436,8 +431,7 @@ std::string NcclCommWrapper::getNcclVersion() {
 
   std::thread reader_stderr([&err_stream] {
     std::string line;
-    while (std::getline(err_stream, line))
-      XLOG(INFO) << line;
+    while (std::getline(err_stream, line)) XLOG(INFO) << line;
   });
 
   nccl_version_cmd_exec.wait();
@@ -459,17 +453,17 @@ std::string NcclCommWrapper::getNcclVersion() {
 // In NVIDIA, the address of ncclComm_t->devComm is used as the key, whereas in
 // HPU, the value of ncllComm_t->devComm is used as the key. Therefore, we need
 // two distinct constructor functions to differentiate between these cases.
-void *NcclCommWrapper::handle = nullptr;
+void* NcclCommWrapper::handle = nullptr;
 
-#define DEF_COMM_INFO_FUNCTION(FIELD, TYPE)                                    \
-  NcclCommWrapper::get_Comm_##FIELD##_Fn                                       \
+#define DEF_COMM_INFO_FUNCTION(FIELD, TYPE) \
+  NcclCommWrapper::get_Comm_##FIELD##_Fn    \
       NcclCommWrapper::get_Comm_##FIELD##_func = nullptr;
 
 DEF_COMM_INFO_FUNCTION(commHash, uint64_t)
 DEF_COMM_INFO_FUNCTION(rank, int)
 DEF_COMM_INFO_FUNCTION(nRanks, int)
 DEF_COMM_INFO_FUNCTION(nNodes, int)
-DEF_COMM_INFO_FUNCTION(devComm, void *)
+DEF_COMM_INFO_FUNCTION(devComm, void*)
 #undef DEF_COMM_INFO_FUNCTION
 
 void NcclCommWrapper::registerFunction() {
@@ -480,15 +474,15 @@ void NcclCommWrapper::registerFunction() {
     std::cerr << "cannot open library: " << dlerror() << std::endl;
     return;
   }
-#define REGISTER_FUNCTION_TO_GET_COMM_INFO(FIELD)                              \
-  get_Comm_##FIELD##_func = (get_Comm_##FIELD##_Fn)dlvsym(                     \
-      handle, "get_Comm_" #FIELD, nccl_version.c_str());                       \
-  if (!get_Comm_##FIELD##_func) {                                              \
-    XLOG(WARNING) << "Not Found Func: get_Comm_" << #FIELD << " in "           \
-                  << nccl_version;                                             \
-  } else {                                                                     \
-    XLOG(INFO) << "read symbols: get_Comm_" << #FIELD << " in "                \
-               << nccl_version;                                                \
+#define REGISTER_FUNCTION_TO_GET_COMM_INFO(FIELD)                    \
+  get_Comm_##FIELD##_func = (get_Comm_##FIELD##_Fn)dlvsym(           \
+      handle, "get_Comm_" #FIELD, nccl_version.c_str());             \
+  if (!get_Comm_##FIELD##_func) {                                    \
+    XLOG(WARNING) << "Not Found Func: get_Comm_" << #FIELD << " in " \
+                  << nccl_version;                                   \
+  } else {                                                           \
+    XLOG(INFO) << "read symbols: get_Comm_" << #FIELD << " in "      \
+               << nccl_version;                                      \
   }
   REGISTER_FUNCTION_TO_GET_COMM_INFO(commHash)
   REGISTER_FUNCTION_TO_GET_COMM_INFO(rank)
@@ -502,9 +496,9 @@ NcclCommWrapper::NcclCommWrapper(ncclComm_t comm) {
   static std::once_flag registerFlag;
   std::call_once(registerFlag, []() { registerFunction(); });
 
-#define GET_COMM_INFO(FIELD)                                                   \
-  if (get_Comm_##FIELD##_func) {                                               \
-    FIELD = get_Comm_##FIELD##_func(comm);                                     \
+#define GET_COMM_INFO(FIELD)               \
+  if (get_Comm_##FIELD##_func) {           \
+    FIELD = get_Comm_##FIELD##_func(comm); \
   }
   GET_COMM_INFO(commHash)
   GET_COMM_INFO(rank)
@@ -515,5 +509,5 @@ NcclCommWrapper::NcclCommWrapper(ncclComm_t comm) {
 }
 #endif
 
-} // namespace nvidia
-} // namespace xpu_timer
+}  // namespace nvidia
+}  // namespace xpu_timer

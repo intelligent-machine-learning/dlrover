@@ -11,12 +11,12 @@
 extern "C" {
 #endif
 
-typedef struct cublasContext *cublasHandle_t;
-typedef struct cublasLtContext *cublasLtHandle_t;
+typedef struct cublasContext* cublasHandle_t;
+typedef struct cublasLtContext* cublasLtHandle_t;
 // uint64 array, we use pointer to mock it
-typedef uint64_t *cublasLtMatmulDesc_t;
+typedef uint64_t* cublasLtMatmulDesc_t;
 // uint64 array, we use pointer to mock it
-typedef uint64_t *cublasLtMatrixLayout_t;
+typedef uint64_t* cublasLtMatrixLayout_t;
 
 typedef enum {} cublasLtMatmulAlgo_t;
 
@@ -43,111 +43,109 @@ typedef enum {} cublasLtMatmulDescAttributes_t;
 
 typedef enum {} cublasLtMatmulAlgoConfigAttributes_t;
 
-typedef cudaError_t (*cudaLaunchKernelFn)(const void *, dim3, dim3, void **,
+typedef cudaError_t (*cudaLaunchKernelFn)(const void*, dim3, dim3, void**,
                                           size_t, cudaStream_t);
 #if defined(CUDA_LAUNCH_EXC)
-typedef cudaError_t (*cudaLaunchKernelExCFn)(const cudaLaunchConfig_t *,
-                                             const void *, void **);
+typedef cudaError_t (*cudaLaunchKernelExCFn)(const cudaLaunchConfig_t*,
+                                             const void*, void**);
 #endif
 typedef cublasStatus_t (*cublasGemmExFn)(cublasHandle_t, cublasOperation_t,
                                          cublasOperation_t, int, int, int,
-                                         const void *, const void *,
-                                         cudaDataType, int, const void *,
-                                         cudaDataType, int, const void *,
-                                         void *, cudaDataType, int,
+                                         const void*, const void*, cudaDataType,
+                                         int, const void*, cudaDataType, int,
+                                         const void*, void*, cudaDataType, int,
                                          cudaDataType, cublasGemmAlgo_t);
-typedef cublasStatus_t (*cublasGetStream_v2Fn)(cublasHandle_t, cudaStream_t *);
+typedef cublasStatus_t (*cublasGetStream_v2Fn)(cublasHandle_t, cudaStream_t*);
 typedef cublasStatus_t (*cublasGemmStridedBatchedExFn)(
     cublasHandle_t, cublasOperation_t, cublasOperation_t, int, int, int,
-    const void *, const void *, cudaDataType_t, int, long long int,
-    const void *, cudaDataType_t, int, long long int, const void *, void *,
-    cudaDataType_t, int, long long int, int, cublasComputeType_t,
-    cublasGemmAlgo_t);
+    const void*, const void*, cudaDataType_t, int, long long int, const void*,
+    cudaDataType_t, int, long long int, const void*, void*, cudaDataType_t, int,
+    long long int, int, cublasComputeType_t, cublasGemmAlgo_t);
 typedef cublasStatus_t (*cublasSgemmFn)(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    int m, int n, int k, const float *alpha, const float *A, int lda,
-    const float *B, int ldb, const float *beta, float *C, int ldc);
+    int m, int n, int k, const float* alpha, const float* A, int lda,
+    const float* B, int ldb, const float* beta, float* C, int ldc);
 typedef cublasStatus_t (*cublasSgemmStridedBatchedFn)(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    int m, int n, int k, const float *alpha, const float *A, int lda,
-    long long int strideA, const float *B, int ldb, long long int strideB,
-    const float *beta, float *C, int ldc, long long int strideC,
+    int m, int n, int k, const float* alpha, const float* A, int lda,
+    long long int strideA, const float* B, int ldb, long long int strideB,
+    const float* beta, float* C, int ldc, long long int strideC,
     int batchCount);
 
 typedef cublasStatus_t (*cublasLtMatmulFn)(
     cublasLtHandle_t lightHandle, cublasLtMatmulDesc_t computeDesc,
-    const void *alpha, const void *A, cublasLtMatrixLayout_t Adesc,
-    const void *B, cublasLtMatrixLayout_t Bdesc, const void *beta,
-    const void *C, cublasLtMatrixLayout_t Cdesc, void *D,
-    cublasLtMatrixLayout_t Ddesc, const cublasLtMatmulAlgo_t *algo,
-    void *workspace, size_t workspaceSizeInBytes, cudaStream_t stream);
+    const void* alpha, const void* A, cublasLtMatrixLayout_t Adesc,
+    const void* B, cublasLtMatrixLayout_t Bdesc, const void* beta,
+    const void* C, cublasLtMatrixLayout_t Cdesc, void* D,
+    cublasLtMatrixLayout_t Ddesc, const cublasLtMatmulAlgo_t* algo,
+    void* workspace, size_t workspaceSizeInBytes, cudaStream_t stream);
 
 typedef cublasStatus_t (*cublasLtMatrixLayoutGetAttributeFn)(
     cublasLtMatrixLayout_t matLayout, cublasLtMatrixLayoutAttribute_t attr,
-    void *buf, size_t sizeInBytes, size_t *sizeWritten);
+    void* buf, size_t sizeInBytes, size_t* sizeWritten);
 
 typedef cublasStatus_t (*cublasLtMatmulAlgoConfigGetAttributeFn)(
-    const cublasLtMatmulAlgo_t *algo, cublasLtMatmulAlgoConfigAttributes_t attr,
-    void *buf, size_t sizeInBytes, size_t *sizeWritten);
+    const cublasLtMatmulAlgo_t* algo, cublasLtMatmulAlgoConfigAttributes_t attr,
+    void* buf, size_t sizeInBytes, size_t* sizeWritten);
 
 typedef cublasStatus_t (*cublasLtMatmulDescGetAttributeFn)(
     cublasLtMatmulDesc_t matmulDesc, cublasLtMatmulDescAttributes_t attr,
-    void *buf, size_t sizeInBytes, size_t *sizeWritten);
+    void* buf, size_t sizeInBytes, size_t* sizeWritten);
 
-typedef ncclResult_t (*ncclAllReduceFn)(const void *sendbuff, void *recvbuff,
+typedef ncclResult_t (*ncclAllReduceFn)(const void* sendbuff, void* recvbuff,
                                         size_t count, ncclDataType_t datatype,
                                         ncclRedOp_t op, ncclComm_t comm,
                                         cudaStream_t stream);
-typedef ncclResult_t (*ncclReduceFn)(const void *sendbuff, void *recvbuff,
+typedef ncclResult_t (*ncclReduceFn)(const void* sendbuff, void* recvbuff,
                                      size_t count, ncclDataType_t datatype,
                                      ncclRedOp_t op, int root, ncclComm_t comm,
                                      cudaStream_t stream);
 
-typedef ncclResult_t (*ncclAllGatherFn)(const void *sendbuff, void *recvbuff,
+typedef ncclResult_t (*ncclAllGatherFn)(const void* sendbuff, void* recvbuff,
                                         size_t sendcount,
                                         ncclDataType_t datatype,
                                         ncclComm_t comm, cudaStream_t stream);
 
-typedef ncclResult_t (*ncclReduceScatterFn)(const void *sendbuff,
-                                            void *recvbuff, size_t recvcount,
+typedef ncclResult_t (*ncclReduceScatterFn)(const void* sendbuff,
+                                            void* recvbuff, size_t recvcount,
                                             ncclDataType_t datatype,
                                             ncclRedOp_t op, ncclComm_t comm,
                                             cudaStream_t stream);
 
-typedef ncclResult_t (*ncclSendFn)(const void *sendbuff, size_t count,
+typedef ncclResult_t (*ncclSendFn)(const void* sendbuff, size_t count,
                                    ncclDataType_t datatype, int peer,
                                    ncclComm_t comm, cudaStream_t stream);
 
-typedef ncclResult_t (*ncclRecvFn)(void *recvbuff, size_t count,
+typedef ncclResult_t (*ncclRecvFn)(void* recvbuff, size_t count,
                                    ncclDataType_t datatype, int peer,
                                    ncclComm_t comm, cudaStream_t stream);
 
-typedef ncclResult_t (*ncclBroadcastFn)(const void *sendbuff, void *recvbuff,
+typedef ncclResult_t (*ncclBroadcastFn)(const void* sendbuff, void* recvbuff,
                                         size_t count, ncclDataType_t datatype,
                                         int root, ncclComm_t comm,
                                         cudaStream_t stream);
 
-typedef cudaError_t (*cudaMemcpyAsyncFn)(void *dst, const void *src,
+typedef cudaError_t (*cudaMemcpyAsyncFn)(void* dst, const void* src,
                                          size_t count, cudaMemcpyKind kind,
                                          cudaStream_t stream);
 
-typedef cudaError_t (*cudaFreeAsyncFn)(void *dst, cudaStream_t stream);
+typedef cudaError_t (*cudaFreeAsyncFn)(void* dst, cudaStream_t stream);
 
-typedef cudaError_t (*cudaFreeFn)(void *devPtr);
+typedef cudaError_t (*cudaFreeFn)(void* devPtr);
 
-typedef cudaError_t (*cudaMallocFn)(void **devPtr, size_t size);
+typedef cudaError_t (*cudaMallocFn)(void** devPtr, size_t size);
 
-typedef cudaError_t (*cudaMallocAsyncFn)(void **ptr, size_t size,
+typedef cudaError_t (*cudaMallocAsyncFn)(void** ptr, size_t size,
                                          cudaMemPool_t memPool,
                                          cudaStream_t stream);
 
-typedef cudaError_t (*cudaMallocFromPoolAsyncFn)(void **ptr, size_t size,
+typedef cudaError_t (*cudaMallocFromPoolAsyncFn)(void** ptr, size_t size,
                                                  cudaMemPool_t memPool,
                                                  cudaStream_t stream);
-typedef cudaError_t (*cudaHostAllocFn)(void **ptr, size_t size,
+typedef cudaError_t (*cudaHostAllocFn)(void** ptr, size_t size,
                                        unsigned int flags);
 
-typedef cudaError_t (*cudaMallocHostFn)(void **ptr, size_t size);
+typedef cudaError_t (*cudaMallocHostFn)(void** ptr, size_t size);
 
 static cublasGemmStridedBatchedExFn orig_cublasGemmStridedBatchedEx = NULL;
 static cublasGetStream_v2Fn orig_cublasGetStream_v2 = NULL;

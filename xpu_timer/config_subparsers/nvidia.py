@@ -1,16 +1,3 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import textwrap
 
 from . import BaseBuildRender
@@ -25,13 +12,8 @@ class BuildRender(BaseBuildRender):
         if self.args.sdk_path is None:
             self.args.sdk_path = "/usr/local/cuda"
 
-        delete_packate = ",".join(
-            f"//xpu_timer/{non_target}/..."
-            for non_target in self.args.non_target
-        )
-        self.bazelrc_config.append(
-            f"build --deleted_packages={delete_packate}"
-        )
+        delete_packate = ",".join(f"//xpu_timer/{non_target}/..." for non_target in self.args.non_target)
+        self.bazelrc_config.append(f"build --deleted_packages={delete_packate}")
 
     def rend_config_bzl(self):
         nvidia_config = textwrap.dedent(
@@ -60,15 +42,11 @@ class BuildRender(BaseBuildRender):
         """
         )
 
-        self.xpu_timer_config.append(
-            nvidia_config.format(cuda_path=self.sdk_path)
-        )
+        self.xpu_timer_config.append(nvidia_config.format(cuda_path=self.sdk_path))
         return "\n".join(self.xpu_timer_config)
 
     def rend_bazelrc(self):
-        self.bazelrc_config.append(
-            f"build --repo_env=CUDA_HOME={self.sdk_path}"
-        )
+        self.bazelrc_config.append(f"build --repo_env=CUDA_HOME={self.sdk_path}")
         return "\n".join(self.bazelrc_config)
 
     def setup_files(self):

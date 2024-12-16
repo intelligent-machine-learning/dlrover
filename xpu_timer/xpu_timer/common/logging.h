@@ -3,7 +3,7 @@
 
 #include "xpu_timer/common/util.h"
 
-#define XLOG(level)                                                            \
+#define XLOG(level) \
   LOG(level) << ::xpu_timer::util::config::GlobalConfig::rank_str
 
 namespace xpu_timer {

@@ -7,14 +7,14 @@ package xpu_timer.server;
 option cc_generic_services = true;
 
 message DeviceStatus {
-  string block_range = 1;           // Block range, e.g., "0-0"
-  string thread_range = 2;          // Thread range, e.g., "0-0"
-  repeated string stack_trace = 3;  // Stack trace information
-  string sass = 4;                  // SASS instruction
-  bool has_next = 5;                // Indicator for next block
-  int32 hang_step = 6;              // Step where hang occurred
-  repeated string hang_sass = 7;    // List of hang SASS instructions
-  map<string, int32> registers = 8; // Registers as key-value pairs
+  string block_range = 1;            // Block range, e.g., "0-0"
+  string thread_range = 2;           // Thread range, e.g., "0-0"
+  repeated string stack_trace = 3;   // Stack trace information
+  string sass = 4;                   // SASS instruction
+  bool has_next = 5;                 // Indicator for next block
+  int32 hang_step = 6;               // Step where hang occurred
+  repeated string hang_sass = 7;     // List of hang SASS instructions
+  map<string, int32> registers = 8;  // Registers as key-value pairs
 }
 
 message CudaStackFrame {
@@ -29,12 +29,16 @@ message CudaStackFrame {
 }
 
 message DeviceFrame {
-  oneof frame { CudaStackFrame cuda_frame = 1; }
+  oneof frame {
+    CudaStackFrame cuda_frame = 1;
+  }
   string stderr = 2;
   string origin = 3;
 }
 
-message DeviceStacktrace { repeated DeviceFrame devices_frames = 1; }
+message DeviceStacktrace {
+  repeated DeviceFrame devices_frames = 1;
+}
 
 // py-spy fream json
 // {
@@ -91,7 +95,9 @@ message PstackStacktrace {
   repeated PstackFrame frames = 3;
 }
 
-message HangKernels { repeated string hang_kernels = 1; }
+message HangKernels {
+  repeated string hang_kernels = 1;
+}
 
 message Stacktrace {
   repeated PstackStacktrace stacktrace = 1;
@@ -144,7 +150,9 @@ message KernelBrpcMetrics {
   double performance = 5;
 }
 
-message MemBrpcMetrics { uint64 counter = 1; }
+message MemBrpcMetrics {
+  uint64 counter = 1;
+}
 
 message BrpcMetrics {
   string name = 1;
@@ -178,11 +186,13 @@ message DumpKernelTraceRequest {
   uint32 dump_count = 2;
   int64 dump_time = 3;
   bool reset = 4;
-  uint32 dump_kernel_type = 5; // bits, 1 is matmul, 2 is comm
+  uint32 dump_kernel_type = 5;  // bits, 1 is matmul, 2 is comm
   OssArgs oss_args = 6;
 }
 
-message PySpyFrameList { repeated PySpyFrame frames = 1; }
+message PySpyFrameList {
+  repeated PySpyFrame frames = 1;
+}
 
 message PythonStackInTimeline {
   map<string, PySpyFrameList> named_frames = 1;

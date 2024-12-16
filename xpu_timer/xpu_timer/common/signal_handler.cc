@@ -95,7 +95,7 @@ void SignalHandler::backtraceFrameInfo(SignalFrameRequest *request) {
       XLOG(INFO) << "[XPU_TIMER_SIGNAL] 0x" << std::hex << pc << ": ("
                  << function_name << "+0x" << std::hex << offset << ")";
       frame->set_function_name(function_name);
-      free(demangled_name); // Free the demangled name if it was used
+      free(demangled_name);  // Free the demangled name if it was used
     } else {
       frame->set_function_name("??");
       XLOG(INFO) << "[XPU_TIMER_SIGNAL] 0x" << std::hex << pc
@@ -118,4 +118,4 @@ void SignalHandler::pushSignal() {
   XLOG(INFO) << "rank " << request.rank() << " push ok";
 }
 
-} // namespace xpu_timer
+}  // namespace xpu_timer

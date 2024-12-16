@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2024 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-
 # flake8: noqa: E501,E722,F841,E401
 import os
 import re
@@ -78,9 +64,7 @@ def list_loaded_libraries_linux():
 
 def pipe_commands(commands):
     if len(commands) == 1:
-        return subprocess.Popen(
-            commands[0], stdout=subprocess.PIPE
-        ).communicate()
+        return subprocess.Popen(commands[0], stdout=subprocess.PIPE).communicate()
 
     cur = None
     for command in commands:
@@ -89,9 +73,7 @@ def pipe_commands(commands):
             stdout=subprocess.PIPE,
             stdin=cur.stdout if cur is not None else None,
         )
-    return [
-        i.decode().strip() if i is not None else i for i in cur.communicate()
-    ]
+    return [i.decode().strip() if i is not None else i for i in cur.communicate()]
 
 
 def nccl_prser(nccl_lib):
@@ -100,12 +82,8 @@ def nccl_prser(nccl_lib):
             re.compile(
                 r"([0-9a-f]+) \w ncclDevKernel_(AllReduce|ReduceScatter|SendRecv|Reduce)_(Sum|Prod|Max|Min)_([a-z0-9_]+)_([A-Z_]+)\(ncclDevKernelArgsStorage<4096ul>\)"
             ),
-            re.compile(
-                r"([0-9a-f]+) \w ncclDevKernel_SendRecv\(ncclDevKernelArgsStorage<4096ul>\)"
-            ),
-            re.compile(
-                r"([0-9a-f]+) \w ncclDevKernel_AllGather_([A-Z_]+)\(ncclDevKernelArgsStorage<4096ul>\)"
-            ),
+            re.compile(r"([0-9a-f]+) \w ncclDevKernel_SendRecv\(ncclDevKernelArgsStorage<4096ul>\)"),
+            re.compile(r"([0-9a-f]+) \w ncclDevKernel_AllGather_([A-Z_]+)\(ncclDevKernelArgsStorage<4096ul>\)"),
         ]
 
         def inner(sym, addr_to_name):
@@ -114,16 +92,8 @@ def nccl_prser(nccl_lib):
                 search = pattern.search(sym)
                 if search is not None:
                     if index == 0:
-                        (
-                            addr,
-                            coll_type,
-                            operation,
-                            dtype,
-                            algo,
-                        ) = search.groups()
-                        kernel_name = "_".join(
-                            [coll_type, algo, operation, dtype]
-                        )
+                        addr, coll_type, operation, dtype, algo = search.groups()
+                        kernel_name = "_".join([coll_type, algo, operation, dtype])
                     elif index == 1:
                         coll_type = "SendRecv"
                         (addr,) = search.groups()
@@ -154,15 +124,9 @@ def nccl_prser(nccl_lib):
             re.compile(
                 r"([0-9a-f]+) \w ncclDevKernel_(AllReduce|ReduceScatter|SendRecv|Reduce)_(Sum|Prod|Max|Min)_([a-z0-9_]+)_([A-Z_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"
             ),
-            re.compile(
-                r"([0-9a-f]+) \w ncclDevKernel_SendRecv\(ncclDevComm\*, unsigned long, ncclWork\*\)"
-            ),
-            re.compile(
-                r"([0-9a-f]+) \w ncclDevKernel_AllGather_([A-Z_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"
-            ),
-            re.compile(
-                r"([0-9a-f]+) \w ncclDevKernel_Broadcast_([A-Z_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"
-            ),
+            re.compile(r"([0-9a-f]+) \w ncclDevKernel_SendRecv\(ncclDevComm\*, unsigned long, ncclWork\*\)"),
+            re.compile(r"([0-9a-f]+) \w ncclDevKernel_AllGather_([A-Z_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"),
+            re.compile(r"([0-9a-f]+) \w ncclDevKernel_Broadcast_([A-Z_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"),
         ]
 
         def inner(sym, addr_to_name):
@@ -171,16 +135,8 @@ def nccl_prser(nccl_lib):
                 search = pattern.search(sym)
                 if search is not None:
                     if index == 0:
-                        (
-                            addr,
-                            coll_type,
-                            operation,
-                            dtype,
-                            algo,
-                        ) = search.groups()
-                        kernel_name = "_".join(
-                            [coll_type, algo, operation, dtype]
-                        )
+                        addr, coll_type, operation, dtype, algo = search.groups()
+                        kernel_name = "_".join([coll_type, algo, operation, dtype])
                     elif index == 1:
                         coll_type = "SendRecv"
                         (addr,) = search.groups()
@@ -308,9 +264,7 @@ def search_flash_attn(flash_attn_lib, addr_to_name):
             addr_to_name.symbols[addr].func_name = kernel_name
             addr_to_name.symbols[addr].dtype = dtype_mapping[dtype]
             addr_to_name.symbols[addr].func_type = "FA"
-            addr_to_name.symbols[addr].only_trace = (
-                operation == "FaBwd" and "parallel" not in kernel_name
-            )
+            addr_to_name.symbols[addr].only_trace = operation == "FaBwd" and "parallel" not in kernel_name
             addr_to_name.symbols[addr].algo = ""
             addr_to_name.symbols[addr].coll_type = ""
             addr_to_name.symbols[addr].operation = operation

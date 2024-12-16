@@ -462,7 +462,7 @@ def xpu_timer_parse_cpp_exception(stack_infos):
 可以使用已经有的 devel 镜像
 
 ```bash
-docker run -it --rm --gpus all --entrypoint bash easydl/xpu-timer-dev:cuda12.4-torch250
+docker run -it --rm --gpus all --entrypoint bash easydl/xpu-timer-dev:1.0
 
 cd /build/demo/train_fsdp/
 bash train.sh

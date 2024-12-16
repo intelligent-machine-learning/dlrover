@@ -25,7 +25,7 @@ void ShmSwitch::reset() {
         constant::KernelTraceConstant::DEFAULT_TRACE_COUNT, 0, 0, false);
 }
 
-void ShmSwitch::reset(const std::string &path, const std::string &oss_args,
+void ShmSwitch::reset(const std::string& path, const std::string& oss_args,
                       uint32_t count, int64_t stamp, uint32_t dump_kernel) {
   uint32_t dump_path_length = path.length();
   std::strncpy(dump_path, path.data(), dump_path_length);
@@ -41,7 +41,7 @@ void ShmSwitch::reset(const std::string &path, const std::string &oss_args,
   dump_kernel_type = dump_kernel;
 }
 
-void ShmSwitch::reset(const std::string &path, const std::string &oss_args,
+void ShmSwitch::reset(const std::string& path, const std::string& oss_args,
                       uint32_t count, int64_t stamp, uint32_t dump_kernel,
                       bool reset_signal) {
   reset(path, oss_args, count, stamp, dump_kernel);
@@ -52,11 +52,11 @@ InterProcessBarrierImpl::InterProcessBarrierImpl(std::string name,
                                                  int world_size, int rank)
     : name_(name) {
   bip::managed_shared_memory managed_shm(bip::open_or_create, name.c_str(),
-                                         4096); // one page is enough
+                                         4096);  // one page is enough
   LOG(INFO) << "Barrier name in shm is " << name;
   LOG(INFO) << "World size " << world_size;
-  InterProcessBarrierImpl::Inner
-      *barriers[world_size]; // world size is small, allocate on stack is safe
+  InterProcessBarrierImpl::Inner*
+      barriers[world_size];  // world size is small, allocate on stack is safe
   std::string barrier_name("InterProcessBarrierImpl" + std::to_string(rank));
   auto this_bar =
       managed_shm.find<InterProcessBarrierImpl::Inner>(barrier_name.c_str());
@@ -87,8 +87,7 @@ InterProcessBarrierImpl::InterProcessBarrierImpl(std::string name,
     }
   }
   // reset all state
-  for (auto barrier : barriers)
-    barrier->reset(false);
+  for (auto barrier : barriers) barrier->reset(false);
   try_count = 0;
   bool ready = false;
   // clang-format off
@@ -124,29 +123,29 @@ InterProcessBarrierImpl::~InterProcessBarrierImpl() {
   bip::shared_memory_object::remove(name_.c_str());
 }
 
-} // namespace detail
+}  // namespace detail
 
 void InterProcessBarrier(int world_size, int rank, std::string name) {
   detail::InterProcessBarrierImpl(name, world_size, rank);
 }
 
-int ensureDirExists(const std::string &path) {
+int ensureDirExists(const std::string& path) {
   std::filesystem::path dir_path(path);
   try {
     if (!std::filesystem::exists(dir_path)) {
       std::filesystem::create_directories(dir_path);
     }
-  } catch (const std::filesystem::filesystem_error &e) {
+  } catch (const std::filesystem::filesystem_error& e) {
     LOG(ERROR) << "Create dir " << path << " error trace" << e.what();
     return 1;
   }
   return 0;
 }
 
-std::string execShellCommand(const char *cmd) {
+std::string execShellCommand(const char* cmd) {
   std::array<char, 128> buffer;
   std::string result;
-  FILE *pipe = popen(cmd, "r");
+  FILE* pipe = popen(cmd, "r");
   if (!pipe) {
     throw std::runtime_error("popen() failed!");
   }
@@ -162,8 +161,8 @@ std::string execShellCommand(const char *cmd) {
 }
 
 // TODO change into native api when c++20 is ready.
-std::vector<std::string> split(const std::string &str,
-                               const std::string &delimiter) {
+std::vector<std::string> split(const std::string& str,
+                               const std::string& delimiter) {
   std::vector<std::string> tokens;
   size_t start = 0;
   size_t end = str.find(delimiter);
@@ -176,9 +175,9 @@ std::vector<std::string> split(const std::string &str,
   return tokens;
 }
 
-std::string base64_decode(const std::string &input) {
-  BIO *bio = BIO_new_mem_buf(input.data(), input.size());
-  BIO *b64 = BIO_new(BIO_f_base64());
+std::string base64_decode(const std::string& input) {
+  BIO* bio = BIO_new_mem_buf(input.data(), input.size());
+  BIO* b64 = BIO_new(BIO_f_base64());
   BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
   bio = BIO_push(b64, bio);
 
@@ -193,20 +192,19 @@ std::string base64_decode(const std::string &input) {
 
 namespace detail {
 struct EVP_CIPHER_CTX_Deleter {
-  void operator()(EVP_CIPHER_CTX *ctx) const { EVP_CIPHER_CTX_free(ctx); }
+  void operator()(EVP_CIPHER_CTX* ctx) const { EVP_CIPHER_CTX_free(ctx); }
 };
 
-}; // namespace detail
+};  // namespace detail
 
-bool AES128_CBC(const std::string &ciphertext, std::string *text) {
+bool AES128_CBC(const std::string& ciphertext, std::string* text) {
   static const unsigned char key[16] = "xpu_timer";
   static const unsigned char iv[16] = "xpu_timer";
-  const std::string &decode_ciphertext = base64_decode(ciphertext);
+  const std::string& decode_ciphertext = base64_decode(ciphertext);
   std::unique_ptr<EVP_CIPHER_CTX, detail::EVP_CIPHER_CTX_Deleter> ctx(
       EVP_CIPHER_CTX_new());
 
-  if (!ctx)
-    return false;
+  if (!ctx) return false;
 
   int len;
   int plaintext_len;
@@ -217,7 +215,7 @@ bool AES128_CBC(const std::string &ciphertext, std::string *text) {
 
   if (EVP_DecryptUpdate(
           ctx.get(), plaintext.data(), &len,
-          reinterpret_cast<const unsigned char *>(decode_ciphertext.data()),
+          reinterpret_cast<const unsigned char*>(decode_ciphertext.data()),
           decode_ciphertext.size()) != 1)
     return false;
   plaintext_len = len;
@@ -227,7 +225,7 @@ bool AES128_CBC(const std::string &ciphertext, std::string *text) {
   plaintext_len += len;
   plaintext.resize(plaintext_len);
   *text =
-      std::string(reinterpret_cast<char *>(plaintext.data()), plaintext.size());
+      std::string(reinterpret_cast<char*>(plaintext.data()), plaintext.size());
   return true;
 }
 
@@ -258,8 +256,7 @@ std::unordered_map<std::string, std::string> GlobalConfig::dlopen_path;
 
 void setUpDlopenLibrary() {
   static bool has_set = false;
-  if (has_set)
-    return;
+  if (has_set) return;
   std::ifstream maps_file("/proc/self/maps");
   bool nccl_found = false;
   bool cublas_lt_found = false;
@@ -304,7 +301,7 @@ void setUpDlopenLibrary() {
         GlobalConfig::dlopen_path["TORCH_CUDA"];
 
   maps_file.close();
-  for (const auto &lib : GlobalConfig::dlopen_path)
+  for (const auto& lib : GlobalConfig::dlopen_path)
     LOG(INFO) << "[ENV] " << lib.first << " => " << lib.second;
   has_set = true;
 }
@@ -355,8 +352,7 @@ void setUpGlobalConfig() {
         LOG(INFO) << "[ENV] Found device " << dev;
     }
   }
-  if (GlobalConfig::all_devices.empty())
-    GlobalConfig::enable = false;
+  if (GlobalConfig::all_devices.empty()) GlobalConfig::enable = false;
   std::sort(GlobalConfig::all_devices.begin(), GlobalConfig::all_devices.end());
 
   if (GlobalConfig::local_world_size != GlobalConfig::all_devices.size()) {
@@ -390,7 +386,7 @@ void setUpBvarMetricsConfig() {
       std::to_string(config::GlobalConfig::rank);
   BvarMetricsConfig::common_label["local_rank"] =
       std::to_string(config::GlobalConfig::local_rank);
-  BvarMetricsConfig::nic_bandwidth_gbps = 400; // cx-7 is 400Gbps
+  BvarMetricsConfig::nic_bandwidth_gbps = 400;  // cx-7 is 400Gbps
   BvarMetricsConfig::comm_bucket_count =
       EnvVarRegistry::GetEnvVar<int>("XPU_TIMER_COMM_BUCKETING_COUNT");
   BvarMetricsConfig::mm_bucket_count =
@@ -402,13 +398,12 @@ void setUpBvarMetricsConfig() {
 }
 
 int getMinDeviceRank() {
-  if (config::GlobalConfig::all_devices.empty())
-    return 0;
+  if (config::GlobalConfig::all_devices.empty()) return 0;
   return config::GlobalConfig::all_devices[0];
 }
-} // namespace config
+}  // namespace config
 
-std::string getUniqueFileNameByCluster(const std::string &suffix) {
+std::string getUniqueFileNameByCluster(const std::string& suffix) {
   std::ostringstream oss;
   std::string rank_str = std::to_string(config::GlobalConfig::rank);
   std::string world_size_str = std::to_string(config::GlobalConfig::world_size);
@@ -440,11 +435,11 @@ void REGISTER_ENV() {
   REGISTER_ENV_VAR("WORLD_SIZE", 1);
   REGISTER_ENV_VAR("XPU_TIMER_TIMELINE_TRACE_COUNT",
                    constant::KernelTraceConstant::DEFAULT_TRACE_COUNT);
-  REGISTER_ENV_VAR("XPU_TIMER_PROMETHEUS_UPDATE_INTERVAL", 10); // second
+  REGISTER_ENV_VAR("XPU_TIMER_PROMETHEUS_UPDATE_INTERVAL", 10);  // second
   REGISTER_ENV_VAR("XPU_TIMER_LOCAL_UPDATE_INTERVAL", 1);
   REGISTER_ENV_VAR("XPU_TIMER_MM_BVAR_WINDOW_SIZE", 10);
   REGISTER_ENV_VAR("XPU_TIMER_COLL_BVAR_WINDOW_SIZE", 10);
-  REGISTER_ENV_VAR("XPU_TIMER_DEREGISTER_TIME", 300); // second
+  REGISTER_ENV_VAR("XPU_TIMER_DEREGISTER_TIME", 300);  // second
   REGISTER_ENV_VAR("XPU_TIMER_BUCKETING_METRICS", true);
   REGISTER_ENV_VAR("XPU_TIMER_MM_BUCKETING_COUNT", 10);
   REGISTER_ENV_VAR("XPU_TIMER_COMM_BUCKETING_COUNT", 20);
@@ -452,7 +447,7 @@ void REGISTER_ENV() {
   REGISTER_ENV_VAR("XPU_TIMER_BASEPORT", 18888);
   REGISTER_ENV_VAR("XPU_TIMER_PORT", EnvVarRegistry::INT_DEFAULT_VALUE);
 
-  REGISTER_ENV_VAR("XPU_TIMER_HANG_TIMEOUT", 300); // second
+  REGISTER_ENV_VAR("XPU_TIMER_HANG_TIMEOUT", 300);  // second
   REGISTER_ENV_VAR("XPU_TIMER_HANG_KILL", false);
 
   REGISTER_ENV_VAR("XPU_TIMER_DUMP_STACK_COUNT", 0);
@@ -485,5 +480,5 @@ void REGISTER_ENV() {
   REGISTER_ENV_VAR("XPU_TIMER_HPU_HOOK_MATMUL", false);
 }
 
-} // namespace util
-} // namespace xpu_timer
+}  // namespace util
+}  // namespace xpu_timer

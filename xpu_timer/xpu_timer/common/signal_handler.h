@@ -16,7 +16,7 @@ using namespace util;
 using namespace server;
 
 class SignalHandler {
-public:
+ public:
   SignalHandler(int signum);
   ~SignalHandler() { restoreOriginalHandler(); }
 
@@ -24,7 +24,7 @@ public:
   static void registerHandler(int signum);
   static void registerDefault(std::shared_ptr<ClientStub> stub);
 
-private:
+ private:
   int signum_;
   bool is_hook_;
   struct sigaction original_action_;
@@ -42,4 +42,4 @@ private:
   void pushSignal();
 };
 
-} // namespace xpu_timer
+}  // namespace xpu_timer

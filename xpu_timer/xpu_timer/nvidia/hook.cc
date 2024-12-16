@@ -14,10 +14,10 @@
 #include "xpu_timer/common/util.h"
 #include "xpu_timer/nvidia/nvidia_timer.h"
 
-static void getMatrixDimensions(const cublasLtMatrixLayout_t &layout,
-                                cudaDataType_t &dtype, int32_t &b,
-                                uint64_t &rows, uint64_t &cols, uint64_t &ld,
-                                int64_t &stride) {
+static void getMatrixDimensions(const cublasLtMatrixLayout_t& layout,
+                                cudaDataType_t& dtype, int32_t& b,
+                                uint64_t& rows, uint64_t& cols, uint64_t& ld,
+                                int64_t& stride) {
   orig_cublasLtMatrixLayoutGetAttribute(
       layout, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &b, sizeof(b), NULL);
   orig_cublasLtMatrixLayoutGetAttribute(layout, CUBLASLT_MATRIX_LAYOUT_ROWS,
@@ -38,14 +38,14 @@ extern "C" {
 #endif
 
 EXPOSE_API
-cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
-                             void **args, size_t sharedMem,
+cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim,
+                             void** args, size_t sharedMem,
                              cudaStream_t stream) {
   SETUP_DLSYM(cudaLaunchKernel);
   if (!::xpu_timer::util::config::GlobalConfig::enable)
     return orig_cudaLaunchKernel(func, gridDim, blockDim, args, sharedMem,
                                  stream);
-  const xpu_timer::nvidia::InterceptSymbol *sym;
+  const xpu_timer::nvidia::InterceptSymbol* sym;
   if (!xpu_timer::GpuTimerManager<
            xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
            .intercept_manager.isIntercepted(func, &sym)) {
@@ -77,13 +77,13 @@ cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
 
 #if defined(CUDA_LAUNCH_EXC)
 EXPOSE_API
-cudaError_t cudaLaunchKernelExC(const cudaLaunchConfig_t *config,
-                                const void *func, void **args) {
+cudaError_t cudaLaunchKernelExC(const cudaLaunchConfig_t* config,
+                                const void* func, void** args) {
   SETUP_DLSYM(cudaLaunchKernelExC);
   if (!::xpu_timer::util::config::GlobalConfig::enable)
     return orig_cudaLaunchKernelExC(config, func, args);
   cudaError_t status;
-  const xpu_timer::nvidia::InterceptSymbol *sym;
+  const xpu_timer::nvidia::InterceptSymbol* sym;
 
   if (!xpu_timer::GpuTimerManager<
            xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
@@ -96,8 +96,7 @@ cudaError_t cudaLaunchKernelExC(const cudaLaunchConfig_t *config,
                 xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
                 .intercept_manager.handleCudaLaunchKernelExC(config, func, args,
                                                              sym, &skip_tp);
-  if (skip_tp)
-    return orig_cudaLaunchKernelExC(config, func, args);
+  if (skip_tp) return orig_cudaLaunchKernelExC(config, func, args);
   auto event = xpu_timer::GpuTimerManager<
                    xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
                    .getEvent();
@@ -113,9 +112,9 @@ cudaError_t cudaLaunchKernelExC(const cudaLaunchConfig_t *config,
 EXPOSE_API
 cublasStatus_t cublasGemmStridedBatchedEx(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    int m, int n, int k, const void *alpha, const void *A, cudaDataType_t Atype,
-    int lda, long long int strideA, const void *B, cudaDataType_t Btype,
-    int ldb, long long int strideB, const void *beta, void *C,
+    int m, int n, int k, const void* alpha, const void* A, cudaDataType_t Atype,
+    int lda, long long int strideA, const void* B, cudaDataType_t Btype,
+    int ldb, long long int strideB, const void* beta, void* C,
     cudaDataType_t Ctype, int ldc, long long int strideC, int batch_count,
     cublasComputeType_t computeType, cublasGemmAlgo_t algo) {
   SETUP_DLSYM_WITH_CUBLAS(cublasGemmStridedBatchedEx);
@@ -147,10 +146,10 @@ cublasStatus_t cublasGemmStridedBatchedEx(
 EXPOSE_API
 cublasStatus_t cublasGemmEx(cublasHandle_t handle, cublasOperation_t transa,
                             cublasOperation_t transb, int m, int n, int k,
-                            const void *alpha, const void *A,
-                            cudaDataType Atype, int lda, const void *B,
-                            cudaDataType Btype, int ldb, const void *beta,
-                            void *C, cudaDataType Ctype, int ldc,
+                            const void* alpha, const void* A,
+                            cudaDataType Atype, int lda, const void* B,
+                            cudaDataType Btype, int ldb, const void* beta,
+                            void* C, cudaDataType Ctype, int ldc,
                             cudaDataType computeType, cublasGemmAlgo_t algo) {
   SETUP_DLSYM_WITH_CUBLAS(cublasGemmEx);
   SETUP_DLSYM_WITH_CUBLAS(cublasGetStream_v2);
@@ -180,8 +179,8 @@ cublasStatus_t cublasGemmEx(cublasHandle_t handle, cublasOperation_t transa,
 EXPOSE_API
 cublasStatus_t cublasSgemm(cublasHandle_t handle, cublasOperation_t transa,
                            cublasOperation_t transb, int m, int n, int k,
-                           const float *alpha, const float *A, int lda,
-                           const float *B, int ldb, const float *beta, float *C,
+                           const float* alpha, const float* A, int lda,
+                           const float* B, int ldb, const float* beta, float* C,
                            int ldc) {
   SETUP_DLSYM_WITH_CUBLAS(cublasSgemm);
   SETUP_DLSYM_WITH_CUBLAS(cublasGetStream_v2);
@@ -206,13 +205,12 @@ cublasStatus_t cublasSgemm(cublasHandle_t handle, cublasOperation_t transa,
 }
 
 EXPOSE_API
-cublasStatus_t
-cublasSgemmStridedBatched(cublasHandle_t handle, cublasOperation_t transa,
-                          cublasOperation_t transb, int m, int n, int k,
-                          const float *alpha, const float *A, int lda,
-                          long long int strideA, const float *B, int ldb,
-                          long long int strideB, const float *beta, float *C,
-                          int ldc, long long int strideC, int batch_count) {
+cublasStatus_t cublasSgemmStridedBatched(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const float* alpha, const float* A, int lda,
+    long long int strideA, const float* B, int ldb, long long int strideB,
+    const float* beta, float* C, int ldc, long long int strideC,
+    int batch_count) {
   SETUP_DLSYM_WITH_CUBLAS(cublasSgemmStridedBatched);
   SETUP_DLSYM_WITH_CUBLAS(cublasGetStream_v2);
   if (!::xpu_timer::util::config::GlobalConfig::enable)
@@ -239,14 +237,13 @@ cublasSgemmStridedBatched(cublasHandle_t handle, cublasOperation_t transa,
 }
 
 EXPOSE_API
-cublasStatus_t
-cublasLtMatmul(cublasLtHandle_t lightHandle, cublasLtMatmulDesc_t computeDesc,
-               const void *alpha, const void *A, cublasLtMatrixLayout_t Adesc,
-               const void *B, cublasLtMatrixLayout_t Bdesc, const void *beta,
-               const void *C, cublasLtMatrixLayout_t Cdesc, void *D,
-               cublasLtMatrixLayout_t Ddesc, const cublasLtMatmulAlgo_t *algo,
-               void *workspace, size_t workspaceSizeInBytes,
-               cudaStream_t stream) {
+cublasStatus_t cublasLtMatmul(
+    cublasLtHandle_t lightHandle, cublasLtMatmulDesc_t computeDesc,
+    const void* alpha, const void* A, cublasLtMatrixLayout_t Adesc,
+    const void* B, cublasLtMatrixLayout_t Bdesc, const void* beta,
+    const void* C, cublasLtMatrixLayout_t Cdesc, void* D,
+    cublasLtMatrixLayout_t Ddesc, const cublasLtMatmulAlgo_t* algo,
+    void* workspace, size_t workspaceSizeInBytes, cudaStream_t stream) {
   SETUP_DLSYM_WITH_CUBLASLT(cublasLtMatmul);
   if (!::xpu_timer::util::config::GlobalConfig::enable)
     return orig_cublasLtMatmul(lightHandle, computeDesc, alpha, A, Adesc, B,
@@ -310,7 +307,7 @@ cublasLtMatmul(cublasLtHandle_t lightHandle, cublasLtMatmulDesc_t computeDesc,
 }
 
 EXPOSE_API
-ncclResult_t ncclAllReduce(const void *sendbuff, void *recvbuff, size_t count,
+ncclResult_t ncclAllReduce(const void* sendbuff, void* recvbuff, size_t count,
                            ncclDataType_t datatype, ncclRedOp_t op,
                            ncclComm_t comm, cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclAllReduce);
@@ -328,7 +325,7 @@ ncclResult_t ncclAllReduce(const void *sendbuff, void *recvbuff, size_t count,
 }
 
 EXPOSE_API
-ncclResult_t ncclReduce(const void *sendbuff, void *recvbuff, size_t count,
+ncclResult_t ncclReduce(const void* sendbuff, void* recvbuff, size_t count,
                         ncclDataType_t datatype, ncclRedOp_t op, int root,
                         ncclComm_t comm, cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclReduce);
@@ -345,7 +342,7 @@ ncclResult_t ncclReduce(const void *sendbuff, void *recvbuff, size_t count,
 }
 
 EXPOSE_API
-ncclResult_t ncclAllGather(const void *sendbuff, void *recvbuff,
+ncclResult_t ncclAllGather(const void* sendbuff, void* recvbuff,
                            size_t sendcount, ncclDataType_t datatype,
                            ncclComm_t comm, cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclAllGather);
@@ -363,7 +360,7 @@ ncclResult_t ncclAllGather(const void *sendbuff, void *recvbuff,
 }
 
 EXPOSE_API
-ncclResult_t ncclReduceScatter(const void *sendbuff, void *recvbuff,
+ncclResult_t ncclReduceScatter(const void* sendbuff, void* recvbuff,
                                size_t recvcount, ncclDataType_t datatype,
                                ncclRedOp_t op, ncclComm_t comm,
                                cudaStream_t stream) {
@@ -382,7 +379,7 @@ ncclResult_t ncclReduceScatter(const void *sendbuff, void *recvbuff,
 }
 
 EXPOSE_API
-ncclResult_t ncclSend(const void *sendbuff, size_t count,
+ncclResult_t ncclSend(const void* sendbuff, size_t count,
                       ncclDataType_t datatype, int peer, ncclComm_t comm,
                       cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclSend);
@@ -399,7 +396,7 @@ ncclResult_t ncclSend(const void *sendbuff, size_t count,
 }
 
 EXPOSE_API
-ncclResult_t ncclRecv(void *recvbuff, size_t count, ncclDataType_t datatype,
+ncclResult_t ncclRecv(void* recvbuff, size_t count, ncclDataType_t datatype,
                       int peer, ncclComm_t comm, cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclRecv);
   if (!::xpu_timer::util::config::GlobalConfig::enable)
@@ -415,7 +412,7 @@ ncclResult_t ncclRecv(void *recvbuff, size_t count, ncclDataType_t datatype,
 }
 
 EXPOSE_API
-ncclResult_t ncclBroadcast(const void *sendbuff, void *recvbuff, size_t count,
+ncclResult_t ncclBroadcast(const void* sendbuff, void* recvbuff, size_t count,
                            ncclDataType_t datatype, int root, ncclComm_t comm,
                            cudaStream_t stream) {
   SETUP_DLSYM_WITH_NCCL(ncclBroadcast);
@@ -433,7 +430,7 @@ ncclResult_t ncclBroadcast(const void *sendbuff, void *recvbuff, size_t count,
 }
 
 EXPOSE_API
-cudaError_t cudaFreeAsync(void *devPtr, cudaStream_t stream) {
+cudaError_t cudaFreeAsync(void* devPtr, cudaStream_t stream) {
   SETUP_DLSYM(cudaFreeAsync);
   auto fn = xpu_timer::GpuTimerManager<
                 xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
@@ -450,7 +447,7 @@ cudaError_t cudaFreeAsync(void *devPtr, cudaStream_t stream) {
 }
 
 EXPOSE_API
-cudaError_t cudaMemcpyAsync(void *dst, const void *src, size_t count,
+cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count,
                             cudaMemcpyKind kind, cudaStream_t stream) {
   SETUP_DLSYM(cudaMemcpyAsync);
   // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html#group__CUDART__TYPES_1g18fa99055ee694244a270e4d5101e95b
@@ -477,7 +474,7 @@ cudaError_t cudaMemcpyAsync(void *dst, const void *src, size_t count,
 }
 
 EXPOSE_API
-cudaError_t cudaMalloc(void **devPtr, size_t size) {
+cudaError_t cudaMalloc(void** devPtr, size_t size) {
   SETUP_DLSYM(cudaMalloc);
   auto fn = xpu_timer::GpuTimerManager<
                 xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
@@ -493,7 +490,7 @@ cudaError_t cudaMalloc(void **devPtr, size_t size) {
 }
 
 EXPOSE_API
-cudaError_t cudaFree(void *devPtr) {
+cudaError_t cudaFree(void* devPtr) {
   SETUP_DLSYM(cudaFree);
   auto fn = xpu_timer::GpuTimerManager<
                 xpu_timer::nvidia::NvidiaGpuTimer>::getInstance()
@@ -510,7 +507,7 @@ cudaError_t cudaFree(void *devPtr) {
 }
 
 EXPOSE_API
-cudaError_t cudaMallocFromPoolAsync(void **ptr, size_t size,
+cudaError_t cudaMallocFromPoolAsync(void** ptr, size_t size,
                                     cudaMemPool_t memPool,
                                     cudaStream_t stream) {
   SETUP_DLSYM(cudaMallocFromPoolAsync);
@@ -530,7 +527,7 @@ cudaError_t cudaMallocFromPoolAsync(void **ptr, size_t size,
 }
 
 EXPOSE_API
-cudaError_t cudaHostAlloc(void **ptr, size_t size, unsigned int flags) {
+cudaError_t cudaHostAlloc(void** ptr, size_t size, unsigned int flags) {
   SETUP_DLSYM(cudaHostAlloc);
   auto fn =
       xpu_timer::GpuTimerManager<
@@ -548,7 +545,7 @@ cudaError_t cudaHostAlloc(void **ptr, size_t size, unsigned int flags) {
 }
 
 EXPOSE_API
-cudaError_t cudaMallocHost(void **ptr, size_t size) {
+cudaError_t cudaMallocHost(void** ptr, size_t size) {
   SETUP_DLSYM(cudaMallocHost);
   auto fn =
       xpu_timer::GpuTimerManager<

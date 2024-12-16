@@ -66,12 +66,12 @@ MetricsManager::~MetricsManager() {
   }
 }
 
-void MetricsManager::updateMetrics(XpuTimer *work_item,
+void MetricsManager::updateMetrics(XpuTimer* work_item,
                                    metrics::performance_fn pfn,
                                    metrics::bucket_fn bfn) {
   // first get item's name and type
   std::lock_guard<std::mutex> lock(mu_);
-  const std::string_view &type = work_item->getType();
+  const std::string_view& type = work_item->getType();
   if (type == constant::Metrics::MatmulMetrics::TYPE ||
       type == constant::Metrics::CollMetrics::TYPE) {
     updateMatCommuMetrics(work_item, pfn, bfn);
@@ -80,11 +80,11 @@ void MetricsManager::updateMetrics(XpuTimer *work_item,
   }
 }
 
-void MetricsManager::updateMemMetrics(XpuTimer *work_item) {
-  const std::string &name = work_item->getName();
+void MetricsManager::updateMemMetrics(XpuTimer* work_item) {
+  const std::string& name = work_item->getName();
   auto it = mem_metrics_.find(name);
   if (it != mem_metrics_.end()) {
-    it->second->pushMetrics({1}); // counter
+    it->second->pushMetrics({1});  // counter
     if (it->second->canPush()) {
       pushMemMetricsToRemote(it->second);
     }
@@ -98,27 +98,25 @@ void MetricsManager::updateMemMetrics(XpuTimer *work_item) {
   }
 }
 
-void MetricsManager::updateMatCommuMetrics(XpuTimer *work_item,
+void MetricsManager::updateMatCommuMetrics(XpuTimer* work_item,
                                            metrics::performance_fn pfn,
                                            metrics::bucket_fn bfn) {
-  const std::string &name = work_item->getName();
+  const std::string& name = work_item->getName();
   std::uint64_t duration_us = work_item->getDuration();
 
   auto it = mat_comm_metrics_.find(name);
   // if the metric exist, push duration to it
   if (it != mat_comm_metrics_.end()) {
     it->second->pushMetrics({duration_us});
-    if (!it->second->canPush())
-      return;
-    const std::string &bucket_name = it->second->computeBucket();
+    if (!it->second->canPush()) return;
+    const std::string& bucket_name = it->second->computeBucket();
     auto th_it = throughput_sum_metrics_.find(bucket_name);
     if (th_it != throughput_sum_metrics_.end()) {
       std::vector<uint64_t> latency_problem_size = it->second->getBvarValue();
       th_it->second->pushMetrics(
-          latency_problem_size); // push duration, problem size
+          latency_problem_size);  // push duration, problem size
 
-      if (!th_it->second->canPush())
-        return;
+      if (!th_it->second->canPush()) return;
       pushThroughtPutSumMetricsToRemote(th_it->second);
     } else {
       auto m = std::make_shared<metrics::ThroughPutSumMetrics>(
@@ -148,12 +146,12 @@ void MetricsManager::deregisterMetrics() {
   std::lock_guard<std::mutex> lock(mu_);
   std::vector<std::string> names;
   std::vector<std::string> metrics_names;
-  for (auto &it : timeout_metrics_) {
+  for (auto& it : timeout_metrics_) {
     if (it.second->isTimeout()) {
       names.push_back(it.first);
     }
   }
-  for (const auto &name : names) {
+  for (const auto& name : names) {
     // delete timeout_metrics_[name];
     // common_metrics and mem_metrics never timeout
     auto it = throughput_sum_metrics_.find(name);
@@ -164,7 +162,7 @@ void MetricsManager::deregisterMetrics() {
     mat_comm_metrics_.erase(name);
     throughput_sum_metrics_.erase(name);
   }
-  for (const auto &name : metrics_names) {
+  for (const auto& name : metrics_names) {
     XLOG(INFO) << "delete " << name;
     client_stub_->requestDeRegisterPrometheus(false, name,
                                               config::GlobalConfig::rank,
@@ -185,8 +183,8 @@ void MetricsManager::checkMetrics() {
 }
 
 void MetricsManager::pushCommonMetricsToRemote(
-    const std::string &metric_name,
-    const metrics::CommonMetrics &comm_metrics) {
+    const std::string& metric_name,
+    const metrics::CommonMetrics& comm_metrics) {
   auto it = common_metrics_.find(metric_name);
   if (it == common_metrics_.end()) {
     client_stub_->requestRegisterPrometheus(
@@ -205,7 +203,7 @@ void MetricsManager::pushCommonMetricsToRemote(
 
 void MetricsManager::pushMemMetricsToRemote(
     std::shared_ptr<metrics::MemMetrics> t) {
-  const std::string &name = t->getName();
+  const std::string& name = t->getName();
   metrics::BrpcMetrics request;
   t->getMetrics(&request);
   client_stub_->pushPrometheusMetrics(false, &request);
@@ -213,9 +211,9 @@ void MetricsManager::pushMemMetricsToRemote(
 
 void MetricsManager::pushThroughtPutSumMetricsToRemote(
     std::shared_ptr<metrics::ThroughPutSumMetrics> t) {
-  const std::string &name = t->getName();
+  const std::string& name = t->getName();
   metrics::BrpcMetrics request;
   t->getMetrics(&request);
   client_stub_->pushPrometheusMetrics(false, &request);
 }
-} // namespace xpu_timer
+}  // namespace xpu_timer
