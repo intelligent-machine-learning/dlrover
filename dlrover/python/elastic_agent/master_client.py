@@ -501,7 +501,7 @@ class MasterClient(Singleton):
         return cls._instance
 
 
-def build_master_client(master_addr=None, timeout=15):
+def build_master_client(master_addr=None, timeout=60):
     """
     Build a master client.
 
