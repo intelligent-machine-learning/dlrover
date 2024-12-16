@@ -502,8 +502,8 @@ class DistributedJobManager(JobManager):
         dead_events: List[NodeEvent] = []
         job_nodes = self._job_context.job_nodes()
         logger.debug(f"Current job nodes are: {job_nodes}.")
-        for _, nodes in job_nodes.items():
-            for _, node in nodes.items():
+        for nodes in job_nodes.values():
+            for node in list(nodes.values()):
                 if (
                     node.heartbeat_time > 0
                     and now - node.heartbeat_time > window_interval
