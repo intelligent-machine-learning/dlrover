@@ -1,6 +1,11 @@
 # xpu-timer: Easy Profiling for Distributed Training
 
-xpu-timer is a profiling tool specifically designed for **distributed training tasks**, offering the following features:
+xpu-timer is a profiling tool specifically designed for **distributed training tasks**, aimed at solving the following problems:
+- Difficulty in aggregating and analyzing performance for distributed tasks
+- Training slowdown and hotspot machine investigation
+- Training hangs
+
+offering the following features:
 
 - Aggregates and reports performance metrics for **matrix multiplication/collective communication/device memory** to Prometheus.
 - Dumps performance data for **matrix multiplication/collective communication/device memory**, provides timeline visualization, and basic performance analysis tools:
@@ -13,7 +18,7 @@ xpu-timer is a profiling tool specifically designed for **distributed training t
 - Captures training process anomalies with plugin-based reporting for Python and LWP thread exceptions.
 - Requires **no modification** to user code and operates as a fully transparent tool.
 - **Low overhead (0.5%)**; it resides in the training process with an external management interface for on-demand profiling. Overhead is **0%** when aggregation statistics are not needed.
-- Supports various hardware platforms and training frameworks.
+- Supports various hardware platforms and training frameworks(deepspeed/megatron, TF/jax should work, but not tested).
 - **Lazy initialization**: Will not start if the process does not invoke the GPU.
 
 

@@ -1,6 +1,11 @@
 # xpu-timer: easy profiling for distributed training
 
-xpu-timer 是一款专门用于 `分布式训练任务 `的 profiling 工具，提供如下功能特性
+xpu-timer 是一款专门用于 `分布式训练任务 `的 profiling 工具，用于解决
+- 分布式任务难以聚合分析性能
+- 训练降速，热点机排查
+- 训练 hang
+
+提供如下功能特性
 
 - 聚合统计训练中的 `矩阵乘/集合通讯/device memory` 性能，并上报 prometheus
 - dump `矩阵乘/集合通讯/device memory` 性能数据，并绘制 timeline 可视化，并提供基础性能分析工具
@@ -13,9 +18,8 @@ xpu-timer 是一款专门用于 `分布式训练任务 `的 profiling 工具，�
 - 训练进程异常截获，插件式上报 python/lwp 线程异常
 - 无需修改用户代码，完全旁路
 - 低开销(0.5%)，常驻于训练进程，并提供外部管控接口，随时 profile，如果不需要聚合统计功能则开销为 0%
-- 可支持多种硬件平台，多种训练框架
+- 可支持多种硬件平台(国产卡暂未开放)，多种训练框架(torch/deepspeed/megatron, TF/jax 等还未尝试)
 - lazy init，如果进程没有调用 gpu，则不会启动
-- 国产卡支持(暂未开放)
 
 
 ## 限制
@@ -23,11 +27,11 @@ xpu-timer 是一款专门用于 `分布式训练任务 `的 profiling 工具，�
 - xpu-timer 只支持 linux 系统
 - 训练框架需要动态链接设备库，如 pytorch 需要动态链接 libcudart.so，libnccl 也需要动态链接 libcudart.so
 - nccl 版本需要 <= 2.21.5
-- python tracing 与 torch profiler 不兼容，会导致 torch trace python stack 时报错
+- python tracing 使用了 `PyEval_SetProfile`，[pytorch 也用到了，因此与 torch profiler 不兼容](https://github.com/pytorch/pytorch/blob/d745b2b5163e821585d0701ebaf16a38f4d57eab/torch/csrc/profiler/orchestration/python_tracer.h#L35)，会导致 torch trace python stack 时报错
 
 ## 安装
 
-安装推荐进行编译安装，构建工具使用 bazelisk，请自行安装
+安装推荐进行编译安装，构建工具使用 [bazelisk](https://github.com/bazelbuild/bazelisk)，请自行安装
 
 ```bash
 bash build.sh nvidia --ssl-path /home/to/openssl --sdk-path /home/to/cuda --build-type release
@@ -36,7 +40,7 @@ bash build.sh nvidia --ssl-path /home/to/openssl --sdk-path /home/to/cuda --buil
 构建成功后会在 `dist_bin` 中生成 wheel 包，以 nvidia 为例，会生成两个包
 
 1. py_xpu_timer-1.0+cu121-cp38-cp38-linux_x86_64.whl 是训练进程所使用的包，与 python 版本/cuda 版本相关，原则上高版本 cuda 兼容低版本
-1. py_xpu_timer-1.0+lite-py3-none-any.whl 是生成 timeline/分析工具的包，与 python 版本无关
+2. py_xpu_timer-1.0+lite-py3-none-any.whl 是生成 timeline/分析工具的包，与 python 版本无关
 
 ```bash
 #ls -l dist_bin
@@ -72,13 +76,13 @@ xpu_timer_launch python training.script
 <details>
 <summary>点击展开指标详情</summary>
 
-以下是一个 2 卡测试的指标，实际训练没卡大致产生 100 条指标
+以下是一个 2 卡测试的指标，实际训练每卡大致产生 100 条指标
 
 - XPU_TIMER_COMMON_HANG，训练是否 hang
 - XPU_TIMER_COMMON_DATA_LOADER_COUNT，torch dataloader 调用次数
 - XPU_TIMER_COMMON_GC_COUNT，gc 调用次数
 
-指标中的 lavel 是按照操作的吞吐进行分桶，避免 prometheus 维度爆炸
+指标中的 level 是按照操作的吞吐进行分桶，避免 prometheus 维度爆炸
 
 ```bash
 # TYPE XPU_TIMER_COLL_KERNEL_AVG_LATENCY gauge
@@ -297,7 +301,7 @@ total 832K
 
 ### hang 检测
 
-当 xpu-timer 启动后，会轮训 rank 上的 matmul/nccl kernel，如果一个 kernel 300 秒没有完成，则会认为任务卡住，并且会 dump python call stack 和 lwp stack，默认会放到 `/root/timeline` 下，可以通过 `XPU_TIMER_HANG_TIMEOUT` 来指定 kernel 超时秒数
+当 xpu-timer 启动后，会轮询 rank 上的 matmul/nccl kernel，如果一个 kernel 300 秒没有完成，则会认为任务卡住，并且会 dump python call stack 和 lwp stack，默认会放到 `/root/timeline` 下，可以通过 `XPU_TIMER_HANG_TIMEOUT` 来指定 kernel 超时秒数
 
 通过运行
 
@@ -309,7 +313,7 @@ xpu_timer_stacktrace_viewer --path /path/to/stack
 每一层 call stack 均进行了 rank 合并，格式为
 
 func@source_path@stuck_rank|leak_rank
-1. func 当前函数名，如果 gdb 获取不到会显示 ??
+1. func 当前函数名，如果 gdb 获取不到会显示 `??`
 2. source_path，这个符号在进程中的那个 so/source 地址
 3. stuck_rank 代表哪些 rank 的栈进入到这里，连续的 rank 号会被折叠为 start-end，如 rank 0,1,2,3 -> 0-3
 4. leak_rank 代表哪些栈没有进入到这里，这里 rank 号也会被折叠
