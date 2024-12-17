@@ -1,0 +1,76 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+workspace(name="xpu_timer")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+
+new_local_repository(
+    name = "xpu_timer_cfg",
+    path = "xpu_config",
+    build_file_content = ""
+)
+
+load("//third_party/brpc:brpc_workspace.bzl", "brpc_workspace")
+brpc_workspace()
+
+load("//third_party/torch:torch_workspace.bzl", "torch_workspace")
+torch_workspace()
+
+load("//third_party/perfetto:perfetto_workspace.bzl", "perfetto_workspace")
+perfetto_workspace()
+
+
+load("//third_party/python:python_workspace.bzl", "python_workspace")
+python_workspace()
+
+http_archive(
+    name = "com_github_jupp0r_prometheus_cpp",
+    strip_prefix = "prometheus-cpp-1.2.4",
+    sha256 = "909d8162a1b676fefc3bef1634151947c64cd8ae37e43b36df357c7881aa8782",
+    urls = ["https://github.com/jupp0r/prometheus-cpp/archive/v1.2.4.zip"],
+)
+load("@com_github_jupp0r_prometheus_cpp//bazel:repositories.bzl", "prometheus_cpp_repositories")
+prometheus_cpp_repositories()
+
+http_archive(
+    name = "com_github_nelhage_rules_boost",
+    url = "https://github.com/nelhage/rules_boost/archive/f02f84fac7673c56bbcfe69dea68044e6e40f92b.tar.gz",
+    sha256 = "4f1f7e809960615ba8e40e3a96300acb8b4d7e6e2fb24423af7347383e4dd1bb",
+    strip_prefix = "rules_boost-f02f84fac7673c56bbcfe69dea68044e6e40f92b",
+)
+load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
+boost_deps()
+
+http_archive(
+    name = "googletest",
+    urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz"],
+    strip_prefix = "googletest-1.14.0",
+    sha256 = "8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7",
+)
+
+http_archive(
+    name = "rules_python",
+    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+    urls = ["https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz"],
+)
+
+http_archive(
+    name = "uthash_archive",
+    urls = ["https://github.com/troydhanson/uthash/archive/v2.3.0.zip"],
+    build_file = "//third_party:uthash.BUILD",
+    strip_prefix = "uthash-2.3.0/src",
+    sha256 = "b9a6c503a82a6c6e699e4bdccc2d4f2151cfff81e5e159b50eac89c7d226824d",
+)
+
+load("//third_party/libunwind:libunwind_workspace.bzl", "libunwind_workspace")
+libunwind_workspace()

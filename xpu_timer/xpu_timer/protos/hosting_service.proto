@@ -1,0 +1,250 @@
+// Copyright 2024 The DLRover Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package xpu_timer.server;
+
+option cc_generic_services = true;
+
+message DeviceStatus {
+  string block_range = 1;            // Block range, e.g., "0-0"
+  string thread_range = 2;           // Thread range, e.g., "0-0"
+  repeated string stack_trace = 3;   // Stack trace information
+  string sass = 4;                   // SASS instruction
+  bool has_next = 5;                 // Indicator for next block
+  int32 hang_step = 6;               // Step where hang occurred
+  repeated string hang_sass = 7;     // List of hang SASS instructions
+  map<string, int32> registers = 8;  // Registers as key-value pairs
+}
+
+message CudaStackFrame {
+  string device_func = 1;
+  string curr_location = 2;
+  string curr_symbol = 3;
+  string inlined_location = 4;
+  string block = 5;
+  string thread = 6;
+  string kernel_args = 7;
+  string sass = 8;
+}
+
+message DeviceFrame {
+  oneof frame {
+    CudaStackFrame cuda_frame = 1;
+  }
+  string stderr = 2;
+  string origin = 3;
+}
+
+message DeviceStacktrace {
+  repeated DeviceFrame devices_frames = 1;
+}
+
+// py-spy fream json
+// {
+//   "name": "<module>",
+//   "filename": "test_nccl.py",
+//   "module": null,
+//   "short_filename": "test_nccl.py",
+//   "line": 121,
+//   "locals": null
+// }
+
+message PySpyFrame {
+  string func_name = 1;
+  string file_name = 2;
+  string module = 3;
+};
+
+// "pid": 1142,
+// "thread_id": 139620998182656,
+// "thread_name": "Thread-4",
+// "os_thread_id": 4127,
+// "active": false,
+// "owns_gil": false,
+message PySpyStacktrace {
+  uint32 pid = 1;
+  uint64 thread_id = 2;
+  string thread_name = 3;
+  uint32 os_thread_id = 4;
+  bool active = 5;
+  bool owns_gil = 6;
+  repeated PySpyFrame frames = 7;
+}
+
+// pstack frame
+// Thread 24 (Thread 0x7eff1f6b4000 (LWP 3920)):
+// #0  0x00007effca957ce5 in pthread_cond_wait@@GLIBC_2.3.2 () from
+// /usr/lib64/libpthread.so.0 #1  0x00007eff328cddeb in blas_thread_server ()
+// from
+// /opt/conda/lib/python3.8/site-packages/numpy/core/../../numpy.libs/libopenblas64_p-r0-742d56dc.3.20.so
+// #2  0x00007effca9514e2 in start_thread () from /usr/lib64/libpthread.so.0
+// #3  0x00007effca72e5b3 in clone () from /usr/lib64/libc.so.6
+message PstackFrame {
+  string func_name = 1;
+  string file_name = 2;
+  string origin = 3;
+};
+
+// gdb info threads
+// * 1    process 1 "bash"  0x00007f3dca76093a in waitpid () from
+// /lib64/libc.so.6
+message PstackStacktrace {
+  uint32 pid = 1;
+  string thread_name = 2;
+  repeated PstackFrame frames = 3;
+}
+
+message HangKernels {
+  repeated string hang_kernels = 1;
+}
+
+message Stacktrace {
+  repeated PstackStacktrace stacktrace = 1;
+  repeated PySpyStacktrace py_stacktrace = 2;
+  int32 pid = 3;
+  int32 rank = 4;
+  string pstack_stdout = 5;
+  string pstack_stderr = 6;
+  string pyspy_stdout = 7;
+  string pyspy_stderr = 8;
+  repeated DeviceStacktrace device_stacktrace = 9;
+  repeated DeviceStatus device_status = 10;
+  string process_state = 11;
+};
+
+message StacktraceRequest {
+  int32 pid = 1;
+  int32 rank = 2;
+  int32 world_size = 3;
+  string dump_path = 4;
+  string gdb_bin = 5;
+  string pyspy_bin = 6;
+  string pstack_bin = 7;
+  HangKernels hang_kernels = 8;
+};
+
+message StacktraceResponse {
+  // server call dump_driver in new process, we use file to
+  // shared the serialized message, maybe use other ipc methods later.
+  Stacktrace structure_stack = 1;
+  string stacktrace = 2;
+};
+
+message CommonBrpcMetrics {
+  // arrays for
+  // int64 hang = 1;
+  // int64 start_dump = 2;
+  // int64 end_dump = 3;
+  // int64 pool_queue_size = 4;
+  // int64 work_queue_size = 5;
+  // int64 gc_count = 6;
+  repeated int64 metrics = 1;
+}
+
+message KernelBrpcMetrics {
+  uint64 avg_latency = 1;
+  uint64 max_latency = 2;
+  uint64 p99_latency = 3;
+  uint64 min_latency = 4;
+  double performance = 5;
+}
+
+message MemBrpcMetrics {
+  uint64 counter = 1;
+}
+
+message BrpcMetrics {
+  string name = 1;
+  int32 local_rank = 2;
+  optional CommonBrpcMetrics common_metrics = 3;
+  optional KernelBrpcMetrics kernel_metrics = 4;
+  optional MemBrpcMetrics mem_metrics = 5;
+}
+
+message RegisterPrometheusRequest {
+  string gauge_prefix = 1;
+  map<string, string> labels = 2;
+  int32 rank = 3;
+  string kernel_name = 4;
+  int32 local_rank = 5;
+}
+
+message RegisterPrometheusResponse {
+  string name = 1;
+  int32 ret_code = 2;
+}
+
+message DumpKernelTraceRequest {
+  message OssArgs {
+    string oss_ak = 1;
+    string oss_sk = 2;
+    string oss_endpoint = 3;
+    string oss_path = 4;
+  }
+  string dump_path = 1;
+  uint32 dump_count = 2;
+  int64 dump_time = 3;
+  bool reset = 4;
+  uint32 dump_kernel_type = 5;  // bits, 1 is matmul, 2 is comm
+  OssArgs oss_args = 6;
+}
+
+message PySpyFrameList {
+  repeated PySpyFrame frames = 1;
+}
+
+message PythonStackInTimeline {
+  map<string, PySpyFrameList> named_frames = 1;
+  int32 rank = 2;
+}
+
+message DeRegisterPrometheusRequest {
+  string name = 1;
+  int32 local_rank = 2;
+  int32 rank = 3;
+}
+
+message DumpKernelTraceResponse {
+  string node = 1;
+  string msg = 2;
+}
+
+message SignalFrameRequest {
+  message FrameInfo {
+    uint64 address = 1;
+    uint64 offset = 2;
+    string function_name = 3;
+  }
+  int32 signal = 1;
+  int32 rank = 2;
+  string ip = 3;
+  string pod_name = 4;
+  string job_name = 5;
+  uint64 timestamp = 6;
+  repeated FrameInfo frame_infos = 7;
+}
+
+service HostingService {
+  rpc RegisterPrometheus(RegisterPrometheusRequest)
+      returns (RegisterPrometheusResponse);
+  rpc DeRegisterPrometheus(DeRegisterPrometheusRequest)
+      returns (RegisterPrometheusResponse);
+  rpc PushPrometheus(BrpcMetrics) returns (google.protobuf.Empty);
+  rpc DumpStringStacktrace(StacktraceRequest) returns (StacktraceResponse);
+  rpc DumpKernelTrace(DumpKernelTraceRequest) returns (DumpKernelTraceResponse);
+  rpc PushSignalFrameInfo(SignalFrameRequest) returns (google.protobuf.Empty);
+}
