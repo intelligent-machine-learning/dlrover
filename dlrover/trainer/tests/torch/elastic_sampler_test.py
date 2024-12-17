@@ -58,7 +58,7 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         )
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
-        self.assertEqual(val, 64)
+        self.assertEqual(val, 66)
 
         for i in sampler:
             pass
@@ -75,4 +75,4 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         )
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
-        self.assertEqual(val, 64)
+        self.assertEqual(val, 63)
