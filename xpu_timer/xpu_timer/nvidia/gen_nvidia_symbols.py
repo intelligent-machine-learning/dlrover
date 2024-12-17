@@ -39,7 +39,6 @@ flash_attn_dtype_mapping = {"half_t": "fp16", "bfloat16_t": "bf16"}
 nccl_dtype_mapping = {
     "half": "fp16",
     "__nv_bfloat16": "bf16",
-    "__ali_bfloat16": "bf16",
     "double": "fp64",
     "float": "fp32",
     "int8_t": "int8",
@@ -181,14 +180,9 @@ def nccl_prser(nccl_lib):
         return inner
 
     def parse_2_18_5(nccl_lib):
-        if "pccl" in nccl_lib:
-            pattern = re.compile(
-                r"([0-9a-f]+) \w pcclKernel_(Broadcast|AllReduce|ReduceScatter|AllGather|SendRecv|Reduce)_([A-Z_]+)_(Sum|Prod|Max|Min)_([a-z0-9_]+)\(ncclWorkElem, ncclChannelWork\*\)"
-            )
-        else:
-            pattern = re.compile(
-                r"([0-9a-f]+) \w ncclKernel_(Broadcast|AllReduce|ReduceScatter|AllGather|SendRecv|Reduce)_([A-Z_]+)_(Sum|Prod|Max|Min)_([a-z0-9_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"
-            )
+        pattern = re.compile(
+            r"([0-9a-f]+) \w ncclKernel_(Broadcast|AllReduce|ReduceScatter|AllGather|SendRecv|Reduce)_([A-Z_]+)_(Sum|Prod|Max|Min)_([a-z0-9_]+)\(ncclDevComm\*, unsigned long, ncclWork\*\)"
+        )
 
         def inner(sym, addr_to_name):
             search = pattern.search(sym)
@@ -227,17 +221,13 @@ def nccl_prser(nccl_lib):
         ],
     }
 
-    if "pccl" in nccl_lib:
-        kernel_pattern = "pcclKernel_"
-        parser = parse_2_18_5
-    else:
-        nccl_version_command = [
-            ["strings", nccl_lib],
-            ["grep", "-m1", "-P", "NCCL version.*cuda"],
-            ["awk", "-F+", "{print $1}"],
-        ]
-        nccl_version, _ = pipe_commands(nccl_version_command)
-        kernel_pattern, parser = nccl_regex[nccl_version]
+    nccl_version_command = [
+        ["strings", nccl_lib],
+        ["grep", "-m1", "-P", "NCCL version.*cuda"],
+        ["awk", "-F+", "{print $1}"],
+    ]
+    nccl_version, _ = pipe_commands(nccl_version_command)
+    kernel_pattern, parser = nccl_regex[nccl_version]
     return kernel_pattern, parser(nccl_lib)
 
 
