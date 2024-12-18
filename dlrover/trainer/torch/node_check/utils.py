@@ -199,7 +199,9 @@ def matmul(use_cuda, round_num=10, verbose=False):
         elapsed_time = _execute_cpu_matmul(tensor1, tensor2, round_num, mm_out)
     elapsed_time = round(elapsed_time, 3)
     if verbose:
-        logger.info(f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with m={m},k={k},n={n} using {dtype}")
+        logger.info(
+            f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with m={m},k={k},n={n} using {dtype}"
+        )
     return elapsed_time
 
 

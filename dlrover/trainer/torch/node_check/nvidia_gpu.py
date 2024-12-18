@@ -19,12 +19,12 @@ import torch.distributed as dist
 from dlrover.python.common.log import default_logger as logger
 
 from .utils import (
+    DeviceBenchEnv,
     bm_allreduce,
     get_network_check_timeout,
     init_process_group,
     matmul,
     record_execution_time,
-    DeviceBenchEnv,
 )
 
 
@@ -56,7 +56,7 @@ def main():
             bench_env = DeviceBenchEnv(
                 device_name=device_name,
                 torch_version=torch.__version__,
-                cuda_version=torch.version.cuda
+                cuda_version=torch.version.cuda,
             )
             logger.info(f"benchmark env: {bench_env}")
 

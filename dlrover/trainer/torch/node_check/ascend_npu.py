@@ -57,19 +57,9 @@ def main():
         bench_env = DeviceBenchEnv(
             device_name=device_name,
             torch_version=torch.__version__,
-            cann_version=torch.version.cann
+            cann_version=torch.version.cann,
         )
         logger.info(f"benchmark env: {bench_env}")
-
-    if use_cuda:
-        m = k = n = 16384
-    else:
-        m = k = n = 128
-
-    if use_cuda and torch.cuda.is_bf16_supported():
-        dtype = torch.bfloat16
-    else:
-        dtype = torch.float32
 
     try:
         # warmup 2 iterations
