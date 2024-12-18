@@ -61,8 +61,8 @@ def main():
             logger.info(f"benchmark env: {bench_env}")
 
     # warmup 2 iterations
-    _ = matmul(use_cuda, round_num=2, verbose=False)
-    t = matmul(use_cuda, round_num=200, verbose=True)
+    _ = matmul(use_cuda, round_num=3, verbose=False)
+    t = matmul(use_cuda, round_num=500, verbose=True)
 
     shape = 1 << 24
     t += bm_allreduce(shape, use_cuda)

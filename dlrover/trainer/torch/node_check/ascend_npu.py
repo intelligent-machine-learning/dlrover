@@ -65,8 +65,8 @@ def main():
 
     try:
         # warmup 2 iterations
-        _ = matmul(use_cuda, round_num=2, verbose=False)
-        result = matmul(use_cuda, round_num=200, verbose=True)
+        _ = matmul(use_cuda, round_num=3, verbose=False)
+        result = matmul(use_cuda, round_num=500, verbose=True)
         shape = 1 << 24
         result += bm_allgather(shape, use_cuda)
         return result
