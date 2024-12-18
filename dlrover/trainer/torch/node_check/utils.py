@@ -242,7 +242,7 @@ def write_time_to_file(time, local_rank):
 
 @dataclass
 class DeviceBenchEnv:
-    device_name: str = None
-    torch_version: str = None
-    cuda_version: str = None
-    cann_version: str = None
+    device_name: str = 'Unknown'
+    torch_version: str = 'Unknown'
+    cuda_version: str = 'Unknown'
+    cann_version: str = 'Unknown'
