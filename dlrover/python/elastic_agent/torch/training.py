@@ -107,8 +107,8 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
+from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
