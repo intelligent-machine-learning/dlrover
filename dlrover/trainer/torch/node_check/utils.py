@@ -14,6 +14,7 @@
 import json
 import os
 import time
+from dataclasses import dataclass
 from datetime import timedelta
 
 import torch
@@ -174,32 +175,42 @@ def _execute_cpu_comm(comm_op, *args):
 
 
 @log_execution_time
-def matmul(use_cuda, round_num=10):
+def matmul(use_cuda, round_num=10, verbose=False):
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
-    if use_cuda:
-        size = 2048
-    else:
-        size = 128
-    tensor1 = torch.randn(10, size, size).to(device)
-    tensor2 = torch.randn(10, size, size).to(device)
 
     if use_cuda:
-        elapsed_time = _execute_gpu_matmul(tensor1, tensor2, round_num)
+        m = k = n = 16384
     else:
-        elapsed_time = _execute_cpu_matmul(tensor1, tensor2, round_num)
+        m = k = n = 128
+
+    if use_cuda and torch.cuda.is_bf16_supported():
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32
+
+    tensor1 = torch.randn(m, k, dtype=dtype, device=device)
+    tensor2 = torch.randn(k, n, dtype=dtype, device=device)
+    mm_out = torch.empty(m, n, dtype=dtype, device=device)
+
+    if use_cuda:
+        elapsed_time = _execute_gpu_matmul(tensor1, tensor2, round_num, mm_out)
+    else:
+        elapsed_time = _execute_cpu_matmul(tensor1, tensor2, round_num, mm_out)
     elapsed_time = round(elapsed_time, 3)
+    if verbose:
+        logger.info(f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with m={m},k={k},n={n} using {dtype}")
     return elapsed_time
 
 
-@log_execution_time
-def _execute_gpu_matmul(tensor1, tensor2, round_num):
+def _execute_gpu_matmul(tensor1, tensor2, round_num, out=None):
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     start.record(stream=torch.cuda.current_stream())
 
     for _ in range(round_num):
-        torch.matmul(tensor1, tensor2)
+        with torch.no_grad():
+            torch.matmul(tensor1, tensor2, out=out)
 
     end.record(stream=torch.cuda.current_stream())
     end.synchronize()
@@ -208,10 +219,11 @@ def _execute_gpu_matmul(tensor1, tensor2, round_num):
 
 
 @log_execution_time
-def _execute_cpu_matmul(tensor1, tensor2, round_num):
+def _execute_cpu_matmul(tensor1, tensor2, round_num, out=None):
     start = time.time()
     for _ in range(round_num):
-        torch.matmul(tensor1, tensor2)
+        with torch.no_grad():
+            torch.matmul(tensor1, tensor2, out=out)
 
     elapsed_time = time.time() - start
     return elapsed_time
@@ -224,3 +236,11 @@ def write_time_to_file(time, local_rank):
     path = os.path.join(root, f"{local_rank}.txt")
     with open(path, "w") as f:
         f.write(json.dumps(data))
+
+
+@dataclass
+class DeviceBenchEnv:
+    device_name: str = None
+    torch_version: str = None
+    cuda_version: str = None
+    cann_version: str = None

@@ -24,6 +24,7 @@ from .utils import (
     init_process_group,
     matmul,
     record_execution_time,
+    DeviceBenchEnv,
 )
 
 
@@ -49,9 +50,20 @@ def main():
     init_process_group(protocol, timeout=get_network_check_timeout())
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
-        torch.cuda.set_device(local_rank)
+        if local_rank == 0:
+            torch.cuda.set_device(local_rank)
+            device_name = torch.cuda.get_device_name()
+            bench_env = DeviceBenchEnv(
+                device_name=device_name,
+                torch_version=torch.__version__,
+                cuda_version=torch.version.cuda
+            )
+            logger.info(f"benchmark env: {bench_env}")
 
-    t = matmul(use_cuda)
+    # warmup 2 iterations
+    _ = matmul(use_cuda, round_num=2, verbose=False)
+    t = matmul(use_cuda, round_num=200, verbose=True)
+
     shape = 1 << 24
     t += bm_allreduce(shape, use_cuda)
     dist.destroy_process_group()

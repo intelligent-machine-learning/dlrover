@@ -53,9 +53,28 @@ def main():
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
+        device_name = torch.cuda.get_device_name()
+        bench_env = DeviceBenchEnv(
+            device_name=device_name,
+            torch_version=torch.__version__,
+            cann_version=torch.version.cann
+        )
+        logger.info(f"benchmark env: {bench_env}")
+
+    if use_cuda:
+        m = k = n = 16384
+    else:
+        m = k = n = 128
+
+    if use_cuda and torch.cuda.is_bf16_supported():
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32
 
     try:
-        result = matmul(use_cuda)
+        # warmup 2 iterations
+        _ = matmul(use_cuda, round_num=2, verbose=False)
+        t = matmul(use_cuda, round_num=200, verbose=True)
         shape = 1 << 24
         result += bm_allgather(shape, use_cuda)
         return result
