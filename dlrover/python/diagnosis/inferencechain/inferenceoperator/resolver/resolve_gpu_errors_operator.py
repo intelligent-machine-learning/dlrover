@@ -17,9 +17,9 @@ from typing import List
 from dlrover.python.common.constants import ErrorMonitorConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
     DiagnosisErrorConstant,
     InferenceConfigKey,
-    DiagnosisConstant,
 )
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -74,7 +74,7 @@ class ResolveGPUErrorsOperator(InferenceOperator):
                     description=InferenceDescription.EVENT,
                     configs={
                         InferenceConfigKey.EVENT_TYPE: ErrorMonitorConstants.TYPE_WARN,  # noqa: E501
-                        InferenceConfigKey.EVENT_INSTANCE: f"{DiagnosisConstant.LOCAL_INSTANCE}",
+                        InferenceConfigKey.EVENT_INSTANCE: f"{DiagnosisConstant.LOCAL_INSTANCE}",  # noqa: E501
                         InferenceConfigKey.EVENT_ACTION: inf.configs[
                             InferenceConfigKey.ERRORS
                         ],

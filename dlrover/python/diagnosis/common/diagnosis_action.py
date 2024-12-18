@@ -24,8 +24,6 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
 )
 from dlrover.python.util.time_util import has_expired
-from queue import Queue
-import queue
 
 
 class DiagnosisAction(metaclass=ABCMeta):
@@ -105,7 +103,7 @@ class DiagnosisAction(metaclass=ABCMeta):
         executable_time_period: int = 0,
     ):
         if timestamp > 0:
-            self._timestamp = timestamp
+            self._timestamp = int(timestamp)
         if expired_time_period > 0:
             self._expired_time_period = expired_time_period
         if executable_time_period > 0:
@@ -132,7 +130,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
 class NoAction(DiagnosisAction):
     def __init__(self, **kwargs):
-        super(NoAction, self).__init__()
+        super().__init__()
 
 
 class EventAction(DiagnosisAction):
@@ -242,7 +240,9 @@ class DiagnosisActionQueue:
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
-                self._actions[instance] = deque(maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE)
+                self._actions[instance] = deque(
+                    maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE
+                )
             actions = self._actions[instance]
             try:
                 for action in actions:

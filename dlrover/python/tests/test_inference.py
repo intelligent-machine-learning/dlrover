@@ -25,9 +25,9 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
+    DiagnosisErrorConstant,
     EnvConfigKey,
     InferenceConfigKey,
-    DiagnosisErrorConstant,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -49,14 +49,14 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_tr
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
-    ResolveTrainingHangOperator,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
     ResourceCollectionOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
     ResolveGPUErrorsOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+    ResolveTrainingHangOperator,
 )
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -537,7 +537,10 @@ class InferenceChainTest(unittest.TestCase):
         self.assertEqual(len(infs), 1)
 
         self.assertEqual(infs[0].name, InferenceName.ACTION)
-        self.assertEqual(infs[0].configs[InferenceConfigKey.EVENT_TYPE], ErrorMonitorConstants.TYPE_WARN)
+        self.assertEqual(
+            infs[0].configs[InferenceConfigKey.EVENT_TYPE],
+            ErrorMonitorConstants.TYPE_WARN,
+        )
 
 
 if __name__ == "__main__":

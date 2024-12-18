@@ -15,7 +15,7 @@ import json
 import threading
 import time
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
 
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
@@ -48,8 +48,8 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
     get_training_failure_operators,
-    get_worker_resolve_operators,
     get_worker_observe_operators,
+    get_worker_resolve_operators,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -128,8 +128,11 @@ class DiagnosisAgent(Singleton):
 
     def _get_observe_problems(self) -> List[Inference]:
         observe_problems: List[Inference] = []
-        for time_period, infs in self._observe_problems:
-            if self._accumulate_observe_time > 0 and time_period % self._accumulate_observe_time == 0:
+        for time_period, infs in self._observe_problems.items():
+            if (
+                self._accumulate_observe_time > 0
+                and self._accumulate_observe_time % time_period == 0
+            ):
                 observe_problems = observe_problems + infs
         return observe_problems
 
@@ -195,7 +198,9 @@ class DiagnosisAgent(Singleton):
             time.sleep(
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
-            self._accumulate_observe_time += DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+            self._accumulate_observe_time += (
+                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+            )
 
     def diagnose_training_failure(self) -> NodeAction:
         self._report_failure_to_master(

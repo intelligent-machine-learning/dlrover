@@ -14,6 +14,7 @@ import json
 from typing import List
 
 from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     InferenceConfigKey,
@@ -30,12 +31,13 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     is_same_inference,
 )
-from dlrover.python.common.log import default_logger as logger
 
 _dlrover_ctx = Context.singleton_instance()
 
 
-def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
+def coordinate_solutions(
+    solutions: List[Inference],
+) -> DiagnosisAction:
     """
     Transform solutions (of Inference) to executable diagnosis action
 
@@ -46,7 +48,7 @@ def coordinate_solutions(solutions: List[Inference]) -> DiagnosisAction:
     """
 
     if len(solutions) == 0:
-        return NoAction
+        return NoAction()
 
     logger.info(f"coordinate solutions: {solutions}")
     event_solution = Inference(

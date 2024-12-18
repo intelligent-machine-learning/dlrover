@@ -160,16 +160,24 @@ class DiagnosisTest(unittest.TestCase):
         action_queue.add_action(action3)
 
         self.assertEqual(
-            len(action_queue._actions[DiagnosisConstant.LOCAL_INSTANCE]), 3
+            len(action_queue._actions[DiagnosisConstant.MASTER_INSTANCE]), 3
         )
-        action = action_queue.next_action()
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertEqual(action.event_msg, "msg0")
-        action = action_queue.next_action()
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertEqual(action.event_msg, "msg2")
-        action = action_queue.next_action()
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertTrue(isinstance(action, NoAction))
         time.sleep(5)
-        action = action_queue.next_action()
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertEqual(action.event_msg, "msg1")
 
 
