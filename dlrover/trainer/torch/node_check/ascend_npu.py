@@ -64,7 +64,7 @@ def main():
             logger.info(f"benchmark env: {bench_env}")
 
     try:
-        # warmup 2 iterations
+        # warmup
         _ = matmul(use_cuda, round_num=3, verbose=False)
         result = matmul(use_cuda, round_num=500, verbose=True)
         shape = 1 << 24
