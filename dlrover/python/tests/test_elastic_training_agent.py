@@ -646,7 +646,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
-                    DiagnosisConstant.LOCAL_INSTANCE
+                    DiagnosisConstant.MASTER_INSTANCE
                 ]
             ),
             1,
