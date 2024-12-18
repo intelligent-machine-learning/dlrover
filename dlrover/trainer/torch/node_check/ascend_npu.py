@@ -54,13 +54,14 @@ def main():
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
-        device_name = torch.cuda.get_device_name()
-        bench_env = DeviceBenchEnv(
-            device_name=device_name,
-            torch_version=torch.__version__,
-            cann_version=torch.version.cann,
-        )
-        logger.info(f"benchmark env: {bench_env}")
+        if local_rank == 0:
+            device_name = torch.cuda.get_device_name()
+            bench_env = DeviceBenchEnv(
+                device_name=device_name,
+                torch_version=torch.__version__,
+                cann_version=torch.version.cann,
+            )
+            logger.info(f"benchmark env: {bench_env}")
 
     try:
         # warmup 2 iterations

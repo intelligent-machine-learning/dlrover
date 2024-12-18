@@ -50,8 +50,8 @@ def main():
     init_process_group(protocol, timeout=get_network_check_timeout())
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
         if local_rank == 0:
-            torch.cuda.set_device(local_rank)
             device_name = torch.cuda.get_device_name()
             bench_env = DeviceBenchEnv(
                 device_name=device_name,
