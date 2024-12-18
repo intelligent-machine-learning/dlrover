@@ -26,7 +26,7 @@ from dlrover.python.diagnosis.inferencechain.coordinator import (
 )
 
 
-class InferenceChainTest(unittest.TestCase):
+class InferenceCoordinationTest(unittest.TestCase):
     def setUp(self):
         pass
 

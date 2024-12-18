@@ -94,11 +94,18 @@ class ResourceMonitor(Singleton):
         self._gpu_stats: list[GPUStats] = []
         self._master_client = MasterClient.singleton_instance()
 
+        if os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
+            self.init_gpu_monitor()
+
+            # The first time called cpu_percent will return a meaningless 0.0
+            # value which we are supposed to ignore. So, here we call it at
+            # the beginning of monitor and the next value is valid.
+            get_process_cpu_percent()
+
     def start(self):
         if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
             return
 
-        self.init_gpu_monitor()
         logger.info("Resource Monitor Initializing ...")
 
         try:
@@ -114,11 +121,6 @@ class ResourceMonitor(Singleton):
             logger.error(
                 f"Failed to start the monitor resource thread. Error: {e}"
             )
-
-        # The first time called cpu_percent will return a meaningless 0.0
-        # value which we are supposed to ignore. So, here we call it at
-        # the beginning of monitor and the next value is valid.
-        get_process_cpu_percent()
 
     def stop(self):
         if self._gpu_enabled:
@@ -154,7 +156,7 @@ class ResourceMonitor(Singleton):
                 f"An unexpected error occurred during NVML shutdown: {e}"
             )
 
-    def report_resource(self):
+    def report_resource(self) -> str:
         try:
             used_mem = get_used_memory()
             cpu_percent = get_process_cpu_percent()
@@ -170,8 +172,9 @@ class ResourceMonitor(Singleton):
                 used_mem,
                 self._gpu_stats,
             )
+            return ""
         except Exception as e:
-            logger.exception(e)
+            return f"{e}"
 
     def _monitor_resource(self):
         logger.info("Start to monitor resource usage")

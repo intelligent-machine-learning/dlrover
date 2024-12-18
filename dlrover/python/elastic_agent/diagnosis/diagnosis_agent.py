@@ -17,8 +17,6 @@ import time
 from datetime import datetime
 from typing import Dict, List
 
-from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
-
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -30,6 +28,7 @@ from dlrover.python.diagnosis.common.constants import (
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    NoAction,
     NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
@@ -49,35 +48,44 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
     get_training_failure_operators,
-    get_worker_diagnosis_operators,
     get_worker_observe_operators,
+    get_worker_resolve_operators,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnosisAgent(Singleton):
-    def __init__(
-        self,
-        training_log_file: str,
-        errors: str,
-    ):
+    def __init__(self):
         self._client = MasterClient.singleton_instance()
-        self._training_log_file = training_log_file
-        self._errors = errors
+        self._training_log_file = ""
+        self._errors = ""
         self._stopped = False
-        self._observe_problems: List[Inference] = [
-            Inference(
-                name=InferenceName.WORKER,
-                attribution=InferenceAttribute.COLLECT,
-                description=InferenceDescription.METRICS,
-            ),
-        ]
+        # The key is the time interval in seconds
+        self._observe_problems: Dict[int, List[Inference]] = {
+            30: [
+                Inference(
+                    name=InferenceName.WORKER,
+                    attribution=InferenceAttribute.COLLECT,
+                    description=InferenceDescription.RESOURCE,
+                ),
+            ],
+            60: [
+                Inference(
+                    name=InferenceName.WORKER,
+                    attribution=InferenceAttribute.COLLECT,
+                    description=InferenceDescription.METRICS,
+                ),
+            ],
+        }
+        self._accumulate_observe_time = 0
+
         self._observe_operators = get_worker_observe_operators()
-        self._diagnosis_operators = get_worker_diagnosis_operators()
+        self._diagnosis_operators = get_worker_resolve_operators()
         self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
+        self._rank = -1
 
         self.start()
 
@@ -86,6 +94,16 @@ class DiagnosisAgent(Singleton):
             f"training_log_file:    {self._training_log_file}\n"
             f"errors:               {self._errors}"
         )
+
+    def update_config(
+        self, training_log_file: str = "", errors: str = "", rank: int = -1
+    ):
+        if len(training_log_file) > 0:
+            self._training_log_file = training_log_file
+        if len(errors) > 0:
+            self._errors = errors
+        if rank >= 0:
+            self._rank = rank
 
     def start(self):
         self._stopped = False
@@ -108,9 +126,22 @@ class DiagnosisAgent(Singleton):
     def stop(self):
         self._stopped = True
 
+    def _get_observe_problems(self) -> List[Inference]:
+        observe_problems: List[Inference] = []
+        for time_period, infs in self._observe_problems.items():
+            if (
+                self._accumulate_observe_time > 0
+                and self._accumulate_observe_time % time_period == 0
+            ):
+                observe_problems = observe_problems + infs
+        return observe_problems
+
     def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
         conclusions: List[Inference] = []
         for problem in problems:
+            if problem.configs is None:
+                problem.configs = {}
+            problem.configs[InferenceConfigKey.RANK] = str(self._rank)
             ic = InferenceChain([problem], self._diagnosis_operators)
             try:
                 infs = ic.infer()
@@ -120,9 +151,9 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to diagnose observation {problem}: {e}")
         return coordinate_solutions(conclusions)
 
-    def _observe(self) -> List[Inference]:
+    def _observe(self, observe_problems: List[Inference]) -> List[Inference]:
         observations: List[Inference] = []
-        for problem in self._observe_problems:
+        for problem in observe_problems:
             ic = InferenceChain([problem], self._observe_operators)
             try:
                 infs = ic.infer()
@@ -135,6 +166,8 @@ class DiagnosisAgent(Singleton):
     def _diagnose_observations(
         self, observations: List[Inference]
     ) -> DiagnosisAction:
+        if len(observations) == 0:
+            return NoAction()
         conclusions: List[Inference] = []
         for ob in observations:
             ic = InferenceChain([ob], self._diagnosis_operators)
@@ -152,13 +185,20 @@ class DiagnosisAgent(Singleton):
             if self._stopped:
                 logger.info("Stop periodically diagnosis.")
                 break
+            observe_problems = self._get_observe_problems()
 
-            observations = self._observe()
+            observations = self._observe(observe_problems)
             if len(observations) > 0:
                 logger.info(f"Observed problems: {observations}")
-                self.diagnose_problems(observations)
-
+                action = self.diagnose_problems(observations)
+                if not isinstance(action, NoAction):
+                    self._agent_context.enqueue_diagnosis_action(action)
+            if self._accumulate_observe_time > 600:
+                self._accumulate_observe_time = 0
             time.sleep(
+                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+            )
+            self._accumulate_observe_time += (
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
@@ -211,9 +251,7 @@ class DiagnosisAgent(Singleton):
                 action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
 
-    def _report_failure_to_master(
-        self, failures: Dict[int, ProcessFailure], restart_count: int
-    ):
+    def _report_failure_to_master(self, failures, restart_count):
         errors = {}
         if len(failures) == 0:
             return
