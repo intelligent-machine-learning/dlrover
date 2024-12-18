@@ -1,0 +1,280 @@
+diff --git a/src/brpc/server.cpp b/src/brpc/server.cpp
+index 9d938c6b..6c327f89 100644
+--- a/src/brpc/server.cpp
++++ b/src/brpc/server.cpp
+@@ -1889,7 +1889,7 @@ int StartDummyServerAt(int port, ProfilerLinker) {
+                         "DummyServerOf(%s)", GetProgramName()));
+             ServerOptions options;
+             options.num_threads = 0;
+-            if (dummy_server->Start(port, &options) != 0) {
++            if (dummy_server->Start(butil::string_printf("0.0.0.0:%d", port).c_str(), &options) != 0) {
+                 LOG(ERROR) << "Fail to start dummy_server at port=" << port;
+                 return -1;
+             }
+diff --git a/src/bthread/bthread.cpp b/src/bthread/bthread.cpp
+index 316c53f7..73b19f58 100644
+--- a/src/bthread/bthread.cpp
++++ b/src/bthread/bthread.cpp
+@@ -30,7 +30,7 @@
+ 
+ namespace bthread {
+ 
+-DEFINE_int32(bthread_concurrency, 8 + BTHREAD_EPOLL_THREAD_NUM,
++DEFINE_int32(bthread_concurrency, 16 + BTHREAD_EPOLL_THREAD_NUM,
+              "Number of pthread workers");
+ 
+ DEFINE_int32(bthread_min_concurrency, 0,
+diff --git a/src/bvar/bvar.h b/src/bvar/bvar.h
+index 85e7442d..b7121777 100644
+--- a/src/bvar/bvar.h
++++ b/src/bvar/bvar.h
+@@ -28,5 +28,6 @@
+ #include "bvar/gflag.h"
+ #include "bvar/scoped_timer.h"
+ #include "bvar/mvariable.h"
++#include "bvar/extern_variable_for_xpu_timer.h"
+ 
+ #endif  //BVAR_BVAR_H
+diff --git a/src/bvar/detail/sampler.cpp b/src/bvar/detail/sampler.cpp
+index 2e231d22..58f36d6f 100644
+--- a/src/bvar/detail/sampler.cpp
++++ b/src/bvar/detail/sampler.cpp
+@@ -25,8 +25,10 @@
+ #include "bvar/detail/sampler.h"
+ #include "bvar/passive_status.h"
+ #include "bvar/window.h"
++#include "bvar/extern_variable_for_xpu_timer.h"
+ 
+ namespace bvar {
++bool xpu_timer::bvar_enable_sampling_from_xpu_timer = false;
+ namespace detail {
+ 
+ const int WARN_NOSLEEP_THRESHOLD = 2;
+@@ -47,6 +49,13 @@ struct CombineSampler {
+ 
+ // True iff pthread_atfork was called. The callback to atfork works for child
+ // of child as well, no need to register in the child again.
++
++// NOTE
++// xpu_timer change
++// since xpu_timer is LD_PRELOAD library, it will do lazy init,
++// but brpc has lots of static bvar variable, each of this will call `Sampler::schedule`
++// this will create thread, the thread `bvar_sampler` is never used in non training process,
++// so we add global flag and control it in init function in xpu timer.
+ static bool registered_atfork = false;
+ 
+ // Call take_sample() of all scheduled samplers.
+@@ -85,6 +94,7 @@ private:
+     // * A forked program can be forked again.
+ 
+     static void child_callback_atfork() {
++        xpu_timer::bvar_enable_sampling_from_xpu_timer = false;
+         butil::get_leaky_singleton<SamplerCollector>()->after_forked_as_child();
+     }
+ 
+@@ -120,7 +130,7 @@ private:
+ 
+ private:
+     bool _created;
+-    bool _stop;
++    butil::atomic<bool> _stop;
+     int64_t _cumulated_time_us;
+     pthread_t _tid;
+ };
+@@ -154,7 +164,7 @@ void SamplerCollector::run() {
+ 
+     butil::LinkNode<Sampler> root;
+     int consecutive_nosleep = 0;
+-    while (!_stop) {
++    while (!_stop.load(butil::memory_order_relaxed)) {
+         int64_t abstime = butil::gettimeofday_us();
+         Sampler* s = this->reset();
+         if (s) {
+@@ -205,12 +215,16 @@ DEFINE_bool(bvar_enable_sampling, true, "is enable bvar sampling");
+ void Sampler::schedule() {
+     // since the SamplerCollector is initialized before the program starts
+     // flags will not take effect if used in the SamplerCollector constructor
+-    if (FLAGS_bvar_enable_sampling) {
++    _used = xpu_timer::bvar_enable_sampling_from_xpu_timer;
++    if (FLAGS_bvar_enable_sampling && xpu_timer::bvar_enable_sampling_from_xpu_timer) {
+         *butil::get_leaky_singleton<SamplerCollector>() << this;
+     }
+ }
+ 
+ void Sampler::destroy() {
++    if (!_used) {
++        return;
++    }
+     _mutex.lock();
+     _used = false;
+     _mutex.unlock();
+diff --git a/src/bvar/extern_variable_for_xpu_timer.h b/src/bvar/extern_variable_for_xpu_timer.h
+new file mode 100644
+index 00000000..c7204339
+--- /dev/null
++++ b/src/bvar/extern_variable_for_xpu_timer.h
+@@ -0,0 +1,13 @@
++
++#ifndef  BVAR_EXTERN_VARIABLE_FOR_XPU_TIMER_H
++#define  BVAR_EXTERN_VARIABLE_FOR_XPU_TIMER_H
++
++namespace bvar {
++namespace xpu_timer {
++
++extern bool bvar_enable_sampling_from_xpu_timer;
++
++}
++}
++
++#endif
+diff --git a/src/bvar/latency_recorder.cpp b/src/bvar/latency_recorder.cpp
+index c6532958..b7a3190e 100644
+--- a/src/bvar/latency_recorder.cpp
++++ b/src/bvar/latency_recorder.cpp
+@@ -21,6 +21,7 @@
+ #include "butil/unique_ptr.h"
+ #include "bvar/latency_recorder.h"
+ 
++
+ namespace bvar {
+ 
+ // Reloading following gflags does not change names of the corresponding bvars.
+@@ -156,8 +157,10 @@ static Vector<int64_t, 4> get_latencies(void *arg) {
+ 
+ LatencyRecorderBase::LatencyRecorderBase(time_t window_size)
+     : _max_latency(0)
++    , _min_latency(std::numeric_limits<int64_t>::max())
+     , _latency_window(&_latency, window_size)
+     , _max_latency_window(&_max_latency, window_size)
++    , _min_latency_window(&_min_latency, window_size)
+     , _count(get_recorder_count, &_latency)
+     , _qps(get_window_recorder_qps, &_latency_window)
+     , _latency_percentile_window(&_latency_percentile, window_size)
+@@ -222,6 +225,9 @@ int LatencyRecorder::expose(const butil::StringPiece& prefix1,
+     if (_max_latency_window.expose_as(prefix, "max_latency") != 0) {
+         return -1;
+     }
++    if (_min_latency_window.expose_as(prefix, "min_latency") != 0) {
++        return -1;
++    }
+     if (_count.expose_as(prefix, "count") != 0) {
+         return -1;
+     }
+@@ -269,6 +275,7 @@ int64_t LatencyRecorder::latency_percentile(double ratio) const {
+ void LatencyRecorder::hide() {
+     _latency_window.hide();
+     _max_latency_window.hide();
++    _min_latency_window.hide();
+     _count.hide();
+     _qps.hide();
+     _latency_p1.hide();
+@@ -283,6 +290,7 @@ void LatencyRecorder::hide() {
+ LatencyRecorder& LatencyRecorder::operator<<(int64_t latency) {
+     _latency << latency;
+     _max_latency << latency;
++    _min_latency << latency;
+     _latency_percentile << latency;
+     return *this;
+ }
+diff --git a/src/bvar/latency_recorder.h b/src/bvar/latency_recorder.h
+index 5e702992..7e2a8836 100644
+--- a/src/bvar/latency_recorder.h
++++ b/src/bvar/latency_recorder.h
+@@ -24,6 +24,7 @@
+ #include "bvar/reducer.h"
+ #include "bvar/passive_status.h"
+ #include "bvar/detail/percentile.h"
++#include <cstdint>
+ 
+ namespace bvar {
+ namespace detail {
+@@ -31,6 +32,7 @@ namespace detail {
+ class Percentile;
+ typedef Window<IntRecorder, SERIES_IN_SECOND> RecorderWindow;
+ typedef Window<Maxer<int64_t>, SERIES_IN_SECOND> MaxWindow;
++typedef Window<Miner<int64_t>, SERIES_IN_SECOND> MinWindow;
+ typedef Window<Percentile, SERIES_IN_SECOND> PercentileWindow;
+ 
+ // NOTE: Always use int64_t in the interfaces no matter what the impl. is.
+@@ -53,10 +55,12 @@ public:
+ protected:
+     IntRecorder _latency;
+     Maxer<int64_t> _max_latency;
++    Miner<int64_t> _min_latency;
+     Percentile _latency_percentile;
+ 
+     RecorderWindow _latency_window;
+     MaxWindow _max_latency_window;
++    MinWindow _min_latency_window;
+     PassiveStatus<int64_t> _count;
+     PassiveStatus<int64_t> _qps;
+     PercentileWindow _latency_percentile_window;
+@@ -132,6 +136,12 @@ public:
+ 
+     // Get the max latency in recent window_size-to-ctor seconds.
+     int64_t max_latency() const { return _max_latency_window.get_value(); }
++    int64_t min_latency() const {
++        int64_t latency = _min_latency_window.get_value();
++        if (latency == std::numeric_limits<int64_t>::max())
++            return 0;
++        return latency;
++    }
+ 
+     // Get the total number of recorded latencies.
+     int64_t count() const { return _latency.get_value().num; }
+@@ -153,6 +163,8 @@ public:
+     const std::string& latency_cdf_name() const { return _latency_cdf.name(); }
+     const std::string& max_latency_name() const
+     { return _max_latency_window.name(); }
++    const std::string& min_latency_name() const
++    { return _min_latency_window.name(); }
+     const std::string& count_name() const { return _count.name(); }
+     const std::string& qps_name() const { return _qps.name(); }
+ };
+diff --git a/src/bvar/multi_dimension_inl.h b/src/bvar/multi_dimension_inl.h
+index 11b0bd5d..89268844 100644
+--- a/src/bvar/multi_dimension_inl.h
++++ b/src/bvar/multi_dimension_inl.h
+@@ -318,6 +318,17 @@ size_t MultiDimension<bvar::LatencyRecorder>::dump(Dumper* dumper, const DumpOpt
+         if (dumper->dump(oss_max_latency_key.str(), std::to_string(bvar->max_latency()))) {
+             n++;
+         }
++
++        // min_latency comment
++        if (!dumper->dump_comment(name() + "_min_latency", METRIC_TYPE_GAUGE)) {
++            continue;
++        }
++        // min_latency
++        std::ostringstream oss_min_latency_key;
++        make_dump_key(oss_min_latency_key, label_name, "_min_latency");
++        if (dumper->dump(oss_min_latency_key.str(), std::to_string(bvar->min_latency()))) {
++            n++;
++        }
+         
+         // qps comment
+         if (!dumper->dump_comment(name() + "_qps", METRIC_TYPE_GAUGE)) {
+diff --git a/src/bvar/reducer.h b/src/bvar/reducer.h
+index fbd4fa78..47655a27 100644
+--- a/src/bvar/reducer.h
++++ b/src/bvar/reducer.h
+@@ -321,6 +321,20 @@ public:
+         this->expose_as(prefix, name);
+     }
+     ~Miner() { Variable::hide(); }
++    friend class detail::LatencyRecorderBase;
++    // The following private funcition a now used in LatencyRecorder,
++    // it's dangerous so we don't make them public
++private:
++    explicit Miner(T default_value) : Base(default_value) {
++    }
++    Miner(T default_value, const butil::StringPiece& prefix,
++          const butil::StringPiece& name) 
++        : Base(default_value) {
++        this->expose_as(prefix, name);
++    }
++    Miner(T default_value, const butil::StringPiece& name) : Base(default_value) {
++        this->expose(name);
++    }
+ };
+ 
+ }  // namespace bvar

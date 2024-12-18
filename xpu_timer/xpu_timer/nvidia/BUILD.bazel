@@ -1,0 +1,97 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//:workspace.bzl", "xpu_cc_binary", "xpu_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["only_keep_nv.lds"])
+
+py_binary(
+    name = "gen_nvidia_symbols",
+    srcs = ["gen_nvidia_symbols.py"],
+    deps = ["//xpu_timer/protos:py_hook_proto"],
+)
+
+genrule(
+    name = "generate_nvidia_syms",
+    outs = ["intercepted.sym.default"],
+    cmd = "$(location :gen_nvidia_symbols) $@",
+    tools = [":gen_nvidia_symbols"],
+)
+
+xpu_cc_library(
+    name = "nvidia_dtype_util",
+    srcs = [
+        "nvidia_dtype_util.cc",
+    ],
+    hdrs = [
+        "nvidia_dtype_util.h",
+    ],
+)
+
+xpu_cc_library(
+    name = "nvidia_timer",
+    srcs = [
+        "intercepted.cc",
+        "nvidia_timer.cc",
+    ],
+    hdrs = [
+        "nvidia_timer.h",
+    ],
+    deps = [
+        ":nvidia_dtype_util",
+        "//xpu_timer/common:logging",
+        "//xpu_timer/common:macro",
+        "//xpu_timer/common:util",
+        "//xpu_timer/common:xpu_timer",
+        "//xpu_timer/protos:cc_hook_proto",
+    ],
+)
+
+xpu_cc_library(
+    name = "nvidia_hook",
+    srcs = [
+        "hook.cc",
+    ],
+    hdrs = [
+        "hook.h",
+    ],
+    deps = [
+        ":nvidia_timer",
+        "//xpu_timer/common:macro",
+        "//xpu_timer/common:manager",
+        "//xpu_timer/common:util",
+        "@apache_brpc//:bvar",
+    ],
+    # force to keep all syms, if not, linker will remove useless symbols.
+    alwayslink = True,
+)
+
+xpu_cc_binary(
+    name = "libparse_params.so",
+    srcs = ["parse_params.cc"],
+    copts = [
+        "-fPIC",
+    ],
+    linkopts = [
+        "-shared",
+    ],
+    linkshared = 1,
+    deps = [
+        "//xpu_timer/common:macro",
+        "@flash_attn//:flash_attn_headers",
+        "@nccl_multi_version//:nccl_parser",
+    ],
+)

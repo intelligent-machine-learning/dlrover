@@ -502,8 +502,8 @@ class DistributedJobManager(JobManager):
         dead_events: List[NodeEvent] = []
         job_nodes = self.get_job_nodes()
         logger.debug(f"Current job nodes are: {job_nodes}.")
-        for _, nodes in job_nodes.items():
-            for _, node in nodes.items():
+        for nodes in job_nodes.values():
+            for node in list(nodes.values()):
                 if (
                     node.heartbeat_time > 0
                     and now - node.heartbeat_time > window_interval
@@ -643,8 +643,8 @@ class DistributedJobManager(JobManager):
                         f"Node {node_type} {node.id} is deleted "
                         "without the event"
                     )
-                    node.is_released = True
                     new_node = copy.deepcopy(node)
+                    new_node.is_released = True
                     new_node.status = NodeStatus.DELETED
                     event = NodeEvent(NodeEventType.DELETED, new_node)
                     self._process_event(event)
@@ -750,6 +750,7 @@ class DistributedJobManager(JobManager):
                 host_ip=event.node.host_ip,
                 restart_training=event.node.restart_training,
                 relaunch_count=event.node.relaunch_count,
+                is_released=event.node.is_released,
             )
             self._job_context.update_job_node(cur_node)
 

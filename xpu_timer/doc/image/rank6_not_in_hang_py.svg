@@ -1,0 +1,633 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1600" height="262" onload="init(evt)" viewBox="0 0 1600 262" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1600.0" height="262.0" fill="url(#background)"  />
+<text id="title" x="800.00" y="24" >merge stack in py</text>
+<text id="details" x="10.00" y="245" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1490.00" y="24" >Search</text>
+<text id="ignorecase" x="1574.00" y="24" >ic</text>
+<text id="matched" x="1490.00" y="245" > </text>
+<g id="frames">
+<g >
+<title>pretrain@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:349@0-7| (5 samples, 38.46%)</title><rect x="10.0" y="181" width="607.7" height="15.0" fill="rgb(109,219,219)" rx="2" ry="2" />
+<text  x="13.00" y="191.5" >pretrain@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:349@0-7|</text>
+</g>
+<g >
+<title>get@/opt/conda/lib/python3.8/multiprocessing/queues.py:107@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="117" width="121.5" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="1228.38" y="127.5" >get@/opt/conda/..</text>
+</g>
+<g >
+<title>train@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:1232@0-7| (5 samples, 38.46%)</title><rect x="10.0" y="165" width="607.7" height="15.0" fill="rgb(54,169,169)" rx="2" ry="2" />
+<text  x="13.00" y="175.5" >train@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:1232@0-7|</text>
+</g>
+<g >
+<title>send_backward_recv_forward@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/p2p_communication.py:545@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="101" width="121.5" height="15.0" fill="rgb(107,217,217)" rx="2" ry="2" />
+<text  x="499.15" y="111.5" >send_backward_r..</text>
+</g>
+<g >
+<title>barrier@/opt/conda/lib/python3.8/site-packages/torch/distributed/distributed_c10d.py:3943@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="37" width="121.5" height="15.0" fill="rgb(77,224,77)" rx="2" ry="2" />
+<text  x="499.15" y="47.5" >barrier@/opt/co..</text>
+</g>
+<g >
+<title>wait@/opt/conda/lib/python3.8/threading.py:306@0-7| (1 samples, 7.69%)</title><rect x="982.3" y="133" width="121.5" height="15.0" fill="rgb(50,165,165)" rx="2" ry="2" />
+<text  x="985.31" y="143.5" >wait@/opt/conda..</text>
+</g>
+<g >
+<title>_recv_msg@/opt/conda/lib/python3.8/site-packages/torch/_inductor/compile_worker/subproc_pool.py:57@0-7| (1 samples, 7.69%)</title><rect x="1346.9" y="133" width="121.6" height="15.0" fill="rgb(70,219,70)" rx="2" ry="2" />
+<text  x="1349.92" y="143.5" >_recv_msg@/opt/..</text>
+</g>
+<g >
+<title>forward_step@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:282@7|0-6 (1 samples, 7.69%)</title><rect x="10.0" y="117" width="121.5" height="15.0" fill="rgb(97,208,208)" rx="2" ry="2" />
+<text  x="13.00" y="127.5" >forward_step@/d..</text>
+</g>
+<g >
+<title>_run@/opt/conda/lib/python3.8/site-packages/tensorboard/summary/writer/event_file_writer.py:269@7|0-6 (1 samples, 7.69%)</title><rect x="860.8" y="149" width="121.5" height="15.0" fill="rgb(100,211,211)" rx="2" ry="2" />
+<text  x="863.77" y="159.5" >_run@/opt/conda..</text>
+</g>
+<g >
+<title>custom_backward@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:149@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="374.6" y="101" width="121.6" height="15.0" fill="rgb(79,192,192)" rx="2" ry="2" />
+<text  x="377.62" y="111.5" >custom_backward..</text>
+</g>
+<g >
+<title>_bootstrap@/opt/conda/lib/python3.8/threading.py:890@0-7| (5 samples, 38.46%)</title><rect x="860.8" y="197" width="607.7" height="15.0" fill="rgb(65,178,178)" rx="2" ry="2" />
+<text  x="863.77" y="207.5" >_bootstrap@/opt/conda/lib/python3.8/threading.py:890@0-7|</text>
+</g>
+<g >
+<title>get@/opt/conda/lib/python3.8/queue.py:179@7|0-6 (1 samples, 7.69%)</title><rect x="860.8" y="133" width="121.5" height="15.0" fill="rgb(105,215,215)" rx="2" ry="2" />
+<text  x="863.77" y="143.5" >get@/opt/conda/..</text>
+</g>
+<g >
+<title>_poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:424@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="85" width="121.5" height="15.0" fill="rgb(55,169,169)" rx="2" ry="2" />
+<text  x="1228.38" y="95.5" >_poll@/opt/cond..</text>
+</g>
+<g >
+<title>wait@/opt/conda/lib/python3.8/threading.py:306@7|0-6 (1 samples, 7.69%)</title><rect x="860.8" y="117" width="121.5" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="863.77" y="127.5" >wait@/opt/conda..</text>
+</g>
+<g >
+<title>run@/opt/conda/lib/python3.8/threading.py:870@0-7| (3 samples, 23.08%)</title><rect x="1103.8" y="165" width="364.7" height="15.0" fill="rgb(88,199,199)" rx="2" ry="2" />
+<text  x="1106.85" y="175.5" >run@/opt/conda/lib/python3.8/threading.py:870@0-7|</text>
+</g>
+<g >
+<title>train_step@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:716@0-7| (5 samples, 38.46%)</title><rect x="10.0" y="149" width="607.7" height="15.0" fill="rgb(102,212,212)" rx="2" ry="2" />
+<text  x="13.00" y="159.5" >train_step@/data/mcore-0.9.0/Megatron-LM/megatron/training/training.py:716@0-7|</text>
+</g>
+<g >
+<title>apply@/opt/conda/lib/python3.8/site-packages/torch/autograd/function.py:306@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="1468.5" y="197" width="121.5" height="15.0" fill="rgb(79,226,79)" rx="2" ry="2" />
+<text  x="1471.46" y="207.5" >apply@/opt/cond..</text>
+</g>
+<g >
+<title>forward_backward_pipelining_without_interleaving@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1495@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="133" width="121.5" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="499.15" y="143.5" >forward_backwar..</text>
+</g>
+<g >
+<title>_communicate@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/p2p_communication.py:399@0-2|3-7 (1 samples, 7.69%)</title><rect x="253.1" y="85" width="121.5" height="15.0" fill="rgb(56,170,170)" rx="2" ry="2" />
+<text  x="256.08" y="95.5" >_communicate@/d..</text>
+</g>
+<g >
+<title>_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932@0-7| (5 samples, 38.46%)</title><rect x="860.8" y="181" width="607.7" height="15.0" fill="rgb(85,197,197)" rx="2" ry="2" />
+<text  x="863.77" y="191.5" >_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932@0-7|</text>
+</g>
+<g >
+<title>wrapper@/opt/conda/lib/python3.8/site-packages/torch/distributed/c10d_logger.py:79@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="53" width="121.5" height="15.0" fill="rgb(83,230,83)" rx="2" ry="2" />
+<text  x="499.15" y="63.5" >wrapper@/opt/co..</text>
+</g>
+<g >
+<title>send_backward_recv_forward@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1267@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="117" width="121.5" height="15.0" fill="rgb(95,206,206)" rx="2" ry="2" />
+<text  x="499.15" y="127.5" >send_backward_r..</text>
+</g>
+<g >
+<title>backward_step@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:364@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="374.6" y="117" width="121.6" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="377.62" y="127.5" >backward_step@/..</text>
+</g>
+<g >
+<title>do_one_step@/opt/conda/lib/python3.8/site-packages/torch/utils/data/_utils/pin_memory.py:32@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="133" width="121.5" height="15.0" fill="rgb(90,237,90)" rx="2" ry="2" />
+<text  x="1228.38" y="143.5" >do_one_step@/op..</text>
+</g>
+<g >
+<title>backward@/opt/conda/lib/python3.8/site-packages/flash_attn/flash_attn_interface.py:476@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="1468.5" y="181" width="121.5" height="15.0" fill="rgb(56,170,170)" rx="2" ry="2" />
+<text  x="1471.46" y="191.5" >backward@/opt/c..</text>
+</g>
+<g >
+<title>State@R (running)@0-2/4-7|3 (1 samples, 7.69%)</title><rect x="617.7" y="197" width="121.5" height="15.0" fill="rgb(190,80,190)" rx="2" ry="2" />
+<text  x="620.69" y="207.5" >State@R (runnin..</text>
+</g>
+<g >
+<title>run@/opt/conda/lib/python3.8/site-packages/tqdm/_monitor.py:60@0-7| (1 samples, 7.69%)</title><rect x="982.3" y="165" width="121.5" height="15.0" fill="rgb(100,210,210)" rx="2" ry="2" />
+<text  x="985.31" y="175.5" >run@/opt/conda/..</text>
+</g>
+<g >
+<title>run@/opt/conda/lib/python3.8/site-packages/tensorboard/summary/writer/event_file_writer.py:244@7|0-6 (1 samples, 7.69%)</title><rect x="860.8" y="165" width="121.5" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="863.77" y="175.5" >run@/opt/conda/..</text>
+</g>
+<g >
+<title>_pin_memory_loop@/opt/conda/lib/python3.8/site-packages/torch/utils/data/_utils/pin_memory.py:55@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="149" width="121.5" height="15.0" fill="rgb(93,239,93)" rx="2" ry="2" />
+<text  x="1228.38" y="159.5" >_pin_memory_loo..</text>
+</g>
+<g >
+<title>all (13 samples, 100%)</title><rect x="10.0" y="213" width="1580.0" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="13.00" y="223.5" ></text>
+</g>
+<g >
+<title>poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:257@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="101" width="121.5" height="15.0" fill="rgb(100,211,211)" rx="2" ry="2" />
+<text  x="1228.38" y="111.5" >poll@/opt/conda..</text>
+</g>
+<g >
+<title>send_forward_recv_backward@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1252@0-2|3-7 (1 samples, 7.69%)</title><rect x="253.1" y="117" width="121.5" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="256.08" y="127.5" >send_forward_re..</text>
+</g>
+<g >
+<title>send_forward_recv_backward@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/p2p_communication.py:520@0-2|3-7 (1 samples, 7.69%)</title><rect x="253.1" y="101" width="121.5" height="15.0" fill="rgb(103,214,214)" rx="2" ry="2" />
+<text  x="256.08" y="111.5" >send_forward_re..</text>
+</g>
+<g >
+<title>forward_backward_pipelining_without_interleaving@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1487@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="374.6" y="133" width="121.6" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="377.62" y="143.5" >forward_backwar..</text>
+</g>
+<g >
+<title>loss_func@pretrain_gpt.py:158@7|0-6 (1 samples, 7.69%)</title><rect x="10.0" y="101" width="121.5" height="15.0" fill="rgb(90,201,201)" rx="2" ry="2" />
+<text  x="13.00" y="111.5" >loss_func@pretr..</text>
+</g>
+<g >
+<title>forward_backward_pipelining_without_interleaving@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1467@0-2|3-7 (1 samples, 7.69%)</title><rect x="253.1" y="133" width="121.5" height="15.0" fill="rgb(81,194,194)" rx="2" ry="2" />
+<text  x="256.08" y="143.5" >forward_backwar..</text>
+</g>
+<g >
+<title>forward_backward_pipelining_without_interleaving@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1442@7|0-6 (1 samples, 7.69%)</title><rect x="10.0" y="133" width="121.5" height="15.0" fill="rgb(69,182,182)" rx="2" ry="2" />
+<text  x="13.00" y="143.5" >forward_backwar..</text>
+</g>
+<g >
+<title>&lt;module&gt;@pretrain_gpt.py:272@0-7| (5 samples, 38.46%)</title><rect x="10.0" y="197" width="607.7" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="13.00" y="207.5" >&lt;module&gt;@pretrain_gpt.py:272@0-7|</text>
+</g>
+<g >
+<title>_flash_attn_backward@/opt/conda/lib/python3.8/site-packages/flash_attn/flash_attn_interface.py:128@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="1468.5" y="165" width="121.5" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="1471.46" y="175.5" >_flash_attn_bac..</text>
+</g>
+<g >
+<title>wait@/opt/conda/lib/python3.8/multiprocessing/connection.py:931@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="69" width="121.5" height="15.0" fill="rgb(63,177,177)" rx="2" ry="2" />
+<text  x="1228.38" y="79.5" >wait@/opt/conda..</text>
+</g>
+<g >
+<title>wait@/opt/conda/lib/python3.8/threading.py:302@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1103.8" y="133" width="121.6" height="15.0" fill="rgb(108,218,218)" rx="2" ry="2" />
+<text  x="1106.85" y="143.5" >wait@/opt/conda..</text>
+</g>
+<g >
+<title>State@S (sleeping)@3|0-2/4-7 (1 samples, 7.69%)</title><rect x="739.2" y="197" width="121.6" height="15.0" fill="rgb(240,126,240)" rx="2" ry="2" />
+<text  x="742.23" y="207.5" >State@S (sleepi..</text>
+</g>
+<g >
+<title>_feed@/opt/conda/lib/python3.8/multiprocessing/queues.py:227@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1103.8" y="149" width="121.6" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="1106.85" y="159.5" >_feed@/opt/cond..</text>
+</g>
+<g >
+<title>_read_thread@/opt/conda/lib/python3.8/site-packages/torch/_inductor/compile_worker/subproc_pool.py:123@0-7| (1 samples, 7.69%)</title><rect x="1346.9" y="149" width="121.6" height="15.0" fill="rgb(56,205,56)" rx="2" ry="2" />
+<text  x="1349.92" y="159.5" >_read_thread@/o..</text>
+</g>
+<g >
+<title>select@/opt/conda/lib/python3.8/selectors.py:415@0/2/4/6|1/3/5/7 (1 samples, 7.69%)</title><rect x="1225.4" y="53" width="121.5" height="15.0" fill="rgb(63,177,177)" rx="2" ry="2" />
+<text  x="1228.38" y="63.5" >select@/opt/con..</text>
+</g>
+<g >
+<title>fake_hang@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/p2p_communication.py:241@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="69" width="121.5" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="499.15" y="79.5" >fake_hang@/data..</text>
+</g>
+<g >
+<title>wait@/opt/conda/lib/python3.8/threading.py:558@0-7| (1 samples, 7.69%)</title><rect x="982.3" y="149" width="121.5" height="15.0" fill="rgb(100,211,211)" rx="2" ry="2" />
+<text  x="985.31" y="159.5" >wait@/opt/conda..</text>
+</g>
+<g >
+<title>synchronize@/opt/conda/lib/python3.8/site-packages/torch/cuda/__init__.py:892@0-2|3-7 (1 samples, 7.69%)</title><rect x="253.1" y="69" width="121.5" height="15.0" fill="rgb(82,229,82)" rx="2" ry="2" />
+<text  x="256.08" y="79.5" >synchronize@/op..</text>
+</g>
+<g >
+<title>forward_backward_pipelining_without_interleaving@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/schedules.py:1458@4-5|0-3/6-7 (1 samples, 7.69%)</title><rect x="131.5" y="133" width="121.6" height="15.0" fill="rgb(83,195,195)" rx="2" ry="2" />
+<text  x="134.54" y="143.5" >forward_backwar..</text>
+</g>
+<g >
+<title>_communicate@/data/mcore-0.9.0/Megatron-LM/megatron/core/pipeline_parallel/p2p_communication.py:378@6|0-5/7 (1 samples, 7.69%)</title><rect x="496.2" y="85" width="121.5" height="15.0" fill="rgb(77,190,190)" rx="2" ry="2" />
+<text  x="499.15" y="95.5" >_communicate@/d..</text>
+</g>
+</g>
+</svg>
