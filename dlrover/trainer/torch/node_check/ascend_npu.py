@@ -25,6 +25,7 @@ except Exception:
     torch_npu = None
 
 from .utils import (
+    DeviceBenchEnv,
     bm_allgather,
     get_network_check_timeout,
     init_process_group,
@@ -64,7 +65,7 @@ def main():
     try:
         # warmup 2 iterations
         _ = matmul(use_cuda, round_num=2, verbose=False)
-        t = matmul(use_cuda, round_num=200, verbose=True)
+        result = matmul(use_cuda, round_num=200, verbose=True)
         shape = 1 << 24
         result += bm_allgather(shape, use_cuda)
         return result

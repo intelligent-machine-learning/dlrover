@@ -200,7 +200,8 @@ def matmul(use_cuda, round_num=10, verbose=False):
     elapsed_time = round(elapsed_time, 3)
     if verbose:
         logger.info(
-            f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with m={m},k={k},n={n} using {dtype}"
+            f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with "
+            f"m={m},k={k},n={n} using {dtype}"
         )
     return elapsed_time
 
@@ -242,7 +243,7 @@ def write_time_to_file(time, local_rank):
 
 @dataclass
 class DeviceBenchEnv:
-    device_name: str = 'Unknown'
-    torch_version: str = 'Unknown'
-    cuda_version: str = 'Unknown'
-    cann_version: str = 'Unknown'
+    device_name: str = "Unknown"
+    torch_version: str = "Unknown"
+    cuda_version: str = "Unknown"
+    cann_version: str = "Unknown"
