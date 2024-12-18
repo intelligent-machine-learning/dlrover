@@ -174,7 +174,6 @@ def _execute_cpu_comm(comm_op, *args):
     return elapsed_time
 
 
-@log_execution_time
 def matmul(use_cuda, round_num=10, verbose=False):
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
@@ -200,8 +199,8 @@ def matmul(use_cuda, round_num=10, verbose=False):
     elapsed_time = round(elapsed_time, 3)
     if verbose:
         logger.info(
-            f"dlrover_matmul_elapsed_time is {elapsed_time} milliseconds with "
-            f"m={m},k={k},n={n} using {dtype}"
+            f"dlrover_matmul_elapsed_time per matmul is {elapsed_time} "
+            f"milliseconds with m={m},k={k},n={n} using {dtype}"
         )
     return elapsed_time
 
