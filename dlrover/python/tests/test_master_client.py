@@ -152,7 +152,7 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(len(nodes), 1)
         self.assertEqual(nodes[0].type, NodeType.WORKER)
 
-        nodes = self._master_client.check_fault_node()
+        nodes, _ = self._master_client.check_fault_node()
         self.assertListEqual(nodes, [])
 
         round = self._master_client.join_rendezvous(0, 8, "elastic-training")

@@ -22,6 +22,7 @@ from typing import Dict, Optional
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
+    JobConstant,
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
@@ -396,10 +397,10 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(5)
+                time.sleep(JobConstant.MASTER_CLIENT_CHECK_FAULT_TIMEOUT)
                 continue
             break
-        return result.nodes
+        return result.nodes, result.reason
 
     def check_straggler(self, timeout=300):
         request = grpc.StragglerExistRequest()
@@ -410,10 +411,10 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(5)
+                time.sleep(JobConstant.MASTER_CLIENT_CHECK_STRAGGLER_TIMEOUT)
                 continue
             break
-        return result.nodes
+        return result.nodes, result.reason
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit, joint_timeout
@@ -501,7 +502,9 @@ class MasterClient(Singleton):
         return cls._instance
 
 
-def build_master_client(master_addr=None, timeout=60):
+def build_master_client(
+    master_addr=None, timeout=JobConstant.MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT
+):
     """
     Build a master client.
 

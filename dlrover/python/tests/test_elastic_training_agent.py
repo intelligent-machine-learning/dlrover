@@ -724,8 +724,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.assertTrue(agent.run())
 
         # with fault and no stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[0])
-        agent._client.check_straggler = mock.MagicMock(return_value=[])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([0], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         try:
             agent.run()
             self.fail()
@@ -733,13 +733,13 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             pass
 
         # with no fault and stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[])
-        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([0], ""))
         self.assertTrue(agent.run())
 
         # with fault and stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[1])
-        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([1], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([0], ""))
         try:
             agent.run()
             self.fail()
