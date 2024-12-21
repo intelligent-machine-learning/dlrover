@@ -51,6 +51,8 @@ def main():
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
+        # Given that the GPU models on each node are the same, the benchmark
+        # environment only needs to be printed once.
         if local_rank == 0:
             device_name = torch.cuda.get_device_name()
             bench_env = DeviceBenchEnv(
