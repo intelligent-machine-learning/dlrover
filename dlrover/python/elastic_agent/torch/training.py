@@ -226,7 +226,7 @@ class ElasticLaunchConfig(LaunchConfig):
         if self.precheck == 1:
             self.network_check = True
             self.comm_perf_test = False or self.comm_perf_test
-        
+
         if self.precheck == 2:
             self.network_check = True
             self.comm_perf_test = True
