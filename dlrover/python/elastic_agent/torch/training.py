@@ -471,11 +471,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
-        logger.info("stop workers via SIGKILL for Ascend NPU")
         """The ASCEND framework might fork multiple sub-processes, we should
-        stop all the children processes before shutdown the workers
+        stop all the children processes before shutdown the workers.
         """
-        """print out a snapshot of all processes"""
+
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        # print out a snapshot of all processes
         env_utils.print_process_list()
 
         if self._pcontext is not None:
@@ -493,10 +494,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._shutdown(death_sig=signal.SIGKILL)
 
-        """cleanup orphan processes if exists"""
+        # cleanup orphan processes if exists
         self._stop_orphan_workers(worker_group)
 
-        """print out a snapshot of all processes again"""
+        # print out a snapshot of all processes again
         env_utils.print_process_list()
 
     @prof
