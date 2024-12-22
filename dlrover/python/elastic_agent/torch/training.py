@@ -146,6 +146,8 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
+        precheck: the level to run pre-check task before starting
+            the training task.
         network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
@@ -164,6 +166,7 @@ class ElasticLaunchConfig(LaunchConfig):
             is a failure node
     """
 
+    precheck: int = 0
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
@@ -214,6 +217,19 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+    def update_precheck_args(self):
+        if self.precheck == 0:
+            self.comm_perf_test = False or self.comm_perf_test
+            self.network_check = False or self.network_check
+
+        if self.precheck == 1:
+            self.network_check = True
+            self.comm_perf_test = False or self.comm_perf_test
+        
+        if self.precheck == 2:
+            self.network_check = True
+            self.comm_perf_test = True
 
 
 class MasterRendezvousHandler(RendezvousHandler):
