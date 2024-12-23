@@ -1362,11 +1362,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes = self._client.check_fault_node()
-            stragglers = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node()
+            stragglers, straggler_reason = self._client.check_straggler()
             logger.info(
-                f"Fault nodes are: {fault_nodes} "
-                f" and stragglers are: {stragglers}."
+                f"Fault nodes are: {fault_nodes} with {fault_reason} "
+                f" and stragglers are: {stragglers} with {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
             if fault_nodes or (stragglers and self._config.exclude_straggler):
@@ -1382,7 +1382,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
-                    time.sleep(3)
+                    time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                     continue
             else:
                 return success
