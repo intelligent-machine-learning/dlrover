@@ -372,7 +372,7 @@ bool KernelTraceManager::pushTrace(XPU_TIMER* work_item) {
 template <>
 void GpuTimerManager<XPU_TIMER>::initSingleton();
 template <>
-void GpuTimerManager<XPU_TIMER>::stopWork();
+void GpuTimerManager<XPU_TIMER>::stopWork() noexcept;
 template <>
 void GpuTimerManager<XPU_TIMER>::doWork();
 template <>
@@ -519,7 +519,7 @@ void GpuTimerManager<XPU_TIMER>::initSingleton() {
 }
 
 template <>
-void GpuTimerManager<XPU_TIMER>::stopWork() {
+void GpuTimerManager<XPU_TIMER>::stopWork() noexcept {
   if (!config::GlobalConfig::enable) return;
 
   should_run_.store(false);
