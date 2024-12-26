@@ -146,6 +146,8 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
+        precheck: the level to run pre-check task before starting
+            the training task.
         network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
@@ -164,6 +166,7 @@ class ElasticLaunchConfig(LaunchConfig):
             is a failure node
     """
 
+    precheck: int = 0
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
@@ -214,6 +217,19 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+    def update_precheck_args(self):
+        if self.precheck == 0:
+            self.comm_perf_test = False or self.comm_perf_test
+            self.network_check = False or self.network_check
+
+        if self.precheck == 1:
+            self.network_check = True
+            self.comm_perf_test = False or self.comm_perf_test
+
+        if self.precheck == 2:
+            self.network_check = True
+            self.comm_perf_test = True
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -471,11 +487,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
-        logger.info("stop workers via SIGKILL for Ascend NPU")
         """The ASCEND framework might fork multiple sub-processes, we should
-        stop all the children processes before shutdown the workers
+        stop all the children processes before shutdown the workers.
         """
-        """print out a snapshot of all processes"""
+
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        # print out a snapshot of all processes
         env_utils.print_process_list()
 
         if self._pcontext is not None:
@@ -493,10 +510,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._shutdown(death_sig=signal.SIGKILL)
 
-        """cleanup orphan processes if exists"""
+        # cleanup orphan processes if exists
         self._stop_orphan_workers(worker_group)
 
-        """print out a snapshot of all processes again"""
+        # print out a snapshot of all processes again
         env_utils.print_process_list()
 
     @prof
@@ -1361,11 +1378,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes = self._client.check_fault_node()
-            stragglers = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node()
+            stragglers, straggler_reason = self._client.check_straggler()
             logger.info(
-                f"Fault nodes are: {fault_nodes} "
-                f" and stragglers are: {stragglers}."
+                f"Fault nodes are: {fault_nodes} with {fault_reason} "
+                f" and stragglers are: {stragglers} with {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
             if fault_nodes or (stragglers and self._config.exclude_straggler):
@@ -1381,7 +1398,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
-                    time.sleep(3)
+                    time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                     continue
             else:
                 return success
