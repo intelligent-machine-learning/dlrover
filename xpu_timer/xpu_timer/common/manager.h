@@ -184,7 +184,7 @@ class GpuTimerManager {
   uint64_t loop_count_{1};
 
   // shutdown thread, called by atexit
-  void stopWork();
+  void stopWork() noexcept;
   // main loop
   void doWork();
   void startWork();
