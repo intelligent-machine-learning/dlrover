@@ -790,6 +790,34 @@ class DistributedJobManager(JobManager):
             should_relaunch = self._should_relaunch(
                 cur_node, status_change_flow
             )
+
+            # Even _should_relaunch return True by state-machine check,
+            # we need another round of check
+            if should_relaunch:
+                selector = k8s_util.gen_k8s_label_selector_from_dict(
+                    self._get_pod_unique_labels(cur_node)
+                )
+                logger.info(
+                    f"Recheck relaunch node: {self._job_args.job_name}, "
+                    f"{cur_node.type}, {cur_node.rank_index}, {cur_node.id} "
+                    f"with label {selector}"
+                )
+                pods = self._k8s_client.list_namespaced_pod(selector)
+                if (
+                    pods
+                    and len(pods.items) > 0
+                    and any(
+                        pod.status.phase == NodeStatus.RUNNING
+                        and not pod.metadata.deletion_timestamp
+                        for pod in pods.items
+                    )
+                ):
+                    logger.info(
+                        f"Skip relaunch node {cur_node.id}({cur_node.name}) "
+                        f"because same node exists with label {selector}"
+                    )
+                    should_relaunch = False
+
             if should_relaunch and self._wait_pending_relaunch:
                 self._pending_relaunch_count += 1
 
