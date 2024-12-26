@@ -59,6 +59,26 @@ class MasterKVStoreTest(unittest.TestCase):
         except Exception as e:
             self.assertIsInstance(e, LookupError)
 
+    def test_kv_store_timeout(self):
+        kv_store = MasterKVStore("dlrover/torch/test")
+        key1 = "alpha"
+        key2 = "beta"
+        key3 = "omega"
+        kv_store.set(key1, "1".encode())
+        kv_store.set(key2, "2".encode())
+        kv_store.wait([key1, key2])
+
+        kv_store.set_timeout(datetime.timedelta(seconds=1))
+        try:
+            kv_store.wait([key1, key2, key3])
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
+        try:
+            kv_store.get(key3)
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_max_nodes(self):
