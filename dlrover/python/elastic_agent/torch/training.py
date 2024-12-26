@@ -1066,6 +1066,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 action.timestamp, datetime.now().timestamp()
             )
             expired_time_period = action.expired_time_period - time_diff
+            if expired_time_period < 0:
+                expired_time_period = 0
             action.update_timestamp(
                 timestamp=datetime.now().timestamp(),
                 expired_time_period=expired_time_period,

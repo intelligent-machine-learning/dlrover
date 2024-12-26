@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
+from torch.distributed.elastic.agent.server.api import WorkerSpec
+
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -21,7 +25,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
 
 class AgentContext(Singleton):
     def __init__(self):
-        self._worker_spec = None
+        self._worker_spec: Optional[WorkerSpec] = None
         self.remaining_failovers = 0
         self.restart_count = 0
         self._run_result = None
