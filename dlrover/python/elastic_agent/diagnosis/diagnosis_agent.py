@@ -130,7 +130,11 @@ class DiagnosisAgent(Singleton):
                     observations = combine_inferences(observations, infs)
             except Exception as e:
                 logger.error(f"fail to observe problem {problem}: {e}")
-        return observations
+        new_obs: List[Inference] = []
+        for ob in observations:
+            if not is_inference_included(self._observe_problems, ob):
+                new_obs.append(ob)
+        return new_obs
 
     def _diagnose_observations(
         self, observations: List[Inference]
