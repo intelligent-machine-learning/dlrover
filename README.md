@@ -1,16 +1,14 @@
-# DLRover
-
-<div align="center">
-<img src="docs/figures/dlrover_logo.png" alt="Editor" width="350">
-</div>
 
 <div id="top" align="center">
-DLRover: An Automatic Distributed Deep Learning System
-</div>
+<img src="docs/figures/dlrover_logo.png" alt="Editor" width="350">
+  
+<h1>DLRover: An Automatic Distributed Deep Learning System</h1>
 
 [![Build](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9827/badge)](https://www.bestpractices.dev/projects/9827)
 [![Code Coverage](https://codecov.io/gh/intelligent-machine-learning/dlrover/branch/master/graph/badge.svg)](https://codecov.io/gh/intelligent-machine-learning/dlrover)
 [![PyPI Status Badge](https://badge.fury.io/py/dlrover.svg)](https://pypi.org/project/dlrover/)
+</div>
 
 DLRover makes the distributed training of large AI models easy, stable, fast and green.
 It can automatically train the Deep Learning model on the distributed cluster.

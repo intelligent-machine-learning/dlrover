@@ -1,0 +1,83 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package(default_visibility = ["//visibility:public"])
+
+COPTS = [
+    "-D__STDC_FORMAT_MACROS",
+    "-DBTHREAD_USE_FAST_PTHREAD_MUTEX",
+    "-D__const__=__unused__",
+    "-D_GNU_SOURCE",
+    "-DUSE_SYMBOLIZE",
+    "-DNO_TCMALLOC",
+    "-D__STDC_LIMIT_MACROS",
+    "-D__STDC_CONSTANT_MACROS",
+    "-fPIC",
+    "-Wno-unused-parameter",
+    "-fno-omit-frame-pointer",
+    "-DGFLAGS_NS=google",
+    "-DBRPC_WITH_GLOG=0",
+]
+
+cc_library(
+    name = "python_plugin",
+    srcs = [
+        "python_plugin.cc",
+    ],
+    hdrs = [
+        "python_plugin.h",
+    ],
+    deps = [
+        "//xpu_timer/common:logging",
+        "//xpu_timer/common:util",
+        "//xpu_timer/protos:cc_hosting_service_proto",
+        "@python_lib//:python",
+    ],
+    #alwayslink = True,
+)
+
+cc_library(
+    name = "server",
+    srcs = [
+        "hosting_service_server_client.cc",
+    ],
+    hdrs = [
+        "hosting_service_server_client.h",
+    ],
+    copts = COPTS,
+    deps = [
+        ":python_plugin",
+        "//xpu_timer/common:logging",
+        "//xpu_timer/common:util",
+        "//xpu_timer/protos:cc_hosting_service_proto",
+        "@apache_brpc//:brpc",
+        "@apache_brpc//:bvar",
+        "@boost//:process",
+        "@com_github_jupp0r_prometheus_cpp//pull",
+    ],
+)
+
+cc_binary(
+    name = "xpu_timer_daemon",
+    srcs = [
+        "server.cc",
+    ],
+    copts = COPTS,
+    linkopts = [
+        "-Wl,-rpath,'$$ORIGIN/../lib/'",
+    ],
+    deps = [
+        ":server",
+        "@python_lib//:python_import",
+    ],
+)

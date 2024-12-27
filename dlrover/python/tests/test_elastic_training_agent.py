@@ -400,6 +400,55 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
 
+    def test_numa_affinity(self):
+        with patch(
+            "dlrover.python.util.numa_util.get_npu_affinity",
+            return_value={0, 1},
+        ):
+            self.config.numa_affinity = True
+            self.config.accelerator = Accelerators.ASCEND_NPU
+            self.spec.entrypoint = "sleep"
+            self.spec.args = tuple(["3"])
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="sleep",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+            )
+            self.assertEqual(agent._rank_cpu_affinity[0], None)
+            self.assertEqual(agent._rank_cpu_affinity[1], None)
+            agent._rank_cpu_affinity[0] = {0, 1}
+            agent._rank_cpu_affinity[1] = {2, 3}
+            run_result = agent._invoke_run()
+            self.assertDictEqual(run_result.failures, {})
+            self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
+        with patch(
+            "dlrover.python.util.numa_util.get_gpu_affinity",
+            return_value={0, 1},
+        ):
+            self.config.numa_affinity = True
+            self.config.accelerator = Accelerators.NVIDIA_GPU
+            self.spec.entrypoint = "sleep"
+            self.spec.args = tuple(["3"])
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="sleep",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+            )
+            self.assertEqual(agent._rank_cpu_affinity[0], None)
+            self.assertEqual(agent._rank_cpu_affinity[1], None)
+            agent._rank_cpu_affinity[0] = {0, 1}
+            agent._rank_cpu_affinity[1] = {2, 3}
+            run_result = agent._invoke_run()
+            self.assertDictEqual(run_result.failures, {})
+            self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
     def test_sync_node_port(self):
         self.config.accelerator = Accelerators.ASCEND_NPU
         agent = ElasticTrainingAgent(
@@ -675,8 +724,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.assertTrue(agent.run())
 
         # with fault and no stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[0])
-        agent._client.check_straggler = mock.MagicMock(return_value=[])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([0], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         try:
             agent.run()
             self.fail()
@@ -684,13 +733,13 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             pass
 
         # with no fault and stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[])
-        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([0], ""))
         self.assertTrue(agent.run())
 
         # with fault and stragglers
-        agent._client.check_fault_node = mock.MagicMock(return_value=[1])
-        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        agent._client.check_fault_node = mock.MagicMock(return_value=([1], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([0], ""))
         try:
             agent.run()
             self.fail()

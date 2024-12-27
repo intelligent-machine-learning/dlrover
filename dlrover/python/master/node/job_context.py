@@ -62,13 +62,85 @@ class JobContext(Singleton):
             return {}
 
     def job_nodes(self) -> Dict[str, Dict[int, Node]]:
+        """Get global job nodes dict
+
+        Returns:
+            return global _job_nodes dict
+
+        The caller should use self._locker to synchronize
         """
-        return a copy of job nodes
+        return self._job_nodes
+
+    def dup_job_nodes(self) -> Dict[str, Dict[int, Node]]:
+        """Get global job nodes dict
+
+        Returns:
+            return global _job_nodes dict
         """
         with self._locker:
             return copy.deepcopy(self._job_nodes)
 
+    def job_nodes_by_type(self, node_type: str) -> Dict[int, Node]:
+        """Get nodes list by type
+
+        Args:
+            node_type: node type
+
+        Returns:
+            node list of the node_type in global _job_nodes dict
+
+        The caller should use self._locker to synchronize
+        """
+        node_type = self._preprocess(node_type)
+        if node_type not in self._job_nodes:
+            return {}
+        return self._job_nodes[node_type]
+
+    def dup_job_nodes_by_type(self, node_type: str) -> Dict[int, Node]:
+        """Get nodes list by type
+
+        Args:
+            node_type: node type
+
+        Returns:
+            node list of the node_type in global _job_nodes dict
+        """
+        with self._locker:
+            node_type = self._preprocess(node_type)
+            if node_type not in self._job_nodes:
+                return {}
+            return copy.deepcopy(self._job_nodes[node_type])
+
     def job_node(self, node_type: str, node_id: int) -> Optional[Node]:
+        """Get node by type and id
+
+        Args:
+            node_type: node type
+            node_id: node id
+
+        Returns:
+            Node or None if node does not exist
+
+        The caller should use self._locker to synchronize
+        """
+        node_type = self._preprocess(node_type)
+        if (
+            node_type not in self._job_nodes
+            or node_id not in self._job_nodes[node_type]
+        ):
+            return None
+        return self._job_nodes[node_type][node_id]
+
+    def dup_job_node(self, node_type: str, node_id: int) -> Optional[Node]:
+        """Get deepcopy of node by type and id
+
+        Args:
+            node_type: node type
+            node_id: node id
+
+        Returns:
+            Node or None if node does not exist
+        """
         with self._locker:
             node_type = self._preprocess(node_type)
             if (
@@ -77,13 +149,6 @@ class JobContext(Singleton):
             ):
                 return None
             return copy.deepcopy(self._job_nodes[node_type][node_id])
-
-    def job_nodes_by_type(self, node_type: str) -> Dict[int, Node]:
-        with self._locker:
-            node_type = self._preprocess(node_type)
-            if node_type not in self._job_nodes:
-                return {}
-            return copy.deepcopy(self._job_nodes[node_type])
 
     def _preprocess(self, node_type: str) -> str:
         if node_type == NodeType.CHIEF and node_type not in self._job_nodes:
@@ -96,7 +161,6 @@ class JobContext(Singleton):
                 self._job_nodes = {}
             if node_type not in self._job_nodes:
                 self._job_nodes[node_type] = {}
-
             self._job_nodes[node_type] = copy.deepcopy(job_nodes)
 
     def update_job_nodes(self, job_nodes: Dict[str, Dict[int, Node]]):
@@ -109,7 +173,6 @@ class JobContext(Singleton):
                 self._job_nodes = {}
             if node.type not in self._job_nodes:
                 self._job_nodes[node.type] = {}
-
             self._job_nodes[node.type][node.id] = copy.deepcopy(node)
 
     def clear_job_nodes(self):
