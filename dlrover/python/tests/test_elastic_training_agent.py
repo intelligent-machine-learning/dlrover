@@ -498,6 +498,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.spec.args = tuple(cmdline[1:])
 
         self.config.network_check = False
+        self.config.training_port = 0
         agent = ElasticTrainingAgent(
             node_rank=0,
             config=self.config,
