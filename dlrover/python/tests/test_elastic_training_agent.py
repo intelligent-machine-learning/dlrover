@@ -406,6 +406,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             return_value={0, 1},
         ):
             self.config.numa_affinity = True
+            self.config.training_port = 0
             self.config.accelerator = Accelerators.ASCEND_NPU
             self.spec.entrypoint = "sleep"
             self.spec.args = tuple(["3"])
