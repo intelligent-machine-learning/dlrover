@@ -449,6 +449,7 @@ class SharedQueue(LocalSocketComm):
                     connection.close()
             except Exception as e:
                 logger.error(f"An error in SharedQueue occurred: {e}")
+
     @property
     def queue(self):
         return self._queue
