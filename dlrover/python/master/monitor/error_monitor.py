@@ -38,6 +38,17 @@ class ErrorMonitor(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
+
 
 class SimpleErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
@@ -56,7 +67,19 @@ class SimpleErrorMonitor(ErrorMonitor):
             logger.error(f"Rendezvous fails with reason {error_data}")
         elif level == TrainingExceptionLevel.WARNING:
             logger.warning(error_data)
+        elif level == TrainingExceptionLevel.ERROR:
+            logger.error(error_data)
         return False
+
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
 
     def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str
@@ -77,10 +100,10 @@ class SimpleErrorMonitor(ErrorMonitor):
 class K8sJobErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
 
-    def __init__(self, namespace="", cordon_node_eanbled=False):
+    def __init__(self, namespace="", cordon_node_enabled=False):
         from dlrover.python.scheduler.kubernetes import k8sClient
 
-        self.cordon_node_eanbled = cordon_node_eanbled
+        self.cordon_node_enabled = cordon_node_enabled
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._restart_errors: Dict[int, str] = {}
 
@@ -95,7 +118,19 @@ class K8sJobErrorMonitor(ErrorMonitor):
             logger.error(f"Rendezvous fails with reason {error_data}")
         elif level == TrainingExceptionLevel.WARNING:
             logger.warning(error_data)
+        elif level == TrainingExceptionLevel.ERROR:
+            logger.error(error_data)
         return False
+
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
 
     def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str
@@ -113,8 +148,8 @@ class K8sJobErrorMonitor(ErrorMonitor):
             f"{node.name} on {node.host_name} is down. "
             f"Reason: {error_data}"
         )
-        if self.cordon_node_eanbled:
+        if self.cordon_node_enabled:
             succeed = self._k8s_client.cordon_node(node.host_name)
             if succeed:
-                logger.info(f"Node {node.name} is marked unschedulable.")
+                logger.info(f"Host {node.host_name} is marked unschedulable.")
         return True

@@ -1,0 +1,38 @@
+[2024-07-03 19:15:16,379] [INFO] [accelerate.py:556:auto_accelerate] Dryrun skipped for `ignore_dryrun_on_load_strategy` is True.
+[2024-07-03 19:15:16,380] [INFO] [model_context.py:609:adjust_wrappers] Found fsdp and amp_native wrapper, turn on mixed_precision in FSDP
+/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch_npu/contrib/transfer_to_npu.py:171: RuntimeWarning: torch.jit.script will be disabled by transfer_to_npu, which currently does not support it.
+  warnings.warn(msg, RuntimeWarning)
+[2024-07-03 19:15:16,761] [INFO] [accelerate.py:655:if_skip_dryrun] Dryrun will be skipped. Set ignore_dryrun_on_load_strategy to False if you want to dryrun.
+/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch_npu/contrib/transfer_to_npu.py:171: RuntimeWarning: torch.jit.script will be disabled by transfer_to_npu, which currently does not support it.
+  warnings.warn(msg, RuntimeWarning) error code is 507035
+  warnings.warn(msg, RuntimeWarning) #error code is 123456#
+
+  File "/opt/rh/rh-python38/root/usr/local/lib/python3.8/site-packages/atorch/auto/opt_lib/zero_optimization.py", line 418, in apply_wrapper
+    model_context.model = fsdp_clz(
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py", line 463, in __init__
+    _auto_wrap(
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/_wrap_utils.py", line 72, in _auto_wrap
+    _post_order_apply(root_module, wrap_fn)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 79, in _post_order_apply
+    _post_order_apply_inner(root_module, "", None)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 63, in _post_order_apply_inner
+    _post_order_apply_inner(child_module, child_module_name, module)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 63, in _post_order_apply_inner
+    _post_order_apply_inner(child_module, child_module_name, module)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 63, in _post_order_apply_inner
+    _post_order_apply_inner(child_module, child_module_name, module)
+  [Previous line repeated 1 more time]
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 64, in _post_order_apply_inner
+    optional_module = fn(module)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/wrap.py", line 98, in fn
+    return fsdp_fn(module, **kwargs)
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py", line 487, in __init__
+    _init_param_handle_from_module(
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/_init_utils.py", line 516, in _init_param_handle_from_module
+    _sync_module_params_and_buffers(
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/fsdp/_init_utils.py", line 982, in _sync_module_params_and_buffers
+    _sync_params_and_buffers(
+  File "/opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch/distributed/utils.py", line 306, in _sync_params_and_buffers
+    dist._broadcast_coalesced(
+RuntimeError: store->get() got error: HCCL_BLOCKING_WAIT
+[ERROR] 2024-07-03-19:45:13 (PID:62743, Device:11, RankID:43) ERR02005 DIST internal error

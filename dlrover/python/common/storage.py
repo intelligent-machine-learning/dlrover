@@ -92,7 +92,7 @@ class CheckpointStorage(metaclass=ABCMeta):
 
         Args:
             step (int): the iteration step.
-            succeed (bool): whether to persist the checkpoint of step.
+            success (bool): whether to persist the checkpoint of step.
         """
         pass
 
@@ -130,9 +130,15 @@ class PosixDiskStorage(CheckpointStorage):
         mode = "w"
         if isinstance(content, bytes) or isinstance(content, memoryview):
             mode = "wb"
-        with open(path, mode) as stream:
-            stream.write(content)
-            os.fsync(stream.fileno())
+        try:
+            with open(path, mode) as stream:
+                stream.write(content)
+                os.fsync(stream.fileno())
+        except OSError as e:
+            logger.error(
+                f"Failed to write file with path: {path}, " f"mode: {mode}"
+            )
+            raise e
 
     def write_state_dict(self, state_dict, path, write_func=None):
         dir = os.path.dirname(path)
@@ -300,7 +306,7 @@ class PosixStorageWithDeletion(PosixDiskStorage):
 
     def commit(self, step, success):
         super().commit(step, success)
-        if not success or self._pre_step == step:
+        if not success or self._pre_step == step or self._pre_step == 0:
             return
         self._deletion_strategy.clean_up(self._pre_step, shutil.rmtree)
 

@@ -12,10 +12,11 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
+
+from dlrover.python.common.log import default_logger as logger
 
 try:
     import torch_npu  # noqa: F401
@@ -23,7 +24,14 @@ try:
 except Exception:
     torch_npu = None
 
-from .utils import bm_allgather, matmul, record_execution_time
+from .utils import (
+    DeviceBenchEnv,
+    bm_allgather,
+    get_network_check_timeout,
+    init_process_group,
+    matmul,
+    record_execution_time,
+)
 
 
 @record_execution_time
@@ -35,21 +43,42 @@ def main():
         device = torch.cuda.get_device_name()
         if "Ascend" in device:
             protocol = "hccl"
+    else:
+        logger.warning(
+            f"Use GLOO as comm protocol for use_cuda: {use_cuda} "
+            "or 'Ascend' not in `torch.cuda.get_device_name()`."
+        )
 
-    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    init_process_group(protocol, timeout=get_network_check_timeout())
 
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
+        # Given that the GPU models on each node are the same, the benchmark
+        # environment only needs to be printed once.
+        if local_rank == 0:
+            device_name = torch.cuda.get_device_name()
+            bench_env = DeviceBenchEnv(
+                device_name=device_name,
+                torch_version=torch.__version__,
+                cann_version=torch.version.cann,
+            )
+            logger.info(f"benchmark env: {bench_env}")
 
-    t = matmul(use_cuda)
-    shape = 1 << 24
-    t += bm_allgather(shape, use_cuda)
-
-    if torch_npu:
-        torch_npu._npu_shutdown()
-    dist.destroy_process_group()
-    return t
+    try:
+        # warmup
+        _ = matmul(use_cuda, round_num=3, verbose=False)
+        result = matmul(use_cuda, round_num=500, verbose=True)
+        shape = 1 << 24
+        result += bm_allgather(shape, use_cuda)
+        return result
+    finally:
+        dist.destroy_process_group()
+        if torch_npu:
+            try:
+                torch_npu._npu_shutdown()
+            except Exception as e:
+                logger.warning(f"Got error when cleanup npu: {str(e)}.")
 
 
 if __name__ == "__main__":

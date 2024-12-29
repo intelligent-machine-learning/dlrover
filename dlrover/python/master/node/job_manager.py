@@ -10,7 +10,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from abc import ABCMeta, abstractclassmethod
+
+from abc import ABCMeta, abstractmethod
+from typing import Dict
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.master.hyperparams.simple_strategy_generator import (
+    SimpleStrategyGenerator,
+)
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.master.node.training_node import (
+    SyncNodeTrainingPorts,
+    TrainingNodeConfig,
+)
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.watcher.base_watcher import NodeEvent
+from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class JobManager(metaclass=ABCMeta):
@@ -18,117 +37,147 @@ class JobManager(metaclass=ABCMeta):
     nodes and training hyper-parameters.
     """
 
-    @abstractclassmethod
+    def __init__(
+        self,
+        job_args: JobArgs,
+        speed_monitor=None,
+        error_monitor=None,
+        external_config=None,
+    ):
+        self._job_resource = JobResource()
+        self._job_args = job_args
+        self._k8s_client = k8sClient.singleton_instance(job_args.namespace)
+        self._job_strategy_generator: SimpleStrategyGenerator = (
+            SimpleStrategyGenerator(self._job_args.job_uuid)
+        )
+
+        self._stopped = False
+        self._speed_monitor: SpeedMonitor = speed_monitor
+        self._error_monitor: ErrorMonitor = error_monitor
+        self._nodes_required = (0, 0, 0)
+
+        self._training_node_config = TrainingNodeConfig(external_config)
+        self._job_context = get_job_context()
+
+    @abstractmethod
     def start(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def add_node_event_callback(self, node_event_callback):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def update_node_resource_usage(
         self, node_type, node_id, cpu, memory, gpu_stats=[]
     ):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def close_job(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def all_workers_exited(self):
         return False
 
-    @abstractclassmethod
+    @abstractmethod
     def all_workers_failed(self):
         return False
 
-    @abstractclassmethod
+    @abstractmethod
     def all_workers_deleted(self):
         return False
 
-    @abstractclassmethod
+    @abstractmethod
     def all_critical_node_completed(self):
         return False
 
-    @abstractclassmethod
+    @abstractmethod
     def remove_worker(self, worker_id):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_running_nodes(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_running_workers(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def post_ps_ready(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def stop(self):
         pass
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_cur_cluster_ps(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_next_cluster_ps(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def ready_for_new_ps_cluster(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def has_ps_failure(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def remove_training_nodes(self):
         """Remove all PS and workers"""
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def start_auto_scaling(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def all_running_node_hanged(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def remove_not_joined_rdzv_workers(self, worker_ranks):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def pend_without_workers(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def update_allreduce_node_unit(self, node_unit):
         pass
 
-    @abstractclassmethod
-    def early_stop(self):
+    @abstractmethod
+    def should_early_stop(self):
+        """
+        Should the job be stopped early?
+
+        Returns:
+            result(bool): True if the job should be stopped early.
+            reason: The short reason(constant) of the job being stopped.
+            msg: The long reason of the job being stopped.
+        """
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_opt_strategy(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def update_node_paral_config(self, node_type, node_id, paral_config):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def verify_restarting_worker_training(self, node_type, node_id):
         """
         Verify the necessity of restarting the training process
@@ -139,14 +188,64 @@ class JobManager(metaclass=ABCMeta):
         """
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
         """Process the training failure reported by the node."""
         pass
 
-    @abstractclassmethod
-    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+    @abstractmethod
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> DiagnosisAction:
         """Collect the heart beat message of nodes."""
+        pass
+
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
+
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        return self._training_node_config.sync_node_training_port(
+            node_id, port
+        )
+
+    def update_node_required_info(self, min_required, max_required, timeout):
+        """
+        Update the nodes min/max requirements.
+
+        Args:
+            min_required(int): Minimum number of nodes for training.
+            max_required(int): Maximum number of nodes for training.
+            timeout(int): Required timeout in seconds.
+        """
+
+        if 0 < min_required <= max_required and max_required > 0:
+            self._nodes_required = (min_required, max_required, timeout)
+            self.update_node_required_info_callback()
+        else:
+            logger.warning(
+                f"Invalid required info, min_required: {min_required}, "
+                f"max_required: {max_required}, "
+                f"required_timeout: {timeout}."
+            )
+
+    def update_node_required_info_callback(self):
+        """Callback when 'update_node_required_info' is invoked."""
+
+        pass
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        return self._training_node_config.get_elastic_run_configs()
+
+    def process_reported_node_event(self, node_event: NodeEvent):
+        """
+        The node events here is reported from training agent.
+
+        Args:
+            node_event: The event from training agent.
+        """
+
         pass

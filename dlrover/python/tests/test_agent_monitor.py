@@ -19,14 +19,10 @@ from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import GPUStats
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    CollectorType,
-)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.monitor.diagnosis import DiagnosisMonitor
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingReporter,
@@ -93,24 +89,6 @@ class ResourceMonitorTest(unittest.TestCase):
         self.assertTrue(reporter0._start_time > 0)
         reporter0._last_timestamp = time.time() - 30
         reporter0.report_resource_with_step(100)
-
-    def test_diagnosis_monitor(self):
-        monitor = DiagnosisMonitor.singleton_instance()
-        monitor.start()
-        collectors = monitor.get_collectors()
-        self.assertEqual(len(collectors), 3)
-
-        cuda_event = monitor.collect_data(CollectorType.CUDALOG)
-        self.assertFalse(not cuda_event)
-        monitor.report_diagnosis_data(cuda_event)
-
-        logs = monitor.collect_data(CollectorType.TRAININGLOG)
-        self.assertFalse(not logs)
-        monitor.report_diagnosis_data(logs)
-
-        metrics = monitor.collect_data(CollectorType.CHIPMETRICS)
-        self.assertFalse(not metrics)
-        monitor.report_diagnosis_data(metrics)
 
 
 if __name__ == "__main__":

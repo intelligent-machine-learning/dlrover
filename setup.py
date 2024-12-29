@@ -14,11 +14,13 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio-tools>=1.58.0",
+    "grpcio>=1.58.0",
     "psutil",
     "pynvml",
     "urllib3<1.27,>=1.21.1",
     "deprecated",
+    "requests",
+    "packaging",
 ]
 
 
@@ -32,7 +34,7 @@ extra_require = {
 
 setup(
     name="dlrover",
-    version="0.3.6rc0",
+    version="0.3.9rc0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"

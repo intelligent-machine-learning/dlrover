@@ -29,6 +29,7 @@ class ConfigKeys(object):
     FACTOR_TO_CUT_PENDING_CPU = "factor_to_cut_pending_cpu"
     FACTOR_TO_CUT_PENDING_MEM = "factor_to_cut_pending_mem"
     SECONDS_TO_WAIT_PENDING_POD = "seconds_to_wait_pending_pod"
+
     SECONDS_HUGE_TRAINING_THRESHOLD = "seconds_huge_training_threshold"
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
@@ -46,11 +47,16 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
+    PENDING_FAIL_STRATEGY = 1  # 0: skip 1: necessary part 2: all
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
+    HANG_DETECTION = 1
+    GPU_NUM_PER_NODE = 8
+    NPU_NUM_PER_NODE = 16
+    MAX_METRIC_REC = 30
 
 
 class Context(Singleton):
@@ -78,6 +84,7 @@ class Context(Singleton):
         self.seconds_to_wait_pending_pod = (
             DefaultValues.SEC_TO_WAIT_PENDING_POD
         )
+        self.pending_fail_strategy = DefaultValues.PENDING_FAIL_STRATEGY
         self.seconds_huge_training_threshold = (
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
         )
@@ -92,6 +99,12 @@ class Context(Singleton):
         self.is_tfv1_ps = False
         self.master_port = None
         self.relaunch_always = False
+        # The strategy of 'hang detection':
+        # 0: log only; 1: notify; 2: with fault tolerance
+        self.hang_detection = DefaultValues.HANG_DETECTION
+        self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
+        self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
+        self.max_metric_records = DefaultValues.MAX_METRIC_REC
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
@@ -126,10 +139,11 @@ class Context(Singleton):
             ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
             DefaultValues.FACTOR_TO_CUT_PENDING_MEM,
         )
-        self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
-            DefaultValues.SEC_TO_WAIT_PENDING_POD,
-        )
+        if self.seconds_to_wait_pending_pod > 0:
+            self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
+                ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
+                DefaultValues.SEC_TO_WAIT_PENDING_POD,
+            )
         self.seconds_huge_training_threshold = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD,

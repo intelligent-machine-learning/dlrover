@@ -45,27 +45,27 @@ _dlrover_context = Context.singleton_instance()
 
 
 def new_ps_resource_optimizer(
-    optimize_mode: str, job_uuid, resoure_limits: ResourceLimits
+    optimize_mode: str, job_uuid, resource_limits: ResourceLimits
 ):
     logger.info(
-        "New  %s resource optimizer for job %s", optimize_mode, job_uuid
+        "New %s resource optimizer for job %s", optimize_mode, job_uuid
     )
     if optimize_mode == OptimizeMode.CLUSTER:
         if GlobalBrainClient.BRAIN_CLIENT.available():
-            return BrainResoureOptimizer(job_uuid, resoure_limits)
+            return BrainResoureOptimizer(job_uuid, resource_limits)
         else:
             logger.warning(
                 "Brain service is not available, use a local optimizer"
             )
-            return PSLocalOptimizer(job_uuid, resoure_limits)
+            return PSLocalOptimizer(job_uuid, resource_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
-        return PSLocalOptimizer(job_uuid, resoure_limits)
+        return PSLocalOptimizer(job_uuid, resource_limits)
     else:
         logger.warning(
-            "Not support optiimzem mode %s, use a simple optimizer",
+            "Not support optimization mode %s, use a simple optimizer",
             optimize_mode,
         )
-        return SimpleOptimizer(job_uuid, resoure_limits)
+        return SimpleOptimizer(job_uuid, resource_limits)
 
 
 class JobResource(JsonSerializable):
@@ -536,7 +536,7 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         pass
 
     def get_job_resource_plan(self) -> ResourcePlan:
-        """Check wether there are free nodes in the cluster."""
+        """Check whether there are free nodes in the cluster."""
         plan = ResourcePlan()
         worker_config = copy.deepcopy(self._original_worker_resource)
         max_node_num = self._original_worker_resource.count
@@ -554,7 +554,8 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
-        node.config_resource.memory *= 2
+        # no adjustment for now(for allreduce type)
+        pass
 
     def get_config_resource(self):
         job_config = JobResource()

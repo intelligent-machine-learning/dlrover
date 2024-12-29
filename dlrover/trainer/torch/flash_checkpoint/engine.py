@@ -24,7 +24,11 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.multi_process import (
+    LocalSocketComm,
+    SharedLock,
+    SharedQueue,
+)
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
@@ -113,7 +117,7 @@ def start_async_save():
 
 def start_saver_process():
     """
-    Start a process to to asynchronously save checkpoint if the training
+    Start a process to asynchronously save checkpoint if the training
     process is not launched by `dlrover-run`. This process will
     exit and cannot save the checkpoint after the training process exit.
     It is better to use `dlrover-run` to start the training process.
@@ -133,6 +137,21 @@ def start_saver_process():
     return None
 
 
+def wait_socket_server(socket_server: LocalSocketComm, timeout=60):
+    """
+    Socket client should not be used before socket server is created.
+    """
+
+    start_time = time.time()
+    while not socket_server.is_available():
+        time.sleep(0.1)
+        if time.time() - start_time > timeout:
+            raise TimeoutError(
+                "Timed out waiting for socket server: "
+                f"{socket_server.name}."
+            )
+
+
 class CheckpointEngine(metaclass=ABCMeta):
     """
     The checkpoint engine synchronously writes the state dict into
@@ -144,13 +163,13 @@ class CheckpointEngine(metaclass=ABCMeta):
     the training loop and call `save_to_storage`.
 
     If the training process fail, the agent in main process can continuously
-    saves the state dict from the shared memory into the storage.
+    save the state dict from the shared memory into the storage.
 
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the communcation backend to create a process group,
-            The default is the backend of general main process group.
+        comm_backend (str): the communication backend to create a process
+            group, default: backend of general main process group.
     """
 
     saver_proc = None
@@ -163,15 +182,24 @@ class CheckpointEngine(metaclass=ABCMeta):
         save_timeout: int = CheckpointConstant.SAVE_TIMEOUT,
         replica_count=0,
     ):
+        logger.info(
+            "Initializing checkpoint engine: "
+            f"{self.__class__.__name__.lower()}."
+        )
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
 
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
+        self.latest_step = 0
         self._save_timeout = save_timeout
         self._local_rank = env_utils.get_local_rank()
-        self._cached_step = 0
+        self._cached_step = -1
         self._restart_count = env_utils.get_torch_restart_count()
+
+        # init saver
+        self._notify_agent_to_create_saver()
+
         # queue for agent to save to storage, only lock rank 0 needs the queue.
         if self._local_rank == 0:
             self._event_queue = SharedQueue(
@@ -180,6 +208,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
         else:
             self._event_queue = None  # type: ignore
+        self._update_saver_config()
+
         # lock for shared memory
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
@@ -187,6 +217,10 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
+
+        # need to wait until the socket server is created(by the saver)
+        wait_socket_server(self._shm_lock)
+
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
         )
@@ -197,11 +231,13 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._saver_group = None
         self._saving_ranks: Optional[List[int]] = None
         self._init_sync_group(comm_backend)
-        self._notify_agent_to_create_saver()
-        self._update_saver_config()
         shard_num = self.get_global_shard_num()
         self._replica_manager = CkptReplicaManger.create_replica_manager(
             shard_num, replica_count
+        )
+        logger.info(
+            "Checkpoint engine initialized with "
+            f"local rank: {self._local_rank}, rank: {self._rank}."
         )
 
     def _init_sync_group(self, comm_backend):
@@ -239,12 +275,12 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
             if self._saving_ranks:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     f"checkpoint. Saving ranks are {self._saving_ranks}."
                 )
             else:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
             _local_rank0_log(self._local_rank, message)
@@ -260,6 +296,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
+
         # the agent side will release the lock if training process restarts.
         queue = SharedQueue(name="factory")
 
@@ -278,6 +315,12 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
+        wait_socket_server(queue)
+
+        logger.info(
+            "Notify agent to create a checkpoint saver using: "
+            f"{class_meta.__dict__}."
+        )
         queue.put(class_meta)
 
     def _update_saver_config(self):
@@ -292,6 +335,10 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
+
+            wait_socket_server(self._event_queue)
+
+            logger.info(f"Update saver config: {event.__dict__}")
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
@@ -307,8 +354,8 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         acquired = self._shm_lock.acquire(blocking=False)
         logger.info(
-            f"{self._local_rank} acquired the lock of shared "
-            f"memory: {acquired}."
+            f"{self._rank}-{self._local_rank} acquired the lock of shared "
+            f"memory: {acquired} for step: {conf.step}."
         )
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready or not state_dict:
@@ -351,7 +398,6 @@ class CheckpointEngine(metaclass=ABCMeta):
             return
         self._shm_handler.init_shared_memory()
         byte_tensor, meta = self._replica_manager.gather(self._shm_handler)
-        print(byte_tensor, meta, self._shm_handler.shared_memory)
         if (
             byte_tensor is not None
             and meta
@@ -365,6 +411,27 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "from the replica in the memory of the alive node."
             )
         dist.barrier()
+
+    def wait_latest_checkpoint(self, timeout=1800):
+        """
+        Wait for the saver finish persisting the checkpoint of latest step.
+        """
+        start = time.time()
+        while True:
+            tracker_file = os.path.join(
+                self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(tracker_file, "r") as f:
+                step = int(f.read())
+                if step == self.latest_step:
+                    break
+            if time.time() - start > timeout:
+                logger.info(
+                    f"Timeout ({timeout})s to wait for "
+                    "the latest step checkpoint."
+                )
+                break
+            time.sleep(3)
 
     @abstractmethod
     def get_saving_ranks(self):

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import time
 import unittest
 from unittest import mock
 
@@ -78,6 +79,8 @@ class SharedObjectTest(unittest.TestCase):
         self.assertEqual(qsize, 1)
         value = client_queue.get()
         self.assertEqual(value, 3)
+        time.sleep(1)
+        self.assertTrue(client_queue.is_available())
 
     def test_shared_dict(self):
         name = "test"

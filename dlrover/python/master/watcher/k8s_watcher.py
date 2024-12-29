@@ -20,7 +20,6 @@ from dlrover.python.common.constants import (
     ElasticJobApi,
     ElasticJobLabel,
     ExitCode,
-    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -35,7 +34,6 @@ from dlrover.python.scheduler.kubernetes import (
     convert_memory_to_mb,
     k8sClient,
 )
-from dlrover.python.util import k8s_util
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -71,7 +69,6 @@ def _get_pod_exit_reason(pod):
                 ExitCode.GPU_DRIVER_ERROR,
                 ExitCode.GPU_POD_RESIDUE,
                 ExitCode.GPU_INFOROM_CORRUPTED,
-                ExitCode.UNKNOWN_DEVICE,
             ):
                 logger.info(
                     "Possible error found in GPU. Kill this node and launch a"
@@ -81,7 +78,7 @@ def _get_pod_exit_reason(pod):
             return NodeExitReason.UNKNOWN_ERROR
 
 
-def _convert_pod_event_to_node_event(event, k8s_client):
+def _convert_pod_event_to_node_event(event):
     evt_obj = event.get("object")
     evt_type = event.get("type")
     if not evt_obj or not evt_type:
@@ -93,7 +90,6 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         return None
 
     metadata: client.V1ObjectMeta = evt_obj.metadata
-    job_name = metadata.labels[ElasticJobLabel.JOB_KEY]
 
     # Skip events of dlrover mater Pod
     pod_type = metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
@@ -106,35 +102,9 @@ def _convert_pod_event_to_node_event(event, k8s_client):
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
-    to_deleted_event = False
     status = evt_obj.status.phase
     if metadata.deletion_timestamp:
         status = NodeStatus.DELETED
-        to_deleted_event = True
-
-    # Skip deleted event of pod if the cluster has relaunched a new pod with
-    # the same type and rank as the deleted pod.
-    if evt_type == NodeEventType.DELETED or to_deleted_event:
-        pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
-            _get_pod_unique_labels(job_name, pod_type, rank)
-        )
-        logger.info(
-            f"Recheck running pod with labels: {pod_labels_selector} "
-            f"for {evt_type} event."
-        )
-        pods = k8s_client.list_namespaced_pod(pod_labels_selector)
-        if (
-            pods
-            and len(pods.items) > 0
-            and any(
-                pod.status.phase == NodeStatus.RUNNING for pod in pods.items
-            )
-        ):
-            logger.info(
-                f"Skip deleted event for pod : {pod_labels_selector} "
-                f"for same running pod already exisits."
-            )
-            return None
 
     restart = _verify_restarting_training(evt_obj)
     if restart:
@@ -195,10 +165,16 @@ class PodWatcher(NodeWatcher):
     """PodWatcher monitors all Pods of a k8s Job."""
 
     def __init__(self, job_name, namespace):
+        super().__init__(job_name)
         self._job_name = job_name
         self._namespace = namespace
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        logger.info(
+            f"Initialize PodWatcher with "
+            f"namespace: {self._namespace}, "
+            f"job-selector: {self._job_selector}"
+        )
 
     def watch(self):
         resource_version = None
@@ -217,9 +193,7 @@ class PodWatcher(NodeWatcher):
             )
 
             for event in stream:
-                node_event = _convert_pod_event_to_node_event(
-                    event, self._k8s_client
-                )
+                node_event = _convert_pod_event_to_node_event(event)
                 if not node_event:
                     continue
                 yield node_event
@@ -243,6 +217,7 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             metadata: client.V1ObjectMeta = pod.metadata
+            pod_name = metadata.name
             pod_type = metadata.labels[replica_type_key]
             if pod_type == NodeType.DLROVER_MASTER:
                 continue
@@ -250,13 +225,20 @@ class PodWatcher(NodeWatcher):
             task_id = int(metadata.labels[rank_index_key])
             relaunch_count = int(metadata.labels[relaunch_count_key])
             resource = _parse_container_resource(pod.spec.containers[0])
-            status = pod.status.phase
+
+            # if pod has 'deletion_timestamp', set as deleted status directly
+            # because the deletion has low probability of failure will affect
+            # node status judgement
+            if metadata.deletion_timestamp:
+                status = NodeStatus.DELETED
+            else:
+                status = pod.status.phase
             start_time = _get_start_timestamp(pod.status)
             restart_training = _verify_restarting_training(pod)
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
-                name=metadata.name,
+                name=pod_name,
                 rank_index=task_id,
                 status=status,
                 start_time=start_time,
@@ -266,6 +248,13 @@ class PodWatcher(NodeWatcher):
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
+
+            # delete pod if pod already succeeded(no need for failed pod,
+            # cuz the deletion will be done in relaunch operation)
+            if pod.status.phase == NodeStatus.SUCCEEDED:
+                logger.info(f"Delete succeeded pod: {pod_name}")
+                self._k8s_client.delete_pod(pod_name)
+
         return nodes
 
 

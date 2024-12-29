@@ -110,7 +110,8 @@ class KubernetesTest(unittest.TestCase):
         self.assertEqual(svc.spec.ports[0].name, "http")
 
     def test_client(self):
-        client = k8sClient.singleton_instance("default")
-        succeed = client.cordon_node("test-node-0")
+        k8s_client = k8sClient.singleton_instance("default")
+        succeed = k8s_client.cordon_node("test-node-0")
         self.assertFalse(succeed)
-        self.assertEqual(client.api_client.user_agent, USER_AGENT)
+        self.assertEqual(k8s_client.client.api_client.user_agent, USER_AGENT)
+        self.assertEqual(k8s_client.api_client.user_agent, USER_AGENT)

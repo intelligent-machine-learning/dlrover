@@ -1,9 +1,0 @@
-build --cxxopt=-std=c++17
-build --cxxopt=-fvisibility=hidden
-build --cxxopt=-O2
-build --cxxopt=-g0
-build --copt=-O2
-build --copt=-g0
-build --copt=-std=c++17
-build --copt=-fvisibility=hidden
-build --linkopt=-flto

@@ -70,7 +70,6 @@ class TaskMangerTest(unittest.TestCase):
         checkpoint_str = checkpoint.to_json()
 
         checkpoint_dict = json.loads(checkpoint_str)
-        print(checkpoint_dict)
         self.assertDictEqual(
             checkpoint_dict,
             {

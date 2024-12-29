@@ -14,6 +14,7 @@
 import datetime
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.node import Node
@@ -29,6 +30,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
 )
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.tests.test_utils import start_local_master
 
 
@@ -57,10 +59,31 @@ class MasterKVStoreTest(unittest.TestCase):
         except Exception as e:
             self.assertIsInstance(e, LookupError)
 
+    def test_kv_store_timeout(self):
+        kv_store = MasterKVStore("dlrover/torch/test")
+        key1 = "alpha"
+        key2 = "beta"
+        key3 = "omega"
+        kv_store.set(key1, "1".encode())
+        kv_store.set(key2, "2".encode())
+        kv_store.wait([key1, key2])
+
+        kv_store.set_timeout(datetime.timedelta(seconds=1))
+        try:
+            kv_store.wait([key1, key2, key3])
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
+        try:
+            kv_store.get(key3)
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_max_nodes(self):
-        rdzv_manager = ElasticTrainingRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(3, 3, 60, 1)
         rdzv_round = rdzv_manager.get_rdzv_round()
         self.assertEqual(rdzv_round, 0)
@@ -84,7 +107,8 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(list(world.keys()), [0, 1, 2])
 
     def test_min_nodes(self):
-        rdzv_manager = ElasticTrainingRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(2, 3, 0.1, 1)
         node_1 = Node("worker", 1)
         rdzv_manager.add_alive_node(node_1)
@@ -106,7 +130,8 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(list(world.keys()), [0, 1])
 
     def test_min_nodes_with_unit(self):
-        rdzv_manager = ElasticTrainingRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
         min_nodes = 8
         max_nodes = 12
         node_unit = 4
@@ -162,10 +187,80 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         num = rdzv_manager.num_nodes_waiting()
         self.assertEqual(num, 0)
 
+    def test_get_lacking_ranks(self):
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
+
+        rdzv_manager._rdzv_params.min_nodes = 4
+        rdzv_manager._rdzv_params.max_nodes = 4
+        rdzv_manager._waiting_nodes = {0: 0, 1: 1, 2: 2, 3: 3}
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+        rdzv_manager._rdzv_params.max_nodes = 5
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [4])
+
+        rdzv_manager._rdzv_params.max_nodes = 3
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+        rdzv_manager._rdzv_params.max_nodes = 6
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [4, 5])
+
+        rdzv_manager._rdzv_params.max_nodes = 4
+        rdzv_manager._waiting_nodes = {}
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [0, 1, 2, 3])
+
+        rdzv_manager._rdzv_params.max_nodes = 0
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+    def test_multi_updating_waiting_nodes(self):
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
+
+        join_num = 1000
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(join_num):
+                executor.submit(
+                    rdzv_manager.join_rendezvous,
+                    i,
+                    i,
+                    8,
+                )
+
+        remove_num = 900
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(remove_num):
+                node = Node("worker", i, name=f"worker-{i}", rank_index=i)
+                executor.submit(
+                    rdzv_manager.remove_alive_node,
+                    node,
+                )
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(300):
+                futures = [
+                    executor.submit(
+                        rdzv_manager.get_comm_world,
+                        i,
+                    )
+                ]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception:
+                        self.fail()
+
+        time.sleep(5)
+        self.assertEqual(
+            len(rdzv_manager._waiting_nodes.keys()), join_num - remove_num
+        )
+        for i in rdzv_manager._waiting_nodes.keys():
+            self.assertTrue(900 <= i <= 999)
+
 
 class NetworkCheckRendezvousManagerTest(unittest.TestCase):
     def test_network_check_rdzv(self):
-        rdzv_manager = NetworkCheckRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = NetworkCheckRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(4, 4, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3]
         for i in range(4):
@@ -214,7 +309,8 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(nodes, [])
 
     def test_network_check_rdzv_with_single_node(self):
-        rdzv_manager = NetworkCheckRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = NetworkCheckRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(1, 1, 60, 1)
         rdzv_manager._alive_nodes = [0]
         round = rdzv_manager.join_rendezvous(0, 0, 8)
@@ -230,7 +326,8 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertDictEqual(rdzv_manager._node_status, {})
 
     def test_network_check_straggler_even_nodes(self):
-        rdzv_manager = NetworkCheckRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = NetworkCheckRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(6, 6, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3, 4, 5]
         for i in range(6):
@@ -265,7 +362,8 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(stragglers, [5])
 
     def test_network_check_straggler_old_nodes(self):
-        rdzv_manager = NetworkCheckRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = NetworkCheckRendezvousManager(error_monitor)
         rdzv_manager.update_rdzv_params(5, 5, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3, 4]
         for i in range(5):
@@ -300,7 +398,8 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(stragglers, [1])
 
     def test_sync_ckpt_nodes(self):
-        rdzv_manager = ElasticTrainingRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
         rdzv_manager._latest_rdzv_nodes = [0, 1]
         success = rdzv_manager.sync_ckpt_nodes(0, 100)
         self.assertFalse(success)
@@ -310,7 +409,8 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertFalse(success)
 
     def test_map_node_rank_to_id(self):
-        rdzv_manager = ElasticTrainingRendezvousManager()
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
         rdzv_manager._rdzv_nodes[0] = NodeTopologyMeta(
             node_id=1,
             node_rank=0,
@@ -319,3 +419,10 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rank_d = {0: True}
         id_d = rdzv_manager._map_node_rank_to_id(rank_d)
         self.assertDictEqual(id_d, {1: True})
+
+    def test_when_node_not_init(self):
+        error_monitor = SimpleErrorMonitor()
+        rdzv_manager = NetworkCheckRendezvousManager(error_monitor)
+        self.assertTrue(not rdzv_manager._rdzv_nodes)
+
+        rdzv_manager.check_fault_node()

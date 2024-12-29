@@ -20,7 +20,7 @@ from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import GRPC
+from dlrover.python.common.constants import GRPC, AscendConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
@@ -104,6 +104,38 @@ def find_free_port_in_set(ports):
     raise RuntimeError(f"Fail to find a free port in {ports}")
 
 
+def find_free_port_for_hccl(
+    start=AscendConstants.HCCL_PORT_START_DEFAULT,
+) -> int:
+    max_port = 65500
+    cur_start = start
+    end = start + 10000
+    if end > max_port:
+        end = max_port
+    logger.info(f"Try to find available port for hccl from {start}")
+    checking_port = 0
+    while True:
+        try:
+            cur_end = cur_start + AscendConstants.NPU_PER_NODE
+            for port in range(cur_start, cur_end):
+                checking_port = port
+                find_free_port(port)
+            logger.info(f"Find available port start from: {cur_start}")
+            break
+        except OSError:
+            logger.warning(
+                f"Target port has already been used: {checking_port}."
+            )
+            if checking_port > 0:
+                cur_start = checking_port + 1
+            else:
+                cur_start = cur_start + AscendConstants.NPU_PER_NODE
+            if cur_start > end:
+                cur_start = 0
+                break
+    return cur_start
+
+
 def grpc_server_ready(channel) -> bool:
     try:
         grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
@@ -147,7 +179,7 @@ class Shard(Message):
 @dataclass
 class Task(Message):
     task_id: int = 0
-    shard: Shard = Shard()
+    shard: Shard = field(default_factory=Shard)
     type: int = 0
     extended_config: Dict[str, str] = field(default_factory=dict)
 
@@ -179,14 +211,15 @@ class OpStats(Message):
     read_op_count: int = 0
     input_fetch_dur: int = 0
     flops: int = 0
+    op_type: int = 0  # 0:training, 1:others
 
 
 @dataclass
 class ModelInfo(Message):
     """ModelInfo contains profiling data of a model."""
 
-    tensor_stats: TensorStats = TensorStats()
-    op_stats: OpStats = OpStats()
+    tensor_stats: TensorStats = field(default_factory=TensorStats)
+    op_stats: OpStats = field(default_factory=OpStats)
     instantiation_memory: int = 0
     activation_memory: int = 0
 
@@ -293,15 +326,12 @@ class NodeAddress(NodeMeta):
 
 
 @dataclass
-class NetworkStatus(NodeMeta):
-    elasped_time: float = 0.0
-
-
-@dataclass
 class NodeEvent(Message):
     event_type: str = ""
-    message: str = ""
-    node: NodeMeta = NodeMeta()
+    event_message: str = ""
+    event_time: float = 0.0
+    event_elapsed_time: float = 0.0
+    node: NodeMeta = field(default_factory=NodeMeta)
 
 
 @dataclass
@@ -317,6 +347,7 @@ class RendezvousParams(Message):
     max_nodes: int = 0
     waiting_timeout: int = 0
     node_unit: int = 0
+    join_timeout: int = 0
 
 
 @dataclass
@@ -444,8 +475,8 @@ class CheckHardwareResetRequest(Message):
 
 @dataclass
 class ParallelConfig(Message):
-    dataloader: DataLoaderConfig = DataLoaderConfig()
-    optimizer: OptimizerConfig = OptimizerConfig()
+    dataloader: DataLoaderConfig = field(default_factory=DataLoaderConfig)
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     restart: bool = False
 
 
@@ -455,15 +486,43 @@ class NodeCheckpointState(Message):
 
 
 @dataclass
-class DiagnosisTrainingLog(Message):
-    timestamp: int = 0
+class DiagnosisReportData(Message):
+    data_cls: str = ""
+    data_content: str = ""
+    node_rank: int = -1
 
 
 @dataclass
-class DiagnosisCudaLog(Message):
-    timestamp: int = 0
+class SyncTrainingPort(Message):
+    port: int = 0
+    newport: int = 0
 
 
 @dataclass
-class DiagnosisChipMetrics(Message):
-    timestamp: int = 0
+class ElasticRunConfigRequest(Message):
+    pass
+
+
+@dataclass
+class ElasticRunConfig(Message):
+    configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Event(Message):
+    event_type: str = ""
+    instance: str = ""
+    action: str = ""
+    msg: str = ""
+    labels: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class DiagnosisAction(Message):
+    action_cls: str = ""
+    action_content: str = ""
+
+
+@dataclass
+class HeartbeatResponse(Message):
+    action: DiagnosisAction = field(default_factory=DiagnosisAction)

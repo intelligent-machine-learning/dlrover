@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import threading
 import time
 from concurrent import futures
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import grpc as grpc_lib
 
@@ -23,21 +24,17 @@ from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
-    NodeStatus,
+    JobConstant,
+    NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
     TrainingLoopStatus,
 )
-from dlrover.python.common.diagnosis import (
-    ChipMetrics,
-    CudaLog,
-    DiagnosisDataType,
-    TrainingLog,
-)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -47,6 +44,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
+from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -77,15 +75,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
+        error_monitor=None,
     ):
         self._task_manager: TaskManager = task_manager
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager = diagnosis_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -94,6 +94,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = 0
         self._start_autoscale = False
+        self._error_monitor = error_monitor
+
+        # preload module for class reflection
+        self._diagnosis_data_module = importlib.import_module(
+            "dlrover.python.diagnosis.common.diagnosis_data"
+        )
+        self._kv_store.clear()
 
     def get(self, request, _):
         node_type = request.node_type
@@ -132,6 +139,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._get_paral_config()
         elif isinstance(req_message, grpc.CheckHardwareResetRequest):
             message = self._need_to_restart_training(node_type, node_id)
+        elif isinstance(req_message, grpc.SyncTrainingPort):
+            message = self._sync_training_ports(node_id, req_message)
+        elif isinstance(req_message, grpc.ElasticRunConfigRequest):
+            configs = self._job_manager.get_elastic_run_configs()
+            message = grpc.ElasticRunConfig(configs=configs)
+        elif isinstance(req_message, grpc.HeartBeat):
+            message = self._report_heartbeat(node_type, node_id, req_message)
 
         if message:
             response.data = message.serialize()
@@ -327,10 +341,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NetworkStatus):
-            success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
-            success = self._update_node_event(message)
+            success = self._deal_with_reported_node_event(message)
         elif isinstance(message, grpc.SyncJoin):
             success = self._join_sync(node_type, node_id, message)
         elif isinstance(message, grpc.SyncFinish):
@@ -347,16 +359,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
-        elif isinstance(message, grpc.HeartBeat):
-            success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisChipMetrics):
-            success = self._report_chip_metrics(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisCudaLog):
-            success = self._report_cuda_log(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisTrainingLog):
-            success = self._report_training_log(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisReportData):
+            success = self._report_node_diagnosis_data(message)
+        elif isinstance(message, grpc.Event):
+            success = self._report_event(message)
 
         response.success = success
         return response
@@ -503,21 +511,29 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NetworkStatus):
-        net_rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.NETWORK_CHECK, None
+    def _deal_with_reported_node_event(self, message: grpc.NodeEvent):
+        node = Node(
+            node_type=message.node.type,
+            node_id=message.node.id,
+            rank_index=message.node.rank,
         )
-        if net_rdzv_manager:
-            succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(
-                message.rank, succeed, message.elasped_time
-            )
-        return True
+        event = NodeEvent(message.event_type, node)
 
-    def _update_node_event(self, message: grpc.NodeEvent):
-        node = Node(message.event_type, message.node.id)
-        event = NodeEvent("exit", node)
-        ray_event_queue.put(event)
+        # let rdzv manager deal with rendezvous issue
+        if event.is_node_check_event():
+            net_rdzv_manager = self._rdzv_managers.get(
+                RendezvousName.NETWORK_CHECK, None
+            )
+            if net_rdzv_manager:
+                succeed = (
+                    event.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+                )
+                net_rdzv_manager.report_network_check_result(
+                    node.rank_index, succeed, message.event_elapsed_time
+                )
+
+        # let job manager deal with node issue
+        self._job_manager.process_reported_node_event(event)
         return True
 
     def _join_sync(self, node_type, node_id, message: grpc.SyncJoin):
@@ -548,10 +564,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
                 min_nodes=message.min_nodes,
-                max_ndoes=message.max_nodes,
+                max_nodes=message.max_nodes,
                 waiting_timeout=message.waiting_timeout,
                 node_unit=message.node_unit,
             )
+
+        join_timeout = message.join_timeout
+        if join_timeout == 0:  # Back compatibility
+            join_timeout = JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
+        self._job_manager.update_node_required_info(
+            message.min_nodes, message.max_nodes, join_timeout
+        )
         return True
 
     def _report_failure(self, node_type, node_id, message: grpc.NodeFailure):
@@ -589,14 +612,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return True
 
-    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat):
-        self._job_manager.collect_node_heart_beat(
-            node_type,
-            node_id,
-            message.timestamp,
-        )
-        return True
-
     def _sync_checkpoint(
         self, node_type, node_id, message: grpc.NodeCheckpointState
     ):
@@ -605,32 +620,55 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_chip_metrics(
-        self, node_type, node_id, message: grpc.DiagnosisChipMetrics
-    ):
-        data = ChipMetrics(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CHIPMETRICES, data
-        )
+    def _report_node_diagnosis_data(self, message: grpc.DiagnosisReportData):
+        if self._diagnosis_manager:
+            data_cls: Optional[DiagnosisData] = getattr(
+                self._diagnosis_data_module,
+                message.data_cls,
+            )
+            if data_cls is None:
+                logger.warning(
+                    "Invalid diagnosis report "
+                    f"data type: {message.data_cls}"
+                )
+                return False
+            data_obj = data_cls.from_json(message.data_content)
+            self._diagnosis_manager.collect_diagnosis_data(data_obj)
         return True
 
-    def _report_training_log(
-        self, node_type, node_id, message: grpc.DiagnosisTrainingLog
-    ):
-        data = TrainingLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.TRAININGLOG, data
+    def _sync_training_ports(
+        self, node_id, message: grpc.SyncTrainingPort
+    ) -> grpc.SyncTrainingPort:
+        logger.info(f"try to sync port {message.port} from {node_id}")
+        sync_ports: SyncNodeTrainingPorts = (
+            self._job_manager.sync_node_training_port(node_id, message.port)
         )
+        return grpc.SyncTrainingPort(
+            port=sync_ports.training_port, newport=sync_ports.next_check_port
+        )
+
+    def _report_event(self, message: grpc.Event):
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                message.event_type,
+                message.instance,
+                message.action,
+                message.msg,
+                message.labels,
+            )
         return True
 
-    def _report_cuda_log(
-        self, node_type, node_id, message: grpc.DiagnosisCudaLog
-    ):
-        data = CudaLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CUDALOG, data
+    def _report_heartbeat(
+        self, node_type, node_id, message: grpc.HeartBeat
+    ) -> grpc.HeartbeatResponse:
+        action = self._job_manager.collect_node_heart_beat(
+            node_type, node_id, message.timestamp
         )
-        return True
+        grpc_action = grpc.DiagnosisAction(
+            action.__class__.__name__,
+            action.to_json(),
+        )
+        return grpc.HeartbeatResponse(action=grpc_action)
 
 
 def create_master_service(
@@ -639,9 +677,11 @@ def create_master_service(
     job_manager,
     speed_monitor,
     rdzv_managers,
+    diagnosis_manager,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
+    error_monitor=None,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
@@ -660,9 +700,11 @@ def create_master_service(
         job_manager=job_manager,
         speed_monitor=speed_monitor,
         rdzv_managers=rdzv_managers,
+        diagnosis_manager=diagnosis_manager,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,
+        error_monitor=error_monitor,
     )
 
     elastic_training_pb2_grpc.add_MasterServicer_to_server(

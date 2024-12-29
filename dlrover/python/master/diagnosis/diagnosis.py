@@ -11,66 +11,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
-import time
+from typing import List
 
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis_data import (
-    DataManager,
-    DiagnosisData,
+from diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+    ResolveTrainingHangOperator,
 )
-from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.master.diagnosis.inferencechain.common import (
+
+from dlrover.python.diagnosis.inferencechain.inference_chain import (
     Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
+    InferenceChain,
+    InferenceOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
 )
 
 
-class DiagnosisManager:
-    def __init__(self):
-        self.data_manager: DataManager = DataManager(600)
-        self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
+class Diagnostician:
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
+        self._pre_checks: List[Inference] = []
+        self._training_problems: List[Inference] = []
 
-    def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
-        self.data_manager.store_data(data_type, data)
+    def get_pre_check_operators(self) -> List[InferenceOperator]:
+        return []
 
-    def start(self):
-        logger.info("Start Diagnosis Manager ...")
-        problems: list[Inference] = [
-            Inference(
-                InferenceName.TRAINING,
-                InferenceAttribute.ISORNOT,
-                InferenceDescription.HANG,
-            )
-        ]
-        self.diagnostician.register_problems(problems)
+    def get_observing_operators(self) -> List[InferenceOperator]:
+        return [CheckTrainingHangOperator(self._data_manager)]
 
-        try:
-            thread = threading.Thread(
-                target=self._diagnose_failures(),
-                name="diagnose_failures",
-                daemon=True,
-            )
-            thread.start()
-            if thread.is_alive():
-                logger.info("Diagnosis Manager is started")
-        except Exception as e:
-            logger.error(
-                f"Failed to start the diagnosis manager thread. Error: {e}"
-            )
+    def get_resolving_operators(self) -> List[InferenceOperator]:
+        return [ResolveTrainingHangOperator(self._data_manager)]
 
-    def stop(self):
-        pass
+    def register_pre_check(self, pre_checks: List[Inference]):
+        self._pre_checks = pre_checks
 
-    def _diagnose_failures(self):
-        logger.info("Start to diagnose failures")
-        while True:
-            observed_problems = self.diagnostician.observe_training()
-            for problem in observed_problems:
-                logger.info(f"observed problems: {problem}")
-                root_causes = self.diagnostician.diagnose_failure(problem)
-                for root_cause in root_causes:
-                    logger.info(f"identify root cause: {root_cause}")
-            time.sleep(180)
+    def register_problems(self, problems: List[Inference]):
+        self._training_problems = problems
+
+    def check_training(self) -> List[Inference]:
+        ic = InferenceChain(self._pre_checks, self.get_pre_check_operators())
+        return ic.infer()
+
+    def observe_training(self) -> List[Inference]:
+        ic = InferenceChain(
+            self._training_problems, self.get_observing_operators()
+        )
+        return ic.infer()
+
+    def diagnose_failure(self, observed_result: Inference) -> List[Inference]:
+        ic = InferenceChain([observed_result], self.get_resolving_operators())
+        return ic.infer()

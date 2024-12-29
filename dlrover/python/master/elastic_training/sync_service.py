@@ -41,7 +41,7 @@ class SyncService(object):
         """Worker joins a synchronized group. The service will
         add all running workers into a synchronized group when
         the first worker reaches the synchronized point.
-        Then, the service will remove the worker from from the group
+        Then, the service will remove the worker from the group
         if a worker reaches the point."""
         with self._lock:
             worker = (worker_type, worker_id)

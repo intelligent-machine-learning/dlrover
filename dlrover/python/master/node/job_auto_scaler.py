@@ -23,8 +23,9 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
 from dlrover.python.master.resource.job import (
@@ -40,7 +41,6 @@ _dlrover_context = Context.singleton_instance()
 def new_job_auto_scaler(
     job_strategy,
     job_resource: JobResource,
-    job_nodes: Dict[str, Dict[int, Node]],
     job_optimizer: JobResourceOptimizer,
     speed_monitor: SpeedMonitor,
     ps_manager: ParameterServerManager,
@@ -50,7 +50,6 @@ def new_job_auto_scaler(
     if job_strategy == DistributionStrategy.PS:
         return PSTrainingAutoScaler(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             ps_manager,
@@ -60,7 +59,6 @@ def new_job_auto_scaler(
     elif job_strategy == DistributionStrategy.ALLREDUCE:
         return AllreduceTrainingAutoScaler(
             job_resource,
-            job_nodes,
             job_optimizer,
             speed_monitor,
             worker_manager,
@@ -73,8 +71,23 @@ def new_job_auto_scaler(
 class JobAutoScaler(metaclass=ABCMeta):
     """JobAutoScaler automatically scale up/down nodes of job."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        job_resource: JobResource,
+        job_optimizer: JobResourceOptimizer,
+        speed_monitor: SpeedMonitor,
+        node_scaler: Scaler,
+        scale_interval: int,
+    ):
+        self._job_resource = job_resource
+        self._job_optimizer = job_optimizer
+        self._speed_monitor = speed_monitor
+        self._scaler = node_scaler
+        self._scale_interval = scale_interval
+        self._job_context = get_job_context()
+
         self._suggested_stop = False
+        self._autoscaling_started = False
 
     def suggested_stop(self):
         return self._suggested_stop
@@ -92,7 +105,8 @@ class JobAutoScaler(metaclass=ABCMeta):
     @abstractmethod
     def execute_job_optimization_plan(self, plan: ResourcePlan):
         """Scale nodes of a job by a ResourcePlan"""
-        pass
+        if plan and not plan.empty():
+            logger.info(f"Execute job optimization plan: {plan.to_json()}.")
 
 
 class PSTrainingAutoScaler(JobAutoScaler):
@@ -101,28 +115,31 @@ class PSTrainingAutoScaler(JobAutoScaler):
     def __init__(
         self,
         job_resource: JobResource,
-        job_nodes: Dict[str, Dict[int, Node]],
         job_optimizer: JobResourceOptimizer,
         speed_monitor: SpeedMonitor,
         ps_manager: ParameterServerManager,
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
-        super().__init__()
-        self._job_resource = job_resource
-        self._job_optimizer = job_optimizer
-        self._speed_monitor = speed_monitor
+        super().__init__(
+            job_resource,
+            job_optimizer,
+            speed_monitor,
+            node_scaler,
+            30,
+        )
         self._ps_manager = ps_manager
         self._worker_manager = worker_manager
-        self._stop_autoscaling = False
-        self._scaler = node_scaler
-        self._job_nodes = job_nodes
-        self._autoscaling_started = False
         threading.Thread(
             target=self.monitor_pending_node_at_begining,
             name="monitor_pending_nodes",
             daemon=True,
         ).start()
+
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
 
     def monitor_pending_node_at_begining(self):
         logger.info("Start monitoring pending nodes.")
@@ -132,7 +149,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 break
             plan = self._reduce_timeout_pending_node_resource()
             self._scaler.scale(plan)
-            time.sleep(60)
+            time.sleep(self._scale_interval * 2)
 
     def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""
@@ -156,36 +173,40 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 ).start()
 
     def stop_auto_scaling(self):
-        self._stop_autoscaling = True
+        self._autoscaling_started = False
 
     def _periodic_optimize_running_resource(self):
         """Adjust job resource periodically and stop adjustment
         if there is a failed worker with the fatal error.
         """
-        logger.info("Start to auto scale ")
+        logger.info("Start auto-scaling thread for PS Training.")
         last_plan_time = 0
         opt_interval = _dlrover_context.seconds_interval_to_optimize
         while True:
-            if self._stop_autoscaling:
-                logger.info("Stop auto-scaling PS Training.")
+            if not self._autoscaling_started:
+                logger.info("Stop auto-scaling thread for PS Training.")
                 break
-            if (
-                self._speed_monitor.worker_adjustment_finished()
-                # Control the interval to query plans
-                and time.time() - last_plan_time > opt_interval
-                and not self._ps_manager.exist_migrated_ps_nodes()
-            ):
-                plan = self._job_optimizer.get_job_resource_plan()
-                if plan:
-                    last_plan_time = time.time()
-                self.execute_job_optimization_plan(plan)
-            time.sleep(30)
+            try:
+                if (
+                    self._speed_monitor.worker_adjustment_finished()
+                    # Control the interval to query plans
+                    and time.time() - last_plan_time > opt_interval
+                    and not self._ps_manager.exist_migrated_ps_nodes()
+                ):
+                    plan = self._job_optimizer.get_job_resource_plan()
+                    if plan:
+                        last_plan_time = time.time()
+                    self.execute_job_optimization_plan(plan)
+            except Exception as e:
+                logger.error(f"Failed to auto-scale for PS Training: {e}")
+            time.sleep(self._scale_interval)
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
         """Execute the optimization plan of the training job.
         The plan may adjust the number of PS and workers or
         adjust the cpu and memory of nodes.
         """
+        super().execute_job_optimization_plan(plan)
         scale_plan = ScalePlan()
         if not plan or plan.empty():
             return scale_plan
@@ -203,7 +224,8 @@ class PSTrainingAutoScaler(JobAutoScaler):
                     scale_plan.merge(ps_plan)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
-                    chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
+                    chief_nodes = self.get_job_nodes(NodeType.CHIEF)
+                    chief_num = len(chief_nodes)
                     worker_num = chief_num + group.count
                     self._speed_monitor.set_target_worker_num(worker_num)
                     worker_plan = self._worker_manager.adjust_worker(group)
@@ -239,7 +261,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         return scale_plan
 
     def _reduce_timeout_pending_node_resource(self):
-        """Cut down CPU cores of pending pod at the job starts"""
+        """Cut down CPU cores of pending pod when job starts"""
         scale_plan = ScalePlan()
         plan = self._ps_manager.reduce_pending_node_resource()
         scale_plan.merge(plan)
@@ -257,22 +279,24 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
     def __init__(
         self,
         job_resource: JobResource,
-        job_nodes: Dict[str, Dict[int, Node]],
         job_optimizer: JobResourceOptimizer,
         speed_monitor: SpeedMonitor,
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
-        super().__init__()
-        self._job_resource = job_resource
-        self._job_optimizer = job_optimizer
-        self._speed_monitor = speed_monitor
+        super().__init__(
+            job_resource,
+            job_optimizer,
+            speed_monitor,
+            node_scaler,
+            1800,
+        )
         self._worker_manager = worker_manager
-        self._stop_autoscaling = False
-        self._scaler = node_scaler
-        self._workers = job_nodes[NodeType.WORKER]
-        self._autoscaling_started = False
-        self._scale_interval = 1800
+
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -285,22 +309,36 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                     daemon=True,
                 ).start()
 
+    def stop_auto_scaling(self):
+        self._autoscaling_started = False
+
     def _periodic_adjust_worker(self):
         """Periodicaly adjust the number of worker."""
-        logger.info("Start to auto scale the number of workers.")
+        logger.info("Start auto-scaling thread for AllReduce Training.")
         while True:
-            time.sleep(self._scale_interval)
-            alive_num = self._get_alive_worker_num()
-            self._job_optimizer.set_alive_node_num(alive_num)
-            plan = self._job_optimizer.get_job_resource_plan()
-            new_worker_num = plan.node_group_resources[NodeType.WORKER].count
-            if new_worker_num <= alive_num:
-                continue
-            self.execute_job_optimization_plan(plan)
+            if not self._autoscaling_started:
+                logger.info("Stop auto-scaling thread for AllReduce Training.")
+                break
+            try:
+                time.sleep(self._scale_interval)
+                alive_num = self._get_alive_worker_num()
+                self._job_optimizer.set_alive_node_num(alive_num)
+                plan = self._job_optimizer.get_job_resource_plan()
+                new_worker_num = plan.node_group_resources[
+                    NodeType.WORKER
+                ].count
+                if new_worker_num <= alive_num:
+                    continue
+                self.execute_job_optimization_plan(plan)
+            except Exception as e:
+                logger.error(
+                    f"Failed to auto-scale for AllReduce Training: {e}"
+                )
 
     def _get_alive_worker_num(self):
         worker_num = 0
-        for _, worker in self._workers.items():
+        workers = self.get_job_nodes(NodeType.WORKER)
+        for _, worker in workers.items():
             if worker.status in [
                 NodeStatus.RUNNING,
                 NodeStatus.PENDING,
@@ -310,15 +348,12 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                 worker_num += 1
         return worker_num
 
-    def stop_auto_scaling(self):
-        """Stop auto-scaling nodes of a job"""
-        pass
-
     def execute_job_optimization_plan(self, plan: ResourcePlan):
         """Execute the optimization plan of the training job.
         The plan may adjust the number of PS and workers or
         adjust the cpu and memory of nodes.
         """
+        super().execute_job_optimization_plan(plan)
         scale_plan = ScalePlan()
         if not plan or plan.empty():
             return scale_plan

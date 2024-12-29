@@ -13,8 +13,10 @@
 
 import datetime
 import json
+import os
 import unittest
 from typing import List
+from unittest import mock
 
 from kubernetes import client
 
@@ -36,9 +38,11 @@ from dlrover.python.master.watcher.k8s_watcher import (
     _verify_restarting_training,
 )
 from dlrover.python.tests.test_utils import (
+    WITH_TO_DELETED,
     create_pod,
     get_test_scale_plan,
     mock_k8s_client,
+    mock_list_namespaced_pod,
 )
 
 
@@ -59,10 +63,13 @@ class PodWatcherTest(unittest.TestCase):
         self.k8s_client = mock_k8s_client()
 
     def test_list(self):
+        # set env
+        os.environ[WITH_TO_DELETED] = "True"
+
         mock_k8s_client()
         pod_watcher = PodWatcher("test", "")
         nodes: List[Node] = pod_watcher.list()
-        self.assertEqual(len(nodes), 5)
+        self.assertEqual(len(nodes), 6)
         node: Node = nodes[0]
         self.assertEqual(node.id, 0)
         self.assertEqual(node.type, NodeType.PS)
@@ -73,53 +80,52 @@ class PodWatcherTest(unittest.TestCase):
                 "2022-11-11 11:11:11", "%Y-%m-%d %H:%M:%S"
             ),
         )
-        node: Node = nodes[-1]
+        node: Node = nodes[-2]
         self.assertEqual(node.id, 2)
         self.assertEqual(node.type, NodeType.WORKER)
         self.assertEqual(node.status, NodeStatus.RUNNING)
+
+        node: Node = nodes[-1]
+        self.assertEqual(node.id, 99)
+        self.assertEqual(node.type, NodeType.WORKER)
+        self.assertEqual(node.status, NodeStatus.DELETED)
+
+        # reset env
+        os.environ.pop(WITH_TO_DELETED)
+
+    def test_list_succeeded(self):
+        pod_watcher = PodWatcher("test", "")
+
+        pods = mock_list_namespaced_pod("")
+        pod_watcher._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=pods
+        )
+        pod_watcher._k8s_client.delete_pod = mock.MagicMock(
+            side_effect=Exception("test123")
+        )
+        try:
+            pod_watcher.list()
+        except Exception:
+            self.fail()
+
+        pods.items[0].status.phase = NodeStatus.SUCCEEDED
+        try:
+            pod_watcher.list()
+            self.fail()
+        except Exception as e:
+            self.assertEqual(e.args[0], "test123")
 
     def test_convert_pod_event_to_node_event(self):
         labels = _mock_pod_labels()
         pod = create_pod(labels)
         event_type = NodeEventType.MODIFIED
         event = {"object": pod, "type": event_type}
-        node_event: NodeEvent = _convert_pod_event_to_node_event(
-            event, self.k8s_client
-        )
+        node_event: NodeEvent = _convert_pod_event_to_node_event(event)
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
         self.assertEqual(node_event.node.config_resource.cpu, 1)
         self.assertEqual(node_event.node.config_resource.memory, 10240)
-
-    def test_convert_pod_deleted_event_to_node_event_with_existed_running_pod(
-        self,
-    ):
-        # one of the mocked label must be the same with the one generated in
-        # 'test_utils.py#mock_list_namespaced_pod'
-
-        # test DELETED event
-        labels = _mock_pod_labels()
-        pod = create_pod(labels)
-        event_type = NodeEventType.DELETED
-        event = {"object": pod, "type": event_type}
-        self.assertIsNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
-
-        # test MODIFIED event without deletion_timestamp
-        event_type = NodeEventType.MODIFIED
-        event = {"object": pod, "type": event_type}
-        self.assertIsNotNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
-
-        # test MODIFIED event with deletion_timestamp
-        pod = create_pod(labels, True)
-        event = {"object": pod, "type": event_type}
-        self.assertIsNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
 
     def test_get_pod_exit_reason(self):
         labels = _mock_pod_labels()

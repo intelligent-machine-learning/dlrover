@@ -300,8 +300,17 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         stop_node = False
         if node.exit_reason == NodeExitReason.FATAL_ERROR:
             if not _dlrover_ctx.relaunch_always:
+                logger.info(
+                    f"Need to stop job for node: {node.name} "
+                    "has fatal error."
+                )
                 stop_node = True
         if node.relaunch_count >= node.max_relaunch_count:
+            logger.info(
+                "Need to stop job for node relaunching "
+                f"count: {node.relaunch_count} "
+                f"over limit: {node.max_relaunch_count}."
+            )
             self._available_worker_num -= 1
             stop_node = True
 
@@ -313,7 +322,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "Critical node (type={}, id={}) is failed "
-                    "and {}.".format(
+                    "and {}".format(
                         node.type, node.id, node.unrecoverable_failure_msg
                     )
                 ),
@@ -325,7 +334,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "The number of worker failure exceeds the "
-                    f"worker count {self._total_worker_num} "
+                    f"max failure limit: {max_failure_num}"
                 ),
             )
         elif self._available_worker_num < self._min_node:
@@ -334,6 +343,6 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "The available number of worker is less than the minimum"
-                    f"number {self._min_node} of redzv  "
+                    f"number {self._min_node} of rdzv"
                 ),
             )

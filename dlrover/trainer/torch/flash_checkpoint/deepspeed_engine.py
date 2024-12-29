@@ -96,7 +96,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
     @timer
     def save_to_storage(self, step, state_dict, paths):
         """
-        Asynchonously saves the state dict into the storage. It synchonously
+        Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
         into a shared queue. The agent in the main process waits for the queue
         for save the state dict in the shared memory into the storage.
@@ -120,6 +120,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         if self._local_rank == 0 and success:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+        if success:
+            self.latest_step = step
         return success
 
     def get_local_shard_num(self):

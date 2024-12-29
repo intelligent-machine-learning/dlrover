@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class BasicClass(object):
+    LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
@@ -85,6 +89,42 @@ class NodeEventType(object):
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
     ERROR = "ERROR"
+    FINISHED = "FINISHED"
+    SUCCEEDED_EXITED = "SUCCEEDED_EXITED"
+    FAILED_EXITED = "FAILED_EXITED"
+    NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
+    NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
+
+
+class GpuMetricEnum(object):
+    """
+    it is the metrics enum of nvidia GPU, collected by DCGM
+    """
+
+    GPU_FREE_MEM = "DCGM_FI_DEV_FB_FREE"
+    GPU_USED_MEM = "DCGM_FI_DEV_FB_USED"
+    GPU_UTIL = "DCGM_FI_DEV_GPU_UTIL"
+    GPU_TEMP = "DCGM_FI_DEV_GPU_TEMP"
+    GPU_SM_UTIL = "DCGM_FI_PROF_SM_OCCUPANCY"
+    GPU_SM_ACTIVE = "DCGM_FI_PROF_SM_ACTIVE"
+    GPU_TENSOR_UTIL = "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"
+
+
+class NpuMetricEnum(object):
+    """
+    it is the metrics enum of Ascend NPU, collected by DCMI
+    """
+
+    NPU_TOTAL_MEM = "npu_chip_info_total_memory"
+    NPU_USED_MEM = "npu_chip_info_used_memory"
+    NPU_UTIL = "npu_chip_info_utilization"
+    NPU_TEMP = "npu_chip_info_temperature"
+    NPU_HEALTH_STATE = "npu_chip_info_health_status"
+    NPU_LINK_STATE = "npu_chip_info_link_status"
+    NPU_OPTICAL_STATE = "npu_chip_optical_state"
+    NPU_NETWORK_STATE = "npu_chip_info_network_status"
+    NPU_RDMA_RX = "npu_chip_info_bandwidth_rx"
+    NPU_RDMA_TX = "npu_chip_info_bandwidth_tx"
 
 
 class NodeExitReason(object):
@@ -108,6 +148,9 @@ class JobExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+    PENDING_TIMEOUT = "PendingTimeout"
+    UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
+    NODE_CHECK_FAILED = "NodeCheckFailed"
 
 
 class CustomMetricKeys:
@@ -125,7 +168,7 @@ class ExitCode(object):
     GPU_DRIVER_ERROR = 201
     GPU_POD_RESIDUE = 202
     GPU_INFOROM_CORRUPTED = 14
-    UNKNOWN_DEVICE = 128
+    CONTAINER_FAILED_OR_UNKNOWN_DEVICE = 128
 
 
 class NodeResourceLimit(object):
@@ -206,6 +249,7 @@ class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
+    GRPC_POLL_STRATEGY = "GRPC_POLL_STRATEGY"
     POD_NAME = "POD_NAME"
     MONITOR_ENABLED = "MONITOR_ENABLED"
     JOB_NAME = "ELASTIC_JOB_NAME"
@@ -226,8 +270,17 @@ class NodeEnv(object):
     RANK = "RANK"  # It is the rank of node not the rank of process.
     WORLD_SIZE = "WORLD_SIZE"  # It is the number of nodes.
 
-    # process env
+    # worker process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+    MASTER_ADDR = "MASTER_ADDR"
+    MASTER_PORT = "MASTER_PORT"
+
+    # diagnosis env
+    TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
+    FAILURE_NODE_ERRORS = "FAILURE_NODE_ERRORS"
+
+    # grpc env
+    MASTER_CLIENT_TIMEOUT = "MASTER_CLIENT_TIMEOUT"
 
 
 class DatasetType(object):
@@ -271,6 +324,7 @@ class NodeErrorMessage(object):
 
 
 class NetworkFailureReason(object):
+    NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
 
@@ -281,6 +335,7 @@ class TrainingExceptionLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
 
 class ConfigPath(object):
@@ -298,6 +353,59 @@ class CheckpointConstant(object):
     SAVE_TIMEOUT = 600
 
 
+class JobConstant(object):
+    RDZV_JOIN_TIMEOUT_DEFAULT = 600
+    INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN = 600
+    INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 3600
+    PENDING_NODE_TIMEOUT_DEFAULT_MIN = 600
+    # grpc timeout 60s
+    MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT = 60
+    # sleep 3s on NetworkFailureReason.WAITING_NODE
+    MASTER_CLIENT_CHECK_FAULT_TIMEOUT = 3
+    # sleep 3s on NetworkFailureReason.WAITING_NODE
+    MASTER_CLIENT_CHECK_STRAGGLER_TIMEOUT = 3
+    # sleep 5s before next node check round
+    NODE_CHECK_NEXT_ROUND_TIMEOUT = 5
+
+
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+
+
+class AscendConstants(object):
+    # By default， there are 16(max) npu on one machine
+    NPU_PER_NODE = 16
+
+    # represent the starting offset of the hccl's port using
+    HCCL_PORT_START = "HCCL_IF_BASE_PORT"
+    HCCL_PORT_START_DEFAULT = 64000
+
+
+class ErrorMonitorConstants(object):
+    TYPE_INFO = "info"
+    TYPE_WARN = "warn"
+    TYPE_ERROR = "error"
+
+    JOB_INSTANCE = "job"
+
+    ACTION_WORKER_CREATE = "worker_create"
+    ACTION_STATUS_UPDATE = "status_update"
+    ACTION_EARLY_STOP = "early_stop"
+    ACTION_STOP = "stop"
+    ACTION_RELAUNCH = "relaunch_worker"
+    ACTION_NOT_RELAUNCH = "not_relaunch_worker"
+    ACTION_GLOBAL_STEP = "global_step"
+    ACTION_RDZV_JOIN = "join_rendezvous"
+    ACTION_RDZV_COMPLETE = "rendezvous_complete"
+    ACTION_RDZV_TIMEOUT = "rendezvous_timeout"
+    ACTION_TRAINING_START = "training_start"
+    ACTION_RESTART_TRAINING = "restart_training"
+    ACTION_SAVE_SHARD_START = "save_shard_start"
+    ACTION_SAVE_SHARD_COMPLETE = "save_shard_complete"
+    ACTION_SAVE_SHARD_ERROR = "save_shard_error"
+    ACTION_MEM_CKPT_START = "mem_ckpt_start"
+    ACTION_MEM_CKPT_COMPLETE = "mem_ckpt_complete"
+    ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
+    ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
+    ACTION_HANG_WARN = "hang_warning"
