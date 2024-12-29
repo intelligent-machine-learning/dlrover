@@ -406,6 +406,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             return_value={0, 1},
         ):
             self.config.numa_affinity = True
+            self.config.training_port = 0
             self.config.accelerator = Accelerators.ASCEND_NPU
             self.spec.entrypoint = "sleep"
             self.spec.args = tuple(["3"])
@@ -498,6 +499,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.spec.args = tuple(cmdline[1:])
 
         self.config.network_check = False
+        self.config.training_port = 0
         agent = ElasticTrainingAgent(
             node_rank=0,
             config=self.config,
@@ -508,7 +510,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         def stop_task(agent):
-            time.sleep(90)
+            time.sleep(10)
             agent._stop_workers_ascend(None)
 
         stop_task = threading.Thread(target=stop_task, args=(agent,))
