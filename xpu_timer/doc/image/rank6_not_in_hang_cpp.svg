@@ -1,0 +1,2649 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1600" height="1654" onload="init(evt)" viewBox="0 0 1600 1654" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1600.0" height="1654.0" fill="url(#background)"  />
+<text id="title" x="800.00" y="24" >merge stack in cpp</text>
+<text id="details" x="10.00" y="1637" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1490.00" y="24" >Search</text>
+<text id="ignorecase" x="1574.00" y="24" >ic</text>
+<text id="matched" x="1490.00" y="1637" > </text>
+<g id="frames">
+<g >
+<title>clock_gettime@??@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="197" width="49.3" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="506.75" y="207.5" >cloc..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="789" width="49.4" height="15.0" fill="rgb(90,202,202)" rx="2" ry="2" />
+<text  x="457.38" y="799.5" >func..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1093" width="49.3" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1049.88" y="1103.5" >call..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="405" width="49.3" height="15.0" fill="rgb(55,204,55)" rx="2" ry="2" />
+<text  x="506.75" y="415.5" >c10:..</text>
+</g>
+<g >
+<title>_bufferedreader_read_generic@/usr/local/src/conda/python-3.8.20/Modules/clinic/bufferedio.c.h:1685@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="885" width="49.4" height="15.0" fill="rgb(93,204,204)" rx="2" ry="2" />
+<text  x="1148.62" y="895.5" >_buf..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1429" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1439.5" >??@?..</text>
+</g>
+<g >
+<title>method_vectorcall_VARARGS_KEYWORDS@/usr/local/src/conda/python-3.8.20/Modules/modsupport.c:605@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="885" width="49.3" height="15.0" fill="rgb(103,214,214)" rx="2" ry="2" />
+<text  x="901.75" y="895.5" >meth..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1333" width="246.9" height="15.0" fill="rgb(56,171,171)" rx="2" ry="2" />
+<text  x="309.25" y="1343.5" >_PyEval_EvalFrameDefault@/usr/lo..</text>
+</g>
+<g >
+<title>cudaEventRecord@/usr/local/cuda/lib64/libcudart.so.12@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="821" width="49.4" height="15.0" fill="rgb(235,102,102)" rx="2" ry="2" />
+<text  x="1494.25" y="831.5" >cuda..</text>
+</g>
+<g >
+<title>nanosleep@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="701.2" y="1509" width="49.4" height="15.0" fill="rgb(241,111,111)" rx="2" ry="2" />
+<text  x="704.25" y="1519.5" >nano..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="581" width="49.4" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="309.25" y="591.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:115@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1141" width="49.4" height="15.0" fill="rgb(55,170,170)" rx="2" ry="2" />
+<text  x="1148.62" y="1151.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="373" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="408.00" y="383.5" >_PyE..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:89@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1157" width="49.4" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="1148.62" y="1167.5" >meth..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="837" width="98.8" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="358.62" y="847.5" >call_functi..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="837" width="49.3" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="506.75" y="847.5" >call..</text>
+</g>
+<g >
+<title>bthread::futex_wait_private@external/apache_brpc/src/bthread/sys_futex.h:40@0-7| (1 samples, 3.12%)</title><rect x="651.9" y="1525" width="49.3" height="15.0" fill="rgb(218,218,65)" rx="2" ry="2" />
+<text  x="654.88" y="1535.5" >bthr..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1077" width="49.3" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1049.88" y="1087.5" >_PyO..</text>
+</g>
+<g >
+<title>_Py_read@/usr/local/src/conda/python-3.8.20/Modules/thread.c:1593@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="725" width="49.4" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="1148.62" y="735.5" >_Py_..</text>
+</g>
+<g >
+<title>epoll_wait@/lib64/libc.so.6@1-2/6|0/3-5/7 (1 samples, 3.12%)</title><rect x="108.8" y="1493" width="49.3" height="15.0" fill="rgb(238,106,106)" rx="2" ry="2" />
+<text  x="111.75" y="1503.5" >epol..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="901" width="148.2" height="15.0" fill="rgb(55,170,170)" rx="2" ry="2" />
+<text  x="358.62" y="911.5" >_PyFunction_Vector..</text>
+</g>
+<g >
+<title>PyVectorcall_Call@/usr/local/src/conda/python-3.8.20/Objects/objimpl.h:1802@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="421" width="49.4" height="15.0" fill="rgb(91,202,202)" rx="2" ry="2" />
+<text  x="408.00" y="431.5" >PyVe..</text>
+</g>
+<g >
+<title>run_eval_code_obj@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:1166@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1413" width="246.9" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="309.25" y="1423.5" >run_eval_code_obj@/usr/local/src..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1077" width="246.9" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="309.25" y="1087.5" >function_code_fastcall@/usr/loca..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::execute(std::vector&lt;torch::autograd::Edge, std::allocator&lt;torch::autograd::Edge&gt; &gt; const&amp;, std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt; const&amp;, bool, bool, bool, std::vector&lt;torch::autograd::Edge, std::allocator&lt;torch::autograd::Edge&gt; &gt; const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="629" width="49.4" height="15.0" fill="rgb(52,202,52)" rx="2" ry="2" />
+<text  x="457.38" y="639.5" >torc..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="741" width="49.4" height="15.0" fill="rgb(63,212,63)" rx="2" ry="2" />
+<text  x="309.25" y="751.5" >c10:..</text>
+</g>
+<g >
+<title>torch::autograd::python::PythonEngine::execute_with_graph_task(std::shared_ptr&lt;torch::autograd::GraphTask&gt; const&amp;, std::shared_ptr&lt;torch::autograd::Node&gt;, torch::autograd::InputBuffer&amp;&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="613" width="49.4" height="15.0" fill="rgb(55,205,55)" rx="2" ry="2" />
+<text  x="457.38" y="623.5" >torc..</text>
+</g>
+<g >
+<title>torch::autograd::Node::operator()(std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt;&amp;&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1477" width="49.4" height="15.0" fill="rgb(103,248,103)" rx="2" ry="2" />
+<text  x="1494.25" y="1487.5" >torc..</text>
+</g>
+<g >
+<title>PyVectorcall_Call@/usr/local/src/conda/python-3.8.20/Objects/objimpl.h:1802@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1509" width="296.2" height="15.0" fill="rgb(85,197,197)" rx="2" ry="2" />
+<text  x="901.75" y="1519.5" >PyVectorcall_Call@/usr/local/src/conda/..</text>
+</g>
+<g >
+<title>pthread_cond_timedwait@@GLIBC_2.3.2@/lib64/libpthread.so.0@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="997.5" y="885" width="49.4" height="15.0" fill="rgb(223,83,83)" rx="2" ry="2" />
+<text  x="1000.50" y="895.5" >pthr..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="949" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="309.25" y="959.5" >_PyE..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="901" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="911.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1173" width="98.8" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="951.12" y="1183.5" >_PyFunction..</text>
+</g>
+<g >
+<title>Py_RunMain@/croot/python-split_1727968608067/work/build-static/python.c:699@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1541" width="246.9" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="309.25" y="1551.5" >Py_RunMain@/croot/python-split_1..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="405" width="49.4" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="408.00" y="415.5" >func..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="581" width="49.4" height="15.0" fill="rgb(63,177,177)" rx="2" ry="2" />
+<text  x="358.62" y="591.5" >_PyE..</text>
+</g>
+<g >
+<title>__new_sem_wait_slow.constprop.0@/lib64/libpthread.so.0@0-2/4-7|3 (1 samples, 3.12%)</title><rect x="948.1" y="917" width="49.4" height="15.0" fill="rgb(253,127,127)" rx="2" ry="2" />
+<text  x="951.12" y="927.5" >__ne..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="421" width="49.4" height="15.0" fill="rgb(210,65,65)" rx="2" ry="2" />
+<text  x="358.62" y="431.5" >??@/..</text>
+</g>
+<g >
+<title>all (32 samples, 100%)</title><rect x="10.0" y="1605" width="1580.0" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="13.00" y="1615.5" ></text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="565" width="49.4" height="15.0" fill="rgb(90,201,201)" rx="2" ry="2" />
+<text  x="1099.25" y="575.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:115@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="309" width="49.4" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="408.00" y="319.5" >_PyO..</text>
+</g>
+<g >
+<title>_io__Buffered_read@/usr/local/src/conda/python-3.8.20/Python/clinic/iobase.c:174@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="917" width="49.4" height="15.0" fill="rgb(50,165,165)" rx="2" ry="2" />
+<text  x="1148.62" y="927.5" >_io_..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupNCCL::WorkNCCL::synchronizeInternal(std::chrono::duration&lt;long, std::ratio&lt;1l, 1000l&gt; &gt;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="181" width="49.4" height="15.0" fill="rgb(60,209,60)" rx="2" ry="2" />
+<text  x="408.00" y="191.5" >c10d..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="949" width="49.3" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1049.88" y="959.5" >_PyO..</text>
+</g>
+<g >
+<title>at::_ops::is_nonzero::call(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="549" width="49.3" height="15.0" fill="rgb(93,239,93)" rx="2" ry="2" />
+<text  x="506.75" y="559.5" >at::..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:115@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1397" width="49.4" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="1494.25" y="1407.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1301" width="246.9" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="309.25" y="1311.5" >_PyObject_Vectorcall@/croot/pyth..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (3 samples, 9.38%)</title><rect x="898.8" y="1221" width="148.1" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="901.75" y="1231.5" >_PyEval_EvalFrameD..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="629" width="49.4" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="408.00" y="639.5" >_PyO..</text>
+</g>
+<g >
+<title>clock_gettime@??@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="341" width="49.4" height="15.0" fill="rgb(219,77,77)" rx="2" ry="2" />
+<text  x="358.62" y="351.5" >cloc..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="613" width="49.4" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="309.25" y="623.5" >??@/..</text>
+</g>
+<g >
+<title>method_vectorcall_VARARGS_KEYWORDS@/usr/local/src/conda/python-3.8.20/Modules/modsupport.c:605@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="933" width="49.3" height="15.0" fill="rgb(69,183,183)" rx="2" ry="2" />
+<text  x="1049.88" y="943.5" >meth..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (3 samples, 9.38%)</title><rect x="898.8" y="1205" width="148.1" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="901.75" y="1215.5" >call_function@/usr..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1045" width="49.3" height="15.0" fill="rgb(53,168,168)" rx="2" ry="2" />
+<text  x="901.75" y="1055.5" >PyEv..</text>
+</g>
+<g >
+<title>PyVectorcall_Call@/usr/local/src/conda/python-3.8.20/Objects/objimpl.h:1802@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1429" width="49.4" height="15.0" fill="rgb(105,216,216)" rx="2" ry="2" />
+<text  x="1494.25" y="1439.5" >PyVe..</text>
+</g>
+<g >
+<title>brpc::Channel::CallMethod@external/apache_brpc/src/brpc/channel.cpp:583@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1397" width="49.4" height="15.0" fill="rgb(227,227,68)" rx="2" ry="2" />
+<text  x="1395.50" y="1407.5" >brpc..</text>
+</g>
+<g >
+<title>at::_ops::_local_scalar_dense::call(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="805" width="49.4" height="15.0" fill="rgb(70,218,70)" rx="2" ry="2" />
+<text  x="309.25" y="815.5" >at::..</text>
+</g>
+<g >
+<title>call_unbound_noarg@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:1465@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="645" width="49.3" height="15.0" fill="rgb(57,171,171)" rx="2" ry="2" />
+<text  x="506.75" y="655.5" >call..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="837" width="49.4" height="15.0" fill="rgb(62,211,62)" rx="2" ry="2" />
+<text  x="309.25" y="847.5" >c10:..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="885" width="148.2" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="358.62" y="895.5" >function_code_fast..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1189" width="49.4" height="15.0" fill="rgb(53,168,168)" rx="2" ry="2" />
+<text  x="1494.25" y="1199.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1381" width="49.4" height="15.0" fill="rgb(87,199,199)" rx="2" ry="2" />
+<text  x="1494.25" y="1391.5" >_PyF..</text>
+</g>
+<g >
+<title>method_vectorcall_O@/usr/local/src/conda/python-3.8.20/Modules/pyhash.c:416@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="773" width="49.4" height="15.0" fill="rgb(81,194,194)" rx="2" ry="2" />
+<text  x="1148.62" y="783.5" >meth..</text>
+</g>
+<g >
+<title>bthread::ParkingLot::wait@external/apache_brpc/src/bthread/parking_lot.h:60@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1509" width="49.4" height="15.0" fill="rgb(181,181,52)" rx="2" ry="2" />
+<text  x="605.50" y="1519.5" >bthr..</text>
+</g>
+<g >
+<title>xpu_timer::MetricsManager::checkMetrics@xpu_timer/common/bvar_prometheus.cc:173@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1461" width="49.3" height="15.0" fill="rgb(192,192,56)" rx="2" ry="2" />
+<text  x="1444.88" y="1471.5" >xpu_..</text>
+</g>
+<g >
+<title>syscall@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1285" width="49.4" height="15.0" fill="rgb(247,118,118)" rx="2" ry="2" />
+<text  x="1395.50" y="1295.5" >sysc..</text>
+</g>
+<g >
+<title>__new_sem_wait_slow.constprop.0@/lib64/libpthread.so.0@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="821" width="49.3" height="15.0" fill="rgb(235,101,101)" rx="2" ry="2" />
+<text  x="901.75" y="831.5" >__ne..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1013" width="49.3" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="901.75" y="1023.5" >call..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:60@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="325" width="49.4" height="15.0" fill="rgb(95,206,206)" rx="2" ry="2" />
+<text  x="408.00" y="335.5" >meth..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1237" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="1494.25" y="1247.5" >PyEv..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1525" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1535.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>xpu_timer::GpuTimerManager&lt;xpu_timer::nvidia::NvidiaGpuTimer&gt;::doHang@xpu_timer/common/manager.cc:397@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1445" width="49.4" height="15.0" fill="rgb(229,229,69)" rx="2" ry="2" />
+<text  x="1395.50" y="1455.5" >xpu_..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="997" width="49.3" height="15.0" fill="rgb(93,205,205)" rx="2" ry="2" />
+<text  x="901.75" y="1007.5" >_PyO..</text>
+</g>
+<g >
+<title>bthread::TimerThread::run_this@external/apache_brpc/src/bthread/timer_thread.cpp:122@0-7| (1 samples, 3.12%)</title><rect x="651.9" y="1557" width="49.3" height="15.0" fill="rgb(215,215,64)" rx="2" ry="2" />
+<text  x="654.88" y="1567.5" >bthr..</text>
+</g>
+<g >
+<title>pthread_cond_wait@@GLIBC_2.3.2@/lib64/libpthread.so.0@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="501" width="49.4" height="15.0" fill="rgb(201,51,51)" rx="2" ry="2" />
+<text  x="457.38" y="511.5" >pthr..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="821" width="98.8" height="15.0" fill="rgb(102,213,213)" rx="2" ry="2" />
+<text  x="358.62" y="831.5" >_PyObject_V..</text>
+</g>
+<g >
+<title>pymain_run_file@/croot/python-split_1727968608067/work/build-static/python.c:391@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1509" width="246.9" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="309.25" y="1519.5" >pymain_run_file@/croot/python-sp..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1157" width="49.4" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="1494.25" y="1167.5" >_PyE..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1013" width="49.4" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="1148.62" y="1023.5" >func..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="629" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="639.5" >_PyO..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="261" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="506.75" y="271.5" >??@/..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1237" width="296.2" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="901.75" y="1247.5" >PyEval_EvalFrameEx@/usr/local/src/conda..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1141" width="98.8" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="951.12" y="1151.5" >PyEval_Eval..</text>
+</g>
+<g >
+<title>torch::autograd::python::PythonEngine::thread_init(int, std::shared_ptr&lt;torch::autograd::ReadyQueue&gt; const&amp;, bool)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@0-7| (2 samples, 6.25%)</title><rect x="1491.2" y="1541" width="98.8" height="15.0" fill="rgb(101,247,101)" rx="2" ry="2" />
+<text  x="1494.25" y="1551.5" >torch::auto..</text>
+</g>
+<g >
+<title>Py_BytesMain@/croot/python-split_1727968608067/work/build-static/python.c:1131@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1557" width="246.9" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="309.25" y="1567.5" >Py_BytesMain@/croot/python-split..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="741" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="751.5" >??@/..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="757" width="49.4" height="15.0" fill="rgb(90,201,201)" rx="2" ry="2" />
+<text  x="1099.25" y="767.5" >_PyE..</text>
+</g>
+<g >
+<title>PyCOND_TIMEDWAIT@/usr/local/src/conda/python-3.8.20/Modules/bootstrap_hash.c:73@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="997.5" y="901" width="49.4" height="15.0" fill="rgb(65,178,178)" rx="2" ry="2" />
+<text  x="1000.50" y="911.5" >PyCO..</text>
+</g>
+<g >
+<title>bvar::detail::SamplerCollector::run@external/apache_brpc/src/bvar/detail/sampler.cpp:191@0-7| (1 samples, 3.12%)</title><rect x="701.2" y="1541" width="49.4" height="15.0" fill="rgb(198,198,58)" rx="2" ry="2" />
+<text  x="704.25" y="1551.5" >bvar..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="757" width="49.4" height="15.0" fill="rgb(77,190,190)" rx="2" ry="2" />
+<text  x="457.38" y="767.5" >_PyE..</text>
+</g>
+<g >
+<title>??@??@0-7| (4 samples, 12.50%)</title><rect x="10.0" y="1589" width="197.5" height="15.0" fill="rgb(251,124,124)" rx="2" ry="2" />
+<text  x="13.00" y="1599.5" >??@??@0-7|</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-7| (1 samples, 3.12%)</title><rect x="553.1" y="1525" width="49.4" height="15.0" fill="rgb(203,54,54)" rx="2" ry="2" />
+<text  x="556.12" y="1535.5" >??@/..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1413" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1423.5" >??@?..</text>
+</g>
+<g >
+<title>read@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="693" width="49.4" height="15.0" fill="rgb(235,102,102)" rx="2" ry="2" />
+<text  x="1148.62" y="703.5" >read..</text>
+</g>
+<g >
+<title>std::__condvar::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/gcc/libstdc++-v3/src/c++11/gthr-default.h:155@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="533" width="49.4" height="15.0" fill="rgb(205,205,61)" rx="2" ry="2" />
+<text  x="457.38" y="543.5" >std:..</text>
+</g>
+<g >
+<title>PyCFunction_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:773@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="693" width="49.4" height="15.0" fill="rgb(102,212,212)" rx="2" ry="2" />
+<text  x="457.38" y="703.5" >PyCF..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1397" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1407.5" >??@?..</text>
+</g>
+<g >
+<title>pybind11::cpp_function::dispatcher@/opt/conda/lib/python3.8/site-packages/torch/include/pybind11/pybind11.h:987@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1013" width="49.4" height="15.0" fill="rgb(72,220,72)" rx="2" ry="2" />
+<text  x="1494.25" y="1023.5" >pybi..</text>
+</g>
+<g >
+<title>cudaStreamSynchronize@/usr/local/cuda/lib64/libcudart.so.12@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="661" width="49.4" height="15.0" fill="rgb(241,109,109)" rx="2" ry="2" />
+<text  x="309.25" y="671.5" >cuda..</text>
+</g>
+<g >
+<title>at::native::_local_scalar_dense_cuda(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="373" width="49.3" height="15.0" fill="rgb(58,207,58)" rx="2" ry="2" />
+<text  x="506.75" y="383.5" >at::..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1397" width="296.2" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="901.75" y="1407.5" >call_function@/usr/local/src/conda/pyth..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="869" width="49.3" height="15.0" fill="rgb(53,168,168)" rx="2" ry="2" />
+<text  x="506.75" y="879.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1141" width="246.9" height="15.0" fill="rgb(103,214,214)" rx="2" ry="2" />
+<text  x="309.25" y="1151.5" >_PyEval_EvalFrameDefault@/usr/lo..</text>
+</g>
+<g >
+<title>std::__invoke&lt;void@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/bits/invoke.h:95@0-7| (2 samples, 6.25%)</title><rect x="1392.5" y="1493" width="98.7" height="15.0" fill="rgb(203,203,60)" rx="2" ry="2" />
+<text  x="1395.50" y="1503.5" >std::__invo..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1445" width="296.2" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="901.75" y="1455.5" >function_code_fastcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="965" width="49.3" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1049.88" y="975.5" >call..</text>
+</g>
+<g >
+<title>_PyObject_FastCall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:147@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="805" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1148.62" y="815.5" >_PyO..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1045" width="98.8" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="951.12" y="1055.5" >PyEval_Eval..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="933" width="49.4" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="309.25" y="943.5" >call..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="373" width="49.4" height="15.0" fill="rgb(210,65,65)" rx="2" ry="2" />
+<text  x="358.62" y="383.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="533" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="543.5" >_PyO..</text>
+</g>
+<g >
+<title>trace_call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4938@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="917" width="49.4" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="309.25" y="927.5" >trac..</text>
+</g>
+<g >
+<title>gloo::transport::tcp::Loop::run()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@0-7| (1 samples, 3.12%)</title><rect x="1343.1" y="1541" width="49.4" height="15.0" fill="rgb(77,225,77)" rx="2" ry="2" />
+<text  x="1346.12" y="1551.5" >gloo..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="597" width="49.4" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="358.62" y="607.5" >PyEv..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="693" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="703.5" >??@/..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1237" width="246.9" height="15.0" fill="rgb(103,214,214)" rx="2" ry="2" />
+<text  x="309.25" y="1247.5" >_PyEval_EvalFrameDefault@/usr/lo..</text>
+</g>
+<g >
+<title>poll@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="800.0" y="1541" width="49.4" height="15.0" fill="rgb(239,107,107)" rx="2" ry="2" />
+<text  x="803.00" y="1551.5" >poll..</text>
+</g>
+<g >
+<title>State@R (running)@0-2/4-7|3 (1 samples, 3.12%)</title><rect x="207.5" y="1589" width="49.4" height="15.0" fill="rgb(190,80,190)" rx="2" ry="2" />
+<text  x="210.50" y="1599.5" >Stat..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="677" width="49.4" height="15.0" fill="rgb(92,204,204)" rx="2" ry="2" />
+<text  x="1099.25" y="687.5" >PyEv..</text>
+</g>
+<g >
+<title>THCPModule_cudaSynchronize(_object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="501" width="49.4" height="15.0" fill="rgb(54,204,54)" rx="2" ry="2" />
+<text  x="358.62" y="511.5" >THCP..</text>
+</g>
+<g >
+<title>_PyObject_MakeTpCall@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:3727@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="277" width="49.4" height="15.0" fill="rgb(86,198,198)" rx="2" ry="2" />
+<text  x="408.00" y="287.5" >_PyO..</text>
+</g>
+<g >
+<title>std::execute_native_thread_routine@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/gcc/libstdc++-v3/src/c++11/shared_ptr_base.h:82@0-7| (8 samples, 25.00%)</title><rect x="1195.0" y="1557" width="395.0" height="15.0" fill="rgb(193,193,56)" rx="2" ry="2" />
+<text  x="1198.00" y="1567.5" >std::execute_native_thread_routine@/opt/conda/conda-b..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="117" width="49.4" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="408.00" y="127.5" >??@/..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::thread_main(std::shared_ptr&lt;torch::autograd::GraphTask&gt; const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="581" width="49.4" height="15.0" fill="rgb(90,237,90)" rx="2" ry="2" />
+<text  x="457.38" y="591.5" >torc..</text>
+</g>
+<g >
+<title>PyThread_acquire_lock_timed@/usr/local/src/conda/python-3.8.20/Modules/preconfig.c:459@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="885" width="49.3" height="15.0" fill="rgb(82,195,195)" rx="2" ry="2" />
+<text  x="1049.88" y="895.5" >PyTh..</text>
+</g>
+<g >
+<title>at::(anonymous namespace)::(anonymous namespace)::wrapper_CUDA___local_scalar_dense(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="725" width="49.4" height="15.0" fill="rgb(81,229,81)" rx="2" ry="2" />
+<text  x="309.25" y="735.5" >at::..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:115@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1477" width="296.2" height="15.0" fill="rgb(55,170,170)" rx="2" ry="2" />
+<text  x="901.75" y="1487.5" >_PyObject_Vectorcall@/croot/python-spli..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/lib64/libcudart.so.12@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="149" width="49.4" height="15.0" fill="rgb(217,75,75)" rx="2" ry="2" />
+<text  x="408.00" y="159.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="949" width="49.4" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="1148.62" y="959.5" >_PyO..</text>
+</g>
+<g >
+<title>clock_nanosleep@GLIBC_2.2.5@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="701.2" y="1493" width="49.4" height="15.0" fill="rgb(254,128,128)" rx="2" ry="2" />
+<text  x="704.25" y="1503.5" >cloc..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="453" width="49.3" height="15.0" fill="rgb(53,203,53)" rx="2" ry="2" />
+<text  x="506.75" y="463.5" >c10:..</text>
+</g>
+<g >
+<title>c10::cuda::device_synchronize()@/opt/conda/lib/python3.8/site-packages/torch/lib/libc10_cuda.so@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="485" width="49.4" height="15.0" fill="rgb(77,224,77)" rx="2" ry="2" />
+<text  x="358.62" y="495.5" >c10:..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1301" width="296.2" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="901.75" y="1311.5" >call_function@/usr/local/src/conda/pyth..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:61@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="805" width="49.4" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1099.25" y="815.5" >_PyF..</text>
+</g>
+<g >
+<title>at::_ops::_local_scalar_dense::redispatch(c10::DispatchKeySet, at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="421" width="49.3" height="15.0" fill="rgb(73,221,73)" rx="2" ry="2" />
+<text  x="506.75" y="431.5" >at::..</text>
+</g>
+<g >
+<title>__new_sem_wait_slow.constprop.0@/lib64/libpthread.so.0@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="869" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="1049.88" y="879.5" >__ne..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3559@0-7| (3 samples, 9.38%)</title><rect x="1046.9" y="1221" width="148.1" height="15.0" fill="rgb(54,169,169)" rx="2" ry="2" />
+<text  x="1049.88" y="1231.5" >_PyEval_EvalFrameD..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::Run@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:205@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1317" width="49.4" height="15.0" fill="rgb(178,178,51)" rx="2" ry="2" />
+<text  x="13.00" y="1327.5" >brpc..</text>
+</g>
+<g >
+<title>c10::cuda::memcpy_and_sync(void*, void const*, long, cudaMemcpyKind, CUstream_st*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="677" width="49.4" height="15.0" fill="rgb(88,235,88)" rx="2" ry="2" />
+<text  x="309.25" y="687.5" >c10:..</text>
+</g>
+<g >
+<title>PyVectorcall_Call@/usr/local/src/conda/python-3.8.20/Objects/objimpl.h:1802@0-7| (3 samples, 9.38%)</title><rect x="1046.9" y="1173" width="148.1" height="15.0" fill="rgb(85,197,197)" rx="2" ry="2" />
+<text  x="1049.88" y="1183.5" >PyVectorcall_Call@..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="533" width="49.4" height="15.0" fill="rgb(100,211,211)" rx="2" ry="2" />
+<text  x="358.62" y="543.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="757" width="98.8" height="15.0" fill="rgb(67,180,180)" rx="2" ry="2" />
+<text  x="358.62" y="767.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1221" width="49.4" height="15.0" fill="rgb(77,190,190)" rx="2" ry="2" />
+<text  x="1494.25" y="1231.5" >_PyE..</text>
+</g>
+<g >
+<title>pymain_run_python@/croot/python-split_1727968608067/work/build-static/python.c:620@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1525" width="246.9" height="15.0" fill="rgb(81,193,193)" rx="2" ry="2" />
+<text  x="309.25" y="1535.5" >pymain_run_python@/croot/python-..</text>
+</g>
+<g >
+<title>std::thread::_Invoker&lt;std::tuple&lt;void@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/thread:271@0-7| (2 samples, 6.25%)</title><rect x="1392.5" y="1525" width="98.7" height="15.0" fill="rgb(224,224,68)" rx="2" ry="2" />
+<text  x="1395.50" y="1535.5" >std::thread..</text>
+</g>
+<g >
+<title>PyObject_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:228@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1301" width="49.4" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="1494.25" y="1311.5" >PyOb..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="341" width="49.4" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="408.00" y="351.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1125" width="98.8" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="951.12" y="1135.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>__libc_start_main@/lib64/libc.so.6@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1573" width="246.9" height="15.0" fill="rgb(248,121,121)" rx="2" ry="2" />
+<text  x="309.25" y="1583.5" >__libc_start_main@/lib64/libc.so..</text>
+</g>
+<g >
+<title>object_vacall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:1187@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="821" width="49.4" height="15.0" fill="rgb(96,207,207)" rx="2" ry="2" />
+<text  x="1148.62" y="831.5" >obje..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1477" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1487.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="741" width="49.3" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="506.75" y="751.5" >func..</text>
+</g>
+<g >
+<title>THPEngine_run_backward(_object*, _object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="661" width="49.4" height="15.0" fill="rgb(55,204,55)" rx="2" ry="2" />
+<text  x="457.38" y="671.5" >THPE..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1317" width="246.9" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="309.25" y="1327.5" >call_function@/usr/local/src/con..</text>
+</g>
+<g >
+<title>PyObject_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:228@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1445" width="49.4" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="1494.25" y="1455.5" >PyOb..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::RunThis@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:191@1-2/6|0/3-5/7 (1 samples, 3.12%)</title><rect x="108.8" y="1525" width="49.3" height="15.0" fill="rgb(226,226,68)" rx="2" ry="2" />
+<text  x="111.75" y="1535.5" >brpc..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="133" width="49.4" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="408.00" y="143.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_FastCall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:147@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="629" width="49.3" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="506.75" y="639.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="981" width="246.9" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="309.25" y="991.5" >_PyEval_EvalCodeWithName@/usr/lo..</text>
+</g>
+<g >
+<title>at::native::item(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="485" width="49.3" height="15.0" fill="rgb(106,252,106)" rx="2" ry="2" />
+<text  x="506.75" y="495.5" >at::..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::Run@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:205@1-2/6|0/3-5/7 (1 samples, 3.12%)</title><rect x="108.8" y="1509" width="49.3" height="15.0" fill="rgb(184,184,53)" rx="2" ry="2" />
+<text  x="111.75" y="1519.5" >brpc..</text>
+</g>
+<g >
+<title>pthread_cond_wait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1540.6" y="1429" width="49.4" height="15.0" fill="rgb(237,104,104)" rx="2" ry="2" />
+<text  x="1543.62" y="1439.5" >pthr..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="981" width="49.3" height="15.0" fill="rgb(68,181,181)" rx="2" ry="2" />
+<text  x="901.75" y="991.5" >_PyF..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1493" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1503.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>at::_ops::item::call(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="853" width="49.4" height="15.0" fill="rgb(81,228,81)" rx="2" ry="2" />
+<text  x="309.25" y="863.5" >at::..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1365" width="246.9" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="309.25" y="1375.5" >_PyEval_EvalCodeWithName@/usr/lo..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="917" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="927.5" >_PyE..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1333" width="296.2" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="901.75" y="1343.5" >PyEval_EvalFrameEx@/usr/local/src/conda..</text>
+</g>
+<g >
+<title>torch::autograd::THPVariable_item(_object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="869" width="49.4" height="15.0" fill="rgb(72,220,72)" rx="2" ry="2" />
+<text  x="309.25" y="879.5" >torc..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="709" width="98.8" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="358.62" y="719.5" >_PyFunction..</text>
+</g>
+<g >
+<title>torch::autograd::ReadyQueue::pop()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="565" width="49.4" height="15.0" fill="rgb(68,216,68)" rx="2" ry="2" />
+<text  x="457.38" y="575.5" >torc..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1189" width="246.9" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="309.25" y="1199.5" >_PyFunction_Vectorcall@/usr/loca..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupGloo::runLoop(int)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@0-7| (1 samples, 3.12%)</title><rect x="1195.0" y="1541" width="49.4" height="15.0" fill="rgb(101,247,101)" rx="2" ry="2" />
+<text  x="1198.00" y="1551.5" >c10d..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="773" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="783.5" >??@/..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="565" width="49.4" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="309.25" y="575.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="981" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="991.5" >_PyO..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="965" width="49.4" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="1148.62" y="975.5" >call..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1157" width="49.4" height="15.0" fill="rgb(94,205,205)" rx="2" ry="2" />
+<text  x="1099.25" y="1167.5" >_PyF..</text>
+</g>
+<g >
+<title>bthread::TimerThread::run@external/apache_brpc/src/bthread/timer_thread.cpp:433@0-7| (1 samples, 3.12%)</title><rect x="651.9" y="1541" width="49.3" height="15.0" fill="rgb(186,186,54)" rx="2" ry="2" />
+<text  x="654.88" y="1551.5" >bthr..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1509" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1519.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="901" width="49.3" height="15.0" fill="rgb(93,205,205)" rx="2" ry="2" />
+<text  x="901.75" y="911.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="725" width="98.8" height="15.0" fill="rgb(102,213,213)" rx="2" ry="2" />
+<text  x="358.62" y="735.5" >_PyObject_V..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1061" width="49.3" height="15.0" fill="rgb(54,169,169)" rx="2" ry="2" />
+<text  x="901.75" y="1071.5" >_PyE..</text>
+</g>
+<g >
+<title>PyEval_RestoreThread@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:399@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="997.5" y="933" width="49.4" height="15.0" fill="rgb(85,197,197)" rx="2" ry="2" />
+<text  x="1000.50" y="943.5" >PyEv..</text>
+</g>
+<g >
+<title>bthread::butex_wait@external/apache_brpc/src/bthread/butex.cpp:648@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1349" width="49.4" height="15.0" fill="rgb(229,229,69)" rx="2" ry="2" />
+<text  x="1395.50" y="1359.5" >bthr..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1109" width="49.4" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="1148.62" y="1119.5" >func..</text>
+</g>
+<g >
+<title>_PyObject_MakeTpCall@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:3727@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="821" width="49.3" height="15.0" fill="rgb(82,194,194)" rx="2" ry="2" />
+<text  x="506.75" y="831.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="933" width="49.3" height="15.0" fill="rgb(64,177,177)" rx="2" ry="2" />
+<text  x="901.75" y="943.5" >_PyE..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1557" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1567.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1125" width="49.3" height="15.0" fill="rgb(64,177,177)" rx="2" ry="2" />
+<text  x="901.75" y="1135.5" >_PyE..</text>
+</g>
+<g >
+<title>acquire_timed@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:63@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="901" width="49.3" height="15.0" fill="rgb(107,218,218)" rx="2" ry="2" />
+<text  x="1049.88" y="911.5" >acqu..</text>
+</g>
+<g >
+<title>take_gil@/usr/local/src/conda/python-3.8.20/Modules/ceval.c:206@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="997.5" y="917" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1000.50" y="927.5" >take..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="853" width="49.4" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="457.38" y="863.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="981" width="49.3" height="15.0" fill="rgb(90,201,201)" rx="2" ry="2" />
+<text  x="1049.88" y="991.5" >_PyE..</text>
+</g>
+<g >
+<title>at::(anonymous namespace)::(anonymous namespace)::wrapper_CUDA___local_scalar_dense(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="389" width="49.3" height="15.0" fill="rgb(72,221,72)" rx="2" ry="2" />
+<text  x="506.75" y="399.5" >at::..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1109" width="98.8" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="951.12" y="1119.5" >call_functi..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-7| (1 samples, 3.12%)</title><rect x="553.1" y="1557" width="49.4" height="15.0" fill="rgb(203,54,54)" rx="2" ry="2" />
+<text  x="556.12" y="1567.5" >??@/..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1045" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="1055.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1045" width="49.3" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1049.88" y="1055.5" >_PyO..</text>
+</g>
+<g >
+<title>poll@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="553.1" y="1509" width="49.4" height="15.0" fill="rgb(239,107,107)" rx="2" ry="2" />
+<text  x="556.12" y="1519.5" >poll..</text>
+</g>
+<g >
+<title>torch::autograd::python::PythonEngine::execute(std::vector&lt;torch::autograd::Edge, std::allocator&lt;torch::autograd::Edge&gt; &gt; const&amp;, std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt; const&amp;, bool, bool, bool, std::vector&lt;torch::autograd::Edge, std::allocator&lt;torch::autograd::Edge&gt; &gt; const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="645" width="49.4" height="15.0" fill="rgb(69,218,69)" rx="2" ry="2" />
+<text  x="457.38" y="655.5" >torc..</text>
+</g>
+<g >
+<title>xpu_timer::server::HostingService_Stub::DumpStringStacktrace@bazel-out/k8-dbg/bin/xpu_timer/protos/hosting_service.pb.cc:9487@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1413" width="49.4" height="15.0" fill="rgb(209,209,62)" rx="2" ry="2" />
+<text  x="1395.50" y="1423.5" >xpu_..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="917" width="49.3" height="15.0" fill="rgb(93,205,205)" rx="2" ry="2" />
+<text  x="506.75" y="927.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3054@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="709" width="49.3" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="506.75" y="719.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1109" width="246.9" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="309.25" y="1119.5" >_PyObject_Vectorcall@/croot/pyth..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="661" width="49.4" height="15.0" fill="rgb(63,177,177)" rx="2" ry="2" />
+<text  x="358.62" y="671.5" >_PyE..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::RunThis@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:191@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1333" width="49.4" height="15.0" fill="rgb(221,221,66)" rx="2" ry="2" />
+<text  x="13.00" y="1343.5" >brpc..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1093" width="246.9" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="309.25" y="1103.5" >_PyFunction_Vectorcall@/usr/loca..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="949" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="959.5" >_PyO..</text>
+</g>
+<g >
+<title>__gthread_cond_timedwait@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/x86_64-redhat-linux/bits/gthr-default.h:872@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1381" width="49.3" height="15.0" fill="rgb(241,110,110)" rx="2" ry="2" />
+<text  x="1444.88" y="1391.5" >__gt..</text>
+</g>
+<g >
+<title>bthread::butex_wait_from_pthread@external/apache_brpc/src/bthread/butex.cpp:615@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1333" width="49.4" height="15.0" fill="rgb(217,217,65)" rx="2" ry="2" />
+<text  x="1395.50" y="1343.5" >bthr..</text>
+</g>
+<g >
+<title>pythread_wrapper@/usr/local/src/conda/python-3.8.20/Modules/preconfig.c:232@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1557" width="296.2" height="15.0" fill="rgb(69,183,183)" rx="2" ry="2" />
+<text  x="901.75" y="1567.5" >pythread_wrapper@/usr/local/src/conda/p..</text>
+</g>
+<g >
+<title>at::native::is_nonzero(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="533" width="49.3" height="15.0" fill="rgb(67,215,67)" rx="2" ry="2" />
+<text  x="506.75" y="543.5" >at::..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="965" width="246.9" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="309.25" y="975.5" >PyEval_EvalFrameEx@/usr/local/sr..</text>
+</g>
+<g >
+<title>bthread::TaskGroup::wait_task@external/apache_brpc/src/bthread/task_group.cpp:124@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1525" width="49.4" height="15.0" fill="rgb(204,204,60)" rx="2" ry="2" />
+<text  x="605.50" y="1535.5" >bthr..</text>
+</g>
+<g >
+<title>at::native::_local_scalar_dense_cuda(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="709" width="49.4" height="15.0" fill="rgb(67,215,67)" rx="2" ry="2" />
+<text  x="309.25" y="719.5" >at::..</text>
+</g>
+<g >
+<title>pyrun_simple_file@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:439@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1461" width="246.9" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="309.25" y="1471.5" >pyrun_simple_file@/usr/local/src..</text>
+</g>
+<g >
+<title>torch::autograd::VariableType::(anonymous namespace)::_local_scalar_dense(c10::DispatchKeySet, at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="773" width="49.4" height="15.0" fill="rgb(108,253,108)" rx="2" ry="2" />
+<text  x="309.25" y="783.5" >torc..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:60@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="965" width="49.4" height="15.0" fill="rgb(57,171,171)" rx="2" ry="2" />
+<text  x="1099.25" y="975.5" >meth..</text>
+</g>
+<g >
+<title>select_poll_poll@/usr/local/src/conda/python-3.8.20/Modules/object.h:219@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="405" width="49.4" height="15.0" fill="rgb(69,183,183)" rx="2" ry="2" />
+<text  x="1099.25" y="415.5" >sele..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1125" width="246.9" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="309.25" y="1135.5" >call_function@/usr/local/src/con..</text>
+</g>
+<g >
+<title>run_mod@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:1188@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1429" width="246.9" height="15.0" fill="rgb(82,194,194)" rx="2" ry="2" />
+<text  x="309.25" y="1439.5" >run_mod@/usr/local/src/conda/pyt..</text>
+</g>
+<g >
+<title>pthread_cond_timedwait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1244.4" y="1525" width="49.4" height="15.0" fill="rgb(203,55,55)" rx="2" ry="2" />
+<text  x="1247.38" y="1535.5" >pthr..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="709" width="49.4" height="15.0" fill="rgb(88,200,200)" rx="2" ry="2" />
+<text  x="1099.25" y="719.5" >_PyF..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="277" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="506.75" y="287.5" >??@/..</text>
+</g>
+<g >
+<title>acquire_timed@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:64@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="997.5" y="949" width="49.4" height="15.0" fill="rgb(93,204,204)" rx="2" ry="2" />
+<text  x="1000.50" y="959.5" >acqu..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="533" width="49.4" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="408.00" y="543.5" >_PyO..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1141" width="49.3" height="15.0" fill="rgb(97,208,208)" rx="2" ry="2" />
+<text  x="1049.88" y="1151.5" >func..</text>
+</g>
+<g >
+<title>std::thread::_State_impl&lt;std::thread::_Invoker&lt;std::tuple&lt;void@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/thread:215@0-7| (2 samples, 6.25%)</title><rect x="1392.5" y="1541" width="98.7" height="15.0" fill="rgb(181,181,52)" rx="2" ry="2" />
+<text  x="1395.50" y="1551.5" >std::thread..</text>
+</g>
+<g >
+<title>brpc::Join@external/apache_brpc/src/brpc/controller.cpp:569@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1381" width="49.4" height="15.0" fill="rgb(211,211,63)" rx="2" ry="2" />
+<text  x="1395.50" y="1391.5" >brpc..</text>
+</g>
+<g >
+<title>_bufferedreader_fill_buffer@/usr/local/src/conda/python-3.8.20/Modules/clinic/bufferedio.c.h:1505@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="869" width="49.4" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="1148.62" y="879.5" >_buf..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1285" width="246.9" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="309.25" y="1295.5" >_PyFunction_Vectorcall@/usr/loca..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (3 samples, 9.38%)</title><rect x="898.8" y="1189" width="148.1" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="901.75" y="1199.5" >_PyObject_Vectorca..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="613" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="358.62" y="623.5" >func..</text>
+</g>
+<g >
+<title>__gthread_cond_wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:865@0-7| (1 samples, 3.12%)</title><rect x="1540.6" y="1445" width="49.4" height="15.0" fill="rgb(242,112,112)" rx="2" ry="2" />
+<text  x="1543.62" y="1455.5" >__gt..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::Run@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:205@4-5/7|0-3/6 (1 samples, 3.12%)</title><rect x="158.1" y="1525" width="49.4" height="15.0" fill="rgb(191,191,56)" rx="2" ry="2" />
+<text  x="161.12" y="1535.5" >brpc..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1205" width="246.9" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="309.25" y="1215.5" >_PyObject_Vectorcall@/croot/pyth..</text>
+</g>
+<g >
+<title>pyrun_file@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:1085@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1445" width="246.9" height="15.0" fill="rgb(83,195,195)" rx="2" ry="2" />
+<text  x="309.25" y="1455.5" >pyrun_file@/usr/local/src/conda/..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3559@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="469" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="408.00" y="479.5" >_PyE..</text>
+</g>
+<g >
+<title>PyEval_EvalCode@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:718@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1397" width="246.9" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="309.25" y="1407.5" >PyEval_EvalCode@/usr/local/src/c..</text>
+</g>
+<g >
+<title>t_bootstrap@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:1002@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1541" width="296.2" height="15.0" fill="rgb(108,218,218)" rx="2" ry="2" />
+<text  x="901.75" y="1551.5" >t_bootstrap@/croot/python-split_1727968..</text>
+</g>
+<g >
+<title>cfunction_vectorcall_NOARGS@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/descrobject.c:463@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="885" width="49.4" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="309.25" y="895.5" >cfun..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1013" width="246.9" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="309.25" y="1023.5" >_PyObject_Vectorcall@/croot/pyth..</text>
+</g>
+<g >
+<title>bthread_make_fcontext@/opt/conda/bin/libevent_hook.so@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1365" width="49.4" height="15.0" fill="rgb(219,78,78)" rx="2" ry="2" />
+<text  x="13.00" y="1375.5" >bthr..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:60@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1061" width="49.3" height="15.0" fill="rgb(57,171,171)" rx="2" ry="2" />
+<text  x="1049.88" y="1071.5" >meth..</text>
+</g>
+<g >
+<title>epoll_wait@/lib64/libc.so.6@4-5/7|0-3/6 (1 samples, 3.12%)</title><rect x="158.1" y="1509" width="49.4" height="15.0" fill="rgb(246,117,117)" rx="2" ry="2" />
+<text  x="161.12" y="1519.5" >epol..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:89@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1493" width="296.2" height="15.0" fill="rgb(64,178,178)" rx="2" ry="2" />
+<text  x="901.75" y="1503.5" >method_vectorcall@/usr/local/src/conda/..</text>
+</g>
+<g >
+<title>torch::autograd::ReadyQueue::pop()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@0-7| (1 samples, 3.12%)</title><rect x="1540.6" y="1493" width="49.4" height="15.0" fill="rgb(107,252,107)" rx="2" ry="2" />
+<text  x="1543.62" y="1503.5" >torc..</text>
+</g>
+<g >
+<title>??@??@0/3|1-2/4-7 (2 samples, 6.25%)</title><rect x="10.0" y="1541" width="98.8" height="15.0" fill="rgb(248,120,120)" rx="2" ry="2" />
+<text  x="13.00" y="1551.5" >??@??@0/3|1..</text>
+</g>
+<g >
+<title>torch::autograd::PyNode::apply(std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt;&amp;&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1461" width="49.4" height="15.0" fill="rgb(97,243,97)" rx="2" ry="2" />
+<text  x="1494.25" y="1471.5" >torc..</text>
+</g>
+<g >
+<title>bvar::detail::SamplerCollector::sampling_thread@external/apache_brpc/src/bvar/detail/sampler.cpp:123@0-7| (1 samples, 3.12%)</title><rect x="701.2" y="1557" width="49.4" height="15.0" fill="rgb(187,187,54)" rx="2" ry="2" />
+<text  x="704.25" y="1567.5" >bvar..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="565" width="49.4" height="15.0" fill="rgb(82,195,195)" rx="2" ry="2" />
+<text  x="358.62" y="575.5" >call..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="661" width="49.4" height="15.0" fill="rgb(70,184,184)" rx="2" ry="2" />
+<text  x="1099.25" y="671.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1365" width="49.4" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="1494.25" y="1375.5" >_PyE..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupNCCL::WorkNCCL::wait(std::chrono::duration&lt;long, std::ratio&lt;1l, 1000l&gt; &gt;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="197" width="49.4" height="15.0" fill="rgb(74,222,74)" rx="2" ry="2" />
+<text  x="408.00" y="207.5" >c10d..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="869" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="879.5" >call..</text>
+</g>
+<g >
+<title>cudaLaunchKernel@xpu_timer/nvidia/hook.cc:67@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="885" width="49.4" height="15.0" fill="rgb(248,121,121)" rx="2" ry="2" />
+<text  x="1494.25" y="895.5" >cuda..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="405" width="49.4" height="15.0" fill="rgb(210,65,65)" rx="2" ry="2" />
+<text  x="358.62" y="415.5" >??@/..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1029" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="1148.62" y="1039.5" >_PyF..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="997" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="1007.5" >call..</text>
+</g>
+<g >
+<title>at::_ops::_local_scalar_dense::redispatch(c10::DispatchKeySet, at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="757" width="49.4" height="15.0" fill="rgb(82,229,82)" rx="2" ry="2" />
+<text  x="309.25" y="767.5" >at::..</text>
+</g>
+<g >
+<title>pthread_cond_wait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="750.6" y="1525" width="49.4" height="15.0" fill="rgb(237,104,104)" rx="2" ry="2" />
+<text  x="753.62" y="1535.5" >pthr..</text>
+</g>
+<g >
+<title>pthread_cond_timedwait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1293.8" y="1509" width="49.3" height="15.0" fill="rgb(203,55,55)" rx="2" ry="2" />
+<text  x="1296.75" y="1519.5" >pthr..</text>
+</g>
+<g >
+<title>_io_FileIO_readinto@/usr/local/src/conda/python-3.8.20/Python/clinic/fileio.c:210@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="757" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="1148.62" y="767.5" >_io_..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1349" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="1494.25" y="1359.5" >PyEv..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/lib64/libcudart.so.12@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="309" width="49.3" height="15.0" fill="rgb(213,69,69)" rx="2" ry="2" />
+<text  x="506.75" y="319.5" >??@/..</text>
+</g>
+<g >
+<title>PyObject_IsTrue@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/abstract.c:1448@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="693" width="49.3" height="15.0" fill="rgb(57,171,171)" rx="2" ry="2" />
+<text  x="506.75" y="703.5" >PyOb..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="853" width="98.8" height="15.0" fill="rgb(65,178,178)" rx="2" ry="2" />
+<text  x="358.62" y="863.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>poll@/lib64/libc.so.6@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="373" width="49.4" height="15.0" fill="rgb(209,64,64)" rx="2" ry="2" />
+<text  x="1099.25" y="383.5" >poll..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="485" width="49.4" height="15.0" fill="rgb(58,172,172)" rx="2" ry="2" />
+<text  x="408.00" y="495.5" >PyEv..</text>
+</g>
+<g >
+<title>xpu_timer::nvidia::NvidiaGpuTimer::reset_stream@xpu_timer/nvidia/nvidia_timer.cc:323@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="853" width="49.4" height="15.0" fill="rgb(207,207,61)" rx="2" ry="2" />
+<text  x="1494.25" y="863.5" >xpu_..</text>
+</g>
+<g >
+<title>std::thread::_Invoker&lt;std::tuple&lt;void@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/thread:264@0-7| (2 samples, 6.25%)</title><rect x="1392.5" y="1509" width="98.7" height="15.0" fill="rgb(210,210,62)" rx="2" ry="2" />
+<text  x="1395.50" y="1519.5" >std::thread..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1029" width="246.9" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="309.25" y="1039.5" >call_function@/usr/local/src/con..</text>
+</g>
+<g >
+<title>method_vectorcall_FASTCALL@/usr/local/src/conda/python-3.8.20/Modules/pytime.c:74@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="421" width="49.4" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="1099.25" y="431.5" >meth..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1061" width="246.9" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="309.25" y="1071.5" >PyEval_EvalFrameEx@/usr/local/sr..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="597" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="607.5" >_PyE..</text>
+</g>
+<g >
+<title>bthread_make_fcontext@/opt/conda/bin/libevent_hook.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="59.4" y="1461" width="49.4" height="15.0" fill="rgb(202,53,53)" rx="2" ry="2" />
+<text  x="62.38" y="1471.5" >bthr..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="917" width="49.3" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="901.75" y="927.5" >call..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="853" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="863.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="901" width="49.3" height="15.0" fill="rgb(68,181,181)" rx="2" ry="2" />
+<text  x="506.75" y="911.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1365" width="296.2" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="901.75" y="1375.5" >_PyFunction_Vectorcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>method_vectorcall_NOARGS@/usr/local/src/conda/python-3.8.20/Modules/pyhash.c:393@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="597" width="49.3" height="15.0" fill="rgb(54,168,168)" rx="2" ry="2" />
+<text  x="506.75" y="607.5" >meth..</text>
+</g>
+<g >
+<title>_PyObject_MakeTpCall@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:3727@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1061" width="49.4" height="15.0" fill="rgb(101,212,212)" rx="2" ry="2" />
+<text  x="1494.25" y="1071.5" >_PyO..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="773" width="49.4" height="15.0" fill="rgb(86,198,198)" rx="2" ry="2" />
+<text  x="457.38" y="783.5" >PyEv..</text>
+</g>
+<g >
+<title>do_call_core@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:5010@0-7| (3 samples, 9.38%)</title><rect x="1046.9" y="1205" width="148.1" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="1049.88" y="1215.5" >do_call_core@/usr/..</text>
+</g>
+<g >
+<title>pybind11::cpp_function::dispatcher(_object*, _object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="229" width="49.4" height="15.0" fill="rgb(93,239,93)" rx="2" ry="2" />
+<text  x="408.00" y="239.5" >pybi..</text>
+</g>
+<g >
+<title>PyObject_IsTrue@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/abstract.c:1465@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="677" width="49.3" height="15.0" fill="rgb(65,178,178)" rx="2" ry="2" />
+<text  x="506.75" y="687.5" >PyOb..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="885" width="49.3" height="15.0" fill="rgb(54,169,169)" rx="2" ry="2" />
+<text  x="506.75" y="895.5" >_PyE..</text>
+</g>
+<g >
+<title>_bufferedreader_raw_read@/usr/local/src/conda/python-3.8.20/Modules/clinic/bufferedio.c.h:1473@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="853" width="49.4" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1148.62" y="863.5" >_buf..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="789" width="49.4" height="15.0" fill="rgb(62,211,62)" rx="2" ry="2" />
+<text  x="309.25" y="799.5" >c10:..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1045" width="246.9" height="15.0" fill="rgb(56,171,171)" rx="2" ry="2" />
+<text  x="309.25" y="1055.5" >_PyEval_EvalFrameDefault@/usr/lo..</text>
+</g>
+<g >
+<title>pybind11::cpp_function::initialize&lt;std::vector&lt;at::Tensor,@/opt/conda/lib/python3.8/site-packages/torch/include/pybind11/pybind11.h:297@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="981" width="49.4" height="15.0" fill="rgb(56,205,56)" rx="2" ry="2" />
+<text  x="1494.25" y="991.5" >pybi..</text>
+</g>
+<g >
+<title>lock_PyThread_acquire_lock@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:146@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="869" width="49.3" height="15.0" fill="rgb(99,210,210)" rx="2" ry="2" />
+<text  x="901.75" y="879.5" >lock..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1285" width="296.2" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="901.75" y="1295.5" >_PyObject_Vectorcall@/croot/python-spli..</text>
+</g>
+<g >
+<title>std::condition_variable::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:41@0-7| (1 samples, 3.12%)</title><rect x="1540.6" y="1477" width="49.4" height="15.0" fill="rgb(223,223,67)" rx="2" ry="2" />
+<text  x="1543.62" y="1487.5" >std:..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="741" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="751.5" >call..</text>
+</g>
+<g >
+<title>lock_PyThread_acquire_lock@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:146@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="917" width="49.3" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="1049.88" y="927.5" >lock..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1125" width="49.3" height="15.0" fill="rgb(92,204,204)" rx="2" ry="2" />
+<text  x="1049.88" y="1135.5" >PyEv..</text>
+</g>
+<g >
+<title>PyEval_EvalCodeEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4327@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1381" width="246.9" height="15.0" fill="rgb(97,208,208)" rx="2" ry="2" />
+<text  x="309.25" y="1391.5" >PyEval_EvalCodeEx@/usr/local/src..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1141" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="1494.25" y="1151.5" >PyEv..</text>
+</g>
+<g >
+<title>torch::autograd::THPVariable_bool_scalar(_object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="581" width="49.3" height="15.0" fill="rgb(106,251,106)" rx="2" ry="2" />
+<text  x="506.75" y="591.5" >torc..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:147@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="789" width="49.4" height="15.0" fill="rgb(77,189,189)" rx="2" ry="2" />
+<text  x="1148.62" y="799.5" >_PyO..</text>
+</g>
+<g >
+<title>clock_gettime@??@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="37" width="49.4" height="15.0" fill="rgb(217,75,75)" rx="2" ry="2" />
+<text  x="408.00" y="47.5" >cloc..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="229" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="506.75" y="239.5" >??@/..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:60@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="837" width="49.4" height="15.0" fill="rgb(57,171,171)" rx="2" ry="2" />
+<text  x="1099.25" y="847.5" >meth..</text>
+</g>
+<g >
+<title>cfunction_call_varargs@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:743@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1029" width="49.4" height="15.0" fill="rgb(86,198,198)" rx="2" ry="2" />
+<text  x="1494.25" y="1039.5" >cfun..</text>
+</g>
+<g >
+<title>method_vectorcall_FASTCALL@/usr/local/src/conda/python-3.8.20/Modules/pytime.c:74@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="933" width="49.4" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="1148.62" y="943.5" >meth..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="453" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="463.5" >call..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1269" width="49.4" height="15.0" fill="rgb(87,199,199)" rx="2" ry="2" />
+<text  x="1494.25" y="1279.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="997" width="98.8" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="951.12" y="1007.5" >_PyObject_V..</text>
+</g>
+<g >
+<title>pthread_cond_timedwait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1365" width="49.3" height="15.0" fill="rgb(203,55,55)" rx="2" ry="2" />
+<text  x="1444.88" y="1375.5" >pthr..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="725" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="735.5" >??@/..</text>
+</g>
+<g >
+<title>torch::autograd::THPVariable_is_nonzero(_object*, _object*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="565" width="49.3" height="15.0" fill="rgb(83,231,83)" rx="2" ry="2" />
+<text  x="506.75" y="575.5" >torc..</text>
+</g>
+<g >
+<title>pybind11::cpp_function::initialize&lt;std::vector&lt;at::Tensor,@/opt/conda/lib/python3.8/site-packages/torch/include/pybind11/pybind11.h:267@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="997" width="49.4" height="15.0" fill="rgb(79,226,79)" rx="2" ry="2" />
+<text  x="1494.25" y="1007.5" >pybi..</text>
+</g>
+<g >
+<title>cfunction_vectorcall_NOARGS@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/descrobject.c:463@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="517" width="49.4" height="15.0" fill="rgb(82,195,195)" rx="2" ry="2" />
+<text  x="358.62" y="527.5" >cfun..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1141" width="49.3" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="901.75" y="1151.5" >PyEv..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1109" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="1494.25" y="1119.5" >call..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1093" width="49.4" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="1148.62" y="1103.5" >PyEv..</text>
+</g>
+<g >
+<title>bthread_id_join@external/apache_brpc/src/bthread/id.cpp:529@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1365" width="49.4" height="15.0" fill="rgb(215,72,72)" rx="2" ry="2" />
+<text  x="1395.50" y="1375.5" >bthr..</text>
+</g>
+<g >
+<title>sched_yield@/lib64/libc.so.6@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="677" width="49.4" height="15.0" fill="rgb(218,77,77)" rx="2" ry="2" />
+<text  x="1494.25" y="687.5" >sche..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1061" width="98.8" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="951.12" y="1071.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>ncclProxyProgress@proxy.cc:884@0-7| (1 samples, 3.12%)</title><rect x="750.6" y="1557" width="49.4" height="15.0" fill="rgb(56,206,56)" rx="2" ry="2" />
+<text  x="753.62" y="1567.5" >nccl..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupNCCL::heartbeatMonitor()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@0-7| (1 samples, 3.12%)</title><rect x="1244.4" y="1541" width="49.4" height="15.0" fill="rgb(61,210,61)" rx="2" ry="2" />
+<text  x="1247.38" y="1551.5" >c10d..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::Run@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:205@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="59.4" y="1413" width="49.4" height="15.0" fill="rgb(216,216,64)" rx="2" ry="2" />
+<text  x="62.38" y="1423.5" >brpc..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="901" width="49.4" height="15.0" fill="rgb(102,213,213)" rx="2" ry="2" />
+<text  x="309.25" y="911.5" >_PyO..</text>
+</g>
+<g >
+<title>ncclProxyGetPostedOps@proxy.cc:728@0-7| (1 samples, 3.12%)</title><rect x="750.6" y="1541" width="49.4" height="15.0" fill="rgb(78,226,78)" rx="2" ry="2" />
+<text  x="753.62" y="1551.5" >nccl..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1429" width="296.2" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="901.75" y="1439.5" >PyEval_EvalFrameEx@/usr/local/src/conda..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="949" width="148.2" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="358.62" y="959.5" >_PyEval_EvalFrameD..</text>
+</g>
+<g >
+<title>_PyObject_MakeTpCall@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:3727@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="709" width="49.4" height="15.0" fill="rgb(101,212,212)" rx="2" ry="2" />
+<text  x="457.38" y="719.5" >_PyO..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/lib64/libcudart.so.12@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="805" width="49.4" height="15.0" fill="rgb(230,94,94)" rx="2" ry="2" />
+<text  x="1494.25" y="815.5" >??@/..</text>
+</g>
+<g >
+<title>poll@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="849.4" y="1541" width="49.4" height="15.0" fill="rgb(239,107,107)" rx="2" ry="2" />
+<text  x="852.38" y="1551.5" >poll..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1109" width="49.3" height="15.0" fill="rgb(70,184,184)" rx="2" ry="2" />
+<text  x="1049.88" y="1119.5" >_PyE..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="645" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="655.5" >call..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="997" width="49.4" height="15.0" fill="rgb(65,179,179)" rx="2" ry="2" />
+<text  x="1148.62" y="1007.5" >PyEv..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="773" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="783.5" >PyEv..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="949" width="49.3" height="15.0" fill="rgb(53,168,168)" rx="2" ry="2" />
+<text  x="901.75" y="959.5" >PyEv..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="997" width="49.3" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1049.88" y="1007.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1381" width="296.2" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="901.75" y="1391.5" >_PyObject_Vectorcall@/croot/python-spli..</text>
+</g>
+<g >
+<title>cudaStreamSynchronize@/usr/local/cuda/lib64/libcudart.so.12@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="165" width="49.4" height="15.0" fill="rgb(237,104,104)" rx="2" ry="2" />
+<text  x="408.00" y="175.5" >cuda..</text>
+</g>
+<g >
+<title>PyThread_acquire_lock_timed@/usr/local/src/conda/python-3.8.20/Modules/preconfig.c:453@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="837" width="49.3" height="15.0" fill="rgb(103,213,213)" rx="2" ry="2" />
+<text  x="901.75" y="847.5" >PyTh..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1077" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="1087.5" >_PyO..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="389" width="49.4" height="15.0" fill="rgb(210,65,65)" rx="2" ry="2" />
+<text  x="358.62" y="399.5" >??@/..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="677" width="98.8" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="358.62" y="687.5" >PyEval_Eval..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/lib64/libcudart.so.12@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="645" width="49.4" height="15.0" fill="rgb(221,80,80)" rx="2" ry="2" />
+<text  x="309.25" y="655.5" >??@/..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="389" width="49.4" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="408.00" y="399.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1125" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="1148.62" y="1135.5" >_PyF..</text>
+</g>
+<g >
+<title>PyCFunction_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:773@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1045" width="49.4" height="15.0" fill="rgb(102,212,212)" rx="2" ry="2" />
+<text  x="1494.25" y="1055.5" >PyCF..</text>
+</g>
+<g >
+<title>at::_ops::_local_scalar_dense::call(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="469" width="49.3" height="15.0" fill="rgb(61,210,61)" rx="2" ry="2" />
+<text  x="506.75" y="479.5" >at::..</text>
+</g>
+<g >
+<title>slot_nb_bool@/usr/local/src/conda/python-3.8.20/Modules/condvar.h:6405@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="661" width="49.3" height="15.0" fill="rgb(102,212,212)" rx="2" ry="2" />
+<text  x="506.75" y="671.5" >slot..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="757" width="49.3" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="506.75" y="767.5" >_PyF..</text>
+</g>
+<g >
+<title>usleep@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="701.2" y="1525" width="49.4" height="15.0" fill="rgb(251,125,125)" rx="2" ry="2" />
+<text  x="704.25" y="1535.5" >usle..</text>
+</g>
+<g >
+<title>_start@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:521@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1589" width="246.9" height="15.0" fill="rgb(67,181,181)" rx="2" ry="2" />
+<text  x="309.25" y="1599.5" >_start@/usr/local/src/conda/pyth..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::RunThis@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:191@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="59.4" y="1429" width="49.4" height="15.0" fill="rgb(203,203,60)" rx="2" ry="2" />
+<text  x="62.38" y="1439.5" >brpc..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1173" width="49.3" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="901.75" y="1183.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="661" width="49.4" height="15.0" fill="rgb(109,219,219)" rx="2" ry="2" />
+<text  x="408.00" y="671.5" >_PyE..</text>
+</g>
+<g >
+<title>bthread::TaskGroup::run_main_task@external/apache_brpc/src/bthread/task_group.cpp:152@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1541" width="49.4" height="15.0" fill="rgb(182,182,52)" rx="2" ry="2" />
+<text  x="605.50" y="1551.5" >bthr..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="469" width="49.4" height="15.0" fill="rgb(90,201,201)" rx="2" ry="2" />
+<text  x="1099.25" y="479.5" >_PyE..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-7| (1 samples, 3.12%)</title><rect x="553.1" y="1541" width="49.4" height="15.0" fill="rgb(203,54,54)" rx="2" ry="2" />
+<text  x="556.12" y="1551.5" >??@/..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1029" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="1039.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="501" width="49.4" height="15.0" fill="rgb(59,173,173)" rx="2" ry="2" />
+<text  x="408.00" y="511.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="613" width="49.4" height="15.0" fill="rgb(94,205,205)" rx="2" ry="2" />
+<text  x="1099.25" y="623.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="565" width="49.4" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="408.00" y="575.5" >_PyE..</text>
+</g>
+<g >
+<title>PyObject_CallMethodObjArgs@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:1214@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="837" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1148.62" y="847.5" >PyOb..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1029" width="49.3" height="15.0" fill="rgb(64,177,177)" rx="2" ry="2" />
+<text  x="901.75" y="1039.5" >_PyE..</text>
+</g>
+<g >
+<title>std::condition_variable::wait_until&lt;std::chrono::_V2::steady_clock, std::chrono::duration&lt;long int, std::ratio&lt;1, 1000000000&gt; &gt;, xpu_timer::MetricsManager::checkMetrics()::&lt;lambda()&gt; &gt;(std::unique_lock&lt;std::mutex&gt; &amp;, const std::chrono::time_point&lt;std::chrono::_V2::steady_clock, std::chrono::duration&lt;long, std::ratio&lt;1, 1000000000&gt; &gt; &gt; &amp;, struct {...})@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/condition_variable:158@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1429" width="49.3" height="15.0" fill="rgb(187,187,54)" rx="2" ry="2" />
+<text  x="1444.88" y="1439.5" >std:..</text>
+</g>
+<g >
+<title>void run_mha_bwd_&lt;cutlass::bfloat16_t, 128&gt;(Flash_bwd_params&amp;, CUstream_st*, bool)@/opt/conda/lib/python3.8/site-packages/flash_attn_2_cuda.cpython-38-x86_64-linux-gnu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="917" width="49.4" height="15.0" fill="rgb(222,222,67)" rx="2" ry="2" />
+<text  x="1494.25" y="927.5" >void..</text>
+</g>
+<g >
+<title>bthread::futex_wait_private@external/apache_brpc/src/bthread/sys_futex.h:40@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1301" width="49.4" height="15.0" fill="rgb(218,218,65)" rx="2" ry="2" />
+<text  x="1395.50" y="1311.5" >bthr..</text>
+</g>
+<g >
+<title>epoll_wait@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="1343.1" y="1525" width="49.4" height="15.0" fill="rgb(251,125,125)" rx="2" ry="2" />
+<text  x="1346.12" y="1535.5" >epol..</text>
+</g>
+<g >
+<title>State@S (sleeping)@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="256.9" y="1589" width="49.3" height="15.0" fill="rgb(240,126,240)" rx="2" ry="2" />
+<text  x="259.88" y="1599.5" >Stat..</text>
+</g>
+<g >
+<title>partial_call@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/bytearrayobject.c:225@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="805" width="49.3" height="15.0" fill="rgb(99,210,210)" rx="2" ry="2" />
+<text  x="506.75" y="815.5" >part..</text>
+</g>
+<g >
+<title>do_futex_wait.constprop.0@/lib64/libpthread.so.0@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="805" width="49.3" height="15.0" fill="rgb(228,91,91)" rx="2" ry="2" />
+<text  x="901.75" y="815.5" >do_f..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3559@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1333" width="49.4" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1494.25" y="1343.5" >_PyE..</text>
+</g>
+<g >
+<title>??@??@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="10.0" y="1573" width="148.1" height="15.0" fill="rgb(246,117,117)" rx="2" ry="2" />
+<text  x="13.00" y="1583.5" >??@??@0-3/6|4-5/7</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1157" width="49.3" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="901.75" y="1167.5" >func..</text>
+</g>
+<g >
+<title>start_thread@/lib64/libpthread.so.0@0-7| (21 samples, 65.62%)</title><rect x="553.1" y="1573" width="1036.9" height="15.0" fill="rgb(247,119,119)" rx="2" ry="2" />
+<text  x="556.12" y="1583.5" >start_thread@/lib64/libpthread.so.0@0-7|</text>
+</g>
+<g >
+<title>bthread::TaskGroup::task_runner@external/apache_brpc/src/bthread/task_group.cpp:296@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="59.4" y="1445" width="49.4" height="15.0" fill="rgb(229,229,69)" rx="2" ry="2" />
+<text  x="62.38" y="1455.5" >bthr..</text>
+</g>
+<g >
+<title>xpu_timer::nvidia::NvidiaGpuTimer::startRecord@xpu_timer/nvidia/nvidia_timer.cc:87@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="837" width="49.4" height="15.0" fill="rgb(205,205,61)" rx="2" ry="2" />
+<text  x="1494.25" y="847.5" >xpu_..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="645" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="408.00" y="655.5" >call..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1269" width="246.9" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="309.25" y="1279.5" >_PyEval_EvalCodeWithName@/usr/lo..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="245" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="506.75" y="255.5" >??@/..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1221" width="246.9" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="309.25" y="1231.5" >call_function@/usr/local/src/con..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="773" width="98.8" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="358.62" y="783.5" >PyEval_Eval..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1157" width="246.9" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="309.25" y="1167.5" >PyEval_EvalFrameEx@/usr/local/sr..</text>
+</g>
+<g >
+<title>acquire_timed@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:63@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="853" width="49.3" height="15.0" fill="rgb(81,194,194)" rx="2" ry="2" />
+<text  x="901.75" y="863.5" >acqu..</text>
+</g>
+<g >
+<title>lock_PyThread_acquire_lock@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:146@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="965" width="98.8" height="15.0" fill="rgb(97,208,208)" rx="2" ry="2" />
+<text  x="951.12" y="975.5" >lock_PyThre..</text>
+</g>
+<g >
+<title>PyRun_AnyFileExFlags@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:90@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1493" width="246.9" height="15.0" fill="rgb(89,200,200)" rx="2" ry="2" />
+<text  x="309.25" y="1503.5" >PyRun_AnyFileExFlags@/usr/local/..</text>
+</g>
+<g >
+<title>cfunction_call_varargs@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:743@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="677" width="49.4" height="15.0" fill="rgb(86,198,198)" rx="2" ry="2" />
+<text  x="457.38" y="687.5" >cfun..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1125" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="1135.5" >PyEv..</text>
+</g>
+<g >
+<title>__gthread_cond_wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:865@0-7| (1 samples, 3.12%)</title><rect x="1195.0" y="1493" width="49.4" height="15.0" fill="rgb(242,112,112)" rx="2" ry="2" />
+<text  x="1198.00" y="1503.5" >__gt..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1013" width="98.8" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="951.12" y="1023.5" >call_functi..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::thread_main(std::shared_ptr&lt;torch::autograd::GraphTask&gt; const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@0-7| (2 samples, 6.25%)</title><rect x="1491.2" y="1509" width="98.8" height="15.0" fill="rgb(69,217,69)" rx="2" ry="2" />
+<text  x="1494.25" y="1519.5" >torch::auto..</text>
+</g>
+<g >
+<title>acquire_timed@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/classobject.c:63@0-2/4-7|3 (1 samples, 3.12%)</title><rect x="948.1" y="949" width="49.4" height="15.0" fill="rgb(101,211,211)" rx="2" ry="2" />
+<text  x="951.12" y="959.5" >acqu..</text>
+</g>
+<g >
+<title>bthread::TaskGroup::task_runner@external/apache_brpc/src/bthread/task_group.cpp:296@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1349" width="49.4" height="15.0" fill="rgb(192,192,56)" rx="2" ry="2" />
+<text  x="13.00" y="1359.5" >bthr..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="853" width="49.3" height="15.0" fill="rgb(104,215,215)" rx="2" ry="2" />
+<text  x="506.75" y="863.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="517" width="49.4" height="15.0" fill="rgb(94,205,205)" rx="2" ry="2" />
+<text  x="1099.25" y="527.5" >_PyF..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1461" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1471.5" >??@?..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="821" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="831.5" >_PyO..</text>
+</g>
+<g >
+<title>_io_FileIO_readinto_impl@/usr/local/src/conda/python-3.8.20/Modules/clinic/_iomodule.c.h:639@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="741" width="49.4" height="15.0" fill="rgb(68,181,181)" rx="2" ry="2" />
+<text  x="1148.62" y="751.5" >_io_..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="613" width="49.4" height="15.0" fill="rgb(67,180,180)" rx="2" ry="2" />
+<text  x="408.00" y="623.5" >_PyF..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="757" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="767.5" >??@/..</text>
+</g>
+<g >
+<title>clock_gettime@GLIBC_2.2.5@/lib64/libc.so.6@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="213" width="49.3" height="15.0" fill="rgb(236,102,102)" rx="2" ry="2" />
+<text  x="506.75" y="223.5" >cloc..</text>
+</g>
+<g >
+<title>ncclProxyService@proxy.cc:1485@0-7| (1 samples, 3.12%)</title><rect x="800.0" y="1557" width="49.4" height="15.0" fill="rgb(63,212,63)" rx="2" ry="2" />
+<text  x="803.00" y="1567.5" >nccl..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="789" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="799.5" >??@/..</text>
+</g>
+<g >
+<title>PyObject_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:228@0-7| (3 samples, 9.38%)</title><rect x="1046.9" y="1189" width="148.1" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="1049.88" y="1199.5" >PyObject_Call@/usr..</text>
+</g>
+<g >
+<title>xpu_timer::nvidia::NvidiaGpuTimer::reset(CUstream_st*, std::function&lt;std::tuple&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; const, unsigned long, std::map&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::less&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;, std::allocator&lt;std::pair&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; const, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt; &gt; &gt; &gt;@xpu_timer/nvidia/nvidia_timer.cc:305@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="869" width="49.4" height="15.0" fill="rgb(221,221,66)" rx="2" ry="2" />
+<text  x="1494.25" y="879.5" >xpu_..</text>
+</g>
+<g >
+<title>bthread_make_fcontext@/opt/conda/bin/libevent_hook.so@4-5/7|0-3/6 (1 samples, 3.12%)</title><rect x="158.1" y="1573" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="161.12" y="1583.5" >bthr..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="805" width="49.4" height="15.0" fill="rgb(81,194,194)" rx="2" ry="2" />
+<text  x="457.38" y="815.5" >_PyF..</text>
+</g>
+<g >
+<title>bthread::TaskGroup::task_runner@external/apache_brpc/src/bthread/task_group.cpp:296@1-2/6|0/3-5/7 (1 samples, 3.12%)</title><rect x="108.8" y="1541" width="49.3" height="15.0" fill="rgb(197,197,58)" rx="2" ry="2" />
+<text  x="111.75" y="1551.5" >bthr..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupNCCL::ncclCommWatchdog()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@0-7| (1 samples, 3.12%)</title><rect x="1293.8" y="1541" width="49.3" height="15.0" fill="rgb(98,244,98)" rx="2" ry="2" />
+<text  x="1296.75" y="1551.5" >c10d..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="885" width="49.4" height="15.0" fill="rgb(82,194,194)" rx="2" ry="2" />
+<text  x="1099.25" y="895.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1109" width="49.4" height="15.0" fill="rgb(70,184,184)" rx="2" ry="2" />
+<text  x="1099.25" y="1119.5" >_PyE..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="437" width="49.4" height="15.0" fill="rgb(210,65,65)" rx="2" ry="2" />
+<text  x="358.62" y="447.5" >??@/..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="597" width="49.4" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="309.25" y="607.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1093" width="49.3" height="15.0" fill="rgb(93,205,205)" rx="2" ry="2" />
+<text  x="901.75" y="1103.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="629" width="49.4" height="15.0" fill="rgb(100,211,211)" rx="2" ry="2" />
+<text  x="358.62" y="639.5" >_PyO..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="485" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="495.5" >PyEv..</text>
+</g>
+<g >
+<title>std::__condvar::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/gcc/libstdc++-v3/src/c++11/gthr-default.h:155@0-7| (1 samples, 3.12%)</title><rect x="1195.0" y="1509" width="49.4" height="15.0" fill="rgb(186,186,54)" rx="2" ry="2" />
+<text  x="1198.00" y="1519.5" >std:..</text>
+</g>
+<g >
+<title>std::condition_variable::wait_for&lt;long int, std::ratio&lt;1&gt;, xpu_timer::MetricsManager::checkMetrics()::&lt;lambda()&gt; &gt;(std::unique_lock&lt;std::mutex&gt; &amp;, const std::chrono::duration&lt;long, std::ratio&lt;1, 1&gt; &gt; &amp;, struct {...})@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/condition_variable:185@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1445" width="49.3" height="15.0" fill="rgb(222,222,67)" rx="2" ry="2" />
+<text  x="1444.88" y="1455.5" >std:..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="821" width="49.4" height="15.0" fill="rgb(53,168,168)" rx="2" ry="2" />
+<text  x="457.38" y="831.5" >_PyO..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::evaluate_function(std::shared_ptr&lt;torch::autograd::GraphTask&gt;&amp;, torch::autograd::Node*, torch::autograd::InputBuffer&amp;, std::shared_ptr&lt;torch::autograd::ReadyQueue&gt; const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1493" width="49.4" height="15.0" fill="rgb(85,232,85)" rx="2" ry="2" />
+<text  x="1494.25" y="1503.5" >torc..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1109" width="49.3" height="15.0" fill="rgb(52,167,167)" rx="2" ry="2" />
+<text  x="901.75" y="1119.5" >call..</text>
+</g>
+<g >
+<title>epoll_wait@/lib64/libc.so.6@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="59.4" y="1397" width="49.4" height="15.0" fill="rgb(215,72,72)" rx="2" ry="2" />
+<text  x="62.38" y="1407.5" >epol..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1029" width="98.8" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="951.12" y="1039.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>epoll_wait@/lib64/libc.so.6@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1301" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1311.5" >epol..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:115@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1093" width="49.4" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="1494.25" y="1103.5" >_PyO..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="709" width="49.4" height="15.0" fill="rgb(222,82,82)" rx="2" ry="2" />
+<text  x="1494.25" y="719.5" >??@/..</text>
+</g>
+<g >
+<title>PyThread_acquire_lock_timed@/usr/local/src/conda/python-3.8.20/Modules/preconfig.c:453@0-2/4-7|3 (1 samples, 3.12%)</title><rect x="948.1" y="933" width="49.4" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="951.12" y="943.5" >PyTh..</text>
+</g>
+<g >
+<title>trace_call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4922@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="549" width="49.4" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="358.62" y="559.5" >trac..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:61@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1029" width="49.3" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1049.88" y="1039.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="1077" width="49.3" height="15.0" fill="rgb(68,181,181)" rx="2" ry="2" />
+<text  x="901.75" y="1087.5" >_PyF..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@7|0-6 (1 samples, 3.12%)</title><rect x="898.8" y="965" width="49.3" height="15.0" fill="rgb(54,169,169)" rx="2" ry="2" />
+<text  x="901.75" y="975.5" >_PyE..</text>
+</g>
+<g >
+<title>do_futex_wait.constprop.0@/lib64/libpthread.so.0@0-2/4-7|3 (1 samples, 3.12%)</title><rect x="948.1" y="901" width="49.4" height="15.0" fill="rgb(246,117,117)" rx="2" ry="2" />
+<text  x="951.12" y="911.5" >do_f..</text>
+</g>
+<g >
+<title>std::condition_variable::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:41@0-7| (1 samples, 3.12%)</title><rect x="1195.0" y="1525" width="49.4" height="15.0" fill="rgb(223,223,67)" rx="2" ry="2" />
+<text  x="1198.00" y="1535.5" >std:..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="693" width="49.4" height="15.0" fill="rgb(97,208,208)" rx="2" ry="2" />
+<text  x="1099.25" y="703.5" >func..</text>
+</g>
+<g >
+<title>std::condition_variable::__wait_until_impl&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/condition_variable:232@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1397" width="49.3" height="15.0" fill="rgb(225,225,68)" rx="2" ry="2" />
+<text  x="1444.88" y="1407.5" >std:..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1061" width="49.4" height="15.0" fill="rgb(94,205,205)" rx="2" ry="2" />
+<text  x="1099.25" y="1071.5" >_PyF..</text>
+</g>
+<g >
+<title>clock_gettime@??@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="533" width="49.4" height="15.0" fill="rgb(220,80,80)" rx="2" ry="2" />
+<text  x="309.25" y="543.5" >cloc..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1253" width="49.4" height="15.0" fill="rgb(74,187,187)" rx="2" ry="2" />
+<text  x="1494.25" y="1263.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1045" width="49.4" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="1148.62" y="1055.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="997" width="246.9" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="309.25" y="1007.5" >_PyFunction_Vectorcall@/usr/loca..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="597" width="49.4" height="15.0" fill="rgb(76,189,189)" rx="2" ry="2" />
+<text  x="408.00" y="607.5" >func..</text>
+</g>
+<g >
+<title>xpu_timer::server::ClientStub::requestDump@xpu_timer/server/hosting_service_server_client.cc:435@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1429" width="49.4" height="15.0" fill="rgb(205,205,61)" rx="2" ry="2" />
+<text  x="1395.50" y="1439.5" >xpu_..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::thread_init(int, std::shared_ptr&lt;torch::autograd::ReadyQueue&gt; const&amp;, bool)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@0-7| (2 samples, 6.25%)</title><rect x="1491.2" y="1525" width="98.8" height="15.0" fill="rgb(84,231,84)" rx="2" ry="2" />
+<text  x="1494.25" y="1535.5" >torch::auto..</text>
+</g>
+<g >
+<title>_PyObject_FastCallDict@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:96@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="773" width="49.3" height="15.0" fill="rgb(92,204,204)" rx="2" ry="2" />
+<text  x="506.75" y="783.5" >_PyO..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="837" width="49.4" height="15.0" fill="rgb(95,206,206)" rx="2" ry="2" />
+<text  x="457.38" y="847.5" >call..</text>
+</g>
+<g >
+<title>read@/usr/local/src/conda/python-3.8.20/Python/wchar2.h:44@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="709" width="49.4" height="15.0" fill="rgb(78,190,190)" rx="2" ry="2" />
+<text  x="1148.62" y="719.5" >read..</text>
+</g>
+<g >
+<title>cudaDeviceSynchronize@/usr/local/cuda/lib64/libcudart.so.12@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="469" width="49.4" height="15.0" fill="rgb(218,76,76)" rx="2" ry="2" />
+<text  x="358.62" y="479.5" >cuda..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1253" width="246.9" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="309.25" y="1263.5" >PyEval_EvalFrameEx@/usr/local/sr..</text>
+</g>
+<g >
+<title>brpc::EventDispatcher::RunThis@external/apache_brpc/src/brpc/event_dispatcher_epoll.cpp:191@4-5/7|0-3/6 (1 samples, 3.12%)</title><rect x="158.1" y="1541" width="49.4" height="15.0" fill="rgb(179,179,51)" rx="2" ry="2" />
+<text  x="161.12" y="1551.5" >brpc..</text>
+</g>
+<g >
+<title>trace_call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4922@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="725" width="49.4" height="15.0" fill="rgb(89,200,200)" rx="2" ry="2" />
+<text  x="457.38" y="735.5" >trac..</text>
+</g>
+<g >
+<title>PyVectorcall_Call@/usr/local/src/conda/python-3.8.20/Objects/objimpl.h:1802@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1285" width="49.4" height="15.0" fill="rgb(105,216,216)" rx="2" ry="2" />
+<text  x="1494.25" y="1295.5" >PyVe..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="581" width="49.4" height="15.0" fill="rgb(79,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="591.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1173" width="246.9" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="309.25" y="1183.5" >_PyEval_EvalCodeWithName@/usr/lo..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="101" width="49.4" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="408.00" y="111.5" >??@/..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="917" width="148.2" height="15.0" fill="rgb(87,199,199)" rx="2" ry="2" />
+<text  x="358.62" y="927.5" >_PyObject_Vectorca..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1093" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="1103.5" >call..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1061" width="49.4" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="1148.62" y="1071.5" >call..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1349" width="296.2" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="901.75" y="1359.5" >function_code_fastcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>method_vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:89@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1413" width="49.4" height="15.0" fill="rgb(85,197,197)" rx="2" ry="2" />
+<text  x="1494.25" y="1423.5" >meth..</text>
+</g>
+<g >
+<title>at::_ops::item::call(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="517" width="49.3" height="15.0" fill="rgb(72,220,72)" rx="2" ry="2" />
+<text  x="506.75" y="527.5" >at::..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1317" width="296.2" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="901.75" y="1327.5" >_PyEval_EvalFrameDefault@/usr/local/src..</text>
+</g>
+<g >
+<title>at::native::item(at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="821" width="49.4" height="15.0" fill="rgb(55,205,55)" rx="2" ry="2" />
+<text  x="309.25" y="831.5" >at::..</text>
+</g>
+<g >
+<title>bthread::futex_wait_private@external/apache_brpc/src/bthread/sys_futex.h:40@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1493" width="49.4" height="15.0" fill="rgb(218,218,65)" rx="2" ry="2" />
+<text  x="605.50" y="1503.5" >bthr..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1253" width="296.2" height="15.0" fill="rgb(70,183,183)" rx="2" ry="2" />
+<text  x="901.75" y="1263.5" >function_code_fastcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1413" width="296.2" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="901.75" y="1423.5" >_PyEval_EvalFrameDefault@/usr/local/src..</text>
+</g>
+<g >
+<title>cudaStreamSynchronize@/usr/local/cuda/lib64/libcudart.so.12@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="325" width="49.3" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="506.75" y="335.5" >cuda..</text>
+</g>
+<g >
+<title>PyObject_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:228@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="437" width="49.4" height="15.0" fill="rgb(98,209,209)" rx="2" ry="2" />
+<text  x="408.00" y="447.5" >PyOb..</text>
+</g>
+<g >
+<title>bthread::wait_pthread@external/apache_brpc/src/bthread/butex.cpp:153@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1317" width="49.4" height="15.0" fill="rgb(194,194,57)" rx="2" ry="2" />
+<text  x="1395.50" y="1327.5" >bthr..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="805" width="98.8" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="358.62" y="815.5" >_PyFunction..</text>
+</g>
+<g >
+<title>torch::autograd::VariableType::(anonymous namespace)::_local_scalar_dense(c10::DispatchKeySet, at::Tensor const&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="437" width="49.3" height="15.0" fill="rgb(99,245,99)" rx="2" ry="2" />
+<text  x="506.75" y="447.5" >torc..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1013" width="49.4" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="1099.25" y="1023.5" >_PyE..</text>
+</g>
+<g >
+<title>c10::cuda::memcpy_and_sync(void*, void const*, long, cudaMemcpyKind, CUstream_st*)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="341" width="49.3" height="15.0" fill="rgb(79,227,79)" rx="2" ry="2" />
+<text  x="506.75" y="351.5" >c10:..</text>
+</g>
+<g >
+<title>_io__Buffered_read_impl@/usr/local/src/conda/python-3.8.20/Modules/clinic/bufferedio.c.h:900@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="901" width="49.4" height="15.0" fill="rgb(89,201,201)" rx="2" ry="2" />
+<text  x="1148.62" y="911.5" >_io_..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="933" width="148.2" height="15.0" fill="rgb(69,182,182)" rx="2" ry="2" />
+<text  x="358.62" y="943.5" >call_function@/usr..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="357" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="408.00" y="367.5" >call..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="549" width="49.4" height="15.0" fill="rgb(78,191,191)" rx="2" ry="2" />
+<text  x="1099.25" y="559.5" >call..</text>
+</g>
+<g >
+<title>std::__invoke_impl&lt;void, void@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/bits/invoke.h:73@0-7| (2 samples, 6.25%)</title><rect x="1392.5" y="1477" width="98.7" height="15.0" fill="rgb(219,219,66)" rx="2" ry="2" />
+<text  x="1395.50" y="1487.5" >std::__invo..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1445" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1455.5" >??@?..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3486@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="981" width="49.4" height="15.0" fill="rgb(62,176,176)" rx="2" ry="2" />
+<text  x="1148.62" y="991.5" >_PyE..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="85" width="49.4" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="408.00" y="95.5" >??@/..</text>
+</g>
+<g >
+<title>PyRun_SimpleFileExFlags@/usr/local/src/conda/python-3.8.20/Objects/clinic/marshal.c.h:472@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1477" width="246.9" height="15.0" fill="rgb(69,183,183)" rx="2" ry="2" />
+<text  x="309.25" y="1487.5" >PyRun_SimpleFileExFlags@/usr/loc..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:125@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1077" width="49.4" height="15.0" fill="rgb(68,182,182)" rx="2" ry="2" />
+<text  x="1494.25" y="1087.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1269" width="296.2" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="901.75" y="1279.5" >_PyFunction_Vectorcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>pybind11::detail::argument_loader&lt;at::Tensor const&amp;, at::Tensor const&amp;, at::Tensor const&amp;, at::Tensor const&amp;, at::Tensor const&amp;, at::Tensor const&amp;, std::optional&lt;at::Tensor&gt;&amp;, std::optional&lt;at::Tensor&gt;&amp;, std::optional&lt;at::Tensor&gt;&amp;, float, float, bool, int, int, std::optional&lt;at::Generator&gt;, std::optional&lt;at::Tensor&gt;&amp;, std::optional&lt;at::Tensor&gt; const&amp;&gt;::call_impl&lt;std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt;, std::vector&lt;at::Tensor, std::allocator&lt;at::Tensor&gt; &gt;@/opt/conda/lib/python3.8/site-packages/torch/include/torch/csrc/utils/pybind.h:37@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="949" width="49.4" height="15.0" fill="rgb(73,221,73)" rx="2" ry="2" />
+<text  x="1494.25" y="959.5" >pybi..</text>
+</g>
+<g >
+<title>function_code_fastcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:284@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="789" width="98.8" height="15.0" fill="rgb(80,192,192)" rx="2" ry="2" />
+<text  x="358.62" y="799.5" >function_co..</text>
+</g>
+<g >
+<title>bthread::TaskGroup::task_runner@external/apache_brpc/src/bthread/task_group.cpp:296@4-5/7|0-3/6 (1 samples, 3.12%)</title><rect x="158.1" y="1557" width="49.4" height="15.0" fill="rgb(205,205,61)" rx="2" ry="2" />
+<text  x="161.12" y="1567.5" >bthr..</text>
+</g>
+<g >
+<title>c10::impl::wrap_kernel_functor_unboxed_&lt;c10::impl::detail::WrapFunctionIntoFunctor_&lt;c10::CompileTimeFunctionPointer&lt;c10::Scalar@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="501" width="49.3" height="15.0" fill="rgb(53,203,53)" rx="2" ry="2" />
+<text  x="506.75" y="511.5" >c10:..</text>
+</g>
+<g >
+<title>pybind11::cpp_function::initialize&lt;pybind11::cpp_function::initialize&lt;bool, c10d::Work, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000l&gt; &gt;, pybind11::name, pybind11::is_method, pybind11::sibling, pybind11::arg_v, pybind11::call_guard&lt;pybind11::gil_scoped_release&gt; &gt;(bool@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_python.so@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="213" width="49.4" height="15.0" fill="rgb(108,253,108)" rx="2" ry="2" />
+<text  x="408.00" y="223.5" >pybi..</text>
+</g>
+<g >
+<title>std::condition_variable::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:41@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="549" width="49.4" height="15.0" fill="rgb(188,188,54)" rx="2" ry="2" />
+<text  x="457.38" y="559.5" >std:..</text>
+</g>
+<g >
+<title>clock_gettime@GLIBC_2.2.5@/lib64/libc.so.6@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="53" width="49.4" height="15.0" fill="rgb(240,109,109)" rx="2" ry="2" />
+<text  x="408.00" y="63.5" >cloc..</text>
+</g>
+<g >
+<title>clock_gettime@GLIBC_2.2.5@/lib64/libc.so.6@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="357" width="49.4" height="15.0" fill="rgb(242,111,111)" rx="2" ry="2" />
+<text  x="358.62" y="367.5" >cloc..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/lib64/libcudart.so.12@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="453" width="49.4" height="15.0" fill="rgb(219,78,78)" rx="2" ry="2" />
+<text  x="358.62" y="463.5" >??@/..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="1141" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="1151.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1013" width="49.3" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1049.88" y="1023.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1157" width="98.8" height="15.0" fill="rgb(53,167,167)" rx="2" ry="2" />
+<text  x="951.12" y="1167.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="629" width="49.4" height="15.0" fill="rgb(212,68,68)" rx="2" ry="2" />
+<text  x="309.25" y="639.5" >??@/..</text>
+</g>
+<g >
+<title>std::__condvar::wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/gcc/libstdc++-v3/src/c++11/gthr-default.h:155@0-7| (1 samples, 3.12%)</title><rect x="1540.6" y="1461" width="49.4" height="15.0" fill="rgb(186,186,54)" rx="2" ry="2" />
+<text  x="1543.62" y="1471.5" >std:..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="741" width="98.8" height="15.0" fill="rgb(84,196,196)" rx="2" ry="2" />
+<text  x="358.62" y="751.5" >call_functi..</text>
+</g>
+<g >
+<title>partial_fastcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/bytearrayobject.c:170@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="789" width="49.3" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="506.75" y="799.5" >part..</text>
+</g>
+<g >
+<title>__gthread_cond_wait@/opt/conda/conda-bld/gcc-compiler_1654084175708/work/build/gcc-final/x86_64-conda-linux-gnu/libstdc++-v3/src/c++11/condition_variable.cc:865@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="517" width="49.4" height="15.0" fill="rgb(206,59,59)" rx="2" ry="2" />
+<text  x="457.38" y="527.5" >__gt..</text>
+</g>
+<g >
+<title>syscall@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1477" width="49.4" height="15.0" fill="rgb(247,118,118)" rx="2" ry="2" />
+<text  x="605.50" y="1487.5" >sysc..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1077" width="98.8" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="951.12" y="1087.5" >_PyFunction..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:741@0-7| (5 samples, 15.62%)</title><rect x="306.2" y="1349" width="246.9" height="15.0" fill="rgb(51,166,166)" rx="2" ry="2" />
+<text  x="309.25" y="1359.5" >PyEval_EvalFrameEx@/usr/local/sr..</text>
+</g>
+<g >
+<title>pthread_cond_wait@@GLIBC_2.3.2@/lib64/libpthread.so.0@0-7| (1 samples, 3.12%)</title><rect x="1195.0" y="1477" width="49.4" height="15.0" fill="rgb(237,104,104)" rx="2" ry="2" />
+<text  x="1198.00" y="1487.5" >pthr..</text>
+</g>
+<g >
+<title>clone@/lib64/libc.so.6@0-7| (21 samples, 65.62%)</title><rect x="553.1" y="1589" width="1036.9" height="15.0" fill="rgb(205,57,57)" rx="2" ry="2" />
+<text  x="556.12" y="1599.5" >clone@/lib64/libc.so.6@0-7|</text>
+</g>
+<g >
+<title>clock_gettime@GLIBC_2.2.5@/lib64/libc.so.6@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="549" width="49.4" height="15.0" fill="rgb(244,114,114)" rx="2" ry="2" />
+<text  x="309.25" y="559.5" >cloc..</text>
+</g>
+<g >
+<title>do_futex_wait.constprop@/lib64/libpthread.so.0@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="853" width="49.3" height="15.0" fill="rgb(205,57,57)" rx="2" ry="2" />
+<text  x="1049.88" y="863.5" >do_f..</text>
+</g>
+<g >
+<title>c10d::ProcessGroupNCCL::watchdogHandler()@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@0-7| (1 samples, 3.12%)</title><rect x="1293.8" y="1525" width="49.3" height="15.0" fill="rgb(103,248,103)" rx="2" ry="2" />
+<text  x="1296.75" y="1535.5" >c10d..</text>
+</g>
+<g >
+<title>xpu_timer::GpuTimerManager&lt;xpu_timer::nvidia::NvidiaGpuTimer&gt;::doWork@xpu_timer/common/manager.cc:549@0-7| (1 samples, 3.12%)</title><rect x="1392.5" y="1461" width="49.4" height="15.0" fill="rgb(193,193,56)" rx="2" ry="2" />
+<text  x="1395.50" y="1471.5" >xpu_..</text>
+</g>
+<g >
+<title>syscall@/lib64/libc.so.6@0-7| (1 samples, 3.12%)</title><rect x="651.9" y="1509" width="49.3" height="15.0" fill="rgb(247,118,118)" rx="2" ry="2" />
+<text  x="654.88" y="1519.5" >sysc..</text>
+</g>
+<g >
+<title>pybind11::detail::argument_loader&lt;at::Tensor@/opt/conda/lib/python3.8/site-packages/torch/include/pybind11/detail/../cast.h:1582@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="965" width="49.4" height="15.0" fill="rgb(95,241,95)" rx="2" ry="2" />
+<text  x="1494.25" y="975.5" >pybi..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4963@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1205" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="1494.25" y="1215.5" >call..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@0-2|3-7 (1 samples, 3.12%)</title><rect x="355.6" y="645" width="49.4" height="15.0" fill="rgb(82,195,195)" rx="2" ry="2" />
+<text  x="358.62" y="655.5" >call..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="725" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="735.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="501" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="511.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1461" width="296.2" height="15.0" fill="rgb(61,175,175)" rx="2" ry="2" />
+<text  x="901.75" y="1471.5" >_PyFunction_Vectorcall@/usr/local/src/c..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/usr/local/src/conda/python-3.8.20/Python/stdio2.h:470@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="613" width="49.3" height="15.0" fill="rgb(60,175,175)" rx="2" ry="2" />
+<text  x="506.75" y="623.5" >_PyO..</text>
+</g>
+<g >
+<title>??@??@0|1-7 (1 samples, 3.12%)</title><rect x="10.0" y="1381" width="49.4" height="15.0" fill="rgb(233,98,98)" rx="2" ry="2" />
+<text  x="13.00" y="1391.5" >??@?..</text>
+</g>
+<g >
+<title>PyCFunction_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:773@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="261" width="49.4" height="15.0" fill="rgb(87,199,199)" rx="2" ry="2" />
+<text  x="408.00" y="271.5" >PyCF..</text>
+</g>
+<g >
+<title>mha_bwd@/build_dir/flash-attention-fa2/csrc/flash_attn/flash_api.cpp:888@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="933" width="49.4" height="15.0" fill="rgb(204,55,55)" rx="2" ry="2" />
+<text  x="1494.25" y="943.5" >mha_..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3515@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="949" width="49.3" height="15.0" fill="rgb(58,172,172)" rx="2" ry="2" />
+<text  x="506.75" y="959.5" >_PyE..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0-2/6|3-5/7 (2 samples, 6.25%)</title><rect x="355.6" y="693" width="98.8" height="15.0" fill="rgb(63,177,177)" rx="2" ry="2" />
+<text  x="358.62" y="703.5" >_PyEval_Eva..</text>
+</g>
+<g >
+<title>bthread::TaskControl::worker_thread@external/apache_brpc/src/bthread/task_control.cpp:99@0-7| (1 samples, 3.12%)</title><rect x="602.5" y="1557" width="49.4" height="15.0" fill="rgb(202,202,59)" rx="2" ry="2" />
+<text  x="605.50" y="1567.5" >bthr..</text>
+</g>
+<g >
+<title>void run_flash_bwd_seqk_parallel&lt;Flash_bwd_kernel_traits&lt;128, 64, 128, 8, 2, 4, 2, false, false, cutlass::bfloat16_t, Flash_kernel_traits&lt;128, 64, 128, 8, cutlass::bfloat16_t&gt; &gt;, true&gt;(Flash_bwd_params&amp;, CUstream_st*, bool) [clone .isra.0]@/opt/conda/lib/python3.8/site-packages/flash_attn_2_cuda.cpython-38-x86_64-linux-gnu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="901" width="49.4" height="15.0" fill="rgb(179,179,51)" rx="2" ry="2" />
+<text  x="1494.25" y="911.5" >void..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="741" width="49.4" height="15.0" fill="rgb(95,206,206)" rx="2" ry="2" />
+<text  x="457.38" y="751.5" >call..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="517" width="49.4" height="15.0" fill="rgb(72,186,186)" rx="2" ry="2" />
+<text  x="408.00" y="527.5" >_PyF..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="933" width="49.3" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="506.75" y="943.5" >call..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:411@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1046.9" y="1157" width="49.3" height="15.0" fill="rgb(88,200,200)" rx="2" ry="2" />
+<text  x="1049.88" y="1167.5" >_PyF..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="725" width="49.3" height="15.0" fill="rgb(66,180,180)" rx="2" ry="2" />
+<text  x="506.75" y="735.5" >PyEv..</text>
+</g>
+<g >
+<title>bthread_make_fcontext@/opt/conda/bin/libevent_hook.so@1-2/6|0/3-5/7 (1 samples, 3.12%)</title><rect x="108.8" y="1557" width="49.3" height="15.0" fill="rgb(225,86,86)" rx="2" ry="2" />
+<text  x="111.75" y="1567.5" >bthr..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:436@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1173" width="49.4" height="15.0" fill="rgb(87,199,199)" rx="2" ry="2" />
+<text  x="1494.25" y="1183.5" >_PyF..</text>
+</g>
+<g >
+<title>do_call_core@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:5010@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="453" width="49.4" height="15.0" fill="rgb(59,173,173)" rx="2" ry="2" />
+<text  x="408.00" y="463.5" >do_c..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="69" width="49.4" height="15.0" fill="rgb(209,63,63)" rx="2" ry="2" />
+<text  x="408.00" y="79.5" >??@/..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3500@0-7| (1 samples, 3.12%)</title><rect x="1145.6" y="1077" width="49.4" height="15.0" fill="rgb(103,214,214)" rx="2" ry="2" />
+<text  x="1148.62" y="1087.5" >_PyE..</text>
+</g>
+<g >
+<title>ncclProxyServiceUDS@proxy.cc:1634@0-7| (1 samples, 3.12%)</title><rect x="849.4" y="1557" width="49.4" height="15.0" fill="rgb(65,213,65)" rx="2" ry="2" />
+<text  x="852.38" y="1567.5" >nccl..</text>
+</g>
+<g >
+<title>_PyFunction_Vectorcall@/usr/local/src/conda/python-3.8.20/Objects/clinic/import.c.h:61@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="933" width="49.4" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1099.25" y="943.5" >_PyF..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="581" width="49.4" height="15.0" fill="rgb(71,184,184)" rx="2" ry="2" />
+<text  x="408.00" y="591.5" >PyEv..</text>
+</g>
+<g >
+<title>_PyEval_EvalFrameDefault@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:3469@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1125" width="49.4" height="15.0" fill="rgb(75,188,188)" rx="2" ry="2" />
+<text  x="1494.25" y="1135.5" >_PyE..</text>
+</g>
+<g >
+<title>std::condition_variable::wait_until&lt;std::chrono::_V2::steady_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;@/usr/lib/gcc/x86_64-redhat-linux/10/../../../../include/c++/10/condition_variable:141@0-7| (1 samples, 3.12%)</title><rect x="1441.9" y="1413" width="49.3" height="15.0" fill="rgb(215,215,64)" rx="2" ry="2" />
+<text  x="1444.88" y="1423.5" >std:..</text>
+</g>
+<g >
+<title>at::native::_local_scalar_dense_cuda(at::Tensor const&amp;)::{lambda()#1}::operator()() const [clone .isra.0]@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@4-5|0-3/6-7 (1 samples, 3.12%)</title><rect x="306.2" y="693" width="49.4" height="15.0" fill="rgb(91,237,91)" rx="2" ry="2" />
+<text  x="309.25" y="703.5" >at::..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:125@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="293" width="49.4" height="15.0" fill="rgb(54,168,168)" rx="2" ry="2" />
+<text  x="408.00" y="303.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="437" width="49.4" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="1099.25" y="447.5" >_PyO..</text>
+</g>
+<g >
+<title>_PyEval_EvalCodeWithName@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4298@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="789" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="1099.25" y="799.5" >_PyE..</text>
+</g>
+<g >
+<title>select_poll_poll_impl@&lt;artificial&gt;:633@0/2/4/6|1/3/5/7 (1 samples, 3.12%)</title><rect x="1096.2" y="389" width="49.4" height="15.0" fill="rgb(206,59,59)" rx="2" ry="2" />
+<text  x="1099.25" y="399.5" >sele..</text>
+</g>
+<g >
+<title>??@/usr/local/cuda/compat/libcuda.so.1@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="293" width="49.3" height="15.0" fill="rgb(204,56,56)" rx="2" ry="2" />
+<text  x="506.75" y="303.5" >??@/..</text>
+</g>
+<g >
+<title>method_vectorcall_VARARGS_KEYWORDS@/usr/local/src/conda/python-3.8.20/Modules/modsupport.c:605@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="981" width="98.8" height="15.0" fill="rgb(102,212,212)" rx="2" ry="2" />
+<text  x="951.12" y="991.5" >method_vect..</text>
+</g>
+<g >
+<title>_PyObject_Vectorcall@/croot/python-split_1727968608067/_build_env/x86_64-conda-linux-gnu/sysroot/usr/include/bits/namespaceobject.c:127@0-7| (2 samples, 6.25%)</title><rect x="948.1" y="1093" width="98.8" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="951.12" y="1103.5" >_PyObject_V..</text>
+</g>
+<g >
+<title>PyEval_EvalFrameEx@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:738@0-3/6|4-5/7 (3 samples, 9.38%)</title><rect x="355.6" y="869" width="148.2" height="15.0" fill="rgb(60,174,174)" rx="2" ry="2" />
+<text  x="358.62" y="879.5" >PyEval_EvalFrameEx..</text>
+</g>
+<g >
+<title>call_function@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:4960@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="549" width="49.4" height="15.0" fill="rgb(80,193,193)" rx="2" ry="2" />
+<text  x="408.00" y="559.5" >call..</text>
+</g>
+<g >
+<title>PyObject_Call@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:228@0-7| (6 samples, 18.75%)</title><rect x="898.8" y="1525" width="296.2" height="15.0" fill="rgb(92,203,203)" rx="2" ry="2" />
+<text  x="901.75" y="1535.5" >PyObject_Call@/usr/local/src/conda/pyth..</text>
+</g>
+<g >
+<title>do_call_core@/usr/local/src/conda/python-3.8.20/Programs/gcmodule.c:5010@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="1491.2" y="1317" width="49.4" height="15.0" fill="rgb(73,186,186)" rx="2" ry="2" />
+<text  x="1494.25" y="1327.5" >do_c..</text>
+</g>
+<g >
+<title>torch::autograd::Engine::execute_with_graph_task(std::shared_ptr&lt;torch::autograd::GraphTask&gt; const&amp;, std::shared_ptr&lt;torch::autograd::Node&gt;, torch::autograd::InputBuffer&amp;&amp;)@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so@3|0-2/4-7 (1 samples, 3.12%)</title><rect x="454.4" y="597" width="49.4" height="15.0" fill="rgb(98,244,98)" rx="2" ry="2" />
+<text  x="457.38" y="607.5" >torc..</text>
+</g>
+<g >
+<title>cfunction_call_varargs@/usr/local/src/conda/python-3.8.20/Modules/opcode_targets.h:743@6|0-5/7 (1 samples, 3.12%)</title><rect x="405.0" y="245" width="49.4" height="15.0" fill="rgb(72,185,185)" rx="2" ry="2" />
+<text  x="408.00" y="255.5" >cfun..</text>
+</g>
+<g >
+<title>at::native::_local_scalar_dense_cuda(at::Tensor const&amp;)::{lambda()#1}::operator()() const [clone .isra.0]@/opt/conda/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so@7|0-6 (1 samples, 3.12%)</title><rect x="503.8" y="357" width="49.3" height="15.0" fill="rgb(82,229,82)" rx="2" ry="2" />
+<text  x="506.75" y="367.5" >at::..</text>
+</g>
+</g>
+</svg>

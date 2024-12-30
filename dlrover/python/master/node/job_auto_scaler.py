@@ -92,11 +92,6 @@ class JobAutoScaler(metaclass=ABCMeta):
     def suggested_stop(self):
         return self._suggested_stop
 
-    def get_job_nodes(self, node_type=""):
-        if node_type == "":
-            return self._job_context.job_nodes()
-        return self._job_context.job_nodes_by_type(node_type)
-
     @abstractmethod
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -140,6 +135,11 @@ class PSTrainingAutoScaler(JobAutoScaler):
             name="monitor_pending_nodes",
             daemon=True,
         ).start()
+
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
 
     def monitor_pending_node_at_begining(self):
         logger.info("Start monitoring pending nodes.")
@@ -292,6 +292,11 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             1800,
         )
         self._worker_manager = worker_manager
+
+    def get_job_nodes(self, node_type=""):
+        if node_type == "":
+            return self._job_context.job_nodes()
+        return self._job_context.job_nodes_by_type(node_type)
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
