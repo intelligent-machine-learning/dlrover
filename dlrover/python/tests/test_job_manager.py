@@ -60,7 +60,7 @@ from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
-    allowed_transitions,
+    ALLOWED_TRANSITIONS,
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
@@ -126,10 +126,10 @@ class NodeStatusFlowTest(unittest.TestCase):
 
     def test_allowed_transitions(self):
         self.assertTrue(
-            NodeStatus.RUNNING in allowed_transitions[NodeStatus.RUNNING]
+            NodeStatus.RUNNING in ALLOWED_TRANSITIONS[NodeStatus.RUNNING]
         )
         self.assertFalse(
-            NodeStatus.PENDING in allowed_transitions[NodeStatus.RUNNING]
+            NodeStatus.PENDING in ALLOWED_TRANSITIONS[NodeStatus.RUNNING]
         )
 
 

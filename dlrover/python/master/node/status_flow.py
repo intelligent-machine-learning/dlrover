@@ -119,7 +119,7 @@ NODE_STATE_FLOWS = [
 ]
 
 
-allowed_transitions = {
+ALLOWED_TRANSITIONS = {
     NodeStatus.INITIAL: [
         NodeStatus.INITIAL,
         NodeStatus.PENDING,
@@ -151,7 +151,7 @@ def get_node_state_flow(from_status, event_type, phase):
     if event_type == "DELETED" and from_status == NodeStatus.PENDING:
         # The phase if pending if the pending node is deleted.
         phase = NodeStatus.DELETED
-    if from_status == phase or phase not in allowed_transitions[from_status]:
+    if from_status == phase or phase not in ALLOWED_TRANSITIONS[from_status]:
         return None
     for flow in NODE_STATE_FLOWS:
         if (
