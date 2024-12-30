@@ -235,6 +235,7 @@ class Node(object):
         host_ip=None,
         restart_training=False,
         relaunch_count=0,
+        is_released=False,
     ):
         if name is not None:
             self.name = name
@@ -248,6 +249,7 @@ class Node(object):
             self.host_ip = host_ip
         self.relaunch_count = max(self.relaunch_count, relaunch_count)
         self.restart_training = restart_training
+        self.is_released = is_released
 
     def update_status(self, status=None):
         if status is not None:

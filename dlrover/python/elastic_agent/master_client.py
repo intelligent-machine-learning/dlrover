@@ -22,6 +22,7 @@ from typing import Dict, Optional
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.constants import (
+    JobConstant,
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
@@ -46,7 +47,7 @@ def retry_grpc_request(func):
                 class_name = self.__class__.__name__
                 func_name = func.__name__
                 logger.warning(
-                    f"Retry {i} to {class_name}.{func_name} with failure",
+                    f"Retry {i} to {class_name}.{func_name} with failure {e}",
                 )
                 exception = e
                 time.sleep(5)
@@ -396,10 +397,10 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(5)
+                time.sleep(JobConstant.MASTER_CLIENT_CHECK_FAULT_TIMEOUT)
                 continue
             break
-        return result.nodes
+        return result.nodes, result.reason
 
     def check_straggler(self, timeout=300):
         request = comm.StragglerExistRequest()
@@ -410,10 +411,10 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(5)
+                time.sleep(JobConstant.MASTER_CLIENT_CHECK_STRAGGLER_TIMEOUT)
                 continue
             break
-        return result.nodes
+        return result.nodes, result.reason
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit, joint_timeout
@@ -501,7 +502,9 @@ class MasterClient(Singleton):
         return cls._instance
 
 
-def build_master_client(master_addr=None, timeout=5):
+def build_master_client(
+    master_addr=None, timeout=JobConstant.MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT
+):
     """
     Build a master client.
 
@@ -514,6 +517,13 @@ def build_master_client(master_addr=None, timeout=5):
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_id = env_utils.get_node_id()
     node_type = env_utils.get_node_type()
+
+    try:
+        _timeout = int(os.getenv(NodeEnv.MASTER_CLIENT_TIMEOUT, ""))
+        logger.info(f"set master_client timeout to env {_timeout}")
+    except Exception:
+        _timeout = timeout
+        logger.info(f"set master_client timeout to {_timeout}")
 
     master_client = None
     logger.info(f"Build master client with addr {master_addr}.")

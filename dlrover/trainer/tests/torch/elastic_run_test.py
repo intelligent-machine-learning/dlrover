@@ -71,8 +71,8 @@ class ElasticRunTest(unittest.TestCase):
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 1)
         args = [
-            "--network_check",
-            "--comm_perf_test",
+            "--precheck",
+            "1",
             "--auto_tunning",
             "--node_unit",
             "4",
@@ -86,8 +86,9 @@ class ElasticRunTest(unittest.TestCase):
         ]
         args = parse_args(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
+        self.assertEqual(config.precheck, 1)
         self.assertTrue(config.network_check)
-        self.assertTrue(config.comm_perf_test)
+        self.assertFalse(config.comm_perf_test)
         self.assertTrue(config.auto_tunning)
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)

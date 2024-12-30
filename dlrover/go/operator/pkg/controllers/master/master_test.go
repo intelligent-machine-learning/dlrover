@@ -77,3 +77,29 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test-v0")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 }
+
+func TestCreateMasterPodWithOptimizeMode(t *testing.T) {
+	job := &elasticv1alpha1.ElasticJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-ps",
+			Namespace:   "dlrover",
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
+		},
+	}
+	job.Spec.OptimizeMode = "cluster"
+	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
+	NewMasterTemplateToJob(job, "dlrover-master:test")
+	manager := &Manager{}
+	pod := manager.newJobMaster(job, initMasterIndex)
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	assert.Equal(t, job.Spec.BrainService, "")
+	actualValue := ""
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == envBrainServiceAddrKey {
+			actualValue = env.Value
+			break
+		}
+	}
+	assert.Equal(t, actualValue, defaultBrainServiceAddr)
+}

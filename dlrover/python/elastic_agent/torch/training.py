@@ -97,6 +97,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
 from dlrover.python.util.common_util import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -145,6 +146,8 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
+        precheck: the level to run pre-check task before starting
+            the training task.
         network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
@@ -163,6 +166,7 @@ class ElasticLaunchConfig(LaunchConfig):
             is a failure node
     """
 
+    precheck: int = 0
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
@@ -177,6 +181,7 @@ class ElasticLaunchConfig(LaunchConfig):
     tee: Union[Std, Dict[int, Std]] = Std.NONE
     training_log_file: str = ""
     failure_node_errors: str = ""
+    numa_affinity: bool = False
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -212,6 +217,19 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+    def update_precheck_args(self):
+        if self.precheck == 0:
+            self.comm_perf_test = False or self.comm_perf_test
+            self.network_check = False or self.network_check
+
+        if self.precheck == 1:
+            self.network_check = True
+            self.comm_perf_test = False or self.comm_perf_test
+
+        if self.precheck == 2:
+            self.network_check = True
+            self.comm_perf_test = True
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -455,14 +473,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
             training_log_file, failure_node_errors
         )
         self._agent_context = get_agent_context()
+        self._rank_cpu_affinity = {}
+        if self._config.numa_affinity:
+            for rank in range(self._config.nproc_per_node):
+                if self._config.accelerator == Accelerators.ASCEND_NPU:
+                    self._rank_cpu_affinity[rank] = get_npu_affinity(rank)
+                else:
+                    self._rank_cpu_affinity[rank] = get_gpu_affinity(rank)
+                logger.info(
+                    f"get rank {rank} affinity: "
+                    f"{self._rank_cpu_affinity[rank]}"
+                )
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
-        logger.info("stop workers via SIGKILL for Ascend NPU")
         """The ASCEND framework might fork multiple sub-processes, we should
-        stop all the children processes before shutdown the workers
+        stop all the children processes before shutdown the workers.
         """
-        """print out a snapshot of all processes"""
+
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        # print out a snapshot of all processes
         env_utils.print_process_list()
 
         if self._pcontext is not None:
@@ -480,10 +510,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._shutdown(death_sig=signal.SIGKILL)
 
-        """cleanup orphan processes if exists"""
+        # cleanup orphan processes if exists
         self._stop_orphan_workers(worker_group)
 
-        """print out a snapshot of all processes again"""
+        # print out a snapshot of all processes again
         env_utils.print_process_list()
 
     @prof
@@ -860,6 +890,41 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _stop_timeout_handler(self, signum, frame):
         raise TimeoutError("Timed out waiting for stopping workers.")
 
+    def _set_numa_affinity(self):
+        """set numa affinity to workers processes,
+        as well as its children processes
+        """
+        for local_rank, pid in self._pcontext.pids().items():
+            if self._rank_cpu_affinity[local_rank] is not None:
+                try:
+                    os.sched_setaffinity(
+                        pid, self._rank_cpu_affinity[local_rank]
+                    )
+                    logger.info(
+                        f"set rank {local_rank} worker {pid} affinity: "
+                        f"{self._rank_cpu_affinity[local_rank]}"
+                    )
+                    pp = psutil.Process(pid)
+                    cp = pp.children(recursive=True)
+
+                    for p in cp:
+                        os.sched_setaffinity(
+                            p, self._rank_cpu_affinity[local_rank]
+                        )
+                        logger.info(
+                            f"set rank {local_rank} child {p} affinity: "
+                            f"{self._rank_cpu_affinity[local_rank]}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"set rank {local_rank} affinity failed: {e} "
+                        f"{self._rank_cpu_affinity[local_rank]}"
+                    )
+            else:
+                logger.warning(
+                    f"rank {local_rank} worker {pid} invalid affinity"
+                )
+
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
         self.sync_training_ports()
@@ -882,6 +947,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._initialize_workers(self._worker_group)
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
+
+        # set workers numa-affinity if necessary
+        if self._config.numa_affinity:
+            self._set_numa_affinity()
 
         while True:
             assert self._worker_group.state != WorkerState.INIT
@@ -1126,6 +1195,7 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
         f"  training_log     : {config.training_log_file}\n"
         f"  failure_errors   : {config.failure_node_errors}\n"
+        f"  numa_affinity    : {config.numa_affinity}\n"
     )
 
     _set_paral_config()
@@ -1308,11 +1378,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes = self._client.check_fault_node()
-            stragglers = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node()
+            stragglers, straggler_reason = self._client.check_straggler()
             logger.info(
-                f"Fault nodes are: {fault_nodes} "
-                f" and stragglers are: {stragglers}."
+                f"Fault nodes are: {fault_nodes} with {fault_reason} "
+                f" and stragglers are: {stragglers} with {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
             if fault_nodes or (stragglers and self._config.exclude_straggler):
@@ -1328,10 +1398,8 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
-                    time.sleep(3)
+                    time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                     continue
-            elif stragglers and not self._config.exclude_straggler:
-                pass
             else:
                 return success
 
