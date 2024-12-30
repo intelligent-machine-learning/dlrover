@@ -58,9 +58,9 @@ from dlrover.python.master.node.event_callback import (
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
+    ALLOWED_TRANSITIONS,
     NODE_STATE_FLOWS,
     NodeStateFlow,
-    ALLOWED_TRANSITIONS,
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
