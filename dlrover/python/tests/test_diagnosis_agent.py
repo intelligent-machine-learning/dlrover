@@ -56,6 +56,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        self._master.stop()
 
     def test_diagnose_training(self):
         file = "data/training.log"
