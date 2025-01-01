@@ -66,7 +66,7 @@ class ElasticRunTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _check_to_use_dlrover_run("", 2, 3)
         with self.assertRaises(ValueError):
-            _check_to_use_dlrover_run("127.0.0.1:12345", 2, 3)
+            _check_to_use_dlrover_run("127.0.0.1:23456", 2, 3)
 
     def test_elastic_config_from_args(self):
         args = [
