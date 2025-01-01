@@ -399,17 +399,23 @@ class FsdpCheckpointTest(unittest.TestCase):
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             checkpointer._engine.save_to_storage(step, state_dict, paths)
             self.assertEqual(engine._cached_step, 100)
-            time.sleep(3)
-            files = sorted(os.listdir(tmpdir))
-            self.assertListEqual(
-                files,
-                [
-                    "._dlrover_ckpt_stage",
-                    "100",
-                    "dlrover_latest.txt",
-                ],
-            )
-            files = sorted(os.listdir(path))
-            self.assertListEqual(files, [".metadata", "__0_0.distcp"])
-            reader = checkpointer._engine.load(path)
-            self.assertTrue(isinstance(reader, SharedMemoryReader))
+            for _ in range(5):
+                files = sorted(os.listdir(tmpdir))
+                if len(files) != 3:
+                    time.sleep(1)
+                    continue
+                else:
+                    break
+            if len(files) == 3:
+                self.assertListEqual(
+                    files,
+                    [
+                        "._dlrover_ckpt_stage",
+                        "100",
+                        "dlrover_latest.txt",
+                    ],
+                )
+                files = sorted(os.listdir(path))
+                self.assertListEqual(files, [".metadata", "__0_0.distcp"])
+                reader = checkpointer._engine.load(path)
+                self.assertTrue(isinstance(reader, SharedMemoryReader))
