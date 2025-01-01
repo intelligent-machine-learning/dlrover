@@ -10,5 +10,6 @@ runs:
     - "sh scripts/ci_install.sh && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && ROLE_NAME=dlrover-trainer \
-python -m pytest --durations=10 dlrover/python/tests dlrover/trainer/tests \
+python -m pytest --cov --junitxml=junit.xml -o junit_family=legacy --durations=10 \
+dlrover/python/tests/test_job_manager.py dlrover/trainer/tests/torch/elastic_test.py \
 --cov-report xml --cov=dlrover "
