@@ -41,7 +41,7 @@ class ElasticRunTest(unittest.TestCase):
     def tearDown(self):
         self._master.stop()
         MasterClient._instance = None
-        
+
     @patch(f"{MC_PATH}.report_failures")
     def test_launch_local_master(self, some_func):
         available = _check_dlrover_master_available("", timeout=3)
