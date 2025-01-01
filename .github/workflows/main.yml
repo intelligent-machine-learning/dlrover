@@ -32,10 +32,11 @@ jobs:
       # This step references the directory that contains the action.
       - name: RUN pytest
         uses: ./.github/actions/dlrover-python-test
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
-          token: 043586e5-68b8-4588-9bf4-c333f2692345
+          token: ${{ secrets.CODECOV_TOKEN }}
           slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest
