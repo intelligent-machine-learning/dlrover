@@ -176,7 +176,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._task_manager.reset_worker_start_task_time(node_id)
         return res
 
-    def _get_shard_checkpoint(self, request: grpc_utils.ShardCheckpointRequest):
+    def _get_shard_checkpoint(
+        self, request: grpc_utils.ShardCheckpointRequest
+    ):
         response = grpc_utils.ShardCheckpoint()
         dataset = self._task_manager.get_dataset(request.dataset_name)
         checkpoint = dataset.checkpoint()
@@ -373,7 +375,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager.post_ps_ready()
         return True
 
-    def _collect_dataset_shard_params(self, metrics: grpc_utils.DatasetShardParams):
+    def _collect_dataset_shard_params(
+        self, metrics: grpc_utils.DatasetShardParams
+    ):
         num_minibatches_per_task = (
             metrics.num_minibatches_per_shard
             or _DEFAULT_NUM_MINIBATCHES_PER_SHARD
@@ -577,7 +581,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _report_failure(self, node_type, node_id, message: grpc_utils.NodeFailure):
+    def _report_failure(
+        self, node_type, node_id, message: grpc_utils.NodeFailure
+    ):
         self._job_manager.handle_training_failure(
             node_type,
             node_id,
@@ -620,7 +626,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_node_diagnosis_data(self, message: grpc_utils.DiagnosisReportData):
+    def _report_node_diagnosis_data(
+        self, message: grpc_utils.DiagnosisReportData
+    ):
         if self._diagnosis_manager:
             data_cls: Optional[DiagnosisData] = getattr(
                 self._diagnosis_data_module,

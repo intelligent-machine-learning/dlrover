@@ -123,7 +123,9 @@ class TaskManager(object):
     def get_dataset(self, dataset_name):
         return self._datasets.get(dataset_name, None)
 
-    def report_dataset_task(self, request: grpc_utils.TaskResult, success: bool):
+    def report_dataset_task(
+        self, request: grpc_utils.TaskResult, success: bool
+    ):
         """Report if the task is successful or not"""
 
         task_id = request.task_id

@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import importlib
-import grpc
 import os
 import socket
 import threading
@@ -20,9 +19,10 @@ import time
 from contextlib import closing
 from typing import Dict, Optional
 
+import grpc
+
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
-from dlrover.python.common import env_utils
-from dlrover.python.common import grpc_utils
+from dlrover.python.common import env_utils, grpc_utils
 from dlrover.python.common.constants import (
     JobConstant,
     NetworkFailureReason,
@@ -53,7 +53,7 @@ def retry_grpc_request(func):
                     isinstance(e, grpc.RpcError)
                     and e.code() == grpc.StatusCode.UNAVAILABLE
                 ):
-                    logger.warning(f"The grpc service is unavalable.")
+                    logger.warning("The grpc service is unavalable.")
                     break
                 logger.warning(
                     f"Retry {i} to {class_name}.{func_name} with failure {e}",
@@ -286,7 +286,9 @@ class MasterClient(Singleton):
         return result.version
 
     def update_node_addr(self, task_type, task_id, node_addr):
-        message = grpc_utils.NodeAddress(type=task_type, id=task_id, addr=node_addr)
+        message = grpc_utils.NodeAddress(
+            type=task_type, id=task_id, addr=node_addr
+        )
         res = self._report(message)
         return res
 
@@ -393,7 +395,9 @@ class MasterClient(Singleton):
         return result.round
 
     def get_comm_world(self, rdzv_name, node_rank):
-        request = grpc_utils.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)
+        request = grpc_utils.CommWorldRequest(
+            node_id=node_rank, rdzv_name=rdzv_name
+        )
         result: grpc_utils.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 

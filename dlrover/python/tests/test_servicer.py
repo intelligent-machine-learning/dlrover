@@ -120,7 +120,9 @@ class MasterServicerTest(unittest.TestCase):
         self.assertEqual(collector._dataset_metric.get_size(), 1000)
 
         request = grpc_utils.TaskRequest("test")
-        task: grpc_utils.Task = self.servicer._get_task(NodeType.WORKER, 0, request)
+        task: grpc_utils.Task = self.servicer._get_task(
+            NodeType.WORKER, 0, request
+        )
         self.assertEqual(task.task_id, 0)
         self.assertEqual(task.shard.start, 0)
         self.assertEqual(task.shard.end, 100)
@@ -163,7 +165,8 @@ class MasterServicerTest(unittest.TestCase):
         self.servicer._update_node_resource_usage(NodeType.PS, 0, request)
 
         request = grpc_utils.ModelInfo(
-            tensor_stats=grpc_utils.TensorStats(), op_stats=grpc_utils.OpStats()
+            tensor_stats=grpc_utils.TensorStats(),
+            op_stats=grpc_utils.OpStats(),
         )
         request.tensor_stats.variable_count = 100
         request.tensor_stats.total_variable_size = 10000
@@ -254,7 +257,9 @@ class MasterServicerTest(unittest.TestCase):
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         response = self.servicer.get(request, None)
-        res_msg: grpc_utils.TrainingStatus = grpc_utils.deserialize_message(response.data)
+        res_msg: grpc_utils.TrainingStatus = grpc_utils.deserialize_message(
+            response.data
+        )
         self.assertEqual(res_msg.status, 3)
 
     def test_num_nodes_waiting(self):
@@ -267,7 +272,9 @@ class MasterServicerTest(unittest.TestCase):
             RendezvousName.ELASTIC_TRAINING
         ]._waiting_nodes = {0: 8}
         response = self.servicer.get(request, None)
-        res_msg: grpc_utils.RendezvousState = grpc_utils.deserialize_message(response.data)
+        res_msg: grpc_utils.RendezvousState = grpc_utils.deserialize_message(
+            response.data
+        )
         self.assertEqual(res_msg.waiting_num, 1)
 
     def test_report(self):
