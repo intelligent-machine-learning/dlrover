@@ -16,7 +16,7 @@ import os
 import unittest
 
 from dlrover.python.common.constants import ConfigPath
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,

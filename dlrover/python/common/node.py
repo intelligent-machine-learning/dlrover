@@ -21,7 +21,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
-from dlrover.python.common.grpc import ParallelConfig
+from dlrover.python.common.grpc_utils import ParallelConfig
 from dlrover.python.common.serialize import JsonSerializable
 
 

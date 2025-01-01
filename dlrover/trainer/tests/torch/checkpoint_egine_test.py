@@ -26,7 +26,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
-from dlrover.python.common.grpc import find_free_port
+from dlrover.python.common.grpc_utils import find_free_port
 from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (

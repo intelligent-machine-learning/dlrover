@@ -33,7 +33,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.grpc import ParallelConfig
+from dlrover.python.common.grpc_utils import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant

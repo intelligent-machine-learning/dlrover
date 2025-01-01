@@ -18,7 +18,7 @@ from tensorflow.python.training.session_run_hook import (
     SessionRunHook,
 )
 
-from dlrover.python.common.grpc import ModelInfo, OpStats, TensorStats
+from dlrover.python.common.grpc_utils import ModelInfo, OpStats, TensorStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import (

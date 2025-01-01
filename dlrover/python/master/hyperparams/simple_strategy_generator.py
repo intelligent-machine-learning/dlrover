@@ -15,7 +15,7 @@ import math
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,

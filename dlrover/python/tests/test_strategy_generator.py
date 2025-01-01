@@ -17,7 +17,7 @@ from typing import Dict, List
 from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     DataLoaderConfig,
     GPUStats,
     OptimizerConfig,

@@ -83,7 +83,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.error import ProcessError
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     find_free_port_for_hccl,
     find_free_port_in_range,
     find_free_port_in_set,

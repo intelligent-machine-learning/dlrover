@@ -14,7 +14,7 @@
 import socket
 import unittest
 
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     Message,
     addr_connected,
     deserialize_message,

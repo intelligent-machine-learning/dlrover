@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeEnv
-from dlrover.python.common.grpc import GPUStats
+from dlrover.python.common.grpc_utils import GPUStats
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,

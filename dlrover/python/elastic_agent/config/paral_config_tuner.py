@@ -17,7 +17,7 @@ import threading
 import time
 
 from dlrover.python.common.constants import ConfigPath
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,

@@ -18,7 +18,7 @@ from collections import OrderedDict
 from multiprocessing import SimpleQueue
 
 from dlrover.proto import elastic_training_pb2
-from dlrover.python.common import grpc
+from dlrover.python.common import grpc_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TFTrainingReporter
@@ -223,7 +223,7 @@ class ShardingClient(object):
         return shard_checkpoint
 
     def restore_shard_from_checkpoint(self, shard_checkpoint):
-        message = grpc.ShardCheckpoint(shard_checkpoint)
+        message = grpc_utils.ShardCheckpoint(shard_checkpoint)
         res = self._mc.report_shard_checkpoint(message)
         return res.success
 

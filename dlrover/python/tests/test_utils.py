@@ -27,7 +27,7 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
-from dlrover.python.common.grpc import find_free_port
+from dlrover.python.common.grpc_utils import find_free_port
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.local_master import LocalJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor

@@ -16,7 +16,7 @@ import unittest
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import TaskResult
+from dlrover.python.common.grpc_utils import TaskResult
 from dlrover.python.master.shard.task_manager import DatasetShardCheckpoint
 from dlrover.python.tests.test_utils import (
     create_task_manager,

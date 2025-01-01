@@ -32,7 +32,7 @@ from dlrover.python.common.constants import (
     NodeType,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.grpc import (
+from dlrover.python.common.grpc_utils import (
     DataLoaderConfig,
     GPUStats,
     OptimizerConfig,

@@ -16,14 +16,14 @@ import time
 import unittest
 from unittest import mock
 
-from dlrover.python.common import grpc
+from dlrover.python.common import grpc_utils
 from dlrover.python.common.constants import (
     NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.grpc import DiagnosisAction, HeartbeatResponse
+from dlrover.python.common.grpc_utils import DiagnosisAction, HeartbeatResponse
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -47,8 +47,8 @@ class MasterClientTest(unittest.TestCase):
         self._master_client.open_channel()
 
     def test_report_used_resource(self):
-        gpu_stats: list[grpc.GPUStats] = [
-            grpc.GPUStats(
+        gpu_stats: list[grpc_utils.GPUStats] = [
+            grpc_utils.GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,
@@ -121,7 +121,7 @@ class MasterClientTest(unittest.TestCase):
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
 
-        model_info = grpc.ModelInfo()
+        model_info = grpc_utils.ModelInfo()
         self._master_client.report_model_info(model_info)
 
         success = self._master_client.join_sync("test-sync")
@@ -160,7 +160,7 @@ class MasterClientTest(unittest.TestCase):
 
         config = self._master_client.get_paral_config()
         if config:
-            self.assertIsInstance(config, grpc.ParallelConfig)
+            self.assertIsInstance(config, grpc_utils.ParallelConfig)
 
     def test_num_nodes_waiting(self):
         rdzv_name = RendezvousName.ELASTIC_TRAINING
