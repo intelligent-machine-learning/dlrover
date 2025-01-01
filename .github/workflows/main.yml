@@ -1,5 +1,5 @@
 ---
-name: main test for the project
+name: code check
 
 on:
   pull_request:
