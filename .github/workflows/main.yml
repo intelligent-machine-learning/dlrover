@@ -36,7 +36,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: 3b0503fb-7c5e-4486-9ddf-2903deb77067
           slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest
