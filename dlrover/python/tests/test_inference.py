@@ -65,6 +65,7 @@ class InferenceChainTest(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        MasterClient._instance = None
 
     def test_check_training_hang_operator_find_intersection(self):
         test_metric: Dict[int, List[Tuple[int, bool]]] = {

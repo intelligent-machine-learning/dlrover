@@ -103,6 +103,7 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._master.stop()
+        MasterClient._instance = None
 
         if DeepSpeedCheckpointSaver._saver_instance:
             DeepSpeedCheckpointSaver._saver_instance.close()

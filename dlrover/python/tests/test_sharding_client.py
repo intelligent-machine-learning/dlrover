@@ -32,6 +32,7 @@ class DataShardClientTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        MasterClient._instance = None
 
     def test_sharding_client(self):
         data_shard_service = ShardingClient(

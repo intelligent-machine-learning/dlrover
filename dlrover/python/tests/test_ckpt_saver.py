@@ -112,6 +112,7 @@ class SharedMemoryHandlerTest(unittest.TestCase):
     def tearDown(self):
         self._shm_handler.close()
         self._master.stop()
+        MasterClient._instance = None
 
     def test_create_tensor_meta(self):
         value = torch.rand((10, 10), dtype=torch.float32)

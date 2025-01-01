@@ -109,6 +109,7 @@ class CheckpointBackupTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._master.stop()
+        MasterClient._instance = None
 
     @mock.patch("torch.distributed.new_group")
     @mock.patch("torch.distributed.get_rank")

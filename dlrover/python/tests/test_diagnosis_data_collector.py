@@ -43,6 +43,7 @@ class TestDiagnosisDataCollector(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        MasterClient._instance = None
 
     @patch(
         "dlrover.python.diagnosis.datacollector.training_log_collector"

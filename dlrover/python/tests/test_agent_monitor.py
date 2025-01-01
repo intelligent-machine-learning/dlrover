@@ -38,6 +38,7 @@ class ResourceMonitorTest(unittest.TestCase):
 
     def tearDown(self):
         self.master_proc.stop()
+        MasterClient._instance = None
 
     def test_resource_monitor(self):
         gpu_stats: list[GPUStats] = [

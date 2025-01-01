@@ -41,6 +41,7 @@ class MasterKVStoreTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        MasterClient._instance = None
 
     def test_kv_store_api(self):
         kv_store = MasterKVStore("dlrover/torch/test")

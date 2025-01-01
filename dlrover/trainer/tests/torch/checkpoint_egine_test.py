@@ -137,6 +137,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        MasterClient._instance = None
 
         os.environ.pop(NodeEnv.NODE_NUM, None)
         os.environ.pop(NodeEnv.NODE_RANK, None)

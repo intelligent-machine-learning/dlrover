@@ -74,6 +74,7 @@ class MegatronCheckpointTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._master.stop()
+        MasterClient._instance = None
 
         if MegatronCheckpointSaver._saver_instance:
             MegatronCheckpointSaver._saver_instance.close()

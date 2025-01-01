@@ -63,6 +63,7 @@ class DdpCheckpoinerTest(unittest.TestCase):
             DdpCheckpointSaver._saver_instance.close()
         clear_sock_dir()
         self._master.stop()
+        MasterClient._instance = None
 
     def test_ddp_checkpointer(self):
         model = SimpleNet()

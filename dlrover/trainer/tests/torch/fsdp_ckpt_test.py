@@ -176,6 +176,7 @@ class FsdpCheckpointTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._master.stop()
+        MasterClient._instance = None
 
         os.environ.pop("LOCAL_RANK", None)
         os.environ.pop("LOCAL_WORLD_SIZE", None)
