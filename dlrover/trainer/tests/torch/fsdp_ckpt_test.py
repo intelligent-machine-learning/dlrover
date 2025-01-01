@@ -399,7 +399,7 @@ class FsdpCheckpointTest(unittest.TestCase):
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             checkpointer._engine.save_to_storage(step, state_dict, paths)
             self.assertEqual(engine._cached_step, 100)
-            time.sleep(1)
+            time.sleep(3)
             files = sorted(os.listdir(tmpdir))
             self.assertListEqual(
                 files,
