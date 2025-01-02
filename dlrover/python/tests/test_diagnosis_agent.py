@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import os
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -20,7 +22,10 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
-from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
     NodeAction,
@@ -56,6 +61,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        self._master.stop()
 
     def test_diagnose_agent(self):
         agent = DiagnosisAgent.singleton_instance()
@@ -189,6 +195,28 @@ class TestDiagnosisAgent(unittest.TestCase):
             context._diagnosis_action_queue.next_action().action_type,
             DiagnosisActionType.RESTART_WORKER,
         )
+
+    def test_async_thread(self):
+        DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 1
+        DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 1
+        agent = DiagnosisAgent("", "")
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("periodically_diagnostician", active_threads_name)
+        self.assertIn("periodically_reporter", active_threads_name)
+
+        agent.stop()
+        time.sleep(2)
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertNotIn("periodically_diagnostician", active_threads_name)
+        self.assertNotIn("periodically_reporter", active_threads_name)
+
+        agent.start()
+        time.sleep(2)
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("periodically_diagnostician", active_threads_name)
+        self.assertIn("periodically_reporter", active_threads_name)
+
+        agent.stop()
 
 
 if __name__ == "__main__":

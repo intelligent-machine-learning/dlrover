@@ -56,10 +56,15 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnosisAgent(Singleton):
-    def __init__(self):
+    def __init__(
+            self,
+            training_log_file="",
+            errors="",
+            rank=-1,
+    ):
         self._client = MasterClient.singleton_instance()
-        self._training_log_file = ""
-        self._errors = ""
+        self._training_log_file = training_log_file
+        self._errors = errors
         self._stopped = False
         # The key is the time interval in seconds
         self._observe_problems: Dict[int, List[Inference]] = {
@@ -85,7 +90,7 @@ class DiagnosisAgent(Singleton):
         self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
-        self._rank = -1
+        self._rank = rank
 
         self.start()
 
@@ -111,14 +116,14 @@ class DiagnosisAgent(Singleton):
         # start a async thread to diagnose periodically
         self._diagnosis_thread = threading.Thread(
             target=self._periodically_diagnosis,
-            name="periodically_diagnosis",
+            name="periodically_diagnostician",
             daemon=True,
         )
         self._diagnosis_thread.start()
 
         self._report_thread = threading.Thread(
             target=self._periodically_report,
-            name="diagnosis_reporter",
+            name="periodically_reporter",
             daemon=True,
         )
         self._report_thread.start()
@@ -161,7 +166,11 @@ class DiagnosisAgent(Singleton):
                     observations = combine_inferences(observations, infs)
             except Exception as e:
                 logger.error(f"fail to observe problem {problem}: {e}")
-        return observations
+        new_obs: List[Inference] = []
+        for ob in observations:
+            if not is_inference_included(self._observe_problems, ob):
+                new_obs.append(ob)
+        return new_obs
 
     def _diagnose_observations(
         self, observations: List[Inference]
@@ -189,12 +198,13 @@ class DiagnosisAgent(Singleton):
 
             observations = self._observe(observe_problems)
             if len(observations) > 0:
-                logger.info(f"Observed problems: {observations}")
+                logger.debug(f"Observed problems: {observations}")
                 action = self.diagnose_problems(observations)
                 if not isinstance(action, NoAction):
                     self._agent_context.enqueue_diagnosis_action(action)
             if self._accumulate_observe_time > 600:
                 self._accumulate_observe_time = 0
+
             time.sleep(
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
@@ -280,7 +290,12 @@ class DiagnosisAgent(Singleton):
             logger.warning(f"fail to report a heartbeat: {e}")
 
     def _periodically_report(self):
-        logger.info("Start diagnosis agent reporter.")
+        logger.info("Start diagnosis agent periodically reporter.")
         while True:
+            if self._stopped:
+                logger.info("Stop periodically reporter.")
+                break
             self.send_heartbeat()
-            time.sleep(15)
+            time.sleep(
+                DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS
+            )

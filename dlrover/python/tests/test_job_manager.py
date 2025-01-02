@@ -58,6 +58,7 @@ from dlrover.python.master.node.event_callback import (
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
+    ALLOWED_TRANSITIONS,
     NODE_STATE_FLOWS,
     NodeStateFlow,
     get_node_state_flow,
@@ -122,6 +123,14 @@ class NodeStatusFlowTest(unittest.TestCase):
         )
         self.assertEqual(flow, NODE_STATE_FLOWS[9])
         self.assertTrue(flow.should_relaunch)
+
+    def test_allowed_transitions(self):
+        self.assertTrue(
+            NodeStatus.RUNNING in ALLOWED_TRANSITIONS[NodeStatus.RUNNING]
+        )
+        self.assertFalse(
+            NodeStatus.PENDING in ALLOWED_TRANSITIONS[NodeStatus.RUNNING]
+        )
 
 
 class DistributedJobManagerTest(unittest.TestCase):
