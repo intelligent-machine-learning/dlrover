@@ -27,14 +27,14 @@ from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseMessage
 from dlrover.python.common.constants import (
     GRPC,
-    BasicClass,
+    CommunicationType,
     CustomMetricKeys,
     JobConstant,
     NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    TrainingLoopStatus, CommunicationType,
+    TrainingLoopStatus,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
@@ -682,7 +682,7 @@ class MasterServicer(ABC):
         return comm.HeartbeatResponse(action=grpc_action)
 
 
-class HttpMasterServicer(MasterServicer, tornado.web.RequestHandler):
+class HttpMasterServicer(MasterServicer):
     """Master service with http implementation."""
 
     def __init__(
@@ -697,7 +697,7 @@ class HttpMasterServicer(MasterServicer, tornado.web.RequestHandler):
         sync_service=None,
         error_monitor=None,
     ):
-        super(HttpMasterServicer, self).__init__(
+        super().__init__(
             task_manager,
             job_manager,
             speed_monitor,
@@ -711,17 +711,6 @@ class HttpMasterServicer(MasterServicer, tornado.web.RequestHandler):
 
     def get_response(self):
         return BaseMessage()
-
-    def post(self, path):
-        data = self.get_body_argument("data", default=None)
-        request: BaseMessage = json.loads(data)
-        if path == "get":
-            return self.get(request, None)
-        elif path == "report":
-            return self.report(request, None)
-        else:
-            self.set_status(404)
-            self.write(f"No service found for {path}.")
 
 
 class GrpcMasterServicer(
@@ -757,6 +746,34 @@ class GrpcMasterServicer(
         return elastic_training_pb2.Message()
 
 
+class HttpMasterHandler(tornado.web.RequestHandler):
+    def initialize(self, master_servicer: HttpMasterServicer):
+        self._handler = master_servicer
+
+    def get(self):
+        self.write("Not supported")
+
+    def post(self):
+        response = BaseMessage()
+
+        try:
+            path = self.request.path
+            request = BaseMessage(**json.loads(self.request.body))
+
+            if path == "/get":
+                response = self._handler.get(request, BaseMessage())
+            elif path == "/report":
+                response = self._handler.report(request, BaseMessage())
+            else:
+                self.set_status(404)
+                logger.error(f"No service found for {path}.")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            self.set_status(500)
+        finally:
+            self.write(response.serialize())
+
+
 def create_master_service(
     port,
     task_manager,
@@ -768,9 +785,9 @@ def create_master_service(
     elastic_ps_service,
     sync_service,
     error_monitor=None,
-    service_type=CommunicationType.COMM_SERVICE_GRPC,
     max_threads=64,
 ):
+    service_type = _dlrover_context.master_service_type
     logger.info(f"Creating master {service_type} service with port: {port}")
 
     if service_type == CommunicationType.COMM_SERVICE_GRPC:
@@ -802,5 +819,36 @@ def create_master_service(
         server.add_insecure_port("[::]:{}".format(port))
         return server
     else:
-        server = TornadoHTTPServer("localhost", port, HttpMasterServicer)
+        master_servicer = HttpMasterServicer(
+            task_manager=task_manager,
+            job_manager=job_manager,
+            speed_monitor=speed_monitor,
+            rdzv_managers=rdzv_managers,
+            diagnosis_manager=diagnosis_manager,
+            job_metric_collector=job_metric_collector,
+            elastic_ps_service=elastic_ps_service,
+            sync_service=sync_service,
+            error_monitor=error_monitor,
+        )
+        server = TornadoHTTPServer(
+            "localhost",
+            port,
+            [
+                (
+                    r"/",
+                    HttpMasterHandler,
+                    dict(master_servicer=master_servicer),
+                ),
+                (
+                    r"/get",
+                    HttpMasterHandler,
+                    dict(master_servicer=master_servicer),
+                ),
+                (
+                    r"/report",
+                    HttpMasterHandler,
+                    dict(master_servicer=master_servicer),
+                ),
+            ],
+        )
         return server

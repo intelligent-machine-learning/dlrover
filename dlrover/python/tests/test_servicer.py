@@ -10,12 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import time
 import unittest
 from unittest import mock
 
-# import ray
+import ray
+import requests
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
@@ -25,8 +27,9 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PSClusterVersionType,
-    RendezvousName, CommunicationType,
+    RendezvousName,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -38,8 +41,10 @@ from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.servicer import GrpcMasterServicer, \
-    create_master_service
+from dlrover.python.master.servicer import (
+    GrpcMasterServicer,
+    create_master_service,
+)
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import (
@@ -50,30 +55,19 @@ from dlrover.python.tests.test_utils import (
 from dlrover.python.util.queue.queue import RayEventQueue
 
 ray_event_queue = RayEventQueue.singleton_instance()
+TEST_SERVER_PORT = 8000
 
 
 class MasterServicerBasicTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.grpc_servicer = create_master_service(
-            8080,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            service_type=CommunicationType.COMM_SERVICE_GRPC,
-        )
+        pass
 
     def tearDown(self) -> None:
         pass
 
     def test_http_start_and_stop(self):
         http_servicer = create_master_service(
-            8081,
+            TEST_SERVER_PORT,
             None,
             None,
             None,
@@ -83,7 +77,6 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
             None,
-            service_type=CommunicationType.COMM_SERVICE_HTTP,
         )
         self.assertIsNotNone(http_servicer)
         self.assertFalse(http_servicer.is_serving())
@@ -96,7 +89,7 @@ class MasterServicerBasicTest(unittest.TestCase):
 
     def test_grpc_start_and_stop(self):
         grpc_servicer = create_master_service(
-            8081,
+            TEST_SERVER_PORT,
             None,
             None,
             None,
@@ -106,11 +99,42 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
             None,
-            service_type=CommunicationType.COMM_SERVICE_GRPC,
         )
         self.assertIsNotNone(grpc_servicer)
         grpc_servicer.start()
         grpc_servicer.stop(grace=None)
+
+    def test_http_basic(self):
+        context = Context.singleton_instance()
+        context.master_service_type = "http"
+        http_servicer = create_master_service(
+            TEST_SERVER_PORT,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        http_servicer.start()
+
+        response = requests.get("http://localhost:8000/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "Not supported")
+
+        response = requests.post(
+            "http://localhost:8000/get",
+            json={"node_type": "worker", "node_id": "1", "data": "test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        response_content = comm.deserialize_message(response.content)
+        self.assertIsNotNone(response_content)
+        self.assertEqual(response_content.node_type, "")
+
+        http_servicer.stop()
 
 
 class MasterServicerFunctionalTest(unittest.TestCase):

@@ -23,10 +23,10 @@ from dlrover.python.common.log import default_logger as logger
 class CustomHTTPServer(abc.ABC):
     """Self designed http server."""
 
-    def __init__(self, address, port, handler_class):
+    def __init__(self, address, port, handler_classes):
         self._address = address
         self._port = port
-        self._handler_class = handler_class
+        self._handler_classes = handler_classes
 
     @property
     def address(self):
@@ -37,8 +37,8 @@ class CustomHTTPServer(abc.ABC):
         return self._port
 
     @property
-    def handler_class(self):
-        return self._handler_class
+    def handler_classes(self):
+        return self._handler_classes
 
     @abc.abstractmethod
     def start(self):
@@ -83,7 +83,7 @@ class TornadoHTTPServer(CustomHTTPServer):
     def _start_server(self):
         try:
             self._server = tornado.httpserver.HTTPServer(
-                tornado.web.Application([(r"/", self._handler_class)])
+                tornado.web.Application(self._handler_classes)
             )
             self._server.listen(self._port)
             self._io_loop = tornado.ioloop.IOLoop.current()
@@ -94,7 +94,8 @@ class TornadoHTTPServer(CustomHTTPServer):
     def stop(self):
         if self._server:
             self._server.stop()
-            self._io_loop.add_callback(self._io_loop.stop)
+            if self._io_loop:
+                self._io_loop.add_callback(self._io_loop.stop)
 
         self._serving_started = False
 

@@ -37,7 +37,9 @@ class HttpServerClientTest(unittest.TestCase):
 
     def test_tornado_server_basic(self):
         self.server = TornadoHTTPServer(
-            TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler
+            TEST_SERVER_ADDR,
+            TEST_SERVER_PORT,
+            [(r"/", TestRequestHandler), (r"/report", TestRequestHandler)],
         )
         self.assertIsNotNone(self.server)
         self.assertFalse(is_port_in_use(TEST_SERVER_PORT))
@@ -55,8 +57,9 @@ class HttpServerClientTest(unittest.TestCase):
         )
         time.sleep(1)
 
-        # test get request
+        # test get and post request
         self._test_get_request()
+        self._test_post_request()
 
         self.server.stop()
         self.assertFalse(self.server.is_serving())
@@ -70,9 +73,20 @@ class HttpServerClientTest(unittest.TestCase):
         except Exception as e:
             raise e
 
+    def _test_post_request(self):
+        try:
+            with requests.post("http://localhost:8000/report") as response:
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.text, "Hello, world!!")
+                return response
+        except Exception as e:
+            raise e
+
     def test_server_concurrency(self):
         self.server = TornadoHTTPServer(
-            TEST_SERVER_ADDR, TEST_SERVER_PORT, TestRequestHandler
+            TEST_SERVER_ADDR,
+            TEST_SERVER_PORT,
+            [(r"/", TestRequestHandler), (r"/report", TestRequestHandler)],
         )
         self.server.start()
 
@@ -95,3 +109,6 @@ class HttpServerClientTest(unittest.TestCase):
 class TestRequestHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("Hello, world!")
+
+    def post(self):
+        self.write("Hello, world!!")

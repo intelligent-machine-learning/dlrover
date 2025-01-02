@@ -16,12 +16,14 @@ import os
 import socket
 import threading
 import time
+from abc import ABC, abstractmethod
 from contextlib import closing
 from typing import Dict, Optional
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.constants import (
+    CommunicationType,
     JobConstant,
     NetworkFailureReason,
     NodeEnv,
@@ -34,9 +36,10 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.util.common_util import find_free_port
 
 
-def retry_grpc_request(func):
+def retry_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 10)
         exception = None
@@ -58,7 +61,7 @@ def retry_grpc_request(func):
     return wrapper
 
 
-class MasterClient(Singleton):
+class MasterClient(Singleton, ABC):
     """MasterClient provides some APIs connect with the master
     service via gRPC call.
     Args:
@@ -87,56 +90,26 @@ class MasterClient(Singleton):
         )
         self._timeout = timeout
         self._master_addr = master_addr
-        self._channel = comm.build_grpc_channel(master_addr)
-        self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
         self._node_ip = os.getenv("NODE_IP", "")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
-        self._ddp_server_port = self.find_free_port()
-
+        self._ddp_server_port = find_free_port()
         self._diagnosis_action_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_action"
         )
 
-    def __del__(self):
-        if self._channel:
-            self._channel.close()
-
-    def close_channel(self):
-        if self._channel:
-            self._channel.close()
-
-    def open_channel(self):
-        self._channel = comm.build_grpc_channel(self._master_addr)
-        self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
-
-    def find_free_port(self):
-        with closing(
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(("localhost", 0))
-            _, port = sock.getsockname()
-            return port
-
-    @retry_grpc_request
+    @retry_request
+    @abstractmethod
     def _report(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        return self._stub.report(request, timeout=self._timeout)
+        """Abstraction of report function."""
+        pass
 
-    @retry_grpc_request
+    @retry_request
+    @abstractmethod
     def _get(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        response = self._stub.get(request, timeout=self._timeout)
-        res_message = comm.deserialize_message(response.data)
-        return res_message
+        """Abstraction of get function."""
+        pass
 
     def kv_store_set(self, key, value):
         message = comm.KeyValuePair(key, value)
@@ -502,8 +475,60 @@ class MasterClient(Singleton):
         return cls._instance
 
 
+class GrpcMasterClient(MasterClient):
+    def __init__(self, master_addr, node_id, node_type, timeout=5):
+        super(GrpcMasterClient, self).__init__(
+            master_addr, node_id, node_type, timeout
+        )
+        self._open_grpc_channel()
+
+    def __del__(self):
+        self._close_grpc_channel()
+
+    def _close_grpc_channel(self):
+        if self._channel:
+            self._channel.close()
+
+    def _open_grpc_channel(self):
+        self._channel = comm.build_grpc_channel(self._master_addr)
+        self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
+
+    @retry_request
+    def _report(self, message: comm.Message):
+        request = elastic_training_pb2.Message()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+        return self._stub.report(request, timeout=self._timeout)
+
+    @retry_request
+    def _get(self, message: comm.Message):
+        request = elastic_training_pb2.Message()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+        response = self._stub.get(request, timeout=self._timeout)
+        res_message = comm.deserialize_message(response.data)
+        return res_message
+
+
+class HttpMasterClient(MasterClient):
+    def __init__(self, master_addr, node_id, node_type, timeout=5):
+        super(HttpMasterClient, self).__init__(
+            master_addr, node_id, node_type, timeout
+        )
+
+    @retry_request
+    def _report(self, message: comm.Message):
+        pass
+
+    @retry_request
+    def _get(self, message: comm.Message):
+        pass
+
+
 def build_master_client(
-    master_addr=None, timeout=JobConstant.MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT
+    master_addr=None, timeout=JobConstant.MASTER_CLIENT_DEFAULT_TIMEOUT
 ):
     """
     Build a master client.
@@ -526,12 +551,24 @@ def build_master_client(
         logger.info(f"set master_client timeout to {_timeout}")
 
     master_client = None
-    logger.info(f"Build master client with addr {master_addr}.")
+    master_service_type = os.getenv(
+        NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
+        CommunicationType.COMM_SERVICE_GRPC,
+    )
+    logger.info(
+        f"Build {master_service_type} master client "
+        f"with addr {master_addr}."
+    )
     if master_addr:
         try:
-            master_client = MasterClient(
-                master_addr, node_id, node_type, timeout
-            )
+            if master_service_type == CommunicationType.COMM_SERVICE_GRPC:
+                master_client = GrpcMasterClient(
+                    master_addr, node_id, node_type, timeout
+                )
+            else:
+                master_client = HttpMasterClient(
+                    master_addr, node_id, node_type, timeout
+                )
         except Exception:
             logger.info("The master is not available now.")
     return master_client

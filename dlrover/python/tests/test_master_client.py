@@ -44,8 +44,8 @@ class MasterClientTest(unittest.TestCase):
     def test_open_channel(self):
         self.assertEqual(self._master_client._timeout, 1)
         self.assertEqual(self._master_client._timeout, 1)
-        self._master_client.close_channel()
-        self._master_client.open_channel()
+        self._master_client._close_grpc_channel()
+        self._master_client._open_grpc_channel()
 
     def test_report_used_resource(self):
         gpu_stats: List[comm.GPUStats] = [

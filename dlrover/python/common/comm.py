@@ -97,7 +97,7 @@ class Message(JsonSerializable):
 class BaseMessage(Message):
     node_id: int = -1
     node_type: str = ""
-    data: bytes = bytes()
+    data: str = ""
 
 
 @dataclass

@@ -13,7 +13,7 @@
 
 import os
 
-from dlrover.python.common.constants import UserEnv
+from dlrover.python.common.constants import CommunicationType, UserEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.util.common_util import (
@@ -41,6 +41,7 @@ class ConfigKeys(object):
 
 
 class DefaultValues(object):
+    SERVICE_TYPE = CommunicationType.COMM_SERVICE_GRPC
     TRAIN_SPEED_RECORD_NUM = 50
     SEC_TO_START_AUTOSCALE_WORKER = 90
     STEP_TO_ADJUST_WORKER = 200
@@ -64,6 +65,7 @@ class DefaultValues(object):
 
 class Context(Singleton):
     def __init__(self):
+        self.master_service_type = DefaultValues.SERVICE_TYPE
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
             DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
