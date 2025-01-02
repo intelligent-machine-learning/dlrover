@@ -246,7 +246,10 @@ class DiagnosisAgent(Singleton):
             logger.warning(f"fail to report a heartbeat: {e}")
 
     def _periodically_report(self):
-        logger.info("Start diagnosis agent reporter.")
+        logger.info("Start diagnosis agent periodically reporter.")
         while True:
+            if self._stopped:
+                logger.info("Stop periodically reporter.")
+                break
             self.send_heartbeat()
             time.sleep(15)
