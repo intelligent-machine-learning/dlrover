@@ -159,7 +159,7 @@ class DiagnosisAgent(Singleton):
 
             observations = self._observe()
             if len(observations) > 0:
-                logger.info(f"Observed problems: {observations}")
+                logger.debug(f"Observed problems: {observations}")
                 self.diagnose_problems(observations)
 
             time.sleep(
