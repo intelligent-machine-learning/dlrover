@@ -57,10 +57,10 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 
 class DiagnosisAgent(Singleton):
     def __init__(
-            self,
-            training_log_file="",
-            errors="",
-            rank=-1,
+        self,
+        training_log_file="",
+        errors="",
+        rank=-1,
     ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
@@ -168,7 +168,7 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         new_obs: List[Inference] = []
         for ob in observations:
-            if not is_inference_included(self._observe_problems, ob):
+            if not is_inference_included(observe_problems, ob):
                 new_obs.append(ob)
         return new_obs
 

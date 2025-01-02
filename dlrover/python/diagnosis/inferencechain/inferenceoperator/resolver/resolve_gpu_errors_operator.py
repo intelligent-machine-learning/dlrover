@@ -32,7 +32,9 @@ from dlrover.python.diagnosis.common.inference_chain import (
 
 class ResolveGPUErrorsOperator(InferenceOperator):
     """
-    ResolveGPUErrorsOperator is to diagnose GPU errors
+    ResolveGPUErrorsOperator is to diagnose GPU errors like:
+    1. GPU lost. This error will be reported to the master and
+    the master will expose this error at this moment.
     """
 
     def __init__(self):

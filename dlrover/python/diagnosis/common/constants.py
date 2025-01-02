@@ -33,6 +33,7 @@ class InferenceConfigKey(object):
 
 class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
+    # the minimum diagnosis interval is 5 seconds
     AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 5
     AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 15
     MASTER_INSTANCE = -1
