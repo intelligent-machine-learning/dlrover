@@ -180,7 +180,7 @@ class TestDiagnosisAgent(unittest.TestCase):
     def test_async_thread(self):
         DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 1
         DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 1
-        agent = DiagnosisAgent.singleton_instance("", "")
+        agent = DiagnosisAgent("", "")
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("periodically_diagnostician", active_threads_name)
         self.assertIn("periodically_reporter", active_threads_name)
@@ -190,6 +190,14 @@ class TestDiagnosisAgent(unittest.TestCase):
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertNotIn("periodically_diagnostician", active_threads_name)
         self.assertNotIn("periodically_reporter", active_threads_name)
+
+        agent.start()
+        time.sleep(2)
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("periodically_diagnostician", active_threads_name)
+        self.assertIn("periodically_reporter", active_threads_name)
+
+        agent.stop()
 
 
 if __name__ == "__main__":
