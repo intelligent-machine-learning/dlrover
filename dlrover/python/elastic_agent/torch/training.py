@@ -444,6 +444,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
         training_log_file: str = "",
         failure_node_errors: str = "",
+        with_diagnostician: bool = True,
     ):
         if version_less_than_230():
             super().__init__(spec, exit_barrier_timeout)
@@ -469,9 +470,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._diagnose_agent = DiagnosisAgent(
-            training_log_file, failure_node_errors
-        )
+        if with_diagnostician:
+            self._diagnose_agent = DiagnosisAgent(
+                training_log_file, failure_node_errors
+            )
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -1344,6 +1346,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             start_method,
             exit_barrier_timeout,
             log_dir,
+            with_diagnostician=False,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
         self._check_round = check_round

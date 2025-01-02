@@ -93,14 +93,14 @@ class DiagnosisAgent(Singleton):
         # start a async thread to diagnose periodically
         self._diagnosis_thread = threading.Thread(
             target=self._periodically_diagnosis,
-            name="periodically_diagnosis",
+            name="periodically_diagnostician",
             daemon=True,
         )
         self._diagnosis_thread.start()
 
         self._report_thread = threading.Thread(
             target=self._periodically_report,
-            name="diagnosis_reporter",
+            name="periodically_reporter",
             daemon=True,
         )
         self._report_thread.start()
@@ -159,7 +159,7 @@ class DiagnosisAgent(Singleton):
 
             observations = self._observe()
             if len(observations) > 0:
-                logger.info(f"Observed problems: {observations}")
+                logger.debug(f"Observed problems: {observations}")
                 self.diagnose_problems(observations)
 
             time.sleep(
@@ -246,7 +246,12 @@ class DiagnosisAgent(Singleton):
             logger.warning(f"fail to report a heartbeat: {e}")
 
     def _periodically_report(self):
-        logger.info("Start diagnosis agent reporter.")
+        logger.info("Start diagnosis agent periodically reporter.")
         while True:
+            if self._stopped:
+                logger.info("Stop periodically reporter.")
+                break
             self.send_heartbeat()
-            time.sleep(15)
+            time.sleep(
+                DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS
+            )
