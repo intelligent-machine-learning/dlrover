@@ -1,0 +1,129 @@
+// Copyright 2024 The DLRover Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xpu_timer.hook;
+
+option cc_generic_services = true;
+
+message InterceptSymbol {
+  string func_name = 1;
+  string func_type = 2;
+  string operation = 3;
+  string algo = 4;
+  string dtype = 5;
+  string coll_type = 6;
+  bool only_trace = 7;
+};
+
+message InterceptSymbolByOffset {
+  map<int64, InterceptSymbol> symbols = 1;
+}
+
+message NcclDebugData {
+  repeated uint32 grids = 1;   // dim3
+  repeated uint32 blocks = 2;  // dim3
+  uint64 comm_hash = 3;
+  uint64 input_size_in_bytes = 4;  // diff coll operator are different
+  string dtype = 5;
+  uint32 ranks = 6;
+  uint32 nodes = 7;
+  uint64 seq = 8;
+  uint64 problem_size = 9;
+  uint32 send_recv_type = 10;
+}
+
+message MatmulDebugData {
+  repeated uint32 shapes = 1;  // b m n k
+  string dtype = 2;
+  string trans = 3;
+  repeated int64 lds = 4;      // ld a b c
+  repeated int64 strides = 5;  // strides a b c
+  int32 algo = 6;
+  string api = 7;
+}
+
+message FaDebugData {
+  repeated uint32 shapes = 1;  // b s s h
+}
+
+message GroupedMatmulDebugData {
+  message BMNK {
+    repeated uint32 shapes = 1;  // b m n k
+  }
+  repeated BMNK bmnks = 1;
+  string dtype = 2;
+  string api = 3;
+  double tflops = 4;
+}
+
+message MemoryDebugData {
+  uint64 size = 1;  // bytes
+  string direction = 2;
+}
+
+message KernelTrace {
+  // we need configure which kind of kernel to dump trace
+  // the type is from brpc server to shm, so `kernel_type`
+  // needs to be primitive type
+  uint32 kernel_type = 1;
+  uint32 trace_code = 2;
+  uint64 start_us = 3;
+  uint32 dur_us = 4;
+  uint32 delay_us = 5;
+  uint64 trace_id = 6;
+  oneof debug_data {
+    MatmulDebugData mm_debug = 7;
+    FaDebugData fa_debug = 8;
+    NcclDebugData nccl_debug = 9;
+    MemoryDebugData memory_debug = 10;
+    GroupedMatmulDebugData grouped_mm_debug = 12;
+  }
+  bool is_host = 11;
+}
+
+message GcDebugData {
+  uint32 collected = 1;
+  uint32 uncollectable = 2;
+}
+
+message HostTrace {
+  uint64 start_us = 1;
+  uint32 dur_us = 2;
+  string name = 3;
+  uint32 count = 4;
+  oneof debug_data {
+    GcDebugData gc_debug = 5;
+  }
+}
+
+message MatmulInfo {
+  MatmulDebugData mm_debug = 1;
+  repeated double tflops = 2;
+}
+
+message MatmulInfos {
+  repeated MatmulInfo infos = 1;
+}
+
+message RankMatmulInfo {
+  map<int64, MatmulInfos> mm_infos = 1;
+}
+
+message KernelTraces {
+  repeated KernelTrace traces = 1;
+  repeated HostTrace host_traces = 2;
+  uint32 pid = 3;
+  uint32 rank = 4;
+}

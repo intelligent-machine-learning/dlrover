@@ -13,7 +13,7 @@
 
 from typing import Optional
 
-from torch.distributed.elastic.agent.server import RunResult, WorkerSpec
+from torch.distributed.elastic.agent.server.api import WorkerSpec
 
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -28,7 +28,7 @@ class AgentContext(Singleton):
         self._worker_spec: Optional[WorkerSpec] = None
         self.remaining_failovers = 0
         self.restart_count = 0
-        self._run_result: Optional[RunResult] = None
+        self._run_result = None
         self._diagnosis_action_queue = DiagnosisActionQueue()
 
     @property
@@ -64,6 +64,9 @@ class AgentContext(Singleton):
         if not action or isinstance(action, NoAction):
             return
         self._diagnosis_action_queue.add_action(action)
+
+    def next_diagnosis_action(self) -> DiagnosisAction:
+        return self._diagnosis_action_queue.next_action()
 
 
 def get_agent_context() -> AgentContext:

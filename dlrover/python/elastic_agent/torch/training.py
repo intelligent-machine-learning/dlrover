@@ -90,7 +90,12 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
-from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    EventAction,
+    NoAction,
+    NodeAction,
+)
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
@@ -103,6 +108,7 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
+from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
@@ -146,6 +152,8 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
+        precheck: the level to run pre-check task before starting
+            the training task.
         network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
@@ -164,6 +172,7 @@ class ElasticLaunchConfig(LaunchConfig):
             is a failure node
     """
 
+    precheck: int = 0
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
@@ -214,6 +223,19 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+    def update_precheck_args(self):
+        if self.precheck == 0:
+            self.comm_perf_test = False or self.comm_perf_test
+            self.network_check = False or self.network_check
+
+        if self.precheck == 1:
+            self.network_check = True
+            self.comm_perf_test = False or self.comm_perf_test
+
+        if self.precheck == 2:
+            self.network_check = True
+            self.comm_perf_test = True
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -428,6 +450,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
         training_log_file: str = "",
         failure_node_errors: str = "",
+        with_diagnostician: bool = True,
     ):
         if version_less_than_230():
             super().__init__(spec, exit_barrier_timeout)
@@ -453,9 +476,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._diagnose_agent = DiagnosisAgent(
-            training_log_file, failure_node_errors
-        )
+
+        if with_diagnostician:
+            self._diagnose_agent = DiagnosisAgent.singleton_instance(
+                training_log_file, failure_node_errors, node_rank
+            )
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -471,11 +496,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
-        logger.info("stop workers via SIGKILL for Ascend NPU")
         """The ASCEND framework might fork multiple sub-processes, we should
-        stop all the children processes before shutdown the workers
+        stop all the children processes before shutdown the workers.
         """
-        """print out a snapshot of all processes"""
+
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        # print out a snapshot of all processes
         env_utils.print_process_list()
 
         if self._pcontext is not None:
@@ -493,10 +519,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._shutdown(death_sig=signal.SIGKILL)
 
-        """cleanup orphan processes if exists"""
+        # cleanup orphan processes if exists
         self._stop_orphan_workers(worker_group)
 
-        """print out a snapshot of all processes again"""
+        # print out a snapshot of all processes again
         env_utils.print_process_list()
 
     @prof
@@ -938,6 +964,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
+
+            self._check_and_process_diagnosis_action()
             try:
                 run_result: RunResult = self._monitor_workers(
                     self._worker_group
@@ -1005,13 +1033,47 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
-    def _process_diagnosis_action(self, action: NodeAction):
-        if action.action_type == DiagnosisActionType.RESTART_WORKER:
-            self._remaining_failovers -= 1
-            self._restart_workers(self._worker_group)
-        elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
-            self._stop_workers(self._worker_group)
-            self._worker_group.state = WorkerState.FAILED
+    def _process_diagnosis_action(self, action: DiagnosisAction):
+        if isinstance(action, NodeAction):
+            action.__class__ = NodeAction
+            if action.action_type == DiagnosisActionType.RESTART_WORKER:
+                self._remaining_failovers -= 1
+                self._restart_workers(self._worker_group)
+            elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+                self._stop_workers(self._worker_group)
+                self._worker_group.state = WorkerState.FAILED
+        elif isinstance(action, EventAction):
+            action.__class__ = EventAction
+            labels = action.event_labels
+            if labels is None:
+                labels = {}
+            self._client.report_event(
+                event_type=action.event_type,
+                instance=action.event_instance,
+                action=action.event_action,
+                msg=action.event_msg,
+                labels=labels,
+            )
+
+    def _check_and_process_diagnosis_action(self):
+        action = self._agent_context.next_diagnosis_action()
+        if isinstance(action, NoAction):
+            return
+        self._process_diagnosis_action(action)
+        # avoid to execute the same event action too frequently
+        if isinstance(action, EventAction) and not action.is_expired():
+            time_diff = timestamp_diff_in_seconds(
+                action.timestamp, datetime.now().timestamp()
+            )
+            expired_time_period = action.expired_time_period - time_diff
+            if expired_time_period < 0:
+                expired_time_period = 0
+            action.update_timestamp(
+                timestamp=datetime.now().timestamp(),
+                expired_time_period=expired_time_period,
+                executable_time_period=expired_time_period + 60,
+            )
+            self._agent_context.enqueue_diagnosis_action(action)
 
     def _wait_async_saver(self):
         """
@@ -1327,6 +1389,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             start_method,
             exit_barrier_timeout,
             log_dir,
+            with_diagnostician=False,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
         self._check_round = check_round
@@ -1361,11 +1424,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes = self._client.check_fault_node()
-            stragglers = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node()
+            stragglers, straggler_reason = self._client.check_straggler()
             logger.info(
-                f"Fault nodes are: {fault_nodes} "
-                f" and stragglers are: {stragglers}."
+                f"Fault nodes are: {fault_nodes} with {fault_reason} "
+                f" and stragglers are: {stragglers} with {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
             if fault_nodes or (stragglers and self._config.exclude_straggler):
@@ -1381,7 +1444,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
-                    time.sleep(3)
+                    time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                     continue
             else:
                 return success

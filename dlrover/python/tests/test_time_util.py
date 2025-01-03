@@ -29,3 +29,10 @@ class TimeUtilTest(unittest.TestCase):
                 (datetime.now() - timedelta(seconds=5)).timestamp(), 5
             )
         )
+
+    def test_timestamp_diff_in_seconds(self):
+        t1 = datetime.now()
+        t2 = t1 + timedelta(seconds=5)
+        self.assertEqual(
+            tu.timestamp_diff_in_seconds(t1.timestamp(), t2.timestamp()), 5
+        )
