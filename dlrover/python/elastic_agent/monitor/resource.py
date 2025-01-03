@@ -156,28 +156,27 @@ class ResourceMonitor(Singleton):
                 f"An unexpected error occurred during NVML shutdown: {e}"
             )
 
-    def report_resource(self) -> str:
-        try:
-            used_mem = get_used_memory()
-            cpu_percent = get_process_cpu_percent()
-            if self._gpu_enabled:
-                self._gpu_stats = get_gpu_stats()
-            current_cpu = round(cpu_percent * self._total_cpu, 2)
-            self._master_client.report_used_resource(
-                used_mem, current_cpu, self._gpu_stats
-            )
-            logger.debug(
-                "Report Resource CPU : %s, Memory %s, GPU %s",
-                current_cpu,
-                used_mem,
-                self._gpu_stats,
-            )
-            return ""
-        except Exception as e:
-            return f"{e}"
+    def report_resource(self):
+        used_mem = get_used_memory()
+        cpu_percent = get_process_cpu_percent()
+        if self._gpu_enabled:
+            self._gpu_stats = get_gpu_stats()
+        current_cpu = round(cpu_percent * self._total_cpu, 2)
+        self._master_client.report_used_resource(
+            used_mem, current_cpu, self._gpu_stats
+        )
+        logger.debug(
+            "Report Resource CPU : %s, Memory %s, GPU %s",
+            current_cpu,
+            used_mem,
+            self._gpu_stats,
+        )
 
     def _monitor_resource(self):
         logger.info("Start to monitor resource usage")
         while True:
-            self.report_resource()
+            try:
+                self.report_resource()
+            except Exception as e:
+                logger.debug(f"report resource error: {e}")
             time.sleep(15)

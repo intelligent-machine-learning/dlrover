@@ -46,7 +46,7 @@ class InferenceChainTest(unittest.TestCase):
     )
     def test_gpu_resource_error(self, mock_resource_monitor):
         error_logs = "Test the GPU is lost inference chain"
-        mock_resource_monitor.return_value = error_logs
+        mock_resource_monitor.side_effect = Exception(error_logs)
         operators = [
             ResolveGPUErrorsOperator(),
             ResourceCollectionOperator(),

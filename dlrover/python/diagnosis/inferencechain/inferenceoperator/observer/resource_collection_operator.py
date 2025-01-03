@@ -48,7 +48,12 @@ class ResourceCollectionOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        error_logs = self._monitor.report_resource()
+        error_logs = ""
+        try:
+            self._monitor.report_resource()
+        except Exception as e:
+            error_logs = f"{e}"
+
         if DiagnosisErrorConstant.GPU_LOST in error_logs:
             return [
                 Inference(

@@ -491,15 +491,14 @@ class InferenceChainTest(unittest.TestCase):
         infs = operator.infer([])
         self.assertEqual(len(infs), 0)
 
-    @patch(
-        "dlrover.python.elastic_agent.monitor.resource"
-        ".ResourceMonitor.report_resource"
-    )
-    def test_resource_collect_operator(self, mock_resource_monitor):
+    def test_resource_collect_operator(self):
         error_log = "GPU is lost"
-        mock_resource_monitor.return_value = error_log
 
         res_collect_operator = ResourceCollectionOperator()
+        res_collect_operator._monitor.report_resource = mock.MagicMock(
+            side_effect=Exception(error_log)
+        )
+
         res_collect_inf = Inference(
             name=InferenceName.WORKER,
             attribution=InferenceAttribute.COLLECT,
