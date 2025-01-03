@@ -179,7 +179,7 @@ class Shard(Message):
 @dataclass
 class Task(Message):
     task_id: int = 0
-    shard: Shard = Shard()
+    shard: Shard = field(default_factory=Shard)
     type: int = 0
     extended_config: Dict[str, str] = field(default_factory=dict)
 
@@ -218,8 +218,8 @@ class OpStats(Message):
 class ModelInfo(Message):
     """ModelInfo contains profiling data of a model."""
 
-    tensor_stats: TensorStats = TensorStats()
-    op_stats: OpStats = OpStats()
+    tensor_stats: TensorStats = field(default_factory=TensorStats)
+    op_stats: OpStats = field(default_factory=OpStats)
     instantiation_memory: int = 0
     activation_memory: int = 0
 
@@ -331,7 +331,7 @@ class NodeEvent(Message):
     event_message: str = ""
     event_time: float = 0.0
     event_elapsed_time: float = 0.0
-    node: NodeMeta = NodeMeta()
+    node: NodeMeta = field(default_factory=NodeMeta)
 
 
 @dataclass
@@ -475,8 +475,8 @@ class CheckHardwareResetRequest(Message):
 
 @dataclass
 class ParallelConfig(Message):
-    dataloader: DataLoaderConfig = DataLoaderConfig()
-    optimizer: OptimizerConfig = OptimizerConfig()
+    dataloader: DataLoaderConfig = field(default_factory=DataLoaderConfig)
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     restart: bool = False
 
 
@@ -506,6 +506,15 @@ class ElasticRunConfigRequest(Message):
 @dataclass
 class ElasticRunConfig(Message):
     configs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Event(Message):
+    event_type: str = ""
+    instance: str = ""
+    action: str = ""
+    msg: str = ""
+    labels: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

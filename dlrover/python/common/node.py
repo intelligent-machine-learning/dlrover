@@ -235,6 +235,7 @@ class Node(object):
         host_ip=None,
         restart_training=False,
         relaunch_count=0,
+        is_released=False,
     ):
         if name is not None:
             self.name = name
@@ -248,6 +249,7 @@ class Node(object):
             self.host_ip = host_ip
         self.relaunch_count = max(self.relaunch_count, relaunch_count)
         self.restart_training = restart_training
+        self.is_released = is_released
 
     def update_status(self, status=None):
         if status is not None:
@@ -276,6 +278,7 @@ class Node(object):
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
+        new_node.reported_status = ""
         return new_node
 
     def is_unrecoverable_failure(self):
@@ -363,15 +366,26 @@ class Node(object):
     def is_node_check_failed(self):
         return self.reported_status == NodeEventType.NODE_CHECK_FAILED
 
+    def is_resource_scalable(self):
+        """
+        This is a temp implement:
+            resource is not scalable if resource has gpu
+        """
+
+        if self.config_resource.gpu_num > 0:
+            return False
+        return True
+
     def __repr__(self):
         return (
             f"name:{self.name};"
             f"rank_index:{self.rank_index};"
             f"type:{self.type};"
             f"status:{self.status};"
+            f"reported_status:{self.reported_status};"
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
-            f"priroity:{self.config_resource.priority}"
+            f"priority:{self.config_resource.priority};"
         )
 
     def to_dict(self):

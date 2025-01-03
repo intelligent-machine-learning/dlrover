@@ -23,6 +23,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
     EventAction,
+    NoAction,
     NodeAction,
 )
 
@@ -40,19 +41,30 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(
             basic_action._instance, DiagnosisConstant.LOCAL_INSTANCE
         )
+        self.assertFalse(basic_action.is_needed())
 
         event_action = EventAction(
             "info", "job", "test", "test123", {"k1": "v1"}
         )
         self.assertEqual(event_action.action_type, DiagnosisActionType.EVENT)
         self.assertEqual(
-            event_action._instance, DiagnosisConstant.LOCAL_INSTANCE
+            event_action._instance, DiagnosisConstant.MASTER_INSTANCE
         )
         self.assertEqual(event_action.event_type, "info")
         self.assertEqual(event_action.event_instance, "job")
         self.assertEqual(event_action.event_action, "test")
         self.assertEqual(event_action.event_msg, "test123")
         self.assertEqual(event_action.event_labels, {"k1": "v1"})
+        self.assertTrue(event_action.is_needed())
+
+        event_action_json = event_action.to_json()
+        self.assertIsNotNone(event_action_json)
+
+        event_action_obj = EventAction.from_json(event_action_json)
+        self.assertIsNotNone(event_action_obj)
+        self.assertEqual(
+            event_action.event_action, event_action_obj.event_action
+        )
 
         node_relaunch_action = NodeAction(
             node_id=1,
@@ -68,6 +80,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
+        self.assertTrue(event_action.is_needed())
 
         node_relaunch_action = NodeAction(
             node_id=1,
@@ -79,6 +92,7 @@ class DiagnosisTest(unittest.TestCase):
             node_relaunch_action.action_type,
             DiagnosisActionType.RESTART_WORKER,
         )
+        self.assertTrue(event_action.is_needed())
 
     def test_action_queue(self):
         action_queue = DiagnosisActionQueue()
@@ -97,7 +111,7 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertEqual(
             action_queue.next_action(
-                instance=DiagnosisConstant.LOCAL_INSTANCE
+                instance=DiagnosisConstant.MASTER_INSTANCE
             ).action_type,
             DiagnosisActionType.EVENT,
         )
@@ -105,12 +119,66 @@ class DiagnosisTest(unittest.TestCase):
             action_queue.next_action(
                 instance=DiagnosisConstant.LOCAL_INSTANCE
             ).action_type,
-            DiagnosisActionType.EVENT,
+            DiagnosisActionType.NONE,
         )
         self.assertEqual(
             action_queue.next_action(instance=1).action_type,
             DiagnosisActionType.NONE,
         )
+
+        ##################################################
+        action_queue.clear()
+
+        action0 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg0",
+        )
+        action_queue.add_action(action0)
+        action1 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg1",
+            executable_time_period=5,
+        )
+        action_queue.add_action(action1)
+        action2 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg2",
+        )
+        action_queue.add_action(action2)
+        action3 = EventAction(
+            event_type="type",
+            event_instance="worker",
+            event_action="action",
+            event_msg="msg2",
+        )
+        action_queue.add_action(action3)
+
+        self.assertEqual(
+            len(action_queue._actions[DiagnosisConstant.MASTER_INSTANCE]), 3
+        )
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(action.event_msg, "msg0")
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(action.event_msg, "msg2")
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertTrue(isinstance(action, NoAction))
+        time.sleep(5)
+        action = action_queue.next_action(
+            instance=DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(action.event_msg, "msg1")
 
 
 if __name__ == "__main__":

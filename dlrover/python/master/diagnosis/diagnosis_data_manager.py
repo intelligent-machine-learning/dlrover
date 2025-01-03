@@ -11,11 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import threading
 from collections import deque
+from itertools import islice
 from typing import Dict, List
 
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.util.time_util import has_expired
 
 
@@ -24,31 +27,51 @@ class DiagnosisDataManager:
     DiagnosisDataManager is to manage the diagnosis data collected from worker
     """
 
-    def __init__(self, expire_time_period):
+    def __init__(self, expire_time_period=600):
         """
         Args:
             expire_time_period: data expire time period in seconds
         """
-        self.diagnosis_data: Dict[str, deque[DiagnosisData]] = {}
-        self.expire_time_period = expire_time_period
+        self._diagnosis_data: Dict[str, deque[DiagnosisData]] = {}
+        self._expire_time_period = expire_time_period
+        self._job_context = get_job_context()
         self._lock = threading.Lock()
+
+    @property
+    def data(self):
+        return self._diagnosis_data
+
+    @property
+    def expire_time_period(self):
+        return self._expire_time_period
 
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
         with self._lock:
-            if data_type not in self.diagnosis_data:
-                self.diagnosis_data[data_type] = deque(maxlen=10000)
-            q = self.diagnosis_data[data_type]
-            q.append(data)
+            if data_type not in self.data:
+                self.data[data_type] = deque(maxlen=100000)
+            self.data[data_type].append(data)
+            self._clean_diagnosis_data(data_type)
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
         with self._lock:
-            if data_type not in self.diagnosis_data:
+            if data_type not in self.data:
                 return []
-            data_by_type = self.diagnosis_data[data_type]
-            result = []
-            while len(data_by_type) != 0:
-                data = data_by_type.popleft()
-                if not has_expired(data.timestamp, self.expire_time_period):
-                    result.append(data)
-            return result
+            return list(self.data[data_type])
+
+    def get_data_size(self):
+        return sys.getsizeof(self.data)
+
+    def _clean_diagnosis_data(self, data_type: str):
+        if data_type not in self.data:
+            return
+
+        each_data = self.data[data_type]
+        n = 0
+        for d in each_data:
+            if has_expired(d.timestamp, self.expire_time_period):
+                n = n + 1
+            else:
+                break
+        if n > 0:
+            self.data[data_type] = deque(islice(each_data, n, len(each_data)))
