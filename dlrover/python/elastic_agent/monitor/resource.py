@@ -94,11 +94,18 @@ class ResourceMonitor(Singleton):
         self._gpu_stats: list[GPUStats] = []
         self._master_client = MasterClient.singleton_instance()
 
+        if os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
+            self.init_gpu_monitor()
+
+            # The first time called cpu_percent will return a meaningless 0.0
+            # value which we are supposed to ignore. So, here we call it at
+            # the beginning of monitor and the next value is valid.
+            get_process_cpu_percent()
+
     def start(self):
         if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
             return
 
-        self.init_gpu_monitor()
         logger.info("Resource Monitor Initializing ...")
 
         try:
@@ -114,11 +121,6 @@ class ResourceMonitor(Singleton):
             logger.error(
                 f"Failed to start the monitor resource thread. Error: {e}"
             )
-
-        # The first time called cpu_percent will return a meaningless 0.0
-        # value which we are supposed to ignore. So, here we call it at
-        # the beginning of monitor and the next value is valid.
-        get_process_cpu_percent()
 
     def stop(self):
         if self._gpu_enabled:
@@ -155,26 +157,26 @@ class ResourceMonitor(Singleton):
             )
 
     def report_resource(self):
-        try:
-            used_mem = get_used_memory()
-            cpu_percent = get_process_cpu_percent()
-            if self._gpu_enabled:
-                self._gpu_stats = get_gpu_stats()
-            current_cpu = round(cpu_percent * self._total_cpu, 2)
-            self._master_client.report_used_resource(
-                used_mem, current_cpu, self._gpu_stats
-            )
-            logger.debug(
-                "Report Resource CPU : %s, Memory %s, GPU %s",
-                current_cpu,
-                used_mem,
-                self._gpu_stats,
-            )
-        except Exception as e:
-            logger.exception(e)
+        used_mem = get_used_memory()
+        cpu_percent = get_process_cpu_percent()
+        if self._gpu_enabled:
+            self._gpu_stats = get_gpu_stats()
+        current_cpu = round(cpu_percent * self._total_cpu, 2)
+        self._master_client.report_used_resource(
+            used_mem, current_cpu, self._gpu_stats
+        )
+        logger.debug(
+            "Report Resource CPU : %s, Memory %s, GPU %s",
+            current_cpu,
+            used_mem,
+            self._gpu_stats,
+        )
 
     def _monitor_resource(self):
         logger.info("Start to monitor resource usage")
         while True:
-            self.report_resource()
+            try:
+                self.report_resource()
+            except Exception as e:
+                logger.debug(f"report resource error: {e}")
             time.sleep(15)

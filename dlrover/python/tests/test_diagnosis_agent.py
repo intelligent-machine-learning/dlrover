@@ -63,6 +63,22 @@ class TestDiagnosisAgent(unittest.TestCase):
         os.environ.clear()
         self._master.stop()
 
+    def test_diagnose_agent(self):
+        agent = DiagnosisAgent.singleton_instance()
+        agent.stop()
+
+        agent._accumulate_observe_time = 0
+        problems = agent._get_observe_problems()
+        self.assertEqual(len(problems), 0)
+
+        agent._accumulate_observe_time = 30
+        problems = agent._get_observe_problems()
+        self.assertEqual(len(problems), 1)
+
+        agent._accumulate_observe_time = 60
+        problems = agent._get_observe_problems()
+        self.assertEqual(len(problems), 2)
+
     def test_diagnose_training(self):
         file = "data/training.log"
         path = os.path.dirname(__file__)
@@ -70,7 +86,8 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         errors = "error code is 11111"
 
-        agent = DiagnosisAgent.singleton_instance(file_path, errors)
+        agent = DiagnosisAgent.singleton_instance()
+        agent.update_config(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,
@@ -122,6 +139,8 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.assertEqual(
             action.action_type, DiagnosisActionType.RESTART_WORKER
         )
+
+        agent.stop()
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(
