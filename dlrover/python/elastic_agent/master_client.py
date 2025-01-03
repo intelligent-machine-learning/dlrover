@@ -13,15 +13,16 @@
 
 import importlib
 import os
-import socket
 import threading
 import time
 from abc import ABC, abstractmethod
-from contextlib import closing
 from typing import Dict, Optional
+
+import requests
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm, env_utils
+from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CommunicationType,
     JobConstant,
@@ -343,7 +344,7 @@ class MasterClient(Singleton, ABC):
             return result.waiting_num
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
-            return 0
+            return -1
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
@@ -518,13 +519,50 @@ class HttpMasterClient(MasterClient):
             master_addr, node_id, node_type, timeout
         )
 
+    def _get_http_request_url(self, path: str) -> str:
+        return "http://" + self._master_addr + path
+
     @retry_request
     def _report(self, message: comm.Message):
-        pass
+        with requests.post(
+            self._get_http_request_url("/report"),
+            json=self._gen_request(message).to_json(),
+        ) as response:
+            if response.status_code != 200:
+                error_msg = (
+                    "Failed to report master "
+                    f"with http request: {type(message)}."
+                )
+                raise RuntimeError(error_msg)
+            response_data: BaseResponse = comm.deserialize_message(
+                response.content
+            )
+            return response_data
 
     @retry_request
     def _get(self, message: comm.Message):
-        pass
+        with requests.post(
+            self._get_http_request_url("/get"),
+            json=self._gen_request(message).to_json(),
+        ) as response:
+            if response.status_code != 200:
+                error_msg = (
+                    "Failed to get from master "
+                    f"with http request: {type(message)}."
+                )
+                raise RuntimeError(error_msg)
+            response_data: BaseResponse = comm.deserialize_message(
+                response.content
+            )
+            return comm.deserialize_message(response_data.data)
+
+    def _gen_request(self, message: comm.Message):
+        request = BaseRequest()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+
+        return request
 
 
 def build_master_client(

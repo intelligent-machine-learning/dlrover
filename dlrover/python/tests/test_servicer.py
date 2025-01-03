@@ -21,7 +21,7 @@ import requests
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
-from dlrover.python.common.comm import GPUStats
+from dlrover.python.common.comm import BaseRequest, GPUStats
 from dlrover.python.common.constants import (
     NodeEventType,
     NodeStatus,
@@ -125,9 +125,12 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Not supported")
 
+        request = BaseRequest()
+        request.node_id = 1
+        request.node_type = "worker"
+        request.data = "test".encode()
         response = requests.post(
-            "http://localhost:8000/get",
-            json={"node_type": "worker", "node_id": "1", "data": "test"},
+            "http://localhost:8000/get", json=request.to_json()
         )
         self.assertEqual(response.status_code, 200)
         response_content = comm.deserialize_message(response.content)

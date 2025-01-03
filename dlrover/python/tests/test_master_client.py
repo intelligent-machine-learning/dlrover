@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import json
+import os
 import time
 import unittest
 from typing import List
@@ -20,11 +21,14 @@ from unittest import mock
 from dlrover.python.common import comm
 from dlrover.python.common.comm import DiagnosisAction, HeartbeatResponse
 from dlrover.python.common.constants import (
+    CommunicationType,
+    NodeEnv,
     NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -185,3 +189,30 @@ class MasterClientTest(unittest.TestCase):
         self._master_client._get = mock.MagicMock(return_value=response_dto)
         action = self._master_client.report_heart_beat(now)
         self.assertTrue(isinstance(action, EventAction))
+
+
+class MasterHttpClientTest(unittest.TestCase):
+    def setUp(self) -> None:
+        os.environ[
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
+        ] = CommunicationType.COMM_SERVICE_HTTP
+        context = Context.singleton_instance()
+        context.master_service_type = "http"
+        self._master, addr = start_local_master()
+        self._master_client = build_master_client(addr, 3)
+
+    def tearDown(self):
+        self._master.stop()
+        context = Context.singleton_instance()
+        context.master_service_type = "grpc"
+        os.environ.clear()
+
+    def test_http_client(self):
+        # get request
+        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        num = self._master_client.num_nodes_waiting(rdzv_name)
+        self.assertEqual(num, 0)
+
+        # report request
+        res = self._master_client.ready_for_ps_relaunch()
+        self.assertTrue(res.success)

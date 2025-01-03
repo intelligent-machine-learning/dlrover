@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import base64
 import pickle
 import socket
 from dataclasses import dataclass, field
@@ -74,10 +74,24 @@ def grpc_server_ready(channel) -> bool:
         return False
 
 
-def deserialize_message(data: bytes):
+def serialize_message(message):
     """The method will create a message instance with the content.
     Args:
         pickle_data: pickle bytes of a class instance.
+    """
+    data = None
+    if message:
+        try:
+            data = pickle.dumps(message)
+        except Exception as e:
+            logger.warning(f"Pickle failed to load {str(data)}", e)
+    return data
+
+
+def deserialize_message(data: bytes):
+    """The method will create a message instance with the content.
+    Args:
+        data: pickle bytes of a class instance.
     """
     message = None
     if data:
@@ -94,10 +108,44 @@ class Message(JsonSerializable):
 
 
 @dataclass
-class BaseMessage(Message):
+class BaseRequest(Message):
     node_id: int = -1
     node_type: str = ""
-    data: str = ""
+    data: bytes = b""
+
+    def to_json(self):
+        return {
+            "node_id": self.node_id,
+            "node_type": self.node_type,
+            "data": base64.b64encode(self.data).decode("utf-8"),
+        }
+
+    @staticmethod
+    def from_json(data):
+        return BaseRequest(
+            node_id=data.get("node_id"),
+            node_type=data.get("node_type"),
+            data=base64.b64decode(data.get("data")),
+        )
+
+
+@dataclass
+class BaseResponse(Message):
+    success: bool = False
+    data: bytes = b""
+
+    def to_json(self):
+        return {
+            "success": self.success,
+            "data": base64.b64encode(self.data).decode("utf-8"),
+        }
+
+    @staticmethod
+    def from_json(data):
+        return BaseResponse(
+            success=bool(data.get("success")),
+            data=base64.b64decode(data.get("data")),
+        )
 
 
 @dataclass

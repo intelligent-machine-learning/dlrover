@@ -113,8 +113,7 @@ class LocalJobMaster(JobMaster):
         """
         logger.info("Stopping master!")
         logger.info("Stopping RPC server!")
-        self._master_server.stop(None)
-        # self._master_server.stop(grace=0.1)
+        self._master_server.stop()
         logger.info("RPC server stopped!")
         logger.info("Master stopped!")
 

@@ -91,7 +91,7 @@ class TornadoHTTPServer(CustomHTTPServer):
         except Exception as e:
             logger.error(f"Http server start with error: {e}")
 
-    def stop(self):
+    def stop(self, grace=None):
         if self._server:
             self._server.stop()
             if self._io_loop:

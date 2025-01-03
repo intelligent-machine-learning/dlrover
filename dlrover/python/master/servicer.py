@@ -24,7 +24,7 @@ import tornado
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm
-from dlrover.python.common.comm import BaseMessage
+from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     GRPC,
     CommunicationType,
@@ -329,7 +329,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
-        response = elastic_training_pb2.Response()
+        response = self.get_response()
         if not message:
             return response
 
@@ -710,7 +710,7 @@ class HttpMasterServicer(MasterServicer):
         )
 
     def get_response(self):
-        return BaseMessage()
+        return BaseResponse()
 
 
 class GrpcMasterServicer(
@@ -754,24 +754,28 @@ class HttpMasterHandler(tornado.web.RequestHandler):
         self.write("Not supported")
 
     def post(self):
-        response = BaseMessage()
-
         try:
             path = self.request.path
-            request = BaseMessage(**json.loads(self.request.body))
+            request = BaseRequest.from_json(json.loads(self.request.body))
 
             if path == "/get":
-                response = self._handler.get(request, BaseMessage())
+                # return message
+                response = self._handler.get(request, BaseRequest())
+                if not response.data:
+                    response.success = True
+                self.write(response.serialize())
             elif path == "/report":
-                response = self._handler.report(request, BaseMessage())
+                # return boolean
+                self.write(
+                    self._handler.report(request, BaseRequest()).serialize()
+                )
             else:
                 self.set_status(404)
                 logger.error(f"No service found for {path}.")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             self.set_status(500)
-        finally:
-            self.write(response.serialize())
+            self.write(f"{str(e)}")
 
 
 def create_master_service(
