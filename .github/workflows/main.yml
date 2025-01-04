@@ -38,6 +38,14 @@ jobs:
         with:
           token: 3b0503fb-7c5e-4486-9ddf-2903deb77067
           slug: intelligent-machine-learning/dlrover
+  go-master-test:
+    runs-on: ubuntu-latest
+    steps:
+      # This step checks out a copy of your repository.
+      - uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - name: RUN gotest
+        uses: ./.github/actions/go-master-test
   operator-test:
     runs-on: ubuntu-latest
     steps:
