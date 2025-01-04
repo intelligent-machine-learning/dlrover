@@ -29,7 +29,7 @@ pip install -q deepspeed==0.12.6 &
 pip install -q accelerate==0.29.2 &
 pip install -q transformers==4.37.2 &
 pip install -q peft==0.10.0
-wait < <(jobs -p)
+wait $(jobs -p)
 end_time=$(date +%s)
 cost_time=$[ $end_time-$start_time ]
 echo "pip cost time: $(($cost_time/60))min $(($cost_time%60))s"
