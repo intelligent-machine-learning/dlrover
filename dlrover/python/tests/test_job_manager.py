@@ -370,9 +370,6 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
-        manager._scaler._check_master_service_avaliable = mock.MagicMock(
-            return_value=True
-        )
         manager._init_nodes()
         ts = int(time.time())
         manager.collect_node_heart_beat(NodeType.WORKER, 0, ts)
