@@ -23,13 +23,13 @@ pip install -q pyhocon
 pip install -q pytest-cov
 pip install -q pytest-ordering
 pip install -q packaging
-pip install -q tensorflow==2.13.0 &
+pip install -q tensorflow==2.13.0
 pip install -q torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html &
-pip install -q deepspeed==0.12.6 &
-pip install -q accelerate==0.29.2 &
-pip install -q transformers==4.37.2 &
+pip install -q deepspeed==0.12.6
+pip install -q accelerate==0.29.2
+pip install -q transformers==4.37.2
 pip install -q peft==0.10.0
-wait 
+
 end_time=$(date +%s)
 cost_time=$((end_time-start_time))
 echo "pip cost time: $((cost_time/60))min $((cost_time%60))s"
