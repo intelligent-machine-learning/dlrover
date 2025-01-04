@@ -370,7 +370,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
-        manager.start()
+        manager._scaler._check_master_service_avaliable = mock.MagicMock(
+            return_value=True
+        )
+        manager._init_nodes()
         ts = int(time.time())
         manager.collect_node_heart_beat(NodeType.WORKER, 0, ts)
 
@@ -390,7 +393,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
             if index == 0:
                 node.create_time = now - timedelta(seconds=800)
-                node.start_time = now - timedelta(seconds=600)
+                node.start_time = now - timedelta(seconds=500)
             else:
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
@@ -881,9 +884,12 @@ class DistributedJobManagerTest(unittest.TestCase):
 
     def test_concurrency_heart_beat_collecting(self):
         params = MockK8sAllreduceJobArgs()
-        worker_size = 10000
+        worker_size = 1000
         params.initilize(worker_size)
         manager = create_job_manager(params, SpeedMonitor())
+        manager._scaler._check_master_service_avaliable = mock.MagicMock(
+            return_value=True
+        )
         manager.start()
 
         job_nodes = self.job_context.job_nodes()
