@@ -1,0 +1,37 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+spec:
+  distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "6"
+    memory: "8192Mi"
+  replicaSpecs:
+    ps:
+      restartCount: 3
+      template:
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: easydl/tf-estimator:iris_dnn_v0
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - "python -m examples.tensorflow.iris_dnn_elastic"
+    worker:
+      replicas: 0
+      restartCount: 3
+      template:
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: easydl/tf-estimator:iris_dnn_v0
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - "python -m examples.tensorflow.iris_dnn_elastic"

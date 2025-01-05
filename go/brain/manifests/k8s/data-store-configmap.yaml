@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dlrover-data-store
+  namespace: dlrover
+data:
+  # yamllint disable
+  datastore: |
+    base_datastore:
+      db.user: "root"
+      db.password: "root"
+      db.engine.type: "mysql"
+      db.url: "tcp(mysql:3306)/dlrover?parseTime=true&interpolateParams=true&loc=Local"
+    elasticjob_datastore:
+      db.user: "root"
+      db.password: "root"
+      db.engine.type: "mysql"
+      db.url: "tcp(mysql.dlrover.svc.cluster.local:3306)/dlrover?parseTime=true&interpolateParams=true&loc=Local"
+  # yamllint enable

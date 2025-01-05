@@ -7,4 +7,4 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd dlrover/go/brain/pkg && go test ./..."
+    - "cd go/brain/pkg && go test ./..."

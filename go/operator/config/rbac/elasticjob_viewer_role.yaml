@@ -1,0 +1,20 @@
+# permissions for end users to view elasticjobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: elasticjob-viewer-role
+rules:
+- apiGroups:
+  - elastic.iml.github.io
+  resources:
+  - elasticjobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - elastic.iml.github.io
+  resources:
+  - elasticjobs/status
+  verbs:
+  - get

@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dlrover-kube-monitor
+  namespace: dlrover
+data:
+  config: |
+    namespace: "dlrover"
+    data-store.config-map.name: "dlrover-data-store"
+    data-store.config-map.key: "datastore"
+    kube-watcher.handler.config-map.name: "dlrover-k8s-watch-handler"
+    kube-watcher.handler.config-map.key: "handler"

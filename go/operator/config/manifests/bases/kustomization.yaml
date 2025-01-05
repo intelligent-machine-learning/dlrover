@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- role.yaml
+- role-binding.yaml
+- cluster-role.yaml
+- cluster-role-binding.yaml
+- default-role.yaml
+- crd.yaml
+- deployment.yaml
+- service-account.yaml
+- service.yaml
+- namespace.yaml
+- configmap.yaml
+namespace: dlrover
+configMapGenerator:
+images:
+- name: dlrover-controller-operator
+  newName: elasticjob-controller
+  newTag: test

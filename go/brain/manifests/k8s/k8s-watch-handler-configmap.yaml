@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dlrover-k8s-watch-handler
+  namespace: dlrover
+data:
+  handler: |
+    elastic_job_handler:
+      data-store.name: "elasticjob_datastore"
