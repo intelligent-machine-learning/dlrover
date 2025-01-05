@@ -1,5 +1,5 @@
 ---
-name: operator-test
+name: go-elasticjob-test
 description: run gotest to execute go test cases of ElasticJob operator
 runs:
   using: 'docker'
@@ -7,4 +7,4 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd go/operator && go test ./..."
+    - "cd go/elasticjob && go test ./..."

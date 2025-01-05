@@ -13,10 +13,10 @@ installed and run `minikube start`.
 
 ```bash
 # deploy from local directory
-$ kubectl -n dlrover apply -k dlrover/go/operator/config/manifests/bases
+$ kubectl -n dlrover apply -k go/elasticjob/config/manifests/bases
 
 # deploy from remote repo
-$ deployment="git@github.com:intelligent-machine-learning/dlrover/dlrover/go/operator/config/manifests/bases/?ref=master"
+$ deployment="git@github.com:intelligent-machine-learning/dlrover/go/elasticjob/config/manifests/bases/?ref=master"
 $ kubectl -n dlrover apply -k $deployment
 ```
 

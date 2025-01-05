@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strconv"
 
-	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/dlrover/go/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/dlrover/go/operator/pkg/common/api/v1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
