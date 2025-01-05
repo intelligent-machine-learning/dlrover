@@ -61,4 +61,4 @@ repos:
     hooks:
       - id: yamllint
         exclude:
-          (dlrover/python/tests/data|operator/config)
+          (dlrover/python/tests/data|go/elasticjob/config)
