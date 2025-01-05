@@ -1,4 +1,4 @@
-module github.com/intelligent-machine-learning/easydl/dlrover/go/operator
+module github.com/intelligent-machine-learning/dlrover/go/operator
 
 go 1.18
 
