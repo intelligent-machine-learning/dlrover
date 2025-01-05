@@ -453,7 +453,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
         with_diagnostician: bool = True,
     ):
         if version_less_than_230():
-            super().__init__(spec, exit_barrier_timeout)
+            super().__init__(
+                spec=spec,
+                exit_barrier_timeout=exit_barrier_timeout,
+            )
         else:
             super().__init__(
                 spec=spec,

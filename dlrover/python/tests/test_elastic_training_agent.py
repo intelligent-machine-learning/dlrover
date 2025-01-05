@@ -219,6 +219,24 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(store.get("MASTER_ADDR").decode(), "127.0.0.1")
         self.assertEqual(store.get("MASTER_PORT").decode(), "12345")
 
+    def test_exit_barrier(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+        self.rdzv_handler._client._node_id = 1
+        self.rdzv_handler._client.join_rendezvous(
+            1, 8, self.rdzv_handler._name
+        )
+        agent._client._node_id = 0
+        agent._rendezvous(agent._worker_group)
+        agent._exit_barrier()
+
     def test_get_local_ip(self):
         local_ip = _get_local_ip()
         self.assertNotEqual(local_ip, "")
