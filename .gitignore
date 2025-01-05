@@ -38,7 +38,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 *.ckpt
-dlrover/go/operator/bin/
+go/operator/bin/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
