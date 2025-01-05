@@ -50,13 +50,6 @@ spec:
                 description: DistributionStrategy specifies the distribution strategy
                   of a job. Now, the strategy supports parameter-server and ring-allreduce.
                 type: string
-              enableDynamicSharding:
-                description: EnableDynamicSharding starts the dynamic sharding of
-                  the dataset.
-                type: boolean
-              enableElasticScheduling:
-                description: EnableElasticScheduling starts elasticity of Pods.
-                type: boolean
               envs:
                 additionalProperties:
                   description: EnvVar represents an environment variable present in
@@ -175,6 +168,12 @@ spec:
                 additionalProperties:
                   description: ReplicaSpec specifies the number and resources of replica.
                   properties:
+                    BatchScheduler:
+                      description: BatchScheduler specifies a batch scheduler for
+                        Kubernetes to launch Pods. Currently, the supported values
+                        are "default" for elastic scheduling and "volcano" for gang
+                        scheduling.
+                      type: string
                     autoScale:
                       description: AutoScale is the flag to auto scale the number
                         of replicas and resource of each replica.
@@ -207,6 +206,23 @@ spec:
                       properties:
                         metadata:
                           description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                          properties:
+                            annotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            finalizers:
+                              items:
+                                type: string
+                              type: array
+                            labels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            name:
+                              type: string
+                            namespace:
+                              type: string
                           type: object
                         spec:
                           description: 'Specification of the desired behavior of the
@@ -6625,6 +6641,23 @@ spec:
                                               that will be copied into the PVC when
                                               creating it. No other fields are allowed
                                               and will be rejected during validation.
+                                            properties:
+                                              annotations:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                              finalizers:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              labels:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                              name:
+                                                type: string
+                                              namespace:
+                                                type: string
                                             type: object
                                           spec:
                                             description: The specification for the
