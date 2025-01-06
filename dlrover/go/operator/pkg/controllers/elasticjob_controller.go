@@ -113,9 +113,9 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	switch job.Status.Phase {
 	case "", commonv1.JobCreated:
 		r.initializeJob(job)
-		err := r.createEasydlMaster(job)
+		err := r.createEasticJobMaster(job)
 		if err != nil {
-			logger.Warningf("Fail to create EasyDL Master")
+			logger.Warningf("Fail to create the elastic job master")
 			return ctrl.Result{RequeueAfter: defaultPollInterval}, err
 		}
 		r.syncJobStateByReplicas(job)
@@ -179,7 +179,7 @@ func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) 
 	}
 }
 
-func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
+func (r *ElasticJobReconciler) createEasticJobMaster(job *elasticv1alpha1.ElasticJob) error {
 	master.NewMasterTemplateToJob(job, r.masterImage)
 	masterManager := common.ReplicaManagers[master.ReplicaTypeJobMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)

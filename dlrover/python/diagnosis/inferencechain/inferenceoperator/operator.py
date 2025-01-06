@@ -14,11 +14,20 @@
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_resource_collection_operator import (  # noqa: E501
+    CheckResourceCollectionOperator,
+)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
+    ResourceCollectionOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
+    ResolveGPUErrorsOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
@@ -33,11 +42,17 @@ def get_training_failure_operators():
 
 
 def get_worker_observe_operators():
-    return [MetricsCollectionOperator()]
+    return [
+        MetricsCollectionOperator(),
+        CheckResourceCollectionOperator(),
+        ResourceCollectionOperator(),
+    ]
 
 
-def get_worker_diagnosis_operators():
-    return []
+def get_worker_resolve_operators():
+    return [
+        ResolveGPUErrorsOperator(),
+    ]
 
 
 def get_master_observing_operators(data_mgr: DiagnosisDataManager = None):
