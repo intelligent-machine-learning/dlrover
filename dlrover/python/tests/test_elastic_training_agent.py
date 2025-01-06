@@ -519,7 +519,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         def stop_task(agent):
-            time.sleep(10)
+            time.sleep(1)
             agent._stop_workers_ascend(None)
 
         stop_task = threading.Thread(target=stop_task, args=(agent,))
