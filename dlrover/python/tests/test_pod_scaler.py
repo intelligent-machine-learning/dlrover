@@ -82,16 +82,16 @@ class PodScalerTest(unittest.TestCase):
         else:
             wrong_port = 22222
         passed = scaler._check_master_service_avaliable(
-            "elasticjob-test-master", wrong_port, 2
+            "elasticjob-test-master", wrong_port, 1
         )
         self.assertFalse(passed)
 
         passed = scaler._check_master_service_avaliable(
-            "localhost", wrong_port, 2
+            "localhost", wrong_port, 1
         )
         self.assertFalse(passed)
 
-        passed = scaler._check_master_service_avaliable("localhost", port, 2)
+        passed = scaler._check_master_service_avaliable("localhost", port, 1)
         self.assertFalse(passed)
 
     def test_periodic_create_pod(self):

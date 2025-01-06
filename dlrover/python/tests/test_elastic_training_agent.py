@@ -196,7 +196,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         store = self.rdzv_handler._get_store(round=1, group=0)
 
         def _set_store(store):
-            time.sleep(5)
+            time.sleep(1)
             store.set("MASTER_ADDR", "127.0.0.1".encode())
             store.set("MASTER_PORT", "12345".encode())
 

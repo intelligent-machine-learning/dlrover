@@ -104,7 +104,7 @@ class DiagnosisTest(unittest.TestCase):
         action_queue.add_action(action1)
         action_queue.add_action(action2)
 
-        time.sleep(1)
+        time.sleep(0.1)
         self.assertEqual(
             action_queue.next_action(instance=1).action_type,
             DiagnosisActionType.NONE,
