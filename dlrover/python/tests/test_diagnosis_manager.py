@@ -58,7 +58,7 @@ class DiagnosisManagerTest(unittest.TestCase):
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
         self.assertEqual(len(logs), 2)
 
-        time.sleep(1.1)
+        time.sleep(1.5)
         log3 = TrainingLog(0)
         mgr.store_data(log3)
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
