@@ -15,6 +15,7 @@ import os
 import time
 import unittest
 from collections import deque
+from unittest import mock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -46,6 +47,9 @@ class PodScalerTest(unittest.TestCase):
     def test_init_pod_template(self):
         error_monitor = SimpleErrorMonitor()
         scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler._check_master_service_avaliable = mock.MagicMock(
+            return_value=True
+        )
         scaler.start()
         self.assertEqual(
             scaler._distribution_strategy,
@@ -118,6 +122,9 @@ class PodScalerTest(unittest.TestCase):
     def test_create_pod(self):
         error_monitor = SimpleErrorMonitor()
         scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler._check_master_service_avaliable = mock.MagicMock(
+            return_value=True
+        )
         _dlrover_ctx.config_master_port()
 
         scaler.start()
@@ -251,6 +258,9 @@ class PodScalerTest(unittest.TestCase):
 
     def test_scale_thread(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler._check_master_service_avaliable = mock.MagicMock(
+            return_value=True
+        )
         scaler.start()
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
