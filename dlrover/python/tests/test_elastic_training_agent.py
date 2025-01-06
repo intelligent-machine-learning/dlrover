@@ -37,6 +37,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    JobConstant,
     NodeEnv,
     RendezvousName,
 )
@@ -115,8 +116,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
     def tearDown(self):
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
         os.environ.clear()
 
@@ -193,7 +196,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         store = self.rdzv_handler._get_store(round=1, group=0)
 
         def _set_store(store):
-            time.sleep(5)
+            time.sleep(1)
             store.set("MASTER_ADDR", "127.0.0.1".encode())
             store.set("MASTER_PORT", "12345".encode())
 
@@ -227,6 +230,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(local_ip, "127.0.0.1")
 
     def test_initialize_worker(self):
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
         node_id = 1
         agent = ElasticTrainingAgent(
             node_rank=node_id,
@@ -294,8 +298,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
     def tearDown(self):
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
 
     def test_monitor_workers(self):
@@ -513,7 +519,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         def stop_task(agent):
-            time.sleep(10)
+            time.sleep(1)
             agent._stop_workers_ascend(None)
 
         stop_task = threading.Thread(target=stop_task, args=(agent,))
@@ -700,8 +706,10 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
     def tearDown(self):
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
 
     def test_get_network_check_time(self):
@@ -800,8 +808,10 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 0.5)
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
     def tearDown(self):
+        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
 
     def test_pend_timeout(self):
