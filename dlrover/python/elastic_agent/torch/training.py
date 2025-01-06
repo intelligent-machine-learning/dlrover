@@ -122,9 +122,6 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
 __all__ = ["launch_agent"]
 
 
-_DEFAULT_INTERVAL = 15
-
-
 def _set_paral_config():
     """
     Set up the directory and path for the parallelism configuration.
@@ -346,7 +343,9 @@ class MasterRendezvousHandler(RendezvousHandler):
                             "and waits for more nodes."
                         )
                         start_pending = time.time()
-                    time.sleep(_DEFAULT_INTERVAL)
+                    time.sleep(
+                        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL
+                    )
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
                         raise TimeoutError(
@@ -363,7 +362,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(_DEFAULT_INTERVAL)
+            time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -866,7 +865,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         "Exit elastic-training rendezvous when there are "
                         "agents to join the network-check rendezvous."
                     )
-                time.sleep(_DEFAULT_INTERVAL)
+                time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
             else:
@@ -1086,7 +1085,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             # memory to the storage.
             start_wait_time = time.time()
             while saver.wait_saving_checkpoint():
-                time.sleep(_DEFAULT_INTERVAL)
+                time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 wait_time = round(time.time() - start_wait_time, 2)
                 logger.info(
                     "Wait for saving the checkpoint and "
