@@ -27,3 +27,19 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.job_name, "test")
         self.assertTrue(parsed_args.namespace, "default")
+        self.assertEqual(parsed_args.pending_timeout, 900)
+        self.assertEqual(parsed_args.pending_fail_strategy, 1)
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+            "--pending_timeout",
+            "600",
+            "--pending_fail_strategy",
+            "2",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.pending_timeout, 600)
+        self.assertEqual(parsed_args.pending_fail_strategy, 2)
