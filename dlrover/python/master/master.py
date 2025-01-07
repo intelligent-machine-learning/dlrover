@@ -13,6 +13,15 @@
 
 from abc import ABCMeta, abstractmethod
 
+from dlrover.python.common.global_context import Context
+
+
+_dlrover_context = Context.singleton_instance()
+
+
+def get_service_type():
+    return _dlrover_context.master_service_type
+
 
 class JobMaster(metaclass=ABCMeta):
     @abstractmethod

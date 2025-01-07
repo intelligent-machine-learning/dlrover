@@ -109,7 +109,7 @@ class MasterServicer(ABC):
         self._kv_store.clear()
 
     @abstractmethod
-    def get_response(self):
+    def get_response(self, method):
         """Should be implemented by subclasses."""
         pass
 
@@ -118,7 +118,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         req_message = comm.deserialize_message(request.data)
 
-        response = self.get_response()
+        response = self.get_response("get")
         if not req_message:
             return response
         message = None
@@ -329,7 +329,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
-        response = self.get_response()
+        response = self.get_response("report")
         if not message:
             return response
 
@@ -709,7 +709,7 @@ class HttpMasterServicer(MasterServicer):
             error_monitor,
         )
 
-    def get_response(self):
+    def get_response(self, method):
         return BaseResponse()
 
 
@@ -742,8 +742,11 @@ class GrpcMasterServicer(
             error_monitor,
         )
 
-    def get_response(self):
-        return elastic_training_pb2.Message()
+    def get_response(self, method):
+        if method == "report":
+            return elastic_training_pb2.Response()
+        else:
+            return elastic_training_pb2.Message()
 
 
 class HttpMasterHandler(tornado.web.RequestHandler):
@@ -772,6 +775,7 @@ class HttpMasterHandler(tornado.web.RequestHandler):
             else:
                 self.set_status(404)
                 logger.error(f"No service found for {path}.")
+                self.write("")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             self.set_status(500)
@@ -821,7 +825,6 @@ def create_master_service(
             master_servicer, server
         )
         server.add_insecure_port("[::]:{}".format(port))
-        return server
     else:
         master_servicer = HttpMasterServicer(
             task_manager=task_manager,
@@ -855,4 +858,4 @@ def create_master_service(
                 ),
             ],
         )
-        return server
+    return server
