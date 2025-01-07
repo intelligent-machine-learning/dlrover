@@ -27,3 +27,14 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.job_name, "test")
         self.assertTrue(parsed_args.namespace, "default")
+        self.assertTrue(parsed_args.service_type, "grpc")
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+            "--service_type",
+            "http"
+        ]
+        self.assertTrue(parsed_args.service_type, "http")
