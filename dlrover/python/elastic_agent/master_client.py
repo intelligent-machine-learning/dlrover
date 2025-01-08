@@ -593,10 +593,8 @@ def build_master_client(
         NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
         CommunicationType.COMM_SERVICE_GRPC,
     )
-    logger.info(
-        f"Build {master_service_type} master client "
-        f"with addr {master_addr}."
-    )
+    logger.info(f"Use [{master_service_type}] type for master client.")
+
     if master_addr:
         try:
             if master_service_type == CommunicationType.COMM_SERVICE_GRPC:

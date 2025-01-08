@@ -35,6 +35,6 @@ class ArgsTest(unittest.TestCase):
             "--namespace",
             "default",
             "--service_type",
-            "http"
+            "http",
         ]
         self.assertTrue(parsed_args.service_type, "http")

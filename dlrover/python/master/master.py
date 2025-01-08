@@ -15,7 +15,6 @@ from abc import ABCMeta, abstractmethod
 
 from dlrover.python.common.global_context import Context
 
-
 _dlrover_context = Context.singleton_instance()
 
 
