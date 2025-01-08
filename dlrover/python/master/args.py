@@ -45,7 +45,7 @@ def add_params(parser):
         default=DefaultValues.PENDING_FAIL_STRATEGY,
         type=int,
         help="The fail strategy for pending case. "
-             "Options: -1: disabled; 0: skip; 1: necessary part; 2: all",
+        "Options: -1: disabled; 0: skip; 1: necessary part; 2: all",
     )
 
 
