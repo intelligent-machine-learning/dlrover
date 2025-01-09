@@ -48,17 +48,17 @@ class DiagnosisManagerTest(unittest.TestCase):
         pass
 
     def test_data_manager(self):
-        mgr = DiagnosisDataManager(5)
+        mgr = DiagnosisDataManager(1)
         log1 = TrainingLog(0)
         mgr.store_data(log1)
-        time.sleep(1)
+        time.sleep(0.01)
         log2 = TrainingLog(0)
         mgr.store_data(log2)
 
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
         self.assertEqual(len(logs), 2)
 
-        time.sleep(6)
+        time.sleep(1.5)
         log3 = TrainingLog(0)
         mgr.store_data(log3)
         logs = mgr.get_data(DiagnosisDataType.TRAINING_LOG)
