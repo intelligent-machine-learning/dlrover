@@ -19,6 +19,7 @@ pip install -q kubernetes
 pip install -q grpcio-tools
 pip install -q psutil
 pip install -q deprecated
+pip install -q tornado
 
 if [ "$1" = "basic" ]; then
   echo ""
