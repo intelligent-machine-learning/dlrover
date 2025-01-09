@@ -13,6 +13,7 @@
 
 import datetime
 import os
+import time
 from unittest import mock
 
 import yaml
@@ -341,4 +342,8 @@ def start_local_master(port=12345):
     master = LocalJobMaster(port, job_args)
     master.prepare()
     addr = f"127.0.0.1:{port}"
+    for _ in range(10):
+        if addr_connected(addr):
+            break
+        time.sleep(1)
     return master, addr

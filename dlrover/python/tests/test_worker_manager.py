@@ -557,6 +557,7 @@ class WorkerManagerTest(unittest.TestCase):
             worker_manager.is_training_hang_by_insufficient_worker()
         )
 
+        # set the timeout interval 1s
         worker_manager.update_node_required_info((4, 8, 1))
         self.assertFalse(
             worker_manager.is_training_hang_by_insufficient_worker()
@@ -584,7 +585,7 @@ class WorkerManagerTest(unittest.TestCase):
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1
-            time.sleep(1)
+            time.sleep(0.5)
         self.assertEqual(is_insufficient, 0)
         mock_nodes.clear()
         is_insufficient = 0
@@ -604,7 +605,7 @@ class WorkerManagerTest(unittest.TestCase):
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1
-            time.sleep(1)
+            time.sleep(0.5)
         self.assertTrue(is_insufficient >= 2)
         mock_nodes.clear()
         is_insufficient = 0
@@ -627,5 +628,5 @@ class WorkerManagerTest(unittest.TestCase):
         for _ in range(5):
             if worker_manager.is_training_hang_by_insufficient_worker():
                 is_insufficient += 1
-            time.sleep(1)
+            time.sleep(0.5)
         self.assertTrue(is_insufficient >= 2)

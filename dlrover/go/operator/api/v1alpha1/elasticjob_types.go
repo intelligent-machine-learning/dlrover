@@ -47,12 +47,6 @@ type ElasticJobSpec struct {
 	// It is only used when optimizeMode is cluster.
 	BrainService string `json:"brainService,omitempty"`
 
-	// EnableElasticScheduling starts elasticity of Pods.
-	EnableElasticScheduling bool `json:"enableElasticScheduling,omitempty"`
-
-	// EnableDynamicSharding starts the dynamic sharding of the dataset.
-	EnableDynamicSharding bool `json:"enableDynamicSharding,omitempty"`
-
 	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the training cluster configuration.
 	// For example,
 	//   {
@@ -81,6 +75,11 @@ type ReplicaSpec struct {
 	// Priority supports high/low/0.5. The 0.5 means that half workers have high priority,
 	// and half workers have low priority. The default value is low.
 	Priority string `json:"priority,omitempty"`
+
+	// BatchScheduler specifies a batch scheduler for Kubernetes to launch
+	// Pods. Currently, the supported values are "default" for elastic
+	// scheduling and "volcano" for gang scheduling.
+	BatchScheduler string `json:"BatchScheduler,omitempty"`
 }
 
 // ElasticJobStatus defines the observed state of ElasticJob

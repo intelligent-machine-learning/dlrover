@@ -12,26 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pip install kubernetes
-pip install grpcio-tools
-pip install psutil
-pip install deprecated
-pip install pyhocon
-pip install pytest-cov
-pip install pytest-ordering
-pip install packaging
-pip install tornado
+echo "Start installing CI python packages."
+start_time=$(date +%s)
+
+pip install -q kubernetes
+pip install -q grpcio-tools
+pip install -q psutil
+pip install -q deprecated
 
 if [ "$1" = "basic" ]; then
-  echo "'Basic' dependencies only."
+  echo ""
+  end_time=$(date +%s)
+  cost_time=$((end_time-start_time))
+  echo "'Basic' dependencies only, cost time: $((cost_time/60))min $((cost_time%60))s"
   exit 0
 fi
 
-pip install 'ray[default]'
-pip install tensorflow==2.13.0
-pip install deepspeed==0.12.6
-pip install accelerate==0.29.2
-pip install transformers==4.37.2
-pip install torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
-pip install peft==0.10.0
-pip install botorch==0.8.5
+pip install -q 'ray[default]'
+pip install -q pyhocon
+pip install -q pytest-cov
+pip install -q pytest-ordering
+pip install -q packaging
+pip install -q tensorflow==2.13.0
+pip install -q torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install -q deepspeed==0.12.6
+pip install -q accelerate==0.29.2
+pip install -q transformers==4.37.2
+pip install -q peft==0.10.0
+
+end_time=$(date +%s)
+cost_time=$((end_time-start_time))
+echo "All dependencies cost time: $((cost_time/60))min $((cost_time%60))s"

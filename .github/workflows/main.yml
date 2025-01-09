@@ -1,5 +1,5 @@
 ---
-name: main test for the project
+name: code-check
 
 on:
   pull_request:
@@ -25,6 +25,7 @@ jobs:
       - uses: ./.github/actions/pre-commit
   dlrover-python-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     steps:
       # This step checks out a copy of your repository.
       - name: checkout branch
@@ -35,8 +36,16 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
         with:
-          token: 043586e5-68b8-4588-9bf4-c333f2692345
+          token: 3b0503fb-7c5e-4486-9ddf-2903deb77067
           slug: intelligent-machine-learning/dlrover
+  go-master-test:
+    runs-on: ubuntu-latest
+    steps:
+      # This step checks out a copy of your repository.
+      - uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - name: RUN gotest
+        uses: ./.github/actions/go-master-test
   operator-test:
     runs-on: ubuntu-latest
     steps:

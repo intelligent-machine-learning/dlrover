@@ -246,7 +246,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
                 CheckpointConstant.OPTIM_STATES_NAME: optim_path,
             }
             engine.save_to_storage(step, state_dict, paths)
-            time.sleep(1)  # wait asynchronously saving
+            time.sleep(3)  # wait asynchronously saving
             engine.wait_latest_checkpoint(timeout=3)
             self.assertEqual(engine._shm_handler._buffer_size, 9640)
             self.assertEqual(engine._shm_handler.shared_memory.size, 9640)

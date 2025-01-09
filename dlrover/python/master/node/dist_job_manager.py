@@ -510,7 +510,7 @@ class DistributedJobManager(JobManager):
                     and node.start_time
                     and node.create_time
                     and node.status == NodeStatus.RUNNING
-                    and not node.is_exited_reported()
+                    and not node.is_succeeded_and_exited()
                 ):
                     if (
                         node.heartbeat_time <= node.start_time.timestamp()

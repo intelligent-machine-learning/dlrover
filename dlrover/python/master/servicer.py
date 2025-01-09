@@ -106,6 +106,7 @@ class MasterServicer(ABC):
         self._diagnosis_data_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_data"
         )
+        # clear kv store in case previous data is still there
         self._kv_store.clear()
 
     @abstractmethod

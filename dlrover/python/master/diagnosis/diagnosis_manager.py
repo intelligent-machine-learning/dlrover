@@ -137,6 +137,7 @@ class Diagnostician:
 
     def register_training_problems(self, problems: List[Inference]):
         self._training_problems = problems
+        logger.info(f"Register problems to be observed: {problems}.")
 
     def register_observers(self, operators: List[InferenceOperator]):
         self._observers = operators
@@ -156,7 +157,7 @@ class Diagnostician:
             return []
         combined_problems: List[Inference] = []
         for problem in self._training_problems:
-            logger.info(f"Observing problem: {problem}")
+            logger.debug(f"Observing problem: {problem}")
             ic = InferenceChain([problem], self._observers)
             observed_problems = ic.infer()
             combined_problems = combine_inferences(
@@ -176,7 +177,7 @@ class Diagnostician:
         """
         combined_solutions: List[Inference] = []
         for problem in problems:
-            logger.info(f"Resolving problem: {problem}")
+            logger.debug(f"Resolving problem: {problem}")
             ic = InferenceChain([problem], self._resolvers)
             input_solutions = ic.infer()
             if len(input_solutions) > 0:
