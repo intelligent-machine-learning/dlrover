@@ -21,6 +21,7 @@ from kubernetes import client
 
 import dlrover.python.util.k8s_util as ku
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.comm import addr_connected
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
