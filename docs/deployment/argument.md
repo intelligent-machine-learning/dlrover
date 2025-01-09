@@ -4,7 +4,7 @@ This article primarily introduces the various arguments that users might use
 when training with DLRover.
 
 ## 1. DLRover Master Arguments
-* For master(dlrover.python.master.main) initiation.
+* For master(dlrover.python.master.main) initiation. User can use annotations(except: job_name, namespace) to express the following arguments.
 
 | name      | description                                                     | mandatory | format               | default | options                                                                           |
 |-----------|-----------------------------------------------------------------|----|----------------------|-----|-----------------------------------------------------------------------------------|

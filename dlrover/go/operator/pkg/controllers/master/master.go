@@ -238,6 +238,16 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 		" --platform pyk8s --namespace %s --job_name %s --port %d",
 		job.Namespace, job.Name, masterServicePort,
 	)
+
+	// for extra arguments
+	var supportedArguments = []string{"pending_timeout", "pending_fail_strategy"}
+	for _, item := range supportedArguments {
+		var value, exists = job.Annotations[item]
+		if exists {
+			command += fmt.Sprintf(" --%s %s", item, value)
+		}
+	}
+
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
