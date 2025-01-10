@@ -157,7 +157,7 @@ def parse_args(args):
         "--auto_tunning",
         "--auto-tunning",
         action=check_env,
-        help="Whether to auto-tune the parallel configuraion.",
+        help="Whether to auto-tune the parallel configuration.",
     )
     parser.add_argument(
         "--exclude-straggler",
