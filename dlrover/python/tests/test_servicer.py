@@ -60,13 +60,14 @@ TEST_SERVER_PORT = 8000
 
 class MasterServicerBasicTest(unittest.TestCase):
     def setUp(self) -> None:
-        pass
+        self.server = None
 
     def tearDown(self) -> None:
-        pass
+        if self.server:
+            self.server.stop(grace=None)
 
     def test_http_start_and_stop(self):
-        http_servicer = create_master_service(
+        self.server = create_master_service(
             TEST_SERVER_PORT,
             None,
             None,
@@ -78,17 +79,17 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
         )
-        self.assertIsNotNone(http_servicer)
-        self.assertFalse(http_servicer.is_serving())
+        self.assertIsNotNone(self.server)
+        self.assertFalse(self.server.is_serving())
 
-        http_servicer.start()
-        self.assertTrue(http_servicer.is_serving())
+        self.server.start()
+        self.assertTrue(self.server.is_serving())
 
-        http_servicer.stop()
-        self.assertFalse(http_servicer.is_serving())
+        self.server.stop()
+        self.assertFalse(self.server.is_serving())
 
     def test_grpc_start_and_stop(self):
-        grpc_servicer = create_master_service(
+        self.server = create_master_service(
             TEST_SERVER_PORT,
             None,
             None,
@@ -100,14 +101,14 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
         )
-        self.assertIsNotNone(grpc_servicer)
-        grpc_servicer.start()
-        grpc_servicer.stop(grace=None)
+        self.assertIsNotNone(self.server)
+        self.server.start()
+        self.server.stop(grace=None)
 
     def test_http_basic(self):
         context = Context.singleton_instance()
         context.master_service_type = "http"
-        http_servicer = create_master_service(
+        self.server = create_master_service(
             TEST_SERVER_PORT,
             None,
             None,
@@ -119,7 +120,7 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
         )
-        http_servicer.start()
+        self.server.start()
 
         response = requests.get("http://localhost:8000/")
         self.assertEqual(response.status_code, 200)
@@ -135,9 +136,9 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         response_content = comm.deserialize_message(response.content)
         self.assertIsNotNone(response_content)
-        self.assertEqual(response_content.node_type, "")
+        self.assertTrue(response_content.success)
 
-        http_servicer.stop()
+        self.server.stop()
 
 
 class MasterServicerFunctionalTest(unittest.TestCase):
