@@ -24,7 +24,7 @@ import tornado
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm
-from dlrover.python.common.comm import BaseRequest, BaseResponse
+from dlrover.python.common.comm import BaseRequest, BaseResponse, TaskType
 from dlrover.python.common.constants import (
     GRPC,
     CommunicationType,
@@ -114,6 +114,11 @@ class MasterServicer(ABC):
         """Should be implemented by subclasses."""
         pass
 
+    @abstractmethod
+    def get_task_type(self, task_type):
+        """Should be implemented by subclasses."""
+        pass
+
     def get(self, request, _):
         node_type = request.node_type
         node_id = request.node_id
@@ -183,7 +188,7 @@ class MasterServicer(ABC):
             if task.shard.record_indices:
                 res.shard.indices = task.shard.record_indices
         elif not dataset.completed():
-            res.type = elastic_training_pb2.WAIT
+            res.type = self.get_task_type(TaskType.WAIT)
         with self._lock:
             self._task_manager.reset_worker_start_task_time(node_id)
         return res
@@ -412,7 +417,7 @@ class MasterServicer(ABC):
                 metrics.dataset_size,
                 metrics.storage_type,
             )
-            if metrics.task_type == elastic_training_pb2.TRAINING:
+            if metrics.task_type == self.get_task_type(TaskType.TRAINING):
                 self._job_metric_collector.collect_training_hyper_params(
                     metrics.num_epochs, metrics.batch_size
                 )
@@ -482,7 +487,7 @@ class MasterServicer(ABC):
         if (
             self._job_metric_collector
             and task
-            and task.task_type == elastic_training_pb2.PREDICTION
+            and task.task_type == self.get_task_type(TaskType.PREDICTION)
         ):
             self._collect_runtime_stats()
             self._check_start_auto_scale_worker()
@@ -713,6 +718,9 @@ class HttpMasterServicer(MasterServicer):
     def get_response(self, method):
         return BaseResponse()
 
+    def get_task_type(self, task_type):
+        return task_type
+
 
 class GrpcMasterServicer(
     MasterServicer, elastic_training_pb2_grpc.MasterServicer
@@ -748,6 +756,20 @@ class GrpcMasterServicer(
             return elastic_training_pb2.Response()
         else:
             return elastic_training_pb2.Message()
+
+    def get_task_type(self, task_type):
+        if task_type == TaskType.WAIT:
+            return elastic_training_pb2.WAIT
+        elif task_type == TaskType.TRAINING:
+            return elastic_training_pb2.TRAINING
+        elif task_type == TaskType.EVALUATION:
+            return elastic_training_pb2.EVALUATION
+        elif task_type == TaskType.PREDICTION:
+            return elastic_training_pb2.PREDICTION
+        elif task_type == TaskType.TRAIN_END_CALLBACK:
+            return elastic_training_pb2.TRAIN_END_CALLBACK
+        else:
+            return elastic_training_pb2.NONE
 
 
 class HttpMasterHandler(tornado.web.RequestHandler):

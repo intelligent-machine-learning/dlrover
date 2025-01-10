@@ -511,3 +511,12 @@ class DiagnosisAction(Message):
 @dataclass
 class HeartbeatResponse(Message):
     action: DiagnosisAction = field(default_factory=DiagnosisAction)
+
+
+class TaskType(object):
+    NONE = "NONE"
+    TRAINING = "TRAINING"
+    EVALUATION = "EVALUATION"
+    PREDICTION = "PREDICTION"
+    WAIT = "WAIT"
+    TRAIN_END_CALLBACK = "TRAIN_END_CALLBACK"
