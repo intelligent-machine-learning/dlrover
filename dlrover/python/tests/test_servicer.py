@@ -63,10 +63,14 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.server = None
 
     def tearDown(self) -> None:
+        context = Context.singleton_instance()
+        context.master_service_type = "grpc"
         if self.server:
             self.server.stop(grace=None)
 
     def test_http_start_and_stop(self):
+        context = Context.singleton_instance()
+        context.master_service_type = "http"
         self.server = create_master_service(
             TEST_SERVER_PORT,
             None,
