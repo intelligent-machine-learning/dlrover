@@ -98,7 +98,7 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 	if job.DeletionTimestamp != nil {
-		rlog.Info("Reconcil cancelled, the job has been deleted")
+		rlog.Info("Reconcile cancelled, the job has been deleted")
 		return ctrl.Result{}, nil
 	}
 	r.Scheme.Default(job)

@@ -13,6 +13,7 @@
 
 import argparse
 
+from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -30,6 +31,21 @@ def add_params(parser):
         default="pyk8s",
         type=str,
         help="The name of platform which can be pyk8s, k8s, ray or local.",
+    )
+    parser.add_argument(
+        "--pending_timeout",
+        "--pending-timeout",
+        default=DefaultValues.SEC_TO_WAIT_PENDING_POD,
+        type=int,
+        help="The timeout value of pending.",
+    )
+    parser.add_argument(
+        "--pending_fail_strategy",
+        "--pending-fail-strategy",
+        default=DefaultValues.PENDING_FAIL_STRATEGY,
+        type=int,
+        help="The fail strategy for pending case. "
+        "Options: -1: disabled; 0: skip; 1: necessary part; 2: all",
     )
     parser.add_argument(
         "--service_type",

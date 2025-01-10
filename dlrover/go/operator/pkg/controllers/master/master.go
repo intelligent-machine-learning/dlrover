@@ -43,6 +43,10 @@ const (
 
 	// ReplicaTypeJobMaster is the type for DLRover ElasticJob Master replica.
 	ReplicaTypeJobMaster commonv1.ReplicaType = "dlrover-master"
+
+	// supported arguments(should be supported in 'dlrover.python.master.args')
+	pendingTimeoutArg      = "pending_timeout"
+	pendingFailStrategyArg = "pending_fail_strategy"
 )
 
 // Manager generates a master pod object.
@@ -232,12 +236,24 @@ func (m *Manager) StopRunningPods(
 	return nil
 }
 
+func getMasterArguments() []string {
+	return []string{pendingTimeoutArg, pendingFailStrategyArg}
+}
+
 // NewMasterTemplateToJob sets configurations to the master template of a job.
 func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
 	command := masterCommand + fmt.Sprintf(
 		" --platform pyk8s --namespace %s --job_name %s --port %d",
 		job.Namespace, job.Name, masterServicePort,
 	)
+
+	// for extra arguments
+	for _, item := range getMasterArguments() {
+		if value, ok := job.Annotations[item]; ok {
+			command += fmt.Sprintf(" --%s %s", item, value)
+		}
+	}
+
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
