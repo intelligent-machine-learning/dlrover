@@ -236,6 +236,10 @@ func (m *Manager) StopRunningPods(
 	return nil
 }
 
+func getMasterArguments() []string {
+	return []string{pendingTimeoutArg, pendingFailStrategyArg}
+}
+
 // NewMasterTemplateToJob sets configurations to the master template of a job.
 func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
 	command := masterCommand + fmt.Sprintf(
@@ -244,8 +248,7 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 	)
 
 	// for extra arguments
-	var supportedArguments = []string{pendingTimeoutArg, pendingFailStrategyArg}
-	for _, item := range supportedArguments {
+	for _, item := range getMasterArguments() {
 		if value, ok := job.Annotations[item]; ok {
 			command += fmt.Sprintf(" --%s %s", item, value)
 		}
