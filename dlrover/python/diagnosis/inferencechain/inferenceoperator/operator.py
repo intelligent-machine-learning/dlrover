@@ -17,9 +17,6 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_fa
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_resource_collection_operator import (  # noqa: E501
     CheckResourceCollectionOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
-    CheckTrainingHangOperator,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
     MetricsCollectionOperator,
 )
@@ -28,12 +25,6 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
     ResolveGPUErrorsOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
-    ResolveTrainingHangOperator,
-)
-from dlrover.python.master.diagnosis.diagnosis_data_manager import (
-    DiagnosisDataManager,
 )
 
 
@@ -52,22 +43,4 @@ def get_worker_observe_operators():
 def get_worker_resolve_operators():
     return [
         ResolveGPUErrorsOperator(),
-    ]
-
-
-def get_master_observing_operators(data_mgr: DiagnosisDataManager = None):
-    return [
-        CheckTrainingHangOperator(data_mgr),
-    ]
-
-
-def get_master_observer_operators(data_mgr: DiagnosisDataManager = None):
-    return [
-        CheckTrainingHangOperator(data_mgr),
-    ]
-
-
-def get_master_resolver_operators(data_mgr: DiagnosisDataManager = None):
-    return [
-        ResolveTrainingHangOperator(data_mgr),
     ]
