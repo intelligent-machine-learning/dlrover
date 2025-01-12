@@ -7,4 +7,8 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd go/elasticjob && go test ./..."
+    - "rm -rf /usr/local/go && \
+wget -q https://go.dev/dl/go1.23.4.linux-amd64.tar.gz && \
+tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz && \
+go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2 && \
+cd go/elasticjob && go test ./..."
