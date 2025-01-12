@@ -19,6 +19,7 @@ import (
 
 // NewRouter creates a new gin.Engine.
 func NewRouter() *gin.Engine {
-	router := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
 	return router
 }
