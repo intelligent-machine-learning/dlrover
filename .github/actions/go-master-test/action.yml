@@ -7,4 +7,5 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd go/master && ginkgo -v ./..."
+    - "go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2 && \
+    cd go/master && ginkgo -v ./..."
