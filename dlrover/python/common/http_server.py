@@ -12,12 +12,21 @@
 # limitations under the License.
 
 import abc
+import asyncio
 import threading
 import time
 
 import tornado
 
 from dlrover.python.common.log import default_logger as logger
+
+
+def is_asyncio_loop_running():
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
 
 
 class CustomHTTPServer(abc.ABC):
@@ -77,8 +86,8 @@ class TornadoHTTPServer(CustomHTTPServer):
             )
             server_thread.start()
 
-            # wait 3s for sever start
-            time.sleep(3)
+            while not self._io_loop or is_asyncio_loop_running():
+                time.sleep(0.1)
 
     def _start_server(self):
         try:
