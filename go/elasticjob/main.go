@@ -31,9 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	"github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/controllers"
-	_ "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/controllers/training"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers"
+	_ "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers/training"
 	//+kubebuilder:scaffold:imports
 )
 

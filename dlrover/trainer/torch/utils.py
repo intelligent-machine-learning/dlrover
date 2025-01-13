@@ -12,12 +12,14 @@
 # limitations under the License.
 
 import torch
-from packaging.version import Version
+from packaging import version
 
 
 def version_less_than_230():
-    return Version(torch.__version__) <= Version("2.2.2")
+    current_version = version.parse(torch.__version__).base_version
+    return version.parse(current_version) <= version.parse("2.2.2")
 
 
 def version_less_than_240():
-    return Version(torch.__version__) <= Version("2.3.1")
+    current_version = version.parse(torch.__version__).base_version
+    return version.parse(current_version) <= version.parse("2.3.1")

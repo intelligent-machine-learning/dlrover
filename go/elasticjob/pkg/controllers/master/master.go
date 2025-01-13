@@ -16,16 +16,17 @@ package master
 import (
 	"context"
 	"fmt"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
+	"strconv"
+
+	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
 )
 
 const (
