@@ -172,6 +172,7 @@ spec:
                     {
                       "PS": ReplicaResourceSpec,
                       "worker": ReplicaResourceSpec,
+                      "dlrover-master": ReplicaResourceSpec,
                     }
                 type: object
             type: object
