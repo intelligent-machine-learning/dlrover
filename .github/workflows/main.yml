@@ -46,14 +46,14 @@ jobs:
       # This step references the directory that contains the action.
       - name: RUN gotest
         uses: ./.github/actions/go-master-test
-  operator-test:
+  elasticjob-controller-test:
     runs-on: ubuntu-latest
     steps:
       # This step checks out a copy of your repository.
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - name: RUN gotest
-        uses: ./.github/actions/operator-test
+        uses: ./.github/actions/elasticjob-controller-test
   brain-test:
     runs-on: ubuntu-latest
     steps:
