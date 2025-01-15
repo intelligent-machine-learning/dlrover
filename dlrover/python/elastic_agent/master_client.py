@@ -388,7 +388,7 @@ class MasterClient(Singleton):
         result: grpc.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 
-    def check_fault_node(self, timeout=3):
+    def check_fault_node(self, timeout=300):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
