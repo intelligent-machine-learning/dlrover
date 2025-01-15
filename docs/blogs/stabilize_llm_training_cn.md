@@ -209,7 +209,7 @@ GO 版本： GO 1.18.
 
 ```python
 git clone git@github.com:intelligent-machine-learning/dlrover.git
-cd dlrover/dlrover/go/operator/
+cd dlrover/go/elasticjob
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 

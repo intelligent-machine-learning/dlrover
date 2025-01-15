@@ -79,7 +79,7 @@ $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
     --version=0.13.0 \
     --namespace nvidia-device-plugin \
     --create-namespace \
-    --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
+    --set-file config.map.config=./go/elasticjob/config/gpu/nvidia-device-plugin-gpu-shared.yaml
 ```
 
 Then test your GPU resources by
@@ -177,21 +177,25 @@ a docker image.
 - Run the controller in the terminal.
 
 ```bash
-cd dlrover/go/operator
+cd go/elasticjob
 make install
 make run
 ```
 
-- Deploy the controller with GO 1.18.
+- Deploy the controller with GO 1.23.4
 
 ```bash
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
+If you cannot use curl to download kustomize when running `make deploy`,
+you can download the kustomize from [release page](https://github.com/kubernetes-sigs/kustomize/releases)
+and move the kustomize bin to `go/elasticjob/bin/`
+
 ### 3. Grant Permission for the DLRover Master to Access CRDs
 
 ```bash
-kubectl apply -f dlrover/go/operator/config/manifests/bases/default-role.yaml
+kubectl apply -f go/elasticjob/config/manifests/bases/default-role.yaml
 ```
 
 ### 4. Build the Image

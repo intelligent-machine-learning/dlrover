@@ -368,10 +368,10 @@ class JobConstant(object):
     # master_client.check_fault_node timeout
     MASTER_CLIENT_CHECK_STRAGGLER_NODE_TIMEOUT = 300
 
-    # sleep 3s on NetworkFailureReason.WAITING_NODE
+    # sleep 1s on NetworkFailureReason.WAITING_NODE
     MASTER_CLIENT_CHECK_FAULT_SLEEP_TIMEOUT = 1
 
-    # sleep 3s on NetworkFailureReason.WAITING_NODE
+    # sleep 1s on NetworkFailureReason.WAITING_NODE
     MASTER_CLIENT_CHECK_STRAGGLER_SLEEP_TIMEOUT = 1
 
     # sleep 5s before next node check round
