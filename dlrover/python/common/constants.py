@@ -362,11 +362,17 @@ class JobConstant(object):
     # grpc timeout 60s
     MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT = 60
 
-    # sleep 3s on NetworkFailureReason.WAITING_NODE
-    MASTER_CLIENT_CHECK_FAULT_TIMEOUT = 1
+    # master_client.check_straggler timeout
+    MASTER_CLIENT_CHECK_FAULT_NODE_TIMEOUT = 300
 
-    # sleep 3s on NetworkFailureReason.WAITING_NODE
-    MASTER_CLIENT_CHECK_STRAGGLER_TIMEOUT = 1
+    # master_client.check_fault_node timeout
+    MASTER_CLIENT_CHECK_STRAGGLER_NODE_TIMEOUT = 300
+
+    # sleep 1s on NetworkFailureReason.WAITING_NODE
+    MASTER_CLIENT_CHECK_FAULT_SLEEP_TIMEOUT = 1
+
+    # sleep 1s on NetworkFailureReason.WAITING_NODE
+    MASTER_CLIENT_CHECK_STRAGGLER_SLEEP_TIMEOUT = 1
 
     # sleep 5s before next node check round
     NODE_CHECK_NEXT_ROUND_TIMEOUT = 5

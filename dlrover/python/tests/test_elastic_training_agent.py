@@ -778,6 +778,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         )
 
         # with no fault and no stragglers
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         agent._run_node_check = mock.MagicMock(return_value=(True, 100))
         agent._stop_workers = mock.MagicMock(return_value=True)
         self.assertTrue(agent.run())
