@@ -395,8 +395,8 @@ class MasterClient(Singleton):
             result: grpc.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
-                and time.time() - start < timeout
-            ):
+                or result.reason == NetworkFailureReason.NO_INIT
+            ) and time.time() - start < timeout:
                 time.sleep(JobConstant.MASTER_CLIENT_CHECK_FAULT_TIMEOUT)
                 continue
             break
