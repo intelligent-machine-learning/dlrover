@@ -388,7 +388,7 @@ class MasterClient(Singleton):
         result: grpc.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 
-    def check_fault_node(self, timeout=300):
+    def check_fault_node(self, timeout=3):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
@@ -397,12 +397,12 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 or result.reason == NetworkFailureReason.NO_INIT
             ) and time.time() - start < timeout:
-                time.sleep(JobConstant.MASTER_CLIENT_CHECK_FAULT_TIMEOUT)
+                time.sleep(JobConstant.MASTER_CLIENT_CHECK_FAULT_SLEEP_TIMEOUT)
                 continue
             break
         return result.nodes, result.reason
 
-    def check_straggler(self, timeout=300):
+    def check_straggler(self, timeout=3):
         request = grpc.StragglerExistRequest()
         start = time.time()
         while True:
@@ -411,7 +411,9 @@ class MasterClient(Singleton):
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(JobConstant.MASTER_CLIENT_CHECK_STRAGGLER_TIMEOUT)
+                time.sleep(
+                    JobConstant.MASTER_CLIENT_CHECK_STRAGGLER_SLEEP_TIMEOUT
+                )
                 continue
             break
         return result.nodes, result.reason

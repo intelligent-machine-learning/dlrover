@@ -1426,8 +1426,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes, fault_reason = self._client.check_fault_node()
-            stragglers, straggler_reason = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node(
+                timeout=JobConstant.MASTER_CLIENT_CHECK_FAULT_NODE_TIMEOUT
+            )
+            stragglers, straggler_reason = self._client.check_straggler(
+                timeout=JobConstant.MASTER_CLIENT_CHECK_STRAGGLER_NODE_TIMEOUT
+            )
             logger.info(
                 f"Fault nodes are: {fault_nodes} with {fault_reason} "
                 f" and stragglers are: {stragglers} with {straggler_reason}"
