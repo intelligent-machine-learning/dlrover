@@ -358,15 +358,14 @@ class JobConstant(object):
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN = 600
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 3600
     PENDING_NODE_TIMEOUT_DEFAULT_MIN = 600
+    NODE_CHECK_TIMEOUT = 300
 
     # grpc timeout 60s
     MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT = 60
 
-    # master_client.check_straggler timeout
-    MASTER_CLIENT_CHECK_FAULT_NODE_TIMEOUT = 300
-
-    # master_client.check_fault_node timeout
-    MASTER_CLIENT_CHECK_STRAGGLER_NODE_TIMEOUT = 300
+    # master_client.check_fault_node/check_straggler timeout min value
+    # must > NODE_CHECK_TIMEOUT
+    MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN = 360
 
     # sleep 1s on NetworkFailureReason.WAITING_NODE
     MASTER_CLIENT_CHECK_FAULT_SLEEP_TIMEOUT = 1

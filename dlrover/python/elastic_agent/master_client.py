@@ -402,7 +402,7 @@ class MasterClient(Singleton):
             break
         return result.nodes, result.reason
 
-    def check_straggler(self, timeout=3):
+    def check_straggler(self, timeout=300):
         request = grpc.StragglerExistRequest()
         start = time.time()
         while True:

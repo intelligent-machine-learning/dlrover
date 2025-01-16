@@ -823,6 +823,25 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         comm_perf_check(config, entrypoint, args)
         mock_run.assert_called()
 
+    def test_get_check_node_timeout(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+
+        agent._rdzv_handler.join_timeout = mock.MagicMock(return_value=600)
+        self.assertEqual(
+            agent._get_check_node_timeout,
+            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN,
+        )
+
+        agent._rdzv_handler.join_timeout = mock.MagicMock(return_value=1200)
+        self.assertEqual(agent._get_check_node_timeout, 600)
+
 
 class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
