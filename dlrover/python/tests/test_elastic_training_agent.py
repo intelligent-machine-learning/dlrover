@@ -835,27 +835,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         )
         self.assertEqual(
             agent._get_check_node_timeout(),
-            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN,
+            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT,
         )
-
-        agent._config.rdzv_configs = {
-            "join_timeout": "600",
-            "rank": 0,
-            "timeout": "16000",
-            "node_unit": 1,
-        }
-        self.assertEqual(
-            agent._get_check_node_timeout(),
-            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN,
-        )
-
-        agent._config.rdzv_configs = {
-            "join_timeout": "1200",
-            "rank": 0,
-            "timeout": "16000",
-            "node_unit": 1,
-        }
-        self.assertEqual(agent._get_check_node_timeout(), 600)
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):

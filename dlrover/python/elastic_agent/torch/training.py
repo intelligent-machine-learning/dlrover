@@ -1398,15 +1398,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._config: ElasticLaunchConfig = config
 
     def _get_check_node_timeout(self):
-        # based on join timeout value from config
-        if "join_timeout" in self._config.rdzv_configs:
-            timeout = int(
-                int(self._config.rdzv_configs.get("join_timeout")) / 2
-            )
-            if timeout >= JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN:
-                return timeout
-
-        return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN
+        return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
