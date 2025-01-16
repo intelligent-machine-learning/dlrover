@@ -264,7 +264,7 @@ class DiagnosisAgent(Singleton):
     def _report_failure_to_master(self, failures, restart_count):
         errors = {}
         if len(failures) == 0:
-            logger.info("there is no failures. skip failures report")
+            logger.info("Skip failure report due to empty failures")
             return
         for rank, failure in failures.items():
             dt = str(datetime.fromtimestamp(int(failure.timestamp)))
@@ -288,7 +288,7 @@ class DiagnosisAgent(Singleton):
             action = self._client.report_heart_beat(ts)
             self._agent_context.enqueue_diagnosis_action(action)
         except Exception as e:
-            logger.warning(f"fail to report a heartbeat: {e}")
+            logger.warning(f"Fail to report a heartbeat: {e}")
 
     def _periodically_report(self):
         logger.info("Start diagnosis agent periodically reporter.")
