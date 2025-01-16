@@ -1399,10 +1399,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
     def _get_check_node_timeout(self):
         # get join timeout value from MasterRendezvousHandler
-        if not self._rdzv_handler:
-            timeout = int(self._rdzv_handler.join_timeout / 2)
-            if timeout >= JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN:
-                return timeout
+        timeout = int(self._config.rdzv_configs.get("join_timeout") / 2)
+        if timeout >= JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN:
+            return timeout
 
         return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN
 
