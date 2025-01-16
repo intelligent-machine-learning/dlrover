@@ -834,7 +834,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             check_round=2,
         )
 
-        config.rdzv_configs = mock.MagicMock(
+        agent._config.rdzv_configs = mock.MagicMock(
             return_value={
                 "join_timeout": "600",
                 "rank": 0,
@@ -847,7 +847,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN,
         )
 
-        agent._rdzv_handler.join_timeout = mock.MagicMock(
+        agent._config.rdzv_configs = mock.MagicMock(
             return_value={
                 "join_timeout": "1200",
                 "rank": 0,
