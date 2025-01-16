@@ -264,6 +264,7 @@ class DiagnosisAgent(Singleton):
     def _report_failure_to_master(self, failures, restart_count):
         errors = {}
         if len(failures) == 0:
+            logger.info("there is no failures. skip failures report")
             return
         for rank, failure in failures.items():
             dt = str(datetime.fromtimestamp(int(failure.timestamp)))
