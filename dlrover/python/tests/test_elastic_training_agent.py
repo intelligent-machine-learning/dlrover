@@ -825,6 +825,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
 
     def test_get_check_node_timeout(self):
         config = ElasticLaunchConfig(4, 4, 8)
+
         agent = _create_check_agent(
             config=config,
             entrypoint="python",
@@ -833,13 +834,27 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             check_round=2,
         )
 
-        agent._rdzv_handler.join_timeout = mock.MagicMock(return_value=600)
+        config.rdzv_configs = mock.MagicMock(
+            return_value={
+                "join_timeout": "600",
+                "rank": 0,
+                "timeout": "16000",
+                "node_unit": 1,
+            }
+        )
         self.assertEqual(
             agent._get_check_node_timeout,
             JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT_MIN,
         )
 
-        agent._rdzv_handler.join_timeout = mock.MagicMock(return_value=1200)
+        agent._rdzv_handler.join_timeout = mock.MagicMock(
+            return_value={
+                "join_timeout": "1200",
+                "rank": 0,
+                "timeout": "16000",
+                "node_unit": 1,
+            }
+        )
         self.assertEqual(agent._get_check_node_timeout, 600)
 
 
