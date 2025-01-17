@@ -196,6 +196,15 @@ class TestDiagnosisAgent(unittest.TestCase):
             DiagnosisActionType.RESTART_WORKER,
         )
 
+        agent._client.report_heart_beat = mock.MagicMock(
+            side_effect=[Exception]
+        )
+        agent.send_heartbeat()
+        self.assertTrue(
+            context._diagnosis_action_queue.next_action().action_type,
+            DiagnosisActionType.NONE,
+        )
+
     def test_async_thread(self):
         DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 1
         DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 1
