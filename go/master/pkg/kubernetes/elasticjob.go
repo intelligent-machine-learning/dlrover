@@ -20,10 +20,13 @@ import (
 )
 
 const (
-	GROUP   = "elastic.iml.github.io"
+	// GROUP is the Custom Resource Group
+	GROUP = "elastic.iml.github.io"
+	// VERSION is the Custom Resource version
 	VERSION = "v1alpha1"
 )
 
+// GetElasticJobInstance gets an elasticjob instance.
 func GetElasticJobInstance(client *K8sClient, namespace string, jobName string) *elasticjob.ElasticJob {
 
 	gvr := GetGroupVersionResource(GROUP, VERSION, "elasticjobs")

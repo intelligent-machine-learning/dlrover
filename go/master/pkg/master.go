@@ -21,6 +21,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
+// JobMaster is the master of an elasticjob.
 type JobMaster struct {
 	Namespace string
 	JobName   string
@@ -28,6 +29,7 @@ type JobMaster struct {
 	Job       *elasticjob.ElasticJob
 }
 
+// NewJobMaster creates the master for an elasticjob.
 func NewJobMaster(namespace string, jobName string, k8sClient *kubernetes.K8sClient) *JobMaster {
 	master := &JobMaster{
 		Namespace: namespace,
@@ -42,6 +44,7 @@ func NewJobMaster(namespace string, jobName string, k8sClient *kubernetes.K8sCli
 	return master
 }
 
+// Run starts the master instance.
 func (master *JobMaster) Run() {
 	time.Sleep(10 * time.Hour)
 }

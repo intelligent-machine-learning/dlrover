@@ -26,12 +26,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// K8sClient contains the instance to access a k8s cluster.
 type K8sClient struct {
 	config        *rest.Config
 	clientset     *k8sApi.Clientset
 	dynamicClient *dynamic.DynamicClient
 }
 
+// NewK8sClient creates a k8s client instance.
 func NewK8sClient(kubeConfigPath string) *K8sClient {
 	client := &K8sClient{}
 
@@ -65,6 +67,7 @@ func NewK8sClient(kubeConfigPath string) *K8sClient {
 	return client
 }
 
+// GetCustomResourceInstance gets a custom resource instance from a k8s cluster.
 func (client *K8sClient) GetCustomResourceInstance(
 	namespace string, name string, gvr schema.GroupVersionResource) (
 	*unstructured.Unstructured, error,
