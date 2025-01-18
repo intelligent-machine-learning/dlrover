@@ -7,7 +7,7 @@ import (
 
 var _ = Describe("Master", func() {
 	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master", false)
+		master := NewJobMaster("dlrover", "test-master", nil)
 		Expect(master.Namespace).To(Equal("dlrover"))
 		Expect(master.JobName).To(Equal("test-master"))
 	})

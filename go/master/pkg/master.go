@@ -15,18 +15,17 @@ type JobMaster struct {
 	Job       *elasticjob.ElasticJob
 }
 
-func NewJobMaster(namespace string, jobName string, k8sScheduling bool) *JobMaster {
+func NewJobMaster(namespace string, jobName string, k8sClient *kubernetes.K8sClient) *JobMaster {
 	master := &JobMaster{
 		Namespace: namespace,
 		JobName:   jobName,
 	}
-	if k8sScheduling {
-		k8sClient := kubernetes.NewK8sClient()
+	if k8sClient != nil {
 		job := kubernetes.GetElasticJobInstance(k8sClient, namespace, jobName)
 		master.K8sClient = k8sClient
 		master.Job = job
 	}
-	logger.Info("create a master.")
+	logger.Infof("create a master of job %s.", jobName)
 	return master
 }
 

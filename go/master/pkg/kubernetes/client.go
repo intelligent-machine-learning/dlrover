@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8sApi "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type K8sClient struct {
@@ -18,26 +19,36 @@ type K8sClient struct {
 	dynamicClient *dynamic.DynamicClient
 }
 
-func NewK8sClient() *K8sClient {
+func NewK8sClient(kubeConfigPath string) *K8sClient {
 	client := &K8sClient{}
 
 	// creates the in-cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
+	if kubeConfigPath == "" {
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			panic(err.Error())
+		}
+		client.config = config
+	} else {
+		config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+		if err != nil {
+			panic(err.Error())
+		}
+		client.config = config
 	}
-	client.config = config
 
 	// creates the clientset
-	client.clientset, err = k8sApi.NewForConfig(config)
+	clientset, err := k8sApi.NewForConfig(client.config)
 	if err != nil {
 		panic(err.Error())
 	}
+	client.clientset = clientset
 
-	client.dynamicClient, err = dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(client.config)
 	if err != nil {
 		panic(err.Error())
 	}
+	client.dynamicClient = dynamicClient
 	return client
 }
 
