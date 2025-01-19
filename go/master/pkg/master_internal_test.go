@@ -11,15 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package master
 
 import (
-	"github.com/gin-gonic/gin"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-// NewRouter creates a new gin.Engine.
-func NewRouter() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-	return router
-}
+var _ = Describe("Master", func() {
+	It("Create a master", func() {
+		master := NewJobMaster("dlrover", "test-master", nil)
+		Expect(master.Namespace).To(Equal("dlrover"))
+		Expect(master.JobName).To(Equal("test-master"))
+	})
+})
