@@ -243,6 +243,30 @@ func getMasterArguments() []string {
 
 // NewMasterTemplateToJob sets configurations to the master template of a job.
 func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
+	var podTemplate *corev1.PodTemplateSpec
+	if _, ok := job.Spec.ReplicaSpecs[ReplicaTypeJobMaster]; ok {
+		podTemplate = &job.Spec.ReplicaSpecs[ReplicaTypeJobMaster].Template
+	} else {
+		podTemplate = createDefaultMasterTemplate(job, masterImage)
+	}
+	podIPEnv := corev1.EnvVar{
+		Name: envPodIP,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				APIVersion: "v1",
+				FieldPath:  "status.podIP",
+			},
+		},
+	}
+	podTemplate.Spec.Containers[0].Env = append(podTemplate.Spec.Containers[0].Env, podIPEnv)
+	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
+		ReplicaSpec: commonv1.ReplicaSpec{
+			Template: *podTemplate,
+		},
+	}
+}
+
+func createDefaultMasterTemplate(job *elasticv1alpha1.ElasticJob, masterImage string) *corev1.PodTemplateSpec {
 	command := masterCommand + fmt.Sprintf(
 		" --platform pyk8s --namespace %s --job_name %s --port %d",
 		job.Namespace, job.Name, masterServicePort,
@@ -279,33 +303,5 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	if _, ok := job.Spec.ReplicaSpecs[ReplicaTypeJobMaster]; ok {
-		mainContainer := job.Spec.ReplicaSpecs[ReplicaTypeJobMaster].ReplicaSpec.Template.Spec.Containers[0]
-		if mainContainer.Image != "" {
-			podTemplate.Spec.Containers[0].Image = mainContainer.Image
-		}
-		if mainContainer.ImagePullPolicy != "" {
-			podTemplate.Spec.Containers[0].ImagePullPolicy = mainContainer.ImagePullPolicy
-		}
-		if len(mainContainer.Env) > 0 {
-			podTemplate.Spec.Containers[0].Env = append(
-				podTemplate.Spec.Containers[0].Env, mainContainer.Env...,
-			)
-		}
-	}
-	podIPEnv := corev1.EnvVar{
-		Name: envPodIP,
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				APIVersion: "v1",
-				FieldPath:  "status.podIP",
-			},
-		},
-	}
-	podTemplate.Spec.Containers[0].Env = append(podTemplate.Spec.Containers[0].Env, podIPEnv)
-	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
-		ReplicaSpec: commonv1.ReplicaSpec{
-			Template: *podTemplate,
-		},
-	}
+	return podTemplate
 }

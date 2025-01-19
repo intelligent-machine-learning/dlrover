@@ -35,6 +35,7 @@ type ScaleSpec struct {
 	//   {
 	//     "PS": ReplicaResourceSpec,
 	//     "worker": ReplicaResourceSpec,
+	//     "dlrover-master": ReplicaResourceSpec,
 	//   }
 	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpecs,omitempty"`
 

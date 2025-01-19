@@ -1397,6 +1397,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
+    def _get_check_node_timeout(self):
+        return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT
+
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
         role = spec.role
@@ -1409,7 +1412,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         fault_nodes = []
         stragglers = []
         for i in range(self._check_round):
-            result, elapsed_time = self._run_node_check()
+            result, elapsed_time = self._run_node_check(
+                timeout=JobConstant.NODE_CHECK_TIMEOUT
+            )
             elapsed_time = round(elapsed_time, 3)
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
@@ -1426,8 +1431,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            fault_nodes, fault_reason = self._client.check_fault_node()
-            stragglers, straggler_reason = self._client.check_straggler()
+            fault_nodes, fault_reason = self._client.check_fault_node(
+                timeout=self._get_check_node_timeout()
+            )
+            stragglers, straggler_reason = self._client.check_straggler(
+                timeout=self._get_check_node_timeout()
+            )
             logger.info(
                 f"Fault nodes are: {fault_nodes} with {fault_reason} "
                 f" and stragglers are: {stragglers} with {straggler_reason}"
