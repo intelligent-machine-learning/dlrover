@@ -34,11 +34,11 @@ rules:
       - patch
       - delete
   - apiGroups:
-    - elastic.iml.github.io
+      - elastic.iml.github.io
     resources:
-    - elasticjobs/finalizers
+      - elasticjobs/finalizers
     verbs:
-    - update
+      - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
