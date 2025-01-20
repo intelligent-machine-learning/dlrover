@@ -47,6 +47,13 @@ def add_params(parser):
         help="The fail strategy for pending case. "
         "Options: -1: disabled; 0: skip; 1: necessary part; 2: all",
     )
+    parser.add_argument(
+        "--service_type",
+        "--service-type",
+        default="grpc",
+        type=str,
+        help="The service type of master: grpc/http.",
+    )
 
 
 def print_args(args, exclude_args=[], groups=None):

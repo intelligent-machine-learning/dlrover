@@ -48,6 +48,7 @@ const (
 	// supported arguments(should be supported in 'dlrover.python.master.args')
 	pendingTimeoutArg      = "pending_timeout"
 	pendingFailStrategyArg = "pending_fail_strategy"
+	serviceType            = "service_type"
 )
 
 // Manager generates a master pod object.
@@ -238,7 +239,7 @@ func (m *Manager) StopRunningPods(
 }
 
 func getMasterArguments() []string {
-	return []string{pendingTimeoutArg, pendingFailStrategyArg}
+	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType}
 }
 
 // NewMasterTemplateToJob sets configurations to the master template of a job.

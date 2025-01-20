@@ -16,12 +16,12 @@ import os
 import threading
 import time
 
-from dlrover.python.common.constants import ConfigPath
-from dlrover.python.common.grpc import (
+from dlrover.python.common.comm import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,
 )
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient

@@ -22,6 +22,12 @@ from unittest.mock import patch
 from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.comm import (
+    DataLoaderConfig,
+    GPUStats,
+    OptimizerConfig,
+    ParallelConfig,
+)
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -31,12 +37,6 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     TrainingExceptionLevel,
-)
-from dlrover.python.common.grpc import (
-    DataLoaderConfig,
-    GPUStats,
-    OptimizerConfig,
-    ParallelConfig,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (

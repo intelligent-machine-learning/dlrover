@@ -15,12 +15,12 @@ import json
 import os
 import unittest
 
-from dlrover.python.common.constants import ConfigPath
-from dlrover.python.common.grpc import (
+from dlrover.python.common.comm import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,
 )
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )

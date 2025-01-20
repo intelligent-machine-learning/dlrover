@@ -18,8 +18,8 @@ import time
 import psutil
 import pynvml
 
+from dlrover.python.common.comm import GPUStats
 from dlrover.python.common.constants import NodeEnv
-from dlrover.python.common.grpc import GPUStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient

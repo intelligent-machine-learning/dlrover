@@ -19,6 +19,16 @@ pip install -q kubernetes
 pip install -q grpcio-tools
 pip install -q psutil
 pip install -q deprecated
+pip install -q tornado
+
+if [ "$1" = "basic" ]; then
+  echo ""
+  end_time=$(date +%s)
+  cost_time=$((end_time-start_time))
+  echo "'Basic' dependencies only, cost time: $((cost_time/60))min $((cost_time%60))s"
+  exit 0
+fi
+
 pip install -q 'ray[default]'
 pip install -q pyhocon
 pip install -q pytest-cov
@@ -33,4 +43,4 @@ pip install -q peft==0.10.0
 
 end_time=$(date +%s)
 cost_time=$((end_time-start_time))
-echo "pip cost time: $((cost_time/60))min $((cost_time%60))s"
+echo "All dependencies cost time: $((cost_time/60))min $((cost_time%60))s"

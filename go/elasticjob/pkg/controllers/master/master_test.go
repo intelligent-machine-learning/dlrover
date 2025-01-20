@@ -29,7 +29,7 @@ func TestCreateMasterPod(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ps",
 			Namespace:   "dlrover",
-			Annotations: map[string]string{"pending_timeout": "300"},
+			Annotations: map[string]string{"pending_timeout": "300", "service_type": "http"},
 			Labels:      map[string]string{},
 		},
 	}
@@ -44,6 +44,7 @@ func TestCreateMasterPod(t *testing.T) {
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--job_name test-ps"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--pending_timeout 300"))
+	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--service_type http"))
 }
 
 func TestCreateMasterPodWithImage(t *testing.T) {

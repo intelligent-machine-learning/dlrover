@@ -101,6 +101,7 @@ class PodScaler(Scaler):
         self._job_uid = ""
         self.api_client = client.ApiClient()
         self._master_addr = ""
+        self._master_service_type = _dlrover_context.master_service_type
         self._error_monitor = error_monitor
         self._started = False
 
@@ -500,6 +501,7 @@ class PodScaler(Scaler):
 
         # Deprecated env vars
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
+
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
@@ -507,6 +509,12 @@ class PodScaler(Scaler):
         )
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=self._master_addr)
+        )
+        env.append(
+            V1EnvVar(
+                name=NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
+                value=self._master_service_type,
+            )
         )
 
         env.append(

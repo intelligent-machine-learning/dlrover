@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 from torch.utils.data import Dataset
 
-from dlrover.python.common.grpc import ParallelConfig
+from dlrover.python.common.comm import ParallelConfig
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 
 

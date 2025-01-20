@@ -83,11 +83,6 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.error import ProcessError
-from dlrover.python.common.grpc import (
-    find_free_port_for_hccl,
-    find_free_port_in_range,
-    find_free_port_in_set,
-)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -107,6 +102,11 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.util.common_util import (
+    find_free_port_for_hccl,
+    find_free_port_in_range,
+    find_free_port_in_set,
+)
 from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
 from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (

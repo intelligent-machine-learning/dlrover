@@ -14,6 +14,7 @@
 import copy
 import time
 
+from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     NodeEventType,
     NodeExitReason,
@@ -21,7 +22,6 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
-from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.serialize import JsonSerializable
 
 

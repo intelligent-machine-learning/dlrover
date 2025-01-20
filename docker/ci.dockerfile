@@ -34,7 +34,7 @@ RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 COPY docker/scripts/install-protobuf.bash /
 RUN /install-protobuf.bash && rm /install-protobuf.bash
 
-# Install Pre-commit
+# Install python deps
 RUN pip install pre-commit pytest kubernetes grpcio-tools psutil \
     deprecated -i https://mirrors.aliyun.com/pypi/simple/
 
