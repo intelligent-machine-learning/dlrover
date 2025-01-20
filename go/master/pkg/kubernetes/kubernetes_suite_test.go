@@ -11,15 +11,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package kubernetes
 
 import (
-	"github.com/gin-gonic/gin"
+	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-// NewRouter creates a new gin.Engine.
-func NewRouter() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-	return router
+func TestKubernetes(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Kubernetes Suite")
 }

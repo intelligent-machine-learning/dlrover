@@ -1,0 +1,13 @@
+---
+name: elasticjob-controller-test
+description: run gotest to execute go test cases of ElasticJob operator
+runs:
+  using: 'docker'
+  image: "easydl/dlrover:ci"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "rm -rf /usr/local/go && \
+wget -q https://go.dev/dl/go1.23.4.linux-amd64.tar.gz && \
+tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz && \
+cd go/elasticjob && go test ./..."

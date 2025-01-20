@@ -182,11 +182,15 @@ make install
 make run
 ```
 
-- Deploy the controller with GO 1.18.
+- Deploy the controller with GO 1.23.4
 
 ```bash
 make deploy IMG=easydl/elasticjob-controller:master
 ```
+
+If you cannot use curl to download kustomize when running `make deploy`,
+you can download the kustomize from [release page](https://github.com/kubernetes-sigs/kustomize/releases)
+and move the kustomize bin to `go/elasticjob/bin/`
 
 ### 3. Grant Permission for the DLRover Master to Access CRDs
 

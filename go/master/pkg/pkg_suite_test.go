@@ -11,15 +11,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package master
 
 import (
-	"github.com/gin-gonic/gin"
+	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-// NewRouter creates a new gin.Engine.
-func NewRouter() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-	return router
+func TestPkg(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Pkg Suite")
 }

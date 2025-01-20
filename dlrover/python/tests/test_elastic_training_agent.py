@@ -778,6 +778,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         )
 
         # with no fault and no stragglers
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         agent._run_node_check = mock.MagicMock(return_value=(True, 100))
         agent._stop_workers = mock.MagicMock(return_value=True)
         self.assertTrue(agent.run())
@@ -820,6 +822,21 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         args = "--version"
         comm_perf_check(config, entrypoint, args)
         mock_run.assert_called()
+
+    def test_get_check_node_timeout(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+        self.assertEqual(
+            agent._get_check_node_timeout(),
+            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT,
+        )
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):
