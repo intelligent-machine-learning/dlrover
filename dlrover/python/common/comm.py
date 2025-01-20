@@ -13,7 +13,7 @@
 import base64
 import pickle
 import socket
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Dict, List
 
 import grpc
@@ -106,6 +106,30 @@ class Message(JsonSerializable):
     def serialize(self):
         return pickle.dumps(self)
 
+    @classmethod
+    def from_json(cls, json_data: Dict):
+        """
+        Class method to create an instance from a JSON dictionary.
+
+        Args:
+        json_data (dict): JSON dictionary to construct the object from.
+
+        Returns:
+        An instance of the cls.
+        """
+        # Create a dictionary to hold the data for initializing the object
+        init_data = {}
+
+        # Get a set of field names for the current class
+        cls_fields = {field.name for field in fields(cls)}
+
+        for key, value in json_data.items():
+            if key in cls_fields:
+                init_data[key] = value
+
+        # Create an instance of the class using the filtered data
+        return cls(**init_data)
+
 
 @dataclass
 class BaseRequest(Message):
@@ -121,7 +145,7 @@ class BaseRequest(Message):
         }
 
     @staticmethod
-    def from_json(data):
+    def from_json(data: Dict):
         return BaseRequest(
             node_id=data.get("node_id"),
             node_type=data.get("node_type"),
