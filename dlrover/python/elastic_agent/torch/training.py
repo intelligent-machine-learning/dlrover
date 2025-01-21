@@ -1243,9 +1243,12 @@ def launch_agent(
         f"  training_log     : {config.training_log_file}\n"
         f"  failure_errors   : {config.failure_node_errors}\n"
         f"  numa_affinity    : {config.numa_affinity}\n"
+        f"  accelerator      : {config.accelerator}\n"
     )
 
     _set_paral_config()
+    _client = MasterClient.singleton_instance()
+    _client.update_node_xpu_info(config.accelerator)
 
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
@@ -1270,6 +1273,7 @@ def launch_agent(
 
     shutdown_rdzv = True
     result = None
+
     try:
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
 

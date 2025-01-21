@@ -334,6 +334,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._collect_model_info(message)
         elif isinstance(message, grpc.GlobalStep):
             success = self._collect_global_step(message)
+        elif isinstance(message, grpc.NodeXpuInfo):
+            success = self._collect_node_xpu_info(message)
         elif isinstance(message, grpc.ShardCheckpoint):
             success = self._restore_shard_checkpoint(message)
         elif isinstance(message, grpc.TaskResult):
@@ -436,6 +438,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         self._collect_runtime_stats()
         self._check_start_auto_scale_worker()
+        return True
+
+    def _collect_node_xpu_info(self, message: grpc.NodeXpuInfo):
+        self._diagnosis_manager.collect_xpu_info(message.xpu_type)
         return True
 
     def _restore_shard_checkpoint(self, message: grpc.ShardCheckpoint):
