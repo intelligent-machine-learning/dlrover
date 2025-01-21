@@ -29,6 +29,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.watcher.base_watcher import Node
 
 _dlrover_ctx = Context.singleton_instance()
@@ -230,9 +231,9 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             self._min_node = rdzv_manager.get_min_nodes()
         else:
             self._min_node = sys.maxsize
-        self._failed_worker_count = 0
         self._total_worker_num = self._master.job_manager.get_worker_num()
         self._available_worker_num = self._total_worker_num
+        self._job_context = get_job_context()
 
     def get_job_exit_reason(self, node: Node):
         if self._master.task_manager.training_started():
@@ -271,7 +272,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
-        self._failed_worker_count += 1
+        self._job_context.report_failed_node()
         self._stop_job_if_needed(node)
         if node.is_unrecoverable_failure():
             self._master.speed_monitor.reduce_target_worker_num(
@@ -327,7 +328,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                     )
                 ),
             )
-        elif self._failed_worker_count >= max_failure_num:
+        elif self._job_context.get_failed_node_cnt() >= max_failure_num:
             # The job early stops if there are a lot of failed workers.
             self._master.request_stop(
                 success=False,

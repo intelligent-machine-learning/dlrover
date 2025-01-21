@@ -1163,10 +1163,13 @@ class DistributedJobManager(JobManager):
         error_data: str,
         level: str,
     ) -> bool:
-        if self._error_monitor and node is not None:
-            return self._error_monitor.process_error(
-                node, restart_count, error_data, level
-            )
+        if node:
+            if level == TrainingExceptionLevel.NODE_ERROR:
+                self._job_context.report_failed_node(node.id)
+            if self._error_monitor:
+                return self._error_monitor.process_error(
+                    node, restart_count, error_data, level
+                )
         return False
 
     def all_running_node_hanged(self):

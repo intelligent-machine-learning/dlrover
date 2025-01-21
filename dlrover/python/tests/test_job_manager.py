@@ -296,9 +296,18 @@ class DistributedJobManagerTest(unittest.TestCase):
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
 
+        self.assertEqual(manager._job_context.get_failed_node_cnt(), 0)
         manager.handle_training_failure(
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
+        manager.handle_training_failure(
+            NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
+        )
+        self.assertEqual(manager._job_context.get_failed_node_cnt(), 1)
+        manager.handle_training_failure(
+            NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
+        )
+        self.assertEqual(manager._job_context.get_failed_node_cnt(), 2)
 
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
