@@ -11,6 +11,12 @@ class EventType(Enum):
     INSTANT = auto()
 
 
+def _default(o):
+    if isinstance(o, datetime):
+        return o.isoformat()
+    return f"<<non-serializable: {type(o).__qualname__}>>"
+
+
 @dataclass(frozen=True)
 class Event:
     event_time: datetime
@@ -25,7 +31,7 @@ class Event:
             self.target,
             self.name,
             self.event_type.name,
-            json.dumps(self.content),
+            json.dumps(self.content, ensure_ascii=False, default=_default),
         )
 
     def to_dict(self):
@@ -38,7 +44,7 @@ class Event:
         }
 
     def to_json(self):
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict(), ensure_ascii=False, default=_default)
 
     @classmethod
     def instant(cls, target: str, name: str, content: Optional[dict] = None):
