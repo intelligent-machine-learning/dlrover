@@ -140,6 +140,8 @@ class Config:
         logger.setLevel(level)
 
         if self.event_exporter == "TEXT_FILE":
+            if not os.path.exists(self.file_dir):
+                os.makedirs(self.file_dir, exist_ok=True)
             handler = logging.FileHandler(os.path.join(self.file_dir, f"event_sys_{self.rank}_{self.pid}.log"))
         elif self.event_exporter == "CONSOLE":
             handler = logging.StreamHandler()

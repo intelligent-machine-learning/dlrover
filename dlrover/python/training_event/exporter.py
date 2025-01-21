@@ -188,6 +188,7 @@ class TextFileExporter(EventExporter):
         logger = logging.getLogger(logger_name)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
+        logger.propagate = False
         return logger
 
     def export(self, event: Event):
@@ -219,6 +220,7 @@ class ConsoleExporter(EventExporter):
         logger = logging.getLogger(logger_name)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
+        logger.propagate = False
         return logger
 
     def export(self, event: Event):
