@@ -135,7 +135,13 @@ def _set_paral_config():
 def _get_local_ip():
     local_ip = os.getenv("POD_IP", "")
     if not local_ip:
-        local_ip = socket.gethostbyname(_get_fq_hostname())
+        try:
+            local_ip = socket.gethostbyname(_get_fq_hostname())
+        except socket.gaierror:
+            logger.warning(
+                "Can not resolve host IP. " "Use default '127.0.0.1' instead."
+            )
+            local_ip = "127.0.0.1"
     return local_ip
 
 
@@ -1315,8 +1321,7 @@ def launch_agent(
         if (
             (exc_type is not None)
             or (result is not None and result.is_failed())
-            and not is_node_check_failed
-        ):
+        ) and not is_node_check_failed:
             client.report_failed_exited()
             logger.info("Failed and exit.")
         elif is_node_check_failed:
