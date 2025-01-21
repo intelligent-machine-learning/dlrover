@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 
 from .common import CommonPredefined
 
@@ -77,7 +77,7 @@ class DLRoverCommon(CommonPredefined):
             },
         )
 
-    def network_check(self, round_num: int, node_groups: list[list], **kwargs):
+    def network_check(self, round_num: int, node_groups: List[List], **kwargs):
         """Network check event, including network check begin and end.
 
         Master side:
