@@ -118,7 +118,7 @@ class TrainerProcess(CommonPredefined):
         """
         return self.custom_duration(TrainInitSpan, TrainerEventName.TRAIN_INIT.value, kwargs)
 
-    def persist_ckpt(self, global_step: int, path: str, size: Optional[int] = None, **kwargs):
+    def persist_ckpt(self, global_step: int, path: str = "", size: Optional[int] = None, **kwargs):
         """
         persist_ckpt event used in async checkpoint saving. stands for the training
         process is persisting
