@@ -245,7 +245,7 @@ def close_default_exporter():
 
 
 def init_default_exporter():
-    if _CONFIG.test_mode:
+    if not _CONFIG.enable:
         return
     global __default_exporter
     with __default_exporter_lock:

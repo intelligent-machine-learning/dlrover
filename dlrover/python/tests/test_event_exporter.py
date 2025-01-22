@@ -134,10 +134,10 @@ class TestEventExporter:
         assert exporter.get_metrics()["dropped_events"] == 1
 
     def test_default_exporter(self):
-        _CONFIG.test_mode = False
+        _CONFIG.enable = True
         init_default_exporter()
         default_exporter = get_default_exporter()
         assert default_exporter is not None
         close_default_exporter()
         assert get_default_exporter() is None
-        _CONFIG.test_mode = True
+        _CONFIG.enable = False

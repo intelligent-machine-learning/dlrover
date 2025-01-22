@@ -76,7 +76,7 @@ class Config:
     rank: str = "empty"
     pid: str = "empty"
 
-    test_mode: bool = False
+    enable: bool = True
     debug_mode: bool = False
 
     def __init__(self, config_file: Optional[str] = None):
@@ -99,7 +99,7 @@ class Config:
             self._set_if_valid(config, "queue_size", parser=parse_int)
             self._set_if_valid(config, "file_dir", parser=parse_str)
             self._set_if_valid(config, "text_formatter", parser=parse_str)
-            self._set_if_valid(config, "test_mode", parser=parse_bool)
+            self._set_if_valid(config, "enable", parser=parse_bool)
             self._set_if_valid(config, "debug_mode", parser=parse_bool)
 
         except Exception:
@@ -111,7 +111,7 @@ class Config:
         self._set_if_valid(os.environ, "queue_size", key_converter=get_env_key, parser=parse_int)
         self._set_if_valid(os.environ, "file_dir", key_converter=get_env_key, parser=parse_str)
         self._set_if_valid(os.environ, "text_formatter", key_converter=get_env_key, parser=parse_str)
-        self._set_if_valid(os.environ, "test_mode", key_converter=get_env_key, parser=parse_bool)
+        self._set_if_valid(os.environ, "enable", key_converter=get_env_key, parser=parse_bool)
         self._set_if_valid(os.environ, "debug_mode", key_converter=get_env_key, parser=parse_bool)
 
     def _set_if_valid(self, dict_val, key, key_converter=None, parser=None):
@@ -142,7 +142,7 @@ class Config:
         if self.event_exporter == "TEXT_FILE":
             if not os.path.exists(self.file_dir):
                 os.makedirs(self.file_dir, exist_ok=True)
-            handler = logging.FileHandler(os.path.join(self.file_dir, f"event_sys_{self.rank}_{self.pid}.log"))
+            handler = logging.FileHandler(os.path.join(self.file_dir, f"events_sys_{self.rank}_{self.pid}.log"))
         elif self.event_exporter == "CONSOLE":
             handler = logging.StreamHandler()
         else:
