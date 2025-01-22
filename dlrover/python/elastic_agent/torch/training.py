@@ -337,6 +337,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         logger.info(msg)
         self._join_rendezvous()
+
         start_pending = 0
         while True:
             self._check_network_rdzv_for_elastic_training()
@@ -858,7 +859,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
-        logger.info("Start initializing training workers.")
+        logger.info(
+            "Start initializing "
+            f"training({self.__class__.__name__}) workers."
+        )
         start_pending = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
@@ -1489,7 +1493,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise NodeCheckFailedError(
-                    "The node is a straggler " "and exits."
+                    "The node is a straggler and exits."
                 )
         return success
 
