@@ -15,6 +15,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List
 
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction, \
+    NoAction
+
 
 @dataclass
 class PreCheckResult(object):
@@ -27,10 +30,10 @@ class PreCheckResult(object):
     result_msg: str = ""
 
     # Abnormal nodes' id.
-    abnormal_nodes: List[int] = field(default_factory=List)
+    abnormal_nodes: List[int] = field(default_factory=list)
 
-    # Whether job need to abort if result unexpected.
-    should_abort: bool = False
+    def is_success(self):
+        return self.result == 0
 
 
 class PreCheckOperator(ABC):
@@ -42,7 +45,11 @@ class PreCheckOperator(ABC):
 
     @classmethod
     def get_retry_limit_times(cls) -> int:
-        """The retry limit times, can be overridden in subclasses."""
+        """
+        The retry limit times, can be overridden in subclasses.
+        The job starting procedure will be abort if result still not ok after
+        several retry times.
+        """
         return 3
 
     @abstractmethod
@@ -55,6 +62,11 @@ class PreCheckOperator(ABC):
         """The abstraction of the procedure if check failed."""
         pass
 
+    @abstractmethod
+    def get_failed_action(self) -> DiagnosisAction:
+        """The abstraction of the action when operator check failed."""
+        pass
+
 
 class NoPreCheckOperator(PreCheckOperator):
 
@@ -63,3 +75,6 @@ class NoPreCheckOperator(PreCheckOperator):
 
     def recover(self):
         return
+
+    def get_failed_action(self) -> DiagnosisAction:
+        return NoAction()

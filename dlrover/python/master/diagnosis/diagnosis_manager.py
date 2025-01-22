@@ -64,31 +64,41 @@ class DiagnosisManager:
         for pre_check_op in pre_check_ops:
             current_start = time.time()
             current_op_result = None
+            pre_check_op_name = pre_check_op.__class__.__name__
             try:
                 for i in range(pre_check_op.get_retry_limit_times()):
                     check_start = time.time()
                     current_op_result = pre_check_op.check()
-                    logger.info(f"{pre_check_op.__class__.__name__} "
+                    logger.info(f"{pre_check_op_name} "
                                 f"check({i}) "
-                                f"cost: {time.time()-check_start}, "
+                                f"cost: {time.time()-check_start:.2f}ms, "
                                 f"result: {current_op_result}")
 
-                    if current_op_result.should_abort:
-                        # TODO: request stop
-                        pass
-
-                    if not current_op_result.result != 0:
+                    if not current_op_result.is_success():
                         pre_check_op.recover()
                         time.sleep(pre_check_op.get_retry_interval_secs())
+                    else:
+                        break
             except Exception as e:
                 logger.error(f"Pre-check operator got unexpected error: {e}")
                 continue
-            logger.info(f"{pre_check_op.__class__.__name__} finish "
-                        f"with result: {current_op_result}, "
-                        f"cost:{time.time()-current_start}ms.")
+
+            if not current_op_result.is_success():
+                action = pre_check_op.get_failed_action()
+                self._job_context.enqueue_action(action)
+                logger.warning("Training pre-check failed "
+                               f"by {pre_check_op_name} "
+                               f"with result: {current_op_result}, "
+                               f"cost:{time.time()-current_start:.2f}ms. "
+                               f"Invoke action: {action}.")
+                return
+            else:
+                logger.info(f"{pre_check_op_name} finish "
+                            f"with result: {current_op_result}, "
+                            f"cost:{time.time()-current_start:.2f}ms.")
 
         logger.info("Training pre-check complete, "
-                    f"cost:{time.time()-start}ms.")
+                    f"cost:{time.time()-start:.2f}ms.")
 
     def start_observing(self):
         logger.info("Start to observing training...")

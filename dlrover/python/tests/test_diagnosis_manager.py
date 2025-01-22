@@ -105,3 +105,7 @@ class DiagnosisManagerTest(unittest.TestCase):
         # explore solutions to observed problems
         action = mgr._diagnostician.resolve_problems(observed_problems)
         self.assertEqual(action.action_type, DiagnosisActionType.NONE)
+
+    def test_pre_check(self):
+        mgr = DiagnosisManager()
+        mgr.pre_check()
