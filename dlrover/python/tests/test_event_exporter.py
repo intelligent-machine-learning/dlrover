@@ -1,25 +1,36 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import time
+from datetime import datetime
 from unittest.mock import Mock
 
+from dlrover.python.training_event.event import Event, EventType
 from dlrover.python.training_event.exporter import (
+    _CONFIG,
     AsyncExporter,
     ConsoleExporter,
     EventExporter,
     JsonFormatter,
     LogFormatter,
     TextFileExporter,
-    get_default_exporter,
     close_default_exporter,
+    get_default_exporter,
     init_default_exporter,
-    _CONFIG,
 )
-from dlrover.python.training_event.event import Event, EventType
-
-from datetime import datetime
 
 
 class TestEventExporter:
-
     def test_log_formmatter(self):
         formatter = LogFormatter()
         event = Event(
@@ -29,7 +40,10 @@ class TestEventExporter:
             event_type=EventType.INSTANT,
             content={"a": 1},
         )
-        assert formatter.format(event) == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}'
+        assert (
+            formatter.format(event)
+            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}'
+        )
 
     def test_json_formatter(self):
         formatter = JsonFormatter()
@@ -61,7 +75,10 @@ class TestEventExporter:
         assert len(tmpdir.listdir()) == 1
 
         # file content
-        assert tmpdir.listdir()[0].read() == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        assert (
+            tmpdir.listdir()[0].read()
+            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        )
 
     def test_console_exporter(self, capsys):
         formatter = LogFormatter()
@@ -77,7 +94,10 @@ class TestEventExporter:
         exporter.close()
         # check if the event is printed
         captured = capsys.readouterr()
-        assert captured.out == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        assert (
+            captured.out
+            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        )
 
     def test_async_exporter(self):
         mock_exporter = Mock(spec=EventExporter)

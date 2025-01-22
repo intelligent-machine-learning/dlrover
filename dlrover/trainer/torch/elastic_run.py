@@ -119,8 +119,8 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
 )
-from dlrover.trainer.torch.utils import version_less_than_230
 from dlrover.python.training_event import DLRoverAgent
+from dlrover.trainer.torch.utils import version_less_than_230
 
 
 def parse_args(args):

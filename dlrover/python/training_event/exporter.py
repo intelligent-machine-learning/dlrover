@@ -1,16 +1,28 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import atexit
+import logging
 import os
 import sys
-import time
 import threading
-import logging
+import time
 from abc import abstractmethod
 from queue import Empty, Full, Queue
 from typing import Optional
 
 from .config import get_default_config, get_default_logger
 from .event import Event
-
 
 _CONFIG = get_default_config()
 _LOGGER = get_default_logger()
@@ -20,7 +32,8 @@ class EventExporter:
     """
     EventExporter is the interface to export the event to the target.
 
-    By default, the exporter is singleton in a process, the exporter implementation should ensure the thread safety.
+    By default, the exporter is singleton in a process, the exporter
+    implementation should ensure the thread safety.
     """
 
     @abstractmethod
@@ -34,7 +47,8 @@ class EventExporter:
 
 class AsyncExporter(EventExporter):
     """
-    AsyncExporter is the implementation of EventExporter to export the event to the target asynchronously.
+    AsyncExporter is the implementation of EventExporter to export the event
+    to the target asynchronously.
     """
 
     def __init__(self, exporter: EventExporter, max_queue_size: int = 1024):
@@ -51,7 +65,9 @@ class AsyncExporter(EventExporter):
         self._last_drop_log_time: float = 0.0
         # 记录错误事件数量
         self._error_events = 0
-        self._worker = threading.Thread(name="AsyncExporter", target=self._run, daemon=True)
+        self._worker = threading.Thread(
+            name="AsyncExporter", target=self._run, daemon=True
+        )
         self._worker.start()
 
     def _run(self):
@@ -82,7 +98,8 @@ class AsyncExporter(EventExporter):
             # 每60秒最多打印一次丢弃事件的日志
             if current_time - self._last_drop_log_time > 60:
                 _LOGGER.error(
-                    f"Event queue is full. Dropping event: {event}. " f"Total dropped events: {self._dropped_events}"
+                    f"Event queue is full. Dropping event: {event}. "
+                    f"Total dropped events: {self._dropped_events}"
                 )
                 self._last_drop_log_time = current_time
 
@@ -138,7 +155,6 @@ class AsyncExporter(EventExporter):
 
 
 class Formater:
-
     @abstractmethod
     def format(self, event: Event) -> str:
         pass
@@ -156,7 +172,8 @@ class JsonFormatter(Formater):
 
 class TextFileExporter(EventExporter):
     """
-    TextFileExporter is the implementation of EventExporter to export the event to a text file.
+    TextFileExporter is the implementation of EventExporter to export the
+    event to a text file.
     """
 
     def __init__(self, file_dir: str, formatter: Formater):
@@ -201,7 +218,8 @@ class TextFileExporter(EventExporter):
 
 class ConsoleExporter(EventExporter):
     """
-    ConsoleExporter is the implementation of EventExporter to export the event to the console.
+    ConsoleExporter is the implementation of EventExporter to export the
+    event to the console.
     """
 
     def __init__(self, formatter: Formater):
@@ -257,14 +275,18 @@ def init_default_exporter():
         elif _CONFIG.text_formatter == "LOG":
             formatter = LogFormatter()
         else:
-            raise ValueError(f"Invalid text formatter: {_CONFIG.text_formatter}")
+            raise ValueError(
+                f"Invalid text formatter: {_CONFIG.text_formatter}"
+            )
 
         if _CONFIG.event_exporter == "TEXT_FILE":
             exporter = TextFileExporter(_CONFIG.file_dir, formatter)
         elif _CONFIG.event_exporter == "CONSOLE":
             exporter = ConsoleExporter(formatter)
         else:
-            raise ValueError(f"Invalid event exporter: {_CONFIG.event_exporter}")
+            raise ValueError(
+                f"Invalid event exporter: {_CONFIG.event_exporter}"
+            )
 
         if _CONFIG.async_exporter:
             __default_exporter = AsyncExporter(exporter, _CONFIG.queue_size)

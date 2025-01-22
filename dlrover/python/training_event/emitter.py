@@ -1,11 +1,24 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import traceback
 from functools import wraps
 from threading import Lock
 from typing import Optional, Type
 
+from .config import get_default_logger
 from .event import Event
 from .exporter import EventExporter, get_default_exporter
-from .config import get_default_logger
 
 _LOGGER = get_default_logger()
 
@@ -74,7 +87,10 @@ def safe_call(func):
             return func(*args, **kwargs)
         except Exception as e:
             traceback_str = traceback.format_exc()
-            _LOGGER.error(f"Failed in event processing {func.__name__}, exception: {e}, " f"traceback: {traceback_str}")
+            _LOGGER.error(
+                f"Failed in event processing {func.__name__}, exception: {e}, "
+                f"traceback: {traceback_str}"
+            )
             # return a safe callable object to avoid chain call error
             return SafeCallable()
 
@@ -98,20 +114,25 @@ class SafeAttribute:
     """
 
     def __getattr__(self, item):
-        _LOGGER.error(f"Attribute {item} from class {self.__class__.__name__} not found")
+        _LOGGER.error(
+            f"Attribute {item} from class {self.__class__.__name__} not found"
+        )
         return SafeCallable()
 
 
 class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
     """
-    DurationSpan is a span of time, which can be used to emit a duration begin and
-    end event.
+    DurationSpan is a span of time, which can be used to emit a duration begin
+    and end event.
 
-    It support sub-span, extra args/dict, success/fail event and context management.
+    It support sub-span, extra args/dict, success/fail event and context
+    management.
     User can inherit this class to add span-specific stages.
     """
 
-    def __init__(self, emitter: EventEmitter, name: str, content: Optional[dict] = None):
+    def __init__(
+        self, emitter: EventEmitter, name: str, content: Optional[dict] = None
+    ):
         self.emitter = emitter
         self.name = name
         self.content = content or {}
@@ -120,7 +141,8 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
 
     def begin(self):
         """
-        Begin the duration span, this will automatically call when use context manager.
+        Begin the duration span, this will automatically call when use
+        contextmanager.
 
         If the span is already begin, this will not emit anything.
 
@@ -147,11 +169,14 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
 
     def end(self):
         """
-        End the duration span, this will automatically call when use context manager.
+        End the duration span, this will automatically call when
+        use context manager.
 
-        If the span is not begin or already ended, this will not emit anything.
-        end(), success() and fail() can only be called once, only the first call
-        will take effect.
+        If the span is not begin or already ended, this will not emit
+        anything.
+
+        end(), success() and fail() can only be called once, only the
+        first call will take effect.
 
         example:
 
@@ -178,7 +203,9 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
         self._is_end = True
         self.emitter.end(self.name, self.content)
 
-    def stage(self, stage: str, content: Optional[dict] = None) -> "DurationSpan":
+    def stage(
+        self, stage: str, content: Optional[dict] = None
+    ) -> "DurationSpan":
         """
         Create a sub-span of the current span.
 
@@ -193,16 +220,19 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
         stage_content = self.content.copy()
         if content is not None:
             stage_content.update(content)
-        return DurationSpan(self.emitter, self.name + "#" + stage, stage_content)
+        return DurationSpan(
+            self.emitter, self.name + "#" + stage, stage_content
+        )
 
     def extra_args(self, **kwargs):
         """
-        Add extra args to the current event content, the args is given as kwargs.
+        Add extra args to the current event content, the args is
+        given as kwargs.
 
         The args will be add into next begin() or end() event content.
 
-        You should make sure the value is json serializable, or the event will not
-        be exported.
+        You should make sure the value is json serializable, or the
+        event will not be exported.
 
         example:
 
@@ -221,7 +251,8 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
 
     def extra_dict(self, content: dict):
         """
-        Add extra dict to the current event content, the dict is given as content.
+        Add extra dict to the current event content, the dict is given
+        as content.
 
         The dict will be add into next begin() or end() event content.
 
@@ -245,11 +276,11 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
 
     def success(self, **kwargs):
         """
-        Mark the duration span as success, this will automatically call when use
-        context manager.
+        Mark the duration span as success, this will automatically call
+        when use context manager.
 
-        end(), success() and fail() can only be called once, only the first call
-        will take effect.
+        end(), success() and fail() can only be called once, only the
+        first call will take effect.
 
         Returns
         -------
@@ -262,11 +293,11 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
 
     def fail(self, error: str, **kwargs):
         """
-        Mark the duration span as fail, this will automatically call when use context
-        manager.
+        Mark the duration span as fail, this will automatically call when
+        use context manager.
 
-        end(), success() and fail() can only be called once, only the first call will
-        take effect.
+        end(), success() and fail() can only be called once, only the first
+        call will take effect.
 
         Parameters
         ----------
@@ -303,12 +334,15 @@ class Process(SafeAttribute, metaclass=SaveCallMeta):
     Process also support safe call, which guarantees the exception happens in
     this sdk will not affect the user's program.
 
-    User shouldn't use this class directly, instead, use the predefined classes.
+    User shouldn't use this class directly, instead, use the predefined
+    classes.
     The inherited predefined classes can only use instant, duration and
     custom_duration methods.
     """
 
-    def __init__(self, target: str, exporter: Optional[EventExporter] = None) -> None:
+    def __init__(
+        self, target: str, exporter: Optional[EventExporter] = None
+    ) -> None:
         if exporter is None:
             exporter = get_default_exporter()
         self._emitter = EventEmitter(target, exporter)
@@ -326,9 +360,12 @@ class Process(SafeAttribute, metaclass=SaveCallMeta):
         """
         self._emitter.instant(name, content)
 
-    def duration(self, name: str, content: Optional[dict] = None) -> DurationSpan:
+    def duration(
+        self, name: str, content: Optional[dict] = None
+    ) -> DurationSpan:
         """
-        Emit a DurationSpan, which can be used to emit a duration begin and end event.
+        Emit a DurationSpan, which can be used to emit a duration begin
+        and end event.
 
         Parameters
         ----------
@@ -339,9 +376,15 @@ class Process(SafeAttribute, metaclass=SaveCallMeta):
         """
         return DurationSpan(self._emitter, name, content)
 
-    def custom_duration(self, clzz: Type[DurationSpan], name: str, content: Optional[dict] = None):
+    def custom_duration(
+        self,
+        clzz: Type[DurationSpan],
+        name: str,
+        content: Optional[dict] = None,
+    ):
         """
-        Emit a custom duration span, which can be used to define custom sub-spans.
+        Emit a custom duration span, which can be used to define
+        custom sub-spans.
 
         Parameters
         ----------
@@ -359,6 +402,3 @@ class Process(SafeAttribute, metaclass=SaveCallMeta):
 
     def info(self, msg: str):
         _LOGGER.info(msg)
-
-    def warning(self, msg: str):
-        _LOGGER.warning(msg)

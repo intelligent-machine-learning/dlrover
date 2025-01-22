@@ -1,12 +1,24 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import logging
 import os
-from functools import lru_cache
 import sys
 import threading
-from typing import Optional
 from dataclasses import dataclass
-
+from functools import lru_cache
+from typing import Optional
 
 ENV_PREFIX = "DLROVER_EVENT"
 DEFAULT_EVENT_EXPORTER = "TEXT_FILE"
@@ -20,7 +32,15 @@ def parse_bool(val) -> Optional[bool]:
     elif isinstance(val, str):
         if val.lower() in ["true", "1", "yes", "y", "on", "enable", "enabled"]:
             return True
-        elif val.lower() in ["false", "0", "no", "n", "off", "disable", "disabled"]:
+        elif val.lower() in [
+            "false",
+            "0",
+            "no",
+            "n",
+            "off",
+            "disable",
+            "disabled",
+        ]:
             return False
         else:
             return None
@@ -107,13 +127,42 @@ class Config:
             pass
 
     def _init_from_env(self):
-        self._set_if_valid(os.environ, "event_exporter", key_converter=get_env_key, parser=parse_str)
-        self._set_if_valid(os.environ, "async_exporter", key_converter=get_env_key, parser=parse_bool)
-        self._set_if_valid(os.environ, "queue_size", key_converter=get_env_key, parser=parse_int)
-        self._set_if_valid(os.environ, "file_dir", key_converter=get_env_key, parser=parse_str)
-        self._set_if_valid(os.environ, "text_formatter", key_converter=get_env_key, parser=parse_str)
-        self._set_if_valid(os.environ, "enable", key_converter=get_env_key, parser=parse_bool)
-        self._set_if_valid(os.environ, "debug_mode", key_converter=get_env_key, parser=parse_bool)
+        self._set_if_valid(
+            os.environ,
+            "event_exporter",
+            key_converter=get_env_key,
+            parser=parse_str,
+        )
+        self._set_if_valid(
+            os.environ,
+            "async_exporter",
+            key_converter=get_env_key,
+            parser=parse_bool,
+        )
+        self._set_if_valid(
+            os.environ,
+            "queue_size",
+            key_converter=get_env_key,
+            parser=parse_int,
+        )
+        self._set_if_valid(
+            os.environ, "file_dir", key_converter=get_env_key, parser=parse_str
+        )
+        self._set_if_valid(
+            os.environ,
+            "text_formatter",
+            key_converter=get_env_key,
+            parser=parse_str,
+        )
+        self._set_if_valid(
+            os.environ, "enable", key_converter=get_env_key, parser=parse_bool
+        )
+        self._set_if_valid(
+            os.environ,
+            "debug_mode",
+            key_converter=get_env_key,
+            parser=parse_bool,
+        )
 
     def _set_if_valid(self, dict_val, key, key_converter=None, parser=None):
 
@@ -143,14 +192,20 @@ class Config:
         if self.event_exporter == "TEXT_FILE":
             if not os.path.exists(self.file_dir):
                 os.makedirs(self.file_dir, exist_ok=True)
-            handler = logging.FileHandler(os.path.join(self.file_dir, f"events_sys_{self.rank}_{self.pid}.log"))
+            handler = logging.FileHandler(
+                os.path.join(
+                    self.file_dir, f"events_sys_{self.rank}_{self.pid}.log"
+                )
+            )
         elif self.event_exporter == "CONSOLE":
             handler = logging.StreamHandler(sys.stdout)
         else:
             raise ValueError(f"Invalid event exporter: {self.event_exporter}")
 
         handler.setLevel(level)
-        formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
+        formatter = logging.Formatter(
+            "[%(asctime)s] [%(levelname)s] %(message)s"
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.propagate = False

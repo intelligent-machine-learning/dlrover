@@ -1,3 +1,16 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from enum import Enum
 from typing import Optional
 
@@ -28,7 +41,8 @@ class TrainerEventName(Enum):
 
 class TrainInitSpan(DurationSpan):
     """
-    The span of the training initialization process, it has two predefined sub-spans:
+    The span of the training initialization process, it has two predefined
+    sub-spans:
     - load_ckpt: load the checkpoint.
     - load_dataset: load the dataset.
 
@@ -37,13 +51,15 @@ class TrainInitSpan(DurationSpan):
 
     def load_ckpt(self) -> DurationSpan:
         """
-        load_ckpt event stands for the training process is loading the checkpoint.
+        load_ckpt event stands for the training process is loading the
+        checkpoint.
         """
         return self.stage(TrainerEventName.TRAIN_LOAD_CKPT.value)
 
     def load_dataset(self) -> DurationSpan:
         """
-        load_dataset event stands for the training process is loading the dataset.
+        load_dataset event stands for the training process is loading
+        the dataset.
         """
         return self.stage(TrainerEventName.TRAIN_LOAD_DATASET.value)
 
@@ -68,25 +84,45 @@ class TrainerProcess(CommonPredefined):
         return self.duration(TrainerEventName.EPOCH.value, kwargs)
 
     def step(self, global_step: int, **kwargs) -> DurationSpan:
-        return self.duration(TrainerEventName.TRAIN_STEP.value, {"global_step": global_step, **kwargs})
+        return self.duration(
+            TrainerEventName.TRAIN_STEP.value,
+            {"global_step": global_step, **kwargs},
+        )
 
     def substep(self, global_step: int, **kwargs):
-        self.instant(TrainerEventName.TRAIN_SUBSTEP.value, {"global_step": global_step, **kwargs})
+        self.instant(
+            TrainerEventName.TRAIN_SUBSTEP.value,
+            {"global_step": global_step, **kwargs},
+        )
 
     def evaluate(self, global_step: int, **kwargs) -> DurationSpan:
-        return self.duration(TrainerEventName.EVALUATE.value, {"global_step": global_step, **kwargs})
+        return self.duration(
+            TrainerEventName.EVALUATE.value,
+            {"global_step": global_step, **kwargs},
+        )
 
     def predict(self, global_step: int, **kwargs) -> DurationSpan:
-        return self.duration(TrainerEventName.PREDICT.value, {"global_step": global_step, **kwargs})
+        return self.duration(
+            TrainerEventName.PREDICT.value,
+            {"global_step": global_step, **kwargs},
+        )
 
     def predict_step(self, global_step: int, **kwargs):
-        self.instant(TrainerEventName.PREDICT_STEP.value, {"global_step": global_step, **kwargs})
+        self.instant(
+            TrainerEventName.PREDICT_STEP.value,
+            {"global_step": global_step, **kwargs},
+        )
 
     def save(self, global_step: int, **kwargs) -> DurationSpan:
-        return self.duration(TrainerEventName.SAVE.value, {"global_step": global_step, **kwargs})
+        return self.duration(
+            TrainerEventName.SAVE.value, {"global_step": global_step, **kwargs}
+        )
 
     def log(self, global_step: int, logs: dict, **kwargs):
-        self.instant(TrainerEventName.LOG.value, {"global_step": global_step, "logs": logs, **kwargs})
+        self.instant(
+            TrainerEventName.LOG.value,
+            {"global_step": global_step, "logs": logs, **kwargs},
+        )
 
     # event for training framework
 
@@ -101,7 +137,9 @@ class TrainerProcess(CommonPredefined):
         """
         if params is None:
             params = {}
-        self.instant(TrainerEventName.TRAIN_START.value, {"params": params, **kwargs})
+        self.instant(
+            TrainerEventName.TRAIN_START.value, {"params": params, **kwargs}
+        )
 
     def init(self, **kwargs) -> TrainInitSpan:
         """
@@ -116,12 +154,20 @@ class TrainerProcess(CommonPredefined):
         TrainInitSpan
             The span of the training initialization process.
         """
-        return self.custom_duration(TrainInitSpan, TrainerEventName.TRAIN_INIT.value, kwargs)
+        return self.custom_duration(
+            TrainInitSpan, TrainerEventName.TRAIN_INIT.value, kwargs
+        )
 
-    def persist_ckpt(self, global_step: int, path: str = "", size: Optional[int] = None, **kwargs):
+    def persist_ckpt(
+        self,
+        global_step: int,
+        path: str = "",
+        size: Optional[int] = None,
+        **kwargs
+    ):
         """
-        persist_ckpt event used in async checkpoint saving. stands for the training
-        process is persisting
+        persist_ckpt event used in async checkpoint saving. stands
+        for the training process is persisting
         the checkpoint in an async thread.
 
         Parameters

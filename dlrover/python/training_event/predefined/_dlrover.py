@@ -1,8 +1,22 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from enum import Enum
-from typing import Optional, List
+from typing import List, Optional
+
+from dlrover.python.common.singleton import Singleton
 
 from .common import CommonPredefined
-from dlrover.python.common.singleton import Singleton
 
 
 class DLRoverCommonEventName(Enum):
@@ -37,7 +51,10 @@ class DLRoverCommon(CommonPredefined):
         """Event  at DLRover process start"""
         if params is None:
             params = {}
-        self.instant(DLRoverCommonEventName.DLROVER_START.value, {"params": params, **kwargs})
+        self.instant(
+            DLRoverCommonEventName.DLROVER_START.value,
+            {"params": params, **kwargs},
+        )
 
     def rendezvous(
         self,
@@ -101,7 +118,9 @@ class DLRoverCommon(CommonPredefined):
             {"round_num": round_num, **kwargs},
         )
 
-    def node_join(self, pod_name: str, node_rank: int, node_name: str, **kwargs):
+    def node_join(
+        self, pod_name: str, node_rank: int, node_name: str, **kwargs
+    ):
         """Node join event, including node join and node state change."""
         return self.instant(
             DLRoverCommonEventName.DLROVER_NODE_JOIN.value,
@@ -113,7 +132,14 @@ class DLRoverCommon(CommonPredefined):
             },
         )
 
-    def process_restart(self, pod_name: str, node_name: str, restart_round: int, errmsg: dict, **kwargs):
+    def process_restart(
+        self,
+        pod_name: str,
+        node_name: str,
+        restart_round: int,
+        errmsg: dict,
+        **kwargs,
+    ):
         """Process restart event"""
         return self.instant(
             DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
@@ -160,7 +186,9 @@ class DLRoverMaster(DLRoverCommon, Singleton):
             },
         )
 
-    def pod_relaunch(self, pod_name: str, node_name: str, relaunch_pod_name: str, **kwargs):
+    def pod_relaunch(
+        self, pod_name: str, node_name: str, relaunch_pod_name: str, **kwargs
+    ):
         """Pod relaunch event"""
         return self.instant(
             DLRoverMasterEventName.DLROVER_POD_RELAUNCH.value,
