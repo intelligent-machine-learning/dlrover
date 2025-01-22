@@ -55,7 +55,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_context import get_job_context, JobContext
+from dlrover.python.master.node.job_context import JobContext, get_job_context
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     ALLOWED_TRANSITIONS,
