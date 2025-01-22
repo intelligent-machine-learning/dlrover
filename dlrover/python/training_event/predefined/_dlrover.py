@@ -77,7 +77,8 @@ class DLRoverCommon(CommonPredefined):
         2. Rendezvous end: all nodes join
 
         Parameters:
-        - rendezvous_type: Rendezvous type, such as network-check, elastic-train, etc.
+        - rendezvous_type: Rendezvous type, such as network-check,
+           elastic-train, etc.
         - round_num: Rendezvous round number
         - timeout_sec: Rendezvous timeout in seconds
         - max_nodes: Maximum number of nodes in Rendezvous

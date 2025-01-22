@@ -12,8 +12,8 @@
 # limitations under the License.
 
 from .exporter import init_default_exporter
-from .predefined.common import WarningType
 from .predefined._dlrover import DLRoverAgent, DLRoverMaster
+from .predefined.common import WarningType
 from .predefined.trainer import TrainerProcess
 
 # init the event exporter when importing the package
