@@ -34,6 +34,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from master.diagnosis.precheck_operator import NoPreCheckOperator
 
 
 class DiagnosisManager:
@@ -47,15 +48,50 @@ class DiagnosisManager:
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
 
+    @classmethod
+    def get_pre_check_operators(cls):
+        return [NoPreCheckOperator()]
+
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
     def pre_check(self):
-        logger.info("Start Diagnosis Manager to pre-check training...")
-        pass
+        start = time.time()
+        pre_check_ops = self.get_pre_check_operators()
+        logger.info("Start to training pre-check"
+                    f"with operators: {pre_check_ops}.")
+
+        for pre_check_op in pre_check_ops:
+            current_start = time.time()
+            current_op_result = None
+            try:
+                for i in range(pre_check_op.get_retry_limit_times()):
+                    check_start = time.time()
+                    current_op_result = pre_check_op.check()
+                    logger.info(f"{pre_check_op.__class__.__name__} "
+                                f"check({i}) "
+                                f"cost: {time.time()-check_start}, "
+                                f"result: {current_op_result}")
+
+                    if current_op_result.should_abort:
+                        # TODO: request stop
+                        pass
+
+                    if not current_op_result.result != 0:
+                        pre_check_op.recover()
+                        time.sleep(pre_check_op.get_retry_interval_secs())
+            except Exception as e:
+                logger.error(f"Pre-check operator got unexpected error: {e}")
+                continue
+            logger.info(f"{pre_check_op.__class__.__name__} finish "
+                        f"with result: {current_op_result}, "
+                        f"cost:{time.time()-current_start}ms.")
+
+        logger.info("Training pre-check complete, "
+                    f"cost:{time.time()-start}ms.")
 
     def start_observing(self):
-        logger.info("Start Diagnosis Manager to observing training...")
+        logger.info("Start to observing training...")
         self._is_observing_started = True
 
         self._diagnostician.register_training_problems(
