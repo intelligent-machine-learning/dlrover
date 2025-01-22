@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from functools import lru_cache
+import sys
 import threading
 from typing import Optional
 from dataclasses import dataclass
@@ -144,7 +145,7 @@ class Config:
                 os.makedirs(self.file_dir, exist_ok=True)
             handler = logging.FileHandler(os.path.join(self.file_dir, f"events_sys_{self.rank}_{self.pid}.log"))
         elif self.event_exporter == "CONSOLE":
-            handler = logging.StreamHandler()
+            handler = logging.StreamHandler(sys.stdout)
         else:
             raise ValueError(f"Invalid event exporter: {self.event_exporter}")
 
