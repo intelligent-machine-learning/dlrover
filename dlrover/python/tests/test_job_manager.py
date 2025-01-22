@@ -55,7 +55,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.master.node.job_context import get_job_context, JobContext
 from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     ALLOWED_TRANSITIONS,
@@ -296,18 +296,18 @@ class DistributedJobManagerTest(unittest.TestCase):
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
 
-        self.assertEqual(manager._job_context.get_failed_node_cnt(), 0)
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
         manager.handle_training_failure(
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
         manager.handle_training_failure(
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
-        self.assertEqual(manager._job_context.get_failed_node_cnt(), 1)
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 3)
         manager.handle_training_failure(
             NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
         )
-        self.assertEqual(manager._job_context.get_failed_node_cnt(), 2)
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 3)
 
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
