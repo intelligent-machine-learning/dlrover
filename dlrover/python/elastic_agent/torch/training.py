@@ -135,11 +135,21 @@ def _set_paral_config():
 def _get_local_ip():
     local_ip = os.getenv("POD_IP", "")
     if not local_ip:
-        local_ip = socket.gethostbyname(_get_fq_hostname())
+        try:
+            local_ip = socket.gethostbyname(_get_fq_hostname())
+        except socket.gaierror:
+            logger.warning(
+                "Can not resolve host IP. " "Use default '127.0.0.1' instead."
+            )
+            local_ip = "127.0.0.1"
     return local_ip
 
 
 class RendezvousOutSyncError(Exception):
+    pass
+
+
+class NodeCheckFailedError(RuntimeError):
     pass
 
 
@@ -1273,6 +1283,7 @@ def launch_agent(
     )
 
     shutdown_rdzv = True
+    is_node_check_failed = False
     result = None
     try:
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
@@ -1302,17 +1313,23 @@ def launch_agent(
         shutdown_rdzv = False
         events.record(agent.get_event_failed())
         raise
+    except NodeCheckFailedError:
+        is_node_check_failed = True
+        raise
     except Exception:
         events.record(agent.get_event_failed())
         raise
     finally:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         client = MasterClient.singleton_instance()
-        if (exc_type is not None) or (
-            result is not None and result.is_failed()
-        ):
+        if (
+            (exc_type is not None)
+            or (result is not None and result.is_failed())
+        ) and not is_node_check_failed:
             client.report_failed_exited()
             logger.info("Failed and exit.")
+        elif is_node_check_failed:
+            logger.info("Node check failed and exit.")
 
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
@@ -1458,7 +1475,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                         "No need for another round of network "
                         "check because the nodes is less than 3."
                     )
-                    raise RuntimeError("This node is down.")
+                    raise NodeCheckFailedError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
@@ -1471,14 +1488,13 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 NodeErrorMessage.NETWORKER_ERROR,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise RuntimeError("This node is down.")
+            raise NodeCheckFailedError("This node is down.")
         elif self._node_rank in stragglers:
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
-                raise RuntimeError("The node is a straggler and exits.")
-
-
-
+                raise NodeCheckFailedError(
+                    "The node is a straggler and exits."
+                )
         return success
 
     def _run_node_check(self, monitor_interval=3, timeout=300):
