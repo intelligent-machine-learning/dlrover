@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, List
 
 from .common import CommonPredefined
+from dlrover.python.common.singleton import Singleton
 
 
 class DLRoverCommonEventName(Enum):
@@ -133,7 +134,7 @@ class DLRoverCommon(CommonPredefined):
         )
 
 
-class DLRoverMaster(DLRoverCommon):
+class DLRoverMaster(DLRoverCommon, Singleton):
     """DLRover Master events"""
 
     def __init__(self) -> None:
@@ -193,7 +194,7 @@ class DLRoverMaster(DLRoverCommon):
         )
 
 
-class DLRoverAgent(DLRoverCommon):
+class DLRoverAgent(DLRoverCommon, Singleton):
     """DLRover Agent events"""
 
     def __init__(self) -> None:

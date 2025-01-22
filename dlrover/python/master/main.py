@@ -23,6 +23,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.scheduler.factory import new_job_args
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.training_event import DLRoverMaster
 
 _dlrover_context = Context.singleton_instance()
 
@@ -62,6 +63,11 @@ def run(args):
 
 def main():
     args = parse_master_args()
+
+    # export event for dlrover master
+    master = DLRoverMaster()
+    master.start(pid=vars(args))
+
     exit_code = run(args)
     return exit_code
 
