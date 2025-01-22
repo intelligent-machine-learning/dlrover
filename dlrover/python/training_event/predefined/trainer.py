@@ -23,6 +23,7 @@ class TrainerEventName(Enum):
     PREDICT = "#predict"
     PREDICT_STEP = "#predict_step"
     SAVE = "#save"
+    LOG = "#log"
 
 
 class TrainInitSpan(DurationSpan):
@@ -83,6 +84,9 @@ class TrainerProcess(CommonPredefined):
 
     def save(self, global_step: int, **kwargs) -> DurationSpan:
         return self.duration(TrainerEventName.SAVE.value, {"global_step": global_step, **kwargs})
+
+    def log(self, global_step: int, logs: dict, **kwargs):
+        self.instant(TrainerEventName.LOG.value, {"global_step": global_step, "logs": logs, **kwargs})
 
     # event for training framework
 
