@@ -65,9 +65,13 @@ class DiagnosisManager:
             current_start = time.time()
             current_op_result = None
             pre_check_op_name = pre_check_op.__class__.__name__
+
             try:
+                # retry loops for each operator
                 for i in range(pre_check_op.get_retry_limit_times()):
                     check_start = time.time()
+
+                    # do check
                     current_op_result = pre_check_op.check()
                     logger.info(f"{pre_check_op_name} "
                                 f"check({i}) "
@@ -75,8 +79,12 @@ class DiagnosisManager:
                                 f"result: {current_op_result}")
 
                     if not current_op_result.is_success():
+                        # try recover and wait
                         pre_check_op.recover()
                         time.sleep(pre_check_op.get_retry_interval_secs())
+
+                        # check again after recover
+                        current_op_result = pre_check_op.check()
                     else:
                         break
             except Exception as e:

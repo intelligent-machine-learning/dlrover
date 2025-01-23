@@ -46,8 +46,10 @@ class PreCheckOperator(ABC):
     @classmethod
     def get_retry_limit_times(cls) -> int:
         """
-        The retry limit times, can be overridden in subclasses.
-        The job starting procedure will be abort if result still not ok after
+        The retry limit times, can be overridden in subclasses. For most
+        pre-check, the retry value should > 1(at least once retry).
+
+        The failed action will be executed if result still not ok after
         several retry times.
         """
         return 3
