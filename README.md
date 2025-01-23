@@ -22,12 +22,20 @@ training jobs on K8s/Ray. Major features as
 - **Auto-Scaling**: The distributed training can scale up/down resources to improve the stability, throughput
 and resource utilization.
 
+Furthermore, DLRover offers extension libraries for PyTorch and TensorFlow to expedite training. These are also open-source projects available in our [GitHub repositories](https://github.com/intelligent-machine-learning).
+- [ATorch](https://github.com/intelligent-machine-learning/atorch): an extension library of PyTorch to Speed Up Training of Large LLM.
+- [TFPlus](https://github.com/intelligent-machine-learning/tfplus): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
+
 ## Latest News
 
+- [2025/01] [EDiT: A Local-SGD-Based Efficient Distributed Training Method for Large Language Models, ICLR'24.](https://arxiv.org/abs/2412.07210)
 - [2024/06] [DLRover-RM has been accepted by VLDB'24.](docs/blogs/dlrover_rm.md)
 - [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md#huggingface-transformerstrainer)
 - [2024/02] [Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds.](docs/blogs/megatron_flash_checkpoint.md)
 - [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)
+- [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](https://github.com/intelligent-machine-learning/atorch)
+- [2023/10] [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix, NeurIPS'24.](https://github.com/intelligent-machine-learning/atorch/blob/main/docs/README-AGD.md)
+- [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](https://github.com/intelligent-machine-learning/atorch/blob/main/docs/README-WSAM.md)
 - [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
