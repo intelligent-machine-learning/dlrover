@@ -13,7 +13,8 @@
 
 import copy
 import threading
-from typing import Dict, Optional
+import time
+from typing import Dict, Optional, Union
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
@@ -36,6 +37,7 @@ class JobContext(Singleton):
     def __init__(self):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._failed_nodes: Dict[int, int] = {}
         self._locker = threading.Lock()
 
     def enqueue_action(self, action):
@@ -178,6 +180,18 @@ class JobContext(Singleton):
     def clear_job_nodes(self):
         with self._locker:
             self._job_nodes = {}
+
+    def report_failed_node(self, node_id: Union[int, str] = None):
+        if node_id is None:
+            return
+
+        node_id = int(node_id)
+        with self._locker:
+            if node_id not in self._failed_nodes:
+                self._failed_nodes[node_id] = int(time.time())
+
+    def get_failed_node_cnt(self):
+        return len(self._failed_nodes)
 
 
 def get_job_context() -> JobContext:
