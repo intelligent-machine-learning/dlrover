@@ -71,7 +71,7 @@ class AsyncExporter(EventExporter):
         self._worker.start()
 
     def _run(self):
-        """事件处理循环"""
+        """training event export loop"""
         while self._running:
             try:
                 event = self._queue.get(timeout=1.0)
@@ -84,18 +84,18 @@ class AsyncExporter(EventExporter):
                 continue
 
     def export(self, event: Event):
-        """添加事件,失败时直接丢弃"""
+        """add event, drop when failed"""
         if not self._running:
             return
 
         try:
             self._queue.put_nowait(event)
         except Full:
-            # 记录丢弃事件
+            # record dropped event
             self._dropped_events += 1
             current_time = time.time()
 
-            # 每60秒最多打印一次丢弃事件的日志
+            # print drop event log every 60 seconds
             if current_time - self._last_drop_log_time > 60:
                 _LOGGER.error(
                     f"Event queue is full. Dropping event: {event}. "
@@ -104,7 +104,7 @@ class AsyncExporter(EventExporter):
                 self._last_drop_log_time = current_time
 
     def get_metrics(self):
-        """获取控制器的指标"""
+        """get controller metrics"""
         return {
             "queue_size": self._queue.qsize(),
             "queue_maxsize": self._queue.maxsize,
@@ -113,8 +113,9 @@ class AsyncExporter(EventExporter):
         }
 
     def _wait_for_export(self, timeout: float = 10.0):
-        """等待剩余事件被导出, 必须在 running 为 False 时调用"""
-        # 处理剩余事件
+        """wait for remaining events to be exported, must be called when
+        running is False"""
+        # process remaining events
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
@@ -128,7 +129,7 @@ class AsyncExporter(EventExporter):
                 continue
 
     def close(self, timeout: float = 10.0):
-        """优雅关闭"""
+        """graceful close"""
         # stop running thread
         start_time = time.time()
         if self._running:
@@ -148,7 +149,7 @@ class AsyncExporter(EventExporter):
 
         self._exporter.close()
 
-        # 输出最终的指标
+        # print final metrics
         metrics = self.get_metrics()
         if metrics["dropped_events"] > 0 or metrics["error_events"] > 0:
             _LOGGER.error(f"Final event controller metrics: {metrics}")
