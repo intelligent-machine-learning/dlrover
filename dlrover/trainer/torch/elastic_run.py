@@ -106,7 +106,7 @@ from torch.distributed.run import (
 )
 
 import dlrover.python.util.common_util as cu
-from dlrover.python.common import env_utils, grpc
+from dlrover.python.common import comm, env_utils
 from dlrover.python.common.constants import (
     Accelerators,
     NodeEnv,
@@ -267,7 +267,7 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
-        port = grpc.find_free_port()
+        port = cu.find_free_port()
     else:
         host = master_addr.split(":")[0]
         port = int(master_addr.split(":")[1])
@@ -453,7 +453,7 @@ def run(args):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
-    dlrover_master_ready = grpc.addr_connected(master_addr)
+    dlrover_master_ready = comm.addr_connected(master_addr)
     _, max_nodes = parse_min_max_nnodes(args.nnodes)
     if not dlrover_master_ready and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.

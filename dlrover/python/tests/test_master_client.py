@@ -12,18 +12,23 @@
 # limitations under the License.
 
 import json
+import os
 import time
 import unittest
+from typing import List
 from unittest import mock
 
-from dlrover.python.common import grpc
+from dlrover.python.common import comm
+from dlrover.python.common.comm import DiagnosisAction, HeartbeatResponse
 from dlrover.python.common.constants import (
+    CommunicationType,
+    NodeEnv,
     NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.grpc import DiagnosisAction, HeartbeatResponse
+from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -43,12 +48,12 @@ class MasterClientTest(unittest.TestCase):
     def test_open_channel(self):
         self.assertEqual(self._master_client._timeout, 1)
         self.assertEqual(self._master_client._timeout, 1)
-        self._master_client.close_channel()
-        self._master_client.open_channel()
+        self._master_client._close_grpc_channel()
+        self._master_client._open_grpc_channel()
 
     def test_report_used_resource(self):
-        gpu_stats: list[grpc.GPUStats] = [
-            grpc.GPUStats(
+        gpu_stats: List[comm.GPUStats] = [
+            comm.GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,
@@ -121,7 +126,7 @@ class MasterClientTest(unittest.TestCase):
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
 
-        model_info = grpc.ModelInfo()
+        model_info = comm.ModelInfo()
         self._master_client.report_model_info(model_info)
 
         success = self._master_client.join_sync("test-sync")
@@ -160,7 +165,7 @@ class MasterClientTest(unittest.TestCase):
 
         config = self._master_client.get_paral_config()
         if config:
-            self.assertIsInstance(config, grpc.ParallelConfig)
+            self.assertIsInstance(config, comm.ParallelConfig)
 
     def test_num_nodes_waiting(self):
         rdzv_name = RendezvousName.ELASTIC_TRAINING
@@ -184,3 +189,30 @@ class MasterClientTest(unittest.TestCase):
         self._master_client._get = mock.MagicMock(return_value=response_dto)
         action = self._master_client.report_heart_beat(now)
         self.assertTrue(isinstance(action, EventAction))
+
+
+class MasterHttpClientTest(unittest.TestCase):
+    def setUp(self) -> None:
+        os.environ[
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
+        ] = CommunicationType.COMM_SERVICE_HTTP
+        context = Context.singleton_instance()
+        context.master_service_type = "http"
+        self._master, addr = start_local_master()
+        self._master_client = build_master_client(addr, 3)
+
+    def tearDown(self):
+        self._master.stop()
+        context = Context.singleton_instance()
+        context.master_service_type = "grpc"
+        os.environ.clear()
+
+    def test_http_client(self):
+        # get request
+        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        num = self._master_client.num_nodes_waiting(rdzv_name)
+        self.assertEqual(num, 0)
+
+        # report request
+        res = self._master_client.ready_for_ps_relaunch()
+        self.assertTrue(res.success)

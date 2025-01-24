@@ -14,12 +14,12 @@
 import math
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import (
+from dlrover.python.common.comm import (
     DataLoaderConfig,
     OptimizerConfig,
     ParallelConfig,
 )
+from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.strategy_generator import (

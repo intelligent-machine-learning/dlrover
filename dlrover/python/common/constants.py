@@ -28,6 +28,11 @@ class PlatformType(object):
     LOCAL = "local"
 
 
+class CommunicationType(object):
+    COMM_SERVICE_GRPC = "grpc"
+    COMM_SERVICE_HTTP = "http"
+
+
 class ElasticJobApi(object):
     GROUP = "elastic.iml.github.io"
     VERION = "v1alpha1"
@@ -248,6 +253,7 @@ class TrainingLoopStatus(object):
 class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
+    DLROVER_MASTER_SERVICE_TYPE = "DLROVER_MASTER_SERVICE_TYPE"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     GRPC_POLL_STRATEGY = "GRPC_POLL_STRATEGY"
     POD_NAME = "POD_NAME"
@@ -359,6 +365,9 @@ class JobConstant(object):
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 3600
     PENDING_NODE_TIMEOUT_DEFAULT_MIN = 600
     NODE_CHECK_TIMEOUT = 300
+
+    # timeout 60s
+    MASTER_CLIENT_DEFAULT_TIMEOUT = 60
 
     # grpc timeout 60s
     MASTER_CLIENT_GRPC_DEFAULT_TIMEOUT = 60
