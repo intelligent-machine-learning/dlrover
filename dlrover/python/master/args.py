@@ -59,6 +59,13 @@ def add_params(parser):
         "Options: -1: disabled; 0: skip; 1: necessary part; 2: all",
     )
     parser.add_argument(
+        "--service_type",
+        "--service-type",
+        default="grpc",
+        type=str,
+        help="The service type of master: grpc/http.",
+    )
+    parser.add_argument(
         "--pre_check",
         "--pre_check",
         default=DefaultValues.PRE_CHECK_ENABLE,

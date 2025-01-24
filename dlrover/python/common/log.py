@@ -45,6 +45,8 @@ def get_log_level():
 
 
 def get_logger(name, handlers=None, update=False):
+    __setup_extra_logger()
+
     if name in _LOGGER_CACHE and not update:
         return _LOGGER_CACHE[name]
     logger = logging.getLogger(name)
@@ -52,6 +54,11 @@ def get_logger(name, handlers=None, update=False):
     logger.handlers = handlers or _DEFAULT_HANDLERS
     logger.propagate = False
     return logger
+
+
+def __setup_extra_logger():
+    # tornado logger
+    logging.getLogger("tornado.access").setLevel(logging.WARNING)
 
 
 default_logger = get_logger(_DEFAULT_LOGGER)

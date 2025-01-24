@@ -46,7 +46,6 @@ from torch.distributed.checkpoint.planner import (
     WriteItemType,
 )
 
-from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.multi_process import SharedMemory, clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
@@ -59,6 +58,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SharedMemoryHandler,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.util.common_util import find_free_port
 from dlrover.trainer.torch.flash_checkpoint.fsdp import FsdpShardCheckpointer
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
     FileReader,
@@ -170,7 +170,7 @@ class FsdpCheckpointTest(unittest.TestCase):
         AsyncCheckpointSaver.start_async_saving_ckpt()
         os.environ["LOCAL_RANK"] = "0"
         os.environ["LOCAL_WORLD_SIZE"] = "1"
-        port = grpc.find_free_port()
+        port = find_free_port()
         set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
 

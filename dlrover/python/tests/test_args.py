@@ -29,6 +29,7 @@ class ArgsTest(unittest.TestCase):
         self.assertTrue(parsed_args.namespace, "default")
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
+        self.assertTrue(parsed_args.service_type, "grpc")
         self.assertTrue(parsed_args.pre_check)
 
         original_args = [
@@ -40,10 +41,13 @@ class ArgsTest(unittest.TestCase):
             "600",
             "--pending_fail_strategy",
             "2",
+            "--service_type",
+            "http",
             "--pre_check",
             "false",
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
+        self.assertTrue(parsed_args.service_type, "http")
         self.assertFalse(parsed_args.pre_check)
