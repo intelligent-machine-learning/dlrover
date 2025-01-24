@@ -15,8 +15,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List
 
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction, \
-    NoAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 
 
 @dataclass
@@ -37,7 +39,6 @@ class PreCheckResult(object):
 
 
 class PreCheckOperator(ABC):
-
     @classmethod
     def get_retry_interval_secs(cls) -> int:
         """The retry interval seconds, can be overridden in subclasses."""
@@ -71,7 +72,6 @@ class PreCheckOperator(ABC):
 
 
 class NoPreCheckOperator(PreCheckOperator):
-
     def check(self):
         return PreCheckResult()
 

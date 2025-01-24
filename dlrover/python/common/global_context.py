@@ -57,6 +57,7 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
+    PRE_CHECK_ENABLE = True
 
 
 class Context(Singleton):
@@ -102,6 +103,7 @@ class Context(Singleton):
         # The strategy of 'hang detection':
         # 0: log only; 1: notify; 2: with fault tolerance
         self.hang_detection = DefaultValues.HANG_DETECTION
+        self.pre_check_enable = DefaultValues.PRE_CHECK_ENABLE
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         self.max_metric_records = DefaultValues.MAX_METRIC_REC

@@ -16,6 +16,8 @@ import threading
 import time
 from typing import Dict, Optional, Union
 
+from common.global_context import Context
+
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
@@ -26,6 +28,8 @@ from dlrover.python.diagnosis.common.constants import (
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
+
+_dlrover_context = Context.singleton_instance()
 
 
 class JobContext(Singleton):
@@ -38,6 +42,7 @@ class JobContext(Singleton):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._failed_nodes: Dict[int, int] = {}
+        self._pre_check_pass = False
         self._locker = threading.Lock()
 
     def enqueue_action(self, action):
@@ -192,6 +197,14 @@ class JobContext(Singleton):
 
     def get_failed_node_cnt(self):
         return len(self._failed_nodes)
+
+    def set_pre_check_pass(self):
+        self._pre_check_pass = True
+
+    def is_pre_check_pass(self):
+        if _dlrover_context.pre_check_enable:
+            return self._pre_check_pass
+        return True
 
 
 def get_job_context() -> JobContext:

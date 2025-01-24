@@ -6,13 +6,14 @@ when training with DLRover.
 ## 1. DLRover Master Arguments
 * For master(dlrover.python.master.main) initiation. User can use annotations(except: job_name, namespace) to express the following arguments.
 
-| name      | description                                                     | mandatory | format               | default | options                                                                           |
-|-----------|-----------------------------------------------------------------|----|----------------------|-----|-----------------------------------------------------------------------------------|
-| job_name  | <div style="width: 200pt"> The name of the job defined by user. | Yes | string | n/a | <div style="width: 100pt"> n/a |
-| namespace | The name of the Kubernetes namespace where ElasticJob pods will be created. | No | string | default | n/a |
-| platform  | The name of platform. | No | string | pyk8s | pyk8s, k8s, ray or local |
-| pending_timeout | The timeout value of pending. | No | integer(unit: second) | 900 | \>=0 |
-| pending_fail_strategy | The fail strategy for pending case. | No | integer | 1 | -1: disabled <br/>0: skip <br/>1: verify necessary parts <br/>2: verify all parts |
+| name                  | description                                                                 | mandatory | format                | default | options                                                                           |
+|-----------------------|-----------------------------------------------------------------------------|----|-----------------------|---------|-----------------------------------------------------------------------------------|
+| job_name              | <div style="width: 200pt"> The name of the job defined by user.             | Yes | string                | n/a     | <div style="width: 100pt"> n/a                                                    |
+| namespace             | The name of the Kubernetes namespace where ElasticJob pods will be created. | No | string                | default | n/a                                                                               |
+| platform              | The name of platform.                                                       | No | string                | pyk8s   | pyk8s, k8s, ray or local                                                          |
+| pending_timeout       | The timeout value of pending.                                               | No | integer(unit: second) | 900     | \>=0                                                                              |
+| pending_fail_strategy | The fail strategy for pending case.                                         | No | integer               | 1       | -1: disabled <br/>0: skip <br/>1: verify necessary parts <br/>2: verify all parts |
+| pre_check             | Whether to enable pre-check before training.                                | No | bool                  | True    | True: enable pre-check False: disable pre-check                                   |
 
 
 ## 2. Training Arguments

@@ -206,7 +206,6 @@ class DistributedJobMaster(JobMaster):
     def pre_check(self):
         logger.info("Pre-check before running.")
         self.diagnosis_manager.pre_check()
-        # TODO
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""

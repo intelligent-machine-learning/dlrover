@@ -14,6 +14,7 @@
 import threading
 import time
 
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
@@ -33,8 +34,12 @@ from dlrover.python.master.diagnosis.diagnosis import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
+from dlrover.python.master.diagnosis.precheck_operator import (
+    NoPreCheckOperator,
+)
 from dlrover.python.master.node.job_context import get_job_context
-from master.diagnosis.precheck_operator import NoPreCheckOperator
+
+_dlrover_ctx = Context.singleton_instance()
 
 
 class DiagnosisManager:
@@ -56,10 +61,14 @@ class DiagnosisManager:
         self._data_manager.store_data(data)
 
     def pre_check(self):
+        if not _dlrover_ctx.pre_check_enable:
+            return
+
         start = time.time()
         pre_check_ops = self.get_pre_check_operators()
-        logger.info("Start to training pre-check"
-                    f"with operators: {pre_check_ops}.")
+        logger.info(
+            "Start to training pre-check" f"with operators: {pre_check_ops}."
+        )
 
         for pre_check_op in pre_check_ops:
             current_start = time.time()
@@ -73,10 +82,12 @@ class DiagnosisManager:
 
                     # do check
                     current_op_result = pre_check_op.check()
-                    logger.info(f"{pre_check_op_name} "
-                                f"check({i}) "
-                                f"cost: {time.time()-check_start:.2f}ms, "
-                                f"result: {current_op_result}")
+                    logger.info(
+                        f"{pre_check_op_name} "
+                        f"check({i}) "
+                        f"cost: {time.time()-check_start:.2f}ms, "
+                        f"result: {current_op_result}"
+                    )
 
                     if not current_op_result.is_success():
                         # try recover and wait
@@ -94,19 +105,24 @@ class DiagnosisManager:
             if not current_op_result.is_success():
                 action = pre_check_op.get_failed_action()
                 self._job_context.enqueue_action(action)
-                logger.warning("Training pre-check failed "
-                               f"by {pre_check_op_name} "
-                               f"with result: {current_op_result}, "
-                               f"cost:{time.time()-current_start:.2f}ms. "
-                               f"Invoke action: {action}.")
+                logger.warning(
+                    "Training pre-check failed "
+                    f"by {pre_check_op_name} "
+                    f"with result: {current_op_result}, "
+                    f"cost:{time.time()-current_start:.2f}ms. "
+                    f"Invoke action: {action}."
+                )
                 return
             else:
-                logger.info(f"{pre_check_op_name} finish "
-                            f"with result: {current_op_result}, "
-                            f"cost:{time.time()-current_start:.2f}ms.")
+                logger.info(
+                    f"{pre_check_op_name} finish "
+                    f"with result: {current_op_result}, "
+                    f"cost:{time.time()-current_start:.2f}ms."
+                )
 
-        logger.info("Training pre-check complete, "
-                    f"cost:{time.time()-start:.2f}ms.")
+        logger.info(
+            "Training pre-check complete, " f"cost:{time.time()-start:.2f}ms."
+        )
 
     def start_observing(self):
         logger.info("Start to observing training...")
