@@ -109,6 +109,12 @@ def _build_master_args_parser():
         help="The strategy of 'hang detection', "
         "0: log only; 1: notify; 2: with fault tolerance",
     )
+    parser.add_argument(
+        "--hang_downtime",
+        default=30,
+        type=pos_int,
+        help="metric downtime to detect hang",
+    )
     add_params(parser)
     return parser
 

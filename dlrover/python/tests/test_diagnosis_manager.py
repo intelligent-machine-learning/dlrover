@@ -14,14 +14,16 @@
 import copy
 import time
 import unittest
+from datetime import datetime
 from typing import List
 from unittest import mock
-from datetime import datetime
 
+from dlrover.python.common.constants import Accelerators, GpuMetricEnum
+from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisDataType,
-    DiagnosisConstant,
     DiagnosisResult,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import (
@@ -42,21 +44,6 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
-from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.common.metric.context import (
-    JobMetricContext,
-)
-from dlrover.python.common.metric.metric import (
-    GpuNodeMetric,
-    NpuNodeMetric,
-    GpuMetric,
-    NpuMetric,
-)
-from dlrover.python.common.constants import (
-    Accelerators,
-    GpuMetricEnum,
-    NpuMetricEnum,
-)
 
 _metric_context = JobMetricContext.singleton_instance()
 
@@ -133,8 +120,7 @@ class DiagnosisManagerTest(unittest.TestCase):
 
         mgr.set_xpu_info("unknown")
         self.assertEqual(
-            mgr.check_tensor_drop_zero(10)[0],
-            DiagnosisResult.DIAG_ERROR
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_ERROR
         )
 
         mgr.set_xpu_info(Accelerators.NVIDIA_GPU)
@@ -145,7 +131,9 @@ class DiagnosisManagerTest(unittest.TestCase):
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
-            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 0.307)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.307
+            )
         metric.update_avg_metrics()
         job_metrics["worker-1"] = copy.deepcopy(metric)
         job_metrics["worker-2"] = copy.deepcopy(metric)
@@ -155,16 +143,14 @@ class DiagnosisManagerTest(unittest.TestCase):
         ts = int(datetime.now().timestamp())
         _metric_context.add_node_metrics(ts, job_metrics)
         self.assertEqual(
-            mgr.check_tensor_drop_zero(10)[0],
-            DiagnosisResult.DIAG_WAITING
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_WAITING
         )
 
         for _ in range(10):
             ts = ts + 60
             _metric_context.add_node_metrics(ts, job_metrics)
         self.assertEqual(
-            mgr.check_tensor_drop_zero(10)[0],
-            DiagnosisResult.DIAG_HEALTHY
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HEALTHY
         )
 
         job_metrics = {}
@@ -174,7 +160,9 @@ class DiagnosisManagerTest(unittest.TestCase):
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
             metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
-            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
         metric.update_avg_metrics()
         job_metrics["worker-1"] = copy.deepcopy(metric)
         job_metrics["worker-2"] = copy.deepcopy(metric)
@@ -185,10 +173,8 @@ class DiagnosisManagerTest(unittest.TestCase):
             ts = ts + 60
             _metric_context.add_node_metrics(ts, job_metrics)
         self.assertEqual(
-            mgr.check_tensor_drop_zero(10)[0],
-            DiagnosisResult.DIAG_HANG
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
         )
         self.assertEqual(
-            mgr.check_tensor_drop_zero(30)[0],
-            DiagnosisResult.DIAG_HANG
+            mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
         )

@@ -21,26 +21,25 @@ from dlrover.python.common.constants import (
     GpuMetricEnum,
     NpuMetricEnum,
 )
+from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.monitor import (
     GpuMetricMonitor,
     NpuMetricMonitor,
 )
 from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
     DiagnosisConstant,
     DiagnosisResult,
     JobHangWatermark,
-    DiagnosisActionType,
 )
+from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
-)
-from dlrover.python.diagnosis.common.diagnosis_action import (
-    EventAction,
-    NodeAction,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import Inference
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
@@ -54,11 +53,9 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.common.metric.context import (
-    JobMetricContext,
-)
 
 _metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class DiagnosisManager:
@@ -206,13 +203,11 @@ class DiagnosisManager:
 
         if self._xpu_type is Accelerators.NVIDIA_GPU:
             metrics = _metric_context.backtrace_avg_metrics(
-                GpuMetricEnum.GPU_TENSOR_UTIL,
-                duration
+                GpuMetricEnum.GPU_TENSOR_UTIL, duration
             )
         elif self._xpu_type is Accelerators.ASCEND_NPU:
             metrics = _metric_context.backtrace_avg_metrics(
-                NpuMetricEnum.NPU_UTIL,
-                duration
+                NpuMetricEnum.NPU_UTIL, duration
             )
         else:
             logger.warning(f"invalid XPU: {self._xpu_type}")
@@ -223,7 +218,9 @@ class DiagnosisManager:
             return DiagnosisResult.DIAG_ERROR, 0, 0
 
         if len(metrics) < duration:
-            logger.warning(f"waiting for tensor metrics: {len(metrics)}/{duration}")
+            logger.warning(
+                f"waiting for tensor metrics: {len(metrics)}/{duration}"
+            )
             return DiagnosisResult.DIAG_WAITING, 0, 0
 
         key_list = list(metrics.keys())
@@ -246,26 +243,39 @@ class DiagnosisManager:
         logger.info("_diagnose_metrics thread is running...")
         while True:
             if not self._is_observing_started:
-                logger.info(f"stop _metric_diagnose thread due to {self._is_observing_started}")
+                logger.info(
+                    f"stop _metric_diagnose thread due to "
+                    f"{self._is_observing_started}"
+                )
                 break
 
-            result, start, end = self.check_tensor_drop_zero(
-                DiagnosisConstant.CHECK_TENSOR_DEFAULT_RECORDS
-            )
+            if (
+                _dlrover_context.hang_downtime
+                < DefaultValues.MIN_HANG_DOWNTIME
+            ):
+                hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
+            else:
+                hang_downtime = _metric_context.hang_downtime
+            result, start, end = self.check_tensor_drop_zero(hang_downtime)
             if result is DiagnosisResult.DIAG_HANG:
-                start_dt = datetime.fromtimestamp(start).strftime("%Y-%m-%d %H:%M:%S")
-                end_dt = datetime.fromtimestamp(end).strftime("%Y-%m-%d %H:%M:%S")
+                start_dt = datetime.fromtimestamp(start).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                end_dt = datetime.fromtimestamp(end).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 logger.warning(
                     f"detect job hang by tensor drop zero: "
                     f"{start_dt}-{end_dt}"
                 )
 
-                self._job_context.enqueue_action(
-                    NodeAction(
-                        action_type=DiagnosisActionType.RESTART_WORKER,
-                        instance=DiagnosisConstant.ANY_INSTANCE,
+                if _dlrover_context.hang_detection == 2:
+                    self._job_context.enqueue_action(
+                        NodeAction(
+                            action_type=DiagnosisActionType.RESTART_WORKER,
+                            instance=DiagnosisConstant.ANY_INSTANCE,
+                        )
                     )
-                )
 
             time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
 
@@ -273,7 +283,10 @@ class DiagnosisManager:
         logger.info("_diagnose thread is running...")
         while True:
             if not self._is_observing_started:
-                logger.info(f"stop _diagnose thread due to {self._is_observing_started}")
+                logger.info(
+                    f"stop _diagnose thread due to "
+                    f"{self._is_observing_started}"
+                )
                 break
 
             observed_problems = self._diagnostician.observe_training()

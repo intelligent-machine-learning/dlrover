@@ -45,6 +45,9 @@ def run(args):
     job_args.initilize()
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
+    _dlrover_context.hang_detection = args.hang_detection
+    _dlrover_context.hang_downtime = args.hang_downtime
+
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
 

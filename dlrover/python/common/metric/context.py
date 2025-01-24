@@ -15,7 +15,7 @@ from collections import OrderedDict
 from datetime import datetime
 from typing import Dict
 
-from dlrover.python.common.global_context import Context
+from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.metric import XpuNodeMetric
 from dlrover.python.common.singleton import Singleton
@@ -38,7 +38,7 @@ class JobMetricContext(Singleton):
         self._xpu_job_metrics: OrderedDict[
             int, Dict[str, XpuNodeMetric]
         ] = OrderedDict()
-        self.max_metric_records = _dlrover_context.max_metric_records
+        self.max_metric_records = DefaultValues.MAX_METRIC_REC
         self._lock = threading.Lock()
 
     def backtrace_avg_metrics(self, metric, depth):

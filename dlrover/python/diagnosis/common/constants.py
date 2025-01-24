@@ -108,4 +108,3 @@ class JobHangWatermark(object):
     # NPU_UTIL is [0, 100]
     NPU_UTIL_LOW_WM = 0.5
     NPU_UTIL_HIGH_WM = 98
-

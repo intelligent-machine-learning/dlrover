@@ -54,6 +54,8 @@ class DefaultValues(object):
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
     HANG_DETECTION = 1
+    HANG_DOWNTIME = 30
+    MIN_HANG_DOWNTIME = 3
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
@@ -102,9 +104,9 @@ class Context(Singleton):
         # The strategy of 'hang detection':
         # 0: log only; 1: notify; 2: with fault tolerance
         self.hang_detection = DefaultValues.HANG_DETECTION
+        self.hang_downtime = DefaultValues.HANG_DOWNTIME
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
-        self.max_metric_records = DefaultValues.MAX_METRIC_REC
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
