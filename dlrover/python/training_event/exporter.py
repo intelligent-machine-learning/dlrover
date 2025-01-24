@@ -295,7 +295,10 @@ def init_default_exporter():
             __default_exporter = exporter
 
         _LOGGER.info(
-            "Default EventExporter[%s][%s][%s] is initialized",
+            (
+                "Default EventExporter[formatter=%s][exporter=%s][async=%s]"
+                "is initialized"
+            ),
             _CONFIG.text_formatter,
             _CONFIG.event_exporter,
             _CONFIG.async_exporter,

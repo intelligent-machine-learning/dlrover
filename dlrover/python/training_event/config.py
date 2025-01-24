@@ -23,7 +23,7 @@ from typing import Optional
 ENV_PREFIX = "DLROVER_EVENT"
 DEFAULT_EVENT_EXPORTER = "TEXT_FILE"
 DEFAULT_FILE_DIR = "/tmp"
-DEFAULT_TEXT_FORMATTER = "JSON"
+DEFAULT_TEXT_FORMATTER = "LOG"
 
 
 def parse_bool(val) -> Optional[bool]:
@@ -93,6 +93,7 @@ class Config:
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
+    hook_error: bool = True
 
     rank: str = "empty"
     pid: str = "empty"
@@ -122,6 +123,7 @@ class Config:
             self._set_if_valid(config, "text_formatter", parser=parse_str)
             self._set_if_valid(config, "enable", parser=parse_bool)
             self._set_if_valid(config, "debug_mode", parser=parse_bool)
+            self._set_if_valid(config, "hook_error", parser=parse_bool)
 
         except Exception:
             pass
@@ -160,6 +162,12 @@ class Config:
         self._set_if_valid(
             os.environ,
             "debug_mode",
+            key_converter=get_env_key,
+            parser=parse_bool,
+        )
+        self._set_if_valid(
+            os.environ,
+            "hook_error",
             key_converter=get_env_key,
             parser=parse_bool,
         )

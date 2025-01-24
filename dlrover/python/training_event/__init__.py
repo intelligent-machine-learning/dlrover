@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .error_handler import init_error_handler
 from .exporter import init_default_exporter
 from .predefined._dlrover import DLRoverAgent, DLRoverMaster
 from .predefined.common import WarningType
@@ -18,6 +19,7 @@ from .predefined.trainer import TrainerProcess
 
 # init the event exporter when importing the package
 init_default_exporter()
+init_error_handler()
 
 __all__ = [
     "TrainerProcess",
