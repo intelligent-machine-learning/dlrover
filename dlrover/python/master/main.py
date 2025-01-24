@@ -65,7 +65,7 @@ def main():
     args = parse_master_args()
 
     # export event for dlrover master
-    master = DLRoverMaster()
+    master = DLRoverMaster.singleton_instance()
     master.start(pid=vars(args))
 
     exit_code = run(args)

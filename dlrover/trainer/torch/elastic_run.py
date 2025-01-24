@@ -448,7 +448,7 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 def run(args):
     # export event for dlrover agent
-    agent = DLRoverAgent()
+    agent = DLRoverAgent.singleton_instance()
     agent.start(pid=vars(args))
 
     logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
