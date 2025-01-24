@@ -33,6 +33,8 @@ class InferenceConfigKey(object):
 
 class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
+    METRIC_COLLECT_INTERVAL_SECS = 60
+    CHECK_TENSOR_DEFAULT_RECORDS = 30
     # the minimum diagnosis interval is 5 seconds
     AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 5
     AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 15
@@ -66,3 +68,44 @@ class DiagnosisActionType(object):
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+
+
+class DiagnosisResult(object):
+    # diag error
+    DIAG_ERROR = "error"
+    # waiting for more data to finish diag
+    DIAG_WAITING = "waiting"
+    # continue to next diagnosis phase
+    DIAG_CONTINUE = "continue"
+    # diag finished, job is healthy
+    DIAG_HEALTHY = "succeeded"
+    # diag finished, job is hang
+    DIAG_HANG = "hang"
+    # diag finished, job has straggler
+    DIAG_STRAGGLE = "straggle"
+    # diag finished, job has failure node
+    DIAG_FAILURE = "failure"
+
+
+class JobHangPolicy(object):
+    XPU_TIMER = "xpu_timer"
+    STEP_HANG = "step_hang"
+    CKPT_HANG = "ckpt_hang"
+    TENSOR_ZERO = "tensor_zero"
+    NPU_ZERO = "npu_zero"
+    NVLINK_DROP = "nvlink_drop"
+    RDMA_DROP = "rdma_drop"
+    PROCESS_HANG = "process_hang"
+
+
+class JobHangWatermark(object):
+    # TENSOR_UTIL is [0, 1]
+    TENSOR_UTIL_LOW_WM = 0.001
+    TENSOR_UTIL_HIGH_WM = 0.8
+    # GPU_UTIL is [0, 100]
+    GPU_UTIL_LOW_WM = 0.5
+    GPU_UTIL_HIGH_WM = 98
+    # NPU_UTIL is [0, 100]
+    NPU_UTIL_LOW_WM = 0.5
+    NPU_UTIL_HIGH_WM = 98
+

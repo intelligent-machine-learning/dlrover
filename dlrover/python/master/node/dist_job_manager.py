@@ -36,7 +36,9 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.diagnosis.common.constants import DiagnosisConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
@@ -1239,7 +1241,13 @@ class DistributedJobManager(JobManager):
                 logger.info(f"Start receiving heartbeat from node {node_id}")
             node.heartbeat_time = timestamp
             self._job_context.update_job_node(node)
-            return self._job_context.next_action(instance=node_id)
+            action = self._job_context.next_action(instance=node_id)
+            if not action or isinstance(action, NoAction):
+                return self._job_context.next_action(
+                    instance=DiagnosisConstant.ANY_INSTANCE
+                )
+            else:
+                return action
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)

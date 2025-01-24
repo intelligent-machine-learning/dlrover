@@ -300,7 +300,7 @@ def mock_gpu_metric_collect(*args, **kwargs):
     job_metrics["worker-3"] = copy.deepcopy(metric)
     job_metrics["worker-4"] = copy.deepcopy(metric)
     _metric_context.add_node_metrics(
-        round(datetime.now().timestamp(), 0), job_metrics
+        int(datetime.now().timestamp()), job_metrics
     )
 
 
@@ -319,7 +319,7 @@ def mock_npu_metric_collect(*args, **kwargs):
     job_metrics["worker-3"] = copy.deepcopy(metric)
     job_metrics["worker-4"] = copy.deepcopy(metric)
     _metric_context.add_node_metrics(
-        round(datetime.now().timestamp(), 0), job_metrics
+        int(datetime.now().timestamp()), job_metrics
     )
 
 
