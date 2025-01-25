@@ -71,26 +71,10 @@ class DiagnosisManager:
         self._job_context = get_job_context()
         self._job_name = job_name
         self._metric_monitor = None
-        self._xpu_type = ""
         self._lock = threading.Lock()
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
-
-    def collect_xpu_info(self, xpu_type):
-        with self._lock:
-            if not xpu_type:
-                return
-            if not self._xpu_type:
-                logger.info(f"the XPU accelerator is {xpu_type}")
-                self._xpu_type = xpu_type
-                self.start_metric_collect()
-
-    def set_xpu_info(self, xpu_type):
-        self._xpu_type = xpu_type
-
-    def get_xpu_info(self):
-        return self._xpu_type
 
     def pre_check(self):
         logger.info("Start Diagnosis Manager to pre-check training...")
@@ -103,7 +87,7 @@ class DiagnosisManager:
         store the data into global JobMetricContext
 
         """
-        logger.info(f"start {self._xpu_type} metric collector...")
+        logger.info(f"start {_dlrover_context.xpu_type} metric collector...")
         url = os.getenv("DLROVER_METRIC_URL", "")
         if url == "":
             logger.warning("no GPU metrics url defined, stop metric collector")
@@ -115,14 +99,14 @@ class DiagnosisManager:
             )
             return
 
-        if self._xpu_type is Accelerators.ASCEND_NPU:
+        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
                 job_name=self._job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
-        elif self._xpu_type is Accelerators.NVIDIA_GPU:
+        else:
             self._metric_monitor = GpuMetricMonitor(
                 job_name=self._job_name,
                 metrics=[
@@ -130,22 +114,17 @@ class DiagnosisManager:
                     GpuMetricEnum.GPU_TENSOR_UTIL,
                 ],
             )
-        else:
-            logger.warning(
-                f"invalid XPU {self._xpu_type}, stop metric collector"
-            )
-            return
 
         if self._metric_monitor:
             self._metric_monitor.start()
 
     def stop_metric_collect(self):
-        logger.info(f"stop {self._xpu_type} metric collector...")
+        logger.info("stop metric collector...")
         if self._metric_monitor:
             self._metric_monitor.stop()
 
     def join_metric_collect(self):
-        logger.info(f"join {self._xpu_type} metric collector...")
+        logger.info("join metric collector...")
         if self._metric_monitor:
             self._metric_monitor.join()
 
@@ -197,21 +176,19 @@ class DiagnosisManager:
         logger.info("Stop diagnosis manager training observation...")
         self._is_observing_started = False
 
-    def check_tensor_drop_zero(self, duration):
+    @staticmethod
+    def check_tensor_drop_zero(duration):
         if duration > _metric_context.max_metric_records:
             duration = _metric_context.max_metric_records
 
-        if self._xpu_type is Accelerators.NVIDIA_GPU:
-            metrics = _metric_context.backtrace_avg_metrics(
-                GpuMetricEnum.GPU_TENSOR_UTIL, duration
-            )
-        elif self._xpu_type is Accelerators.ASCEND_NPU:
+        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 NpuMetricEnum.NPU_UTIL, duration
             )
         else:
-            logger.warning(f"invalid XPU: {self._xpu_type}")
-            return DiagnosisResult.DIAG_ERROR, 0, 0
+            metrics = _metric_context.backtrace_avg_metrics(
+                GpuMetricEnum.GPU_TENSOR_UTIL, duration
+            )
 
         if metrics is None:
             logger.warning(f"invalid metrics: {metrics}")

@@ -239,11 +239,6 @@ class GlobalStep(Message):
 
 
 @dataclass
-class NodeXpuInfo(Message):
-    xpu_type: str = ""
-
-
-@dataclass
 class HeartBeat(Message):
     timestamp: int = 0
 

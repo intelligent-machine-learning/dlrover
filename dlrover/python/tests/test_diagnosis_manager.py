@@ -19,6 +19,7 @@ from typing import List
 from unittest import mock
 
 from dlrover.python.common.constants import Accelerators, GpuMetricEnum
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
 from dlrover.python.diagnosis.common.constants import (
@@ -46,6 +47,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 
 _metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class DiagnosisManagerTest(unittest.TestCase):
@@ -118,12 +120,7 @@ class DiagnosisManagerTest(unittest.TestCase):
         mgr = DiagnosisManager()
         _metric_context.clear_node_metrics()
 
-        mgr.set_xpu_info("unknown")
-        self.assertEqual(
-            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_ERROR
-        )
-
-        mgr.set_xpu_info(Accelerators.NVIDIA_GPU)
+        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
         job_metrics = {}
         metric = GpuNodeMetric()
         for i in range(8):

@@ -245,12 +245,6 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
-    def update_node_xpu_info(self, accelerator):
-        message = grpc.NodeXpuInfo(
-            xpu_type=accelerator,
-        )
-        return self._report(message)
-
     def report_heart_beat(self, timestamp) -> DiagnosisAction:
         message = grpc.HeartBeat(timestamp=timestamp)
         response: grpc.HeartbeatResponse = self._get(message)

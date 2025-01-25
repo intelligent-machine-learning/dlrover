@@ -1255,9 +1255,6 @@ def launch_agent(
     )
 
     _set_paral_config()
-    _client = MasterClient.singleton_instance()
-    _client.update_node_xpu_info(config.accelerator)
-
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
 

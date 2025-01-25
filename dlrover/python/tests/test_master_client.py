@@ -18,7 +18,6 @@ from unittest import mock
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
-    Accelerators,
     NodeEventType,
     NodeType,
     RendezvousName,
@@ -121,8 +120,6 @@ class MasterClientTest(unittest.TestCase):
 
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
-
-        self._master_client.update_node_xpu_info(Accelerators.NVIDIA_GPU)
 
         model_info = grpc.ModelInfo()
         self._master_client.report_model_info(model_info)

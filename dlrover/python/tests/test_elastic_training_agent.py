@@ -45,6 +45,7 @@ from dlrover.python.common.constants import (
     NpuMetricEnum,
     RendezvousName,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import (
@@ -82,6 +83,7 @@ from dlrover.python.elastic_agent.torch.training import (
 from dlrover.python.tests.test_utils import start_local_master
 
 _metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class ElasticTrainingAgentTest(unittest.TestCase):
@@ -404,9 +406,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            self._master.diagnosis_manager.collect_xpu_info(
-                Accelerators.NVIDIA_GPU
-            )
+            _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+
             self._master.diagnosis_manager.stop_metric_collect()
 
         with patch(
@@ -421,17 +422,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            self._master.diagnosis_manager.collect_xpu_info(
-                Accelerators.ASCEND_NPU
-            )
-            self._master.diagnosis_manager.stop_metric_collect()
+            _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
 
-    def test_update_xpu_info(self):
-        self._client.update_node_xpu_info(Accelerators.ASCEND_NPU)
-        self.assertEqual(
-            self._master.diagnosis_manager.get_xpu_info(),
-            Accelerators.ASCEND_NPU,
-        )
+            self._master.diagnosis_manager.stop_metric_collect()
 
     def test_failure_ending_after_training(self):
         agent = ElasticTrainingAgent(
