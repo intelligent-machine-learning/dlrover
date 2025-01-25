@@ -21,6 +21,7 @@ from kubernetes import client
 
 import dlrover.python.util.k8s_util as ku
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.comm import addr_connected
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -28,7 +29,6 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
-from dlrover.python.common.grpc import addr_connected, find_free_port
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.local_master import LocalJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -36,6 +36,7 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.util.common_util import find_free_port
 
 WITH_TO_DELETED = "WITH_TO_DELETED"
 

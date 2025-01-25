@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import NodeStatus, NodeType
-from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
