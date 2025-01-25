@@ -18,6 +18,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceOperator,
     combine_inferences,
+    is_inference_included,
 )
 
 
@@ -51,7 +52,9 @@ class InferenceChain:
                         has_new_inference = True
                         new_infs = combine_inferences(new_infs, infs)
                     else:
-                        new_infs.append(inference)
+                        # Initial problem should not be included in the final conclusions
+                        if not is_inference_included(self.inferences, inference):
+                            new_infs.append(inference)
                 except Exception as e:
                     logger.exception(e)
                     new_infs.append(inference)
@@ -60,6 +63,7 @@ class InferenceChain:
                 inferences = new_infs
             else:
                 break
+
         return inferences
 
     def get_operator(self, inference: Inference) -> InferenceOperator:

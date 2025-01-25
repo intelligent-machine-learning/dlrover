@@ -176,3 +176,7 @@ class TrainingLog(DiagnosisData):
         if not self.data_content:
             return []
         return [line for line in self.data_content.splitlines()]
+
+
+class NodeInfo(DiagnosisData):
+

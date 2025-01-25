@@ -14,6 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 
 
 class InferenceName:
@@ -75,6 +76,19 @@ class InferenceOperator(metaclass=ABCMeta):
     @property
     def data_manager(self):
         return self._data_manager
+
+
+class Coordinator(metaclass=ABCMeta):
+    """
+    Coordinator is to coordinate multiple inferences and generate the final action.
+    """
+
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def coordinate(self, inferences: List[Inference]) -> DiagnosisAction:
+        pass
 
 
 def is_same_inference(inference1: Inference, inference2: Inference) -> bool:
