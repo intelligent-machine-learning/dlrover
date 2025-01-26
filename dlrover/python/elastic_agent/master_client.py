@@ -450,6 +450,11 @@ class MasterClient(Singleton, ABC):
         response: comm.ElasticRunConfig = self._get(request)
         return response.configs
 
+    def get_pre_check_result(self) -> bool:
+        request = comm.PreCheckRequest()
+        # result is boolean
+        return self._get(request)
+
     def report_event(
         self,
         event_type: str = "",

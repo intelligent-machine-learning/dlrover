@@ -114,6 +114,7 @@ class DiagnosisManager:
                 )
                 return
             else:
+                self._job_context.set_pre_check_pass()
                 logger.info(
                     f"{pre_check_op_name} finish "
                     f"with result: {current_op_result}, "

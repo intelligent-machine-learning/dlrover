@@ -49,6 +49,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
@@ -161,6 +162,10 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.ElasticRunConfigRequest):
             configs = self._job_manager.get_elastic_run_configs()
             message = comm.ElasticRunConfig(configs=configs)
+        elif isinstance(req_message, comm.PreCheckRequest):
+            message = self._get_pre_check_result(
+                node_type, node_id, req_message
+            )
         elif isinstance(req_message, comm.HeartBeat):
             message = self._report_heartbeat(node_type, node_id, req_message)
 
@@ -663,6 +668,9 @@ class MasterServicer(ABC):
         return comm.SyncTrainingPort(
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
+
+    def _get_pre_check_result(self, node_id, message: comm.PreCheckRequest):
+        return get_job_context().is_pre_check_pass()
 
     def _report_event(self, message: comm.Event):
         if self._error_monitor:

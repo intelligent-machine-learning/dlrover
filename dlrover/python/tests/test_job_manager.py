@@ -995,3 +995,7 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
+
+        self.assertFalse(job_context.is_pre_check_pass())
+        job_context.set_pre_check_pass()
+        self.assertTrue(job_context.is_pre_check_pass())

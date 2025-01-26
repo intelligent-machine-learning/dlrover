@@ -229,6 +229,12 @@ class HeartBeat(Message):
 
 
 @dataclass
+class PreCheckRequest(Message):
+    timestamp: int = 0
+    type: str = "INITIAL"
+
+
+@dataclass
 class DatasetShardParams(Message):
     batch_size: int = 0
     num_epochs: int = 0

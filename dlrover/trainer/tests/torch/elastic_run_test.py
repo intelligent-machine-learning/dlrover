@@ -13,9 +13,11 @@
 
 import socket
 import telnetlib
+import threading
+import time
 import unittest
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -28,6 +30,7 @@ from dlrover.trainer.torch.elastic_run import (
     _elastic_config_from_args,
     _launch_dlrover_local_master,
     parse_args,
+    wait_pre_check,
 )
 
 MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
@@ -136,3 +139,26 @@ class ElasticRunTest(unittest.TestCase):
         args = parse_args(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
         self.assertFalse(config.network_check)
+
+    def test_wait_pre_check(self):
+        client = MasterClient.singleton_instance()
+
+        # pre-check success
+        client.get_pre_check_result = MagicMock(return_value=True)
+        wait_pre_check()
+
+        # pre-check fail
+        client.get_pre_check_result = MagicMock(return_value=False)
+
+        def set_pre_check_success():
+            time_to_set_success = time.time()
+            while True:
+                if time.time() - time_to_set_success > 1:
+                    client.get_pre_check_result = MagicMock(return_value=True)
+                    break
+                time.sleep(0.1)
+
+        start = time.time()
+        threading.Thread(target=set_pre_check_success).start()
+        wait_pre_check()
+        self.assertTrue(time.time() - start > 0.5)

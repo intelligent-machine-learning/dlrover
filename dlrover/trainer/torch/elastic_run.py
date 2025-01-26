@@ -109,6 +109,7 @@ import dlrover.python.util.common_util as cu
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.constants import (
     Accelerators,
+    JobConstant,
     NodeEnv,
     NodeErrorMessage,
     TrainingExceptionLevel,
@@ -255,11 +256,29 @@ class elastic_launch:
 
     def __call__(self, *args):
         if self._use_dlrover_launch:
+            wait_pre_check()
             return launch_agent(self._config, self._entrypoint, list(args))
         else:
             return torch_launch_agent(
                 self._config, self._entrypoint, list(args)
             )
+
+
+def wait_pre_check():
+    """Wait master's pre-check result."""
+    client = MasterClient.singleton_instance()
+    wait_secs = JobConstant.PRE_CHECK_WAIT_SECS
+
+    while True:
+        if client.get_pre_check_result():
+            logger.info("Pre check passed.")
+            break
+        else:
+            logger.info(
+                "Pre check not passed yet, "
+                f"wait for another {wait_secs}s..."
+            )
+            time.sleep(wait_secs)
 
 
 def _launch_dlrover_local_master(master_addr, job_name, node_num):
