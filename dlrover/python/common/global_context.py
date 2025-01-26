@@ -13,14 +13,17 @@
 
 import os
 
-from dlrover.python.common.constants import CommunicationType, UserEnv
+from dlrover.python.common.constants import (
+    CommunicationType,
+    UserEnv,
+    Accelerators,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.util.common_util import (
     find_free_port_in_range,
     find_free_port_in_set,
 )
-
 
 class ConfigKeys(object):
     TRAIN_SPEED_RECORD_NUM = "train_speed_record_num"
@@ -111,6 +114,8 @@ class Context(Singleton):
         self.hang_detection = DefaultValues.HANG_DETECTION
         # The duration of downtime as training hang, unit is minute
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
+        #
+        self.xpu_type = Accelerators.NVIDIA_GPU
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
 
