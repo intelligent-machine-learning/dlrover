@@ -230,7 +230,7 @@ class DiagnosisManager:
             ):
                 hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
             else:
-                hang_downtime = _metric_context.hang_downtime
+                hang_downtime = _dlrover_context.hang_downtime
             result, start, end = self.check_tensor_drop_zero(hang_downtime)
             if result is DiagnosisResult.DIAG_HANG:
                 start_dt = datetime.fromtimestamp(start).strftime(
