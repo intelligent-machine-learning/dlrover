@@ -16,9 +16,8 @@ import threading
 import time
 from typing import Dict, Optional, Union
 
-from common.global_context import Context
-
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
