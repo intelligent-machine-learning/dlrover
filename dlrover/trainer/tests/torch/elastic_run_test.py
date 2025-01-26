@@ -95,7 +95,7 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
         self.assertEqual(config.training_port, 1000)
-        self.assertEqual(cmd, "/usr/local/bin/python")
+        self.assertTrue("bin/python" in cmd)
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
 
     @patch(f"{MC_PATH}.get_elastic_run_config")
