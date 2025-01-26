@@ -41,8 +41,9 @@ class ErrorHandler:
             if not self._initialized:
                 self._original_excepthook = None
                 self._original_handlers = {}
-                self._initialized = True
                 self._process = Process("ErrorReporter")
+                self._registered = False
+                self._initialized = True
 
     def _handle_exception(self, exc_type, exc_value, exc_traceback):
         """handle exception"""
@@ -77,58 +78,69 @@ class ErrorHandler:
                     stack = traceback.extract_stack(frame)
                     content["stack"] = traceback.format_list(stack)
             except Exception as e:
-                content["stack"] = f"获取堆栈信息失败: {str(e)}"
+                content["stack"] = f"get stack failed: {str(e)}"
 
             self._process.instant("exit_sig", content)
             close_default_exporter()
 
         except Exception as e:
-            _LOGGER.error(f"处理信号 {signum} 时发生错误: {str(e)}")
+            _LOGGER.error(f"process signal {signum} error: {str(e)}")
 
         finally:
-            for sig, handler in self._original_handlers.items():
-                if callable(handler):
-                    handler(sig, frame)
-                else:
-                    if handler == signal.SIG_DFL:
-                        signal.signal(sig, signal.SIG_DFL)
-                        os.kill(os.getpid(), signum)
-                    elif handler == signal.SIG_IGN:
-                        pass
+            # call original handler
+            original_handler = self._original_handlers[signum]
+            if callable(original_handler):
+                original_handler(signum, frame)
+            else:
+                if original_handler == signal.SIG_DFL:
+                    signal.signal(signum, signal.SIG_DFL)
+                    os.kill(os.getpid(), signum)
+                elif original_handler == signal.SIG_IGN:
+                    pass
 
     def _register(self):
         """register exception handler"""
-        self._original_excepthook = sys.excepthook
-        sys.excepthook = self._handle_exception
+        with self._lock:
+            if self._registered:
+                return
+            self._original_excepthook = sys.excepthook
+            sys.excepthook = self._handle_exception
 
-        signals = [
-            signal.SIGINT,
-            signal.SIGTERM,
-            signal.SIGABRT,
-            signal.SIGFPE,
-            signal.SIGBUS,
-            signal.SIGPIPE,
-            signal.SIGSEGV,
-            signal.SIGHUP,
-        ]
-        for sig in signals:
-            self._original_handlers[sig] = signal.getsignal(sig)
-            signal.signal(sig, self._handle_signal)
+            signals = [
+                signal.SIGINT,
+                signal.SIGTERM,
+                signal.SIGABRT,
+                signal.SIGFPE,
+                signal.SIGBUS,
+                signal.SIGPIPE,
+                signal.SIGSEGV,
+                signal.SIGHUP,
+            ]
+            for sig in signals:
+                self._original_handlers[sig] = signal.getsignal(sig)
+                signal.signal(sig, self._handle_signal)
 
-        _LOGGER.info("Exception handler registered")
+            self._registered = True
+            _LOGGER.info("Exception handler registered")
 
     def _unregister(self):
         """unregister exception handler"""
-        if self._original_excepthook:
-            sys.excepthook = self._original_excepthook
-            self._original_excepthook = None
+        with self._lock:
+            if not self._registered:
+                return
 
-        for sig, handler in self._original_handlers.items():
-            if handler:
-                signal.signal(sig, handler)
-        self._original_handlers.clear()
+            if self._original_excepthook:
+                sys.excepthook = self._original_excepthook
+                self._original_excepthook = None
 
-        _LOGGER.info("Exception handler unregistered")
+            for sig, handler in self._original_handlers.items():
+                if handler:
+                    signal.signal(sig, handler)
+            self._original_handlers.clear()
+
+            self._registered = False
+
+            _LOGGER.info("Exception handler unregistered")
 
     @classmethod
     def register(cls):
@@ -144,5 +156,5 @@ class ErrorHandler:
 
 
 def init_error_handler():
-    if _CONFIG.hook_error:
+    if _CONFIG.enable and _CONFIG.hook_error:
         ErrorHandler.register()
