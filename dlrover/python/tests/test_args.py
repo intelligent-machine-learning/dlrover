@@ -13,10 +13,28 @@
 
 import unittest
 
-from dlrover.python.master.args import parse_master_args
+from dlrover.python.master.args import parse_master_args, str2bool
 
 
 class ArgsTest(unittest.TestCase):
+    def test_str2bool(self):
+        self.assertTrue(str2bool("TRUE"))
+        self.assertTrue(str2bool("True"))
+        self.assertTrue(str2bool("true"))
+        self.assertTrue(str2bool("yes"))
+        self.assertTrue(str2bool("t"))
+        self.assertTrue(str2bool("y"))
+        self.assertTrue(str2bool("1"))
+        self.assertTrue(str2bool(True))
+
+        self.assertFalse(str2bool("FALSE"))
+        self.assertFalse(str2bool("False"))
+        self.assertFalse(str2bool("false"))
+        self.assertFalse(str2bool("no"))
+        self.assertFalse(str2bool("n"))
+        self.assertFalse(str2bool("0"))
+        self.assertFalse(str2bool(False))
+
     def test_parse_master_args(self):
         original_args = [
             "--job_name",

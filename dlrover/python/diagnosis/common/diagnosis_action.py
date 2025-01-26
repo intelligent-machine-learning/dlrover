@@ -260,6 +260,10 @@ class DiagnosisActionQueue:
         with self._lock:
             self._actions.clear()
 
+    def len(self):
+        with self._lock:
+            return sum(len(d) for d in self._actions.values())
+
     def next_action(
         self,
         instance=DiagnosisConstant.LOCAL_INSTANCE,
