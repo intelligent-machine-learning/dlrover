@@ -34,7 +34,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.master import JobMaster
+from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
@@ -150,13 +150,13 @@ class DistributedJobMaster(JobMaster):
         )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self.sync_service = SyncService(self.job_manager)
-        self._master_server = self._create_master_grpc_service(port, args)
+        self._master_server = self._create_master_service(port, args)
         self._job_args = args
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
 
-    def _create_master_grpc_service(self, port, params: JobArgs):
+    def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,
@@ -184,10 +184,10 @@ class DistributedJobMaster(JobMaster):
         return collector
 
     def prepare(self):
-        # Start the master GRPC server
-        logger.info("Starting master RPC server")
+        # start the master server
+        logger.info(f"Starting master {get_service_type()} server")
         self._master_server.start()
-        logger.info("Master RPC server started")
+        logger.info(f"Master {get_service_type()} server started")
 
         # Composite the components
         if self.task_manager and self.job_manager:

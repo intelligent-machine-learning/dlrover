@@ -72,12 +72,14 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
+    NodeCheckFailedError,
     RendezvousOutSyncError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
     _set_paral_config,
     comm_perf_check,
+    launch_agent,
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
@@ -767,6 +769,37 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             1,
         )
 
+    @patch(
+        "dlrover.python.elastic_agent.master_client"
+        ".MasterClient.report_failed_exited"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training"
+        ".ElasticTrainingAgent.run"
+    )
+    def test_node_status_report(self, mock_run, mock_report_failed_exited):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+
+        mock_run.side_effect = RuntimeError("test")
+        mock_report_failed_exited.return_value = True
+        try:
+            launch_agent(config, entrypoint, [])
+            self.fail()
+        except RuntimeError:
+            self.assertTrue(True)
+            mock_run.assert_called_once()
+            mock_report_failed_exited.assert_called_once()
+
+        mock_run.side_effect = NodeCheckFailedError("test")
+        try:
+            launch_agent(config, entrypoint, [])
+            self.fail()
+        except NodeCheckFailedError:
+            self.assertTrue(True)
+            self.assertEqual(mock_run.call_count, 2)
+            mock_report_failed_exited.assert_called_once()
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -911,6 +944,21 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         args = "--version"
         comm_perf_check(config, entrypoint, args)
         mock_run.assert_called()
+
+    def test_get_check_node_timeout(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+        self.assertEqual(
+            agent._get_check_node_timeout(),
+            JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT,
+        )
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):

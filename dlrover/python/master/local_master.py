@@ -27,7 +27,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
     RendezvousManager,
 )
-from dlrover.python.master.master import JobMaster
+from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.local_job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
@@ -50,13 +50,13 @@ class LocalJobMaster(JobMaster):
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
-        self._master_server = self._create_master_grpc_service(port, args)
+        self._master_server = self._create_master_service(port, args)
         self._job_args = args
         for i in range(args.node_args[NodeType.WORKER].group_resource.count):
             self.speed_monitor.add_running_worker(NodeType.WORKER, i)
         self.speed_monitor.set_target_worker_num(1)
 
-    def _create_master_grpc_service(self, port, params: JobArgs):
+    def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,
@@ -81,10 +81,10 @@ class LocalJobMaster(JobMaster):
         return collector
 
     def prepare(self):
-        # Start the master GRPC server
-        logger.info("Starting master RPC server")
+        # start the master server
+        logger.info(f"Starting master {get_service_type()} server")
         self._master_server.start()
-        logger.info("Master RPC server started")
+        logger.info(f"Master {get_service_type()} server started")
         self.task_manager.start()
         self.job_manager.start()
 
@@ -115,8 +115,7 @@ class LocalJobMaster(JobMaster):
         """
         logger.info("Stopping master!")
         logger.info("Stopping RPC server!")
-        self._master_server.stop(None)
-        # self._master_server.stop(grace=0.1)
+        self._master_server.stop(grace=None)
         logger.info("RPC server stopped!")
         logger.info("Master stopped!")
 

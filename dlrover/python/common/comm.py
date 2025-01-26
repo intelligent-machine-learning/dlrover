@@ -10,24 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import base64
 import pickle
-import random
 import socket
-from contextlib import closing
 from dataclasses import dataclass, field
 from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import GRPC, AscendConstants
+from dlrover.python.common.constants import GRPC
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
 TIMEOUT_SEC = 5
 
 
-def build_channel(addr):
+def build_grpc_channel(addr):
     if not addr_connected(addr):
         return None
     channel = grpc.insecure_channel(
@@ -68,74 +66,6 @@ def addr_connected(addr):
         return False
 
 
-def find_free_port(port=0):
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", port))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
-
-
-def find_free_port_in_range(start=0, end=65535, random_port=True):
-    """Find a free port from a range."""
-    bind_ports = set()
-    while True:
-        if random_port:
-            port = random.randint(start, end)
-        else:
-            port = start + len(bind_ports)
-        if port in bind_ports:
-            continue
-        try:
-            return find_free_port(port)
-        except OSError:
-            logger.warning(f"Socket creation attempt failed with {port}.")
-            bind_ports.add(port)
-        if len(bind_ports) == end - start + 1:
-            break
-    raise RuntimeError(f"Fail to find a free port in [{start}, {end})")
-
-
-def find_free_port_in_set(ports):
-    for port in ports:
-        try:
-            return find_free_port(port)
-        except OSError:
-            logger.warning(f"Socket creation attempt failed with {port}.")
-    raise RuntimeError(f"Fail to find a free port in {ports}")
-
-
-def find_free_port_for_hccl(
-    start=AscendConstants.HCCL_PORT_START_DEFAULT,
-) -> int:
-    max_port = 65500
-    cur_start = start
-    end = start + 10000
-    if end > max_port:
-        end = max_port
-    logger.info(f"Try to find available port for hccl from {start}")
-    checking_port = 0
-    while True:
-        try:
-            cur_end = cur_start + AscendConstants.NPU_PER_NODE
-            for port in range(cur_start, cur_end):
-                checking_port = port
-                find_free_port(port)
-            logger.info(f"Find available port start from: {cur_start}")
-            break
-        except OSError:
-            logger.warning(
-                f"Target port has already been used: {checking_port}."
-            )
-            if checking_port > 0:
-                cur_start = checking_port + 1
-            else:
-                cur_start = cur_start + AscendConstants.NPU_PER_NODE
-            if cur_start > end:
-                cur_start = 0
-                break
-    return cur_start
-
-
 def grpc_server_ready(channel) -> bool:
     try:
         grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
@@ -144,10 +74,24 @@ def grpc_server_ready(channel) -> bool:
         return False
 
 
-def deserialize_message(data: bytes):
+def serialize_message(message):
     """The method will create a message instance with the content.
     Args:
         pickle_data: pickle bytes of a class instance.
+    """
+    data = None
+    if message:
+        try:
+            data = pickle.dumps(message)
+        except Exception as e:
+            logger.warning(f"Pickle failed to load {str(data)}", e)
+    return data
+
+
+def deserialize_message(data: bytes):
+    """The method will create a message instance with the content.
+    Args:
+        data: pickle bytes of a class instance.
     """
     message = None
     if data:
@@ -161,6 +105,47 @@ def deserialize_message(data: bytes):
 class Message(JsonSerializable):
     def serialize(self):
         return pickle.dumps(self)
+
+
+@dataclass
+class BaseRequest(Message):
+    node_id: int = -1
+    node_type: str = ""
+    data: bytes = b""
+
+    def to_json(self):
+        return {
+            "node_id": self.node_id,
+            "node_type": self.node_type,
+            "data": base64.b64encode(self.data).decode("utf-8"),
+        }
+
+    @staticmethod
+    def from_json(json_data):
+        return BaseRequest(
+            node_id=json_data.get("node_id"),
+            node_type=json_data.get("node_type"),
+            data=base64.b64decode(json_data.get("data")),
+        )
+
+
+@dataclass
+class BaseResponse(Message):
+    success: bool = False
+    data: bytes = b""
+
+    def to_json(self):
+        return {
+            "success": self.success,
+            "data": base64.b64encode(self.data).decode("utf-8"),
+        }
+
+    @staticmethod
+    def from_json(json_data):
+        return BaseResponse(
+            success=bool(json_data.get("success")),
+            data=base64.b64decode(json_data.get("data")),
+        )
 
 
 @dataclass
@@ -526,3 +511,12 @@ class DiagnosisAction(Message):
 @dataclass
 class HeartbeatResponse(Message):
     action: DiagnosisAction = field(default_factory=DiagnosisAction)
+
+
+class TaskType(object):
+    NONE = "NONE"
+    TRAINING = "TRAINING"
+    EVALUATION = "EVALUATION"
+    PREDICTION = "PREDICTION"
+    WAIT = "WAIT"
+    TRAIN_END_CALLBACK = "TRAIN_END_CALLBACK"

@@ -20,6 +20,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -33,7 +34,6 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
@@ -1163,10 +1163,13 @@ class DistributedJobManager(JobManager):
         error_data: str,
         level: str,
     ) -> bool:
-        if self._error_monitor and node is not None:
-            return self._error_monitor.process_error(
-                node, restart_count, error_data, level
-            )
+        if node:
+            if level == TrainingExceptionLevel.NODE_ERROR:
+                self._job_context.report_failed_node(node.id)
+            if self._error_monitor:
+                return self._error_monitor.process_error(
+                    node, restart_count, error_data, level
+                )
         return False
 
     def all_running_node_hanged(self):
@@ -1198,8 +1201,8 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_context.job_node(node_type, node_id)
+        logger.info(f"Handle failed node: {node}")
         if node.is_released:
-            logger.info(f"The node {node.name} has been released.")
             return
         relaunch_node = self._process_error(
             node, restart_count, error_data, level

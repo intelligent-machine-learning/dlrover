@@ -13,10 +13,13 @@
 
 import os
 
-from dlrover.python.common import grpc
-from dlrover.python.common.constants import UserEnv
+from dlrover.python.common.constants import CommunicationType, UserEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.util.common_util import (
+    find_free_port_in_range,
+    find_free_port_in_set,
+)
 
 
 class ConfigKeys(object):
@@ -38,6 +41,7 @@ class ConfigKeys(object):
 
 
 class DefaultValues(object):
+    SERVICE_TYPE = CommunicationType.COMM_SERVICE_GRPC
     TRAIN_SPEED_RECORD_NUM = 50
     SEC_TO_START_AUTOSCALE_WORKER = 90
     STEP_TO_ADJUST_WORKER = 200
@@ -63,6 +67,7 @@ class DefaultValues(object):
 
 class Context(Singleton):
     def __init__(self):
+        self.master_service_type = DefaultValues.SERVICE_TYPE
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
             DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
@@ -175,13 +180,13 @@ class Context(Singleton):
             for port in host_ports_env.split(","):
                 ports.append(int(port))
             try:
-                self.master_port = grpc.find_free_port_in_set(ports)
+                self.master_port = find_free_port_in_set(ports)
             except RuntimeError as e:
                 logger.warning(e)
         elif port > 0:
             self.master_port = port
         if self.master_port is None:
-            self.master_port = grpc.find_free_port_in_range(20000, 30000)
+            self.master_port = find_free_port_in_range(20000, 30000)
 
     def get_param_value_from_brain(self, key_name, default_value, dtype=float):
         """TODO: Get the configured value from Brain service."""

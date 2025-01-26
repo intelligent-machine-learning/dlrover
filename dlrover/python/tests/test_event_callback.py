@@ -72,7 +72,7 @@ class AllReduceEventCallbackTest(unittest.TestCase):
         worker.relaunch_count = 1
         worker.exit_reason = NodeExitReason.FATAL_ERROR
         self.event_cb.on_node_failed(worker, None)
-        self.assertEqual(self.event_cb._failed_worker_count, 1)
+        self.assertEqual(self.event_cb._job_context.get_failed_node_cnt(), 1)
         self.assertTrue(self.master._stop_requested)
         self.master._stop_requested = False
         _dlrover_ctx.relaunch_always = True
