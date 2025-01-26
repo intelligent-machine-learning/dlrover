@@ -19,9 +19,7 @@ from unittest.mock import Mock
 import pytest
 
 from dlrover.python.training_event.emitter import Process
-from dlrover.python.training_event.error_handler import (
-    ErrorHandler,
-)
+from dlrover.python.training_event.error_handler import ErrorHandler
 
 
 @pytest.fixture
@@ -78,7 +76,6 @@ def test_handle_signal(exception_handler):
 
 
 def test_thread_safety():
-
     def create_handler():
         return ErrorHandler()
 
