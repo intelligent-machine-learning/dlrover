@@ -90,16 +90,9 @@ class ErrorHandler:
             _LOGGER.error(f"process signal {signum} error: {str(e)}")
 
         finally:
-            # call original handler
-            original_handler = self._original_handlers[signum]
-            if callable(original_handler):
-                original_handler(signum, frame)
-            else:
-                if original_handler == signal.SIG_DFL:
-                    signal.signal(signum, signal.SIG_DFL)
-                    os.kill(os.getpid(), signum)
-                elif original_handler == signal.SIG_IGN:
-                    pass
+            self.unregister()
+            # call original handler with signal
+            os.kill(os.getpid(), signum)
 
     def _register(self):
         """register exception handler"""
@@ -138,8 +131,7 @@ class ErrorHandler:
                 self._original_excepthook = None
 
             for sig, handler in self._original_handlers.items():
-                if handler:
-                    signal.signal(sig, handler)
+                signal.signal(sig, handler)
             self._original_handlers.clear()
 
             self._registered = False
