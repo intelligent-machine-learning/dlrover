@@ -17,9 +17,12 @@ import sys
 import threading
 import traceback
 
-from .config import get_default_config, get_default_logger
-from .emitter import Process
-from .exporter import close_default_exporter
+from dlrover.python.training_event.config import (
+    get_default_config,
+    get_default_logger,
+)
+from dlrover.python.training_event.emitter import Process
+from dlrover.python.training_event.exporter import close_default_exporter
 
 _LOGGER = get_default_logger()
 _CONFIG = get_default_config()
@@ -115,6 +118,7 @@ class ErrorHandler:
                 signal.SIGPIPE,
                 signal.SIGSEGV,
                 signal.SIGHUP,
+                signal.SIGCHLD,
             ]
             for sig in signals:
                 self._original_handlers[sig] = signal.getsignal(sig)

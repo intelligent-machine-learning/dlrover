@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..emitter import Process
+from dlrover.python.training_event.emitter import Process
 
 
 class CommonEventName:

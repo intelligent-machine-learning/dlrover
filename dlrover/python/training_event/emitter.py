@@ -16,9 +16,12 @@ from functools import wraps
 from threading import Lock
 from typing import Optional, Type
 
-from .config import get_default_logger
-from .event import Event
-from .exporter import EventExporter, get_default_exporter
+from dlrover.python.training_event.config import get_default_logger
+from dlrover.python.training_event.event import Event
+from dlrover.python.training_event.exporter import (
+    EventExporter,
+    get_default_exporter,
+)
 
 _LOGGER = get_default_logger()
 

@@ -14,8 +14,8 @@
 from enum import Enum
 from typing import Optional
 
-from ..emitter import DurationSpan
-from .common import CommonPredefined
+from dlrover.python.training_event.emitter import DurationSpan
+from dlrover.python.training_event.predefined.common import CommonPredefined
 
 
 class TrainerEventName(Enum):

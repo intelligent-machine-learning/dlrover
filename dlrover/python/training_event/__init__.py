@@ -11,11 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .error_handler import init_error_handler
-from .exporter import init_default_exporter
-from .predefined._dlrover import DLRoverAgent, DLRoverMaster
-from .predefined.common import WarningType
-from .predefined.trainer import TrainerProcess
+from dlrover.python.training_event.error_handler import init_error_handler
+from dlrover.python.training_event.exporter import init_default_exporter
+from dlrover.python.training_event.predefined._dlrover import (
+    DLRoverAgent,
+    DLRoverMaster,
+)
+from dlrover.python.training_event.predefined.common import WarningType
+from dlrover.python.training_event.predefined.trainer import TrainerProcess
 
 # init the event exporter when importing the package
 init_default_exporter()

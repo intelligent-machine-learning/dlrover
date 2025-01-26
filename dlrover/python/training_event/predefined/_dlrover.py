@@ -15,8 +15,7 @@ from enum import Enum
 from typing import List, Optional
 
 from dlrover.python.common.singleton import Singleton
-
-from .common import CommonPredefined
+from dlrover.python.training_event.predefined.common import CommonPredefined
 
 
 class DLRoverCommonEventName(Enum):
