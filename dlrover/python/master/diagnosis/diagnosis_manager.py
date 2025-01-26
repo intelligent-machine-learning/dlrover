@@ -88,12 +88,10 @@ class DiagnosisManager:
 
         """
         logger.info(f"start {_dlrover_context.xpu_type} metric collector...")
-        url = os.getenv("DLROVER_METRIC_URL", "")
-        if url == "":
+        if not os.getenv("DLROVER_METRIC_URL", ""):
             logger.warning("no GPU metrics url defined, stop metric collector")
             return
-        token = os.getenv("DLROVER_METRIC_TOKEN", "")
-        if token == "":
+        if not os.getenv("DLROVER_METRIC_TOKEN", ""):
             logger.warning(
                 "no GPU metrics token defined, stop metric collector"
             )
@@ -119,12 +117,12 @@ class DiagnosisManager:
             self._metric_monitor.start()
 
     def stop_metric_collect(self):
-        logger.info("stop metric collector...")
+        logger.info("Stop metric collector...")
         if self._metric_monitor:
             self._metric_monitor.stop()
 
     def join_metric_collect(self):
-        logger.info("join metric collector...")
+        logger.info("Join metric collector...")
         if self._metric_monitor:
             self._metric_monitor.join()
 
@@ -196,7 +194,7 @@ class DiagnosisManager:
 
         if len(metrics) < duration:
             logger.warning(
-                f"waiting for tensor metrics: {len(metrics)}/{duration}"
+                f"Waiting for tensor metrics: {len(metrics)}/{duration}"
             )
             return DiagnosisResult.DIAG_WAITING, 0, 0
 
@@ -221,7 +219,7 @@ class DiagnosisManager:
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"stop _metric_diagnose thread due to "
+                    f"Stop _metric_diagnose thread due to "
                     f"{self._is_observing_started}"
                 )
                 break
@@ -242,7 +240,7 @@ class DiagnosisManager:
                     "%Y-%m-%d %H:%M:%S"
                 )
                 logger.warning(
-                    f"detect job hang by tensor drop zero: "
+                    f"Detect job hang by tensor drop zero: "
                     f"{start_dt}-{end_dt}"
                 )
 
@@ -261,7 +259,7 @@ class DiagnosisManager:
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"stop _diagnose thread due to "
+                    f"Stop _diagnose thread due to "
                     f"{self._is_observing_started}"
                 )
                 break

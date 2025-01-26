@@ -294,11 +294,11 @@ class SimpleMetricMonitor(MetricMonitor):
         """
         _collector is thread func
         """
-        logger.info("metric monitor collector is running...")
+        logger.info("Metric monitor collector is running...")
         self._stopped = False
         while True:
             if self._stopped:
-                logger.info("metric monitor collector is stopping...")
+                logger.info("Metric monitor collector is stopping...")
                 break
 
             try:
@@ -319,10 +319,10 @@ class SimpleMetricMonitor(MetricMonitor):
 
             except Exception as e:
                 logger.warning(
-                    f"collect metrics failed, reset after 5min: {e}"
+                    f"Collect metrics failed, reset after 5min: {e}"
                 )
                 logger.info(
-                    f"dump metric context {_metric_context.size()} entries:"
+                    f"Dump metric context {_metric_context.size()} entries:"
                 )
                 for metric in self._collect_metrics:
                     _metric_context.log_job_metric(metric)
@@ -339,7 +339,7 @@ class SimpleMetricMonitor(MetricMonitor):
             )
             self._thread.start()
         except Exception as e:
-            logger.error(f"failed to start metric collector: {e}")
+            logger.error(f"Failed to start metric collector: {e}")
 
     def stop(self):
         self._stopped = True

@@ -234,9 +234,7 @@ class DistributedJobMaster(JobMaster):
         try:
             self.diagnosis_manager.start_metric_collect()
         except Exception as e:
-            logger.warning(
-                f"Failed to start metric collecting: {str(e)}"
-            )
+            logger.warning(f"Failed to start metric collecting: {str(e)}")
 
         try:
             self.diagnosis_manager.start_observing()
