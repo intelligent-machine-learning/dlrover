@@ -549,7 +549,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             if cls._saver_instance:
                 cls._saver_instance.close()
             signal.signal(signal.SIGINT, sigint_handler)
-            os.kill(os.getpid(), signal.SIGINT)
+            os.kill(os.getpid(), signum)
 
         def _save_shm_before_exiting(signum, frame):
             """Save the state dict from the shared memory into the storage
@@ -559,7 +559,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 cls._saver_instance.save_shm_to_storage()
                 cls._saver_instance.close()
             signal.signal(signal.SIGTERM, sigterm_handler)
-            os.kill(os.getpid(), signal.SIGTERM)
+            os.kill(os.getpid(), signum)
 
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
