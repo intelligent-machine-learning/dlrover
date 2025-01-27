@@ -21,11 +21,16 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import timedelta
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import psutil
-from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
+from torch.distributed.elastic.agent.server.api import (
+    WorkerSpec,
+    WorkerState,
+    _RoleInstanceInfo,
+)
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
@@ -54,6 +59,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     DdpCheckpointSaver,
 )
+from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
@@ -113,15 +119,15 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
+            # redirects=self.config.redirects,
+            # tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
 
     def tearDown(self):
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 15
         self._master.stop()
         os.environ.clear()
 
@@ -250,7 +256,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(local_ip, "127.0.0.1")
 
     def test_initialize_worker(self):
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
         node_id = 1
         agent = ElasticTrainingAgent(
             node_rank=node_id,
@@ -270,6 +276,84 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
+
+    @patch("dlrover.trainer.torch.utils.version_less_than_240")
+    def test_assign_worker_ranks_with_torch240(self, mock_version):
+        JobConstant.TRAINING_AGENT_CORE_LOOP_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
+
+        node_id = 0
+        spec = self.spec
+        spec.local_world_size = 2
+        agent = ElasticTrainingAgent(
+            node_rank=node_id,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        mock_version.return_value = "2.4.0"
+
+        # mock normal procedure
+        agent._store = MagicMock(
+            return_value=MasterKVStore("test", timedelta(seconds=60))
+        )
+        agent._store.multi_get = MagicMock(
+            return_value=[
+                _RoleInstanceInfo("default_role", 0, 1).serialize(),
+                _RoleInstanceInfo("default_role", 1, 1).serialize(),
+            ]
+        )
+
+        def mock_get(*args):
+            if args[0] == "torchelastic/assigned_ranks/0":
+                return "[0, 2, 0, 2]"
+            elif args[0] == "torchelastic/assigned_ranks/1":
+                return "[1, 2, 1, 2]"
+            return None
+
+        agent._store.get = MagicMock(side_effect=mock_get)
+        agent._store.set = MagicMock(return_value=True)
+        agent._store.multi_set = MagicMock(return_value=True)
+
+        start = time.time()
+        workers = agent._assign_worker_ranks(
+            node_id=0, world={0: 2, 1: 2}, spec=agent._worker_group.spec
+        )
+        self.assertTrue(time.time() - start < 1)
+        self.assertEqual(len(workers), 2)
+        self.assertEqual(workers[0].local_rank, 0)
+        self.assertEqual(workers[0].global_rank, 0)
+        self.assertEqual(workers[0].world_size, 2)
+        self.assertEqual(workers[1].local_rank, 1)
+        self.assertEqual(workers[1].global_rank, 1)
+        self.assertEqual(workers[1].world_size, 2)
+
+        # mock mult get return None(some worker exited)
+        recover_time = time.time() + 3
+
+        def recoverable_multi_get(*args):
+            if time.time() - recover_time < 0:
+                return [
+                    _RoleInstanceInfo("default_role", 0, 1).serialize(),
+                    None,
+                ]
+            else:
+                return [
+                    _RoleInstanceInfo("default_role", 0, 1).serialize(),
+                    _RoleInstanceInfo("default_role", 1, 1).serialize(),
+                ]
+
+        agent._store.multi_get = MagicMock(side_effect=recoverable_multi_get)
+
+        start = time.time()
+        workers = agent._assign_worker_ranks(
+            node_id=0, world={0: 2, 1: 2}, spec=agent._worker_group.spec
+        )
+        self.assertTrue(time.time() - start > 1)
+        self.assertEqual(len(workers), 2)
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
@@ -318,10 +402,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
 
     def tearDown(self):
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 15
         self._master.stop()
 
     def test_monitor_workers(self):
@@ -757,10 +841,10 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
 
     def tearDown(self):
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 15
         self._master.stop()
 
     def test_get_network_check_time(self):
@@ -876,10 +960,10 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 0.5)
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
 
     def tearDown(self):
-        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+        JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 15
         self._master.stop()
 
     def test_pend_timeout(self):

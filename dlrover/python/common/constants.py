@@ -385,7 +385,8 @@ class JobConstant(object):
     # sleep 5s before next node check round
     NODE_CHECK_NEXT_ROUND_TIMEOUT = 5
 
-    TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+    TRAINING_AGENT_LOOP_INTERVAL = 15
+    TRAINING_AGENT_CORE_LOOP_INTERVAL = 5
 
 
 class Accelerators(object):

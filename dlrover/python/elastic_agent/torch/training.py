@@ -354,9 +354,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                             "and waits for more nodes."
                         )
                         start_pending = time.time()
-                    time.sleep(
-                        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL
-                    )
+                    time.sleep(JobConstant.TRAINING_AGENT_LOOP_INTERVAL)
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
                         raise TimeoutError(
@@ -373,7 +371,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
+            time.sleep(JobConstant.TRAINING_AGENT_LOOP_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -796,12 +794,27 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
 
             if group_rank == 0:
-                role_infos_bytes = self._store.multi_get(
-                    [
-                        f"torchelastic/role_info/{i}"
-                        for i in range(group_world_size)
-                    ]
-                )
+                while True:
+                    role_infos_bytes = self._store.multi_get(
+                        [
+                            ROLE_INFO_PREFIX + f"{i}"
+                            for i in range(group_world_size)
+                        ]
+                    )
+                    contains_invalid = any(
+                        x is None or x == b"" for x in role_infos_bytes
+                    )
+                    if not contains_invalid:
+                        break
+                    else:
+                        logger.warning(
+                            "Role info from store has invalid value, "
+                            "try again..."
+                        )
+                        time.sleep(
+                            JobConstant.TRAINING_AGENT_CORE_LOOP_INTERVAL
+                        )
+
                 role_infos = [
                     _RoleInstanceInfo.deserialize(info_bytes)
                     for info_bytes in role_infos_bytes
@@ -837,14 +850,23 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 self._store.multi_set(keys, values)
 
             # get will block until the data is available in the store.
+            while True:
+                rank_info_bytes = self._store.get(
+                    f"{ASSIGNED_RANKS_PREFIX}{group_rank}"
+                )
+                if rank_info_bytes:
+                    break
+                else:
+                    logger.warning(
+                        "Rank info from store is empty, try again ..."
+                    )
+                    time.sleep(JobConstant.TRAINING_AGENT_LOOP_INTERVAL)
             (
                 base_global_rank,
                 global_world_size,
                 base_role_rank,
                 role_world_size,
-            ) = json.loads(
-                self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}")
-            )
+            ) = json.loads(rank_info_bytes)
 
             workers = []
             for local_rank in range(spec.local_world_size):
@@ -882,7 +904,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         "Exit elastic-training rendezvous when there are "
                         "agents to join the network-check rendezvous."
                     )
-                time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
+                time.sleep(JobConstant.TRAINING_AGENT_LOOP_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
             else:
@@ -1102,7 +1124,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             # memory to the storage.
             start_wait_time = time.time()
             while saver.wait_saving_checkpoint():
-                time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
+                time.sleep(JobConstant.TRAINING_AGENT_LOOP_INTERVAL)
                 wait_time = round(time.time() - start_wait_time, 2)
                 logger.info(
                     "Wait for saving the checkpoint and "
