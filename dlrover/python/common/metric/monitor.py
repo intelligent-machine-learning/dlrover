@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import os
+import threading
+import time
 import traceback
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
@@ -75,8 +77,12 @@ class SimpleMetricMonitor(MetricMonitor):
     implementation of metric monitor that uses http REST api to query metrics
     """
 
-    def __init__(self):
+    def __init__(self, job_name, metrics):
         super().__init__()
+        self._stopped = True
+        self._job_name = job_name
+        self._collect_metrics = metrics
+        self._thread = None
 
     @staticmethod
     def build_request_headers(token):
@@ -147,6 +153,31 @@ class SimpleMetricMonitor(MetricMonitor):
                 "datasource": "pqlTrendQuery",
             }
         ]
+
+    @staticmethod
+    def align_ts_on_minute(tm):
+        """
+        align timestamp on 0 sec of a minute
+
+        Args:
+            tm: timestamp
+
+        Returns:
+        aligned timestamp with unit of second
+
+        """
+        dt_obj = datetime.fromtimestamp(tm)
+        dt_str = "{}-{}-{} {}:{}:{}".format(
+            dt_obj.year,
+            dt_obj.month,
+            dt_obj.day,
+            dt_obj.hour,
+            dt_obj.minute,
+            "00",
+        )
+        tm_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+
+        return int(tm_obj.timestamp())
 
     @staticmethod
     def adjust_timestamp(start, end):
@@ -249,9 +280,77 @@ class SimpleMetricMonitor(MetricMonitor):
             return None
 
     def collect_job_metrics(
-        self, job_name, metric_type, start, end, pod_name=None, metrics=None
+        self,
+        job_name,
+        metric_type,
+        start,
+        end,
+        pod_name=None,
+        metrics=_metric_context,
     ):
         pass
+
+    def _collector(self, interval):
+        """
+        _collector is thread func
+        """
+        logger.info("Metric monitor collector is running...")
+        self._stopped = False
+        while True:
+            if self._stopped:
+                logger.info("Metric monitor collector is stopping...")
+                break
+
+            try:
+                tm = self.align_ts_on_minute(datetime.now().timestamp()) - 60
+                job_metrics = {}
+
+                for metric in self._collect_metrics:
+                    if not self.collect_job_metrics(
+                        self._job_name,
+                        metric,
+                        tm,
+                        tm + 60,
+                        metrics=job_metrics,
+                    ):
+                        raise Exception("collect_job_metrics return None")
+                _metric_context.add_node_metrics(tm, job_metrics)
+                time.sleep(interval)
+
+            except Exception as e:
+                logger.warning(
+                    f"Collect metrics failed, reset after 5min: {e}"
+                )
+                logger.info(
+                    f"Dump metric context {_metric_context.size()} entries:"
+                )
+                for metric in self._collect_metrics:
+                    _metric_context.log_job_metric(metric)
+                _metric_context.clear_node_metrics()
+                time.sleep(300)
+
+    def start(self, interval=60):
+        try:
+            self._thread = threading.Thread(
+                target=self._collector,
+                name="_metric_collector",
+                args=(interval,),
+                daemon=True,
+            )
+            self._thread.start()
+        except Exception as e:
+            logger.error(f"Failed to start metric collector: {e}")
+
+    def stop(self):
+        self._stopped = True
+
+    def join(self, timeout=0):
+        if not self._thread:
+            return
+        if timeout == 0:
+            self._thread.join()
+        else:
+            self._thread.join(timeout)
 
 
 class GpuMetricMonitor(SimpleMetricMonitor):
@@ -259,11 +358,17 @@ class GpuMetricMonitor(SimpleMetricMonitor):
     metric monitor of nvidia GPU metrics
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, job_name, metrics):
+        super().__init__(job_name, metrics)
 
     def collect_job_metrics(
-        self, job_name, metric_type, start, end, pod_name=None, metrics=None
+        self,
+        job_name,
+        metric_type,
+        start,
+        end,
+        pod_name=None,
+        metrics=None,
     ):
         rsp = self.query_job_metrics(
             job_name, metric_type, start, end, is_gpu=True, pod_name=pod_name
@@ -304,18 +409,21 @@ class GpuMetricMonitor(SimpleMetricMonitor):
                     metric_type, data
                 )
 
+            for pod, node_metric in job_metrics.items():
+                node_metric.update_avg_metrics()
+
             return job_metrics
 
         except KeyError as e:
-            logger.warning(f"Key error: {e}")
+            logger.warning(f"collect_job_metrics key error: {e}")
             traceback.print_exc()
             return None
         except ValueError as e:
-            logger.warning(f"Value error: {e}")
+            logger.warning(f"collect_job_metrics value error: {e}")
             traceback.print_exc()
             return None
         except Exception as e:
-            logger.warning(f"Unexpected error: {e}")
+            logger.warning(f"collect_job_metrics unexpected error: {e}")
             traceback.print_exc()
             return None
 
@@ -326,11 +434,17 @@ class NpuMetricMonitor(SimpleMetricMonitor):
 
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, job_name, metrics):
+        super().__init__(job_name, metrics)
 
     def collect_job_metrics(
-        self, job_name, metric_enum, start, end, pod_name=None, metrics=None
+        self,
+        job_name,
+        metric_enum,
+        start,
+        end,
+        pod_name=None,
+        metrics=None,
     ):
         rsp = self.query_job_metrics(
             job_name, metric_enum, start, end, is_gpu=False, pod_name=pod_name
@@ -375,17 +489,20 @@ class NpuMetricMonitor(SimpleMetricMonitor):
                     metric_enum, data
                 )
 
+            for pod, node_metric in job_metrics.items():
+                node_metric.update_avg_metrics()
+
             return job_metrics
 
         except KeyError as e:
-            logger.warning(f"Key error: {e}")
+            logger.warning(f"collect_job_metrics key error: {e}")
             traceback.print_exc()
             return None
         except ValueError as e:
-            logger.warning(f"Value error: {e}")
+            logger.warning(f"collect_job_metrics value error: {e}")
             traceback.print_exc()
             return None
         except Exception as e:
-            logger.warning(f"Unexpected error: {e}")
+            logger.warning(f"collect_job_metrics unexpected error: {e}")
             traceback.print_exc()
             return None
