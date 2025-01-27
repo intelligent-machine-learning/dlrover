@@ -11,14 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import time
 import unittest
+from datetime import datetime
 from typing import List
 from unittest import mock
 
+from dlrover.python.common.constants import Accelerators, GpuMetricEnum
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisDataType,
+    DiagnosisResult,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import (
     DiagnosisData,
@@ -38,6 +45,9 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+
+_metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class DiagnosisManagerTest(unittest.TestCase):
@@ -105,3 +115,63 @@ class DiagnosisManagerTest(unittest.TestCase):
         # explore solutions to observed problems
         action = mgr._diagnostician.resolve_problems(observed_problems)
         self.assertEqual(action.action_type, DiagnosisActionType.NONE)
+
+    def test_gpu_tensor_drop_zero(self):
+        mgr = DiagnosisManager()
+        _metric_context.clear_node_metrics()
+
+        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.307
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        ts = int(datetime.now().timestamp())
+        _metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_WAITING
+        )
+
+        for _ in range(10):
+            ts = ts + 60
+            _metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HEALTHY
+        )
+
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        for _ in range(30):
+            ts = ts + 60
+            _metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
+        )
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
+        )

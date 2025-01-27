@@ -22,8 +22,15 @@ from unittest.mock import patch
 
 import requests
 
-from dlrover.python.common.constants import GpuMetricEnum, NpuMetricEnum
-from dlrover.python.common.metric.context import get_job_metric_context
+from dlrover.python.common.constants import (
+    Accelerators,
+    GpuMetricEnum,
+    NpuMetricEnum,
+)
+from dlrover.python.common.metric.context import (
+    JobMetricContext,
+    get_job_metric_context,
+)
 from dlrover.python.common.metric.metric import (
     GpuMetric,
     GpuNodeMetric,
@@ -35,6 +42,8 @@ from dlrover.python.common.metric.monitor import (
     NpuMetricMonitor,
     SimpleMetricMonitor,
 )
+
+_metric_context = JobMetricContext.singleton_instance()
 
 
 class MetricContextTests(unittest.TestCase):
@@ -561,10 +570,11 @@ class MetricMonitorTests(unittest.TestCase):
         logging.getLogger().setLevel(logging.DEBUG)
 
     def test_query_exception(self):
-        mon = SimpleMetricMonitor()
-
         job_name = "dlrover-testjob"
         metric_type = NpuMetricEnum.NPU_UTIL
+
+        mon = SimpleMetricMonitor(job_name, [metric_type])
+
         start = datetime.strptime(
             "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
         ).timestamp()
@@ -618,10 +628,11 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_query_npu_job_metrics(self):
         with patch("requests.post", side_effect=mock_npu_job_metric_request):
-            mon = SimpleMetricMonitor()
-
             job_name = "dlrover-testjob"
             metric_type = NpuMetricEnum.NPU_UTIL
+
+            mon = SimpleMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -640,11 +651,12 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_query_npu_pod_metrics(self):
         with patch("requests.post", side_effect=mock_npu_pod_metric_request):
-            mon = SimpleMetricMonitor()
-
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
             metric_type = NpuMetricEnum.NPU_UTIL
+
+            mon = SimpleMetricMonitor(job_name, [metric_type])
+
             start = int(
                 datetime.strptime(
                     "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
@@ -668,10 +680,11 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_query_gpu_job_metrics(self):
         with patch("requests.post", side_effect=mock_gpu_job_metric_request):
-            mon = SimpleMetricMonitor()
-
             job_name = "dlrover-testjob"
             metric_type = GpuMetricEnum.GPU_UTIL
+
+            mon = SimpleMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -690,11 +703,12 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_query_gpu_pod_metrics(self):
         with patch("requests.post", side_effect=mock_gpu_pod_metric_request):
-            mon = SimpleMetricMonitor()
-
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
             metric_type = GpuMetricEnum.GPU_UTIL
+
+            mon = SimpleMetricMonitor(job_name, [metric_type])
+
             start = int(
                 datetime.strptime(
                     "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
@@ -718,10 +732,11 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_collect_npu_job_metrics(self):
         with patch("requests.post", side_effect=mock_npu_job_metric_request):
-            mon = NpuMetricMonitor()
-
             job_name = "dlrover-testjob"
             metric_type = NpuMetricEnum.NPU_UTIL
+
+            mon = NpuMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -740,7 +755,7 @@ class MetricMonitorTests(unittest.TestCase):
 
             for pod, node_metric in job_metric.items():
                 if pod == "dlrover-testjob-worker-100":
-                    node_metric.update_avg_metrics()
+                    # node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
                             NpuMetricEnum.NPU_UTIL
@@ -748,7 +763,7 @@ class MetricMonitorTests(unittest.TestCase):
                         96.5,
                     )
                 elif pod == "dlrover-testjob-worker-101":
-                    node_metric.update_avg_metrics()
+                    # node_metric.update_avg_metrics()
                     self.assertEqual(
                         node_metric.avg_metrics.get_metric(
                             NpuMetricEnum.NPU_UTIL
@@ -758,11 +773,12 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_collect_npu_pod_metrics(self):
         with patch("requests.post", side_effect=mock_npu_pod_metric_request):
-            mon = NpuMetricMonitor()
-
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
             metric_type = NpuMetricEnum.NPU_UTIL
+
+            mon = NpuMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -781,7 +797,7 @@ class MetricMonitorTests(unittest.TestCase):
             self.assertIsNotNone(pod_metric)
 
             for pod, node_metric in pod_metric.items():
-                node_metric.update_avg_metrics()
+                # node_metric.update_avg_metrics()
                 self.assertEqual(
                     node_metric.avg_metrics.get_metric(NpuMetricEnum.NPU_UTIL),
                     97.75,
@@ -789,10 +805,11 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_collect_gpu_job_metrics(self):
         with patch("requests.post", side_effect=mock_gpu_job_metric_request):
-            mon = GpuMetricMonitor()
-
             job_name = "dlrover-testjob"
             metric_type = GpuMetricEnum.GPU_UTIL
+
+            mon = GpuMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -829,11 +846,12 @@ class MetricMonitorTests(unittest.TestCase):
 
     def test_collect_gpu_pod_metrics(self):
         with patch("requests.post", side_effect=mock_gpu_pod_metric_request):
-            mon = GpuMetricMonitor()
-
             job_name = "dlrover-testjob"
             pod_name = "dlrover-testjob-worker-100"
             metric_type = GpuMetricEnum.GPU_UTIL
+
+            mon = GpuMetricMonitor(job_name, [metric_type])
+
             start = datetime.strptime(
                 "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
             ).timestamp()
@@ -853,3 +871,218 @@ class MetricMonitorTests(unittest.TestCase):
                     node_metric.avg_metrics.get_metric(GpuMetricEnum.GPU_UTIL),
                     97.75,
                 )
+
+
+def mock_gpu_monitor_collect(*args, **kwargs):
+    if "metrics" in kwargs:
+        job_metrics = kwargs["metrics"]
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 30.5
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        return job_metrics
+
+
+def mock_npu_monitor_collect(*args, **kwargs):
+    if "metrics" in kwargs:
+        job_metrics = kwargs["metrics"]
+        metric = NpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = NpuMetric()
+            metric.node_metrics[i].set_metric(NpuMetricEnum.NPU_UTIL, 99.5)
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        return job_metrics
+
+
+class GpuMetricMonitorTest(unittest.TestCase):
+    def setUp(self):
+        self.url = os.getenv("DLROVER_METRIC_URL", "")
+        self.token = os.getenv("DLROVER_METRIC_TOKEN", "")
+        self.job_name = os.getenv("DLROVER_JOB_NAME", "")
+        self.xpu = Accelerators.NVIDIA_GPU
+        http_client.HTTPConnection.debuglevel = 1
+        logging.basicConfig()
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    def tearDown(self):
+        pass
+
+    def test_gpu_collector(self):
+        with patch(
+            "dlrover.python.common.metric.monitor.GpuMetricMonitor.collect_job_metrics",  # noqa
+            side_effect=mock_gpu_monitor_collect,
+        ):
+            mon = GpuMetricMonitor(
+                job_name=self.job_name,
+                metrics=[
+                    GpuMetricEnum.GPU_TENSOR_UTIL,
+                    GpuMetricEnum.GPU_UTIL,
+                ],
+            )
+            mon.start(interval=1)
+            time.sleep(2)
+            mon.stop()
+
+            _metric_context.log_job_metric(GpuMetricEnum.GPU_TENSOR_UTIL)
+            _metric_context.log_job_metric(GpuMetricEnum.GPU_UTIL)
+
+            self.assertEqual(_metric_context.size(), 1)
+
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_avg_metrics(
+                        GpuMetricEnum.GPU_TENSOR_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [30.5],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_node_metrics(
+                        GpuMetricEnum.GPU_TENSOR_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [[30.5, 30.5, 30.5, 30.5]],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_rank_metrics(
+                        GpuMetricEnum.GPU_TENSOR_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [
+                    [
+                        [30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5],
+                        [30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5],
+                        [30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5],
+                        [30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5, 30.5],
+                    ]
+                ],
+            )
+
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_avg_metrics(
+                        GpuMetricEnum.GPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [99.5],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_node_metrics(
+                        GpuMetricEnum.GPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [[99.5, 99.5, 99.5, 99.5]],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_rank_metrics(
+                        GpuMetricEnum.GPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [
+                    [
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                    ]
+                ],
+            )
+
+            _metric_context.clear_node_metrics()
+            self.assertEqual(_metric_context.size(), 0)
+
+
+class NpuMetricMonitorTest(unittest.TestCase):
+    def setUp(self):
+        self.url = os.getenv("DLROVER_METRIC_URL", "")
+        self.token = os.getenv("DLROVER_METRIC_TOKEN", "")
+        self.job_name = os.getenv("DLROVER_JOB_NAME", "")
+        self.xpu = Accelerators.ASCEND_NPU
+        http_client.HTTPConnection.debuglevel = 1
+        logging.basicConfig()
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    def tearDown(self):
+        pass
+
+    def test_npu_collector(self):
+        with patch(
+            "dlrover.python.common.metric.monitor.NpuMetricMonitor.collect_job_metrics",  # noqa
+            side_effect=mock_npu_monitor_collect,
+        ):
+            mon = NpuMetricMonitor(
+                job_name=self.job_name,
+                metrics=[
+                    NpuMetricEnum.NPU_UTIL,
+                ],
+            )
+            mon.start(interval=1)
+            time.sleep(2)
+            mon.stop()
+
+            _metric_context.log_job_metric(NpuMetricEnum.NPU_UTIL)
+
+            self.assertEqual(_metric_context.size(), 1)
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_avg_metrics(
+                        NpuMetricEnum.NPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [99.5],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_node_metrics(
+                        NpuMetricEnum.NPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [[99.5, 99.5, 99.5, 99.5]],
+            )
+            self.assertEqual(
+                list(
+                    _metric_context.backtrace_rank_metrics(
+                        NpuMetricEnum.NPU_UTIL,
+                        _metric_context.max_metric_records,
+                    ).values()
+                ),
+                [
+                    [
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                        [99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5, 99.5],
+                    ]
+                ],
+            )
+
+            _metric_context.clear_node_metrics()
+            self.assertEqual(_metric_context.size(), 0)
