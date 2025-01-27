@@ -355,7 +355,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                         )
                         start_pending = time.time()
                     time.sleep(
-                        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL
+                        JobConstant.RENDEZVOUS_DEFAULT_INTERVAL
                     )
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
@@ -373,7 +373,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
+            time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -1185,7 +1185,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
 
-    def sync_training_ports(self, interval=20):
+    def sync_training_ports(self, interval=JobConstant.SYNC_PORTS_DEFAULT_INTERVAL):
         logger.info(f"Accelerator: {self._config.accelerator}")
         if (
             self._config.accelerator == Accelerators.ASCEND_NPU
