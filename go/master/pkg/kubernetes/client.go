@@ -17,6 +17,7 @@ import (
 	"context"
 
 	logger "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,6 +32,11 @@ type K8sClient struct {
 	config        *rest.Config
 	clientset     *k8sApi.Clientset
 	dynamicClient *dynamic.DynamicClient
+}
+
+// GetGroupVersionResource :- gets GroupVersionResource for dynamic client
+func GetGroupVersionResource(group, version, resource string) schema.GroupVersionResource {
+	return schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
 }
 
 // NewK8sClient creates a k8s client instance.
@@ -83,7 +89,13 @@ func (client *K8sClient) GetCustomResourceInstance(
 	return utd, err
 }
 
-// GetGroupVersionResource :- gets GroupVersionResource for dynamic client
-func GetGroupVersionResource(group, version, resource string) schema.GroupVersionResource {
-	return schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+// CreatePod creates a Pod instance in the cluster
+func (client *K8sClient) CreatePod(namespace string, pod *corev1.Pod) error {
+	_, err := client.clientset.CoreV1().Pods(namespace).Create(
+		context.Background(), pod, metav1.CreateOptions{},
+	)
+	if err != nil {
+		logger.Infof("fail to create a pod : %s", pod.ObjectMeta.Name)
+	}
+	return err
 }
