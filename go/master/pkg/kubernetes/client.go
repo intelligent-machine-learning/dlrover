@@ -82,7 +82,7 @@ func (client *K8sClient) GetCustomResourceInstance(
 	utd, err := client.dynamicClient.
 		Resource(gvr).
 		Namespace(namespace).
-		Get(context.TODO(), name, metav1.GetOptions{})
+		Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		logger.Infof("fail to get %s %s", gvr.String(), name)
 	}
