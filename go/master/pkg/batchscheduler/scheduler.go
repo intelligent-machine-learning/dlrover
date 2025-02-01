@@ -11,40 +11,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package batchscheduler
 
 import (
-	"time"
-
 	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
-	logger "github.com/sirupsen/logrus"
 )
 
-// JobMaster is the master of an elasticjob.
-type JobMaster struct {
-	Namespace string
-	JobName   string
-	K8sClient *kubeutils.K8sClient
-	Job       *elasticjob.ElasticJob
+// BatchScheduler creates/updates/deletes the batch pods of an elastic job.
+type BatchScheduler interface {
+	DoScheduling(*SchedulingPlan)
 }
 
-// NewJobMaster creates the master for an elasticjob.
-func NewJobMaster(namespace string, jobName string, k8sClient *kubeutils.K8sClient) *JobMaster {
-	master := &JobMaster{
-		Namespace: namespace,
-		JobName:   jobName,
-	}
-	if k8sClient != nil {
-		job := kubeutils.GetElasticJobInstance(k8sClient, namespace, jobName)
-		master.K8sClient = k8sClient
-		master.Job = job
-	}
-	logger.Infof("create a master of job %s.", jobName)
-	return master
-}
+// SchedulingPlan is the scheduling plan to notify the scheduler CURD pods.
+type SchedulingPlan struct {
+	// ReplicaSpecs is a map which contains the replica specification to create Pods.
+	ReplicaSpecs map[commonv1.ReplicaType]*commonv1.ReplicaSpec
 
-// Run starts the master instance.
-func (master *JobMaster) Run() {
-	time.Sleep(10 * time.Hour)
+	// CreatedPods are Pods to be created.
+	CreatedPods []*kubeutils.PodConfig
+
+	// RemovedPods are Pods to be removed
+	RemovedPods []*kubeutils.PodConfig
+
+	// OwnerJob specifies a job to scale.
+	OwnerJob *elasticjob.ElasticJob
 }
