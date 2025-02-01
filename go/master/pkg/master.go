@@ -17,7 +17,7 @@ import (
 	"time"
 
 	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
-	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubernetes"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
 	logger "github.com/sirupsen/logrus"
 )
 
@@ -25,18 +25,18 @@ import (
 type JobMaster struct {
 	Namespace string
 	JobName   string
-	K8sClient *kubernetes.K8sClient
+	K8sClient *kubeutils.K8sClient
 	Job       *elasticjob.ElasticJob
 }
 
 // NewJobMaster creates the master for an elasticjob.
-func NewJobMaster(namespace string, jobName string, k8sClient *kubernetes.K8sClient) *JobMaster {
+func NewJobMaster(namespace string, jobName string, k8sClient *kubeutils.K8sClient) *JobMaster {
 	master := &JobMaster{
 		Namespace: namespace,
 		JobName:   jobName,
 	}
 	if k8sClient != nil {
-		job := kubernetes.GetElasticJobInstance(k8sClient, namespace, jobName)
+		job := kubeutils.GetElasticJobInstance(k8sClient, namespace, jobName)
 		master.K8sClient = k8sClient
 		master.Job = job
 	}

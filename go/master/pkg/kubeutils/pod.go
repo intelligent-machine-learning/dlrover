@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package kubeutils
 
 import (
 	"fmt"
@@ -144,7 +144,7 @@ func insertReplicaEnv(container *corev1.Container, replicaConfig *ReplicaConfig)
 	container.Env = append(container.Env, replicaIDEnv)
 
 	rankIDEnv := corev1.EnvVar{
-		Name:  envReplicaRank,
+		Name:  envReplicaNum,
 		Value: fmt.Sprintf("%d", replicaConfig.Rank),
 	}
 	container.Env = append(container.Env, rankIDEnv)

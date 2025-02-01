@@ -11,13 +11,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package kubeutils
 
 import (
+	"errors"
+	"fmt"
+	"os"
+
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var _ = Describe("Pod", func() {
@@ -30,9 +35,9 @@ var _ = Describe("Pod", func() {
 		}
 		container := corev1.Container{
 			Name:            "main",
-			Image:           "test",
-			ImagePullPolicy: corev1.PullAlways,
-			Command:         []string{"/bin/bash", "echo 0"},
+			Image:           "python:3.12.8",
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Command:         []string{"/bin/bash", "-c", "echo 0"},
 		}
 		podConfig := &PodConfig{
 			Replica: &ReplicaConfig{
@@ -57,5 +62,23 @@ var _ = Describe("Pod", func() {
 		replicaType, ok := pod.ObjectMeta.Labels[labelReplicaTypeKey]
 		Expect(ok).To(BeTrue())
 		Expect(replicaType).To(Equal("worker"))
+
+		configPath := os.Getenv("KUBERNETES_CONFIG_PATH")
+		if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
+			Skip(fmt.Sprintf("The config file %s is not exist.", configPath))
+		}
+
+		k8sClient := NewK8sClient(configPath)
+		pod.ObjectMeta.Namespace = "no-namspace"
+		err := k8sClient.CreatePod("dlrover", pod)
+		Expect(kubeerrors.IsBadRequest(err)).To(BeTrue())
+
+		pod.ObjectMeta.Namespace = "dlrover"
+		err = k8sClient.CreatePod("dlrover", pod)
+		Expect(kubeerrors.IsAlreadyExists(err)).To(BeTrue())
+
+		pod.ObjectMeta.Name = ""
+		err = k8sClient.CreatePod("dlrover", pod)
+		Expect(kubeerrors.IsInvalid(err)).To(BeTrue())
 	})
 })

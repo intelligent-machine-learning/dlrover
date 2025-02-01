@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	master "github.com/intelligent-machine-learning/dlrover/go/master/pkg"
-	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubernetes"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/server"
 	logger "github.com/sirupsen/logrus"
 )
@@ -39,9 +39,9 @@ func main() {
 
 	// Listen and serve on defined port
 	logger.Infof("The master starts with namespece %s, jobName %s, port %d", namespace, jobName, port)
-	var k8sClient *kubernetes.K8sClient
+	var k8sClient *kubeutils.K8sClient
 	if k8sScheduling {
-		k8sClient = kubernetes.NewK8sClient("")
+		k8sClient = kubeutils.NewK8sClient("")
 	}
 	master := master.NewJobMaster(namespace, jobName, k8sClient)
 	master.Run()

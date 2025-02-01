@@ -11,22 +11,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package main_test
 
 import (
-	"os"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Elasticjob", func() {
-	It("Get an elasticjob instance", func() {
-		kubeConfigPath := os.Getenv("KUBENETES_CLUSTER_CONFIG")
-		if kubeConfigPath != "" {
-			k8sClient := NewK8sClient(kubeConfigPath)
-			job := GetElasticJobInstance(k8sClient, "dlrover", "torch-mnist")
-			Expect(job.Name).To(Equal("torch-minst"))
-		}
-	})
-})
+func TestMaster(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Master Suite")
+}
