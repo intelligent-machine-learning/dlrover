@@ -14,37 +14,39 @@
 package master
 
 import (
+	"context"
 	"time"
 
-	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/jobmanager"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
 	logger "github.com/sirupsen/logrus"
 )
 
 // JobMaster is the master of an elasticjob.
 type JobMaster struct {
-	Namespace string
-	JobName   string
-	K8sClient *kubeutils.K8sClient
-	Job       *elasticjob.ElasticJob
+	jobContext *common.JobContext
+	jobManager jobmanager.JobManager
 }
 
 // NewJobMaster creates the master for an elasticjob.
-func NewJobMaster(namespace string, jobName string, k8sClient *kubeutils.K8sClient) *JobMaster {
-	master := &JobMaster{
-		Namespace: namespace,
-		JobName:   jobName,
+func NewJobMaster(namespace string, jobName string) *JobMaster {
+	master := &JobMaster{}
+	if kubeutils.GlobalK8sClient != nil {
+		elasticjob := kubeutils.GetElasticJobInstance(jobName)
+		master.jobManager = jobmanager.NewJobManager(elasticjob)
 	}
-	if k8sClient != nil {
-		job := kubeutils.GetElasticJobInstance(k8sClient, namespace, jobName)
-		master.K8sClient = k8sClient
-		master.Job = job
-	}
+	master.jobContext = common.NewJobContext(namespace, jobName)
 	logger.Infof("create a master of job %s.", jobName)
 	return master
 }
 
 // Run starts the master instance.
 func (master *JobMaster) Run() {
+	ctx, cancel := context.WithCancel(context.Background())
+	if master.jobManager != nil {
+		master.jobManager.Start(ctx, master.jobContext)
+	}
+	defer cancel()
 	time.Sleep(10 * time.Hour)
 }

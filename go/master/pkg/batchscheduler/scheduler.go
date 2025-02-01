@@ -14,14 +14,22 @@
 package batchscheduler
 
 import (
+	"context"
+	"time"
+
 	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
+	logger "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // BatchScheduler creates/updates/deletes the batch pods of an elastic job.
 type BatchScheduler interface {
-	DoScheduling(*SchedulingPlan)
+	Start(ctx context.Context, jobContext *common.JobContext)
+	DoScheduling(jobContext *common.JobContext, plan *SchedulingPlan)
 }
 
 // SchedulingPlan is the scheduling plan to notify the scheduler CURD pods.
@@ -37,4 +45,45 @@ type SchedulingPlan struct {
 
 	// OwnerJob specifies a job to scale.
 	OwnerJob *elasticjob.ElasticJob
+}
+
+// NewBatchScheduler creates a batch scheduler according to the scheduler name.
+func NewBatchScheduler(schedulerName string) BatchScheduler {
+	if schedulerName == "elastic" || schedulerName == "" {
+		scheduler := NewElasticScheduler()
+		return scheduler
+	}
+	return nil
+}
+
+// KubeScheduler is the base scheduler to create/update/remove pods.
+type KubeScheduler struct {
+	toCreatePods *common.Queue
+}
+
+// LoopToLaunchPods launches pods from the pod queue.
+func (scheduler *KubeScheduler) LoopToLaunchPods(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("The loop to launch Pod exists.")
+		default:
+			for scheduler.toCreatePods.Len() > 0 {
+				pod := scheduler.toCreatePods.PopFront().(*corev1.Pod)
+				err := kubeutils.GlobalK8sClient.CreatePod(ctx, pod)
+				if errors.IsAlreadyExists(err) {
+					logger.Warnf("The pod %s already exists.", pod.ObjectMeta.Name)
+				} else if errors.IsTooManyRequests(err) || errors.IsTimeout(err) || errors.IsServerTimeout(err) {
+					logger.Warnf("Fail to create pod %s with err: %v", pod.ObjectMeta.Name, err)
+					// Retry to create pod due to timeout.
+					scheduler.toCreatePods.PushFront(pod)
+					time.Sleep(5 * time.Second)
+				} else {
+					logger.Warnf("Fail to create pod %s with err: %v", pod.ObjectMeta.Name, err)
+					panic(err.Error())
+				}
+			}
+		}
+		time.Sleep(1 * time.Second)
+	}
 }

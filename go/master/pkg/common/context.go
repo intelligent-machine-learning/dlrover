@@ -13,6 +13,16 @@
 
 package common
 
+import (
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"time"
+)
+
+const masterServicePort = 215000
+
 // JobContext stores the elastic job context.
 type JobContext struct {
 	// Namespace is the kubernetes namespace where the job runs.
@@ -22,5 +32,55 @@ type JobContext struct {
 	// MasterHost is the host of master service.
 	MasterHost string
 	// MasterPort is the host of master port.
-	MasterPort int32
+	MasterPort int
+}
+
+// NewJobContext creates a job context.
+func NewJobContext(namespace string, name string) *JobContext {
+	host := fmt.Sprintf("elasticjob-%s-dlrover-master", name)
+	port := masterServicePort
+
+	if !checkAddressReachable(host, port) {
+		host = os.Getenv("MY_POD_IP")
+		freePort, err := getFreePort()
+		if err != nil {
+			panic(err.Error())
+		}
+		port = freePort
+	}
+
+	return &JobContext{
+		NameSpace:  namespace,
+		Name:       name,
+		MasterHost: host,
+		MasterPort: port,
+	}
+}
+
+func checkAddressReachable(host string, port int) bool {
+	timeout := time.Second
+	masterAddr := net.JoinHostPort(host, strconv.Itoa(port))
+	conn, err := net.DialTimeout("tcp", masterAddr, timeout)
+	if err != nil {
+		return false
+	}
+	if conn != nil {
+		defer conn.Close()
+	}
+	return true
+}
+
+func getFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }

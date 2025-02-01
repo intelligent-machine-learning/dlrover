@@ -86,7 +86,7 @@ func BuildPod(jobContext *common.JobContext, podConfig *PodConfig) *corev1.Pod {
 	return pod
 }
 
-func insertJobMasterAddrEnv(container *corev1.Container, host string, port int32) {
+func insertJobMasterAddrEnv(container *corev1.Container, host string, port int) {
 	jobMasterServiceEnv := corev1.EnvVar{
 		Name:  envMasterAddr,
 		Value: fmt.Sprintf("%s:%d", host, port),

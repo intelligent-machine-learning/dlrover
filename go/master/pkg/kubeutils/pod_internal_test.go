@@ -14,6 +14,7 @@
 package kubeutils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -68,17 +69,17 @@ var _ = Describe("Pod", func() {
 			Skip(fmt.Sprintf("The config file %s is not exist.", configPath))
 		}
 
-		k8sClient := NewK8sClient(configPath)
+		k8sClient := NewK8sClient(configPath, "dlrover")
 		pod.ObjectMeta.Namespace = "no-namspace"
-		err := k8sClient.CreatePod("dlrover", pod)
+		err := k8sClient.CreatePod(context.Background(), pod)
 		Expect(kubeerrors.IsBadRequest(err)).To(BeTrue())
 
 		pod.ObjectMeta.Namespace = "dlrover"
-		err = k8sClient.CreatePod("dlrover", pod)
+		err = k8sClient.CreatePod(context.Background(), pod)
 		Expect(kubeerrors.IsAlreadyExists(err)).To(BeTrue())
 
 		pod.ObjectMeta.Name = ""
-		err = k8sClient.CreatePod("dlrover", pod)
+		err = k8sClient.CreatePod(context.Background(), pod)
 		Expect(kubeerrors.IsInvalid(err)).To(BeTrue())
 	})
 })

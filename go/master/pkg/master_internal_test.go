@@ -20,8 +20,8 @@ import (
 
 var _ = Describe("Master", func() {
 	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master", nil)
-		Expect(master.Namespace).To(Equal("dlrover"))
-		Expect(master.JobName).To(Equal("test-master"))
+		master := NewJobMaster("dlrover", "test-master")
+		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
+		Expect(master.jobContext.Name).To(Equal("test-master"))
 	})
 })
