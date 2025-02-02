@@ -39,10 +39,10 @@ func main() {
 
 	// Listen and serve on defined port
 	logger.Infof("The master starts with namespece %s, jobName %s, port %d", namespace, jobName, port)
-	var k8sClient *kubeutils.K8sClient
 	if k8sScheduling {
-		k8sClient = kubeutils.NewK8sClient("")
+		// Use incluster mode without kubeconfig.
+		kubeutils.NewGlobalK8sClient("", namespace)
 	}
-	master := master.NewJobMaster(namespace, jobName, k8sClient)
+	master := master.NewJobMaster(namespace, jobName)
 	master.Run()
 }

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeutils
+package common
 
 import (
 	"os"
@@ -20,13 +20,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Elasticjob", func() {
-	It("Get an elasticjob instance", func() {
-		kubeConfigPath := os.Getenv("KUBENETES_CLUSTER_CONFIG")
-		if kubeConfigPath != "" {
-			NewGlobalK8sClient(kubeConfigPath, "dlrover")
-			job := GetElasticJobInstance("torch-mnist")
-			Expect(job.Name).To(Equal("torch-minst"))
-		}
+var _ = Describe("Context", func() {
+	It("New Job Context", func() {
+		os.Setenv("MY_POD_IP", "127.0.0.1")
+		jobContext := NewJobContext("dlrover", "train-demo")
+		Expect(jobContext.MasterHost).To(Equal("127.0.0.1"))
+		Expect(jobContext.MasterPort > 0).To(BeTrue())
 	})
+
 })

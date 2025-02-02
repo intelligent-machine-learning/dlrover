@@ -13,6 +13,22 @@
 
 package jobmanager
 
+import (
+	"context"
+
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
+)
+
 // JobManager is the interface to manager job lifecycle.
 type JobManager interface {
+	Start(ctx context.Context, jobContext *common.JobContext)
+}
+
+// NewJobManager creates a job manager.
+func NewJobManager(elasticJob *elasticjobv1.ElasticJob) JobManager {
+	if elasticJob.Spec.DistributionStrategy == "pytorch" {
+		return NewPyTorchJobManager(elasticJob)
+	}
+	return nil
 }

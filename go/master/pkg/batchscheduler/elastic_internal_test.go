@@ -50,7 +50,7 @@ var _ = Describe("Elastic", func() {
 			},
 		}
 		schedulingPlan := &SchedulingPlan{ReplicaSpecs: replicas}
-		scheduler := NewElasticScheduler(nil)
+		scheduler := NewElasticScheduler()
 		scheduler.DoScheduling(jobContext, schedulingPlan)
 		Expect(scheduler.toCreatePods.Len()).To(Equal(3))
 		for i := 0; i < 3; i++ {

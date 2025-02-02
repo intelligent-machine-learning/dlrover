@@ -27,10 +27,9 @@ const (
 )
 
 // GetElasticJobInstance gets an elasticjob instance.
-func GetElasticJobInstance(client *K8sClient, namespace string, jobName string) *elasticjob.ElasticJob {
-
+func GetElasticJobInstance(jobName string) *elasticjob.ElasticJob {
 	gvr := GetGroupVersionResource(GROUP, VERSION, "elasticjobs")
-	utd, err := client.GetCustomResourceInstance(namespace, jobName, gvr)
+	utd, err := GlobalK8sClient.GetCustomResourceInstance(jobName, gvr)
 	if err != nil {
 		return nil
 	}

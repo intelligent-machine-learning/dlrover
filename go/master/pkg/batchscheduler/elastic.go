@@ -14,32 +14,31 @@
 package batchscheduler
 
 import (
-	"time"
+	"context"
 
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
-	logger "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // ElasticScheduler launches pods without waiting for all resouces of pod are ready
 type ElasticScheduler struct {
-	k8sClient    *kubeutils.K8sClient
-	toCreatePods *common.Queue
+	KubeScheduler
+	SchedulerName string
 }
 
 // NewElasticScheduler creates an elastic scheduler.
-func NewElasticScheduler(k8sClient *kubeutils.K8sClient) *ElasticScheduler {
+func NewElasticScheduler() *ElasticScheduler {
 	return &ElasticScheduler{
-		k8sClient:    k8sClient,
-		toCreatePods: common.NewQueue(),
+		KubeScheduler: KubeScheduler{
+			toCreatePods: common.NewQueue(),
+		},
+		SchedulerName: "elastic",
 	}
 }
 
 // Start starts a routine to launch Pods.
-func (scheduler *ElasticScheduler) Start(jobContext *common.JobContext) {
-	go scheduler.createPodLoop(jobContext.NameSpace)
+func (scheduler *ElasticScheduler) Start(ctx context.Context, jobContext *common.JobContext) {
+	go scheduler.LoopToLaunchPods(ctx)
 }
 
 // DoScheduling creates/updates/deletes pods
@@ -52,7 +51,6 @@ func (scheduler *ElasticScheduler) DoScheduling(jobContext *common.JobContext, p
 				Number: spec.Replicas,
 				Rank:   i,
 			}
-
 			podConfig := &kubeutils.PodConfig{
 				Replica:      replicaConfig,
 				TemplateSpec: spec.Template.DeepCopy(),
@@ -60,26 +58,5 @@ func (scheduler *ElasticScheduler) DoScheduling(jobContext *common.JobContext, p
 			pod := kubeutils.BuildPod(jobContext, podConfig)
 			scheduler.toCreatePods.PushBack(pod)
 		}
-	}
-}
-
-func (scheduler *ElasticScheduler) createPodLoop(namespace string) {
-	for {
-		for scheduler.toCreatePods.Len() > 0 {
-			pod := scheduler.toCreatePods.PopFront().(*corev1.Pod)
-			err := scheduler.k8sClient.CreatePod(namespace, pod)
-			if errors.IsAlreadyExists(err) {
-				logger.Warnf("The pod %s already exists.", pod.ObjectMeta.Name)
-			} else if errors.IsTooManyRequests(err) || errors.IsTimeout(err) || errors.IsServerTimeout(err) {
-				logger.Warnf("Fail to create pod %s with err: %v", pod.ObjectMeta.Name, err)
-				// Retry to create pod due to timeout.
-				scheduler.toCreatePods.PushFront(pod)
-				time.Sleep(5 * time.Second)
-			} else {
-				logger.Warnf("Fail to create pod %s with err: %v", pod.ObjectMeta.Name, err)
-				panic(err.Error())
-			}
-		}
-		time.Sleep(1 * time.Second)
 	}
 }
