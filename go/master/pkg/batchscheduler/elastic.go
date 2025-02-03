@@ -18,6 +18,8 @@ import (
 
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
+	logger "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // ElasticScheduler launches pods without waiting for all resouces of pod are ready
@@ -55,8 +57,20 @@ func (scheduler *ElasticScheduler) DoScheduling(jobContext *common.JobContext, p
 				Replica:      replicaConfig,
 				TemplateSpec: spec.Template.DeepCopy(),
 			}
-			pod := kubeutils.BuildPod(jobContext, podConfig)
+			pod := kubeutils.BuildPod(jobContext, podConfig, plan.OwnerJob)
 			scheduler.toCreatePods.PushBack(pod)
+		}
+	}
+	for _, podConfig := range plan.CreatedPods {
+		pod := kubeutils.BuildPod(jobContext, podConfig, plan.OwnerJob)
+		scheduler.toCreatePods.PushBack(pod)
+	}
+	for _, name := range plan.RemovedPods {
+		err := kubeutils.GlobalK8sClient.RemovePod(name)
+		if errors.IsNotFound(err) {
+			logger.Infof("The Pod %s has been removed", name)
+		} else {
+			logger.Warnf("Fail to remove the pod %s, err = %v", name, err)
 		}
 	}
 }
