@@ -361,7 +361,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         if not all_rank_ready or not state_dict:
             logger.info(
                 f"Rank {self._rank} skips the save the checkpoint "
-                f"in CPU memory since it is saving the latest "
+                "in CPU memory since it is saving the latest "
                 "checkpoint from the CPU memory into the storage."
             )
             if acquired:

@@ -292,8 +292,12 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
-    @patch("dlrover.trainer.torch.utils.version_less_than_240")
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.version_less_than_240",
+        return_value=False,
+    )
     def test_assign_worker_ranks_with_torch240(self, mock_version):
+        mock_version.return_value = False
         JobConstant.TRAINING_AGENT_CORE_LOOP_INTERVAL = 1
         JobConstant.TRAINING_AGENT_LOOP_INTERVAL = 1
 
@@ -304,12 +308,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             node_rank=node_id,
             config=self.config,
             entrypoint="python",
-            spec=self.spec,
+            spec=spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-
-        mock_version.return_value = "2.4.0"
 
         # mock normal procedure
         agent._store = MagicMock(
@@ -341,10 +343,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(len(workers), 2)
         self.assertEqual(workers[0].local_rank, 0)
         self.assertEqual(workers[0].global_rank, 0)
-        self.assertEqual(workers[0].world_size, 2)
         self.assertEqual(workers[1].local_rank, 1)
         self.assertEqual(workers[1].global_rank, 1)
-        self.assertEqual(workers[1].world_size, 2)
+        self.assertEqual(workers[0].world_size, 2)
+        self.assertEqual(workers[0].world_size, workers[1].world_size)
 
         # mock mult get return None(some worker exited)
         recover_time = time.time() + 3
