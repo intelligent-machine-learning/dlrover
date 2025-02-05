@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import shutil
@@ -21,6 +22,7 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime
 from unittest import mock
 from unittest.mock import patch
 
@@ -37,9 +39,20 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    GpuMetricEnum,
     JobConstant,
     NodeEnv,
+    NpuMetricEnum,
     RendezvousName,
+)
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.metric.metric import (
+    GpuMetric,
+    GpuNodeMetric,
+    NpuMetric,
+    NpuNodeMetric,
 )
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
@@ -59,15 +72,20 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
+    NodeCheckFailedError,
     RendezvousOutSyncError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
     _set_paral_config,
     comm_perf_check,
+    launch_agent,
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
+
+_metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class ElasticTrainingAgentTest(unittest.TestCase):
@@ -270,10 +288,50 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             agent._save_ckpt_future
 
 
+def mock_gpu_metric_collect(*args, **kwargs):
+    logger.info("mock gpu metric collector is running...")
+    job_metrics = {}
+    metric = GpuNodeMetric()
+    for i in range(8):
+        metric.node_metrics[i] = GpuMetric()
+        metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+        metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+        metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+        metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 30.5)
+    metric.update_avg_metrics()
+    job_metrics["worker-1"] = copy.deepcopy(metric)
+    job_metrics["worker-2"] = copy.deepcopy(metric)
+    job_metrics["worker-3"] = copy.deepcopy(metric)
+    job_metrics["worker-4"] = copy.deepcopy(metric)
+    _metric_context.add_node_metrics(
+        int(datetime.now().timestamp()), job_metrics
+    )
+
+
+def mock_npu_metric_collect(*args, **kwargs):
+    logger.info("mock npu metric collector is running...")
+    job_metrics = {}
+    metric = NpuNodeMetric()
+    for i in range(16):
+        metric.node_metrics[i] = NpuMetric()
+        metric.node_metrics[i].set_metric(NpuMetricEnum.NPU_USED_MEM, 78)
+        metric.node_metrics[i].set_metric(NpuMetricEnum.NPU_TOTAL_MEM, 80)
+        metric.node_metrics[i].set_metric(NpuMetricEnum.NPU_UTIL, 99.5)
+    metric.update_avg_metrics()
+    job_metrics["worker-1"] = copy.deepcopy(metric)
+    job_metrics["worker-2"] = copy.deepcopy(metric)
+    job_metrics["worker-3"] = copy.deepcopy(metric)
+    job_metrics["worker-4"] = copy.deepcopy(metric)
+    _metric_context.add_node_metrics(
+        int(datetime.now().timestamp()), job_metrics
+    )
+
+
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 1)
+        self._client = MasterClient.singleton_instance()
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -336,6 +394,39 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         run_result = agent._invoke_run()
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
+    def test_metric_collect(self):
+        with patch(
+            "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
+            side_effect=mock_gpu_metric_collect(),
+        ):
+            os.environ[
+                "DLROVER_METRIC_URL"
+            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
+            self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
+            self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
+
+            _metric_context.clear_node_metrics()
+            _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+
+            self._master.diagnosis_manager.stop_metric_collect()
+
+        with patch(
+            "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
+            side_effect=mock_npu_metric_collect(),
+        ):
+            os.environ[
+                "DLROVER_METRIC_URL"
+            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
+            self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
+            self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
+
+            _metric_context.clear_node_metrics()
+            _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
+
+            self._master.diagnosis_manager.stop_metric_collect()
 
     def test_failure_ending_after_training(self):
         agent = ElasticTrainingAgent(
@@ -677,6 +768,37 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             ),
             1,
         )
+
+    @patch(
+        "dlrover.python.elastic_agent.master_client"
+        ".MasterClient.report_failed_exited"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training"
+        ".ElasticTrainingAgent.run"
+    )
+    def test_node_status_report(self, mock_run, mock_report_failed_exited):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+
+        mock_run.side_effect = RuntimeError("test")
+        mock_report_failed_exited.return_value = True
+        try:
+            launch_agent(config, entrypoint, [])
+            self.fail()
+        except RuntimeError:
+            self.assertTrue(True)
+            mock_run.assert_called_once()
+            mock_report_failed_exited.assert_called_once()
+
+        mock_run.side_effect = NodeCheckFailedError("test")
+        try:
+            launch_agent(config, entrypoint, [])
+            self.fail()
+        except NodeCheckFailedError:
+            self.assertTrue(True)
+            self.assertEqual(mock_run.call_count, 2)
+            mock_report_failed_exited.assert_called_once()
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

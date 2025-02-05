@@ -29,6 +29,7 @@ class ArgsTest(unittest.TestCase):
         self.assertTrue(parsed_args.namespace, "default")
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
+        self.assertTrue(parsed_args.service_type, "grpc")
 
         original_args = [
             "--job_name",
@@ -39,7 +40,35 @@ class ArgsTest(unittest.TestCase):
             "600",
             "--pending_fail_strategy",
             "2",
+            "--service_type",
+            "http",
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
+        self.assertTrue(parsed_args.service_type, "http")
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--hang_detection",
+            "1",
+            "--hang_downtime",
+            "15",
+            "--xpu_type",
+            "ascend",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.job_name, "test")
+        self.assertEqual(parsed_args.hang_detection, 1)
+        self.assertEqual(parsed_args.hang_downtime, 15)
+        self.assertEqual(parsed_args.xpu_type, "ascend")
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--xpu_type",
+            "nvidia",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.xpu_type, "nvidia")

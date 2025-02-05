@@ -22,6 +22,12 @@ from unittest.mock import patch
 from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.comm import (
+    DataLoaderConfig,
+    GPUStats,
+    OptimizerConfig,
+    ParallelConfig,
+)
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -31,12 +37,6 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     TrainingExceptionLevel,
-)
-from dlrover.python.common.grpc import (
-    DataLoaderConfig,
-    GPUStats,
-    OptimizerConfig,
-    ParallelConfig,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -240,6 +240,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
+
+        # reset failed nodes for testing
+        self.job_context._failed_nodes = {}
         self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
 
         job_nodes = self.job_context.job_nodes()
@@ -296,9 +299,18 @@ class DistributedJobManagerTest(unittest.TestCase):
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
 
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 0)
         manager.handle_training_failure(
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
+        manager.handle_training_failure(
+            NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
+        )
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 1)
+        manager.handle_training_failure(
+            NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
+        )
+        self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
 
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()

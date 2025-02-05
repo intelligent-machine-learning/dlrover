@@ -20,6 +20,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -33,7 +34,6 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
@@ -1163,10 +1163,13 @@ class DistributedJobManager(JobManager):
         error_data: str,
         level: str,
     ) -> bool:
-        if self._error_monitor and node is not None:
-            return self._error_monitor.process_error(
-                node, restart_count, error_data, level
-            )
+        if node:
+            if level == TrainingExceptionLevel.NODE_ERROR:
+                self._job_context.report_failed_node(node.id)
+            if self._error_monitor:
+                return self._error_monitor.process_error(
+                    node, restart_count, error_data, level
+                )
         return False
 
     def all_running_node_hanged(self):
@@ -1239,7 +1242,13 @@ class DistributedJobManager(JobManager):
                 logger.info(f"Start receiving heartbeat from node {node_id}")
             node.heartbeat_time = timestamp
             self._job_context.update_job_node(node)
-            return self._job_context.next_action(instance=node_id)
+            action = self._job_context.next_action(instance=node_id)
+            if not action or isinstance(action, NoAction):
+                return self._job_context.next_action(
+                    instance=DiagnosisConstant.ANY_INSTANCE
+                )
+            else:
+                return action
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)

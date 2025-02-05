@@ -11,12 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package kubeutils
 
 import (
 	"context"
 
 	logger "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -26,16 +27,32 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// GlobalK8sClient is the global client to access a k8s cluster.
+var GlobalK8sClient *K8sClient
+
 // K8sClient contains the instance to access a k8s cluster.
 type K8sClient struct {
+	namespace     string
 	config        *rest.Config
 	clientset     *k8sApi.Clientset
 	dynamicClient *dynamic.DynamicClient
 }
 
+// GetGroupVersionResource :- gets GroupVersionResource for dynamic client
+func GetGroupVersionResource(group, version, resource string) schema.GroupVersionResource {
+	return schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+}
+
+// NewGlobalK8sClient initialize the global k8s client.
+func NewGlobalK8sClient(kubeConfigPath string, namespace string) {
+	GlobalK8sClient = NewK8sClient(kubeConfigPath, namespace)
+}
+
 // NewK8sClient creates a k8s client instance.
-func NewK8sClient(kubeConfigPath string) *K8sClient {
-	client := &K8sClient{}
+func NewK8sClient(kubeConfigPath string, namespace string) *K8sClient {
+	client := &K8sClient{
+		namespace: namespace,
+	}
 
 	// creates the in-cluster config
 	if kubeConfigPath == "" {
@@ -68,22 +85,25 @@ func NewK8sClient(kubeConfigPath string) *K8sClient {
 }
 
 // GetCustomResourceInstance gets a custom resource instance from a k8s cluster.
-func (client *K8sClient) GetCustomResourceInstance(
-	namespace string, name string, gvr schema.GroupVersionResource) (
+func (client *K8sClient) GetCustomResourceInstance(name string, gvr schema.GroupVersionResource) (
 	*unstructured.Unstructured, error,
 ) {
 	// Unstructured
 	utd, err := client.dynamicClient.
 		Resource(gvr).
-		Namespace(namespace).
-		Get(context.TODO(), name, metav1.GetOptions{})
+		Namespace(client.namespace).
+		Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		logger.Infof("fail to get %s %s", gvr.String(), name)
 	}
 	return utd, err
 }
 
-// GetGroupVersionResource :- gets GroupVersionResource for dynamic client
-func GetGroupVersionResource(group, version, resource string) schema.GroupVersionResource {
-	return schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+// CreatePod creates a Pod instance in the cluster
+func (client *K8sClient) CreatePod(ctx context.Context, pod *corev1.Pod) error {
+	_, err := client.clientset.
+		CoreV1().
+		Pods(client.namespace).
+		Create(ctx, pod, metav1.CreateOptions{})
+	return err
 }
