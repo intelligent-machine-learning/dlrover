@@ -11,17 +11,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package common
 
 import (
+	"os"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Master", func() {
-	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master")
-		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
-		Expect(master.jobContext.Name).To(Equal("test-master"))
+var _ = Describe("Context", func() {
+	It("New Job Context", func() {
+		os.Setenv("MY_POD_IP", "127.0.0.1")
+		jobContext := NewJobContext("dlrover", "train-demo")
+		Expect(jobContext.MasterHost).To(Equal("127.0.0.1"))
+		Expect(jobContext.MasterPort > 0).To(BeTrue())
 	})
+
 })

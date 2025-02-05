@@ -11,17 +11,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
-
-import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-)
-
-var _ = Describe("Master", func() {
-	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master")
-		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
-		Expect(master.jobContext.Name).To(Equal("test-master"))
-	})
-})
+package batchscheduler
