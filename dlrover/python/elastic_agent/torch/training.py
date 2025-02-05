@@ -859,7 +859,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 workers.append(worker)
         return workers
 
-    def _initialize_workers(self, worker_group):
+    def _initialize_workers(self, worker_group, max_errors=3):
         logger.info(
             "Start initializing "
             f"training({self.__class__.__name__}) workers."
@@ -889,7 +889,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     raise TimeoutError("Timeout to wait for new nodes.")
             except Exception as e:
                 err_cnt += 1
-                if err_cnt < 3:
+                if err_cnt < max_errors:
                     stack_trace = traceback.format_exc()
                     logger.error(
                         f"Unexpected exception in _initialize_workers: {e}"
