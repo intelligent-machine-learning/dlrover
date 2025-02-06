@@ -19,7 +19,11 @@ from typing import List
 from unittest import mock
 from unittest.mock import MagicMock
 
-from dlrover.python.common.constants import Accelerators, GpuMetricEnum, NodeStatus
+from dlrover.python.common.constants import (
+    Accelerators,
+    GpuMetricEnum,
+    NodeStatus,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric

@@ -84,7 +84,7 @@ class DiagnosisManager:
         self._data_manager.store_data(data)
 
     def pre_check(self):
-        if not _dlrover_ctx.pre_check_enable:
+        if not _dlrover_context.pre_check_enable:
             return
 
         start = time.time()
