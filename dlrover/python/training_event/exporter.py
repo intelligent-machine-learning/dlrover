@@ -62,11 +62,11 @@ class AsyncExporter(EventExporter):
 
         self._worker = None
         self._running = True
-        # 记录丢弃的事件数量
+        # Record the number of dropped events
         self._dropped_events = 0
-        # 上次记录丢弃事件的时间
+        # Last time a dropped event was recorded
         self._last_drop_log_time: float = 0.0
-        # 记录错误事件数量
+        # Record the number of error events
         self._error_events = 0
         self._worker = threading.Thread(
             name="AsyncExporter", target=self._run, daemon=True
