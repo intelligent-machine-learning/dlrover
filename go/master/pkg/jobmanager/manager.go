@@ -11,17 +11,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package jobmanager
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"context"
+
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 )
 
-var _ = Describe("Master", func() {
-	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master")
-		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
-		Expect(master.jobContext.Name).To(Equal("test-master"))
-	})
-})
+// JobManager is the interface to manager job lifecycle.
+type JobManager interface {
+	Start(ctx context.Context, jobContext *common.JobContext)
+}
+
+// NewJobManager creates a job manager.
+func NewJobManager(elasticJob *elasticjobv1.ElasticJob) JobManager {
+	if elasticJob.Spec.DistributionStrategy == "pytorch" {
+		return NewPyTorchJobManager(elasticJob)
+	}
+	return nil
+}

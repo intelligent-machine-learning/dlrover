@@ -134,6 +134,18 @@ def _build_master_args_parser():
         help="The strategy of 'hang detection', "
         "0: log only; 1: notify; 2: with fault tolerance",
     )
+    parser.add_argument(
+        "--hang_downtime",
+        default=30,
+        type=pos_int,
+        help="Training downtime to detect job hang, unit is minute",
+    )
+    parser.add_argument(
+        "--xpu_type",
+        default="nvidia",
+        type=str,
+        help="The type of XPU, should be 'nvidia' or 'ascend'",
+    )
     add_params(parser)
     return parser
 

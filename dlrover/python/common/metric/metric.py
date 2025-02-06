@@ -143,6 +143,14 @@ class XpuNodeMetric(object):
     def update_avg_metrics(self):
         pass
 
+    @abstractmethod
+    def get_avg_metric(self, metric):
+        pass
+
+    @abstractmethod
+    def get_node_metrics(self, metric):
+        pass
+
 
 class GpuNodeMetric(XpuNodeMetric):
     """
@@ -154,6 +162,15 @@ class GpuNodeMetric(XpuNodeMetric):
         super().__init__()
         self.node_metrics: Dict[int, GpuMetric] = {}
         self.avg_metrics = GpuMetric()
+
+    def get_avg_metric(self, metric):
+        return self.avg_metrics.get_metric(metric)
+
+    def get_node_metrics(self, metric):
+        metrics = []
+        for v in self.node_metrics.values():
+            metrics.append(v.get_metric(metric))
+        return metrics
 
     def update_avg_metrics(self):
         self.avg_metrics.metrics[GpuMetricEnum.GPU_FREE_MEM] = 0
@@ -216,6 +233,15 @@ class NpuNodeMetric(XpuNodeMetric):
         super().__init__()
         self.node_metrics: Dict[int, NpuMetric] = {}
         self.avg_metrics = NpuMetric()
+
+    def get_avg_metric(self, metric):
+        return self.avg_metrics.get_metric(metric)
+
+    def get_node_metrics(self, metric):
+        metrics = []
+        for v in self.node_metrics.values():
+            metrics.append(v.get_metric(metric))
+        return metrics
 
     def update_avg_metrics(self):
         for _, metric in self.node_metrics.items():

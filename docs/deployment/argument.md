@@ -14,6 +14,9 @@ when training with DLRover.
 | pending_timeout       | The timeout value of pending.                                               | No | integer(unit: second) | 900     | \>=0                                                                            |
 | pending_fail_strategy | The fail strategy for pending case.                                         | No | integer | 1       | -1: disabled <br/>0: skip <br/>1: verify necessary parts <br/>2: verify all parts |
 | service_type          | The type of master service.                                                 | No | string | grpc    | grpc,http |
+| xpu_type              | The name of xpu.                                                            | No | string                | nvidia  | nvidia,ascend                                                                     |
+| hang_detection        | The strategy of 'hang detection'.                                           | No | integer               | 1       | 0: log only <br/>1: notify <br/>2: with fault tolerance <br/>                     |
+| hang_downtime         | Training downtime to detect job hang, unit is minute.                       | No | integer               | 30      | \>=0                                                                              |
 | pre_check             | Whether to enable pre-check before training.                                | No | bool                  | True    | True: enable pre-check False: disable pre-check                                   |
 
 

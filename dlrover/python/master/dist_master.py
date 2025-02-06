@@ -143,7 +143,7 @@ class DistributedJobMaster(JobMaster):
                 error_monitor
             ),
         }
-        self.diagnosis_manager = DiagnosisManager()
+        self.diagnosis_manager = DiagnosisManager(job_name=args.job_name)
         self._error_monitor = error_monitor
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
@@ -230,6 +230,11 @@ class DistributedJobMaster(JobMaster):
         """
 
         # start training runtime diagnosis
+        try:
+            self.diagnosis_manager.start_metric_collect()
+        except Exception as e:
+            logger.warning(f"Failed to start metric collecting: {str(e)}")
+
         try:
             self.diagnosis_manager.start_observing()
         except Exception as e:

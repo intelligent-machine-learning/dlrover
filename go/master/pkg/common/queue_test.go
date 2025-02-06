@@ -11,17 +11,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package common_test
 
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 )
 
-var _ = Describe("Master", func() {
-	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master")
-		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
-		Expect(master.jobContext.Name).To(Equal("test-master"))
+var _ = Describe("Queue", func() {
+	It("Test Queue", func() {
+		queue := common.NewQueue()
+		queue.PushBack(2)
+		queue.PushFront(1)
+		queue.PushBack(3)
+		Expect(queue.Len()).To(Equal(3))
+		front := queue.PopFront().(int)
+		Expect(front).To(Equal(1))
+		back := queue.PopBack().(int)
+		Expect(back).To(Equal(3))
 	})
+
 })

@@ -14,6 +14,7 @@
 import os
 
 from dlrover.python.common.constants import (
+    Accelerators,
     DistributionStrategy,
     NodeType,
     PlatformType,
@@ -45,6 +46,18 @@ def run(args):
     job_args.initilize()
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
+    _dlrover_context.hang_detection = args.hang_detection
+    _dlrover_context.hang_downtime = args.hang_downtime
+    if args.xpu_type.lower() == "ascend":
+        _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
+    elif args.xpu_type.lower() == "nvidia":
+        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+    else:
+        logger.info(
+            f"Invalid XPU type: {args.xpu_type}, use Nvidia as default"
+        )
+        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
 
