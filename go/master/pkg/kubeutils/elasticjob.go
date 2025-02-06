@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package kubeutils
 
 import (
 	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
@@ -27,10 +27,9 @@ const (
 )
 
 // GetElasticJobInstance gets an elasticjob instance.
-func GetElasticJobInstance(client *K8sClient, namespace string, jobName string) *elasticjob.ElasticJob {
-
+func GetElasticJobInstance(jobName string) *elasticjob.ElasticJob {
 	gvr := GetGroupVersionResource(GROUP, VERSION, "elasticjobs")
-	utd, err := client.GetCustomResourceInstance(namespace, jobName, gvr)
+	utd, err := GlobalK8sClient.GetCustomResourceInstance(jobName, gvr)
 	if err != nil {
 		return nil
 	}

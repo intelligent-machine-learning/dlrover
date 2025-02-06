@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubernetes
+package common_test
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestKubernetes(t *testing.T) {
+func TestCommon(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Kubernetes Suite")
+	RunSpecs(t, "Common Suite")
 }
