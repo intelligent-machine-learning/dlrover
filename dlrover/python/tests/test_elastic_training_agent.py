@@ -287,6 +287,40 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
+    def test_initialize_workers_exception(self):
+        node_id = 2
+        agent = ElasticTrainingAgent(
+            node_rank=node_id,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._config.network_check = False
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[ValueError("test")],
+        )
+        with self.assertRaises(ValueError):
+            agent._initialize_workers(agent._worker_group, max_errors=1)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[ValueError("test"), TypeError("test")],
+        )
+        with self.assertRaises(TypeError):
+            agent._initialize_workers(agent._worker_group, max_errors=2)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[
+                ValueError("test"),
+                TypeError("test"),
+                RuntimeError("test"),
+            ],
+        )
+        with self.assertRaises(RuntimeError):
+            agent._initialize_workers(agent._worker_group, max_errors=3)
+
 
 def mock_gpu_metric_collect(*args, **kwargs):
     logger.info("mock gpu metric collector is running...")

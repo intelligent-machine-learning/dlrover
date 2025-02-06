@@ -20,6 +20,7 @@ import socket
 import sys
 import tempfile
 import time
+import traceback
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -856,12 +857,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 workers.append(worker)
         return workers
 
-    def _initialize_workers(self, worker_group):
+    def _initialize_workers(self, worker_group, max_errors=3):
         logger.info(
             "Start initializing "
             f"training({self.__class__.__name__}) workers."
         )
         start_pending = 0
+        err_cnt = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
         )
@@ -883,6 +885,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
+            except Exception as e:
+                err_cnt += 1
+                if err_cnt < max_errors:
+                    stack_trace = traceback.format_exc()
+                    logger.error(
+                        f"Unexpected exception in _initialize_workers: {e}\n"
+                        f"Stack backtrace:\n {stack_trace}"
+                    )
+                    self._stop_workers(worker_group)
+                    continue
+                else:
+                    raise e
             else:
                 logger.info("Finish initializing training workers.")
                 break
