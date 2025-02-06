@@ -126,6 +126,7 @@ class Config:
             self._set_if_valid(config, "hook_error", parser=parse_bool)
 
         except Exception:
+            # we don't have logger now, so we can't log the error
             pass
 
     def _init_from_env(self):
@@ -176,6 +177,8 @@ class Config:
 
         if key_converter is not None:
             converted_key = key_converter(key)
+        else:
+            converted_key = key
 
         val = dict_val.get(converted_key)
         if val is not None:
