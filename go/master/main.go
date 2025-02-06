@@ -17,12 +17,10 @@ import (
 	"flag"
 	"strconv"
 
-	logger "github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
-
 	master "github.com/intelligent-machine-learning/dlrover/go/master/pkg"
-	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubernetes"
+	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/server"
+	logger "github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -41,10 +39,10 @@ func main() {
 
 	// Listen and serve on defined port
 	logger.Infof("The master starts with namespece %s, jobName %s, port %d", namespace, jobName, port)
-	var k8sClient *kubernetes.K8sClient
 	if k8sScheduling {
-		k8sClient = kubernetes.NewK8sClient(namespace, jobName)
+		// Use incluster mode without kubeconfig.
+		kubeutils.NewGlobalK8sClient("", namespace)
 	}
-	master := master.NewJobMaster(namespace, jobName, k8sClient)
+	master := master.NewJobMaster(namespace, jobName)
 	master.Run()
 }
