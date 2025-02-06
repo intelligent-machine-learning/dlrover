@@ -892,9 +892,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if err_cnt < max_errors:
                     stack_trace = traceback.format_exc()
                     logger.error(
-                        f"Unexpected exception in _initialize_workers: {e}"
+                        f"Unexpected exception in _initialize_workers: {e}\n"
+                        f"Stack backtrace:\n {stack_trace}"
                     )
-                    logger.error(f"Stack backtrace:\n {stack_trace}")
                     self._stop_workers(worker_group)
                     continue
                 else:
