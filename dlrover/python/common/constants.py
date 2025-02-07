@@ -433,3 +433,11 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+
+
+class PreCheckStatus(object):
+    CHECKING = "CHECKING"
+    RETRY_WITH_FAIL = "RETRY_WITH_FAIL"
+    FAIL = "FAIL"
+    PASS = "PASS"
+    DISABLED = "DISABLED"

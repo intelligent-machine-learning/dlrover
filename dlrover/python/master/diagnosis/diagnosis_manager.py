@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
     NpuMetricEnum,
+    PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
@@ -90,7 +91,8 @@ class DiagnosisManager:
         start = time.time()
         pre_check_ops = self.get_pre_check_operators()
         logger.info(
-            "Start to training pre-check" f"with operators: {pre_check_ops}."
+            "Start to training pre-check with "
+            f"operators: {[op.__class__.__name__ for op in pre_check_ops]}."
         )
 
         for pre_check_op in pre_check_ops:
@@ -113,6 +115,10 @@ class DiagnosisManager:
                     )
 
                     if not current_op_result.is_success():
+                        self._job_context.set_pre_check_status(
+                            PreCheckStatus.RETRY_WITH_FAIL
+                        )
+
                         # try recover and wait
                         pre_check_op.recover()
                         time.sleep(pre_check_op.get_retry_interval_secs())
@@ -135,17 +141,19 @@ class DiagnosisManager:
                     f"cost:{time.time()-current_start:.2f}ms. "
                     f"Invoke action: {action}."
                 )
+                self._job_context.set_pre_check_status(PreCheckStatus.FAIL)
                 return
             else:
-                self._job_context.set_pre_check_pass()
+                self._job_context.set_pre_check_status(PreCheckStatus.CHECKING)
                 logger.info(
                     f"{pre_check_op_name} finish "
                     f"with result: {current_op_result}, "
                     f"cost:{time.time()-current_start:.2f}ms."
                 )
 
+        self._job_context.set_pre_check_status(PreCheckStatus.PASS)
         logger.info(
-            "Training pre-check complete, " f"cost:{time.time()-start:.2f}ms."
+            f"Training pre-check complete, cost:{time.time()-start:.2f}ms."
         )
 
     def start_metric_collect(self):

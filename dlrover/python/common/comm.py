@@ -235,6 +235,12 @@ class PreCheckRequest(Message):
 
 
 @dataclass
+class PreCheckResponse(Message):
+    status: str = ""
+    reason: str = ""
+
+
+@dataclass
 class DatasetShardParams(Message):
     batch_size: int = 0
     num_epochs: int = 0

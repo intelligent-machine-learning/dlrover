@@ -112,6 +112,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeErrorMessage,
+    PreCheckStatus,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.log import default_logger as logger
@@ -270,15 +271,18 @@ def wait_pre_check():
     wait_secs = JobConstant.PRE_CHECK_WAIT_SECS
 
     while True:
-        if client.get_pre_check_result():
+        status = client.get_pre_check_result()
+        if status == PreCheckStatus.PASS:
             logger.info("Pre check passed.")
             break
+        elif status == PreCheckStatus.FAIL:
+            logger.info("Pre check failed, training will abort...")
         else:
             logger.info(
-                "Pre check not passed yet, "
+                f"Pre check not passed yet, status: {status}, "
                 f"wait for another {wait_secs}s..."
             )
-            time.sleep(wait_secs)
+        time.sleep(wait_secs)
 
 
 def _launch_dlrover_local_master(master_addr, job_name, node_num):

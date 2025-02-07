@@ -669,8 +669,12 @@ class MasterServicer(ABC):
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
 
-    def _get_pre_check_result(self, node_id, message: comm.PreCheckRequest):
-        return get_job_context().is_pre_check_pass()
+    def _get_pre_check_result(
+        self, node_type, node_id, message: comm.PreCheckRequest
+    ) -> comm.PreCheckResponse:
+        return comm.PreCheckResponse(
+            status=get_job_context().get_pre_check_status()
+        )
 
     def _report_event(self, message: comm.Event):
         if self._error_monitor:
