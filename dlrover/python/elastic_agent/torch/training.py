@@ -885,6 +885,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
+            except NodeCheckFailedError as node_check_error:
+                raise node_check_error
             except Exception as e:
                 err_cnt += 1
                 if err_cnt < max_errors:
