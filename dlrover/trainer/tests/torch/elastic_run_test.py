@@ -19,6 +19,7 @@ import unittest
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
+from dlrover.python.common.constants import PreCheckStatus
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -42,7 +43,7 @@ class ElasticRunTest(unittest.TestCase):
         MasterClient._instance = build_master_client(addr, 1)
 
     def tearDown(self):
-        self._master.stop
+        self._master.stop()
 
     @patch(f"{MC_PATH}.report_failures")
     def test_launch_local_master(self, some_func):
@@ -144,17 +145,23 @@ class ElasticRunTest(unittest.TestCase):
         client = MasterClient.singleton_instance()
 
         # pre-check success
-        client.get_pre_check_result = MagicMock(return_value=True)
+        client.get_pre_check_result = MagicMock(
+            return_value=PreCheckStatus.PASS
+        )
         wait_pre_check()
 
         # pre-check fail
-        client.get_pre_check_result = MagicMock(return_value=False)
+        client.get_pre_check_result = MagicMock(
+            return_value=PreCheckStatus.FAIL
+        )
 
         def set_pre_check_success():
             time_to_set_success = time.time()
             while True:
                 if time.time() - time_to_set_success > 1:
-                    client.get_pre_check_result = MagicMock(return_value=True)
+                    client.get_pre_check_result = MagicMock(
+                        return_value=PreCheckStatus.PASS
+                    )
                     break
                 time.sleep(0.1)
 
