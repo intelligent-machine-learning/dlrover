@@ -91,40 +91,40 @@ The BEGIN and END events form a pair, they are used to indicate a span of time. 
 - **Purpose:**
 
   - Standardize event generation across various components of the DLRover ecosystem.
-  - Provide predefined schemas for common events in modules such as `DLRoverAgent`, `DLRoverMaster`, and `TrainerProcess`.
+  - Provide predefined schemas for common events in modules such as `DLRoverAgentEvent`, `DLRoverMasterEvent`, and `TrainerProcess`.
 
 - **Predefined Event Examples:**
 
-| Target         | Event Name         | Description                                                     |
-| -------------- | ------------------ | --------------------------------------------------------------- |
-| TrainerProcess | `#start`           | Marks the start of the training process.                        |
-| TrainerProcess | `#init`            | Indicates the initialization phase of training.                 |
-| TrainerProcess | `#load_dataset`    | Event for the dataset loading step.                             |
-| TrainerProcess | `#load_ckpt`       | Represents the checkpoint loading phase.                        |
-| TrainerProcess | `#persist_ckpt`    | Logs the persistence of checkpoints in an asynchronous process. |
-| TrainerProcess | `#finish`          | Denotes the end of the training process.                        |
-| TrainerProcess | `#init_end`        | Signifies the conclusion of the initialization phase.           |
-| TrainerProcess | `#train`           | Represents the training phase.                                  |
-| TrainerProcess | `#epoch`           | Records an epoch event within the training process.             |
-| TrainerProcess | `#step`            | Indicates a step event in the training loop.                    |
-| TrainerProcess | `#substep`         | Denotes a substep within a larger training step.                |
-| TrainerProcess | `#evaluate`        | Marks the evaluation phase of training.                         |
-| TrainerProcess | `#predict`         | Denotes the prediction phase.                                   |
-| TrainerProcess | `#predict_step`    | Represents an individual prediction step.                       |
-| TrainerProcess | `#save`            | Logs checkpoint saving operations.                              |
-| TrainerProcess | `#log`             | Used for general information logging.                           |
-| DLRoverAgent   | `#start`           | Marks the start event of the DLRover agent.                     |
-| DLRoverAgent   | `#node_join`       | Logs when a node joins the agent ecosystem.                     |
-| DLRoverAgent   | `#rendezvous`      | Denotes the rendezvous process within the agent.                |
-| DLRoverAgent   | `#network_check`   | Checks network connectivity within the agent environment.       |
-| DLRoverAgent   | `#elastic_train`   | Initiates elastic training procedures.                          |
-| DLRoverAgent   | `#process_restart` | Indicates a process restart event.                              |
-| DLRoverAgent   | `#exit`            | Marks the termination event of the agent.                       |
-| DLRoverMaster  | `#pod_create`      | Indicates a new pod creation by the master.                     |
-| DLRoverMaster  | `#pod_change`      | Denotes a change in the pod configuration.                      |
-| DLRoverMaster  | `#pod_relaunch`    | Logs events for pod relaunch operations.                        |
-| DLRoverMaster  | `#fault_detect`    | Represents fault detection events by the master.                |
-| DLRoverMaster  | `#repair`          | Logs repair actions executed by the master.                     |
+| Target             | Event Name         | Description                                                     |
+| ------------------ | ------------------ | --------------------------------------------------------------- |
+| TrainerProcess     | `#start`           | Marks the start of the training process.                        |
+| TrainerProcess     | `#init`            | Indicates the initialization phase of training.                 |
+| TrainerProcess     | `#load_dataset`    | Event for the dataset loading step.                             |
+| TrainerProcess     | `#load_ckpt`       | Represents the checkpoint loading phase.                        |
+| TrainerProcess     | `#persist_ckpt`    | Logs the persistence of checkpoints in an asynchronous process. |
+| TrainerProcess     | `#finish`          | Denotes the end of the training process.                        |
+| TrainerProcess     | `#init_end`        | Signifies the conclusion of the initialization phase.           |
+| TrainerProcess     | `#train`           | Represents the training phase.                                  |
+| TrainerProcess     | `#epoch`           | Records an epoch event within the training process.             |
+| TrainerProcess     | `#step`            | Indicates a step event in the training loop.                    |
+| TrainerProcess     | `#substep`         | Denotes a substep within a larger training step.                |
+| TrainerProcess     | `#evaluate`        | Marks the evaluation phase of training.                         |
+| TrainerProcess     | `#predict`         | Denotes the prediction phase.                                   |
+| TrainerProcess     | `#predict_step`    | Represents an individual prediction step.                       |
+| TrainerProcess     | `#save`            | Logs checkpoint saving operations.                              |
+| TrainerProcess     | `#log`             | Used for general information logging.                           |
+| DLRoverAgentEvent  | `#start`           | Marks the start event of the DLRover agent.                     |
+| DLRoverAgentEvent  | `#node_join`       | Logs when a node joins the agent ecosystem.                     |
+| DLRoverAgentEvent  | `#rendezvous`      | Denotes the rendezvous process within the agent.                |
+| DLRoverAgentEvent  | `#network_check`   | Checks network connectivity within the agent environment.       |
+| DLRoverAgentEvent  | `#elastic_train`   | Initiates elastic training procedures.                          |
+| DLRoverAgentEvent  | `#process_restart` | Indicates a process restart event.                              |
+| DLRoverAgentEvent  | `#exit`            | Marks the termination event of the agent.                       |
+| DLRoverMasterEvent | `#pod_create`      | Indicates a new pod creation by the master.                     |
+| DLRoverMasterEvent | `#pod_change`      | Denotes a change in the pod configuration.                      |
+| DLRoverMasterEvent | `#pod_relaunch`    | Logs events for pod relaunch operations.                        |
+| DLRoverMasterEvent | `#fault_detect`    | Represents fault detection events by the master.                |
+| DLRoverMasterEvent | `#repair`          | Logs repair actions executed by the master.                     |
 
 ## Event Emission and Usage
 

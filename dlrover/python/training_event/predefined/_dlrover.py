@@ -40,7 +40,7 @@ class DLRoverMasterEventName(Enum):
     DLROVER_REPAIR = "#repair"
 
 
-class DLRoverCommon(CommonPredefined):
+class DLRoverCommonEvent(CommonPredefined, Singleton):
     """Common events for both Master and Agent"""
 
     def __init__(self, target: str) -> None:
@@ -160,7 +160,7 @@ class DLRoverCommon(CommonPredefined):
         )
 
 
-class DLRoverMaster(DLRoverCommon, Singleton):
+class DLRoverMasterEvent(DLRoverCommonEvent):
     """DLRover Master events"""
 
     def __init__(self) -> None:
@@ -222,7 +222,7 @@ class DLRoverMaster(DLRoverCommon, Singleton):
         )
 
 
-class DLRoverAgent(DLRoverCommon, Singleton):
+class DLRoverAgentEvent(DLRoverCommonEvent):
     """DLRover Agent events"""
 
     def __init__(self) -> None:

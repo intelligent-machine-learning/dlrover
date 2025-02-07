@@ -14,8 +14,8 @@
 from dlrover.python.training_event.error_handler import init_error_handler
 from dlrover.python.training_event.exporter import init_default_exporter
 from dlrover.python.training_event.predefined._dlrover import (
-    DLRoverAgent,
-    DLRoverMaster,
+    DLRoverAgentEvent,
+    DLRoverMasterEvent,
 )
 from dlrover.python.training_event.predefined.common import WarningType
 from dlrover.python.training_event.predefined.trainer import TrainerProcess
@@ -26,7 +26,7 @@ init_error_handler()
 
 __all__ = [
     "TrainerProcess",
-    "DLRoverMaster",
-    "DLRoverAgent",
+    "DLRoverMasterEvent",
+    "DLRoverAgentEvent",
     "WarningType",
 ]
