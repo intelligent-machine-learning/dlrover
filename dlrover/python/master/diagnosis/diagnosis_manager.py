@@ -115,10 +115,6 @@ class DiagnosisManager:
                     )
 
                     if not current_op_result.is_success():
-                        self._job_context.set_pre_check_status(
-                            PreCheckStatus.RETRY_WITH_FAIL
-                        )
-
                         # try recover and wait
                         pre_check_op.recover()
                         time.sleep(pre_check_op.get_retry_interval_secs())

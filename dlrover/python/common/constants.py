@@ -443,7 +443,6 @@ class ErrorMonitorConstants(object):
 
 class PreCheckStatus(object):
     CHECKING = "CHECKING"
-    RETRY_WITH_FAIL = "RETRY_WITH_FAIL"
     FAIL = "FAIL"
     PASS = "PASS"
     DISABLED = "DISABLED"

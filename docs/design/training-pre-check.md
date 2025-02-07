@@ -42,6 +42,15 @@ design of this aspect.
 
 <img src="../figures/new_start_process.png" alt="New Training Start Process">
 
+  The pre-check process involves the following key states:
+
+  - DISABLED: The check is disabled, and the training worker will ignore the 
+              check results and the training will continue.
+  - CHECKING: The check is in progress, continue to wait.
+  - FAIL: The check has failed, and the training will be interrupted.
+  - PASS: The check has passed, and the training will continue.
+
+
 ## Interface
 
 ### PreCheckOperator
