@@ -387,6 +387,12 @@ class JobConstant(object):
 
     TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
 
+    # sleep 5s before next rendezvous round
+    RENDEZVOUS_DEFAULT_INTERVAL = 5
+
+    # sleep 5s before next port synchronization
+    SYNC_PORTS_DEFAULT_INTERVAL = 5
+
 
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"

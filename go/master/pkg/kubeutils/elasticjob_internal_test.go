@@ -11,17 +11,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package kubeutils
 
 import (
+	"os"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Master", func() {
-	It("Create a master", func() {
-		master := NewJobMaster("dlrover", "test-master")
-		Expect(master.jobContext.NameSpace).To(Equal("dlrover"))
-		Expect(master.jobContext.Name).To(Equal("test-master"))
+var _ = Describe("Elasticjob", func() {
+	It("Get an elasticjob instance", func() {
+		kubeConfigPath := os.Getenv("KUBENETES_CLUSTER_CONFIG")
+		if kubeConfigPath != "" {
+			NewGlobalK8sClient(kubeConfigPath, "dlrover")
+			job := GetElasticJobInstance("torch-mnist")
+			Expect(job.Name).To(Equal("torch-minst"))
+		}
 	})
 })
