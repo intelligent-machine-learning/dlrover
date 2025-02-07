@@ -21,10 +21,7 @@ from abc import abstractmethod
 from queue import Empty, Full, Queue
 from typing import Optional
 
-from dlrover.python.training_event.config import (
-    Config,
-    get_default_logger,
-)
+from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.event import Event
 
 logger = get_default_logger()

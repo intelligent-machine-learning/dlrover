@@ -17,10 +17,7 @@ import sys
 import threading
 import traceback
 
-from dlrover.python.training_event.config import (
-    Config,
-    get_default_logger,
-)
+from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.emitter import Process
 from dlrover.python.training_event.exporter import close_default_exporter
 
