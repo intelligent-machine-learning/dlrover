@@ -44,6 +44,10 @@ class EventExporter:
         pass
 
     @abstractmethod
+    def start(self):
+        pass
+
+    @abstractmethod
     def close(self):
         pass
 
@@ -61,7 +65,7 @@ class AsyncExporter(EventExporter):
         self._queue: Queue[Event] = Queue(max_queue_size)
 
         self._worker = None
-        self._running = True
+        self._running = False
         # Record the number of dropped events
         self._dropped_events = 0
         # Last time a dropped event was recorded
@@ -71,6 +75,13 @@ class AsyncExporter(EventExporter):
         self._worker = threading.Thread(
             name="AsyncExporter", target=self._run, daemon=True
         )
+
+    def start(self):
+        if self._running:
+            return
+
+        self._exporter.start()
+        self._running = True
         self._worker.start()
 
     def _run(self):
@@ -215,6 +226,9 @@ class TextFileExporter(EventExporter):
     def export(self, event: Event):
         self._logger.info(self._formatter.format(event))
 
+    def start(self):
+        pass
+
     def close(self):
         self._handler.flush()
         self._handler.close()
@@ -247,6 +261,9 @@ class ConsoleExporter(EventExporter):
 
     def export(self, event: Event):
         self._logger.info(self._formatter.format(event))
+
+    def start(self):
+        pass
 
     def close(self):
         self._handler.flush()
@@ -296,6 +313,8 @@ def init_default_exporter():
             __default_exporter = AsyncExporter(exporter, _CONFIG.queue_size)
         else:
             __default_exporter = exporter
+
+        __default_exporter.start()
 
         _LOGGER.info(
             (

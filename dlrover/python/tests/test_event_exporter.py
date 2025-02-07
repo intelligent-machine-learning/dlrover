@@ -106,6 +106,7 @@ class TestEventExporter:
     def test_async_exporter(self):
         mock_exporter = Mock(spec=EventExporter)
         exporter = AsyncExporter(mock_exporter)
+        exporter.start()
         event = Event(
             event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
@@ -122,6 +123,7 @@ class TestEventExporter:
         mock_exporter = Mock(spec=EventExporter)
         mock_exporter.export.side_effect = lambda _: time.sleep(1)
         exporter = AsyncExporter(mock_exporter)
+        exporter.start()
         event = Event(
             event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
@@ -145,6 +147,7 @@ class TestEventExporter:
         mock_exporter = Mock(spec=EventExporter)
         mock_exporter.export.side_effect = Exception("test")
         exporter = AsyncExporter(mock_exporter)
+        exporter.start()
         exporter.export(Event.instant("test", "foo", {"a": 1}))
         exporter.close()
         assert mock_exporter.export.call_count == 1
@@ -154,6 +157,7 @@ class TestEventExporter:
         mock_exporter = Mock(spec=EventExporter)
         mock_exporter.export.side_effect = lambda _: time.sleep(1)
         exporter = AsyncExporter(mock_exporter, max_queue_size=1)
+        exporter.start()
         exporter.export(Event.instant("test", "foo", {"a": 1}))
         exporter.export(Event.instant("test", "foo", {"a": 1}))
         exporter.close()
