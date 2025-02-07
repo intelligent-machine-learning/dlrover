@@ -18,14 +18,13 @@ import threading
 import traceback
 
 from dlrover.python.training_event.config import (
-    get_default_config,
+    Config,
     get_default_logger,
 )
 from dlrover.python.training_event.emitter import Process
 from dlrover.python.training_event.exporter import close_default_exporter
 
-_LOGGER = get_default_logger()
-_CONFIG = get_default_config()
+logger = get_default_logger()
 
 
 class ErrorHandler:
@@ -87,7 +86,7 @@ class ErrorHandler:
             close_default_exporter()
 
         except Exception as e:
-            _LOGGER.error(f"process signal {signum} error: {str(e)}")
+            logger.error(f"process signal {signum} error: {str(e)}")
 
         finally:
             self.unregister()
@@ -118,7 +117,7 @@ class ErrorHandler:
                 signal.signal(sig, self._handle_signal)
 
             self._registered = True
-            _LOGGER.info("Exception handler registered")
+            logger.info("Exception handler registered")
 
     def _unregister(self):
         """unregister exception handler"""
@@ -136,7 +135,7 @@ class ErrorHandler:
 
             self._registered = False
 
-            _LOGGER.info("Exception handler unregistered")
+            logger.info("Exception handler unregistered")
 
     @classmethod
     def register(cls):
@@ -152,5 +151,6 @@ class ErrorHandler:
 
 
 def init_error_handler():
-    if _CONFIG.enable and _CONFIG.hook_error:
+    config = Config.singleton_instance()
+    if config.enable and config.hook_error:
         ErrorHandler.register()

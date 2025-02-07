@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
 
+from dlrover.python.common.singleton import Singleton
+
 ENV_PREFIX = "DLROVER_EVENT"
 DEFAULT_EVENT_EXPORTER = "TEXT_FILE"
 DEFAULT_FILE_DIR = "/tmp"
@@ -86,7 +88,7 @@ def get_env_key(key):
 
 
 @dataclass
-class Config:
+class Config(Singleton):
 
     event_exporter: str = DEFAULT_EVENT_EXPORTER
     async_exporter: bool = True
@@ -223,23 +225,14 @@ class Config:
         return logger
 
 
-__default_config_lock = threading.Lock()
 __default_logger_lock = threading.Lock()
 
 
-def get_default_config():
-    if not hasattr(get_default_config, "_CONFIG"):
-        with __default_config_lock:
-            if not hasattr(get_default_config, "_CONFIG"):
-                get_default_config._CONFIG = Config()
-    return get_default_config._CONFIG
-
-
 def get_default_logger():
-    if not hasattr(get_default_logger, "_LOGGER"):
+    if not hasattr(get_default_logger, "_logger"):
         with __default_logger_lock:
-            if not hasattr(get_default_logger, "_LOGGER"):
-                config = get_default_config()
-                get_default_logger._LOGGER = config.init_logger()
-                get_default_logger._LOGGER.info(f"event config: {config}")
-    return get_default_logger._LOGGER
+            if not hasattr(get_default_logger, "_logger"):
+                config = Config.singleton_instance()
+                get_default_logger._logger = config.init_logger()
+                get_default_logger._logger.info(f"event config: {config}")
+    return get_default_logger._logger

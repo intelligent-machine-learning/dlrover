@@ -24,7 +24,7 @@ from dlrover.python.training_event.exporter import (
     get_default_exporter,
 )
 
-_LOGGER = get_default_logger()
+logger = get_default_logger()
 
 
 def generate_event_id():
@@ -100,7 +100,7 @@ def safe_call(func):
             return func(*args, **kwargs)
         except Exception as e:
             traceback_str = traceback.format_exc()
-            _LOGGER.error(
+            logger.error(
                 f"Failed in event processing {func.__name__}, exception: {e}, "
                 f"traceback: {traceback_str}"
             )
@@ -127,7 +127,7 @@ class SafeAttribute:
     """
 
     def __getattr__(self, item):
-        _LOGGER.error(
+        logger.error(
             f"Attribute {item} from class {self.__class__.__name__} not found"
         )
         return SafeCallable()
@@ -175,7 +175,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_begin:
-            _LOGGER.error(f"event {self.name} begin called twice")
+            logger.error(f"event {self.name} begin called twice")
             return self
         self._is_begin = True
         self.emitter.begin(self._event_id, self.name, self.content.copy())
@@ -207,11 +207,11 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_end:
-            _LOGGER.error(f"event {self.name} end called twice")
+            logger.error(f"event {self.name} end called twice")
             return
 
         if not self._is_begin:
-            _LOGGER.error(f"event {self.name} end called without begin")
+            logger.error(f"event {self.name} end called without begin")
             return
 
         self._is_end = True
@@ -229,7 +229,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The sub-span of the current span.
         """
         if self._is_end or not self._is_begin:
-            _LOGGER.error(f"Cannot create stage for ended event {self.name}")
+            logger.error(f"Cannot create stage for ended event {self.name}")
             return SafeCallable()  # type: ignore
         stage_content = self.content.copy()
         if content is not None:
@@ -258,7 +258,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_end:
-            _LOGGER.error(f"Cannot add extra args to ended event {self.name}")
+            logger.error(f"Cannot add extra args to ended event {self.name}")
             return self
         self.content.update(kwargs)
         return self
@@ -283,7 +283,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_end:
-            _LOGGER.error(f"Cannot add extra dict to ended event {self.name}")
+            logger.error(f"Cannot add extra dict to ended event {self.name}")
             return self
         self.content.update(content)
         return self
@@ -413,7 +413,7 @@ class Process(SafeAttribute, metaclass=SaveCallMeta):
         return clzz(self._emitter, name, content)
 
     def error(self, msg: str):
-        _LOGGER.error(msg)
+        logger.error(msg)
 
     def info(self, msg: str):
-        _LOGGER.info(msg)
+        logger.info(msg)

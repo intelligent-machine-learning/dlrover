@@ -22,13 +22,12 @@ from queue import Empty, Full, Queue
 from typing import Optional
 
 from dlrover.python.training_event.config import (
-    get_default_config,
+    Config,
     get_default_logger,
 )
 from dlrover.python.training_event.event import Event
 
-_CONFIG = get_default_config()
-_LOGGER = get_default_logger()
+logger = get_default_logger()
 
 
 class EventExporter:
@@ -59,12 +58,11 @@ class AsyncExporter(EventExporter):
     """
 
     def __init__(self, exporter: EventExporter, max_queue_size: int = 1024):
-        self._exporter = exporter
+        self._inner_exporter = exporter
 
         # we use queue to make sure the thread safety
         self._queue: Queue[Event] = Queue(max_queue_size)
 
-        self._worker = None
         self._running = False
         # Record the number of dropped events
         self._dropped_events = 0
@@ -72,7 +70,7 @@ class AsyncExporter(EventExporter):
         self._last_drop_log_time: float = 0.0
         # Record the number of error events
         self._error_events = 0
-        self._worker = threading.Thread(
+        self._worker_thread = threading.Thread(
             name="AsyncExporter", target=self._run, daemon=True
         )
 
@@ -80,21 +78,21 @@ class AsyncExporter(EventExporter):
         if self._running:
             return
 
-        self._exporter.start()
+        self._inner_exporter.start()
         self._running = True
-        self._worker.start()
+        self._worker_thread.start()
 
     def _run(self):
         """training event export loop"""
         while self._running:
             try:
                 event = self._queue.get(timeout=1.0)
-                self._exporter.export(event)
+                self._inner_exporter.export(event)
             except Empty:
                 continue
             except Exception as e:
                 self._error_events += 1
-                _LOGGER.warning(f"Error in event processing: {e}")
+                logger.warning(f"Error in event processing: {e}")
                 continue
 
     def export(self, event: Event):
@@ -111,7 +109,7 @@ class AsyncExporter(EventExporter):
 
             # print drop event log every 60 seconds
             if current_time - self._last_drop_log_time > 60:
-                _LOGGER.warning(
+                logger.warning(
                     f"Event queue is full. Dropping event: {event}. "
                     f"Total dropped events: {self._dropped_events}"
                 )
@@ -134,12 +132,12 @@ class AsyncExporter(EventExporter):
         while time.time() - start_time < timeout:
             try:
                 event = self._queue.get_nowait()
-                self._exporter.export(event)
+                self._inner_exporter.export(event)
             except Empty:
                 break
             except Exception as e:
                 self._error_events += 1
-                _LOGGER.error(f"Error in event processing: {e}")
+                logger.error(f"Error in event processing: {e}")
                 continue
 
     def close(self, timeout: float = 10.0):
@@ -150,8 +148,8 @@ class AsyncExporter(EventExporter):
             self._running = False
 
         # If the worker is still running, force it to stop
-        if self._worker is not None:
-            self._worker.join(timeout=timeout)
+        if self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=timeout)
 
         time_remaining = timeout - (time.time() - start_time)
         if time_remaining > 0:
@@ -161,12 +159,12 @@ class AsyncExporter(EventExporter):
             self._dropped_events += self._queue.qsize()
             self._last_drop_log_time = time.time()
 
-        self._exporter.close()
+        self._inner_exporter.close()
 
         # print final metrics
         metrics = self.get_metrics()
         if metrics["dropped_events"] > 0 or metrics["error_events"] > 0:
-            _LOGGER.warning(f"Final event controller metrics: {metrics}")
+            logger.warning(f"Final event controller metrics: {metrics}")
 
 
 class Formater:
@@ -196,12 +194,13 @@ class TextFileExporter(EventExporter):
         if not os.path.exists(file_dir):
             os.makedirs(file_dir, exist_ok=True)
 
+        config = Config.singleton_instance()
         self._file_path = os.path.join(
             file_dir,
             "events_%s_%s.log"
             % (
-                _CONFIG.rank,
-                _CONFIG.pid,
+                config.rank,
+                config.pid,
             ),
         )
 
@@ -280,50 +279,51 @@ def close_default_exporter():
         if __default_exporter is not None:
             __default_exporter.close()
             __default_exporter = None
-        _LOGGER.info("EventExporter is stopped")
+        logger.info("EventExporter is stopped")
 
 
 def init_default_exporter():
-    if not _CONFIG.enable:
+    config = Config.singleton_instance()
+    if not config.enable:
         return
     global __default_exporter
     with __default_exporter_lock:
         if __default_exporter is not None:
             return
 
-        if _CONFIG.text_formatter == "JSON":
+        if config.text_formatter == "JSON":
             formatter = JsonFormatter()
-        elif _CONFIG.text_formatter == "LOG":
+        elif config.text_formatter == "LOG":
             formatter = LogFormatter()
         else:
             raise ValueError(
-                f"Invalid text formatter: {_CONFIG.text_formatter}"
+                f"Invalid text formatter: {config.text_formatter}"
             )
 
-        if _CONFIG.event_exporter == "TEXT_FILE":
-            exporter = TextFileExporter(_CONFIG.file_dir, formatter)
-        elif _CONFIG.event_exporter == "CONSOLE":
+        if config.event_exporter == "TEXT_FILE":
+            exporter = TextFileExporter(config.file_dir, formatter)
+        elif config.event_exporter == "CONSOLE":
             exporter = ConsoleExporter(formatter)
         else:
             raise ValueError(
-                f"Invalid event exporter: {_CONFIG.event_exporter}"
+                f"Invalid event exporter: {config.event_exporter}"
             )
 
-        if _CONFIG.async_exporter:
-            __default_exporter = AsyncExporter(exporter, _CONFIG.queue_size)
+        if config.async_exporter:
+            __default_exporter = AsyncExporter(exporter, config.queue_size)
         else:
             __default_exporter = exporter
 
         __default_exporter.start()
 
-        _LOGGER.info(
+        logger.info(
             (
                 "Default EventExporter[formatter=%s][exporter=%s][async=%s]"
                 "is initialized"
             ),
-            _CONFIG.text_formatter,
-            _CONFIG.event_exporter,
-            _CONFIG.async_exporter,
+            config.text_formatter,
+            config.event_exporter,
+            config.async_exporter,
         )
 
         # 注册退出处理
