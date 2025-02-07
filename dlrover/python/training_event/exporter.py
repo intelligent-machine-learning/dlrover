@@ -94,7 +94,7 @@ class AsyncExporter(EventExporter):
                 continue
             except Exception as e:
                 self._error_events += 1
-                _LOGGER.error(f"Error in event processing: {e}")
+                _LOGGER.warning(f"Error in event processing: {e}")
                 continue
 
     def export(self, event: Event):
@@ -111,7 +111,7 @@ class AsyncExporter(EventExporter):
 
             # print drop event log every 60 seconds
             if current_time - self._last_drop_log_time > 60:
-                _LOGGER.error(
+                _LOGGER.warning(
                     f"Event queue is full. Dropping event: {event}. "
                     f"Total dropped events: {self._dropped_events}"
                 )
@@ -166,7 +166,7 @@ class AsyncExporter(EventExporter):
         # print final metrics
         metrics = self.get_metrics()
         if metrics["dropped_events"] > 0 or metrics["error_events"] > 0:
-            _LOGGER.error(f"Final event controller metrics: {metrics}")
+            _LOGGER.warning(f"Final event controller metrics: {metrics}")
 
 
 class Formater:
