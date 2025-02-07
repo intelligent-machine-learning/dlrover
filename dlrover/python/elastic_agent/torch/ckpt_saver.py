@@ -51,11 +51,11 @@ DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
 
 def report_local_event(
-        event_type: str = "",
-        instance: str = "",
-        action: str = "",
-        msg: str = "",
-        labels: Optional[Dict[str, str]] = None,
+    event_type: str = "",
+    instance: str = "",
+    action: str = "",
+    msg: str = "",
+    labels: Optional[Dict[str, str]] = None,
 ):
     if labels is None:
         labels = {}
@@ -672,14 +672,14 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"of rank {ckpt_config.rank} from the "
                 f"shared memory into the storage {ckpt_config}."
             )
-            self._report_local_event(
+            report_local_event(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_START,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
-            self._report_local_event(
+            report_local_event(
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_COMPLETE,
@@ -699,7 +699,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
             )
-            self._report_local_event(
+            report_local_event(
                 event_type=ErrorMonitorConstants.TYPE_ERROR,
                 instance=str(ckpt_config.rank),
                 action=ErrorMonitorConstants.ACTION_SAVE_SHARD_ERROR,
