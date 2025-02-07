@@ -388,6 +388,12 @@ class JobConstant(object):
     # default interval seconds for loop in training agent
     TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
 
+    # sleep 5s before next rendezvous round
+    RENDEZVOUS_DEFAULT_INTERVAL = 5
+
+    # sleep 5s before next port synchronization
+    SYNC_PORTS_DEFAULT_INTERVAL = 5
+
     # interval seconds for pre-check waiting
     PRE_CHECK_WAIT_SECS = 5
 
