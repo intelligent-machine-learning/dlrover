@@ -187,7 +187,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
                 f"{len(waiting_nodes)}) are {waiting_nodes}, "
                 f"lacking ranks(size:{len(lacking_ranks)}) "
-                f"are {lacking_ranks}"
+                f"are {lacking_ranks} for round {self._rdzv_round}"
             )
         return rdzv_completed
 
