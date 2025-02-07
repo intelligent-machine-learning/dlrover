@@ -38,7 +38,10 @@ The implementation is modular, promoting extensibility and maintainability. The 
   - **END:** Marks the end of the duration event.
   - **INSTANT:** Represents a one-off or instantaneous event.
 
+The BEGIN and END events form a pair, they are used to indicate a span of time. the event id is the same for the pair.
+
 - **Core Properties:**
+  - `event_id`: A unique identifier for instant and duration events.
   - `event_time`: ISO8601 formatted timestamp.
   - `target`: The system or process the event is associated with.
   - `name`: A descriptive event name.
@@ -67,7 +70,7 @@ The implementation is modular, promoting extensibility and maintainability. The 
 - **Formatting:**
   - The default log format is:
     ```
-    [event_time] [target] [name] [event_type] content
+    [event_time] [event_id] [target] [name] [event_type] content
     ```
   - JSON formatting is also supported via the `JsonFormatter`.
 

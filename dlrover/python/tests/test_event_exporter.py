@@ -34,6 +34,7 @@ class TestEventExporter:
     def test_log_formmatter(self):
         formatter = LogFormatter()
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",
@@ -42,12 +43,13 @@ class TestEventExporter:
         )
         assert (
             formatter.format(event)
-            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}'
+            == '[2025-01-01T00:00:00] [test_id] [test] [foo] [INSTANT] {"a": 1}'
         )
 
     def test_json_formatter(self):
         formatter = JsonFormatter()
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",
@@ -55,12 +57,14 @@ class TestEventExporter:
             content={"a": 1},
         )
         assert formatter.format(event) == (
-            '{"event_time": "2025-01-01T00:00:00", "target": "test", "name": '
-            '"foo", "event_type": "INSTANT", "content": {"a": 1}}'
+            '{"event_id": "test_id", "event_time": "2025-01-01T00:00:00", '
+            '"target": "test", "name": "foo", "event_type": "INSTANT", '
+            '"content": {"a": 1}}'
         )
 
     def test_text_file_exporter(self, tmpdir):
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",
@@ -75,15 +79,16 @@ class TestEventExporter:
         assert len(tmpdir.listdir()) == 1
 
         # file content
-        assert (
-            tmpdir.listdir()[0].read()
-            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        assert tmpdir.listdir()[0].read() == (
+            "[2025-01-01T00:00:00] [test_id] [test] "
+            '[foo] [INSTANT] {"a": 1}\n'
         )
 
     def test_console_exporter(self, capsys):
         formatter = LogFormatter()
         exporter = ConsoleExporter(formatter)
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",
@@ -94,15 +99,16 @@ class TestEventExporter:
         exporter.close()
         # check if the event is printed
         captured = capsys.readouterr()
-        assert (
-            captured.out
-            == '[2025-01-01T00:00:00] [test] [foo] [INSTANT] {"a": 1}\n'
+        assert captured.out == (
+            "[2025-01-01T00:00:00] [test_id] "
+            '[test] [foo] [INSTANT] {"a": 1}\n'
         )
 
     def test_async_exporter(self):
         mock_exporter = Mock(spec=EventExporter)
         exporter = AsyncExporter(mock_exporter)
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",
@@ -118,6 +124,7 @@ class TestEventExporter:
         mock_exporter.export.side_effect = lambda _: time.sleep(1)
         exporter = AsyncExporter(mock_exporter)
         event = Event(
+            event_id="test_id",
             event_time=datetime(2025, 1, 1, 0, 0, 0),
             target="test",
             name="foo",

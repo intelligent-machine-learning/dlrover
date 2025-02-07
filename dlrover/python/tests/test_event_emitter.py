@@ -19,6 +19,7 @@ from dlrover.python.training_event.emitter import (
     DurationSpan,
     EventEmitter,
     Process,
+    generate_event_id,
 )
 from dlrover.python.training_event.event import EventType
 from dlrover.python.training_event.exporter import EventExporter
@@ -42,7 +43,7 @@ def test_event_emitter_instant():
 def test_event_emitter_begin():
     mock_exporter = Mock(spec=EventExporter)
     emitter = EventEmitter("test", mock_exporter)
-    emitter.begin("foo", {"a": 1})
+    emitter.begin("test_id", "foo", {"a": 1})
     mock_exporter.close()
 
     mock_exporter.export.assert_called_once()
@@ -57,7 +58,7 @@ def test_event_emitter_begin():
 def test_event_emitter_end():
     mock_exporter = Mock(spec=EventExporter)
     emitter = EventEmitter("test", mock_exporter)
-    emitter.end("foo", {"a": 1})
+    emitter.end("test_id", "foo", {"a": 1})
     mock_exporter.close()
 
     mock_exporter.export.assert_called_once()
@@ -400,3 +401,9 @@ def test_process_custom_event():
     mock_exporter.close()
 
     assert mock_exporter.export.call_count == 1
+
+
+def test_generate_event_id():
+    assert generate_event_id() is not None
+    assert len(generate_event_id()) == 8
+    assert generate_event_id() != generate_event_id()

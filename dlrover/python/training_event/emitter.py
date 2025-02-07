@@ -15,6 +15,7 @@ import traceback
 from functools import wraps
 from threading import Lock
 from typing import Optional, Type
+import uuid
 
 from dlrover.python.training_event.config import get_default_logger
 from dlrover.python.training_event.event import Event
@@ -24,6 +25,13 @@ from dlrover.python.training_event.exporter import (
 )
 
 _LOGGER = get_default_logger()
+
+
+def generate_event_id():
+    """
+    Generate a short unique id
+    """
+    return uuid.uuid4().hex[:8]
 
 
 class EventEmitter:
@@ -38,17 +46,19 @@ class EventEmitter:
 
     def instant(self, name: str, content: Optional[dict] = None):
         if self.exporter is not None:
-            event = Event.instant(self.target, name, content)
+            event = Event.instant(
+                generate_event_id(), self.target, name, content
+            )
             self.exporter.export(event)
 
-    def begin(self, name: str, content: dict):
+    def begin(self, event_id: str, name: str, content: dict):
         if self.exporter is not None:
-            event = Event.begin(self.target, name, content)
+            event = Event.begin(event_id, self.target, name, content)
             self.exporter.export(event)
 
-    def end(self, name: str, content: dict):
+    def end(self, event_id: str, name: str, content: dict):
         if self.exporter is not None:
-            event = Event.end(self.target, name, content)
+            event = Event.end(event_id, self.target, name, content)
             self.exporter.export(event)
 
 
@@ -141,6 +151,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
         self.content = content or {}
         self._is_begin = False
         self._is_end = False
+        self._event_id = generate_event_id()
 
     def begin(self):
         """
@@ -167,7 +178,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             _LOGGER.error(f"event {self.name} begin called twice")
             return self
         self._is_begin = True
-        self.emitter.begin(self.name, self.content.copy())
+        self.emitter.begin(self._event_id, self.name, self.content.copy())
         return self
 
     def end(self):
@@ -204,7 +215,7 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             return
 
         self._is_end = True
-        self.emitter.end(self.name, self.content)
+        self.emitter.end(self._event_id, self.name, self.content)
 
     def stage(
         self, stage: str, content: Optional[dict] = None
@@ -316,14 +327,15 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
         return self.begin()
 
     def __exit__(self, exc_type, exc_value, tb):
-        # 如果抛出异常，则记录错误信息，但是业务的异常需要正常抛出
+        # if the exception is raised, record the error information, but the
+        # business exception should be raised
         if exc_type is not None:
             if tb is not None:
                 traceback_str = "".join(traceback.format_tb(tb))
                 self.fail(str(exc_value) + "\n" + traceback_str)
             else:
                 self.fail(str(exc_value))
-            # 确保异常不会被吞掉
+            # ensure the exception is not swallowed
             raise
         else:
             self.success()

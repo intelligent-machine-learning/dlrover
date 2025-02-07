@@ -19,6 +19,19 @@ from typing import Optional
 
 
 class EventType(Enum):
+    """
+    The type of the event.
+
+    BEGIN: The beginning of a duration event.
+    END: The end of a duration event.
+    INSTANT: The instant of the event.
+
+    duration event is a pair of BEGIN and END events, they are used
+    to indicate a span of time. the event id is the same for the pair.
+
+    instant event is a single event, indicating a point in time.
+    """
+
     BEGIN = auto()
     END = auto()
     INSTANT = auto()
@@ -32,6 +45,11 @@ def _default(o):
 
 @dataclass(frozen=True)
 class Event:
+    """
+    The event class.
+    """
+
+    event_id: str
     event_time: datetime
     name: str
     event_type: EventType
@@ -39,8 +57,9 @@ class Event:
     target: str = ""
 
     def __str__(self):
-        return "[%s] [%s] [%s] [%s] %s" % (
+        return "[%s] [%s] [%s] [%s] [%s] %s" % (
             self.event_time.isoformat(),
+            self.event_id,
             self.target,
             self.name,
             self.event_type.name,
@@ -49,6 +68,7 @@ class Event:
 
     def to_dict(self):
         return {
+            "event_id": self.event_id,
             "event_time": self.event_time.isoformat(),
             "target": self.target,
             "name": self.name,
@@ -60,8 +80,15 @@ class Event:
         return json.dumps(self.to_dict(), ensure_ascii=False, default=_default)
 
     @classmethod
-    def instant(cls, target: str, name: str, content: Optional[dict] = None):
+    def instant(
+        cls,
+        event_id: str,
+        target: str,
+        name: str,
+        content: Optional[dict] = None,
+    ):
         return Event(
+            event_id=event_id,
             event_time=datetime.now(),
             target=target,
             name=name,
@@ -70,8 +97,9 @@ class Event:
         )
 
     @classmethod
-    def begin(cls, target: str, name: str, content: dict):
+    def begin(cls, event_id: str, target: str, name: str, content: dict):
         return Event(
+            event_id=event_id,
             event_time=datetime.now(),
             target=target,
             name=name,
@@ -80,8 +108,9 @@ class Event:
         )
 
     @classmethod
-    def end(cls, target: str, name: str, content: dict):
+    def end(cls, event_id: str, target: str, name: str, content: dict):
         return Event(
+            event_id=event_id,
             event_time=datetime.now(),
             target=target,
             name=name,
