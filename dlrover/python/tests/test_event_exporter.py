@@ -41,9 +41,8 @@ class TestEventExporter:
             event_type=EventType.INSTANT,
             content={"a": 1},
         )
-        assert (
-            formatter.format(event)
-            == '[2025-01-01T00:00:00] [test_id] [test] [foo] [INSTANT] {"a": 1}'
+        assert formatter.format(event) == (
+            '[2025-01-01T00:00:00] [test_id] [test] [foo] [INSTANT] {"a": 1}'
         )
 
     def test_json_formatter(self):

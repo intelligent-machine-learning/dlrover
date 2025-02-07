@@ -12,10 +12,10 @@
 # limitations under the License.
 
 import traceback
+import uuid
 from functools import wraps
 from threading import Lock
 from typing import Optional, Type
-import uuid
 
 from dlrover.python.training_event.config import get_default_logger
 from dlrover.python.training_event.event import Event
