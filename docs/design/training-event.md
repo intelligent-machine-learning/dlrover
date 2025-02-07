@@ -65,13 +65,19 @@ The BEGIN and END events form a pair, they are used to indicate a span of time. 
 
   - **TextFileExporter:** Exports events to a file in a one-line log format (or in JSON format).
   - **ConsoleExporter:** Outputs events directly to the console.
+
+- **Async Exporting:**
+
   - **AsyncExporter:** Wraps another exporter to enable asynchronous event exporting using a dedicated worker thread.
 
 - **Formatting:**
+
   - The default log format is:
+
     ```
     [event_time] [event_id] [target] [name] [event_type] content
     ```
+
   - JSON formatting is also supported via the `JsonFormatter`.
 
 ### 5. Error Handling (`error_handler.py`)
