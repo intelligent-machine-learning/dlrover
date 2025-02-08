@@ -503,7 +503,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 class_meta: ClassMeta = sq.get()
 
                 # use a lock to avoid concurrent creation of the saver
-                with (threading.Lock()):
+                with threading.Lock():
 
                     # if the saver thread is alive, skip creating the saver
                     if (
@@ -542,8 +542,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             """Clean the shared memory from ^C and "killall python" etc."""
             if cls._saver_instance:
                 cls._saver_instance.close()
-            if callable(sigint_handler):
-                sigint_handler(signum, frame)
+            signal.signal(signal.SIGINT, sigint_handler)
+            os.kill(os.getpid(), signum)
 
         def _save_shm_before_exiting(signum, frame):
             """Save the state dict from the shared memory into the storage
@@ -552,8 +552,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             if cls._saver_instance:
                 cls._saver_instance.save_shm_to_storage()
                 cls._saver_instance.close()
-            if callable(sigterm_handler):
-                sigterm_handler(signum, frame)
+            signal.signal(signal.SIGTERM, sigterm_handler)
+            os.kill(os.getpid(), signum)
 
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
@@ -964,7 +964,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
             futures.append(future)
 
         success_count = 0
-        for (i, future) in enumerate(futures):
+        for i, future in enumerate(futures):
             if future.result():
                 success_count += 1
             else:
@@ -1125,7 +1125,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             futures.append(future)
 
         success_count = 0
-        for (i, future) in enumerate(futures):
+        for i, future in enumerate(futures):
             if future.result():
                 success_count += 1
             else:
