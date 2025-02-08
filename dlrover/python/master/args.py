@@ -68,7 +68,7 @@ def add_params(parser):
     parser.add_argument(
         "--pre_check",
         "--pre_check",
-        default=DefaultValues.PRE_CHECK_ENABLE,
+        default=DefaultValues.PRE_CHECK_ENABLED,
         type=str2bool,
         help="Enable pre training check or not.",
     )

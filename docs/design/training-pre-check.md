@@ -18,19 +18,19 @@ on external services, as they require specialized and more precise validation
 of components such as containers and networks. Traditional training frameworks 
 do not and should not involve these components. 
 
-Considering that the actual 
-checks are highly related to the specific deployment environment and heavily 
-rely on external capabilities, there are currently no actual check 
-implementations added on the open-source side, only the exposure of interfaces 
-and the implementation of processes. This article only discusses the core 
-design of this aspect.
+Considering that the actual checks are highly related to the specific deployment 
+environment and heavily rely on external capabilities, implementations added here 
+on the open-source side will be updated in the future (in a more generic way), 
+only the exposure of interfaces and the implementation of processes for now. 
+This article only discusses the core design of this aspect.
 
 
 ## Target
 
 - Support configurable multiple types of serial synchronous check before 
   training starts. (primary)
-- Support limited checks during training execution. (secondary)
+- Support limited checks(some check may not be supported during runtime) 
+  during training execution. (secondary)
 
 ## Design
 
