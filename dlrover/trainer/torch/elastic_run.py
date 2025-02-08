@@ -119,6 +119,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
 )
+from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.trainer.torch.utils import version_less_than_230
 
 
@@ -446,6 +447,10 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 
 def run(args):
+    # export event for dlrover agent
+    agent = DLRoverAgentEvent.singleton_instance()
+    agent.start(pid=vars(args))
+
     logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
