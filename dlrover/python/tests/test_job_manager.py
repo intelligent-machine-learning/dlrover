@@ -36,6 +36,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeStatus,
     NodeType,
+    PreCheckStatus,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
@@ -995,3 +996,6 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_manager.handle_training_failure(NodeType.WORKER, 3)
+
+        job_context.set_pre_check_status(PreCheckStatus.FAIL)
+        self.assertEqual(job_context.get_pre_check_status(), "FAIL")

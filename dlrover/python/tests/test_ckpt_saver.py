@@ -267,10 +267,10 @@ class CheckpointSaverTest(unittest.TestCase):
             AsyncCheckpointSaver._saver_instance = saver
             AsyncCheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
-            handler(None, None)
+            handler(signal.SIGTERM, None)
             with self.assertRaises(KeyboardInterrupt):
                 handler = signal.getsignal(signal.SIGINT)
-                handler(None, None)
+                handler(signal.SIGINT, None)
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 3)
             saver.close()

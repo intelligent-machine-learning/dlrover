@@ -17,6 +17,7 @@ when training with DLRover.
 | xpu_type              | The name of xpu.                                                            | No | string                | nvidia  | nvidia,ascend                                                                     |
 | hang_detection        | The strategy of 'hang detection'.                                           | No | integer               | 1       | 0: log only <br/>1: notify <br/>2: with fault tolerance <br/>                     |
 | hang_downtime         | Training downtime to detect job hang, unit is minute.                       | No | integer               | 30      | \>=0                                                                              |
+| pre_check             | Whether to enable pre-check before training.                                | No | bool                  | True    | True: enable pre-check False: disable pre-check                                   |
 
 
 ## 2. Training Arguments

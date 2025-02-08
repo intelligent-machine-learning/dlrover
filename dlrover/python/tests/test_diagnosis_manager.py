@@ -17,8 +17,13 @@ import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
+from unittest.mock import MagicMock
 
-from dlrover.python.common.constants import Accelerators, GpuMetricEnum
+from dlrover.python.common.constants import (
+    Accelerators,
+    GpuMetricEnum,
+    NodeStatus,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
@@ -26,6 +31,10 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisDataType,
     DiagnosisResult,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import (
     DiagnosisData,
@@ -45,6 +54,11 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.precheck_operator import (
+    PreCheckOperator,
+    PreCheckResult,
+)
+from dlrover.python.master.node.job_context import get_job_context
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -174,4 +188,38 @@ class DiagnosisManagerTest(unittest.TestCase):
         )
         self.assertEqual(
             mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
+        )
+
+    def test_pre_check(self):
+        job_context = get_job_context()
+        mgr = DiagnosisManager()
+        mgr.pre_check()
+        self.assertEqual(job_context._action_queue.len(), 0)
+
+        mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
+        mgr.pre_check()
+        self.assertTrue(isinstance(job_context.next_action(1), NodeAction))
+
+
+class TestOperator(PreCheckOperator):
+    @classmethod
+    def get_retry_interval_secs(cls) -> int:
+        return 1
+
+    @classmethod
+    def get_retry_times(cls) -> int:
+        return 1
+
+    def check(self) -> PreCheckResult:
+        return PreCheckResult(1, "test", [1])
+
+    def recover(self):
+        pass
+
+    def get_failed_action(self) -> DiagnosisAction:
+        return NodeAction(
+            node_id=1,
+            node_status=NodeStatus.FAILED,
+            reason="hang",
+            action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
         )
