@@ -102,7 +102,7 @@ class DiagnosisManager:
 
             try:
                 # retry loops for each operator
-                for i in range(pre_check_op.get_retry_limit_times()):
+                for i in range(pre_check_op.get_retry_times()):
                     check_start = time.time()
 
                     # do check

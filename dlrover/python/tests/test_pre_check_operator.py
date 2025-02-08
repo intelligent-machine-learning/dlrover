@@ -31,7 +31,7 @@ class PreCheckOperatorTest(unittest.TestCase):
         self.assertTrue(op.check())
         op.recover()
         self.assertEqual(op.get_retry_interval_secs(), 5)
-        self.assertEqual(op.get_retry_limit_times(), 3)
+        self.assertEqual(op.get_retry_times(), 3)
         self.assertTrue(isinstance(op.get_failed_action(), NoAction))
 
 

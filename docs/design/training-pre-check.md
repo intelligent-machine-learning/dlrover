@@ -27,10 +27,10 @@ This article only discusses the core design of this aspect.
 
 ## Target
 
-- Support configurable multiple types of serial synchronous check before 
-  training starts. (primary)
+- Support configurable multiple types of synchronous check before 
+  training starts.
 - Support limited checks(some check may not be supported during runtime) 
-  during training execution. (secondary)
+  during training execution.
 
 ## Design
 

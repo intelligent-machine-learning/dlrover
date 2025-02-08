@@ -207,7 +207,7 @@ class TestOperator(PreCheckOperator):
         return 1
 
     @classmethod
-    def get_retry_limit_times(cls) -> int:
+    def get_retry_times(cls) -> int:
         return 1
 
     def check(self) -> PreCheckResult:
