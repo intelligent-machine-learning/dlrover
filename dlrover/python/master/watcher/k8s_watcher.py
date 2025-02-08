@@ -106,6 +106,11 @@ def _convert_pod_event_to_node_event(event):
     if metadata.deletion_timestamp:
         status = NodeStatus.DELETED
 
+    logger.debug(
+        f"Got monitor event for pod: {pod_name}, "
+        f"node: {host_name}, ip: {host_ip}, status: {status}."
+    )
+
     restart = _verify_restarting_training(evt_obj)
     if restart:
         logger.info(f"{evt_obj.metadata.name} need to restart.")

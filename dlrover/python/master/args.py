@@ -17,6 +17,17 @@ from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
 
 
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in {"true", "yes", "t", "y", "1"}:
+        return True
+    elif value.lower() in {"false", "no", "n", "0"}:
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 def add_params(parser):
     parser.add_argument("--job_name", help="ElasticJob name", required=True)
     parser.add_argument(
@@ -53,6 +64,13 @@ def add_params(parser):
         default="grpc",
         type=str,
         help="The service type of master: grpc/http.",
+    )
+    parser.add_argument(
+        "--pre_check",
+        "--pre_check",
+        default=DefaultValues.PRE_CHECK_ENABLED,
+        type=str2bool,
+        help="Enable pre training check or not.",
     )
 
 

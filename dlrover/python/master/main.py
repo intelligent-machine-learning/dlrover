@@ -71,6 +71,7 @@ def run(args):
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
+    master.pre_check()
     return master.run()
 
 
