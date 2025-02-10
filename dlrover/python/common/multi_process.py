@@ -407,6 +407,7 @@ class SharedLock(LocalSocketComm):
             if self._client:
                 self._client.close()
             if self._server:
+                self._executor.shutdown(wait=False)
                 self._server.close()
         except Exception:
             pass

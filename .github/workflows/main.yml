@@ -25,7 +25,7 @@ jobs:
       - uses: ./.github/actions/pre-commit
   dlrover-python-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 6
     steps:
       # This step checks out a copy of your repository.
       - name: checkout branch
