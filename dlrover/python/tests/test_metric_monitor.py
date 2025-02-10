@@ -568,6 +568,10 @@ class MetricMonitorTests(unittest.TestCase):
         http_client.HTTPConnection.debuglevel = 1
         logging.basicConfig()
         logging.getLogger().setLevel(logging.DEBUG)
+        _metric_context.clear_node_metrics()
+
+    def tearDown(self):
+        _metric_context.clear_node_metrics()
 
     def test_query_exception(self):
         job_name = "dlrover-testjob"
@@ -921,7 +925,7 @@ class GpuMetricMonitorTest(unittest.TestCase):
         logging.getLogger().setLevel(logging.DEBUG)
 
     def tearDown(self):
-        pass
+        _metric_context.clear_node_metrics()
 
     def test_gpu_collector(self):
         with patch(
@@ -1029,7 +1033,7 @@ class NpuMetricMonitorTest(unittest.TestCase):
         logging.getLogger().setLevel(logging.DEBUG)
 
     def tearDown(self):
-        pass
+        _metric_context.clear_node_metrics()
 
     def test_npu_collector(self):
         with patch(
