@@ -44,6 +44,9 @@ class Diagnostician:
     def get_resolving_operators(self) -> List[InferenceOperator]:
         return self._resolvers
 
+    def register_precheck_(self, problems: List[Inference]):
+        self._training_problems = problems
+
     def register_training_problems(self, problems: List[Inference]):
         self._training_problems = problems
 
