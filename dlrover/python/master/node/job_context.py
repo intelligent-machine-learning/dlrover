@@ -40,6 +40,7 @@ class JobContext(Singleton):
     def __init__(self):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._total_worker_num = 0
         self._failed_nodes: Dict[int, int] = {}
         self._pre_check_status: str = PreCheckStatus.CHECKING
         self._locker = threading.Lock()
@@ -208,6 +209,12 @@ class JobContext(Singleton):
         if _dlrover_context.pre_check_enabled:
             return self._pre_check_status
         return PreCheckStatus.DISABLED
+
+    def update_total_worker_num(self, worker_num: int):
+        self._total_worker_num = worker_num
+
+    def get_total_worker_num(self):
+        return self._total_worker_num
 
 
 def get_job_context() -> JobContext:

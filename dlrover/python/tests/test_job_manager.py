@@ -1010,3 +1010,6 @@ class LocalJobManagerTest(unittest.TestCase):
 
         job_context.set_pre_check_status(PreCheckStatus.FAIL)
         self.assertEqual(job_context.get_pre_check_status(), "FAIL")
+
+        job_context.update_total_worker_num(123)
+        self.assertEqual(job_context.get_total_worker_num(), 123)

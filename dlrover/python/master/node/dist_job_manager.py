@@ -211,6 +211,7 @@ class DistributedJobManager(JobManager):
             worker_num = plan.node_group_resources[NodeType.WORKER].count
         if NodeType.CHIEF in plan.node_group_resources:
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
+        self._job_context.update_total_worker_num(worker_num)
         self._speed_monitor.set_target_worker_num(worker_num)
         self._training_node_config.set_node_num(worker_num)
         threading.Thread(
