@@ -55,13 +55,45 @@ class SharedObjectTest(unittest.TestCase):
         acquired = server_lock.acquire()
         self.assertTrue(acquired)
         self.assertTrue(server_lock.locked())
+
         acquired = client_lock.acquire(blocking=False)
         self.assertFalse(acquired)
+        self.assertTrue(client_lock.locked().locked)
+
         server_lock.release()
+        self.assertFalse(server_lock.locked())
+        self.assertFalse(client_lock.locked().locked)
+
         acquired = client_lock.acquire(blocking=False)
         self.assertTrue(acquired)
+        self.assertTrue(client_lock.locked().locked)
         self.assertTrue(server_lock.locked())
         client_lock.release()
+
+        client_lock2 = SharedLock(name, create=False)
+        acquired = client_lock2.acquire()
+        self.assertTrue(acquired)
+        self.assertTrue(client_lock2.locked().locked)
+        acquired = client_lock.acquire(blocking=False)
+        self.assertFalse(acquired)
+        acquired = server_lock.acquire(blocking=False)
+        self.assertFalse(acquired)
+
+        client_lock2.close()
+        time.sleep(1)
+        self.assertFalse(server_lock.locked())
+        self.assertFalse(client_lock.locked().locked)
+
+        acquired = client_lock.acquire(blocking=False)
+        self.assertTrue(acquired)
+        self.assertTrue(client_lock.locked().locked)
+        self.assertTrue(server_lock.locked())
+
+        client_lock.close()
+        time.sleep(1)
+        self.assertFalse(server_lock.locked())
+
+        server_lock.close()
 
     def test_shared_queue(self):
         name = "test"
