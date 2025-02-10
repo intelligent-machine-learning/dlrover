@@ -20,7 +20,6 @@ import socket
 import threading
 import time
 from abc import ABCMeta, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from multiprocessing import shared_memory
 from typing import Dict
@@ -280,7 +279,6 @@ class SharedLock(LocalSocketComm):
         super().__init__(name, create, persist=True)
         if self._create:
             self._lock = threading.Lock()
-            self._executor = ThreadPoolExecutor(max_workers=64)
         else:
             self._lock = None
         self._id = owner
@@ -337,12 +335,16 @@ class SharedLock(LocalSocketComm):
             if not self.is_available():
                 time.sleep(1)
                 continue
+
             try:
                 connection, _ = self._server.accept()
                 try:
-                    self._executor.submit(
-                        self._deal_shared_lock_msg, connection
+                    t = threading.Thread(
+                        target=self._deal_shared_lock_msg,
+                        args=(connection,),
+                        daemon=True,
                     )
+                    t.start()
                 except Exception as e:
                     logger.error(f"SharedLock submit executor failed: {e}")
                     connection.close()
@@ -407,7 +409,6 @@ class SharedLock(LocalSocketComm):
             if self._client:
                 self._client.close()
             if self._server:
-                self._executor.shutdown(wait=False)
                 self._server.close()
         except Exception:
             pass

@@ -64,7 +64,7 @@ class SharedObjectTest(unittest.TestCase):
         self.assertFalse(server_lock.locked())
         self.assertFalse(client_lock.locked().locked)
 
-        acquired = client_lock.acquire(blocking=False)
+        acquired = client_lock.acquire()
         self.assertTrue(acquired)
         self.assertTrue(client_lock.locked().locked)
         self.assertTrue(server_lock.locked())
@@ -84,7 +84,7 @@ class SharedObjectTest(unittest.TestCase):
         self.assertFalse(server_lock.locked())
         self.assertFalse(client_lock.locked().locked)
 
-        acquired = client_lock.acquire(blocking=False)
+        acquired = client_lock.acquire()
         self.assertTrue(acquired)
         self.assertTrue(client_lock.locked().locked)
         self.assertTrue(server_lock.locked())
