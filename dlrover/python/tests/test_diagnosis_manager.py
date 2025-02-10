@@ -210,16 +210,19 @@ class TestOperator(PreCheckOperator):
     def get_retry_times(cls) -> int:
         return 1
 
-    def check(self) -> PreCheckResult:
+    def check(self, *args, **kwargs) -> PreCheckResult:
         return PreCheckResult(1, "test", [1])
 
-    def recover(self):
+    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         pass
 
-    def get_failed_action(self) -> DiagnosisAction:
-        return NodeAction(
-            node_id=1,
-            node_status=NodeStatus.FAILED,
-            reason="hang",
-            action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
-        )
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        return [
+            NodeAction(
+                node_id=1,
+                node_type="worker",
+                node_status=NodeStatus.FAILED,
+                reason="hang",
+                action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+            )
+        ]

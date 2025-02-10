@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
 import time
 from typing import Dict
 
@@ -26,6 +26,11 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisResult,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -43,6 +48,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -202,6 +208,37 @@ class DistributedJobMaster(JobMaster):
             self.task_manager.start()
         if self.job_manager:
             self.job_manager.start()
+
+        threading.Thread(
+            target=self._diagnose_job,
+            name="job_diagnosing",
+            daemon=True,
+        ).start()
+
+    def _diagnose_job(self):
+        logger.info("Start diagnosing the job.")
+        job_ctx = get_job_context()
+        while True:
+            if self._stop_requested:
+                logger.info("Stop diagnosing job.")
+                break
+
+            # deal with diagnosis action
+            action = job_ctx.next_action(
+                instance=DiagnosisConstant.MASTER_INSTANCE
+            )
+
+            if isinstance(action, JobAbortionAction):
+                self.request_stop(
+                    success=False,
+                    reason=DiagnosisResult.DIAG_ABORT,
+                    msg=action.reason,
+                )
+            else:
+                self.job_manager.process_diagnosis_action(action)
+
+            # 10 actions per second
+            time.sleep(0.1)
 
     def pre_check(self):
         logger.info("Pre-check before running.")

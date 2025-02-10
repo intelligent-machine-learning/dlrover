@@ -139,6 +139,7 @@ class NodeExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
+    DIAG_FAIL = "DiagnosticFailure"
 
 
 class JobExitReason(object):
@@ -325,7 +326,7 @@ class RendezvousName(object):
 
 
 class NodeErrorMessage(object):
-    NETWORKER_ERROR = "Network is breakdown"
+    NODE_CHECK_ERROR = "Node check has failure"
     SOCKET_GAIERROR = "Name or service not known"
 
 

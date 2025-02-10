@@ -948,14 +948,25 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
 
-        manager._process_diagnosis_action(None)
+        manager.process_diagnosis_action(None)
         self.assertEqual(mock_method.call_count, 0)
 
-        manager._process_diagnosis_action(NoAction)
+        manager.process_diagnosis_action(NoAction())
         self.assertEqual(mock_method.call_count, 0)
 
-        manager._process_diagnosis_action(EventAction())
+        manager.process_diagnosis_action(EventAction())
         self.assertEqual(mock_method.call_count, 1)
+
+    def test_process_event_safely(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        manager._process_event = mock.MagicMock(side_effect=RuntimeError)
+        try:
+            manager._process_event_safely(None)
+        except Exception:
+            self.fail()
 
 
 class LocalJobManagerTest(unittest.TestCase):

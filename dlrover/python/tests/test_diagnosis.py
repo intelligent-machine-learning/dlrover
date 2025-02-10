@@ -14,7 +14,7 @@
 import time
 import unittest
 
-from dlrover.python.common.constants import NodeStatus
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
@@ -68,6 +68,7 @@ class DiagnosisTest(unittest.TestCase):
 
         node_relaunch_action = NodeAction(
             node_id=1,
+            node_type=NodeType.WORKER,
             node_status=NodeStatus.FAILED,
             reason="hang",
             action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
@@ -76,7 +77,9 @@ class DiagnosisTest(unittest.TestCase):
             node_relaunch_action.action_type,
             DiagnosisActionType.MASTER_RELAUNCH_WORKER,
         )
-        self.assertEqual(node_relaunch_action._instance, 1)
+        self.assertEqual(
+            node_relaunch_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
         self.assertEqual(node_relaunch_action.node_id, 1)
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
@@ -84,6 +87,7 @@ class DiagnosisTest(unittest.TestCase):
 
         node_relaunch_action = NodeAction(
             node_id=1,
+            node_type=NodeType.WORKER,
             node_status=NodeStatus.FAILED,
             reason="hang",
             action_type=DiagnosisActionType.RESTART_WORKER,

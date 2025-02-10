@@ -44,6 +44,10 @@ class JobContext(Singleton):
         self._pre_check_status: str = PreCheckStatus.CHECKING
         self._locker = threading.Lock()
 
+    def enqueue_actions(self, actions):
+        for action in actions:
+            self.enqueue_action(action)
+
     def enqueue_action(self, action):
         if not action or action.action_type == DiagnosisActionType.NONE:
             return

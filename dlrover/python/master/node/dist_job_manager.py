@@ -41,6 +41,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
@@ -216,8 +217,8 @@ class DistributedJobManager(JobManager):
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
         threading.Thread(
-            target=self._diagnose_job,
-            name="job_diagnosing",
+            target=self._monitor_nodes_heartbeat,
+            name="node_heartbeat_monitor",
             daemon=True,
         ).start()
         if os.getenv("KUBERNETES_SERVICE_HOST"):
@@ -453,12 +454,7 @@ class DistributedJobManager(JobManager):
                 nodes = self._node_watcher.list()
                 self._process_list_nodes(nodes)
                 for event in self._node_watcher.watch():
-                    try:
-                        self._process_event(event)
-                    except Exception as e:
-                        logger.warning(e)
-                        detail_trace_back = traceback.format_exc()
-                        logger.warning(detail_trace_back)
+                    self._process_event_safely(event)
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
@@ -473,28 +469,18 @@ class DistributedJobManager(JobManager):
                 events = []
 
         for event in events:
-            try:
-                self._process_event(event)
-            except Exception as e:
-                logger.warning(e)
-                detail_trace_back = traceback.format_exc()
-                logger.warning(detail_trace_back)
+            self._process_event_safely(event)
 
-    def _diagnose_job(self):
-        logger.info("Start diagnosing the job.")
+    def _monitor_nodes_heartbeat(self):
+        logger.info("Start node heartbeat monitoring.")
         while True:
             if self._stopped:
-                logger.info("Stop diagnosing job.")
+                logger.info("Stop node heartbeat monitoring.")
                 break
+
             # deal with heartbeat
             self._monitor_node_heart_beat()
 
-            # deal with diagnosis action
-            self._process_diagnosis_action(
-                self._job_context.next_action(
-                    instance=DiagnosisConstant.MASTER_INSTANCE
-                )
-            )
             time.sleep(15)
 
     def _get_dead_node_event(self, window_interval=600) -> List[NodeEvent]:
@@ -628,7 +614,7 @@ class DistributedJobManager(JobManager):
                     event_type = NodeEventType.MODIFIED
                 # Mock event to avoid missing events
                 event = NodeEvent(event_type, node)
-                self._process_event(event)
+                self._process_event_safely(event)
 
         for node_type in job_nodes.keys():
             #  Avoid dictionary keys changed during iteration
@@ -647,7 +633,7 @@ class DistributedJobManager(JobManager):
                     new_node.is_released = True
                     new_node.status = NodeStatus.DELETED
                     event = NodeEvent(NodeEventType.DELETED, new_node)
-                    self._process_event(event)
+                    self._process_event_safely(event)
 
     def close_job(self):
         plan = ScalePlan()
@@ -668,7 +654,7 @@ class DistributedJobManager(JobManager):
             ElasticJobLabel.REPLICA_INDEX_KEY: node.id,
         }
 
-    def _process_diagnosis_action(self, action: DiagnosisAction):
+    def process_diagnosis_action(self, action: DiagnosisAction):
         if not action or isinstance(action, NoAction):
             return
 
@@ -680,9 +666,43 @@ class DistributedJobManager(JobManager):
                 action.event_msg,
                 action.event_labels,
             )
+        elif isinstance(action, NodeAction):
+            self._process_node_action(action)
         else:
-            # TODO: deal with other action
-            pass
+            logger.info(f"Unsupported action for now: {action}")
+
+    def _process_node_action(self, action: NodeAction):
+        target_node = self._job_context.job_node(
+            action.node_type, action.node_id
+        )
+        if not target_node:
+            logger.warning(
+                f"Node {target_node} was diagnosed as abnormal "
+                "node, but not found in context."
+            )
+            return
+
+        logger.info(
+            f"Node {target_node} was diagnosed as abnormal node, "
+            "trigger fault tolerance procedure."
+        )
+
+        event_node = copy.deepcopy(target_node)
+        event_node.status = NodeStatus.FAILED
+        event_node.exit_reason = NodeExitReason.DIAG_FAIL
+        event = NodeEvent(
+            event_type=NodeEventType.DELETED,
+            node=event_node,
+        )
+        self._process_event_safely(event)
+
+    def _process_event_safely(self, event: NodeEvent):
+        try:
+            self._process_event(event)
+        except Exception as e:
+            logger.warning(e)
+            detail_trace_back = traceback.format_exc()
+            logger.warning(detail_trace_back)
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type

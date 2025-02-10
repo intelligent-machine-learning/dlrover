@@ -29,10 +29,10 @@ class PreCheckOperatorTest(unittest.TestCase):
     def test_no_pre_check_op(self):
         op = NoPreCheckOperator()
         self.assertTrue(op.check())
-        op.recover()
+        self.assertTrue(isinstance(op.recover_actions()[0], NoAction))
         self.assertEqual(op.get_retry_interval_secs(), 5)
         self.assertEqual(op.get_retry_times(), 3)
-        self.assertTrue(isinstance(op.get_failed_action(), NoAction))
+        self.assertTrue(isinstance(op.failed_actions()[0], NoAction))
 
 
 if __name__ == "__main__":
