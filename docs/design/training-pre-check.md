@@ -113,8 +113,8 @@ class PreCheckResult(object):
     # The simple description info for the result.
     result_msg: str = ""
 
-    # Abnormal nodes' id.
-    abnormal_nodes: List[int] = field(default_factory=list)
+    # Abnormal nodes.
+    abnormal_nodes: List[Node] = field(default_factory=list)
 
     def is_success(self):
         return self.result == 0

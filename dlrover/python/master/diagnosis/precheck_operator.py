@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List
 
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -31,8 +32,8 @@ class PreCheckResult(object):
     # The simple description info for the result.
     result_msg: str = ""
 
-    # Abnormal nodes' id.
-    abnormal_nodes: List[int] = field(default_factory=list)
+    # Abnormal nodes
+    abnormal_nodes: List[Node] = field(default_factory=list)
 
     def is_success(self):
         return self.result == 0

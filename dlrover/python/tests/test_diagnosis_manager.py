@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisDataType,
@@ -216,7 +217,7 @@ class TestOperator(PreCheckOperator):
         return 1
 
     def check(self, *args, **kwargs) -> PreCheckResult:
-        return PreCheckResult(1, "test", [1])
+        return PreCheckResult(1, "test", [Node("worker", 0)])
 
     def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         return [
