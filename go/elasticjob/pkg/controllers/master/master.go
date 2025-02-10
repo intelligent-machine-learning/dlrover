@@ -49,7 +49,7 @@ const (
 	pendingTimeoutArg      = "pending_timeout"
 	pendingFailStrategyArg = "pending_fail_strategy"
 	serviceType            = "service_type"
-	preCheckArg            = "pre_check"
+	preCheckOperatorsArg   = "pre_check_ops"
 )
 
 // Manager generates a master pod object.
@@ -240,7 +240,7 @@ func (m *Manager) StopRunningPods(
 }
 
 func getMasterArguments() []string {
-	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType, preCheckArg}
+	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType, preCheckOperatorsArg}
 }
 
 // NewMasterTemplateToJob sets configurations to the master template of a job.

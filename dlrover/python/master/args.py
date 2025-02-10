@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import argparse
+import ast
 
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
@@ -26,6 +27,23 @@ def str2bool(value):
         return False
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
+def parse_tuple2_list(s):
+    if not s or s == "":
+        return []
+    try:
+        parsed = ast.literal_eval(s)
+        if isinstance(parsed, list) and all(
+            isinstance(t, tuple) and len(t) == 2 for t in parsed
+        ):
+            return parsed
+        else:
+            raise ValueError
+    except (ValueError, SyntaxError):
+        raise argparse.ArgumentTypeError(
+            "Invalid format. Expected format: [(v1, v2), ...]"
+        )
 
 
 def add_params(parser):
@@ -66,11 +84,13 @@ def add_params(parser):
         help="The service type of master: grpc/http.",
     )
     parser.add_argument(
-        "--pre_check",
-        "--pre_check",
-        default=DefaultValues.PRE_CHECK_ENABLED,
-        type=str2bool,
-        help="Enable pre training check or not.",
+        "--pre_check_ops",
+        "--pre_check_ops",
+        default=DefaultValues.PRE_CHECK_OPS,
+        type=parse_tuple2_list,
+        help="The pre-check operators configuration, "
+        "format: [(${module_name}, ${class_name}), ...]. "
+        "Pre training check will be disabled if parameter is empty.",
     )
 
 

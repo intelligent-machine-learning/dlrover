@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import os
 
 from dlrover.python.common.constants import (
@@ -67,7 +67,12 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
-    PRE_CHECK_ENABLED = True
+    PRE_CHECK_OPS = [
+        (
+            "dlrover.python.master.diagnosis.precheck_operator",
+            "NoPreCheckOperator",
+        )
+    ]
 
 
 class Context(Singleton):
@@ -118,7 +123,7 @@ class Context(Singleton):
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
         # The default xpu device type.
         self.xpu_type = Accelerators.NVIDIA_GPU
-        self.pre_check_enabled = DefaultValues.PRE_CHECK_ENABLED
+        self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
 
@@ -208,3 +213,26 @@ class Context(Singleton):
     @property
     def user_id(self):
         return os.getenv(UserEnv.USER_ID, "")
+
+    def pre_check_enabled(self):
+        return (
+            self.pre_check_operators is not None
+            and len(self.pre_check_operators) > 0
+        )
+
+    def get_pre_check_operators(self):
+        result_ops = []
+        for op_desc in self.pre_check_operators:
+            try:
+                module_name = op_desc[0]
+                class_name = op_desc[1]
+                module = importlib.import_module(module_name)
+                if hasattr(module, class_name):
+                    cls = getattr(module, class_name)
+                    result_ops.append(cls())
+            except RuntimeError:
+                logger.warning(
+                    "Invalid pre-check "
+                    f"operators: {self.pre_check_operators}"
+                )
+        return result_ops

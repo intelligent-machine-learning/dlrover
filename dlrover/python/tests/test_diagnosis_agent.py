@@ -187,7 +187,9 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         agent._client.report_heart_beat = mock.MagicMock(
             returnValue=NodeAction(
-                action_type=DiagnosisActionType.RESTART_WORKER
+                node_id=0,
+                node_type="worker",
+                action_type=DiagnosisActionType.RESTART_WORKER,
             )
         )
         agent.send_heartbeat()
