@@ -15,6 +15,7 @@ import unittest
 
 from dlrover.python.master.args import (
     parse_master_args,
+    parse_tuple2_dict,
     parse_tuple2_list,
     str2bool,
 )
@@ -47,6 +48,33 @@ class ArgsTest(unittest.TestCase):
             parse_tuple2_list("[('1', '2'), ('3', '4')]"),
             [("1", "2"), ("3", "4")],
         )
+
+    def test_parse_tuple2_dict(self):
+        # valid
+        self.assertEqual(parse_tuple2_dict(""), {})
+        self.assertEqual(parse_tuple2_dict("{}"), {})
+        self.assertEqual(
+            parse_tuple2_dict("{('1', '2'):True}"), {("1", "2"): True}
+        )
+        self.assertEqual(
+            parse_tuple2_dict("{('1', '2'):'true'}"), {("1", "2"): True}
+        )
+        self.assertEqual(
+            parse_tuple2_dict("{('1', '2'):'t', ('3', '4'):'no'}"),
+            {("1", "2"): True, ("3", "4"): False},
+        )
+
+        # invalid
+        try:
+            parse_tuple2_dict("{('1', '2'):true}")
+            self.fail()
+        except Exception:
+            pass
+        try:
+            parse_tuple2_dict("{'1':True}")
+            self.fail()
+        except Exception:
+            pass
 
     def test_parse_master_args(self):
         original_args = [

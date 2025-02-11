@@ -29,11 +29,12 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
 )
 from dlrover.python.elastic_agent.master_client import build_master_client
+from dlrover.python.master.args import parse_master_args
 from dlrover.python.master.dist_master import (
     DistributedJobMaster,
     _create_master_service_on_k8s,
 )
-from dlrover.python.master.main import update_context
+from dlrover.python.master.main import run, update_context
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
@@ -125,6 +126,25 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.assertTrue(_dlrover_context.relaunch_always)
         self.assertTrue(_dlrover_context.auto_ps_enabled)
         self.assertTrue(_dlrover_context.auto_worker_enabled)
+
+    @patch("dlrover.python.master.local_master.LocalJobMaster.__init__")
+    def test_run(self, mock_master_init):
+        # interrupt when init master(no need for the test)
+        mock_master_init.side_effect = Exception("test")
+
+        original_args = [
+            "--platform",
+            "local",
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+        ]
+
+        try:
+            run(parse_master_args(original_args))
+        except Exception:
+            pass
 
     def test_create_master_service_on_k8s(self):
         succeed = _create_master_service_on_k8s(

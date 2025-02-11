@@ -76,18 +76,18 @@ class PreCheckOperator(ABC):
         return 3
 
     @abstractmethod
-    def check(self) -> PreCheckResult:
+    def check(self, *args, **kwargs) -> PreCheckResult:
         """The abstraction of the main check procedure."""
         pass
 
     @abstractmethod
-    def recover(self):
+    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         """The abstraction of the procedure if check failed."""
         pass
 
     @abstractmethod
-    def get_failed_action(self) -> DiagnosisAction:
-        """The abstraction of the action when operator check failed."""
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        """The abstraction of the actions when operator check failed."""
         pass
 ```
 
@@ -119,3 +119,8 @@ class PreCheckResult(object):
     def is_success(self):
         return self.result == 0
 ```
+
+Considering that custom extensions of the Operator may involve more complex 
+logic for determining whether a result is successful, users can fully extend 
+the PreCheckResult and override the is_success method to define their own 
+logic for result evaluation.

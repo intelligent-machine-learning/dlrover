@@ -56,7 +56,10 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_tr
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_manager import (
+    DiagnosisManager,
+    is_pre_check_op_bypassed,
+)
 from dlrover.python.master.diagnosis.precheck_operator import (
     PreCheckOperator,
     PreCheckResult,
@@ -210,11 +213,33 @@ class DiagnosisManagerTest(unittest.TestCase):
             job_context.get_pre_check_status(), PreCheckStatus.FAIL
         )
 
-        _dlrover_context.pre_check_bypass_enabled = True
+        _dlrover_context.pre_check_bypass = True
         mgr.pre_check()
         self.assertEqual(
             job_context.get_pre_check_status(), PreCheckStatus.PASS
         )
+
+    def test_is_pre_check_op_bypassed(self):
+        _dlrover_context = Context.singleton_instance()
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): True
+        }
+        self.assertTrue(is_pre_check_op_bypassed(TestOperator()))
+
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): False
+        }
+        self.assertFalse(is_pre_check_op_bypassed(TestOperator()))
+
+        _dlrover_context.pre_check_bypass = {}
+        self.assertFalse(is_pre_check_op_bypassed(TestOperator()))
+        self.assertFalse(is_pre_check_op_bypassed(None))
 
 
 class TestOperator(PreCheckOperator):

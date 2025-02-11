@@ -59,6 +59,21 @@ _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 
+def is_pre_check_op_bypassed(pre_check_op):
+    if not pre_check_op:
+        return False
+
+    bypass_config = _dlrover_context.pre_check_bypass
+    if not bypass_config:
+        return False
+
+    module_name = pre_check_op.__module__
+    class_name = pre_check_op.__class__.__name__
+    return (module_name, class_name) in bypass_config and bypass_config[
+        (module_name, class_name)
+    ]
+
+
 class DiagnosisManager:
     """
     DiagnosisManager is to manage all diagnosis issues in a training job
@@ -135,9 +150,9 @@ class DiagnosisManager:
                     f"cost:{time.time()-current_start:.2f}ms. "
                     f"Invoke action: {actions}."
                 )
-                if _dlrover_context.pre_check_bypass_enabled:
+                if is_pre_check_op_bypassed(pre_check_op):
                     logger.warning(
-                        "Set pre-check pass due to " "bypass is enabled."
+                        "Set pre-check pass due to bypass is enabled."
                     )
                     self._job_context.set_pre_check_status(PreCheckStatus.PASS)
                 else:

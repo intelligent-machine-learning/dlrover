@@ -29,11 +29,12 @@ def str2bool(value):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-def parse_tuple2_list(s):
-    if not s or s == "":
+def parse_tuple2_list(value):
+    """Format: [(${value1}, ${value2}), ...]"""
+    if not value or value == "":
         return []
     try:
-        parsed = ast.literal_eval(s)
+        parsed = ast.literal_eval(value)
         if isinstance(parsed, list) and all(
             isinstance(t, tuple) and len(t) == 2 for t in parsed
         ):
@@ -43,6 +44,39 @@ def parse_tuple2_list(s):
     except (ValueError, SyntaxError):
         raise argparse.ArgumentTypeError(
             "Invalid format. Expected format: [(v1, v2), ...]"
+        )
+
+
+def parse_tuple2_dict(value):
+    """
+    Format：{(${value1}, ${value2}): ${boolean}, ...}
+    """
+    if not value or value == "":
+        return {}
+    try:
+        result_dict = {}
+        parsed_dict = ast.literal_eval(value)
+
+        if isinstance(parsed_dict, dict):
+            for key, value in parsed_dict.items():
+                if not isinstance(key, tuple):
+                    raise ValueError("invalid format: key should be tuple")
+
+                if isinstance(value, bool):
+                    result_dict[key] = value
+                elif isinstance(value, str):
+                    result_dict[key] = str2bool(value)
+                else:
+                    raise ValueError(
+                        "invalid format: value should be boolean "
+                        "or boolean expression in str"
+                    )
+            return result_dict
+        else:
+            raise ValueError("invalid format: not dict")
+    except Exception:
+        raise argparse.ArgumentTypeError(
+            "Invalid format. Expected format: " "{(v1, v2): ${boolean}, ...}"
         )
 
 
@@ -97,7 +131,8 @@ def add_params(parser):
         "--pre-check-bypass",
         default=False,
         type=str2bool,
-        help="Will set pass result although pre-check failed if set bypass.",
+        help="Will set pass result although pre-check failed if set bypass, "
+        "format: {(${module_name}, ${class_name}): ${boolean}, ...}.",
     )
 
 
