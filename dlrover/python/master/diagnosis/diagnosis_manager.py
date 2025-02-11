@@ -165,7 +165,7 @@ class DiagnosisManager:
                 logger.info(
                     f"{pre_check_op_name} finish "
                     f"with result: {current_op_result}, "
-                    f"cost:{time.time() - current_start:.2f}ms."
+                    f"cost:{time.time() - current_start:.2f}s."
                 )
 
         self._job_context.set_pre_check_status(PreCheckStatus.PASS)
