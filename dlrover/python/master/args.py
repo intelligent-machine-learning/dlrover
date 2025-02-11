@@ -129,8 +129,8 @@ def add_params(parser):
     parser.add_argument(
         "--pre_check_bypass",
         "--pre-check-bypass",
-        default=False,
-        type=str2bool,
+        default=DefaultValues.PRE_CHECK_BYPASS,
+        type=parse_tuple2_dict,
         help="Will set pass result although pre-check failed if set bypass, "
         "format: {(${module_name}, ${class_name}): ${boolean}, ...}.",
     )

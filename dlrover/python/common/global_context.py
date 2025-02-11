@@ -12,6 +12,7 @@
 # limitations under the License.
 import importlib
 import os
+from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -67,12 +68,13 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
-    PRE_CHECK_OPS = [
+    PRE_CHECK_OPS: List[Tuple] = [
         (
             "dlrover.python.master.diagnosis.precheck_operator",
             "NoPreCheckOperator",
         )
     ]
+    PRE_CHECK_BYPASS: Dict[Tuple, bool] = {}
 
 
 class Context(Singleton):
