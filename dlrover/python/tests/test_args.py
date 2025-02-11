@@ -13,10 +13,28 @@
 
 import unittest
 
-from dlrover.python.master.args import parse_master_args
+from dlrover.python.master.args import parse_master_args, str2bool
 
 
 class ArgsTest(unittest.TestCase):
+    def test_str2bool(self):
+        self.assertTrue(str2bool("TRUE"))
+        self.assertTrue(str2bool("True"))
+        self.assertTrue(str2bool("true"))
+        self.assertTrue(str2bool("yes"))
+        self.assertTrue(str2bool("t"))
+        self.assertTrue(str2bool("y"))
+        self.assertTrue(str2bool("1"))
+        self.assertTrue(str2bool(True))
+
+        self.assertFalse(str2bool("FALSE"))
+        self.assertFalse(str2bool("False"))
+        self.assertFalse(str2bool("false"))
+        self.assertFalse(str2bool("no"))
+        self.assertFalse(str2bool("n"))
+        self.assertFalse(str2bool("0"))
+        self.assertFalse(str2bool(False))
+
     def test_parse_master_args(self):
         original_args = [
             "--job_name",
@@ -30,6 +48,7 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
         self.assertTrue(parsed_args.service_type, "grpc")
+        self.assertTrue(parsed_args.pre_check)
 
         original_args = [
             "--job_name",
@@ -42,11 +61,14 @@ class ArgsTest(unittest.TestCase):
             "2",
             "--service_type",
             "http",
+            "--pre_check",
+            "false",
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
         self.assertTrue(parsed_args.service_type, "http")
+        self.assertFalse(parsed_args.pre_check)
 
         original_args = [
             "--job_name",

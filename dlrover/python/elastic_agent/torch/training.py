@@ -20,6 +20,7 @@ import socket
 import sys
 import tempfile
 import time
+import traceback
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -354,9 +355,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                             "and waits for more nodes."
                         )
                         start_pending = time.time()
-                    time.sleep(
-                        JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL
-                    )
+                    time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
                         raise TimeoutError(
@@ -373,7 +372,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
+            time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -858,12 +857,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 workers.append(worker)
         return workers
 
-    def _initialize_workers(self, worker_group):
+    def _initialize_workers(self, worker_group, max_errors=3):
         logger.info(
             "Start initializing "
             f"training({self.__class__.__name__}) workers."
         )
         start_pending = 0
+        err_cnt = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
         )
@@ -885,6 +885,20 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
+            except NodeCheckFailedError as node_check_error:
+                raise node_check_error
+            except Exception as e:
+                err_cnt += 1
+                if err_cnt < max_errors:
+                    stack_trace = traceback.format_exc()
+                    logger.error(
+                        f"Unexpected exception in _initialize_workers: {e}\n"
+                        f"Stack backtrace:\n {stack_trace}"
+                    )
+                    self._stop_workers(worker_group)
+                    continue
+                else:
+                    raise e
             else:
                 logger.info("Finish initializing training workers.")
                 break
@@ -1185,7 +1199,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
 
-    def sync_training_ports(self, interval=20):
+    def sync_training_ports(
+        self, interval=JobConstant.SYNC_PORTS_DEFAULT_INTERVAL
+    ):
         logger.info(f"Accelerator: {self._config.accelerator}")
         if (
             self._config.accelerator == Accelerators.ASCEND_NPU

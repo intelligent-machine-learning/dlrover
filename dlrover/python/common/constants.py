@@ -385,7 +385,17 @@ class JobConstant(object):
     # sleep 5s before next node check round
     NODE_CHECK_NEXT_ROUND_TIMEOUT = 5
 
+    # default interval seconds for loop in training agent
     TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
+
+    # sleep 5s before next rendezvous round
+    RENDEZVOUS_DEFAULT_INTERVAL = 5
+
+    # sleep 5s before next port synchronization
+    SYNC_PORTS_DEFAULT_INTERVAL = 5
+
+    # interval seconds for pre-check waiting
+    PRE_CHECK_WAIT_SECS = 5
 
 
 class Accelerators(object):
@@ -429,3 +439,10 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+
+
+class PreCheckStatus(object):
+    CHECKING = "CHECKING"
+    FAIL = "FAIL"
+    PASS = "PASS"
+    DISABLED = "DISABLED"
