@@ -18,7 +18,7 @@ import dlrover.python.util.function_util as fu
 
 class FunctionUtilTest(unittest.TestCase):
     def test_timeout_decorator(self):
-        @fu.timeout(1)
+        @fu.timeout(1 * 1)
         def long_running_function(seconds):
             import time
 
