@@ -133,6 +133,13 @@ class NoAction(DiagnosisAction):
         super().__init__()
 
 
+class Observation(DiagnosisAction):
+    def __init__(self, **kwargs):
+        super().__init__(
+            action_type=DiagnosisActionType.OBSERVATION,
+        )
+
+
 class EventAction(DiagnosisAction):
     """Output the specified event."""
 

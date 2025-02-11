@@ -64,6 +64,7 @@ class DiagnosisActionType(object):
     # master operation
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
+    OBSERVATION = "observation"
 
     # node operation
     RESTART_WORKER = "restart_worker"

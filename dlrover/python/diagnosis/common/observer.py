@@ -1,5 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 
 
 class Observer(metaclass=ABCMeta):
@@ -12,4 +15,5 @@ class Observer(metaclass=ABCMeta):
 
     @abstractmethod
     def observe(self) -> DiagnosisAction:
-        pass
+        return NoAction()
+

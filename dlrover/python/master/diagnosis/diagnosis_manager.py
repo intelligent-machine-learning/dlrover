@@ -15,6 +15,7 @@ import os
 import threading
 import time
 from datetime import datetime
+from typing import List
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -35,21 +36,16 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisResult,
     JobHangWatermark,
 )
-from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    NodeAction,
+    Observation,
+    NoAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.diagnosis.common.inference_chain import (
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-)
-from dlrover.python.diagnosis.inferencechain.inference_chain import Inference
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
-    CheckTrainingHangOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
 )
-from dlrover.python.master.diagnosis.diagnosis import Diagnostician
+from dlrover.python.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
@@ -57,6 +53,8 @@ from dlrover.python.master.diagnosis.precheck_operator import (
     NoPreCheckOperator,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.diagnosis.observer.training_hang_observer import TrainingHangObserver
+
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -71,11 +69,13 @@ class DiagnosisManager:
     def __init__(self, job_name=None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
-        self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
+        self._diagnostician: Diagnostician = Diagnostician()
         self._job_context = get_job_context()
         self._job_name = job_name
         self._metric_monitor = None
         self._lock = threading.Lock()
+
+        self._observe_problems: List[str] = []
 
     @classmethod
     def get_pre_check_operators(cls):
@@ -202,21 +202,8 @@ class DiagnosisManager:
         logger.info("Start to observing training...")
         self._is_observing_started = True
 
-        self._diagnostician.register_training_problems(
-            [
-                Inference(
-                    InferenceName.TRAINING,
-                    InferenceAttribute.ISORNOT,
-                    InferenceDescription.HANG,
-                )
-            ]
-        )
-        self._diagnostician.register_observers(
-            [CheckTrainingHangOperator(self._data_manager)]
-        )
-        self._diagnostician.register_resolvers(
-            [ResolveTrainingHangOperator(self._data_manager)]
-        )
+        self._diagnostician.register_observer("training_hang", TrainingHangObserver(self._data_manager))
+        self._observe_problems.append("training_hang")
 
         try:
             diag = threading.Thread(
@@ -335,13 +322,16 @@ class DiagnosisManager:
                     f"{self._is_observing_started}"
                 )
                 break
-
-            observed_problems = self._diagnostician.observe_training()
-            action = self._diagnostician.resolve_problems(observed_problems)
-            self._job_context.enqueue_action(action)
+            for problem in self._observe_problems:
+                ob = self._diagnostician.observe(problem)
+                if isinstance(ob, Observation):
+                    logger.info(f"Observe problem {ob}")
+                    solution = self._diagnostician.trouble_shoot(ob)
+                    if not isinstance(solution, NoAction):
+                        continue
+                    self._job_context.enqueue_action(solution)
 
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
             )
 
-    def diagnosis(self, operators: I):

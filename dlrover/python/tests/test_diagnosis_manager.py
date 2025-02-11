@@ -47,7 +47,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     is_training_hanged,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (

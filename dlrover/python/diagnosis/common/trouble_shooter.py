@@ -1,5 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 
 
 class TroubleShooter(metaclass=ABCMeta):
@@ -12,5 +15,9 @@ class TroubleShooter(metaclass=ABCMeta):
 
     @abstractmethod
     def trouble_shoot(self, action: DiagnosisAction) -> DiagnosisAction:
-        pass
+        return NoAction()
+
+    @abstractmethod
+    def is_compatible(self, action: DiagnosisAction) -> bool:
+        return False
     
