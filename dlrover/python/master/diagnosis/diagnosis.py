@@ -14,7 +14,11 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
+from dlrover.python.diagnosis.common.inference_chain import Coordinator
 from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
 )
@@ -44,7 +48,7 @@ class Diagnostician:
     def get_resolving_operators(self) -> List[InferenceOperator]:
         return self._resolvers
 
-    def register_precheck_(self, problems: List[Inference]):
+    def register_precheck(self, problems: List[Inference]):
         self._training_problems = problems
 
     def register_training_problems(self, problems: List[Inference]):
@@ -97,3 +101,17 @@ class Diagnostician:
                 )
 
         return coordinate_solutions(combined_solutions)
+
+    def diagnosis(self, problems: List[Inference], operators: List[InferenceOperator],
+                  coordinator: Coordinator) -> DiagnosisAction:
+        ic = InferenceChain(problems, operators)
+        conclusions = ic.infer()
+        if len(conclusions) > 0:
+            try:
+                return coordinator.coordinate(conclusions)
+            except Exception as e:
+                logger.error(f"fail to generate action for {conclusions}: {e}")
+                return NoAction()
+        return NoAction()
+
+

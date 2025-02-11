@@ -43,7 +43,7 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
@@ -55,7 +55,7 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
     ResolveGPUErrorsOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
 )
 from dlrover.python.elastic_agent.master_client import (

@@ -64,10 +64,16 @@ class DiagnosisActionType(object):
     # master operation
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
+    OBSERVATION = "observation"
 
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+
+
+class ObservationConstants(object):
+    NODE_FAIL = "node_fail"
+    GPU_ERROR = "gpu_error"
 
 
 class DiagnosisResult(object):
