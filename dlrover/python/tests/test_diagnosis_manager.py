@@ -213,7 +213,12 @@ class DiagnosisManagerTest(unittest.TestCase):
             job_context.get_pre_check_status(), PreCheckStatus.FAIL
         )
 
-        _dlrover_context.pre_check_bypass = True
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): True
+        }
         mgr.pre_check()
         self.assertEqual(
             job_context.get_pre_check_status(), PreCheckStatus.PASS
