@@ -19,11 +19,14 @@ import (
 	"fmt"
 	"os"
 
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Pod", func() {
@@ -54,7 +57,18 @@ var _ = Describe("Pod", func() {
 				},
 			},
 		}
-		pod := BuildPod(jobContext, podConfig)
+		job := &elasticjobv1.ElasticJob{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "test-training",
+				Namespace:   "easydl",
+				Annotations: map[string]string{},
+				Labels:      map[string]string{},
+			},
+			Spec: elasticjobv1.ElasticJobSpec{
+				ReplicaSpecs: map[commonv1.ReplicaType]*elasticjobv1.ReplicaSpec{},
+			},
+		}
+		pod := BuildPod(jobContext, podConfig, job)
 		Expect(pod.ObjectMeta.Name).To(Equal("train-demo-worker-0"))
 		Expect(pod.ObjectMeta.Namespace).To(Equal("dlrover"))
 		jobName, ok := pod.ObjectMeta.Labels[labelJobKey]

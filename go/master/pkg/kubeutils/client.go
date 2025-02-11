@@ -25,6 +25,7 @@ import (
 	k8sApi "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/utils/ptr"
 )
 
 // GlobalK8sClient is the global client to access a k8s cluster.
@@ -105,5 +106,15 @@ func (client *K8sClient) CreatePod(ctx context.Context, pod *corev1.Pod) error {
 		CoreV1().
 		Pods(client.namespace).
 		Create(ctx, pod, metav1.CreateOptions{})
+	return err
+}
+
+// RemovePod removes a Pod instance in the cluster
+func (client *K8sClient) RemovePod(name string) error {
+	err := client.clientset.CoreV1().Pods(client.namespace).Delete(
+		context.Background(),
+		name,
+		metav1.DeleteOptions{GracePeriodSeconds: ptr.To(int64(0))},
+	)
 	return err
 }
