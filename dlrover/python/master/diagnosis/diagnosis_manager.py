@@ -55,6 +55,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.util.function_util import timeout
+from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -75,6 +76,11 @@ def is_pre_check_op_bypassed(pre_check_op):
     ]
 
 
+# pending timeout + 600s
+def get_pre_check_timeout():
+    return get_pending_timeout() + 600
+
+
 class DiagnosisManager:
     """
     DiagnosisManager is to manage all diagnosis issues in a training job
@@ -93,7 +99,7 @@ class DiagnosisManager:
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
-    @timeout(60 * 10)
+    @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled:
             return
