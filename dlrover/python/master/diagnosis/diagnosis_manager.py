@@ -16,8 +16,6 @@ import threading
 import time
 from datetime import datetime
 
-from util.function_util import timeout
-
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
@@ -56,6 +54,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.util.function_util import timeout
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()

@@ -14,8 +14,6 @@ import threading
 import time
 from typing import Dict
 
-from util.function_util import TimeoutException
-
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -56,6 +54,7 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.util.function_util import TimeoutException
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
