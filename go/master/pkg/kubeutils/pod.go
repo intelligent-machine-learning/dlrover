@@ -16,6 +16,7 @@ package kubeutils
 import (
 	"fmt"
 
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,7 +55,7 @@ type PodConfig struct {
 }
 
 // BuildPod builds a corev1.Pod.
-func BuildPod(jobContext *common.JobContext, podConfig *PodConfig) *corev1.Pod {
+func BuildPod(jobContext *common.JobContext, podConfig *PodConfig, ownerJob *elasticjobv1.ElasticJob) *corev1.Pod {
 	podName := fmt.Sprintf("%s-%s-%d", jobContext.Name, podConfig.Replica.Type, podConfig.Replica.ID)
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -67,6 +68,9 @@ func BuildPod(jobContext *common.JobContext, podConfig *PodConfig) *corev1.Pod {
 	// Set pod name and namespace.
 	pod.ObjectMeta.Name = podName
 	pod.ObjectMeta.Namespace = jobContext.NameSpace
+	pod.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(ownerJob, elasticjobv1.SchemeGroupVersionKind),
+	}
 
 	if pod.ObjectMeta.Labels == nil {
 		pod.ObjectMeta.Labels = make(map[string]string)
