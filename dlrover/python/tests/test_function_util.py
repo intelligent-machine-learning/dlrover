@@ -1,4 +1,4 @@
-# Copyright 2025 The EasyDL Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,14 +19,30 @@ import dlrover.python.util.function_util as fu
 class FunctionUtilTest(unittest.TestCase):
     def test_timeout_decorator(self):
         @fu.timeout(1 * 1)
-        def long_running_function(seconds):
+        def test(seconds):
             import time
 
             time.sleep(seconds)
             return
 
         try:
-            long_running_function(2)
+            test(2)
+            self.fail()
+        except fu.TimeoutException:
+            pass
+
+        def get_timeout():
+            return 1
+
+        @fu.timeout(callback_func=get_timeout)
+        def test(seconds):
+            import time
+
+            time.sleep(seconds)
+            return
+
+        try:
+            test(2)
             self.fail()
         except fu.TimeoutException:
             pass
