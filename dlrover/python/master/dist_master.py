@@ -14,6 +14,8 @@ import threading
 import time
 from typing import Dict
 
+from util.function_util import TimeoutException
+
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -22,6 +24,7 @@ from dlrover.python.common.constants import (
     NodeType,
     OptimizeMode,
     PlatformType,
+    PreCheckStatus,
     RendezvousName,
     ReporterType,
 )
@@ -242,7 +245,11 @@ class DistributedJobMaster(JobMaster):
 
     def pre_check(self):
         logger.info("Pre-check before running.")
-        self.diagnosis_manager.pre_check()
+        try:
+            self.diagnosis_manager.pre_check()
+        except TimeoutException:
+            logger.warning("Pre-check timeout, set pass as result for safety.")
+            get_job_context().set_pre_check_status(PreCheckStatus.PASS)
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""

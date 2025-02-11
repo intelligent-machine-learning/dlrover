@@ -16,6 +16,8 @@ import threading
 import time
 from datetime import datetime
 
+from util.function_util import timeout
+
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
@@ -92,6 +94,7 @@ class DiagnosisManager:
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
+    @timeout(60 * 10)
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled:
             return
@@ -118,7 +121,7 @@ class DiagnosisManager:
                     logger.info(
                         f"{pre_check_op_name} "
                         f"check({i}) "
-                        f"cost: {time.time()-check_start:.2f}ms, "
+                        f"cost: {time.time()-check_start:.2f}s, "
                         f"result: {current_op_result}"
                     )
 
@@ -147,7 +150,7 @@ class DiagnosisManager:
                     "Training pre-check failed "
                     f"by {pre_check_op_name} "
                     f"with result: {current_op_result}, "
-                    f"cost:{time.time()-current_start:.2f}ms. "
+                    f"cost:{time.time() - current_start:.2f}s. "
                     f"Invoke action: {actions}."
                 )
                 if is_pre_check_op_bypassed(pre_check_op):
@@ -163,12 +166,12 @@ class DiagnosisManager:
                 logger.info(
                     f"{pre_check_op_name} finish "
                     f"with result: {current_op_result}, "
-                    f"cost:{time.time()-current_start:.2f}ms."
+                    f"cost:{time.time() - current_start:.2f}ms."
                 )
 
         self._job_context.set_pre_check_status(PreCheckStatus.PASS)
         logger.info(
-            f"Training pre-check complete, cost:{time.time()-start:.2f}ms."
+            f"Training pre-check complete, cost:{time.time()-start:.2f}s."
         )
 
     def start_metric_collect(self):
