@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import logging
 import time
 import unittest
 
@@ -23,6 +23,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
     EventAction,
+    JobAbortionAction,
     NoAction,
     NodeAction,
 )
@@ -81,6 +82,8 @@ class DiagnosisTest(unittest.TestCase):
             node_relaunch_action._instance, DiagnosisConstant.MASTER_INSTANCE
         )
         self.assertEqual(node_relaunch_action.node_id, 1)
+        self.assertEqual(node_relaunch_action.node_type, "worker")
+
         self.assertEqual(node_relaunch_action.node_status, NodeStatus.FAILED)
         self.assertEqual(node_relaunch_action.reason, "hang")
         self.assertTrue(event_action.is_needed())
@@ -97,6 +100,17 @@ class DiagnosisTest(unittest.TestCase):
             DiagnosisActionType.RESTART_WORKER,
         )
         self.assertTrue(event_action.is_needed())
+
+        job_abortion_action = JobAbortionAction("test123")
+        self.assertEqual(
+            job_abortion_action.action_type,
+            DiagnosisActionType.JOB_ABORT,
+        )
+        self.assertEqual(
+            job_abortion_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(job_abortion_action.reason, "test123")
+        logging.info(job_abortion_action)
 
     def test_action_queue(self):
         action_queue = DiagnosisActionQueue()

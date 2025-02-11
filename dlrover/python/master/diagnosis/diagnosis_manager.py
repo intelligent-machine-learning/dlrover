@@ -135,7 +135,13 @@ class DiagnosisManager:
                     f"cost:{time.time()-current_start:.2f}ms. "
                     f"Invoke action: {actions}."
                 )
-                self._job_context.set_pre_check_status(PreCheckStatus.FAIL)
+                if _dlrover_context.pre_check_bypass_enabled:
+                    logger.warning(
+                        "Set pre-check pass due to " "bypass is enabled."
+                    )
+                    self._job_context.set_pre_check_status(PreCheckStatus.PASS)
+                else:
+                    self._job_context.set_pre_check_status(PreCheckStatus.FAIL)
                 return
             else:
                 self._job_context.set_pre_check_status(PreCheckStatus.CHECKING)

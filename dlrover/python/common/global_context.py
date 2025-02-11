@@ -123,9 +123,11 @@ class Context(Singleton):
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
         # The default xpu device type.
         self.xpu_type = Accelerators.NVIDIA_GPU
-        self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
+        # pre-check args
+        self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
+        self.pre_check_bypass_enabled = False
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(

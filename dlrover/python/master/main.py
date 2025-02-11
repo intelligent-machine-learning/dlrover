@@ -49,6 +49,11 @@ def run(args):
     _dlrover_context.config_master_port(port=args.port)
     _dlrover_context.hang_detection = args.hang_detection
     _dlrover_context.hang_downtime = args.hang_downtime
+    _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
+    _dlrover_context.pending_timeout = args.pending_timeout
+    _dlrover_context.master_service_type = args.service_type
+    _dlrover_context.pre_check_operators = args.pre_check_ops
+    _dlrover_context.pre_check_bypass_enabled = args.pre_check_bypass
     if args.xpu_type.lower() == "ascend":
         _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

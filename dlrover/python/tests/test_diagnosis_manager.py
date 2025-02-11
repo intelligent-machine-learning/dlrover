@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
     NodeStatus,
+    PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
@@ -205,6 +206,15 @@ class DiagnosisManagerTest(unittest.TestCase):
         mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
         mgr.pre_check()
         self.assertTrue(isinstance(job_context.next_action(), NodeAction))
+        self.assertEqual(
+            job_context.get_pre_check_status(), PreCheckStatus.FAIL
+        )
+
+        _dlrover_context.pre_check_bypass_enabled = True
+        mgr.pre_check()
+        self.assertEqual(
+            job_context.get_pre_check_status(), PreCheckStatus.PASS
+        )
 
 
 class TestOperator(PreCheckOperator):

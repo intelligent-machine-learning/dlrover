@@ -92,6 +92,13 @@ def add_params(parser):
         "format: [(${module_name}, ${class_name}), ...]. "
         "Pre training check will be disabled if parameter is empty.",
     )
+    parser.add_argument(
+        "--pre_check_bypass",
+        "--pre-check-bypass",
+        default=False,
+        type=str2bool,
+        help="Will set pass result although pre-check failed if set bypass.",
+    )
 
 
 def print_args(args, exclude_args=[], groups=None):
