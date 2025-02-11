@@ -51,7 +51,6 @@ const (
 	serviceType            = "service_type"
 	preCheckOperatorsArg   = "pre_check_ops"
 	preCheckBypassArg      = "pre_check_bypass"
-
 )
 
 // Manager generates a master pod object.
