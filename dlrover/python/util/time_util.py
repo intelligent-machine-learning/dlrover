@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from dlrover.python.common.constants import JobConstant
 from dlrover.python.common.global_context import Context
 
-
 _dlrover_ctx = Context.singleton_instance()
 
 

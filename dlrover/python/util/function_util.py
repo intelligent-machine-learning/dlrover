@@ -14,8 +14,8 @@
 import functools
 import signal
 
-
 TIMEOUT_MAX = 24 * 60 * 60
+
 
 class TimeoutException(Exception):
     pass

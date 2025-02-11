@@ -151,7 +151,7 @@ class DistributedJobMaster(JobMaster):
                 error_monitor
             ),
         }
-        self.diagnosis_manager = DiagnosisManager(job_name=args.job_name)
+        self.diagnosis_manager = DiagnosisManager(args)
         self._error_monitor = error_monitor
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args

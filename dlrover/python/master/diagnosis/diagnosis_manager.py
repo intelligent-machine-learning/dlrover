@@ -54,6 +54,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.util.function_util import timeout
 from dlrover.python.util.time_util import get_pending_timeout
 
@@ -83,16 +84,15 @@ def get_pre_check_timeout():
 
 class DiagnosisManager:
     """
-    DiagnosisManager is to manage all diagnosis issues in a training job
-
+    DiagnosisManager is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_name=None):
+    def __init__(self, job_args: JobArgs = None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
-        self._job_name = job_name
+        self._job_args = job_args
         self._metric_monitor = None
         self._lock = threading.Lock()
 
@@ -122,7 +122,9 @@ class DiagnosisManager:
                     check_start = time.time()
 
                     # do check
-                    current_op_result = pre_check_op.check()
+                    current_op_result = pre_check_op.check(
+                        job_args=self._job_args
+                    )
                     logger.info(
                         f"{pre_check_op_name} "
                         f"check({i}) "
@@ -141,7 +143,9 @@ class DiagnosisManager:
                         time.sleep(pre_check_op.get_retry_interval_secs())
 
                         # check again after recover
-                        current_op_result = pre_check_op.check()
+                        current_op_result = pre_check_op.check(
+                            job_args=self._job_args
+                        )
                     else:
                         break
             except Exception as e:
@@ -198,14 +202,14 @@ class DiagnosisManager:
 
         if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
-                job_name=self._job_name,
+                job_name=self._job_args.job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
         else:
             self._metric_monitor = GpuMetricMonitor(
-                job_name=self._job_name,
+                job_name=self._job_args.job_name,
                 metrics=[
                     GpuMetricEnum.GPU_UTIL,
                     GpuMetricEnum.GPU_TENSOR_UTIL,
