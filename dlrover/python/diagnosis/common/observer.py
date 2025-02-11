@@ -14,6 +14,6 @@ class Observer(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def observe(self) -> DiagnosisAction:
+    def observe(self, **kwargs) -> DiagnosisAction:
         return NoAction()
 

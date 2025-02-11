@@ -5,7 +5,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
 )
 
 
-class TroubleShooter(metaclass=ABCMeta):
+class Resolver(metaclass=ABCMeta):
     """
     Coordinator is to coordinate multiple inferences and generate the final action.
     """
@@ -14,7 +14,7 @@ class TroubleShooter(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def trouble_shoot(self, action: DiagnosisAction) -> DiagnosisAction:
+    def resolve(self, action: DiagnosisAction) -> DiagnosisAction:
         return NoAction()
 
     @abstractmethod

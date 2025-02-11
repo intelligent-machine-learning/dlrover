@@ -42,9 +42,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolve_training_hang_operator import (  # noqa: E501
-    ResolveTrainingHangOperator,
-)
 from dlrover.python.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
@@ -323,13 +320,13 @@ class DiagnosisManager:
                 )
                 break
             for problem in self._observe_problems:
-                ob = self._diagnostician.observe(problem)
-                if isinstance(ob, Observation):
-                    logger.info(f"Observe problem {ob}")
-                    solution = self._diagnostician.trouble_shoot(ob)
-                    if not isinstance(solution, NoAction):
-                        continue
-                    self._job_context.enqueue_action(solution)
+                action = self._diagnostician.observe(problem)
+                if isinstance(action, Observation):
+                    logger.info(f"Observe problem {action}")
+                    action = self._diagnostician.resolve(action)
+
+                if not isinstance(action, NoAction):
+                    self._job_context.enqueue_action(action)
 
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS

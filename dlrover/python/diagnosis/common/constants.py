@@ -71,6 +71,11 @@ class DiagnosisActionType(object):
     RELAUNCH_WORKER = "relaunch_worker"
 
 
+class ObservationConstants(object):
+    NODE_FAIL = "node_fail"
+    GPU_ERROR = "gpu_error"
+
+
 class DiagnosisResult(object):
     # diag error
     DIAG_ERROR = "error"

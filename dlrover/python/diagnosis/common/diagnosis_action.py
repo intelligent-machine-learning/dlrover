@@ -134,11 +134,15 @@ class NoAction(DiagnosisAction):
 
 
 class Observation(DiagnosisAction):
-    def __init__(self, **kwargs):
+    def __init__(self, observation: str, logs = ""):
         super().__init__(
             action_type=DiagnosisActionType.OBSERVATION,
         )
+        self.observation = observation
+        self.logs = logs
 
+    def node_failed(self) -> bool:
+        return self.observation == "node_failed"
 
 class EventAction(DiagnosisAction):
     """Output the specified event."""

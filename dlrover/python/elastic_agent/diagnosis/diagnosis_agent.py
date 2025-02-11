@@ -24,36 +24,24 @@ from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
-    InferenceConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
-    DiagnosisAction,
     NoAction,
     NodeAction,
+    Observation,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from dlrover.python.diagnosis.common.inference_chain import (
-    Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-    combine_inferences,
-    is_inference_included,
-)
-from dlrover.python.diagnosis.inferencechain.coordinator import (
-    coordinate_solutions,
-)
-from dlrover.python.diagnosis.inferencechain.inference_chain import (
-    InferenceChain,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    get_training_failure_operators,
-    get_worker_observe_operators,
-    get_worker_resolve_operators,
-)
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.diagnosis.diagnostician import Diagnostician
+from dlrover.python.diagnosis.observer.failure_node_observer import FailureNodeObserver
+from dlrover.python.diagnosis.observer.resource_collect_observer import ResourceCollectObserver
+from dlrover.python.diagnosis.observer.metrics_collect_observer import MetricsCollectObserver
 
+
+NodeFailed = "node_failed"
+ResourceCollection = "resource_collection"
+MetricsCollection = "metrics_collection"
 
 class DiagnosisAgent(Singleton):
     def __init__(
@@ -66,27 +54,24 @@ class DiagnosisAgent(Singleton):
         self._training_log_file = training_log_file
         self._errors = errors
         self._stopped = False
+
+        self._diagnostician: Diagnostician = Diagnostician()
+        self._diagnostician.register_observer(NodeFailed, FailureNodeObserver())
+        self._diagnostician.register_observer(ResourceCollection, ResourceCollectObserver())
+        self._diagnostician.register_observer(MetricsCollection, MetricsCollectObserver())
+
+
         # The key is the time interval in seconds
-        self._observe_problems: Dict[int, List[Inference]] = {
+        self._observe_problems: Dict[int, List[str]] = {
             30: [
-                Inference(
-                    name=InferenceName.WORKER,
-                    attribution=InferenceAttribute.COLLECT,
-                    description=InferenceDescription.RESOURCE,
-                ),
+                ResourceCollection,
             ],
             60: [
-                Inference(
-                    name=InferenceName.WORKER,
-                    attribution=InferenceAttribute.COLLECT,
-                    description=InferenceDescription.METRICS,
-                ),
+                MetricsCollection,
             ],
         }
         self._accumulate_observe_time = 0
 
-        self._observe_operators = get_worker_observe_operators()
-        self._diagnosis_operators = get_worker_resolve_operators()
         self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
@@ -131,62 +116,15 @@ class DiagnosisAgent(Singleton):
     def stop(self):
         self._stopped = True
 
-    def _get_observe_problems(self) -> List[Inference]:
-        observe_problems: List[Inference] = []
-        for time_period, infs in self._observe_problems.items():
+    def _get_observe_problems(self) -> List[str]:
+        observe_problems: List[str] = []
+        for time_period, problems in self._observe_problems.items():
             if (
                 self._accumulate_observe_time > 0
                 and self._accumulate_observe_time % time_period == 0
             ):
-                observe_problems = observe_problems + infs
+                observe_problems = observe_problems + problems
         return observe_problems
-
-    def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
-        conclusions: List[Inference] = []
-        for problem in problems:
-            if problem.configs is None:
-                problem.configs = {}
-            problem.configs[InferenceConfigKey.RANK] = str(self._rank)
-            ic = InferenceChain([problem], self._diagnosis_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    conclusions = combine_inferences(conclusions, infs)
-            except Exception as e:
-                logger.error(f"fail to diagnose observation {problem}: {e}")
-        return coordinate_solutions(conclusions)
-
-    def _observe(self, observe_problems: List[Inference]) -> List[Inference]:
-        observations: List[Inference] = []
-        for problem in observe_problems:
-            ic = InferenceChain([problem], self._observe_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    observations = combine_inferences(observations, infs)
-            except Exception as e:
-                logger.error(f"fail to observe problem {problem}: {e}")
-        new_obs: List[Inference] = []
-        for ob in observations:
-            if not is_inference_included(observe_problems, ob):
-                new_obs.append(ob)
-        return new_obs
-
-    def _diagnose_observations(
-        self, observations: List[Inference]
-    ) -> DiagnosisAction:
-        if len(observations) == 0:
-            return NoAction()
-        conclusions: List[Inference] = []
-        for ob in observations:
-            ic = InferenceChain([ob], self._diagnosis_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    conclusions = combine_inferences(conclusions, infs)
-            except Exception as e:
-                logger.error(f"fail to diagnose observation {ob}: {e}")
-        return coordinate_solutions(conclusions)
 
     def _periodically_diagnosis(self):
         logger.info("Start periodically diagnosis...")
@@ -195,13 +133,14 @@ class DiagnosisAgent(Singleton):
                 logger.info("Stop periodically diagnosis.")
                 break
             observe_problems = self._get_observe_problems()
+            for problem in observe_problems:
+                action = self._diagnostician.observe(problem)
+                if isinstance(action, Observation):
+                    action = self._diagnostician.resolve(action)
 
-            observations = self._observe(observe_problems)
-            if len(observations) > 0:
-                logger.debug(f"Observed problems: {observations}")
-                action = self.diagnose_problems(observations)
                 if not isinstance(action, NoAction):
                     self._agent_context.enqueue_diagnosis_action(action)
+
             if self._accumulate_observe_time > 600:
                 self._accumulate_observe_time = 0
 
@@ -217,24 +156,10 @@ class DiagnosisAgent(Singleton):
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
         )
-        # check if the node is failed
-        inference = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: self._training_log_file,
-                InferenceConfigKey.ERRORS: self._errors,
-            },
-        )
-        ic = InferenceChain([inference], get_training_failure_operators())
-        infer_results = ic.infer()
-        failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.FAILURE,
-        )
-        failure_node = is_inference_included(infer_results, failure_inf)
+        ob = self._diagnostician.observe(NodeFailed, log_file=self._training_log_file, errors=self._errors)
+        failure_node = False
+        if isinstance(ob, Observation) and ob.node_failed():
+            failure_node = True
 
         if self._agent_context.remaining_failovers > 0 and not failure_node:
             logger.info(
