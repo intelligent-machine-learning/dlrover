@@ -10,9 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
+import time
 import unittest
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -22,6 +24,10 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.global_context import Context
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    JobAbortionAction,
+    NoAction,
+)
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.dist_master import (
     DistributedJobMaster,
@@ -125,6 +131,29 @@ class DistributedJobMasterTest(unittest.TestCase):
             "dlrover", "test", "12345", 12345
         )
         self.assertTrue(succeed)
+
+    @patch(
+        "dlrover.python.master.dist_master.DistributedJobMaster.request_stop"
+    )
+    def test_diagnose_job(self, mock_request_stop):
+        self.assertFalse(self.master._stop_requested)
+
+        # close thread in 3 secs
+        def stop_master():
+            time.sleep(3)
+            self.master._stop_requested = True
+
+        threading.Thread(target=stop_master).start()
+
+        # test actions
+        get_job_context().enqueue_action(JobAbortionAction())
+        get_job_context().enqueue_action(NoAction())
+        self.master._diagnose_job()
+        mock_request_stop.assert_called_once()
+
+    def test_pre_check(self):
+        self.master.diagnosis_manager.pre_check = MagicMock(return_value=True)
+        self.master.pre_check()
 
 
 class LocalJobMasterTest(unittest.TestCase):

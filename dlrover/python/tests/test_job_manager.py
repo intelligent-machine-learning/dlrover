@@ -43,6 +43,7 @@ from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
@@ -967,6 +968,25 @@ class DistributedJobManagerTest(unittest.TestCase):
             manager._process_event_safely(None)
         except Exception:
             self.fail()
+
+    @patch(
+        "dlrover.python.master.node.dist_job_manager.DistributedJobManager."
+        "_process_event_safely"
+    )
+    def test_process_node_action(self, mock_process_event):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        # no target node
+        action = NodeAction(node_id=123, node_type="worker")
+        manager._process_node_action(action)
+
+        # with target node
+        get_job_context()._job_nodes = {"worker": {0: Node("worker", 0)}}
+        action = NodeAction(node_id=0, node_type="worker")
+        manager._process_node_action(action)
+        mock_process_event.assert_called_once()
 
 
 class LocalJobManagerTest(unittest.TestCase):
