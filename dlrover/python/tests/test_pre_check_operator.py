@@ -222,7 +222,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         _dlrover_context.seconds_to_wait_pending_pod = 0
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 0)
-        self.assertFalse(result.result_msg)
+        self.assertTrue(result.result_msg)
         self.assertFalse(result.abnormal_nodes)
         _dlrover_context.seconds_to_wait_pending_pod = 900
 
@@ -230,7 +230,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         _dlrover_context.pending_fail_strategy = 0
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 0)
-        self.assertFalse(result.result_msg)
+        self.assertTrue(result.result_msg)
         self.assertFalse(result.abnormal_nodes)
         _dlrover_context.pending_fail_strategy = 2
 
