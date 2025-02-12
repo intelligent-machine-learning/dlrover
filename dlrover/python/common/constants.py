@@ -332,7 +332,7 @@ class RendezvousName(object):
 
 
 class NodeErrorMessage(object):
-    NODE_CHECK_ERROR = "Node check has failure"
+    NODE_CHECK_FAIL = "Node check failed"
     SOCKET_GAIERROR = "Name or service not known"
 
 

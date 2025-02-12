@@ -149,7 +149,10 @@ class DiagnosisManager:
                     else:
                         break
             except Exception as e:
-                logger.error(f"Pre-check operator got unexpected error: {e}")
+                logger.error(
+                    f"{pre_check_op.__class__.__name__} "
+                    f"got unexpected error: {e}"
+                )
                 continue
 
             if not current_op_result.is_success():

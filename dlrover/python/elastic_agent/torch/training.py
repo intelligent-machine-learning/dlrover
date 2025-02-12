@@ -1519,7 +1519,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeErrorMessage.NODE_CHECK_ERROR,
+                NodeErrorMessage.NODE_CHECK_FAIL,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError("This node is down.")
