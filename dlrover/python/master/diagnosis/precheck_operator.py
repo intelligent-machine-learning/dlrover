@@ -146,6 +146,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     f": {pending_workers}, "
                 )
                 return first_pending_wk
+
+        logger.info("No pending workers.")
         return None
 
     @classmethod
@@ -231,6 +233,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                         f": {pending_workers}, "
                     )
                     return first_pending_wk
+
+        logger.info("No pending ps or workers.")
         return None
 
     def check(self, *args, **kwargs):
