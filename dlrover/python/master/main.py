@@ -27,6 +27,7 @@ from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 def update_context(job_args: JobArgs):
@@ -79,8 +80,7 @@ def main():
     args = parse_master_args()
 
     # export event for dlrover master
-    master = DLRoverMasterEvent.singleton_instance()
-    master.start(pid=vars(args))
+    _master_evt.start(pid=vars(args))
 
     exit_code = run(args)
     return exit_code

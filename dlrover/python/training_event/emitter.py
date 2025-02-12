@@ -175,7 +175,6 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_begin:
-            logger.error(f"event {self.name} begin called twice")
             return self
         self._is_begin = True
         self.emitter.begin(self._event_id, self.name, self.content.copy())
@@ -207,11 +206,9 @@ class DurationSpan(SafeAttribute, metaclass=SaveCallMeta):
             The same DurationSpan object for chain call.
         """
         if self._is_end:
-            logger.error(f"event {self.name} end called twice")
             return
 
         if not self._is_begin:
-            logger.error(f"event {self.name} end called without begin")
             return
 
         self._is_end = True

@@ -46,6 +46,12 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
     def __init__(self, target: str) -> None:
         super().__init__(target)
 
+    def mock(self):
+        return self.duration(
+            "mock",
+            {},
+        )
+
     def start(self, params: Optional[dict] = None, **kwargs):
         """Event  at DLRover process start"""
         if params is None:
