@@ -10,21 +10,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
+from master.node.job_context import get_job_context
+
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeStatus,
+    NodeType,
+    PendingTimeoutStrategyType,
+)
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    JobAbortionAction,
     NoAction,
 )
+from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.util.time_util import get_pending_timeout
+
+_dlrover_ctx = Context.singleton_instance()
+job_ctx = get_job_context()
 
 
 @dataclass
 class PreCheckResult(object):
-
     # The default success result is 0. The other result code(>0) should be
     # defined by different pre-check operator it's self.
     result: int = 0
@@ -81,3 +96,189 @@ class NoPreCheckOperator(PreCheckOperator):
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         return [NoAction()]
+
+
+class SchedulingPreCheckOperator(PreCheckOperator):
+    PENDING_TIMEOUT_MSG = "PRE_CHECK_PENDING_TIMEOUT"
+
+    @classmethod
+    def get_retry_interval_secs(cls) -> int:
+        return 60
+
+    @classmethod
+    def get_retry_times(cls) -> int:
+        timeout = get_pending_timeout()
+        if timeout <= 0:
+            return 1
+        else:
+            return int(timeout / cls.get_retry_interval_secs() + 1)
+
+    @classmethod
+    def check_allreduce_job_pending(
+        cls, cur_nodes, timeout, strategy
+    ) -> Union[None, Node]:
+        pending_workers: List[Node] = []
+        now = time.time()
+        for node in cur_nodes:
+            if node is None or node.is_released or node.create_time is None:
+                continue
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
+                pending_workers.append(node)
+
+        if pending_workers:
+            first_pending_wk = min(
+                pending_workers,
+                key=lambda x: x.create_time,
+            )  # type: ignore
+            if not first_pending_wk:  # type: ignore
+                logger.info("No pending workers.")
+                return None
+
+            pending_time = (
+                first_pending_wk.create_time.timestamp()  # type: ignore
+            )
+            if now - pending_time > timeout:
+                logger.warning(
+                    f"Node {first_pending_wk.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {DistributionStrategy.ALLREDUCE}, "
+                    f"strategy: {strategy}, "
+                    f"pending workers(size:{len(pending_workers)})"
+                    f": {pending_workers}, "
+                )
+                return first_pending_wk
+        return None
+
+    @classmethod
+    def check_ps_job_pending(
+        cls, cur_nodes, timeout, strategy
+    ) -> Union[None, Node]:
+        pending_ps: List[Node] = []
+        pending_workers: List[Node] = []
+        now = time.time()
+        for node in cur_nodes:
+            if node is None or node.is_released or node.create_time is None:
+                continue
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
+                if node.type == NodeType.PS:
+                    pending_ps.append(node)
+                else:
+                    pending_workers.append(node)
+
+        # 1st: judge ps
+        if pending_ps:
+            first_pending_ps = min(
+                pending_ps, key=lambda x: x.create_time  # type: ignore
+            )
+            if (
+                first_pending_ps
+                and first_pending_ps.create_time
+                and (now - first_pending_ps.create_time.timestamp() > timeout)
+            ):
+                logger.warning(
+                    f"Node {first_pending_ps.name} "
+                    f"exceeded pending timeout: {timeout}s, "
+                    f"job-type: {DistributionStrategy.PS}, "
+                    f"strategy: {strategy}, "
+                    f"pending ps(size:{len(pending_ps)})"
+                    f": {pending_ps}, "
+                )
+                return first_pending_ps
+
+        # 2nd: judge worker
+        if pending_workers:
+            if strategy == PendingTimeoutStrategyType.NECESSARY:
+                # get worker 0
+                pending_worker_0 = None
+                for pending_worker in pending_workers:
+                    if pending_worker.rank_index == 0:
+                        pending_worker_0 = pending_worker
+                        break
+                if not pending_worker_0:  # type: ignore
+                    logger.info("No pending worker(0).")
+                    return None
+
+                pending_time = (
+                    pending_worker_0.create_time.timestamp()  # type: ignore
+                )
+                if now - pending_time > timeout:
+                    logger.warning(
+                        f"Node {pending_worker_0.name} "
+                        f"exceeded pending timeout: {timeout}s, "
+                        f"job-type: {DistributionStrategy.PS}, "
+                        f"strategy: {strategy}, "
+                        f"pending workers(size:{len(pending_workers)})"
+                        f": {pending_workers}."
+                    )
+                    return pending_worker_0
+            else:
+                first_pending_wk = min(
+                    pending_workers, key=lambda x: x.create_time
+                )  # type: ignore
+                if not first_pending_wk:  # type: ignore
+                    logger.info("No pending workers.")
+                    return None
+
+                pending_time = (
+                    first_pending_wk.create_time.timestamp()  # type: ignore
+                )
+                if now - pending_time > timeout:
+                    logger.warning(
+                        f"Node {first_pending_wk.name} "
+                        f"exceeded pending timeout: {timeout}s, "
+                        f"job-type: {DistributionStrategy.PS}, "
+                        f"strategy: {strategy}, "
+                        f"pending workers(size:{len(pending_workers)})"
+                        f": {pending_workers}, "
+                    )
+                    return first_pending_wk
+        return None
+
+    def check(self, *args, **kwargs):
+        job_args: JobArgs = kwargs.get("job_args")
+        job_type = job_args.distribution_strategy
+        strategy = _dlrover_ctx.pending_fail_strategy
+        timeout = get_pending_timeout()
+
+        if timeout <= 0 or strategy == PendingTimeoutStrategyType.SKIP:
+            msg = (
+                f"Skip {self.__class__.__name__} for "
+                "'skip' pending timeout strategy."
+            )
+            logger.info(msg)
+            return PreCheckResult(result_msg=msg)
+
+        if job_type == DistributionStrategy.ALLREDUCE:
+            cur_nodes = list(
+                job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+            )
+            pending_node = self.check_allreduce_job_pending(
+                cur_nodes, timeout, strategy
+            )
+        elif job_type == DistributionStrategy.PS:
+            ps_nodes = list(job_ctx.job_nodes_by_type(NodeType.PS).values())
+            worker_nodes = list(
+                job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+            )
+            pending_node = self.check_ps_job_pending(
+                ps_nodes + worker_nodes, timeout, strategy
+            )
+        else:
+            msg = f"Skip {self.__class__.__name__} for {job_type}."
+            logger.warning(msg)
+            return PreCheckResult(result_msg=msg)
+
+        if pending_node:
+            return PreCheckResult(
+                result=1,
+                result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,
+                abnormal_nodes=[pending_node],
+            )
+        else:
+            return PreCheckResult()
+
+    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        return [NoAction()]
+
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        return [JobAbortionAction()]

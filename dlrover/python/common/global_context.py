@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple
 from dlrover.python.common.constants import (
     Accelerators,
     CommunicationType,
+    PendingTimeoutStrategyType,
     UserEnv,
 )
 from dlrover.python.common.log import default_logger as logger
@@ -56,7 +57,7 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
-    PENDING_FAIL_STRATEGY = 1  # 0: skip 1: necessary part 2: all
+    PENDING_FAIL_STRATEGY = PendingTimeoutStrategyType.NECESSARY
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h

@@ -101,6 +101,12 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
+class PendingTimeoutStrategyType(object):
+    SKIP = 0
+    NECESSARY = 1
+    ALL = 2
+
+
 class GpuMetricEnum(object):
     """
     it is the metrics enum of nvidia GPU, collected by DCGM
