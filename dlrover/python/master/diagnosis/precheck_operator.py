@@ -15,8 +15,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Union
 
-from master.node.job_context import get_job_context
-
 from dlrover.python.common.constants import (
     DistributionStrategy,
     NodeStatus,
@@ -31,6 +29,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
     NoAction,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.util.time_util import get_pending_timeout
 

@@ -15,13 +15,12 @@ import unittest
 from datetime import datetime, timedelta
 from unittest import mock
 
-from common.global_context import Context
-
 from dlrover.python.common.constants import (
     DistributionStrategy,
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
