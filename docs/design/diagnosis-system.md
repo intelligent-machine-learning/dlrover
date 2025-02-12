@@ -1,21 +1,22 @@
-# Training Faults Diagnosis Based on Runtime Information
+# DLRover Diagnosis System Design
 
-A training job may encounter various errors during runtime. While some errors lead
+A training job may encounter various issues during runtime. While some issues lead
 to immediate failure, others may not manifest right away. Presently, many systems
 resort to resuming training on new machines to diagnose errors, significantly
 prolonging the job's training time—especially for errors that do not immediately
 trigger failure. For instance, a training job might hang for reasons unknown, only
 presenting timeout errors after 30 minutes or longer.
 
-Hence, we've devised a fault diagnosis system in DLRover capable of swiftly
+Hence, we've devised a diagnosis system in DLRover capable of swiftly
 identifying and diagnosing faults upon failure or when potential failures arise.
 
 ## Overview
 
 During a training job, various types of runtime data are generated, providing
-insights into the job's status. These data typically fall into three categories:
-training logs, CUDA runtime logs, and GPU chip metrics. Based on rules
+insights into the job's status. Based on rules
 learned from our experiences, we can identify and diagnose training faults from those data.
+
+
 However, the availability of detailed runtime data varies depending on the
 training framework and cluster configuration. DLRover cannot assume uniform data
 provision across all training jobs, necessitating a flexible diagnosis system.
@@ -35,28 +36,25 @@ diagnosis actions, ranging from light to heavy intervention:
 3. re-configure training job, e.g., replace a failure node.
 4. fail the job and report, when there is a fatal error leading to a complete stop.
 
-## Architecture of Faults Diagnosis System
+## The Architecture of the Diagnosis System
 
 <div align="center">
-<img src="../figures/fault-diagnosis-arch.jpg" alt="Editor" width="500">
+<img src="../figures/smart_ft_250123.jpg" alt="Editor" width="500">
 </div>
 
-As shown in the figure, the fault diagnosis system comprises four components:
-**DataCollector**, **DataStore**, **Analyst**, and **Diagnostician**.
-DataCollector is deployed within the Worker nodes, while DataStore, Analyst, and
-Diagnostician are deployed on the master node.
+As shown in the figure, the general diagnosis procedure consists of four stages:
+Firstly, collecting runtime data (**Collector**); then observing training issues (**Observer**); after that, 
+exploring solutions (**Resolver**); finally executing solutions. 
 
-### DataCollector
+Due to the possible quick iteration of hardware, software and training approaches, 
+we have to keep handling new and diverse issues. Therefore, all those components
+are designed as plugin. Then the diagnosis methods could also be iterated swiftly.
 
-DataCollector consists of three sub-components: LogReader, MetricsCollector, and
-EventCollector. These components are responsible for collecting training logs,
-chip metrics, and CUDA runtime logs, respectively. Those sub-components adapt
-plugin implementations. Different training frameworks and platforms can implement
-their own functions to collect runtime data.
+### Collector
 
-DataCollector periodically invokes these sub-components to collect data and
-report it to the master node. Due to platform variations, DataCollector could report
-collected data to the master and skip no implemented sub-components.
+Collector is to collect necessary data to resolve the issues during training.
+
+
 
 ### DataStore
 
