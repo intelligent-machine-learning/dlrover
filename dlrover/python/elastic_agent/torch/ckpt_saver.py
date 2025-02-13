@@ -579,6 +579,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._event_queue.unlink()
         self._executor.shutdown(wait=False)
 
+    def release_locks(self):
+        for i in range(self.local_shard_num):
+            self._shm_locks[i].release()
+
     def _sync_shm_to_storage(self):
         """
         The loop to persist the state dict from the memory
@@ -853,6 +857,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             return
         cls._saver_instance.reset_shared_memory()
         logger.info("Reset all shared memory of shards.")
+        cls._saver_instance.release_locks()
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
