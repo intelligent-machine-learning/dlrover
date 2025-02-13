@@ -17,7 +17,7 @@ import (
 	"context"
 	"time"
 
-	elasticjob "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/kubeutils"
@@ -41,10 +41,15 @@ type SchedulingPlan struct {
 	CreatedPods []*kubeutils.PodConfig
 
 	// RemovedPods are Pods to be removed
-	RemovedPods []*kubeutils.PodConfig
+	RemovedPods []string
 
 	// OwnerJob specifies a job to scale.
-	OwnerJob *elasticjob.ElasticJob
+	OwnerJob *elasticjobv1.ElasticJob
+}
+
+// KubeScheduler is the base scheduler to create/update/remove pods.
+type KubeScheduler struct {
+	toCreatePods *common.Queue
 }
 
 // NewBatchScheduler creates a batch scheduler according to the scheduler name.
@@ -54,11 +59,6 @@ func NewBatchScheduler(schedulerName string) BatchScheduler {
 		return scheduler
 	}
 	return nil
-}
-
-// KubeScheduler is the base scheduler to create/update/remove pods.
-type KubeScheduler struct {
-	toCreatePods *common.Queue
 }
 
 // LoopToLaunchPods launches pods from the pod queue.

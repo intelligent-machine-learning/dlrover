@@ -22,7 +22,7 @@ import (
 
 var _ = Describe("Elasticjob", func() {
 	It("Get an elasticjob instance", func() {
-		kubeConfigPath := os.Getenv("KUBENETES_CLUSTER_CONFIG")
+		kubeConfigPath := os.Getenv("KUBERNETES_CONFIG_PATH")
 		if kubeConfigPath != "" {
 			NewGlobalK8sClient(kubeConfigPath, "dlrover")
 			job := GetElasticJobInstance("torch-mnist")

@@ -264,6 +264,7 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._shm_handlers[0].shared_memory = SharedMemory(
                 name=saver._shm_handlers[0]._shm_name
             )
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
             AsyncCheckpointSaver._saver_instance = saver
             AsyncCheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
