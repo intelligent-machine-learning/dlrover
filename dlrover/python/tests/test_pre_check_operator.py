@@ -252,6 +252,10 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         )
         self.assertEqual(result.abnormal_nodes[0].id, 2)
 
+    def test_wait_scheduling_started(self):
+        op = SchedulingPreCheckOperator()
+        op.wait_scheduling_started(1, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
