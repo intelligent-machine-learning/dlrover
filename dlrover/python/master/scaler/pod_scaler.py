@@ -47,8 +47,10 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
+from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class FakeKubeResponse:

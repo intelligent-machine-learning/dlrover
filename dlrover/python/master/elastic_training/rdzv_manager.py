@@ -31,6 +31,9 @@ from dlrover.python.master.elastic_training.net_topology import (
     DpTopologySorter,
     NodeTopologyMeta,
 )
+from dlrover.python.training_event import DLRoverMasterEvent
+
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class RendezvousParameters(object):
@@ -80,9 +83,16 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
         self._error_monitor = error_monitor
+        self._rdzv_evt = _master_evt.mock()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
+
+    def get_max_nodes(self):
+        return self._rdzv_params.max_nodes
+
+    def get_waiting_timeout(self):
+        return self._rdzv_params.waiting_timeout
 
     def get_rdzv_round(self):
         return self._rdzv_round
@@ -291,6 +301,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"rank: {meta.node_rank} and ip: {meta.node_ip} "
                 f"joining rendezvous for round: {self._rdzv_round}."
             )
+            self._rdzv_evt.begin()
             self._waiting_nodes[node_rank] = meta
             self._rdzv_nodes = OrderedDict()
             self._lastcall_time = time.time()
@@ -408,6 +419,13 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     def __init__(self, error_monitor=None):
         super().__init__(error_monitor)
         self._name = RendezvousName.ELASTIC_TRAINING
+        self._rdzv_evt = _master_evt.rendezvous(
+            rendezvous_type=RendezvousName.ELASTIC_TRAINING,
+            round_num=self.get_rdzv_round(),
+            timeout_sec=self.get_waiting_timeout(),
+            max_nodes=self.get_max_nodes(),
+            min_nodes=self.get_min_nodes(),
+        )
 
     def get_comm_world(
         self, node_rank
@@ -445,6 +463,19 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         f"Node ids are {node_ids}.\n Node IPs are {node_ips}"
                     )
                     node_elapsed_time = time.time() - self._lastcall_time
+                    self._rdzv_evt.success(
+                        {
+                            "node_group": f"{node_ids}",
+                            "node_elapsed_time": f"{node_elapsed_time}",
+                        }
+                    )
+                    self._rdzv_evt = _master_evt.rendezvous(
+                        rendezvous_type=RendezvousName.ELASTIC_TRAINING,
+                        round_num=self.get_rdzv_round(),
+                        timeout_sec=self.get_waiting_timeout(),
+                        max_nodes=self.get_max_nodes(),
+                        min_nodes=self.get_min_nodes(),
+                    )
                     if self._error_monitor:
                         class_type = type(self).__name__
                         self._error_monitor.report_event(
@@ -486,6 +517,12 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                             "error_message": "",
                         },
                     )
+                    self._rdzv_evt.fail(
+                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
+                        {
+                            "node_elapsed_time": f"{waiting_time}",
+                        },
+                    )
 
             return self._rdzv_round, 0, self._rdzv_nodes
 
@@ -517,6 +554,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._check_round = 2
         self._fault_nodes = set()
         self._straggler_nodes = set()
+        self._rdzv_evt = _master_evt.rendezvous(
+            rendezvous_type=RendezvousName.NETWORK_CHECK,
+            round_num=self.get_rdzv_round(),
+            timeout_sec=self.get_waiting_timeout(),
+            max_nodes=self.get_max_nodes(),
+            min_nodes=self.get_min_nodes(),
+        )
 
     def _get_print_node_groups(self):
         printing_node_groups = []
@@ -553,6 +597,19 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
                     self._rdzv_round += 1
                     node_elapsed_time = time.time() - self._lastcall_time
+                    self._rdzv_evt.success(
+                        {
+                            "node_group": f"{print_node_groups}",
+                            "node_elapsed_time": f"{node_elapsed_time}",
+                        }
+                    )
+                    self._rdzv_evt = _master_evt.rendezvous(
+                        rendezvous_type=RendezvousName.NETWORK_CHECK,
+                        round_num=self.get_rdzv_round(),
+                        timeout_sec=self.get_waiting_timeout(),
+                        max_nodes=self.get_max_nodes(),
+                        min_nodes=self.get_min_nodes(),
+                    )
                     if self._error_monitor:
                         class_type = type(self).__name__
                         self._error_monitor.report_event(
@@ -593,6 +650,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                             "error_message": "",
                         },
                     )
+                    self._rdzv_evt.fail(
+                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
+                        {
+                            "node_elapsed_time": f"{waiting_time}",
+                        },
+                    )
+
             for i, group in enumerate(self._node_groups):
                 if node_rank in group:
                     return self._rdzv_round, i, group
