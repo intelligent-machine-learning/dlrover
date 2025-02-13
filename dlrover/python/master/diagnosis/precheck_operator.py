@@ -247,13 +247,19 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 )
                 break
 
+            has_started = False
             job_nodes = job_ctx.job_nodes()
             for _, nodes in job_nodes.items():
                 for _, node in nodes.items():
                     if node.create_time:
-                        break
-            logger.info(f"Scheduling hasn't started yet, wait {wait_time}s...")
-            time.sleep(wait_time)
+                        has_started = True
+            if has_started:
+                break
+            else:
+                logger.info(
+                    f"Scheduling hasn't started yet, wait {wait_time}s..."
+                )
+                time.sleep(wait_time)
 
     def check(self, *args, **kwargs):
         job_args: JobArgs = kwargs.get("job_args")
