@@ -446,10 +446,6 @@ class PodScaler(Scaler):
         if self._check_cluster_ready_for_pod(node_from_queue):
             pod = self._create_pod(node_from_queue)
             succeed = self._k8s_client.create_pod(pod)
-            _master_evt.worker_create(
-                pod_name=pod.metadata.name,
-                success=succeed,
-            )
         if not succeed:
             self._create_node_queue.appendleft(node_from_queue)
         else:
