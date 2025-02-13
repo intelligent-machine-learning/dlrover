@@ -138,6 +138,7 @@ class SocketRequest(object):
     """
 
     method: str = ""
+    id: str = ""
     args: Dict[str, object] = field(default_factory=dict)
 
 
@@ -187,9 +188,11 @@ class LocalSocketComm(metaclass=ABCMeta):
         create (bool): If ture, the instance creates a socket server
             Otherwise, the instance creates a socket client to access
             the shared object.
+        persist (bool): If ture, the instance creates a socket client
+            and keep it as persistent connection
     """
 
-    def __init__(self, name="", create=False):
+    def __init__(self, name="", create=False, persist=False):
         logger.debug(
             f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
             f"for {name}"
@@ -199,6 +202,8 @@ class LocalSocketComm(metaclass=ABCMeta):
         self._create = create
         self._server = None
         self._init_socket()
+        self._persist = persist
+        self._client = None
 
     @property
     def name(self):
@@ -239,11 +244,14 @@ class LocalSocketComm(metaclass=ABCMeta):
     @retry_socket
     def _request(self, request: SocketRequest):
         """Create a socket client to request the shared object."""
-        client = _create_socket_client(self._socket_file)
+        if self._client is None:
+            self._client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
-        _socket_send(client, message)
-        rcv_data = _socket_recv(client)
-        client.close()
+        _socket_send(self._client, message)
+        rcv_data = _socket_recv(self._client)
+        if not self._persist:
+            self._client.close()
+            self._client = None
         response: LockAcquireResponse = pickle.loads(rcv_data)
         return response
 
@@ -267,45 +275,81 @@ class SharedLock(LocalSocketComm):
             the lock.
     """
 
-    def __init__(self, name="", create=False):
-        super().__init__(name, create)
+    def __init__(self, name="", create=False, owner=""):
+        super().__init__(name, create, persist=True)
         if self._create:
             self._lock = threading.Lock()
         else:
             self._lock = None
+        self._id = owner
 
     def _deal_shared_lock_msg(self, connection):
-        try:
-            recv_data = _socket_recv(connection)
-            msg: SocketRequest = pickle.loads(recv_data)
-            if msg.method == "acquire":
-                response = LockAcquireResponse()
-                response.acquired = self.acquire(**msg.args)
-            elif msg.method == "locked":
-                response = LockedResponse()
-                response.locked = self.locked()
-            elif msg.method == "release":
-                self.release()
-            response.status = SUCCESS_CODE
-        except Exception:
-            response = SocketResponse()
-            response.status = ERROR_CODE
-        send_data = pickle.dumps(response)
-        _socket_send(connection, send_data)
+        lock_acquired = False
+
+        while True:
+            try:
+                recv_data = _socket_recv(connection)
+                msg: SocketRequest = pickle.loads(recv_data)
+                if msg.method == "acquire":
+                    response = LockAcquireResponse()
+                    response.acquired = self.acquire(**msg.args)
+                    lock_acquired = response.acquired
+                elif msg.method == "locked":
+                    response = LockedResponse()
+                    response.locked = self.locked()
+                elif msg.method == "release":
+                    self.release()
+                    lock_acquired = False
+                response.status = SUCCESS_CODE
+            except (
+                ConnectionResetError,
+                ConnectionAbortedError,
+                BrokenPipeError,
+                ConnectionError,
+            ) as e:
+                logger.error(f"SharedLock connection error: {e}")
+                break
+            except OSError as e:
+                logger.error(f"SharedLock os error: {e}")
+                break
+            except EOFError as e:
+                logger.error(f"SharedLock eof error: {e}")
+                break
+            except Exception as e:
+                logger.error(f"SharedLock unexpected recv error: {e}")
+                response = SocketResponse()
+                response.status = ERROR_CODE
+
+            try:
+                send_data = pickle.dumps(response)
+                _socket_send(connection, send_data)
+            except Exception as e:
+                logger.error(f"SharedLock unexpected send error: {e}")
+
+        if lock_acquired:
+            self.release()
+        connection.close()
 
     def _sync(self):
         while True:
             if not self.is_available():
                 time.sleep(1)
                 continue
+
             try:
                 connection, _ = self._server.accept()
                 try:
-                    self._deal_shared_lock_msg(connection)
-                finally:
+                    t = threading.Thread(
+                        target=self._deal_shared_lock_msg,
+                        args=(connection,),
+                        daemon=True,
+                    )
+                    t.start()
+                except Exception as e:
+                    logger.error(f"SharedLock submit executor failed: {e}")
                     connection.close()
             except Exception as e:
-                logger.error(f"An error in SharedLock occurred: {e}")
+                logger.error(f"Unexpected error in SharedLock occurred: {e}")
 
     def acquire(self, blocking=True):
         """
@@ -319,7 +363,10 @@ class SharedLock(LocalSocketComm):
         else:
             request = SocketRequest(
                 method="acquire",
-                args={"blocking": blocking},
+                id=self._id,
+                args={
+                    "blocking": blocking,
+                },
             )
             try:
                 response = self._request(request)
@@ -341,6 +388,7 @@ class SharedLock(LocalSocketComm):
         else:
             request = SocketRequest(
                 method="release",
+                id=self._id,
                 args={},
             )
             self._request(request)
@@ -351,9 +399,19 @@ class SharedLock(LocalSocketComm):
         else:
             request = SocketRequest(
                 method="locked",
+                id=self._id,
                 args={},
             )
             return self._request(request)
+
+    def close(self):
+        try:
+            if self._client:
+                self._client.close()
+            if self._server:
+                self._server.close()
+        except Exception:
+            pass
 
 
 @dataclass

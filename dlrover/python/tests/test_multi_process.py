@@ -55,13 +55,58 @@ class SharedObjectTest(unittest.TestCase):
         acquired = server_lock.acquire()
         self.assertTrue(acquired)
         self.assertTrue(server_lock.locked())
+
         acquired = client_lock.acquire(blocking=False)
         self.assertFalse(acquired)
+        self.assertTrue(client_lock.locked().locked)
+
         server_lock.release()
-        acquired = client_lock.acquire(blocking=False)
+        self.assertFalse(server_lock.locked())
+        self.assertFalse(client_lock.locked().locked)
+
+        acquired = client_lock.acquire()
         self.assertTrue(acquired)
+        self.assertTrue(client_lock.locked().locked)
         self.assertTrue(server_lock.locked())
         client_lock.release()
+
+        client_lock2 = SharedLock(name, create=False)
+        acquired = client_lock2.acquire()
+        self.assertTrue(acquired)
+        self.assertTrue(client_lock2.locked().locked)
+        acquired = client_lock.acquire(blocking=False)
+        self.assertFalse(acquired)
+        acquired = server_lock.acquire(blocking=False)
+        self.assertFalse(acquired)
+
+        client_lock2.close()
+        time.sleep(1)
+        self.assertFalse(server_lock.locked())
+        self.assertFalse(client_lock.locked().locked)
+
+        acquired = client_lock.acquire()
+        self.assertTrue(acquired)
+        self.assertTrue(client_lock.locked().locked)
+        self.assertTrue(server_lock.locked())
+
+        client_lock.close()
+        time.sleep(1)
+        self.assertFalse(server_lock.locked())
+
+        client_lock3 = SharedLock(name, create=False)
+        client_lock4 = SharedLock(name, create=False)
+        acquired = client_lock3.acquire()
+        self.assertTrue(acquired)
+        self.assertTrue(client_lock3.locked().locked)
+        acquired = client_lock4.acquire(blocking=False)
+        self.assertFalse(acquired)
+        client_lock4.close()
+        time.sleep(1)
+        self.assertTrue(client_lock3.locked().locked)
+        self.assertTrue(server_lock.locked())
+        client_lock3.close()
+
+        server_lock.close()
 
     def test_shared_queue(self):
         name = "test"
