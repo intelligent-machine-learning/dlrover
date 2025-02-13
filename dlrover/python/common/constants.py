@@ -427,6 +427,7 @@ class ErrorMonitorConstants(object):
     JOB_INSTANCE = "job"
 
     ACTION_WORKER_CREATE = "worker_create"
+    ACTION_WORKER_PENDING = "worker_pending"
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"

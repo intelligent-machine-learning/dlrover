@@ -160,7 +160,6 @@ class DistributedJobMaster(JobMaster):
         self.sync_service = SyncService(self.job_manager)
         self._master_server = self._create_master_service(port, args)
         self._job_args = args
-        self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
 
@@ -221,7 +220,7 @@ class DistributedJobMaster(JobMaster):
         logger.info("Start diagnosing the job.")
         job_ctx = get_job_context()
         while True:
-            if self._stop_requested:
+            if job_ctx.is_request_stopped():
                 logger.info("Stop diagnosing job.")
                 break
 
@@ -231,6 +230,7 @@ class DistributedJobMaster(JobMaster):
             )
 
             if isinstance(action, JobAbortionAction):
+                logger.info(f"Got job abortion action: {action}")
                 self.request_stop(
                     success=False,
                     reason=DiagnosisResult.DIAG_ABORT,
@@ -244,8 +244,10 @@ class DistributedJobMaster(JobMaster):
 
     def pre_check(self):
         logger.info("Pre-check before running.")
+        start = time.time()
         try:
             self.diagnosis_manager.pre_check()
+            logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
         except TimeoutException:
             logger.warning("Pre-check timeout, set pass as result for safety.")
             get_job_context().set_pre_check_status(PreCheckStatus.PASS)
@@ -288,7 +290,7 @@ class DistributedJobMaster(JobMaster):
         # into running loop
         try:
             while True:
-                if self._stop_requested:
+                if get_job_context().is_request_stopped():
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
@@ -369,7 +371,6 @@ class DistributedJobMaster(JobMaster):
         logger.info("Master stopped")
 
     def request_stop(self, success, reason, msg=""):
-        self._stop_requested = True
         self._exit_reason = reason
         if success:
             self._exit_code = 0
@@ -398,3 +399,4 @@ class DistributedJobMaster(JobMaster):
                     "success": f"{success}",
                 },
             )
+        get_job_context().request_stop()

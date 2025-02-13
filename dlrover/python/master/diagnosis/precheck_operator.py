@@ -17,6 +17,7 @@ from typing import List, Union
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ErrorMonitorConstants,
     NodeStatus,
     NodeType,
     PendingTimeoutStrategyType,
@@ -26,6 +27,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    EventAction,
     JobAbortionAction,
     NoAction,
 )
@@ -98,6 +100,7 @@ class NoPreCheckOperator(PreCheckOperator):
 
 
 class SchedulingPreCheckOperator(PreCheckOperator):
+    SCHEDULING_FAILED = "SCHEDULING_FAILED"
     PENDING_TIMEOUT_MSG = "PRE_CHECK_PENDING_TIMEOUT"
 
     @classmethod
@@ -245,7 +248,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 logger.warning(
                     f"Scheduling hasn't started for over {timeout}s."
                 )
-                break
+                return False
 
             has_started = False
             job_nodes = job_ctx.job_nodes()
@@ -254,7 +257,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     if node.create_time:
                         has_started = True
             if has_started:
-                break
+                return True
             else:
                 logger.info(
                     f"Scheduling hasn't started yet, wait {wait_time}s..."
@@ -266,6 +269,12 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         job_type = job_args.distribution_strategy
         strategy = _dlrover_ctx.pending_fail_strategy
         timeout = get_pending_timeout()
+        logger.info(
+            f"{self.__class__.__name__} do checking with "
+            f"job_type: {job_type}, "
+            f"strategy: {strategy}, "
+            f"timeout: {timeout}"
+        )
 
         if timeout <= 0 or strategy == PendingTimeoutStrategyType.SKIP:
             msg = (
@@ -275,7 +284,13 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             logger.info(msg)
             return PreCheckResult(result_msg=msg)
 
-        self.wait_scheduling_started()
+        if not self.wait_scheduling_started():
+            logger.warning("All nodes pending when scheduling.")
+            return PreCheckResult(
+                result=1,
+                result_msg=SchedulingPreCheckOperator.SCHEDULING_FAILED,
+                abnormal_nodes=[],
+            )
 
         if job_type == DistributionStrategy.ALLREDUCE:
             cur_nodes = list(
@@ -307,7 +322,27 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             return PreCheckResult()
 
     def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        return [NoAction()]
+        result_msg = str(kwargs.get("result_msg"))
+        abnormal_nodes = kwargs.get("abnormal_nodes")
+        if result_msg == SchedulingPreCheckOperator.SCHEDULING_FAILED:
+            return self.failed_actions(result_msg=result_msg)
+        elif result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG:
+            if isinstance(abnormal_nodes, list):
+                msg = result_msg + ":" + abnormal_nodes[0].id
+            else:
+                msg = result_msg
+        else:
+            msg = "unknown"
+        return [
+            EventAction(
+                ErrorMonitorConstants.TYPE_INFO,
+                ErrorMonitorConstants.JOB_INSTANCE,
+                ErrorMonitorConstants.ACTION_WORKER_PENDING,
+                msg,
+                {},
+            )
+        ]
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        return [JobAbortionAction()]
+        result_msg = str(kwargs.get("result_msg"))
+        return [JobAbortionAction(reason=result_msg)]

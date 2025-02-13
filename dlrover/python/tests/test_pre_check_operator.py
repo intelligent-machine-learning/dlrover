@@ -17,12 +17,14 @@ from unittest import mock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ErrorMonitorConstants,
     NodeStatus,
     NodeType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
     JobAbortionAction,
     NoAction,
 )
@@ -60,7 +62,17 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         op = SchedulingPreCheckOperator()
         self.assertEqual(op.get_retry_interval_secs(), 60)
         self.assertEqual(op.get_retry_times(), 15 + 1)
-        self.assertTrue(isinstance(op.recover_actions()[0], NoAction))
+
+        # test recover actions
+        actions = op.recover_actions(result_msg="test", abnormal_nodes=[])
+        self.assertTrue(isinstance(actions[0], EventAction))
+        self.assertEqual(actions[0].event_msg, "test:all")
+        self.assertEqual(
+            actions[0].event_action,
+            ErrorMonitorConstants.ACTION_WORKER_PENDING,
+        )
+
+        # test failed actions
         self.assertTrue(isinstance(op.failed_actions()[0], JobAbortionAction))
 
     def test_check_allreduce_job_pending(self):
@@ -216,7 +228,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         op = SchedulingPreCheckOperator()
         job_args = JobArgs("local", "test", "test")
         job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
-        op.wait_scheduling_started = mock.MagicMock(return_value=None)
+        op.wait_scheduling_started = mock.MagicMock(return_value=True)
 
         # with timeout = 0
         _dlrover_context = Context.singleton_instance()
@@ -279,9 +291,18 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         self.assertTrue("test" in result.result_msg)
         self.assertFalse(result.abnormal_nodes)
 
+        # wait scheduling failed
+        op.wait_scheduling_started = mock.MagicMock(return_value=False)
+        result = op.check(job_args=job_args)
+        self.assertEqual(result.result, 1)
+        self.assertEqual(
+            result.result_msg, SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
+        )
+        self.assertFalse(result.abnormal_nodes)
+
     def test_wait_scheduling_started(self):
         op = SchedulingPreCheckOperator()
-        op.wait_scheduling_started(1, 2)
+        self.assertFalse(op.wait_scheduling_started(1, 2))
 
 
 if __name__ == "__main__":

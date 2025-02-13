@@ -55,7 +55,7 @@ from dlrover.python.master.diagnosis.diagnosis_data_manager import (
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.util.function_util import timeout
+from dlrover.python.util.function_util import TimeoutException, timeout
 from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
@@ -105,10 +105,12 @@ class DiagnosisManager:
             return
 
         start = time.time()
+        job_ctx = get_job_context()
         pre_check_ops = _dlrover_context.get_pre_check_operators()
         logger.info(
             "Start to training pre-check with "
-            f"operators: {[op.__class__.__name__ for op in pre_check_ops]}."
+            f"operators: {[op.__class__.__name__ for op in pre_check_ops]} "
+            f"under timeout: {get_pre_check_timeout()}s."
         )
 
         for pre_check_op in pre_check_ops:
@@ -119,6 +121,12 @@ class DiagnosisManager:
             try:
                 # retry loops for each operator
                 for i in range(pre_check_op.get_retry_times()):
+                    if job_ctx.is_request_stopped():
+                        logger.info(
+                            "Training pre-check interrupted, "
+                            f"cost:{time.time() - start:.2f}s."
+                        )
+                        return
                     check_start = time.time()
 
                     # do check
@@ -134,20 +142,20 @@ class DiagnosisManager:
 
                     if not current_op_result.is_success():
                         # try recover and wait
-                        actions = pre_check_op.recover_actions()
+                        actions = pre_check_op.recover_actions(
+                            result_msg=current_op_result.result_msg,
+                            abnormal_nodes=current_op_result.abnormal_nodes,
+                        )
                         self._job_context.enqueue_actions(actions)
                         logger.info(
                             f"{pre_check_op_name} try recovering "
                             f"by actions: {actions}"
                         )
                         time.sleep(pre_check_op.get_retry_interval_secs())
-
-                        # check again after recover
-                        current_op_result = pre_check_op.check(
-                            job_args=self._job_args
-                        )
                     else:
                         break
+            except TimeoutException as te:
+                raise te
             except Exception as e:
                 logger.error(
                     f"{pre_check_op.__class__.__name__} "
@@ -156,7 +164,10 @@ class DiagnosisManager:
                 continue
 
             if not current_op_result.is_success():
-                actions = pre_check_op.failed_actions()
+                actions = pre_check_op.failed_actions(
+                    result_msg=current_op_result.result_msg,
+                    abnormal_nodes=current_op_result.abnormal_nodes,
+                )
                 self._job_context.enqueue_actions(actions)
                 logger.warning(
                     "Training pre-check failed "

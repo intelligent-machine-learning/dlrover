@@ -1033,3 +1033,7 @@ class LocalJobManagerTest(unittest.TestCase):
 
         job_context.update_total_worker_num(123)
         self.assertEqual(job_context.get_total_worker_num(), 123)
+
+        self.assertFalse(job_context.is_request_stopped())
+        job_context.request_stop()
+        self.assertTrue(job_context.is_request_stopped())

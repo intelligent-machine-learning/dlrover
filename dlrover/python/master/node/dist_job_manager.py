@@ -1064,21 +1064,22 @@ class DistributedJobManager(JobManager):
             logger.info("Skip an empty scaleplan")
 
     def stop(self):
-        self._enable_relaunch_node = False
-        job_nodes = self.get_job_nodes()
-        with self._lock:
-            for node_type in job_nodes.keys():
-                for node in job_nodes[node_type].values():
-                    node.critical = False
-                    node.is_released = True
-                    node.relaunchable = False
+        if not self._stopped:
+            self._enable_relaunch_node = False
+            job_nodes = self.get_job_nodes()
+            with self._lock:
+                for node_type in job_nodes.keys():
+                    for node in job_nodes[node_type].values():
+                        node.critical = False
+                        node.is_released = True
+                        node.relaunchable = False
+                        self._job_context.update_job_node(node)
+                for node in job_nodes[NodeType.WORKER].values():
+                    node.eval_time = self._speed_monitor.get_worker_eval_time(
+                        node.id
+                    )
                     self._job_context.update_job_node(node)
-            for node in job_nodes[NodeType.WORKER].values():
-                node.eval_time = self._speed_monitor.get_worker_eval_time(
-                    node.id
-                )
-                self._job_context.update_job_node(node)
-        self._stopped = True
+            self._stopped = True
 
     def update_node_resource_usage(
         self, node_type, node_id, cpu, memory, gpu_stats=[]
