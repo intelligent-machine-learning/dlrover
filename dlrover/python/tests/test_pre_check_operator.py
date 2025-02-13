@@ -235,14 +235,14 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         self.assertFalse(result.abnormal_nodes)
         _dlrover_context.pending_fail_strategy = 2
 
-        # without pending
+        # allreduce without pending
         op.check_allreduce_job_pending = mock.MagicMock(return_value=None)
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 0)
         self.assertFalse(result.result_msg)
         self.assertFalse(result.abnormal_nodes)
 
-        # with pending
+        # allreduce with pending
         op.check_allreduce_job_pending = mock.MagicMock(
             return_value=Node(node_type="worker", node_id=2, status="PENDING")
         )
@@ -252,6 +252,32 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             result.result_msg, SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
         )
         self.assertEqual(result.abnormal_nodes[0].id, 2)
+
+        # ps without pending
+        job_args.distribution_strategy = DistributionStrategy.PS
+        op.check_ps_job_pending = mock.MagicMock(return_value=None)
+        result = op.check(job_args=job_args)
+        self.assertEqual(result.result, 0)
+        self.assertFalse(result.result_msg)
+        self.assertFalse(result.abnormal_nodes)
+
+        # ps with pending
+        op.check_ps_job_pending = mock.MagicMock(
+            return_value=Node(node_type="worker", node_id=3, status="PENDING")
+        )
+        result = op.check(job_args=job_args)
+        self.assertEqual(result.result, 1)
+        self.assertEqual(
+            result.result_msg, SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
+        )
+        self.assertEqual(result.abnormal_nodes[0].id, 3)
+
+        # other type
+        job_args.distribution_strategy = "test"
+        result = op.check(job_args=job_args)
+        self.assertEqual(result.result, 0)
+        self.assertTrue("test" in result.result_msg)
+        self.assertFalse(result.abnormal_nodes)
 
     def test_wait_scheduling_started(self):
         op = SchedulingPreCheckOperator()

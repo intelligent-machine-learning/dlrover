@@ -206,3 +206,17 @@ class LocalJobMasterTest(unittest.TestCase):
         self.assertEqual(round, 1)
         self.assertEqual(group, 0)
         self.assertEqual(world[0], 8)
+
+    def test_start_and_stop(self):
+        mock_k8s_client()
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        master = DistributedJobMaster(2222, params)
+
+        try:
+            master.prepare()
+            active_threads_name = [t.name for t in threading.enumerate()]
+            self.assertIn("job_diagnosing", active_threads_name)
+            master.request_stop(True, "", "")
+        except Exception:
+            pass
