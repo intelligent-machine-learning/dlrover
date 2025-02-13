@@ -53,46 +53,64 @@ from dlrover.python.master.diagnosis.diagnosis import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
-from dlrover.python.master.diagnosis.precheck_operator import (
-    NoPreCheckOperator,
-)
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.util.function_util import TimeoutException, timeout
+from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 
+def is_pre_check_op_bypassed(pre_check_op):
+    if not pre_check_op:
+        return False
+
+    bypass_config = _dlrover_context.pre_check_bypass
+    if not bypass_config:
+        return False
+
+    module_name = pre_check_op.__module__
+    class_name = pre_check_op.__class__.__name__
+    return (module_name, class_name) in bypass_config and bypass_config[
+        (module_name, class_name)
+    ]
+
+
+# pending timeout + 600s
+def get_pre_check_timeout():
+    return get_pending_timeout() + 600
+
+
 class DiagnosisManager:
     """
-    DiagnosisManager is to manage all diagnosis issues in a training job
-
+    DiagnosisManager is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_name=None):
+    def __init__(self, job_args: JobArgs = None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
-        self._job_name = job_name
+        self._job_args = job_args
         self._metric_monitor = None
         self._lock = threading.Lock()
-
-    @classmethod
-    def get_pre_check_operators(cls):
-        return [NoPreCheckOperator()]
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
+    @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled:
             return
 
         start = time.time()
-        pre_check_ops = self.get_pre_check_operators()
+        job_ctx = get_job_context()
+        pre_check_ops = _dlrover_context.get_pre_check_operators()
         logger.info(
             "Start to training pre-check with "
-            f"operators: {[op.__class__.__name__ for op in pre_check_ops]}."
+            f"operators: {[op.__class__.__name__ for op in pre_check_ops]} "
+            f"under timeout: {get_pre_check_timeout()}s."
         )
 
         for pre_check_op in pre_check_ops:
@@ -103,53 +121,88 @@ class DiagnosisManager:
             try:
                 # retry loops for each operator
                 for i in range(pre_check_op.get_retry_times()):
+                    if job_ctx.is_request_stopped():
+                        logger.info(
+                            "Training pre-check interrupted, "
+                            f"cost:{time.time() - start:.2f}s."
+                        )
+                        return
                     check_start = time.time()
 
                     # do check
-                    current_op_result = pre_check_op.check()
+                    current_op_result = pre_check_op.check(
+                        job_args=self._job_args
+                    )
                     logger.info(
                         f"{pre_check_op_name} "
-                        f"check({i}) "
-                        f"cost: {time.time()-check_start:.2f}ms, "
+                        f"check({i}/{pre_check_op.get_retry_times() - 1}) "
+                        f"cost: {time.time()-check_start:.2f}s, "
                         f"result: {current_op_result}"
                     )
 
                     if not current_op_result.is_success():
                         # try recover and wait
-                        pre_check_op.recover()
+                        actions = pre_check_op.recover_actions(
+                            result_msg=current_op_result.result_msg,
+                            abnormal_nodes=current_op_result.abnormal_nodes,
+                        )
+                        self._job_context.enqueue_actions(actions)
+                        logger.info(
+                            f"{pre_check_op_name} try recovering "
+                            f"by actions: {actions}"
+                        )
                         time.sleep(pre_check_op.get_retry_interval_secs())
-
-                        # check again after recover
-                        current_op_result = pre_check_op.check()
                     else:
                         break
+            except TimeoutException as te:
+                raise te
             except Exception as e:
-                logger.error(f"Pre-check operator got unexpected error: {e}")
+                logger.error(
+                    f"{pre_check_op.__class__.__name__} "
+                    f"got unexpected error: {e}",
+                    exc_info=True,
+                )
                 continue
 
-            if not current_op_result.is_success():
-                action = pre_check_op.get_failed_action()
-                self._job_context.enqueue_action(action)
-                logger.warning(
-                    "Training pre-check failed "
-                    f"by {pre_check_op_name} "
-                    f"with result: {current_op_result}, "
-                    f"cost:{time.time()-current_start:.2f}ms. "
-                    f"Invoke action: {action}."
-                )
-                self._job_context.set_pre_check_status(PreCheckStatus.FAIL)
-                return
-            else:
-                self._job_context.set_pre_check_status(PreCheckStatus.CHECKING)
-                logger.info(
-                    f"{pre_check_op_name} finish "
-                    f"with result: {current_op_result}, "
-                    f"cost:{time.time()-current_start:.2f}ms."
-                )
+            if current_op_result:
+                if not current_op_result.is_success():
+                    actions = pre_check_op.failed_actions(
+                        result_msg=current_op_result.result_msg,
+                        abnormal_nodes=current_op_result.abnormal_nodes,
+                    )
+                    self._job_context.enqueue_actions(actions)
+                    logger.warning(
+                        "Training pre-check failed "
+                        f"by {pre_check_op_name} "
+                        f"with result: {current_op_result}, "
+                        f"cost:{time.time() - current_start:.2f}s. "
+                        f"Invoke action: {actions}."
+                    )
+                    if is_pre_check_op_bypassed(pre_check_op):
+                        logger.warning(
+                            "Set pre-check pass due to bypass is enabled."
+                        )
+                        self._job_context.set_pre_check_status(
+                            PreCheckStatus.PASS
+                        )
+                    else:
+                        self._job_context.set_pre_check_status(
+                            PreCheckStatus.FAIL
+                        )
+                    return
+                else:
+                    self._job_context.set_pre_check_status(
+                        PreCheckStatus.CHECKING
+                    )
+                    logger.info(
+                        f"{pre_check_op_name} finish "
+                        f"with result: {current_op_result}, "
+                        f"cost:{time.time() - current_start:.2f}s."
+                    )
 
         self._job_context.set_pre_check_status(PreCheckStatus.PASS)
         logger.info(
-            f"Training pre-check complete, cost:{time.time()-start:.2f}ms."
+            f"Training pre-check complete, cost:{time.time()-start:.2f}s."
         )
 
     def start_metric_collect(self):
@@ -171,14 +224,14 @@ class DiagnosisManager:
 
         if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
-                job_name=self._job_name,
+                job_name=self._job_args.job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
         else:
             self._metric_monitor = GpuMetricMonitor(
-                job_name=self._job_name,
+                job_name=self._job_args.job_name,
                 metrics=[
                     GpuMetricEnum.GPU_UTIL,
                     GpuMetricEnum.GPU_TENSOR_UTIL,

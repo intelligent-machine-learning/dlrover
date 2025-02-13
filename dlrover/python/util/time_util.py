@@ -13,6 +13,11 @@
 
 from datetime import datetime, timedelta
 
+from dlrover.python.common.constants import JobConstant
+from dlrover.python.common.global_context import Context
+
+_dlrover_ctx = Context.singleton_instance()
+
 
 def has_expired(timestamp: int, time_period: int) -> bool:
     """
@@ -38,3 +43,13 @@ def timestamp_diff_in_seconds(timestamp1: float, timestamp2: float) -> float:
         return (dt1 - dt2).total_seconds()
     else:
         return (dt2 - dt1).total_seconds()
+
+
+def get_pending_timeout():
+    timeout = _dlrover_ctx.seconds_to_wait_pending_pod
+    if timeout <= 0:
+        return 0
+    if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+        timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+    return timeout

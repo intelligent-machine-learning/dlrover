@@ -43,6 +43,7 @@ from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
@@ -141,6 +142,7 @@ class DistributedJobManagerTest(unittest.TestCase):
 
     def tearDown(self):
         self.job_context.clear_job_nodes()
+        self.job_context._request_stop = False
 
     def test_job_resource(self):
         job = JobResource()
@@ -889,7 +891,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
-        self.assertIn("job_diagnosing", active_threads_name)
+        self.assertIn("node_heartbeat_monitor", active_threads_name)
         manager.stop()
 
     def test_concurrency_heart_beat_collecting(self):
@@ -948,17 +950,54 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
 
-        manager._process_diagnosis_action(None)
+        manager.process_diagnosis_action(None)
         self.assertEqual(mock_method.call_count, 0)
 
-        manager._process_diagnosis_action(NoAction)
+        manager.process_diagnosis_action(NoAction())
         self.assertEqual(mock_method.call_count, 0)
 
-        manager._process_diagnosis_action(EventAction())
+        manager.process_diagnosis_action(EventAction())
         self.assertEqual(mock_method.call_count, 1)
+
+    def test_process_event_safely(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        manager._process_event = mock.MagicMock(side_effect=RuntimeError)
+        try:
+            manager._process_event_safely(None)
+        except Exception:
+            self.fail()
+
+    @patch(
+        "dlrover.python.master.node.dist_job_manager.DistributedJobManager."
+        "_process_event_safely"
+    )
+    def test_process_node_action(self, mock_process_event):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        # no target node
+        action = NodeAction(node_id=123, node_type="worker")
+        manager._process_node_action(action)
+
+        # with target node
+        get_job_context()._job_nodes = {"worker": {0: Node("worker", 0)}}
+        action = NodeAction(node_id=0, node_type="worker")
+        manager._process_node_action(action)
+        mock_process_event.assert_called_once()
 
 
 class LocalJobManagerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.job_context = get_job_context()
+
+    def tearDown(self):
+        self.job_context.clear_job_nodes()
+        self.job_context._request_stopped = False
+
     def test_local_job_manager(self):
         args = LocalJobArgs("local", "default", "test")
         args.initilize()
@@ -999,3 +1038,10 @@ class LocalJobManagerTest(unittest.TestCase):
 
         job_context.set_pre_check_status(PreCheckStatus.FAIL)
         self.assertEqual(job_context.get_pre_check_status(), "FAIL")
+
+        job_context.update_total_worker_num(123)
+        self.assertEqual(job_context.get_total_worker_num(), 123)
+
+        self.assertFalse(job_context.is_request_stopped())
+        job_context.request_stop()
+        self.assertTrue(job_context.is_request_stopped())

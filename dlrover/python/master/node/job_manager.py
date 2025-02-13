@@ -249,3 +249,10 @@ class JobManager(metaclass=ABCMeta):
         """
 
         pass
+
+    def process_diagnosis_action(self, action: DiagnosisAction):
+        """
+        Procedure for diagnosis action.
+        """
+
+        pass
