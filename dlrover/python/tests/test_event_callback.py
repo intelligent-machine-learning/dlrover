@@ -47,6 +47,7 @@ class AllReduceEventCallbackTest(unittest.TestCase):
         self.job_context = get_job_context()
 
     def tearDown(self):
+        self.job_context.clear_job_nodes()
         self.job_context._request_stopped = False
 
     def test_on_node_started(self):

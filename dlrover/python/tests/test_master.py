@@ -183,6 +183,7 @@ class LocalJobMasterTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        self.job_context.clear_job_nodes()
         self.job_context._request_stopped = False
 
     def test_task_manager(self):

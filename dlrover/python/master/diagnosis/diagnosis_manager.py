@@ -164,34 +164,41 @@ class DiagnosisManager:
                 )
                 continue
 
-            if not current_op_result.is_success():
-                actions = pre_check_op.failed_actions(
-                    result_msg=current_op_result.result_msg,
-                    abnormal_nodes=current_op_result.abnormal_nodes,
-                )
-                self._job_context.enqueue_actions(actions)
-                logger.warning(
-                    "Training pre-check failed "
-                    f"by {pre_check_op_name} "
-                    f"with result: {current_op_result}, "
-                    f"cost:{time.time() - current_start:.2f}s. "
-                    f"Invoke action: {actions}."
-                )
-                if is_pre_check_op_bypassed(pre_check_op):
-                    logger.warning(
-                        "Set pre-check pass due to bypass is enabled."
+            if current_op_result:
+                if not current_op_result.is_success():
+                    actions = pre_check_op.failed_actions(
+                        result_msg=current_op_result.result_msg,
+                        abnormal_nodes=current_op_result.abnormal_nodes,
                     )
-                    self._job_context.set_pre_check_status(PreCheckStatus.PASS)
+                    self._job_context.enqueue_actions(actions)
+                    logger.warning(
+                        "Training pre-check failed "
+                        f"by {pre_check_op_name} "
+                        f"with result: {current_op_result}, "
+                        f"cost:{time.time() - current_start:.2f}s. "
+                        f"Invoke action: {actions}."
+                    )
+                    if is_pre_check_op_bypassed(pre_check_op):
+                        logger.warning(
+                            "Set pre-check pass due to bypass is enabled."
+                        )
+                        self._job_context.set_pre_check_status(
+                            PreCheckStatus.PASS
+                        )
+                    else:
+                        self._job_context.set_pre_check_status(
+                            PreCheckStatus.FAIL
+                        )
+                    return
                 else:
-                    self._job_context.set_pre_check_status(PreCheckStatus.FAIL)
-                return
-            else:
-                self._job_context.set_pre_check_status(PreCheckStatus.CHECKING)
-                logger.info(
-                    f"{pre_check_op_name} finish "
-                    f"with result: {current_op_result}, "
-                    f"cost:{time.time() - current_start:.2f}s."
-                )
+                    self._job_context.set_pre_check_status(
+                        PreCheckStatus.CHECKING
+                    )
+                    logger.info(
+                        f"{pre_check_op_name} finish "
+                        f"with result: {current_op_result}, "
+                        f"cost:{time.time() - current_start:.2f}s."
+                    )
 
         self._job_context.set_pre_check_status(PreCheckStatus.PASS)
         logger.info(
