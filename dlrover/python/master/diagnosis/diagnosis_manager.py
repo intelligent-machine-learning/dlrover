@@ -135,7 +135,7 @@ class DiagnosisManager:
                     )
                     logger.info(
                         f"{pre_check_op_name} "
-                        f"check({i}) "
+                        f"check({i}/{pre_check_op.get_retry_times() - 1}) "
                         f"cost: {time.time()-check_start:.2f}s, "
                         f"result: {current_op_result}"
                     )
@@ -159,7 +159,8 @@ class DiagnosisManager:
             except Exception as e:
                 logger.error(
                     f"{pre_check_op.__class__.__name__} "
-                    f"got unexpected error: {e}"
+                    f"got unexpected error: {e}",
+                    exc_info=True,
                 )
                 continue
 

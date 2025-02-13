@@ -750,6 +750,7 @@ class DistributedJobManager(JobManager):
             logger.debug(
                 f"Update node({cur_node.id}), "
                 f"name: {cur_node.name}->{event.node.name}, "
+                f"status: {cur_node.status}->{event.node.status}, "
                 f"start_time: {cur_node.start_time}"
                 f"->{event.node.start_time}, "
                 f"create_time: {cur_node.create_time}"

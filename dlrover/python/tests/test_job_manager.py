@@ -990,6 +990,12 @@ class DistributedJobManagerTest(unittest.TestCase):
 
 
 class LocalJobManagerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.job_context = get_job_context()
+
+    def tearDown(self):
+        self.job_context._request_stopped = False
+
     def test_local_job_manager(self):
         args = LocalJobArgs("local", "default", "test")
         args.initilize()

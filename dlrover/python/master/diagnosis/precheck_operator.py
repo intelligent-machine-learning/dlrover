@@ -13,7 +13,7 @@
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Union
+from typing import List, Tuple, Union
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -100,8 +100,9 @@ class NoPreCheckOperator(PreCheckOperator):
 
 
 class SchedulingPreCheckOperator(PreCheckOperator):
-    SCHEDULING_FAILED = "SCHEDULING_FAILED"
+    SCHEDULING_FAILED_MSG = "SCHEDULING_FAILED"
     PENDING_TIMEOUT_MSG = "PRE_CHECK_PENDING_TIMEOUT"
+    PENDING_WAIT_MSG = "PRE_CHECK_PENDING_WAIT"
 
     @classmethod
     def get_retry_interval_secs(cls) -> int:
@@ -118,7 +119,10 @@ class SchedulingPreCheckOperator(PreCheckOperator):
     @classmethod
     def check_allreduce_job_pending(
         cls, cur_nodes, timeout, strategy
-    ) -> Union[None, Node]:
+    ) -> Tuple[bool, Union[None, Node]]:
+        """Return: ({has_pending}, {pending_timeout_node})"""
+
+        logger.debug(f"Check current nodes: {cur_nodes}")
         pending_workers: List[Node] = []
         now = time.time()
         for node in cur_nodes:
@@ -132,14 +136,11 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 pending_workers,
                 key=lambda x: x.create_time,
             )  # type: ignore
-            if not first_pending_wk:  # type: ignore
-                logger.info("No pending workers.")
-                return None
-
-            pending_time = (
-                first_pending_wk.create_time.timestamp()  # type: ignore
-            )
-            if now - pending_time > timeout:
+            if (
+                first_pending_wk
+                and first_pending_wk.create_time
+                and now - first_pending_wk.create_time.timestamp() > timeout
+            ):
                 logger.warning(
                     f"Node {first_pending_wk.name} "
                     f"exceeded pending timeout: {timeout}s, "
@@ -148,15 +149,19 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     f"pending workers(size:{len(pending_workers)})"
                     f": {pending_workers}, "
                 )
-                return first_pending_wk
-
-        logger.info("No pending workers.")
-        return None
+                return True, first_pending_wk
+            return True, None
+        else:
+            logger.info("No pending workers.")
+            return False, None
 
     @classmethod
     def check_ps_job_pending(
         cls, cur_nodes, timeout, strategy
-    ) -> Union[None, Node]:
+    ) -> Tuple[bool, Union[None, Node]]:
+        """Return: ({has_pending}, {pending_timeout_node})"""
+
+        logger.debug(f"Check current nodes: {cur_nodes}")
         pending_ps: List[Node] = []
         pending_workers: List[Node] = []
         now = time.time()
@@ -187,7 +192,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     f"pending ps(size:{len(pending_ps)})"
                     f": {pending_ps}, "
                 )
-                return first_pending_ps
+                return True, first_pending_ps
 
         # 2nd: judge worker
         if pending_workers:
@@ -200,12 +205,13 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                         break
                 if not pending_worker_0:  # type: ignore
                     logger.info("No pending worker(0).")
-                    return None
+                    return False, None
 
-                pending_time = (
-                    pending_worker_0.create_time.timestamp()  # type: ignore
-                )
-                if now - pending_time > timeout:
+                if (
+                    pending_worker_0.create_time
+                    and now - pending_worker_0.create_time.timestamp()
+                    > timeout
+                ):
                     logger.warning(
                         f"Node {pending_worker_0.name} "
                         f"exceeded pending timeout: {timeout}s, "
@@ -214,19 +220,18 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                         f"pending workers(size:{len(pending_workers)})"
                         f": {pending_workers}."
                     )
-                    return pending_worker_0
+                    return True, pending_worker_0
+                return True, None
             else:
                 first_pending_wk = min(
                     pending_workers, key=lambda x: x.create_time
                 )  # type: ignore
-                if not first_pending_wk:  # type: ignore
-                    logger.info("No pending workers.")
-                    return None
-
-                pending_time = (
-                    first_pending_wk.create_time.timestamp()  # type: ignore
-                )
-                if now - pending_time > timeout:
+                if (
+                    first_pending_wk
+                    and first_pending_wk.create_time
+                    and now - first_pending_wk.create_time.timestamp()
+                    > timeout
+                ):
                     logger.warning(
                         f"Node {first_pending_wk.name} "
                         f"exceeded pending timeout: {timeout}s, "
@@ -235,10 +240,10 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                         f"pending workers(size:{len(pending_workers)})"
                         f": {pending_workers}, "
                     )
-                    return first_pending_wk
-
+                    return True, first_pending_wk
+                return True, None
         logger.info("No pending ps or workers.")
-        return None
+        return False, None
 
     @classmethod
     def wait_scheduling_started(cls, wait_time=10, timeout=300):
@@ -288,7 +293,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             logger.warning("All nodes pending when scheduling.")
             return PreCheckResult(
                 result=1,
-                result_msg=SchedulingPreCheckOperator.SCHEDULING_FAILED,
+                result_msg=SchedulingPreCheckOperator.SCHEDULING_FAILED_MSG,
                 abnormal_nodes=[],
             )
 
@@ -296,7 +301,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             cur_nodes = list(
                 job_ctx.job_nodes_by_type(NodeType.WORKER).values()
             )
-            pending_node = self.check_allreduce_job_pending(
+            pending_result = self.check_allreduce_job_pending(
                 cur_nodes, timeout, strategy
             )
         elif job_type == DistributionStrategy.PS:
@@ -304,7 +309,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             worker_nodes = list(
                 job_ctx.job_nodes_by_type(NodeType.WORKER).values()
             )
-            pending_node = self.check_ps_job_pending(
+            pending_result = self.check_ps_job_pending(
                 ps_nodes + worker_nodes, timeout, strategy
             )
         else:
@@ -312,36 +317,47 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             logger.warning(msg)
             return PreCheckResult(result_msg=msg)
 
-        if pending_node:
-            return PreCheckResult(
-                result=1,
-                result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,
-                abnormal_nodes=[pending_node],
-            )
+        if pending_result[0]:
+            if pending_result[1]:
+                return PreCheckResult(
+                    result=1,
+                    result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,
+                    abnormal_nodes=[pending_result[1]],
+                )
+            else:
+                return PreCheckResult(
+                    result=1,
+                    result_msg=SchedulingPreCheckOperator.PENDING_WAIT_MSG,
+                    abnormal_nodes=[],
+                )
         else:
             return PreCheckResult()
 
     def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         result_msg = str(kwargs.get("result_msg"))
         abnormal_nodes = kwargs.get("abnormal_nodes")
-        if result_msg == SchedulingPreCheckOperator.SCHEDULING_FAILED:
+        if result_msg == SchedulingPreCheckOperator.SCHEDULING_FAILED_MSG:
+            # trigger abortion
             return self.failed_actions(result_msg=result_msg)
         elif result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG:
+            # trigger abortion
             if isinstance(abnormal_nodes, list):
-                msg = result_msg + ":" + abnormal_nodes[0].id
+                msg = result_msg + ":" + str(abnormal_nodes[0].id)
             else:
                 msg = result_msg
+            return self.failed_actions(result_msg=msg)
         else:
-            msg = "unknown"
-        return [
-            EventAction(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_WORKER_PENDING,
-                msg,
-                {},
-            )
-        ]
+            # trigger event
+            msg = result_msg
+            return [
+                EventAction(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    ErrorMonitorConstants.JOB_INSTANCE,
+                    ErrorMonitorConstants.ACTION_WORKER_PENDING,
+                    msg,
+                    {},
+                )
+            ]
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         result_msg = str(kwargs.get("result_msg"))

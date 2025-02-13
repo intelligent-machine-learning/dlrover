@@ -66,7 +66,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         # test recover actions
         actions = op.recover_actions(result_msg="test", abnormal_nodes=[])
         self.assertTrue(isinstance(actions[0], EventAction))
-        self.assertEqual(actions[0].event_msg, "test:all")
+        self.assertEqual(actions[0].event_msg, "test")
         self.assertEqual(
             actions[0].event_action,
             ErrorMonitorConstants.ACTION_WORKER_PENDING,
@@ -90,9 +90,11 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             )
             mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_nodes.append(mock_node)
-        self.assertIsNone(op.check_allreduce_job_pending(mock_nodes, 300, 2))
+        self.assertEqual(
+            op.check_allreduce_job_pending(mock_nodes, 300, 2), (False, None)
+        )
 
-        # with pending
+        # with pending timeout
         mock_nodes = []
         for index in range(4):
             mock_node = Node(
@@ -108,9 +110,29 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_nodes.append(mock_node)
-        self.assertIsNotNone(
-            op.check_allreduce_job_pending(mock_nodes, 300, 2)
-        )
+        result = op.check_allreduce_job_pending(mock_nodes, 300, 2)
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
+
+        # with pending wait
+        mock_nodes = []
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-1)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-10)
+            mock_nodes.append(mock_node)
+        result = op.check_allreduce_job_pending(mock_nodes, 300, 2)
+        self.assertTrue(result[0])
+        self.assertIsNone(result[1])
 
     def test_check_ps_job_pending(self):
         op = SchedulingPreCheckOperator()
@@ -138,14 +160,16 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             )
             mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_ps_nodes.append(mock_node)
-        self.assertIsNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2)
+        self.assertEqual(
+            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2),
+            (False, None),
         )
-        self.assertIsNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 1)
+        self.assertEqual(
+            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 1),
+            (False, None),
         )
 
-        # with worker0 pending
+        # with worker0 pending timeout
         mock_worker_nodes = []
         for index in range(4):
             mock_node = Node(
@@ -161,14 +185,16 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_worker_nodes.append(mock_node)
-        self.assertIsNotNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 1)
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 1
         )
-        self.assertIsNotNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2)
-        )
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
+        op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2)
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
 
-        # with worker1 pending
+        # with worker1 pending timeout
         mock_worker_nodes = []
         for index in range(4):
             mock_node = Node(
@@ -184,14 +210,40 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_worker_nodes.append(mock_node)
-        self.assertIsNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 1)
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 1
         )
-        self.assertIsNotNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2)
+        self.assertFalse(result[0])
+        self.assertIsNone(result[1])
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 2
         )
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
 
-        # with ps pending
+        # with worker1 pending wait
+        mock_worker_nodes = []
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 1:
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-1)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-10)
+            mock_worker_nodes.append(mock_node)
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 2
+        )
+        self.assertTrue(result[0])
+        self.assertIsNone(result[1])
+
+        # with ps pending timeout
         mock_worker_nodes = []
         for index in range(4):
             mock_node = Node(
@@ -217,12 +269,16 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             else:
                 mock_node.create_time = datetime.now() + timedelta(minutes=-10)
             mock_ps_nodes.append(mock_node)
-        self.assertIsNotNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 1)
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 1
         )
-        self.assertIsNotNone(
-            op.check_ps_job_pending(mock_worker_nodes + mock_ps_nodes, 300, 2)
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
+        result = op.check_ps_job_pending(
+            mock_worker_nodes + mock_ps_nodes, 300, 2
         )
+        self.assertTrue(result[0])
+        self.assertIsNotNone(result[1])
 
     def test_check(self):
         op = SchedulingPreCheckOperator()
@@ -248,15 +304,20 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         _dlrover_context.pending_fail_strategy = 2
 
         # allreduce without pending
-        op.check_allreduce_job_pending = mock.MagicMock(return_value=None)
+        op.check_allreduce_job_pending = mock.MagicMock(
+            return_value=(False, None)
+        )
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 0)
         self.assertFalse(result.result_msg)
         self.assertFalse(result.abnormal_nodes)
 
-        # allreduce with pending
+        # allreduce with pending timeout
         op.check_allreduce_job_pending = mock.MagicMock(
-            return_value=Node(node_type="worker", node_id=2, status="PENDING")
+            return_value=(
+                True,
+                Node(node_type="worker", node_id=2, status="PENDING"),
+            )
         )
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 1)
@@ -265,17 +326,31 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         )
         self.assertEqual(result.abnormal_nodes[0].id, 2)
 
+        # allreduce with pending wait
+        op.check_allreduce_job_pending = mock.MagicMock(
+            return_value=(True, None)
+        )
+        result = op.check(job_args=job_args)
+        self.assertEqual(result.result, 1)
+        self.assertEqual(
+            result.result_msg, SchedulingPreCheckOperator.PENDING_WAIT_MSG
+        )
+        self.assertFalse(result.abnormal_nodes)
+
         # ps without pending
         job_args.distribution_strategy = DistributionStrategy.PS
-        op.check_ps_job_pending = mock.MagicMock(return_value=None)
+        op.check_ps_job_pending = mock.MagicMock(return_value=(False, None))
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 0)
         self.assertFalse(result.result_msg)
         self.assertFalse(result.abnormal_nodes)
 
-        # ps with pending
+        # ps with pending timeout
         op.check_ps_job_pending = mock.MagicMock(
-            return_value=Node(node_type="worker", node_id=3, status="PENDING")
+            return_value=(
+                True,
+                Node(node_type="worker", node_id=3, status="PENDING"),
+            )
         )
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 1)
@@ -296,7 +371,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         result = op.check(job_args=job_args)
         self.assertEqual(result.result, 1)
         self.assertEqual(
-            result.result_msg, SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
+            result.result_msg, SchedulingPreCheckOperator.SCHEDULING_FAILED_MSG
         )
         self.assertFalse(result.abnormal_nodes)
 

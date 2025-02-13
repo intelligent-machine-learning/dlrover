@@ -56,6 +56,7 @@ class DistributedJobMasterTest(unittest.TestCase):
 
     def tearDown(self):
         self.job_context.clear_job_nodes()
+        self.job_context._request_stopped = False
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()
@@ -156,12 +157,10 @@ class DistributedJobMasterTest(unittest.TestCase):
         "dlrover.python.master.dist_master.DistributedJobMaster.request_stop"
     )
     def test_diagnose_job(self, mock_request_stop):
-        self.assertFalse(self.master._stop_requested)
-
         # close thread in 3 secs
         def stop_master():
             time.sleep(3)
-            self.master._stop_requested = True
+            get_job_context().request_stop()
 
         threading.Thread(target=stop_master).start()
 
@@ -180,9 +179,11 @@ class LocalJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         self.master_client = build_master_client(addr, 0.5)
+        self.job_context = get_job_context()
 
     def tearDown(self):
         self._master.stop()
+        self.job_context._request_stopped = False
 
     def test_task_manager(self):
         self.master_client.report_dataset_shard_params(
