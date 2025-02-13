@@ -47,6 +47,9 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.training_event import DLRoverMasterEvent
+
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -155,6 +158,9 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
+        self._job_evt = _master_evt.train_job(
+            job_name=args.job_name, args=vars(args)
+        )
 
     def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
@@ -228,7 +234,6 @@ class DistributedJobMaster(JobMaster):
         The main loop of master.
         Dispatch the tasks to the workers until all the tasks are completed.
         """
-
         # start training runtime diagnosis
         try:
             self.diagnosis_manager.start_metric_collect()
@@ -241,6 +246,8 @@ class DistributedJobMaster(JobMaster):
             logger.warning(
                 f"Failed to start training runtime diagnosis: {str(e)}"
             )
+
+        self._job_evt.begin()
 
         # into running loop
         try:
@@ -297,6 +304,11 @@ class DistributedJobMaster(JobMaster):
             if self.diagnosis_manager:
                 self.diagnosis_manager.stop_observing()
             self.stop()
+
+        if self._exit_code == 0:
+            self._job_evt.success()
+        else:
+            self._job_evt.failure(error=self._exit_reason)
 
         return self._exit_code
 

@@ -47,8 +47,10 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
+from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class FakeKubeResponse:
@@ -444,6 +446,10 @@ class PodScaler(Scaler):
         if self._check_cluster_ready_for_pod(node_from_queue):
             pod = self._create_pod(node_from_queue)
             succeed = self._k8s_client.create_pod(pod)
+            _master_evt.worker_create(
+                pod_name=pod.metadata.name,
+                success=succeed,
+            )
         if not succeed:
             self._create_node_queue.appendleft(node_from_queue)
         else:

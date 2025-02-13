@@ -80,9 +80,12 @@ def main():
     args = parse_master_args()
 
     # export event for dlrover master
-    _master_evt.start(pid=vars(args))
+    _master_evt.start(params=vars(args))
 
     exit_code = run(args)
+
+    _master_evt.exit(exit_code=exit_code)
+
     return exit_code
 
 
