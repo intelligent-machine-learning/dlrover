@@ -252,8 +252,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 for _, node in nodes.items():
                     if node.create_time:
                         break
-            logger.info(
-                f"Scheduling hasn't started yet, wait {wait_time}s...")
+            logger.info(f"Scheduling hasn't started yet, wait {wait_time}s...")
             time.sleep(wait_time)
 
     def check(self, *args, **kwargs):

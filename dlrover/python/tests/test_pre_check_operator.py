@@ -216,6 +216,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
         op = SchedulingPreCheckOperator()
         job_args = JobArgs("local", "test", "test")
         job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
+        op.wait_scheduling_started = mock.MagicMock(return_value=None)
 
         # with timeout = 0
         _dlrover_context = Context.singleton_instance()
