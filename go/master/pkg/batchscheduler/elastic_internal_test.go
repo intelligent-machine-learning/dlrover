@@ -16,6 +16,7 @@ package batchscheduler
 import (
 	"fmt"
 
+	elasticjobv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 	"github.com/intelligent-machine-learning/dlrover/go/master/pkg/common"
 
@@ -49,7 +50,10 @@ var _ = Describe("Elastic", func() {
 				},
 			},
 		}
-		schedulingPlan := &SchedulingPlan{ReplicaSpecs: replicas}
+		schedulingPlan := &SchedulingPlan{
+			ReplicaSpecs: replicas,
+			OwnerJob:     &elasticjobv1.ElasticJob{},
+		}
 		scheduler := NewElasticScheduler()
 		scheduler.DoScheduling(jobContext, schedulingPlan)
 		Expect(scheduler.toCreatePods.Len()).To(Equal(3))
