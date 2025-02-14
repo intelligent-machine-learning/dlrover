@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event.predefined.common import CommonPredefined
@@ -53,7 +53,7 @@ class DLRoverAgentEventName(Enum):
     DLROVER_AGENT_START = "#agent_start"
     DLROVER_AGENT_EXIT = "#agent_exit"
     DLROVER_NETWORK_CHECK = "#network_check"
-    DLROVER_ELASTIC_TRAIN = "#elastic_train"
+    DLROVER_NODE_CHECK = "#node_check"
 
 
 class DLRoverCommonEvent(CommonPredefined, Singleton):
@@ -66,46 +66,6 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
         return self.duration(
             "mock",
             {},
-        )
-
-    def rendezvous(
-        self,
-        rendezvous_type: str,
-        round_num: int,
-        timeout_sec: int,
-        max_nodes: int,
-        min_nodes: int,
-        **kwargs,
-    ):
-        """
-        Event for rendezvous.
-
-        Master side:
-        1. Rendezvous begin: first node join
-        2. Rendezvous end: all nodes join
-
-        Agent side:
-        1. Rendezvous begin: first node join
-        2. Rendezvous end: all nodes join
-
-        Parameters:
-        - rendezvous_type: Rendezvous type, such as network-check,
-           elastic-train, etc.
-        - round_num: Rendezvous round number
-        - timeout_sec: Rendezvous timeout in seconds
-        - max_nodes: Maximum number of nodes in Rendezvous
-        - min_nodes: Minimum number of nodes in Rendezvous
-        """
-        return self.duration(
-            DLRoverCommonEventName.DLROVER_RENDEZVOUS.value,
-            {
-                "rendezvous_type": rendezvous_type,
-                "round_num": round_num,
-                "timeout_sec": timeout_sec,
-                "max_nodes": max_nodes,
-                "min_nodes": min_nodes,
-                **kwargs,
-            },
         )
 
     def process_restart(
@@ -189,6 +149,46 @@ class DLRoverMasterEvent(DLRoverCommonEvent):
             {"exit_code": exit_code, **kwargs},
         )
 
+    def rendezvous(
+        self,
+        rendezvous_type: str,
+        round_num: int,
+        timeout_sec: int,
+        max_nodes: int,
+        min_nodes: int,
+        **kwargs,
+    ):
+        """
+        Event for rendezvous.
+
+        Master side:
+        1. Rendezvous begin: first node join
+        2. Rendezvous end: all nodes join
+
+        Agent side:
+        1. Rendezvous begin: first node join
+        2. Rendezvous end: all nodes join
+
+        Parameters:
+        - rendezvous_type: Rendezvous type, such as network-check,
+           elastic-train, etc.
+        - round_num: Rendezvous round number
+        - timeout_sec: Rendezvous timeout in seconds
+        - max_nodes: Maximum number of nodes in Rendezvous
+        - min_nodes: Minimum number of nodes in Rendezvous
+        """
+        return self.duration(
+            DLRoverCommonEventName.DLROVER_RENDEZVOUS.value,
+            {
+                "rendezvous_type": rendezvous_type,
+                "round_num": round_num,
+                "timeout_sec": timeout_sec,
+                "max_nodes": max_nodes,
+                "min_nodes": min_nodes,
+                **kwargs,
+            },
+        )
+
     def worker_event(
         self,
         pod_name: str,
@@ -265,25 +265,95 @@ class DLRoverAgentEvent(DLRoverCommonEvent):
     def __init__(self) -> None:
         super().__init__("dlrover-agent")
 
-    def network_check(self, round_num: int, node_groups: List[List], **kwargs):
-        """Network check event, including network check begin and end.
-
-        Master side:
-        1. Network check begin: when network check begin
-        2. Network check end: when network check end
-
-        Agent side:
-        1. Network check begin: when network check begin
-        2. Network check end: when network check end
+    def start(self, args: Optional[dict] = None, **kwargs):
         """
-        return self.duration(
-            DLRoverAgentEventName.DLROVER_NETWORK_CHECK.value,
-            {"node_groups": node_groups, "round_num": round_num, **kwargs},
+        Agent start event
+
+        Args:
+            args: agent start args
+            **kwargs:
+
+        Returns:
+
+        """
+        if args is None:
+            args = {}
+        self.instant(
+            DLRoverAgentEventName.DLROVER_AGENT_START.value,
+            {"params": args, **kwargs},
         )
 
-    def elastic_train(self, round_num: int, **kwargs):
-        """Elastic training event"""
+    def exit(self, success: bool, **kwargs):
+        """
+        Master exit event
+
+        Args:
+            success: agent exit successfully or not
+            **kwargs:
+
+        Returns:
+
+        """
+        return self.instant(
+            DLRoverMasterEventName.DLROVER_MASTER_EXIT.value,
+            {"success": success, **kwargs},
+        )
+
+    def rendezvous(
+        self,
+        rendezvous_type: str,
+        node_name: str,
+        node_rank: int,
+        timeout: int,
+        **kwargs,
+    ):
+        """
+        Event for agent rendezvous.
+        """
         return self.duration(
-            DLRoverAgentEventName.DLROVER_ELASTIC_TRAIN.value,
-            {"round_num": round_num, **kwargs},
+            DLRoverCommonEventName.DLROVER_RENDEZVOUS.value,
+            {
+                "rendezvous_type": rendezvous_type,
+                "node_name": node_name,
+                "node_rank": node_rank,
+                "timeout": timeout,
+                **kwargs,
+            },
+        )
+
+    def network_check(
+        self,
+        round: int,
+        success: bool,
+        config: Optional[dict] = None,
+        **kwargs,
+    ):
+        """
+        Network check event
+        """
+
+        return self.instant(
+            DLRoverAgentEventName.DLROVER_NETWORK_CHECK.value,
+            {
+                "round": round,
+                "config": config,
+                "success": success,
+                **kwargs,
+            },
+        )
+
+    def node_check(
+        self, round_num: int, elapsed_time: int, status: bool, **kwargs
+    ):
+        """
+        Node check event
+        """
+
+        return self.instant(
+            DLRoverAgentEventName.DLROVER_NODE_CHECK.value,
+            {
+                "round": round_num,
+                "elapsed_time": elapsed_time,
+                "status": status,
+            },
         )
