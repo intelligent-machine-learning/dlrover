@@ -24,7 +24,7 @@ from dlrover.python.common.singleton import Singleton
 
 ENV_PREFIX = "DLROVER_EVENT"
 DEFAULT_EVENT_EXPORTER = "TEXT_FILE"
-DEFAULT_FILE_DIR = "/tmp"
+DEFAULT_FILE_DIR = "/tmp/dlrover"
 DEFAULT_TEXT_FORMATTER = "LOG"
 
 
@@ -91,7 +91,7 @@ def get_env_key(key):
 class Config(Singleton):
 
     event_exporter: str = DEFAULT_EVENT_EXPORTER
-    async_exporter: bool = True
+    async_exporter: bool = False
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
