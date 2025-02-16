@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event.predefined.common import CommonPredefined
@@ -25,6 +25,7 @@ class DLRoverCommonEventName(Enum):
 
     DLROVER_RENDEZVOUS = "#rendezvous"
     DLROVER_PROCESS_RESTART = "#process_restart"
+    DLROVER_PROCESS_SUCCEEDED = "#process_succeeded"
     DLROVER_PROCESS_FAIL = "#process_fail"
     DLROVER_FAULT_DETECT = "#fault_detect"
     DLROVER_FAULT_TOLERANCE = "#fault_tolerance"
@@ -66,46 +67,6 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
         return self.duration(
             "mock",
             {},
-        )
-
-    def process_restart(
-        self,
-        pod_name: str,
-        node_name: str,
-        restart_round: int,
-        errmsg: dict,
-        **kwargs,
-    ):
-        """Process restart event"""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
-            {
-                "pod_name": pod_name,
-                "node_name": node_name,
-                "restart_round": restart_round,
-                "errmsg": errmsg,
-                **kwargs,
-            },
-        )
-
-    def process_fail(
-        self,
-        pod_name: str,
-        node_name: str,
-        restart_round: int,
-        errmsg: dict,
-        **kwargs,
-    ):
-        """Process restart event"""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_PROCESS_FAIL.value,
-            {
-                "pod_name": pod_name,
-                "node_name": node_name,
-                "restart_round": restart_round,
-                "errmsg": errmsg,
-                **kwargs,
-            },
         )
 
 
@@ -355,5 +316,57 @@ class DLRoverAgentEvent(DLRoverCommonEvent):
                 "round": round_num,
                 "elapsed_time": elapsed_time,
                 "status": status,
+            },
+        )
+
+    def process_succeeded(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_SUCCEEDED.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                **kwargs,
+            },
+        )
+
+    def process_restart(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        restart_count: int,
+        remaining_restarts: int,
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                "restart_count": restart_count,
+                "remaining_restarts": remaining_restarts,
+                **kwargs,
+            },
+        )
+
+    def process_fail(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_FAIL.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                **kwargs,
             },
         )

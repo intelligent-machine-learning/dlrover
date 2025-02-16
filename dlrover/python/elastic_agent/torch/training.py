@@ -1051,6 +1051,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 finally:
                     self._client.report_succeeded_exited()
                     logger.info("Succeeded and exit.")
+                    _agent_evt.process_succeeded(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                    )
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
@@ -1076,13 +1080,32 @@ class ElasticTrainingAgent(LocalElasticAgent):
                             action_type=DiagnosisActionType.RELAUNCH_WORKER,
                         )
                 self._process_diagnosis_action(action)
+
                 if self._worker_group.state == WorkerState.FAILED:
+                    _agent_evt.process_fail(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                    )
                     return run_result
+
+                _agent_evt.process_restart(
+                    node_rank=self._node_rank,
+                    return_values=run_result.return_values,
+                    restart_count=self._restart_count,
+                    remaining_restarts=self._remaining_failovers,
+                )
+
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
                     self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
+                    _agent_evt.process_restart(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                    )
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
