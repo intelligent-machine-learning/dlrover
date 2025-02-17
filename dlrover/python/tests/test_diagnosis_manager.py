@@ -17,16 +17,17 @@ import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
-    NodeStatus,
+    PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisDataType,
@@ -34,7 +35,7 @@ from dlrover.python.diagnosis.common.constants import (
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    NodeAction,
+    NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import (
     DiagnosisData,
@@ -53,12 +54,16 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_tr
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
 )
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_manager import (
+    DiagnosisManager,
+    is_pre_check_op_bypassed,
+)
 from dlrover.python.master.diagnosis.precheck_operator import (
     PreCheckOperator,
     PreCheckResult,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.util.function_util import TimeoutException
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -190,36 +195,69 @@ class DiagnosisManagerTest(unittest.TestCase):
             mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
         )
 
-    def test_pre_check(self):
+    @patch(
+        "dlrover.python.master.diagnosis.diagnosis_manager"
+        ".get_pre_check_timeout"
+    )
+    def test_pre_check(self, mock_get_pre_check_timeout):
+        mock_get_pre_check_timeout.return_value = 2
         job_context = get_job_context()
         mgr = DiagnosisManager()
         mgr.pre_check()
         self.assertEqual(job_context._action_queue.len(), 0)
 
+        _dlrover_context = Context.singleton_instance()
+        _dlrover_context.pre_check_operators = [
+            ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
+        ]
         mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
+        try:
+            mgr.pre_check()
+            self.fail()
+        except TimeoutException:
+            pass
+
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): True
+        }
         mgr.pre_check()
-        self.assertTrue(isinstance(job_context.next_action(1), NodeAction))
+        self.assertEqual(
+            job_context.get_pre_check_status(), PreCheckStatus.PASS
+        )
+
+    def test_is_pre_check_op_bypassed(self):
+        _dlrover_context = Context.singleton_instance()
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): True
+        }
+        self.assertTrue(is_pre_check_op_bypassed(TestOperator()))
+
+        _dlrover_context.pre_check_bypass = {
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+            ): False
+        }
+        self.assertFalse(is_pre_check_op_bypassed(TestOperator()))
+
+        _dlrover_context.pre_check_bypass = {}
+        self.assertFalse(is_pre_check_op_bypassed(TestOperator()))
+        self.assertFalse(is_pre_check_op_bypassed(None))
 
 
 class TestOperator(PreCheckOperator):
     @classmethod
     def get_retry_interval_secs(cls) -> int:
-        return 1
+        raise TimeoutException()
 
-    @classmethod
-    def get_retry_times(cls) -> int:
-        return 1
+    def check(self, *args, **kwargs) -> PreCheckResult:
+        return PreCheckResult(1, "test", [Node("worker", 0)])
 
-    def check(self) -> PreCheckResult:
-        return PreCheckResult(1, "test", [1])
-
-    def recover(self):
-        pass
-
-    def get_failed_action(self) -> DiagnosisAction:
-        return NodeAction(
-            node_id=1,
-            node_status=NodeStatus.FAILED,
-            reason="hang",
-            action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
-        )
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        return [NoAction()]

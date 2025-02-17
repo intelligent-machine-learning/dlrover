@@ -17,6 +17,7 @@ import time
 from datetime import datetime
 from typing import Dict, List
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -246,6 +247,9 @@ class DiagnosisAgent(Singleton):
                 f"attempts left; will restart worker group."
             )
             return NodeAction(
+                node_id=env_utils.get_node_id(),
+                node_type=env_utils.get_node_type(),
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
                 action_type=DiagnosisActionType.RESTART_WORKER,
             )
         else:
@@ -258,6 +262,9 @@ class DiagnosisAgent(Singleton):
                 "left; will relaunch."
             )
             return NodeAction(
+                node_id=env_utils.get_node_id(),
+                node_type=env_utils.get_node_type(),
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
                 action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
 

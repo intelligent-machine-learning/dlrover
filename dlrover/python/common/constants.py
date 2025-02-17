@@ -101,6 +101,12 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
 
 
+class PendingTimeoutStrategyType(object):
+    SKIP = 0
+    NECESSARY = 1
+    ALL = 2
+
+
 class GpuMetricEnum(object):
     """
     it is the metrics enum of nvidia GPU, collected by DCGM
@@ -139,6 +145,7 @@ class NodeExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
+    DIAG_FAIL = "DiagnosticFailure"
 
 
 class JobExitReason(object):
@@ -325,7 +332,7 @@ class RendezvousName(object):
 
 
 class NodeErrorMessage(object):
-    NETWORKER_ERROR = "Network is breakdown"
+    NODE_CHECK_FAIL = "Node check failed"
     SOCKET_GAIERROR = "Name or service not known"
 
 
@@ -420,6 +427,7 @@ class ErrorMonitorConstants(object):
     JOB_INSTANCE = "job"
 
     ACTION_WORKER_CREATE = "worker_create"
+    ACTION_WORKER_PENDING = "worker_pending"
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"

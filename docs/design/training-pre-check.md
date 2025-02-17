@@ -38,6 +38,7 @@ This article only discusses the core design of this aspect.
 
 <img src="../figures/current_start_process.png" alt="Current Training Start Process">
 
+
 - The training start process combined with pre-check:
 
 <img src="../figures/new_start_process.png" alt="New Training Start Process">
@@ -49,6 +50,11 @@ This article only discusses the core design of this aspect.
   - CHECKING: The check is in progress, continue to wait.
   - FAIL: The check has failed, and the training will be interrupted.
   - PASS: The check has passed, and the training will continue.
+
+
+- The pre-check operators will be executed as follows:
+
+<img src="../figures/pre_check_flow.png" alt="Pre Check Flow">
 
 
 ## Interface
@@ -66,28 +72,14 @@ class PreCheckOperator(ABC):
         """The retry interval seconds, can be overridden in subclasses."""
         return 5
 
-    @classmethod
-    def get_retry_limit_times(cls) -> int:
-        """
-        The retry limit times, can be overridden in subclasses.
-        The job starting procedure will be abort if result still not ok after
-        several retry times.
-        """
-        return 3
-
     @abstractmethod
-    def check(self) -> PreCheckResult:
+    def check(self, *args, **kwargs) -> PreCheckResult:
         """The abstraction of the main check procedure."""
         pass
 
     @abstractmethod
-    def recover(self):
-        """The abstraction of the procedure if check failed."""
-        pass
-
-    @abstractmethod
-    def get_failed_action(self) -> DiagnosisAction:
-        """The abstraction of the action when operator check failed."""
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        """The abstraction of the actions when operator check failed."""
         pass
 ```
 
@@ -113,9 +105,14 @@ class PreCheckResult(object):
     # The simple description info for the result.
     result_msg: str = ""
 
-    # Abnormal nodes' id.
-    abnormal_nodes: List[int] = field(default_factory=list)
+    # Abnormal nodes.
+    abnormal_nodes: List[Node] = field(default_factory=list)
 
     def is_success(self):
         return self.result == 0
 ```
+
+Considering that custom extensions of the Operator may involve more complex 
+logic for determining whether a result is successful, users can fully extend 
+the PreCheckResult and override the is_success method to define their own 
+logic for result evaluation.
