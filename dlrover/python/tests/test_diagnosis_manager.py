@@ -22,7 +22,6 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
-    NodeStatus,
     PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
@@ -37,7 +36,6 @@ from dlrover.python.diagnosis.common.constants import (
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
-    NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import (
     DiagnosisData,
@@ -260,17 +258,6 @@ class TestOperator(PreCheckOperator):
 
     def check(self, *args, **kwargs) -> PreCheckResult:
         return PreCheckResult(1, "test", [Node("worker", 0)])
-
-    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        return [
-            NodeAction(
-                node_id=1,
-                node_type="worker",
-                node_status=NodeStatus.FAILED,
-                reason="hang",
-                action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
-            )
-        ]
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         return [NoAction()]

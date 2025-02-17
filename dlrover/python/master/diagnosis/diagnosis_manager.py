@@ -161,9 +161,6 @@ class DiagnosisManager:
                                 )
 
                                 # break the outer loop
-                                self._job_context.set_pre_check_status(
-                                    PreCheckStatus.PASS
-                                )
                                 pre_check_finish = True
                                 break
                             else:
@@ -199,9 +196,6 @@ class DiagnosisManager:
                                 f"with result: {current_op_result}, "
                                 f"cost:{time.time() - current_start:.2f}s."
                             )
-                            self._job_context.set_pre_check_status(
-                                PreCheckStatus.PASS
-                            )
                             pre_check_finish = True
                             break
                         else:
@@ -221,10 +215,14 @@ class DiagnosisManager:
                         f"got unexpected error: {e}",
                         exc_info=True,
                     )
-                    continue
+                    if is_last_op:
+                        pre_check_finish = True
+                    else:
+                        continue
 
             # outer loop continue here
             if pre_check_finish:
+                self._job_context.set_pre_check_status(PreCheckStatus.PASS)
                 break
             else:
                 round += 1
