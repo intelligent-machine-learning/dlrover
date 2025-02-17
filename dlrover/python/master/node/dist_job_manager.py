@@ -89,6 +89,12 @@ _dlrover_context = Context.singleton_instance()
 _MAX_POD_RELAUNCH_COUNT = 5
 
 
+def is_positive_exit(exit_reason):
+    if exit_reason in [NodeExitReason.DIAG_FAIL, NodeExitReason.NO_HEARTBEAT]:
+        return True
+    return False
+
+
 class DistributedJobManager(JobManager):
     """DistributedJobManager manages the nodes of a distributed job on
     a k8s cluster. For a job, the manager will:
@@ -716,7 +722,7 @@ class DistributedJobManager(JobManager):
         if (
             event.event_type == NodeEventType.DELETED
             or node_status == NodeStatus.DELETED
-        ) and event.node.exit_reason != NodeExitReason.NO_HEARTBEAT:
+        ) and not is_positive_exit(event.node.exit_reason):
             pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
                 self._get_pod_unique_labels(event.node)
             )

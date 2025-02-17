@@ -278,6 +278,9 @@ def wait_pre_check():
             break
         elif status == PreCheckStatus.FAIL:
             logger.info("Pre check failed, training will abort...")
+        elif status == PreCheckStatus.DISABLED:
+            logger.info("Pre check disabled.")
+            break
         else:
             logger.info(
                 f"Pre check not passed yet, status: {status}, "
