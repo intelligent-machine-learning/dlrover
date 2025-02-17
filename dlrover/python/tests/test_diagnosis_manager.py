@@ -17,7 +17,7 @@ import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -65,6 +65,7 @@ from dlrover.python.master.diagnosis.precheck_operator import (
     PreCheckResult,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.util.function_util import TimeoutException
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -196,7 +197,12 @@ class DiagnosisManagerTest(unittest.TestCase):
             mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
         )
 
-    def test_pre_check(self):
+    @patch(
+        "dlrover.python.master.diagnosis.diagnosis_manager"
+        ".get_pre_check_timeout"
+    )
+    def test_pre_check(self, mock_get_pre_check_timeout):
+        mock_get_pre_check_timeout.return_value = 2
         job_context = get_job_context()
         mgr = DiagnosisManager()
         mgr.pre_check()
@@ -207,11 +213,11 @@ class DiagnosisManagerTest(unittest.TestCase):
             ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
         ]
         mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
-        mgr.pre_check()
-        self.assertTrue(isinstance(job_context.next_action(), NodeAction))
-        self.assertEqual(
-            job_context.get_pre_check_status(), PreCheckStatus.FAIL
-        )
+        try:
+            mgr.pre_check()
+            self.fail()
+        except TimeoutException:
+            pass
 
         _dlrover_context.pre_check_bypass = {
             (
@@ -250,11 +256,7 @@ class DiagnosisManagerTest(unittest.TestCase):
 class TestOperator(PreCheckOperator):
     @classmethod
     def get_retry_interval_secs(cls) -> int:
-        return 1
-
-    @classmethod
-    def get_retry_times(cls) -> int:
-        return 1
+        raise TimeoutException()
 
     def check(self, *args, **kwargs) -> PreCheckResult:
         return PreCheckResult(1, "test", [Node("worker", 0)])

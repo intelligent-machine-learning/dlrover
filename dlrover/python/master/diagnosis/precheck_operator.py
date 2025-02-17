@@ -17,7 +17,6 @@ from typing import List, Tuple, Union
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
-    ErrorMonitorConstants,
     NodeStatus,
     NodeType,
     PendingTimeoutStrategyType,
@@ -27,7 +26,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    EventAction,
     JobAbortionAction,
     NoAction,
 )
@@ -61,25 +59,9 @@ class PreCheckOperator(ABC):
         """The retry interval seconds, can be overridden in subclasses."""
         return 5
 
-    @classmethod
-    def get_retry_times(cls) -> int:
-        """
-        The limited retry times, can be overridden in subclasses. For most
-        pre-check, the retry value should > 1(at least once retry).
-
-        The failed action will be executed if result still not ok after
-        several retry times.
-        """
-        return 3
-
     @abstractmethod
     def check(self, *args, **kwargs) -> PreCheckResult:
         """The abstraction of the main check procedure."""
-        pass
-
-    @abstractmethod
-    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        """The abstraction of the procedure actions if check failed."""
         pass
 
     @abstractmethod
@@ -106,15 +88,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
 
     @classmethod
     def get_retry_interval_secs(cls) -> int:
-        return 60
-
-    @classmethod
-    def get_retry_times(cls) -> int:
-        timeout = get_pending_timeout()
-        if timeout <= 0:
-            return 1
-        else:
-            return int(timeout / cls.get_retry_interval_secs() + 1)
+        return 15
 
     @classmethod
     def check_allreduce_job_pending(
@@ -297,68 +271,57 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 abnormal_nodes=[],
             )
 
-        if job_type == DistributionStrategy.ALLREDUCE:
-            cur_nodes = list(
-                job_ctx.job_nodes_by_type(NodeType.WORKER).values()
-            )
-            pending_result = self.check_allreduce_job_pending(
-                cur_nodes, timeout, strategy
-            )
-        elif job_type == DistributionStrategy.PS:
-            ps_nodes = list(job_ctx.job_nodes_by_type(NodeType.PS).values())
-            worker_nodes = list(
-                job_ctx.job_nodes_by_type(NodeType.WORKER).values()
-            )
-            pending_result = self.check_ps_job_pending(
-                ps_nodes + worker_nodes, timeout, strategy
-            )
-        else:
-            msg = f"Skip {self.__class__.__name__} for {job_type}."
-            logger.warning(msg)
-            return PreCheckResult(result_msg=msg)
-
-        if pending_result[0]:
-            if pending_result[1]:
-                return PreCheckResult(
-                    result=1,
-                    result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,
-                    abnormal_nodes=[pending_result[1]],
+        round = 0
+        while True:
+            logger.info(f"Scheduling pre-check round: {round}")
+            if job_type == DistributionStrategy.ALLREDUCE:
+                cur_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+                )
+                pending_result = self.check_allreduce_job_pending(
+                    cur_nodes, timeout, strategy
+                )
+            elif job_type == DistributionStrategy.PS:
+                ps_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.PS).values()
+                )
+                worker_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+                )
+                pending_result = self.check_ps_job_pending(
+                    ps_nodes + worker_nodes, timeout, strategy
                 )
             else:
-                return PreCheckResult(
-                    result=1,
-                    result_msg=SchedulingPreCheckOperator.PENDING_WAIT_MSG,
-                    abnormal_nodes=[],
-                )
-        else:
-            return PreCheckResult()
+                msg = f"Skip {self.__class__.__name__} for {job_type}."
+                logger.warning(msg)
+                return PreCheckResult(result_msg=msg)
 
-    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        result_msg = str(kwargs.get("result_msg"))
-        abnormal_nodes = kwargs.get("abnormal_nodes")
-        if result_msg == SchedulingPreCheckOperator.SCHEDULING_FAILED_MSG:
-            # trigger abortion
-            return self.failed_actions(result_msg=result_msg)
-        elif result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG:
-            # trigger abortion
-            if isinstance(abnormal_nodes, list):
-                msg = result_msg + ":" + str(abnormal_nodes[0].id)
+            if pending_result[0]:
+                # has pending
+                if pending_result[1]:
+                    # has pending timeout
+                    return PreCheckResult(
+                        result=1,
+                        result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,  # noqa: E501
+                        abnormal_nodes=[pending_result[1]],
+                    )
+                else:
+                    # has pending wait
+                    # continue waiting next round checking
+                    time.sleep(self.get_retry_interval_secs())
+                    round += 1
+                    continue
             else:
-                msg = result_msg
-            return self.failed_actions(result_msg=msg)
-        else:
-            # trigger event
-            msg = result_msg
-            return [
-                EventAction(
-                    ErrorMonitorConstants.TYPE_INFO,
-                    ErrorMonitorConstants.JOB_INSTANCE,
-                    ErrorMonitorConstants.ACTION_WORKER_PENDING,
-                    msg,
-                    {},
-                )
-            ]
+                # no pending
+                return PreCheckResult()
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         result_msg = str(kwargs.get("result_msg"))
-        return [JobAbortionAction(reason=result_msg)]
+        abnormal_nodes = kwargs.get("abnormal_nodes")
+        msg = result_msg
+        if (
+            result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
+            and isinstance(abnormal_nodes, list)
+        ):
+            msg = result_msg + ":" + str(abnormal_nodes[0].id)
+        return [JobAbortionAction(reason=msg)]

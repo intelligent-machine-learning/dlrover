@@ -38,6 +38,7 @@ This article only discusses the core design of this aspect.
 
 <img src="../figures/current_start_process.png" alt="Current Training Start Process">
 
+
 - The training start process combined with pre-check:
 
 <img src="../figures/new_start_process.png" alt="New Training Start Process">
@@ -49,6 +50,11 @@ This article only discusses the core design of this aspect.
   - CHECKING: The check is in progress, continue to wait.
   - FAIL: The check has failed, and the training will be interrupted.
   - PASS: The check has passed, and the training will continue.
+
+
+- The pre-check operators will be executed as follows:
+
+<img src="../figures/pre_check_flow.png" alt="Pre Check Flow">
 
 
 ## Interface
@@ -66,23 +72,9 @@ class PreCheckOperator(ABC):
         """The retry interval seconds, can be overridden in subclasses."""
         return 5
 
-    @classmethod
-    def get_retry_limit_times(cls) -> int:
-        """
-        The retry limit times, can be overridden in subclasses.
-        The job starting procedure will be abort if result still not ok after
-        several retry times.
-        """
-        return 3
-
     @abstractmethod
     def check(self, *args, **kwargs) -> PreCheckResult:
         """The abstraction of the main check procedure."""
-        pass
-
-    @abstractmethod
-    def recover_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
-        """The abstraction of the procedure if check failed."""
         pass
 
     @abstractmethod

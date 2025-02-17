@@ -25,12 +25,12 @@ def timeout(secs=-1, callback_func=None):
     """Decorator for timeout controlled function using."""
 
     if callback_func is None:
-        timeout_secs_value = secs
+        if secs <= 0:
+            timeout_secs_value = TIMEOUT_MAX
+        else:
+            timeout_secs_value = secs
     else:
         timeout_secs_value = callback_func()
-
-    if timeout_secs_value < 0:
-        timeout_secs_value = TIMEOUT_MAX
 
     def decorator(func):
         def handler(signum, frame):

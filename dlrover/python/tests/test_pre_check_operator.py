@@ -17,14 +17,12 @@ from unittest import mock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
-    ErrorMonitorConstants,
     NodeStatus,
     NodeType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
-    EventAction,
     JobAbortionAction,
     NoAction,
 )
@@ -47,7 +45,6 @@ class PreCheckOperatorTest(unittest.TestCase):
         self.assertTrue(op.check())
         self.assertTrue(isinstance(op.recover_actions()[0], NoAction))
         self.assertEqual(op.get_retry_interval_secs(), 5)
-        self.assertEqual(op.get_retry_times(), 3)
         self.assertTrue(isinstance(op.failed_actions()[0], NoAction))
 
 
@@ -60,17 +57,7 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
 
     def test_basic(self):
         op = SchedulingPreCheckOperator()
-        self.assertEqual(op.get_retry_interval_secs(), 60)
-        self.assertEqual(op.get_retry_times(), 15 + 1)
-
-        # test recover actions
-        actions = op.recover_actions(result_msg="test", abnormal_nodes=[])
-        self.assertTrue(isinstance(actions[0], EventAction))
-        self.assertEqual(actions[0].event_msg, "test")
-        self.assertEqual(
-            actions[0].event_action,
-            ErrorMonitorConstants.ACTION_WORKER_PENDING,
-        )
+        self.assertEqual(op.get_retry_interval_secs(), 15)
 
         # test failed actions
         self.assertTrue(isinstance(op.failed_actions()[0], JobAbortionAction))
@@ -325,17 +312,6 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
             result.result_msg, SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
         )
         self.assertEqual(result.abnormal_nodes[0].id, 2)
-
-        # allreduce with pending wait
-        op.check_allreduce_job_pending = mock.MagicMock(
-            return_value=(True, None)
-        )
-        result = op.check(job_args=job_args)
-        self.assertEqual(result.result, 1)
-        self.assertEqual(
-            result.result_msg, SchedulingPreCheckOperator.PENDING_WAIT_MSG
-        )
-        self.assertFalse(result.abnormal_nodes)
 
         # ps without pending
         job_args.distribution_strategy = DistributionStrategy.PS
