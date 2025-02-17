@@ -101,7 +101,10 @@ class DiagnosisManager:
 
     @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):
-        if not _dlrover_context.pre_check_enabled:
+        if not _dlrover_context.pre_check_enabled():
+            logger.info(
+                "Pre-check operator config is empty, " "pre-check disabled."
+            )
             return
 
         start = time.time()
@@ -122,7 +125,7 @@ class DiagnosisManager:
                 if job_ctx.is_request_stopped():
                     logger.info(
                         f"Training pre-check({round}) interrupted, "
-                        f"cost:{time.time() - start:.2f}s."
+                        f"total time cost:{time.time() - start:.2f}s."
                     )
                     return
 

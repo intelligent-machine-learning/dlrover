@@ -30,6 +30,28 @@ class GlobalContextTest(unittest.TestCase):
         ctx.config_master_port(0)
         self.assertTrue(ctx.master_port > 20000)
 
+    def test_get_pre_check_operators(self):
+        ctx = Context.singleton_instance()
+        ctx.pre_check_operators = []
+        self.assertEqual(ctx.get_pre_check_operators(), [])
+        self.assertFalse(ctx.pre_check_enabled())
+
+        ctx.pre_check_operators = None
+        self.assertEqual(ctx.get_pre_check_operators(), [])
+        self.assertFalse(ctx.pre_check_enabled())
+
+        ctx.pre_check_operators = ["o1"]
+        self.assertEqual(ctx.get_pre_check_operators(), [])
+        self.assertFalse(ctx.pre_check_enabled())
+
+        ctx.pre_check_operators = [
+            ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
+        ]
+        self.assertEqual(
+            ctx.get_pre_check_operators()[0].__class__.__name__, "TestOperator"
+        )
+        self.assertTrue(ctx.pre_check_enabled())
+
 
 if __name__ == "__main__":
     unittest.main()

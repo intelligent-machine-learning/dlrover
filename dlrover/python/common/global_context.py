@@ -221,12 +221,15 @@ class Context(Singleton):
 
     def pre_check_enabled(self):
         return (
-            self.pre_check_operators is not None
-            and len(self.pre_check_operators) > 0
+            self.pre_check_operators
+            and len(self.get_pre_check_operators()) > 0
         )
 
     def get_pre_check_operators(self):
         result_ops = []
+        if not self.pre_check_operators:
+            return result_ops
+
         for op_desc in self.pre_check_operators:
             try:
                 module_name = op_desc[0]
@@ -235,7 +238,7 @@ class Context(Singleton):
                 if hasattr(module, class_name):
                     cls = getattr(module, class_name)
                     result_ops.append(cls())
-            except RuntimeError:
+            except Exception:
                 logger.warning(
                     "Invalid pre-check "
                     f"operators: {self.pre_check_operators}"
