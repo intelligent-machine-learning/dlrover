@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import time
+import json
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -39,9 +40,10 @@ def test_log_formatter():
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
     assert formatter.format(event) == (
-        '[2025-01-01T00:00:00] [test_id] [test] [foo] [INSTANT] {"a": 1}'
+        '[2025-01-01T00:00:00] [1] [test_id] [test] [foo] [INSTANT] {"a": 1}'
     )
 
 
@@ -54,12 +56,17 @@ def test_json_formatter():
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
-    assert formatter.format(event) == (
-        '{"event_id": "test_id", "event_time": "2025-01-01T00:00:00", '
-        '"target": "test", "name": "foo", "event_type": "INSTANT", '
-        '"content": {"a": 1}}'
-    )
+
+    event_dict = json.loads(formatter.format(event))
+    assert event_dict["pid"] == 1
+    assert event_dict["event_id"] == "test_id"
+    assert event_dict["event_time"] == "2025-01-01T00:00:00"
+    assert event_dict["target"] == "test"
+    assert event_dict["name"] == "foo"
+    assert event_dict["event_type"] == "INSTANT"
+    assert event_dict["content"] == {"a": 1}
 
 
 def test_text_file_exporter(tmpdir):
@@ -70,6 +77,7 @@ def test_text_file_exporter(tmpdir):
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
     exporter = TextFileExporter(tmpdir.strpath, LogFormatter())
     exporter.export(event)
@@ -80,7 +88,7 @@ def test_text_file_exporter(tmpdir):
 
     # file content
     assert tmpdir.listdir()[0].read() == (
-        "[2025-01-01T00:00:00] [test_id] [test] " '[foo] [INSTANT] {"a": 1}\n'
+        '[2025-01-01T00:00:00] [1] [test_id] [test] [foo] [INSTANT] {"a": 1}\n'
     )
 
 
@@ -94,13 +102,14 @@ def test_console_exporter(capsys):
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
     exporter.export(event)
     exporter.close()
     # check if the event is printed
     captured = capsys.readouterr()
     assert captured.out == (
-        "[2025-01-01T00:00:00] [test_id] " '[test] [foo] [INSTANT] {"a": 1}\n'
+        '[2025-01-01T00:00:00] [1] [test_id] [test] [foo] [INSTANT] {"a": 1}\n'
     )
 
 
@@ -115,6 +124,7 @@ def test_async_exporter():
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
     exporter.export(event)
     exporter.close()
@@ -133,6 +143,7 @@ def test_async_exporter_close_timeout():
         name="foo",
         event_type=EventType.INSTANT,
         content={"a": 1},
+        pid=1,
     )
     start_time = time.time()
     exporter.export(event)

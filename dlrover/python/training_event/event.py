@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -49,6 +50,7 @@ class Event:
     The event class.
     """
 
+    pid: int
     event_id: str
     event_time: datetime
     name: str
@@ -57,8 +59,9 @@ class Event:
     target: str = ""
 
     def __str__(self):
-        return "[%s] [%s] [%s] [%s] [%s] %s" % (
+        return "[%s] [%s] [%s] [%s] [%s] [%s] %s" % (
             self.event_time.isoformat(),
+            self.pid,
             self.event_id,
             self.target,
             self.name,
@@ -68,6 +71,7 @@ class Event:
 
     def to_dict(self):
         return {
+            "pid": self.pid,
             "event_id": self.event_id,
             "event_time": self.event_time.isoformat(),
             "target": self.target,
@@ -94,6 +98,7 @@ class Event:
             name=name,
             event_type=EventType.INSTANT,
             content=content or {},
+            pid=os.getpid(),
         )
 
     @classmethod
@@ -105,6 +110,7 @@ class Event:
             name=name,
             event_type=EventType.BEGIN,
             content=content,
+            pid=os.getpid(),
         )
 
     @classmethod
@@ -116,4 +122,5 @@ class Event:
             name=name,
             event_type=EventType.END,
             content=content,
+            pid=os.getpid(),
         )
