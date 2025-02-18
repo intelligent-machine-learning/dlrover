@@ -12,11 +12,12 @@
 # limitations under the License.
 
 import json
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, auto
 from typing import Optional
+
+from dlrover.python.training_event.config import Config
 
 
 class EventType(Enum):
@@ -98,7 +99,7 @@ class Event:
             name=name,
             event_type=EventType.INSTANT,
             content=content or {},
-            pid=os.getpid(),
+            pid=Config.singleton_instance().pid,
         )
 
     @classmethod
@@ -110,7 +111,7 @@ class Event:
             name=name,
             event_type=EventType.BEGIN,
             content=content,
-            pid=os.getpid(),
+            pid=Config.singleton_instance().pid,
         )
 
     @classmethod
@@ -122,5 +123,5 @@ class Event:
             name=name,
             event_type=EventType.END,
             content=content,
-            pid=os.getpid(),
+            pid=Config.singleton_instance().pid,
         )
