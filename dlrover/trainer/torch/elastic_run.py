@@ -111,7 +111,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     JobConstant,
     NodeEnv,
-    NodeErrorMessage,
+    NodeEventType,
     PreCheckStatus,
     TrainingExceptionLevel,
 )
@@ -338,7 +338,7 @@ def _check_dlrover_master_available(addr, timeout=120):
         except socket.gaierror as e:
             client = MasterClient.singleton_instance(addr)
             client.report_failures(
-                NodeErrorMessage.SOCKET_GAIERROR,
+                NodeEventType.MASTER_CONNECTION_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise e

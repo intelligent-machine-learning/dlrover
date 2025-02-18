@@ -29,14 +29,18 @@ def str2bool(value):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-def parse_tuple2_list(value):
-    """Format: [(${value1}, ${value2}), ...]"""
+def parse_tuple_list(value):
+    """
+    Format: [(${value1}, ${value2}, ${value3}), ...]
+    Support tuple2 and tuple3.
+    """
     if not value or value == "":
         return []
     try:
         parsed = ast.literal_eval(value)
         if isinstance(parsed, list) and all(
-            isinstance(t, tuple) and len(t) == 2 for t in parsed
+            isinstance(t, tuple) and (len(t) == 2 or len(t) == 3)
+            for t in parsed
         ):
             return parsed
         else:
@@ -47,9 +51,10 @@ def parse_tuple2_list(value):
         )
 
 
-def parse_tuple2_dict(value):
+def parse_tuple_dict(value):
     """
     Format：{(${value1}, ${value2}): ${boolean}, ...}
+    Support tuple2.
     """
     if not value or value == "":
         return {}
@@ -119,20 +124,13 @@ def add_params(parser):
     )
     parser.add_argument(
         "--pre_check_ops",
-        "--pre_check_ops",
+        "--pre-check-ops",
         default=DefaultValues.PRE_CHECK_OPS,
-        type=parse_tuple2_list,
+        type=parse_tuple_list,
         help="The pre-check operators configuration, "
-        "format: [(${module_name}, ${class_name}), ...]. "
-        "Pre training check will be disabled if parameter is empty.",
-    )
-    parser.add_argument(
-        "--pre_check_bypass",
-        "--pre-check-bypass",
-        default=DefaultValues.PRE_CHECK_BYPASS,
-        type=parse_tuple2_dict,
-        help="Will set pass result although pre-check failed if set bypass, "
-        "format: {(${module_name}, ${class_name}): ${boolean}, ...}.",
+        "format: {(${module_name}, ${class_name}): ${boolean}, ...}. "
+        "The value is of boolean type; if set to False, it indicates a "
+        "bypass, otherwise, it indicates normal execution.",
     )
 
 

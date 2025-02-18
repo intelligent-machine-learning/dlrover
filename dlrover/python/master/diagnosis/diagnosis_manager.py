@@ -62,21 +62,6 @@ _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 
-def is_pre_check_op_bypassed(pre_check_op):
-    if not pre_check_op:
-        return False
-
-    bypass_config = _dlrover_context.pre_check_bypass
-    if not bypass_config:
-        return False
-
-    module_name = pre_check_op.__module__
-    class_name = pre_check_op.__class__.__name__
-    return (module_name, class_name) in bypass_config and bypass_config[
-        (module_name, class_name)
-    ]
-
-
 # pending timeout + 600s
 def get_pre_check_timeout():
     return get_pending_timeout() + 600
@@ -152,7 +137,9 @@ class DiagnosisManager:
 
                     if not current_op_result.is_success():
                         # for fail result
-                        if is_pre_check_op_bypassed(pre_check_op):
+                        if _dlrover_context.is_pre_check_operator_bypass(
+                            pre_check_op
+                        ):
                             if is_last_op:
                                 logger.warning(
                                     f"Set last {pre_check_op_name}"

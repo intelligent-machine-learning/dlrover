@@ -15,6 +15,7 @@ import os
 import unittest
 
 from dlrover.python.common.global_context import Context
+from dlrover.python.tests.test_diagnosis_manager import TestOperator
 
 
 class GlobalContextTest(unittest.TestCase):
@@ -45,12 +46,58 @@ class GlobalContextTest(unittest.TestCase):
         self.assertFalse(ctx.pre_check_enabled())
 
         ctx.pre_check_operators = [
-            ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+                True,
+            )
         ]
         self.assertEqual(
             ctx.get_pre_check_operators()[0].__class__.__name__, "TestOperator"
         )
         self.assertTrue(ctx.pre_check_enabled())
+
+    def test_is_pre_check_operator_bypass(self):
+        ctx = Context.singleton_instance()
+        ctx.pre_check_operators = []
+        self.assertFalse(ctx.is_pre_check_operator_bypass(None))
+
+        ctx.pre_check_operators = [
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+                True,
+            )
+        ]
+        self.assertFalse(ctx.is_pre_check_operator_bypass(None))
+        self.assertTrue(ctx.is_pre_check_operator_bypass(TestOperator()))
+
+        ctx.pre_check_operators = [
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+                "y",
+            )
+        ]
+        self.assertTrue(ctx.is_pre_check_operator_bypass(TestOperator()))
+
+        ctx.pre_check_operators = [
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+                False,
+            )
+        ]
+        self.assertFalse(ctx.is_pre_check_operator_bypass(TestOperator()))
+
+        ctx.pre_check_operators = [
+            (
+                "dlrover.python.tests.test_diagnosis_manager",
+                "TestOperator",
+                "false",
+            )
+        ]
+        self.assertFalse(ctx.is_pre_check_operator_bypass(TestOperator()))
 
 
 if __name__ == "__main__":

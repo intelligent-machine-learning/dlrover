@@ -78,7 +78,6 @@ from dlrover.python.common.constants import (
     ConfigPath,
     JobConstant,
     NodeEnv,
-    NodeErrorMessage,
     NodeEventType,
     RendezvousName,
     TrainingExceptionLevel,
@@ -1519,7 +1518,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeErrorMessage.NODE_CHECK_FAIL,
+                NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError("This node is down.")

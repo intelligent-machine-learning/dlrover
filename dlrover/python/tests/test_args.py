@@ -15,8 +15,8 @@ import unittest
 
 from dlrover.python.master.args import (
     parse_master_args,
-    parse_tuple2_dict,
-    parse_tuple2_list,
+    parse_tuple_dict,
+    parse_tuple_list,
     str2bool,
 )
 
@@ -40,38 +40,42 @@ class ArgsTest(unittest.TestCase):
         self.assertFalse(str2bool("0"))
         self.assertFalse(str2bool(False))
 
-    def test_parse_tuple2_list(self):
-        self.assertEqual(parse_tuple2_list(""), [])
-        self.assertEqual(parse_tuple2_list("[]"), [])
-        self.assertEqual(parse_tuple2_list("[('1', '2')]"), [("1", "2")])
+    def test_parse_tuple_list(self):
+        self.assertEqual(parse_tuple_list(""), [])
+        self.assertEqual(parse_tuple_list("[]"), [])
+        self.assertEqual(parse_tuple_list("[('1', '2')]"), [("1", "2")])
         self.assertEqual(
-            parse_tuple2_list("[('1', '2'), ('3', '4')]"),
-            [("1", "2"), ("3", "4")],
+            parse_tuple_list("[('1', '2'), ('3', '4', '5')]"),
+            [("1", "2"), ("3", "4", "5")],
+        )
+        self.assertEqual(
+            parse_tuple_list("[('1', '2'), ('3', '4', True)]"),
+            [("1", "2"), ("3", "4", True)],
         )
 
-    def test_parse_tuple2_dict(self):
+    def test_parse_tuple_dict(self):
         # valid
-        self.assertEqual(parse_tuple2_dict(""), {})
-        self.assertEqual(parse_tuple2_dict("{}"), {})
+        self.assertEqual(parse_tuple_dict(""), {})
+        self.assertEqual(parse_tuple_dict("{}"), {})
         self.assertEqual(
-            parse_tuple2_dict("{('1', '2'):True}"), {("1", "2"): True}
+            parse_tuple_dict("{('1', '2'):True}"), {("1", "2"): True}
         )
         self.assertEqual(
-            parse_tuple2_dict("{('1', '2'):'true'}"), {("1", "2"): True}
+            parse_tuple_dict("{('1', '2'):'true'}"), {("1", "2"): True}
         )
         self.assertEqual(
-            parse_tuple2_dict("{('1', '2'):'t', ('3', '4'):'no'}"),
+            parse_tuple_dict("{('1', '2'):'t', ('3', '4'):'no'}"),
             {("1", "2"): True, ("3", "4"): False},
         )
 
         # invalid
         try:
-            parse_tuple2_dict("{('1', '2'):true}")
+            parse_tuple_dict("{('1', '2'):true}")
             self.fail()
         except Exception:
             pass
         try:
-            parse_tuple2_dict("{'1':True}")
+            parse_tuple_dict("{'1':True}")
             self.fail()
         except Exception:
             pass

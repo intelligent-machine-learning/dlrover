@@ -12,7 +12,7 @@
 # limitations under the License.
 import importlib
 import os
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -73,9 +73,9 @@ class DefaultValues(object):
         (
             "dlrover.python.master.diagnosis.precheck_operator",
             "NoPreCheckOperator",
+            True,
         )
     ]
-    PRE_CHECK_BYPASS: Dict[Tuple, bool] = {}
 
 
 class Context(Singleton):
@@ -130,7 +130,6 @@ class Context(Singleton):
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
-        self.pre_check_bypass = {}
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
@@ -244,3 +243,23 @@ class Context(Singleton):
                     f"operators: {self.pre_check_operators}"
                 )
         return result_ops
+
+    def is_pre_check_operator_bypass(self, pre_check_op) -> bool:
+        if not pre_check_op or not self.pre_check_operators:
+            return False
+
+        module_name = pre_check_op.__module__
+        class_name = pre_check_op.__class__.__name__
+
+        for op_desc in self.pre_check_operators:
+            if module_name == op_desc[0] and class_name == op_desc[1]:
+                if len(op_desc) == 2:
+                    return False
+                else:
+                    value = op_desc[2]
+                    if isinstance(value, bool):
+                        return value
+                    elif value.lower() in {"true", "yes", "t", "y", "1"}:
+                        return True
+                break
+        return False

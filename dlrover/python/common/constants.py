@@ -99,6 +99,7 @@ class NodeEventType(object):
     FAILED_EXITED = "FAILED_EXITED"
     NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
+    MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
 
 
 class PendingTimeoutStrategyType(object):
@@ -329,11 +330,6 @@ class k8sAPIExceptionReason(object):
 class RendezvousName(object):
     ELASTIC_TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
-
-
-class NodeErrorMessage(object):
-    NODE_CHECK_FAIL = "Node check failed"
-    SOCKET_GAIERROR = "Name or service not known"
 
 
 class NetworkFailureReason(object):
