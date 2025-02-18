@@ -194,11 +194,7 @@ class TextFileExporter(EventExporter):
         config = Config.singleton_instance()
         self._file_path = os.path.join(
             file_dir,
-            "events_%s_%s.log"
-            % (
-                config.rank,
-                config.pid,
-            ),
+            "events_%s.log" % (config.rank,),
         )
 
         # use logging to make sure the file is concurrent safe
