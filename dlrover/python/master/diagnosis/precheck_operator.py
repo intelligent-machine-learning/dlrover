@@ -297,21 +297,21 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 return PreCheckResult(result_msg=msg)
 
             if pending_result[0]:
-                # has pending
+                # has pending node
                 if pending_result[1]:
-                    # has pending timeout
+                    # has pending node timeout
                     return PreCheckResult(
                         result=1,
                         result_msg=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG,  # noqa: E501
                         abnormal_nodes=[pending_result[1]],
                     )
                 else:
-                    # has pending, wait for a while and try checking again
+                    # has pending node, wait for a while and try checking again
                     time.sleep(self.get_retry_interval_secs())
                     round += 1
                     continue
             else:
-                # no pending
+                # no pending node
                 return PreCheckResult()
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
