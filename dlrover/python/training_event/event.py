@@ -17,6 +17,8 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Optional
 
+from dlrover.python.training_event.config import Config
+
 
 class EventType(Enum):
     """
@@ -49,6 +51,7 @@ class Event:
     The event class.
     """
 
+    pid: int
     event_id: str
     event_time: datetime
     name: str
@@ -57,8 +60,9 @@ class Event:
     target: str = ""
 
     def __str__(self):
-        return "[%s] [%s] [%s] [%s] [%s] %s" % (
+        return "[%s] [%s] [%s] [%s] [%s] [%s] %s" % (
             self.event_time.isoformat(),
+            self.pid,
             self.event_id,
             self.target,
             self.name,
@@ -68,6 +72,7 @@ class Event:
 
     def to_dict(self):
         return {
+            "pid": self.pid,
             "event_id": self.event_id,
             "event_time": self.event_time.isoformat(),
             "target": self.target,
@@ -94,6 +99,7 @@ class Event:
             name=name,
             event_type=EventType.INSTANT,
             content=content or {},
+            pid=Config.singleton_instance().pid,
         )
 
     @classmethod
@@ -105,6 +111,7 @@ class Event:
             name=name,
             event_type=EventType.BEGIN,
             content=content,
+            pid=Config.singleton_instance().pid,
         )
 
     @classmethod
@@ -116,4 +123,5 @@ class Event:
             name=name,
             event_type=EventType.END,
             content=content,
+            pid=Config.singleton_instance().pid,
         )
