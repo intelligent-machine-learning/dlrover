@@ -13,7 +13,12 @@
 
 import unittest
 
-from dlrover.python.master.args import parse_master_args, str2bool
+from dlrover.python.master.args import (
+    parse_master_args,
+    parse_tuple_dict,
+    parse_tuple_list,
+    str2bool,
+)
 
 
 class ArgsTest(unittest.TestCase):
@@ -35,6 +40,46 @@ class ArgsTest(unittest.TestCase):
         self.assertFalse(str2bool("0"))
         self.assertFalse(str2bool(False))
 
+    def test_parse_tuple_list(self):
+        self.assertEqual(parse_tuple_list(""), [])
+        self.assertEqual(parse_tuple_list("[]"), [])
+        self.assertEqual(parse_tuple_list("[('1', '2')]"), [("1", "2")])
+        self.assertEqual(
+            parse_tuple_list("[('1', '2'), ('3', '4', '5')]"),
+            [("1", "2"), ("3", "4", "5")],
+        )
+        self.assertEqual(
+            parse_tuple_list("[('1', '2'), ('3', '4', True)]"),
+            [("1", "2"), ("3", "4", True)],
+        )
+
+    def test_parse_tuple_dict(self):
+        # valid
+        self.assertEqual(parse_tuple_dict(""), {})
+        self.assertEqual(parse_tuple_dict("{}"), {})
+        self.assertEqual(
+            parse_tuple_dict("{('1', '2'):True}"), {("1", "2"): True}
+        )
+        self.assertEqual(
+            parse_tuple_dict("{('1', '2'):'true'}"), {("1", "2"): True}
+        )
+        self.assertEqual(
+            parse_tuple_dict("{('1', '2'):'t', ('3', '4'):'no'}"),
+            {("1", "2"): True, ("3", "4"): False},
+        )
+
+        # invalid
+        try:
+            parse_tuple_dict("{('1', '2'):true}")
+            self.fail()
+        except Exception:
+            pass
+        try:
+            parse_tuple_dict("{'1':True}")
+            self.fail()
+        except Exception:
+            pass
+
     def test_parse_master_args(self):
         original_args = [
             "--job_name",
@@ -48,7 +93,7 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
         self.assertTrue(parsed_args.service_type, "grpc")
-        self.assertTrue(parsed_args.pre_check)
+        self.assertTrue(parsed_args.pre_check_ops)
 
         original_args = [
             "--job_name",
@@ -61,14 +106,14 @@ class ArgsTest(unittest.TestCase):
             "2",
             "--service_type",
             "http",
-            "--pre_check",
-            "false",
+            "--pre_check_ops",
+            "[('t1', 't2', 'y')]",
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
         self.assertTrue(parsed_args.service_type, "http")
-        self.assertFalse(parsed_args.pre_check)
+        self.assertEqual(parsed_args.pre_check_ops, [("t1", "t2", "y")])
 
         original_args = [
             "--job_name",

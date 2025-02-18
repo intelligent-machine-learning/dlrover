@@ -379,6 +379,7 @@ class Node(object):
     def __repr__(self):
         return (
             f"name:{self.name};"
+            f"create:{self.create_time};"
             f"rank_index:{self.rank_index};"
             f"type:{self.type};"
             f"status:{self.status};"

@@ -10,12 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import os
+from typing import List, Tuple
 
 from dlrover.python.common.constants import (
     Accelerators,
     CommunicationType,
+    PendingTimeoutStrategyType,
     UserEnv,
 )
 from dlrover.python.common.log import default_logger as logger
@@ -55,7 +57,7 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
-    PENDING_FAIL_STRATEGY = 1  # 0: skip 1: necessary part 2: all
+    PENDING_FAIL_STRATEGY = PendingTimeoutStrategyType.NECESSARY
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h
@@ -67,7 +69,13 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
-    PRE_CHECK_ENABLED = True
+    PRE_CHECK_OPS: List[Tuple] = [
+        (
+            "dlrover.python.master.diagnosis.precheck_operator",
+            "NoPreCheckOperator",
+            True,
+        )
+    ]
 
 
 class Context(Singleton):
@@ -118,9 +126,10 @@ class Context(Singleton):
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
         # The default xpu device type.
         self.xpu_type = Accelerators.NVIDIA_GPU
-        self.pre_check_enabled = DefaultValues.PRE_CHECK_ENABLED
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
+        # pre-check args
+        self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
@@ -208,3 +217,49 @@ class Context(Singleton):
     @property
     def user_id(self):
         return os.getenv(UserEnv.USER_ID, "")
+
+    def pre_check_enabled(self):
+        return (
+            self.pre_check_operators
+            and len(self.get_pre_check_operators()) > 0
+        )
+
+    def get_pre_check_operators(self):
+        result_ops = []
+        if not self.pre_check_operators:
+            return result_ops
+
+        for op_desc in self.pre_check_operators:
+            try:
+                module_name = op_desc[0]
+                class_name = op_desc[1]
+                module = importlib.import_module(module_name)
+                if hasattr(module, class_name):
+                    cls = getattr(module, class_name)
+                    result_ops.append(cls())
+            except Exception:
+                logger.warning(
+                    "Invalid pre-check "
+                    f"operators: {self.pre_check_operators}"
+                )
+        return result_ops
+
+    def is_pre_check_operator_bypass(self, pre_check_op) -> bool:
+        if not pre_check_op or not self.pre_check_operators:
+            return False
+
+        module_name = pre_check_op.__module__
+        class_name = pre_check_op.__class__.__name__
+
+        for op_desc in self.pre_check_operators:
+            if module_name == op_desc[0] and class_name == op_desc[1]:
+                if len(op_desc) == 2:
+                    return False
+                else:
+                    value = op_desc[2]
+                    if isinstance(value, bool):
+                        return value
+                    elif value.lower() in {"true", "yes", "t", "y", "1"}:
+                        return True
+                break
+        return False

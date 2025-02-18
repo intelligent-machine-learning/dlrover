@@ -136,7 +136,7 @@ class PosixDiskStorage(CheckpointStorage):
                 os.fsync(stream.fileno())
         except OSError as e:
             logger.error(
-                f"Failed to write file with path: {path}, " f"mode: {mode}"
+                f"Failed to write file with path: {path}, mode: {mode}"
             )
             raise e
 

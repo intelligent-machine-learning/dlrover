@@ -181,30 +181,50 @@ class EventAction(DiagnosisAction):
     def event_labels(self):
         return self._event_labels
 
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period};"
+            f"event_type:{self._event_type};"
+            f"event_instance:{self._event_type};"
+            f"event_action:{self._event_instance};"
+            f"event_msg:{self._event_msg};"
+            f"event_labels:{self._event_labels}"
+        )
+
 
 class NodeAction(DiagnosisAction):
     def __init__(
         self,
+        node_id: int,
+        node_type: str,
         node_status: str = "",
         reason: str = "",
-        node_id=DiagnosisConstant.LOCAL_INSTANCE,
+        instance=DiagnosisConstant.MASTER_INSTANCE,
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
-        **kwargs,
     ):
         super().__init__(
             action_type,
-            node_id,
+            instance,
             timestamp,
             expired_time_period,
         )
+        self._node_id = node_id
+        self._node_type = node_type
         self._node_status = node_status
         self._reason = reason
 
     @property
     def node_id(self):
-        return self.instance
+        return self._node_id
+
+    @property
+    def node_type(self):
+        return self._node_type
 
     @property
     def node_status(self):
@@ -213,6 +233,45 @@ class NodeAction(DiagnosisAction):
     @property
     def reason(self):
         return self._reason
+
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period};"
+            f"node_id:{self._node_id};"
+            f"node_type:{self._node_type};"
+            f"node_status:{self._node_status};"
+            f"reason:{self._reason}"
+        )
+
+
+class JobAbortionAction(DiagnosisAction):
+    def __init__(
+        self,
+        reason: str = "",
+    ):
+        super().__init__(
+            DiagnosisActionType.JOB_ABORT,
+            DiagnosisConstant.MASTER_INSTANCE,
+            0,
+            0,
+        )
+        self._reason = reason
+
+    @property
+    def reason(self):
+        return self._reason
+
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period};"
+            f"reason:{self._reason}"
+        )
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
