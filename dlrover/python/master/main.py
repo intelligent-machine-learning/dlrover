@@ -53,7 +53,6 @@ def run(args):
     _dlrover_context.pending_timeout = args.pending_timeout
     _dlrover_context.master_service_type = args.service_type
     _dlrover_context.pre_check_operators = args.pre_check_ops
-    _dlrover_context.pre_check_bypass = args.pre_check_bypass
     if args.xpu_type.lower() == "ascend":
         _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

@@ -93,7 +93,7 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
         self.assertTrue(parsed_args.service_type, "grpc")
-        self.assertEqual(parsed_args.pre_check_bypass, {})
+        self.assertTrue(parsed_args.pre_check_ops)
 
         original_args = [
             "--job_name",
@@ -107,16 +107,13 @@ class ArgsTest(unittest.TestCase):
             "--service_type",
             "http",
             "--pre_check_ops",
-            "[('t1', 't2')]",
-            "--pre_check_bypass",
-            "{('v1','v2'):'true'}",
+            "[('t1', 't2', 'y')]",
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
         self.assertTrue(parsed_args.service_type, "http")
-        self.assertEqual(parsed_args.pre_check_ops, [("t1", "t2")])
-        self.assertEqual(parsed_args.pre_check_bypass, {("v1", "v2"): True})
+        self.assertEqual(parsed_args.pre_check_ops, [("t1", "t2", "y")])
 
         original_args = [
             "--job_name",

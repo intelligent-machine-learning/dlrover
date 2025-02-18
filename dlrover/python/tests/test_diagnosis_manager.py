@@ -214,12 +214,13 @@ class DiagnosisManagerTest(unittest.TestCase):
         except TimeoutException:
             pass
 
-        _dlrover_context.pre_check_bypass = {
+        _dlrover_context.pre_check_operators = [
             (
                 "dlrover.python.tests.test_diagnosis_manager",
                 "TestOperator",
-            ): True
-        }
+                True,
+            )
+        ]
         mgr.pre_check()
         self.assertEqual(
             job_context.get_pre_check_status(), PreCheckStatus.PASS
