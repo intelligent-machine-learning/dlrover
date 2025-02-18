@@ -128,9 +128,9 @@ def add_params(parser):
         default=DefaultValues.PRE_CHECK_OPS,
         type=parse_tuple_list,
         help="The pre-check operators configuration, "
-        "format: {(${module_name}, ${class_name}): ${boolean}, ...}. "
-        "The value is of boolean type; if set to False, it indicates a "
-        "bypass, otherwise, it indicates normal execution.",
+        "format: [(${module_name}, ${class_name}, ${boolean}), ...]. "
+        "The boolean value represent 'bypass or not'. If set to False "
+        "it indicates a bypass, otherwise it indicates normal execution.",
     )
 
 
