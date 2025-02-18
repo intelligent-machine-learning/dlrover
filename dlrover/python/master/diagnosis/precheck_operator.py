@@ -306,8 +306,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                         abnormal_nodes=[pending_result[1]],
                     )
                 else:
-                    # has pending wait
-                    # continue waiting next round checking
+                    # has pending, wait for a while and try checking again
                     time.sleep(self.get_retry_interval_secs())
                     round += 1
                     continue

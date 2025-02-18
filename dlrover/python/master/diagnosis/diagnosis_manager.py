@@ -104,6 +104,20 @@ class DiagnosisManager:
         round = 0
         pre_check_finish = False
 
+        # 1. The all configured pre-check operators will be executed 1 by 1.
+        # 2. If any operator check failed, the 'failed actions' will be
+        # executed, and all the configured pre-check operators will be
+        # executed once more after a 'waiting time' specified by the current
+        # operator.
+        # 3. There is no retry logic on each operator, because all the
+        # operators must re-check if any failed action is executed.
+        # 4. If any operator check fails and bypass is set to true, the
+        # current result will be ignored, and the process will continue.
+        # 5. If the there isn't any 'JobAbortion' during procedure, and the
+        # pre-check procedure runs for a long time without finishing, which
+        # will be considered as a flaw in the operator's execution. A warning
+        # log will be triggered due to a timeout, and the result will be
+        # marked as "pass."
         while True:
             logger.info(f"Pre-check round: {round}")
             for index, pre_check_op in enumerate(pre_check_ops):
