@@ -405,11 +405,9 @@ class MasterRendezvousHandler(RendezvousHandler):
             self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
 
         _rdzv_evt.success(
-            {
-                "round": round,
-                "rank": rank,
-                "world_size": world_size,
-            }
+            round=round,
+            rank=rank,
+            world_size=world_size,
         )
         store = self._get_store(round, group)
         return store, world

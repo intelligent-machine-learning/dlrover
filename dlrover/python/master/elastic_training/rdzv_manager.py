@@ -464,10 +464,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     )
                     node_elapsed_time = time.time() - self._lastcall_time
                     self._rdzv_evt.success(
-                        {
-                            "node_group": f"{node_ids}",
-                            "node_elapsed_time": f"{node_elapsed_time}",
-                        }
+                        node_group=f"{node_ids}",
+                        node_elapsed_time=f"{node_elapsed_time}",
                     )
                     self._rdzv_evt = _master_evt.rendezvous(
                         rendezvous_type=RendezvousName.ELASTIC_TRAINING,
@@ -519,9 +517,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     )
                     self._rdzv_evt.fail(
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        {
-                            "node_elapsed_time": f"{waiting_time}",
-                        },
+                        node_elapsed_time=f"{waiting_time}",
                     )
 
             return self._rdzv_round, 0, self._rdzv_nodes
@@ -598,10 +594,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
                     node_elapsed_time = time.time() - self._lastcall_time
                     self._rdzv_evt.success(
-                        {
-                            "node_group": f"{print_node_groups}",
-                            "node_elapsed_time": f"{node_elapsed_time}",
-                        }
+                        node_group=f"{print_node_groups}",
+                        node_elapsed_time=f"{node_elapsed_time}",
                     )
                     self._rdzv_evt = _master_evt.rendezvous(
                         rendezvous_type=RendezvousName.NETWORK_CHECK,
@@ -652,9 +646,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     )
                     self._rdzv_evt.fail(
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        {
-                            "node_elapsed_time": f"{waiting_time}",
-                        },
+                        node_elapsed_time=f"{waiting_time}",
                     )
 
             for i, group in enumerate(self._node_groups):
