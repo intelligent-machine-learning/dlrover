@@ -12,32 +12,49 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, Optional
 
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event.predefined.common import CommonPredefined
 
 
 class DLRoverCommonEventName(Enum):
-    """Event in DLRover agent and master"""
+    """
+    Event in DLRover agent and master
+    """
 
-    DLROVER_START = "#start"
-    DLROVER_NODE_JOIN = "#node_join"
     DLROVER_RENDEZVOUS = "#rendezvous"
-    DLROVER_NETWORK_CHECK = "#network_check"
-    DLROVER_ELASTIC_TRAIN = "#elastic_train"
     DLROVER_PROCESS_RESTART = "#process_restart"
-    DLROVER_EXIT = "#exit"
+    DLROVER_PROCESS_SUCCEEDED = "#process_succeeded"
+    DLROVER_PROCESS_FAIL = "#process_fail"
+    DLROVER_FAULT_DETECT = "#fault_detect"
+    DLROVER_FAULT_TOLERANCE = "#fault_tolerance"
+    DLROVER_PRE_CHECK = "#pre_check"
 
 
 class DLRoverMasterEventName(Enum):
-    """Event in DLRover master"""
+    """
+    Event in DLRover master
+    """
 
-    DLROVER_POD_CREATE = "#pod_create"
-    DLROVER_POD_CHANGE = "#pod_change"
-    DLROVER_POD_RELAUNCH = "#pod_relaunch"
-    DLROVER_FAULT_DETECT = "#fault_detect"
-    DLROVER_REPAIR = "#repair"
+    DLROVER_MASTER_START = "#master_start"
+    DLROVER_MASTER_EXIT = "#master_exit"
+    DLROVER_WORKER_CREATE = "#worker_create"
+    DLROVER_WORKER_RELAUNCH = "#worker_relaunch"
+    DLROVER_WORKER_NO_HEARTBEAT = "#worker_no_heartbeat"
+    DLROVER_WORKER_EVENT = "#worker_event"
+    DLROVER_JOB_TRAIN = "#job_train"
+
+
+class DLRoverAgentEventName(Enum):
+    """
+    Event in DLRover agent
+    """
+
+    DLROVER_AGENT_START = "#agent_start"
+    DLROVER_AGENT_EXIT = "#agent_exit"
+    DLROVER_NETWORK_CHECK = "#network_check"
+    DLROVER_NODE_CHECK = "#node_check"
 
 
 class DLRoverCommonEvent(CommonPredefined, Singleton):
@@ -46,13 +63,51 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
     def __init__(self, target: str) -> None:
         super().__init__(target)
 
-    def start(self, params: Optional[dict] = None, **kwargs):
-        """Event  at DLRover process start"""
-        if params is None:
-            params = {}
+    def mock(self):
+        return self.duration(
+            "mock",
+            {},
+        )
+
+
+class DLRoverMasterEvent(DLRoverCommonEvent):
+    """DLRover Master events"""
+
+    def __init__(self) -> None:
+        super().__init__("dlrover-master")
+
+    def start(self, args: Optional[dict] = None, **kwargs):
+        """
+        Master start event
+
+        Args:
+            args: master start args
+            **kwargs:
+
+        Returns:
+
+        """
+        if args is None:
+            args = {}
         self.instant(
-            DLRoverCommonEventName.DLROVER_START.value,
-            {"params": params, **kwargs},
+            DLRoverMasterEventName.DLROVER_MASTER_START.value,
+            {"params": args, **kwargs},
+        )
+
+    def exit(self, exit_code: int, **kwargs):
+        """
+        Master exit event
+
+        Args:
+            exit_code: exit code
+            **kwargs:
+
+        Returns:
+
+        """
+        return self.instant(
+            DLRoverMasterEventName.DLROVER_MASTER_EXIT.value,
+            {"exit_code": exit_code, **kwargs},
         )
 
     def rendezvous(
@@ -95,130 +150,73 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
             },
         )
 
-    def network_check(self, round_num: int, node_groups: List[List], **kwargs):
-        """Network check event, including network check begin and end.
-
-        Master side:
-        1. Network check begin: when network check begin
-        2. Network check end: when network check end
-
-        Agent side:
-        1. Network check begin: when network check begin
-        2. Network check end: when network check end
-        """
-        return self.duration(
-            DLRoverCommonEventName.DLROVER_NETWORK_CHECK.value,
-            {"node_groups": node_groups, "round_num": round_num, **kwargs},
-        )
-
-    def elastic_train(self, round_num: int, **kwargs):
-        """Elastic training event"""
-        return self.duration(
-            DLRoverCommonEventName.DLROVER_ELASTIC_TRAIN.value,
-            {"round_num": round_num, **kwargs},
-        )
-
-    def node_join(
-        self, pod_name: str, node_rank: int, node_name: str, **kwargs
-    ):
-        """Node join event, including node join and node state change."""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_NODE_JOIN.value,
-            {
-                "pod_name": pod_name,
-                "node_rank": node_rank,
-                "node_name": node_name,
-                **kwargs,
-            },
-        )
-
-    def process_restart(
+    def worker_event(
         self,
         pod_name: str,
-        node_name: str,
-        restart_round: int,
-        errmsg: dict,
-        **kwargs,
-    ):
-        """Process restart event"""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
-            {
-                "pod_name": pod_name,
-                "node_name": node_name,
-                "restart_round": restart_round,
-                "errmsg": errmsg,
-                **kwargs,
-            },
-        )
-
-    def exit(self, reason: str, **kwargs):
-        """Process exit event, giving exit reason"""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_EXIT.value,
-            {"reason": reason, **kwargs},
-        )
-
-
-class DLRoverMasterEvent(DLRoverCommonEvent):
-    """DLRover Master events"""
-
-    def __init__(self) -> None:
-        super().__init__("dlrover-master")
-
-    def pod_change(
-        self,
-        pod_name: str,
-        node_name: str,
         from_state: str,
         to_state: str,
+        reason: str,
         **kwargs,
     ):
         """Node pod state change event"""
         return self.instant(
-            DLRoverMasterEventName.DLROVER_POD_CHANGE.value,
+            DLRoverMasterEventName.DLROVER_WORKER_EVENT.value,
             {
                 "pod_name": pod_name,
-                "node_name": node_name,
                 "from_state": from_state,
                 "to_state": to_state,
+                "exit_reason": reason,
                 **kwargs,
             },
         )
 
-    def pod_relaunch(
-        self, pod_name: str, node_name: str, relaunch_pod_name: str, **kwargs
-    ):
+    def worker_relaunch(self, pod_name: str, relaunch_pod_name: str, **kwargs):
         """Pod relaunch event"""
         return self.instant(
-            DLRoverMasterEventName.DLROVER_POD_RELAUNCH.value,
+            DLRoverMasterEventName.DLROVER_WORKER_RELAUNCH.value,
             {
                 "pod_name": pod_name,
-                "node_name": node_name,
                 "relaunch_pod_name": relaunch_pod_name,
                 **kwargs,
             },
         )
 
-    def pod_create(self, pod_name: str, node_rank: int, **kwargs):
+    def worker_create(self, pod_name: str, success: bool, **kwargs):
         """Pod create event"""
         return self.instant(
-            DLRoverMasterEventName.DLROVER_POD_CREATE.value,
-            {"pod_name": pod_name, **kwargs},
+            DLRoverMasterEventName.DLROVER_WORKER_CREATE.value,
+            {"pod_name": pod_name, "ok": success, **kwargs},
         )
 
-    def repair(self, reason: str, **kwargs):
-        """Self-healing event"""
-        return self.duration(
-            DLRoverMasterEventName.DLROVER_REPAIR.value,
-            {"reason": reason, **kwargs},
+    def worker_no_heartbeat(self, pod_name: str, timeout: int, **kwargs):
+        """Pod create event"""
+        return self.instant(
+            DLRoverMasterEventName.DLROVER_WORKER_NO_HEARTBEAT.value,
+            {"pod_name": pod_name, "timeout": timeout, **kwargs},
         )
 
     def fault_detect(self, reason: str, **kwargs):
         """Fault detection event"""
-        return self.duration(
-            DLRoverMasterEventName.DLROVER_FAULT_DETECT.value,
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_FAULT_DETECT.value,
             {"reason": reason, **kwargs},
+        )
+
+    def train_job(self, job_name: str, args: Optional[dict] = None, **kwargs):
+        """
+        job start event
+
+        Args:
+            job_name: job name
+            args: job args
+            **kwargs: other job params
+
+        Returns:
+
+        """
+        return self.duration(
+            DLRoverMasterEventName.DLROVER_JOB_TRAIN.value,
+            {"job_name": job_name, "params": args, **kwargs},
         )
 
 
@@ -227,3 +225,148 @@ class DLRoverAgentEvent(DLRoverCommonEvent):
 
     def __init__(self) -> None:
         super().__init__("dlrover-agent")
+
+    def start(self, args: Optional[dict] = None, **kwargs):
+        """
+        Agent start event
+
+        Args:
+            args: agent start args
+            **kwargs:
+
+        Returns:
+
+        """
+        if args is None:
+            args = {}
+        self.instant(
+            DLRoverAgentEventName.DLROVER_AGENT_START.value,
+            {"params": args, **kwargs},
+        )
+
+    def exit(self, success: bool, **kwargs):
+        """
+        Master exit event
+
+        Args:
+            success: agent exit successfully or not
+            **kwargs:
+
+        Returns:
+
+        """
+        return self.instant(
+            DLRoverMasterEventName.DLROVER_MASTER_EXIT.value,
+            {"success": success, **kwargs},
+        )
+
+    def rendezvous(
+        self,
+        rendezvous_type: str,
+        node_name: str,
+        node_rank: int,
+        timeout: int,
+        **kwargs,
+    ):
+        """
+        Event for agent rendezvous.
+        """
+        return self.duration(
+            DLRoverCommonEventName.DLROVER_RENDEZVOUS.value,
+            {
+                "rendezvous_type": rendezvous_type,
+                "node_name": node_name,
+                "node_rank": node_rank,
+                "timeout": timeout,
+                **kwargs,
+            },
+        )
+
+    def network_check(
+        self,
+        round: int,
+        success: bool,
+        config: Optional[dict] = None,
+        **kwargs,
+    ):
+        """
+        Network check event
+        """
+
+        return self.instant(
+            DLRoverAgentEventName.DLROVER_NETWORK_CHECK.value,
+            {
+                "round": round,
+                "config": config,
+                "success": success,
+                **kwargs,
+            },
+        )
+
+    def node_check(
+        self, round_num: int, elapsed_time: int, status: bool, **kwargs
+    ):
+        """
+        Node check event
+        """
+
+        return self.instant(
+            DLRoverAgentEventName.DLROVER_NODE_CHECK.value,
+            {
+                "round": round_num,
+                "elapsed_time": elapsed_time,
+                "status": status,
+            },
+        )
+
+    def process_succeeded(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_SUCCEEDED.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                **kwargs,
+            },
+        )
+
+    def process_restart(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        restart_count: int,
+        remaining_restarts: int,
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                "restart_count": restart_count,
+                "remaining_restarts": remaining_restarts,
+                **kwargs,
+            },
+        )
+
+    def process_fail(
+        self,
+        node_rank: int,
+        return_values: Dict[int, Any],
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_FAIL.value,
+            {
+                "node_rank": node_rank,
+                "return_values": return_values,
+                **kwargs,
+            },
+        )

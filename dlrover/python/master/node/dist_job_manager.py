@@ -82,9 +82,11 @@ from dlrover.python.master.watcher.factory import (
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
+from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -541,6 +543,10 @@ class DistributedJobManager(JobManager):
                         f"created at: {node.create_time}, "
                         f"started at: {node.start_time}."
                     )
+                    _master_evt.worker_no_heartbeat(
+                        pod_name=node.name,
+                        timeout=window_interval,
+                    )
         return dead_events
 
     def _get_nodes_time_info(self):
@@ -842,6 +848,12 @@ class DistributedJobManager(JobManager):
                 "exit reason": cur_node.exit_reason,
             },
         )
+        _master_evt.worker_event(
+            pod_name=cur_node.name,
+            from_state=old_status,
+            to_state=new_status,
+            reason=cur_node.exit_reason,
+        )
         if should_relaunch:
             self._relaunch_node(cur_node)
 
@@ -965,6 +977,10 @@ class DistributedJobManager(JobManager):
                     "relaunch_pod": f"{plan.launch_nodes[0].id}",
                     "node": node.host_name,
                 },
+            )
+            _master_evt.worker_relaunch(
+                pod_name=node.name,
+                relaunch_pod_name=plan.launch_nodes[0].id,
             )
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:

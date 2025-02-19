@@ -105,6 +105,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.util.common_util import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -116,6 +117,9 @@ from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
 )
+
+_agent_evt = DLRoverAgentEvent().singleton_instance()
+
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -339,6 +343,14 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"with timeout {self.join_timeout}."
         )
         logger.info(msg)
+        _rdzv_evt = _agent_evt.rendezvous(
+            rendezvous_type=self._name,
+            node_name=node_name,
+            node_rank=self._node_rank,
+            timeout=self.join_timeout,
+        )
+        _rdzv_evt.begin()
+
         self._join_rendezvous()
 
         start_pending = 0
@@ -360,9 +372,11 @@ class MasterRendezvousHandler(RendezvousHandler):
                     time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
-                        raise TimeoutError(
+                        err_msg = (
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                        _rdzv_evt.fail(error=err_msg)
+                        raise TimeoutError(err_msg)
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
@@ -373,6 +387,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
+                _rdzv_evt.fail(error=err_msg)
                 raise TimeoutError(err_msg)
             time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
@@ -388,6 +403,12 @@ class MasterRendezvousHandler(RendezvousHandler):
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
             self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
+
+        _rdzv_evt.success(
+            round=round,
+            rank=rank,
+            world_size=world_size,
+        )
         store = self._get_store(round, group)
         return store, world
 
@@ -1030,6 +1051,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 finally:
                     self._client.report_succeeded_exited()
                     logger.info("Succeeded and exit.")
+                    _agent_evt.process_succeeded(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                    )
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
@@ -1061,13 +1086,32 @@ class ElasticTrainingAgent(LocalElasticAgent):
                             action_type=DiagnosisActionType.RELAUNCH_WORKER,
                         )
                 self._process_diagnosis_action(action)
+
                 if self._worker_group.state == WorkerState.FAILED:
+                    _agent_evt.process_fail(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                    )
                     return run_result
+
+                _agent_evt.process_restart(
+                    node_rank=self._node_rank,
+                    return_values=run_result.return_values,
+                    restart_count=self._restart_count,
+                    remaining_restarts=self._remaining_failovers,
+                )
+
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
                     self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
+                    _agent_evt.process_restart(
+                        node_rank=self._node_rank,
+                        return_values=run_result.return_values,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                    )
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
@@ -1292,6 +1336,8 @@ def launch_agent(
         f"  accelerator      : {config.accelerator}\n"
     )
 
+    _agent_evt.start(args=vars(config))
+
     _set_paral_config()
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
@@ -1331,11 +1377,13 @@ def launch_agent(
             # if the error files for the failed children exist
             # @record will copy the first error (root cause)
             # to the error file of the launcher process.
+            _agent_evt.exit(success=False)
             raise ChildFailedError(
                 name=entrypoint_name,
                 failures=result.failures,
             )
 
+        _agent_evt.exit(success=True)
         return result.return_values
     except ChildFailedError:
         raise
@@ -1473,6 +1521,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
+            )
+            _agent_evt.node_check(
+                round=i,
+                elapsed_time=elapsed_time,
+                status=result,
             )
 
             success = success or result
@@ -1687,13 +1740,19 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
     else:
         logger.warning(f"Unsupported accelerator chip {config.accelerator}.")
         return True
-    for _ in range(2):
+    for _round in range(2):
         # If network fails because other abnormal node, We
         # will retry to check network after the new node is starting.
         # DLRover will replace the abnormal node with a new node.
         success = node_health_check(
             config=config, entrypoint=entrypoint, args=cmd_args
         )
+        _agent_evt.network_check(
+            round=_round,
+            success=success,
+            config=config,
+        )
+
         if success:
             break
         else:
