@@ -41,7 +41,7 @@ class LocalJobMaster(JobMaster):
         self.speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(0, self.speed_monitor)
         self.job_manager = create_job_manager(args, self.speed_monitor)
-        self.diagnosis_manager = DiagnosisManager(job_name=args.job_name)
+        self.diagnosis_manager = DiagnosisManager(args)
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),

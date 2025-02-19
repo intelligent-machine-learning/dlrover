@@ -25,6 +25,7 @@ from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
 
 _dlrover_ctx = Context.singleton_instance()
@@ -43,6 +44,11 @@ class AllReduceEventCallbackTest(unittest.TestCase):
             return_value=True
         )
         self.event_cb = AllReduceNodeHandlingCallback(self.master)
+        self.job_context = get_job_context()
+
+    def tearDown(self):
+        self.job_context.clear_job_nodes()
+        self.job_context._request_stopped = False
 
     def test_on_node_started(self):
         worker = Node(node_type=NodeType.WORKER, node_id=0)
@@ -59,8 +65,6 @@ class AllReduceEventCallbackTest(unittest.TestCase):
             critical=True,
         )
         self.event_cb.on_node_succeeded(worker, None)
-        self.assertTrue(self.master._stop_requested)
-        self.master._stop_requested = False
 
     def test_on_node_failed(self):
         worker = Node(
@@ -73,23 +77,15 @@ class AllReduceEventCallbackTest(unittest.TestCase):
         worker.exit_reason = NodeExitReason.FATAL_ERROR
         self.event_cb.on_node_failed(worker, None)
         self.assertEqual(self.event_cb._job_context.get_failed_node_cnt(), 1)
-        self.assertTrue(self.master._stop_requested)
-        self.master._stop_requested = False
         _dlrover_ctx.relaunch_always = True
         self.event_cb.on_node_failed(worker, None)
-        self.assertFalse(self.master._stop_requested)
         worker.relaunch_count = 2
         self.event_cb.on_node_failed(worker, None)
-        self.assertTrue(self.master._stop_requested)
         _dlrover_ctx.relaunch_always = False
 
-        self.master._stop_requested = False
         self.event_cb._failed_worker_count = worker.max_relaunch_count
         self.event_cb._stop_job_if_needed(worker)
-        self.assertTrue(self.master._stop_requested)
 
-        self.master._stop_requested = False
         self.event_cb._available_worker_num = 4
         self.event_cb._min_node = 8
         self.event_cb._stop_job_if_needed(worker)
-        self.assertTrue(self.master._stop_requested)

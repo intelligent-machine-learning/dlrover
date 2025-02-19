@@ -78,14 +78,16 @@ from dlrover.python.common.constants import (
     ConfigPath,
     JobConstant,
     NodeEnv,
-    NodeErrorMessage,
     NodeEventType,
     RendezvousName,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import DiagnosisActionType
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
@@ -1073,10 +1075,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
                         action = NodeAction(
+                            node_id=env_utils.get_node_id(),
+                            node_type=env_utils.get_node_type(),
+                            instance=DiagnosisConstant.LOCAL_INSTANCE,
                             action_type=DiagnosisActionType.RESTART_WORKER,
                         )
                     else:
                         action = NodeAction(
+                            node_id=env_utils.get_node_id(),
+                            node_type=env_utils.get_node_type(),
+                            instance=DiagnosisConstant.LOCAL_INSTANCE,
                             action_type=DiagnosisActionType.RELAUNCH_WORKER,
                         )
                 self._process_diagnosis_action(action)
@@ -1219,7 +1227,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
         self._remaining_restarts -= 1
-        # Relase the shared memory lock before starting workers.
+        # Release the shared memory lock before starting workers.
         AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
 
@@ -1565,7 +1573,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeErrorMessage.NETWORKER_ERROR,
+                NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError("This node is down.")

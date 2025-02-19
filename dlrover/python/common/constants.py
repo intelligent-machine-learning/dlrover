@@ -99,6 +99,13 @@ class NodeEventType(object):
     FAILED_EXITED = "FAILED_EXITED"
     NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
+    MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
+
+
+class PendingTimeoutStrategyType(object):
+    SKIP = 0
+    NECESSARY = 1
+    ALL = 2
 
 
 class GpuMetricEnum(object):
@@ -139,6 +146,7 @@ class NodeExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
+    DIAG_FAIL = "DiagnosticFailure"
 
 
 class JobExitReason(object):
@@ -324,11 +332,6 @@ class RendezvousName(object):
     NETWORK_CHECK = "network-check"
 
 
-class NodeErrorMessage(object):
-    NETWORKER_ERROR = "Network is breakdown"
-    SOCKET_GAIERROR = "Name or service not known"
-
-
 class NetworkFailureReason(object):
     NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
@@ -420,6 +423,7 @@ class ErrorMonitorConstants(object):
     JOB_INSTANCE = "job"
 
     ACTION_WORKER_CREATE = "worker_create"
+    ACTION_WORKER_PENDING = "worker_pending"
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"
