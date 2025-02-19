@@ -315,6 +315,16 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
         self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
 
+        # reset relaunch count
+        node.relaunch_count = 0
+        node.exit_reason = NodeExitReason.OOM
+        node.config_resource.memory = 655
+        self.assertTrue(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+        node.config_resource.memory = 65537
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+        node.config_resource.memory = 655
         manager.is_all_reduce_type_job = MagicMock(return_value=True)
         node.exit_reason = NodeExitReason.OOM
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
