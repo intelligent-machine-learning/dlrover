@@ -17,7 +17,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from kubernetes import client
 
@@ -244,6 +244,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
 
+        manager._job_optimizer.adjust_oom_resource = MagicMock(
+            return_value=None
+        )
+
         # reset failed nodes for testing
         self.job_context._failed_nodes = {}
         self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
@@ -314,6 +318,20 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
         )
         self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
+
+        # reset relaunch count
+        node.relaunch_count = 0
+        node.exit_reason = NodeExitReason.OOM
+        node.config_resource.memory = 655
+        self.assertTrue(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+        node.config_resource.memory = 65537
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+        node.config_resource.memory = 655
+        manager.is_all_reduce_type_job = MagicMock(return_value=True)
+        node.exit_reason = NodeExitReason.OOM
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
