@@ -111,7 +111,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     JobConstant,
     NodeEnv,
-    NodeErrorMessage,
+    NodeEventType,
     PreCheckStatus,
     TrainingExceptionLevel,
 )
@@ -278,6 +278,9 @@ def wait_pre_check():
             break
         elif status == PreCheckStatus.FAIL:
             logger.info("Pre check failed, training will abort...")
+        elif status == PreCheckStatus.DISABLED:
+            logger.info("Pre check disabled.")
+            break
         else:
             logger.info(
                 f"Pre check not passed yet, status: {status}, "
@@ -335,7 +338,7 @@ def _check_dlrover_master_available(addr, timeout=120):
         except socket.gaierror as e:
             client = MasterClient.singleton_instance(addr)
             client.report_failures(
-                NodeErrorMessage.SOCKET_GAIERROR,
+                NodeEventType.MASTER_CONNECTION_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise e

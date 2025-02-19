@@ -10,9 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
+import time
 import unittest
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -22,12 +24,17 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.global_context import Context
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    JobAbortionAction,
+    NoAction,
+)
 from dlrover.python.elastic_agent.master_client import build_master_client
+from dlrover.python.master.args import parse_master_args
 from dlrover.python.master.dist_master import (
     DistributedJobMaster,
     _create_master_service_on_k8s,
 )
-from dlrover.python.master.main import update_context
+from dlrover.python.master.main import run, update_context
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
@@ -49,6 +56,7 @@ class DistributedJobMasterTest(unittest.TestCase):
 
     def tearDown(self):
         self.job_context.clear_job_nodes()
+        self.job_context._request_stopped = False
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()
@@ -120,20 +128,63 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.assertTrue(_dlrover_context.auto_ps_enabled)
         self.assertTrue(_dlrover_context.auto_worker_enabled)
 
+    @patch("dlrover.python.master.local_master.LocalJobMaster.__init__")
+    def test_run(self, mock_master_init):
+        # interrupt when init master(no need for the test)
+        mock_master_init.side_effect = Exception("test")
+
+        original_args = [
+            "--platform",
+            "local",
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+        ]
+
+        try:
+            run(parse_master_args(original_args))
+        except Exception:
+            pass
+
     def test_create_master_service_on_k8s(self):
         succeed = _create_master_service_on_k8s(
             "dlrover", "test", "12345", 12345
         )
         self.assertTrue(succeed)
 
+    @patch(
+        "dlrover.python.master.dist_master.DistributedJobMaster.request_stop"
+    )
+    def test_diagnose_job(self, mock_request_stop):
+        # close thread in 3 secs
+        def stop_master():
+            time.sleep(3)
+            get_job_context().request_stop()
+
+        threading.Thread(target=stop_master).start()
+
+        # test actions
+        get_job_context().enqueue_action(JobAbortionAction())
+        get_job_context().enqueue_action(NoAction())
+        self.master._diagnose_job()
+        mock_request_stop.assert_called_once()
+
+    def test_pre_check(self):
+        self.master.diagnosis_manager.pre_check = MagicMock(return_value=True)
+        self.master.pre_check()
+
 
 class LocalJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         self.master_client = build_master_client(addr, 0.5)
+        self.job_context = get_job_context()
 
     def tearDown(self):
         self._master.stop()
+        self.job_context.clear_job_nodes()
+        self.job_context._request_stopped = False
 
     def test_task_manager(self):
         self.master_client.report_dataset_shard_params(
@@ -157,3 +208,17 @@ class LocalJobMasterTest(unittest.TestCase):
         self.assertEqual(round, 1)
         self.assertEqual(group, 0)
         self.assertEqual(world[0], 8)
+
+    def test_start_and_stop(self):
+        mock_k8s_client()
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        master = DistributedJobMaster(2222, params)
+
+        try:
+            master.prepare()
+            active_threads_name = [t.name for t in threading.enumerate()]
+            self.assertIn("job_diagnosing", active_threads_name)
+            master.request_stop(True, "", "")
+        except Exception:
+            pass

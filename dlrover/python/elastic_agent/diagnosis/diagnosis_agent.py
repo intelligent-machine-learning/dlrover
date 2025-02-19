@@ -14,14 +14,11 @@
 import json
 import threading
 import time
-import os
 from datetime import datetime
 from typing import Dict, List
 
-from dlrover.python.common.constants import (
-    TrainingExceptionLevel,
-    NodeEnv,
-)
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -60,6 +57,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.training_event.config import Config
 
 evt_config = Config.singleton_instance()
+
 
 class DiagnosisAgent(Singleton):
     def __init__(
@@ -262,6 +260,9 @@ class DiagnosisAgent(Singleton):
                 f"attempts left; will restart worker group."
             )
             return NodeAction(
+                node_id=env_utils.get_node_id(),
+                node_type=env_utils.get_node_type(),
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
                 action_type=DiagnosisActionType.RESTART_WORKER,
             )
         else:
@@ -274,6 +275,9 @@ class DiagnosisAgent(Singleton):
                 "left; will relaunch."
             )
             return NodeAction(
+                node_id=env_utils.get_node_id(),
+                node_type=env_utils.get_node_type(),
+                instance=DiagnosisConstant.LOCAL_INSTANCE,
                 action_type=DiagnosisActionType.RELAUNCH_WORKER,
             )
 

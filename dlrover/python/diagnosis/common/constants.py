@@ -47,6 +47,7 @@ class DiagnosisConstant(object):
 
 class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
+    PRE_CHECK_FAILED = "Pre-check failed"
 
 
 class DiagnosisDataType(object):
@@ -62,6 +63,7 @@ class DiagnosisActionType(object):
     LOG = "log"
 
     # master operation
+    JOB_ABORT = "job_abortion"
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
 
@@ -85,6 +87,8 @@ class DiagnosisResult(object):
     DIAG_STRAGGLE = "straggle"
     # diag finished, job has failure node
     DIAG_FAILURE = "failure"
+    # diag finished, job has failure which cause abortion
+    DIAG_ABORT = "abort"
 
 
 class JobHangPolicy(object):

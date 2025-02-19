@@ -29,7 +29,7 @@ func TestCreateMasterPod(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ps",
 			Namespace:   "dlrover",
-			Annotations: map[string]string{"pending_timeout": "300", "service_type": "http"},
+			Annotations: map[string]string{"pending_timeout": "300", "service_type": "http", "pre_check_ops": "[]"},
 			Labels:      map[string]string{},
 		},
 	}

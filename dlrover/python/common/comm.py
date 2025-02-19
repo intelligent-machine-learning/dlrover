@@ -21,7 +21,7 @@ import grpc
 from dlrover.python.common.constants import GRPC
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
-from dlrover.python.training_event.event import EventType, Event
+from dlrover.python.training_event.event import EventType as TrainingEventType
 
 TIMEOUT_SEC = 5
 
@@ -235,7 +235,7 @@ class AtorchEvent(Message):
     step: int = 0
     target: str = ""
     name: str = ""
-    type: EventType = EventType.BEGIN
+    type: TrainingEventType = TrainingEventType.BEGIN
 
 
 @dataclass
