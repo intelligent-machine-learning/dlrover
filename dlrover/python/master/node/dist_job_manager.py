@@ -890,7 +890,13 @@ class DistributedJobManager(JobManager):
                 msg = "Disable relaunch"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
-                if mem >= NodeResourceLimit.MAX_MEMORY:
+                if self.is_all_reduce_type_job():
+                    should_relaunch = False
+                    logger.warning(
+                        "The all-reduce type job will not try to recover node "
+                        "error with oom issue."
+                    )
+                elif mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "

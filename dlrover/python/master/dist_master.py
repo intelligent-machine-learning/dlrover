@@ -130,6 +130,7 @@ class DistributedJobMaster(JobMaster):
                     "The master cannot recover from the failure."
                 )
 
+        self._job_ctx = get_job_context()
         self.speed_monitor = SpeedMonitor()
         self.job_manager = (
             create_job_manager(args, self.speed_monitor)
@@ -218,14 +219,13 @@ class DistributedJobMaster(JobMaster):
 
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
-        job_ctx = get_job_context()
         while True:
-            if job_ctx.is_request_stopped():
+            if self._job_ctx.is_request_stopped():
                 logger.info("Stop diagnosing job.")
                 break
 
             # deal with diagnosis action
-            action = job_ctx.next_action(
+            action = self._job_ctx.next_action(
                 instance=DiagnosisConstant.MASTER_INSTANCE
             )
 
@@ -250,7 +250,7 @@ class DistributedJobMaster(JobMaster):
             logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
         except TimeoutException:
             logger.warning("Pre-check timeout, set pass as result for safety.")
-            get_job_context().set_pre_check_status(PreCheckStatus.PASS)
+            self._job_ctx.set_pre_check_status(PreCheckStatus.PASS)
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""
@@ -290,7 +290,7 @@ class DistributedJobMaster(JobMaster):
         # into running loop
         try:
             while True:
-                if get_job_context().is_request_stopped():
+                if self._job_ctx.is_request_stopped():
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
@@ -399,4 +399,4 @@ class DistributedJobMaster(JobMaster):
                     "success": f"{success}",
                 },
             )
-        get_job_context().request_stop()
+        self._job_ctx.request_stop()

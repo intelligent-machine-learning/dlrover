@@ -17,7 +17,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from kubernetes import client
 
@@ -314,6 +314,10 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
         )
         self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
+
+        manager.is_all_reduce_type_job = MagicMock(return_value=True)
+        node.exit_reason = NodeExitReason.OOM
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
