@@ -21,6 +21,7 @@ import grpc
 from dlrover.python.common.constants import GRPC
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
+from dlrover.python.training_event.event import EventType, Event
 
 TIMEOUT_SEC = 5
 
@@ -226,6 +227,15 @@ class GlobalStep(Message):
 @dataclass
 class HeartBeat(Message):
     timestamp: int = 0
+
+
+@dataclass
+class AtorchEvent(Message):
+    timestamp: int = 0
+    step: int = 0
+    target: str = ""
+    name: str = ""
+    type: EventType = EventType.BEGIN
 
 
 @dataclass

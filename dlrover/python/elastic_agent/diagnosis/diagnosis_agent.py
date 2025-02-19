@@ -14,10 +14,14 @@
 import json
 import threading
 import time
+import os
 from datetime import datetime
 from typing import Dict, List
 
-from dlrover.python.common.constants import TrainingExceptionLevel
+from dlrover.python.common.constants import (
+    TrainingExceptionLevel,
+    NodeEnv,
+)
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -53,7 +57,9 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.training_event.config import Config
 
+evt_config = Config.singleton_instance()
 
 class DiagnosisAgent(Singleton):
     def __init__(
@@ -61,6 +67,7 @@ class DiagnosisAgent(Singleton):
         training_log_file="",
         errors="",
         rank=-1,
+        local_world_size=0,
     ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
@@ -91,6 +98,7 @@ class DiagnosisAgent(Singleton):
         self._diagnosis_thread = None
         self._report_thread = None
         self._rank = rank
+        self._local_world_size = local_world_size
 
         self.start()
 
@@ -127,6 +135,14 @@ class DiagnosisAgent(Singleton):
             daemon=True,
         )
         self._report_thread.start()
+
+        # if atorch enabled, then collect events
+        self._atorch_collector_thread = threading.Thread(
+            target=self._atorch_collector,
+            name="atorch_collector",
+            daemon=True,
+        )
+        self._atorch_collector_thread.start()
 
     def stop(self):
         self._stopped = True
@@ -300,3 +316,6 @@ class DiagnosisAgent(Singleton):
             time.sleep(
                 DiagnosisConstant.AGENT_PERIODICALLY_REPORT_INTERVAL_SECS
             )
+
+    def _atorch_collector(self):
+        pass

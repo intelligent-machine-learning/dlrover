@@ -491,7 +491,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if with_diagnostician:
             self._diagnose_agent = DiagnosisAgent.singleton_instance(
-                training_log_file, failure_node_errors, node_rank
+                training_log_file=training_log_file,
+                errors=failure_node_errors,
+                rank=node_rank,
+                local_world_size=config.nproc_per_node,
             )
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
