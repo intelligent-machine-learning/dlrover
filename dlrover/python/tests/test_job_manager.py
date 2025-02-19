@@ -244,6 +244,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
 
+        manager._job_optimizer.adjust_oom_resource = MagicMock(
+            return_value=None
+        )
+
         # reset failed nodes for testing
         self.job_context._failed_nodes = {}
         self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
