@@ -86,6 +86,7 @@ For auto-tuning parallelism configuration, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
+
 import os
 import socket
 import sys
@@ -122,6 +123,7 @@ from dlrover.python.elastic_agent.torch.training import (
     launch_agent,
 )
 from dlrover.python.training_event import DLRoverAgentEvent
+from dlrover.python.util.function_util import retry
 from dlrover.trainer.torch.utils import version_less_than_230
 
 
@@ -472,6 +474,21 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
         raise ValueError(f"{master_addr} is not connected. ")
 
 
+@retry(retry_times=5, retry_interval=1)
+def check_dlrover_master_address(master_addr):
+    if not master_addr:
+        raise ValueError("Master address is invalid.")
+    if not comm.addr_connected(master_addr):
+        raise RuntimeError("Failed to connect to master.")
+    return True
+
+
+def is_local_master_supported() -> bool:
+    if "True" == env_utils.get_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED):
+        return True
+    return False
+
+
 def run(args):
     # export event for dlrover agent
     agent = DLRoverAgentEvent.singleton_instance()
@@ -484,17 +501,29 @@ def run(args):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
-    dlrover_master_ready = comm.addr_connected(master_addr)
     _, max_nodes = parse_min_max_nnodes(args.nnodes)
-    if not dlrover_master_ready and node_rank == 0:
-        # Only start the dlrover master on the rank-0 node.
-        master_handler, master_addr = _launch_dlrover_local_master(
-            master_addr,
-            job_name,
-            max_nodes,
-        )
-        logger.info(f"Set the dlrover master addr as {master_addr}")
-        os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
+
+    if is_local_master_supported():
+        # if dist master connection failed, will use local master instead
+        try:
+            check_dlrover_master_address(master_addr)
+        except Exception as e:
+            logger.warning(f"{e}")
+
+            # create local master(rank 0) if dist master connection failed
+            if node_rank == 0:
+                # Only start the dlrover master on the rank-0 node.
+                master_handler, master_addr = _launch_dlrover_local_master(
+                    master_addr,
+                    job_name,
+                    max_nodes,
+                )
+                logger.info(f"Set the dlrover master addr as {master_addr}")
+                os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
+    else:
+        # if dist master connection failed, will raise exception directly
+        check_dlrover_master_address(master_addr)
+
     use_dlrover_launch = _check_to_use_dlrover_run(master_addr, max_nodes)
 
     if args.standalone and not use_dlrover_launch:

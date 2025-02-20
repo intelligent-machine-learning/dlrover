@@ -19,7 +19,8 @@ import unittest
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
-from dlrover.python.common.constants import PreCheckStatus
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv, PreCheckStatus
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -30,6 +31,8 @@ from dlrover.trainer.torch.elastic_run import (
     _check_to_use_dlrover_run,
     _elastic_config_from_args,
     _launch_dlrover_local_master,
+    check_dlrover_master_address,
+    is_local_master_supported,
     parse_args,
     wait_pre_check,
 )
@@ -169,3 +172,31 @@ class ElasticRunTest(unittest.TestCase):
         threading.Thread(target=set_pre_check_success).start()
         wait_pre_check()
         self.assertTrue(time.time() - start > 0.5)
+
+    def test_is_local_master_supported(self):
+        self.assertFalse(is_local_master_supported())
+
+        env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "False")
+        self.assertFalse(is_local_master_supported())
+
+        env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "F")
+        self.assertFalse(is_local_master_supported())
+
+        env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, None)
+        self.assertFalse(is_local_master_supported())
+
+        env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "")
+        self.assertFalse(is_local_master_supported())
+
+        env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "True")
+        self.assertTrue(is_local_master_supported())
+
+    def test_check_dlrover_master_address(self):
+        start = time.time()
+        try:
+            check_dlrover_master_address("")
+            self.fail()
+        except ValueError:
+            self.assertTrue(time.time() - start > 3)
+        except Exception:
+            self.fail()

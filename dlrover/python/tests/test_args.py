@@ -90,6 +90,7 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.job_name, "test")
         self.assertTrue(parsed_args.namespace, "default")
+        self.assertTrue(parsed_args.local_master_enabled)
         self.assertEqual(parsed_args.pending_timeout, 900)
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
         self.assertTrue(parsed_args.service_type, "grpc")
@@ -100,6 +101,8 @@ class ArgsTest(unittest.TestCase):
             "test",
             "--namespace",
             "default",
+            "--local_master_enabled",
+            "False",
             "--pending_timeout",
             "600",
             "--pending_fail_strategy",
@@ -110,6 +113,7 @@ class ArgsTest(unittest.TestCase):
             "[('t1', 't2', 'y')]",
         ]
         parsed_args = parse_master_args(original_args)
+        self.assertFalse(parsed_args.local_master_enabled)
         self.assertEqual(parsed_args.pending_timeout, 600)
         self.assertEqual(parsed_args.pending_fail_strategy, 2)
         self.assertTrue(parsed_args.service_type, "http")
