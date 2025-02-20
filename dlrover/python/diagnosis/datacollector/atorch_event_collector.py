@@ -13,6 +13,7 @@
 
 import os
 import re
+import threading
 import time
 from ast import literal_eval
 from datetime import datetime
@@ -43,12 +44,17 @@ class AtorchEventCollector(Singleton):
 
     """
 
-    def __init__(self, filepath=Config.file_dir):
+    def __init__(
+        self, filepath=Config.file_dir, local_world_size=1, retry_timeout=30
+    ):
         super().__init__()
         self._prefix_pattern = r"\s*\[(.*?)\]\s*"
         self._stop_collector = False
         self._client = MasterClient.singleton_instance()
         self._filepath = filepath
+        self._retry_timeout = retry_timeout
+        self._ranks = local_world_size
+        self._threads = []
 
     def parse_line(self, line):
         match = re.findall(self._prefix_pattern, line)
@@ -92,16 +98,19 @@ class AtorchEventCollector(Singleton):
 
         return event_ts, event_target, event_name, event_type, event_step
 
-    def collect_events(self, rank: int):
-        filepath = os.path.join(self._filepath, f"events_{rank}.log")
+    def _report_event(self, ts, target, event_name, event_type, step):
+        self._client.report_atorch_event(
+            ts, target, event_name, event_type, step
+        )
 
+    def _monitor_file(self, filepath):
         with open(filepath, "r") as f:
-            logger.info(f"Atorch collector is working on {filepath}")
+            logger.info(f"Collecting events on {filepath}")
             f.seek(0, 0)
 
             while True:
                 if self._stop_collector:
-                    logger.info("Atorch collector stopped.")
+                    logger.info(f"Stop collect events on {filepath}")
                     break
 
                 line = f.readline()
@@ -115,11 +124,44 @@ class AtorchEventCollector(Singleton):
                     )
                 except (AtorchNotFoundException, AtorchInvalidException):
                     continue
-                except (ValueError, KeyError) as e:
+                except (ValueError, KeyError, SyntaxError) as e:
                     logger.error(f"Parse {line} error: {e}")
+                    continue
                 except Exception as e:
                     logger.error(f"Parse {line} unexpected error: {e}")
+                    continue
 
-                self._client.report_atorch_event(
-                    ts, target, event_name, event_type, step
-                )
+                self._report_event(ts, target, event_name, event_type, step)
+
+    def collect_events(self, rank: int):
+        filepath = os.path.join(self._filepath, f"events_{rank}.log")
+
+        while not self._stop_collector:
+            try:
+                self._monitor_file(filepath)
+            except FileNotFoundError:
+                time.sleep(self._retry_timeout)
+                continue
+            except (PermissionError, IOError, OSError) as e:
+                logger.error(f"Error reading {filepath}: {e}")
+                time.sleep(self._retry_timeout)
+                continue
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                time.sleep(self._retry_timeout)
+                continue
+
+    def start_collectors(self):
+        self._stop_collector = False
+        for rank in range(self._ranks):
+            thread = threading.Thread(
+                target=self.collect_events,
+                args=(rank,),
+                name=f"atorch_collector_{rank}",
+                daemon=True,
+            )
+            thread.start()
+            self._threads.append(thread)
+
+    def stop_collectors(self):
+        self._stop_collector = True
