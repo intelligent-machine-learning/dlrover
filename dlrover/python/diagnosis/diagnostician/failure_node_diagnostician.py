@@ -1,32 +1,41 @@
-from dlrover.python.diagnosis.diagnostician.diagnostician import Diagnostician
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import (
+    Observation,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
     ObservationAction,
-    NodeAction,
 )
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import (
-    Observation,
-    DiagnosisConstant,
-    DiagnosisActionType,
-)
-from dlrover.python.elastic_agent.context import get_agent_context
-from dlrover.python.common import env_utils
+from dlrover.python.diagnosis.diagnostician.diagnostician import Diagnostician
 
 
 class FailureNodeDiagnostician(Diagnostician):
     """
     FailureNodeDiagnostician is to observe and resolve the failure node problem
     """
+
     def __init__(self):
         super().__init__()
-        self._agent_context = get_agent_context()
 
     def observe(self, log_file: str, errors: str) -> DiagnosisAction:
+        print(f"file={log_file}, errors={errors}\n")
         # temp usage: express the env for specified error info
         # e.g.
         # export FAILURE_NODE_ERRORS="#error code is 12345# error code is
@@ -59,37 +68,4 @@ class FailureNodeDiagnostician(Diagnostician):
         return NoAction()
 
     def resolve(self, problem: DiagnosisAction, **kwargs) -> DiagnosisAction:
-        if not isinstance(problem, ObservationAction):
-            return NoAction()
-
-        problem.__class__ = ObservationAction
-        if self._agent_context.remaining_failovers > 0 and not problem.node_failed():
-            logger.info(
-                f"[{self._agent_context.worker_spec.role}] Worker group "
-                f"{self._agent_context.run_result.state.name}, "
-                f"is failure node: {problem.node_failed()},"
-                f"{self._agent_context.remaining_failovers}/"
-                f"{self._agent_context.worker_spec.max_restarts} "
-                f"attempts left; will restart worker group."
-            )
-            return NodeAction(
-                node_id=env_utils.get_node_id(),
-                node_type=env_utils.get_node_type(),
-                instance=DiagnosisConstant.LOCAL_INSTANCE,
-                action_type=DiagnosisActionType.RESTART_WORKER,
-            )
-        else:
-            logger.info(
-                f"[{self._agent_context.worker_spec.role}] Worker group "
-                f"{self._agent_context.run_result.state.name}, "
-                f"is failure node: {problem.node_failed()}, "
-                f"no attempts("
-                f"{self._agent_context.worker_spec.max_restarts}) "
-                "left; will relaunch."
-            )
-            return NodeAction(
-                node_id=env_utils.get_node_id(),
-                node_type=env_utils.get_node_type(),
-                instance=DiagnosisConstant.LOCAL_INSTANCE,
-                action_type=DiagnosisActionType.RELAUNCH_WORKER,
-            )
+        return NoAction()

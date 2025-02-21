@@ -300,7 +300,6 @@ class ObservationAction(DiagnosisAction):
         return self._observation == Observation.NODE_FAILED
 
 
-
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
     if isinstance(action1, EventAction) and isinstance(action2, EventAction):
         action1.__class__ = EventAction

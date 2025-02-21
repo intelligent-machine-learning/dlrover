@@ -86,8 +86,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         errors = "error code is 11111"
 
-        agent = DiagnosisAgent.singleton_instance()
-        agent.update_config(file_path, errors)
+        agent = DiagnosisAgent.singleton_instance(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,
