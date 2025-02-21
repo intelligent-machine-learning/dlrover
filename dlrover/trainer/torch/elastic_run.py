@@ -484,7 +484,8 @@ def check_dlrover_master_address(master_addr):
 
 
 def is_local_master_supported() -> bool:
-    if "True" == env_utils.get_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED):
+    env_value = env_utils.get_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED)
+    if env_value and "true" == env_value.lower():
         return True
     return False
 

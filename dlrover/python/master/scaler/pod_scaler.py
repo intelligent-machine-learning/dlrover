@@ -477,7 +477,7 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(
                 name=NodeEnv.DLROVER_LOCAL_MASTER_ENABLED,
-                value=_dlrover_context.local_master_enabled,
+                value=str(_dlrover_context.local_master_enabled).lower(),
             )
         )
 
