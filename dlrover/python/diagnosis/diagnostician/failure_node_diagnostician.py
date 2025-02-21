@@ -35,7 +35,6 @@ class FailureNodeDiagnostician(Diagnostician):
         super().__init__()
 
     def observe(self, log_file: str, errors: str) -> DiagnosisAction:
-        print(f"file={log_file}, errors={errors}\n")
         # temp usage: express the env for specified error info
         # e.g.
         # export FAILURE_NODE_ERRORS="#error code is 12345# error code is

@@ -55,7 +55,6 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    get_training_failure_operators,
     get_worker_observe_operators,
     get_worker_resolve_operators,
 )
@@ -123,10 +122,13 @@ class DiagnosisAgent(Singleton):
     ):
         if len(training_log_file) > 0:
             self._training_log_file = training_log_file
+            logger.info(f"Update training_log_file: {training_log_file}")
         if len(errors) > 0:
             self._errors = errors
+            logger.info(f"Update errors: {errors}")
         if rank >= 0:
             self._rank = rank
+            logger.info(f"Update rank: {rank}")
 
     def start(self):
         self._stopped = False

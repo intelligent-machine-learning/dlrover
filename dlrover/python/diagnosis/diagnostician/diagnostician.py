@@ -60,7 +60,7 @@ class DiagnosticianManager:
             return NoAction()
 
         try:
-            print(f"observe {name}\n")
+            print(f"args: {kwargs}\n")
             return diagnostician.observe(**kwargs)
         except Exception as e:
             logger.error(f"Fail to observe {name}: {e}")
