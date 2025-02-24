@@ -90,9 +90,15 @@ class ErrorHandler:
 
     def _call_original_handler(self, signum, frame):
         """call original handler with signal"""
+
+        # if the handler is callable, call it
         if callable(self._original_handlers[signum]):
             self._original_handlers[signum](signum, frame)
-        elif self._original_handlers[signum] == signal.SIG_IGN:
+        # if the handler is SIG_IGN or signal is SIGCHLD, do nothing
+        elif (
+            self._original_handlers[signum] == signal.SIG_IGN
+            or signum == signal.SIGCHLD
+        ):
             return
         else:
             if self._registered:
