@@ -17,6 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import (
     NodeType,
     OptimizeMode,
+    PreCheckStatus,
     RendezvousName,
     ReporterType,
 )
@@ -29,6 +30,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -89,7 +91,7 @@ class LocalJobMaster(JobMaster):
         self.job_manager.start()
 
     def pre_check(self):
-        pass
+        get_job_context().set_pre_check_status(PreCheckStatus.DISABLED)
 
     def run(self):
         """
