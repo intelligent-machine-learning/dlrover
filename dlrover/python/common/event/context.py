@@ -1,4 +1,4 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -81,8 +81,10 @@ class StepEvents(object):
                 if len(keys) > 0:
                     last_event = self._step_events[keys[-1]]
                     if (
-                        event.step <= last_event.step
-                        or event.timestamp < last_event.end_timestamp
+                        event.step != last_event.step
+                        or event.timestamp <= last_event.end_timestamp
+                        or last_event.event_state
+                        != TrainEventState.TRAIN_EVT_END
                     ):
                         logger.error(f"invalid step: {last_event}, {event}")
                         return
@@ -100,12 +102,17 @@ class StepEvents(object):
                 last_key = keys[-1]
                 step_event = self._step_events[last_key]
                 if (
-                    step_event.step != event.step
+                    step_event.step + 1 != event.step
                     or step_event.begin_timestamp > event.timestamp
+                    or step_event.event_state
+                    != TrainEventState.TRAIN_EVT_BEGIN
                 ):
                     logger.error(f"invalid step: {step_event}, {event}")
                     return
+
                 step_event.end_timestamp = event.timestamp
+                step_event.step = event.step
+                step_event.event_state = TrainEventState.TRAIN_EVT_END
                 step_event.localtime = int(datetime.now().timestamp())
                 self._step_events[last_key] = step_event
 

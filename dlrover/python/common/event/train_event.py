@@ -1,4 +1,4 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta
+from dataclasses import dataclass
 from datetime import datetime
 
 from dlrover.python.training_event.predefined.trainer import TrainerEventName
@@ -34,8 +35,8 @@ class TrainEventName(object):
 
 class TrainEventState(object):
     TRAIN_EVT_ONCE = "once"
-    TRAIN_EVT_BEGIN = "begin"
-    TRAIN_EVT_END = "end"
+    TRAIN_EVT_BEGIN = "start"
+    TRAIN_EVT_END = "finish"
 
 
 class TrainEvent(metaclass=ABCMeta):
@@ -93,13 +94,14 @@ class AtorchPredictEvent(TrainEvent):
         self.end_timestamp = None
 
 
+@dataclass
 class AtorchStepEvent(TrainEvent):
     def __init__(self, evt_name, evt_state, step):
         super().__init__(evt_name, evt_state)
         self.event_state = evt_state
         self.event_name = evt_name
         self.step = step
-        self.begin_timestamp = None
+        self.cbegin_timestamp = None
         self.end_timestamp = None
         self.ckpt_start = None
         self.ckpt_finish = None

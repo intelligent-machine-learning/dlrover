@@ -17,6 +17,12 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
+from dlrover.python.common.comm import AtorchEvent
+from dlrover.python.common.event.context import JobEventContext, StepEvents
+from dlrover.python.common.event.train_event import (
+    TrainEventName,
+    TrainEventState,
+)
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
     AtorchInvalidException,
@@ -24,6 +30,8 @@ from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
 )
 from dlrover.python.training_event.event import EventTargetName, EventTypeName
 from dlrover.python.training_event.predefined.trainer import TrainerEventName
+
+_event_context = JobEventContext.singleton_instance()
 
 
 class TrainingEventTest(unittest.TestCase):
@@ -165,3 +173,213 @@ class TrainingEventTest(unittest.TestCase):
             collector.start_collectors()
             self.assertEqual(collector._threads[0].is_alive(), True)
             collector.stop_collectors()
+
+    def test_atorch_step_inval_event(self):
+        test_events = StepEvents(max_events=2)
+        self.assertEqual(test_events.size(), 0)
+
+        now = int(datetime.now().timestamp())
+        evt0 = AtorchEvent(
+            timestamp=None,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.INSTANT,
+            step=0,
+        )
+        test_events.add_step_event(evt0)
+        self.assertEqual(test_events.size(), 0)
+
+        evt0 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.INSTANT,
+            step=None,
+        )
+        test_events.add_step_event(evt0)
+        self.assertEqual(test_events.size(), 0)
+
+        evt0 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_step_event(evt0)
+        self.assertEqual(test_events.size(), 0)
+
+    def test_atorch_step_event(self):
+        test_events = StepEvents(max_events=3)
+
+        now = int(datetime.now().timestamp())
+        evt1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_step_event(evt1)
+        self.assertEqual(test_events.size(), 1)
+
+        evt2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_step_event(evt2)
+        self.assertEqual(test_events.size(), 1)
+
+        last_step = test_events.get_last_step_event()
+        self.assertNotEqual(last_step.begin_timestamp, None)
+        self.assertEqual(last_step.end_timestamp, None)
+        self.assertEqual(
+            last_step.event_state, TrainEventState.TRAIN_EVT_BEGIN
+        )
+
+        evt2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_step_event(evt2)
+        self.assertEqual(test_events.size(), 1)
+
+        last_step = test_events.get_last_step_event()
+        self.assertNotEqual(last_step.begin_timestamp, None)
+        self.assertNotEqual(last_step.end_timestamp, None)
+        self.assertEqual(last_step.event_state, TrainEventState.TRAIN_EVT_END)
+        first_step = test_events.get_first_step_event()
+        self.assertEqual(first_step.step, last_step.step)
+
+        evt3 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_step_event(evt3)
+        self.assertEqual(test_events.size(), 1)
+
+        evt3 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_step_event(evt3)
+        self.assertEqual(test_events.size(), 1)
+
+        evt3 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_step_event(evt3)
+        self.assertEqual(test_events.size(), 2)
+
+        evt4 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=3,
+        )
+        test_events.add_step_event(evt4)
+        self.assertEqual(test_events.size(), 2)
+
+        last_step = test_events.get_last_step_event()
+        self.assertNotEqual(last_step.begin_timestamp, None)
+        self.assertNotEqual(last_step.end_timestamp, None)
+        self.assertEqual(last_step.event_state, TrainEventState.TRAIN_EVT_END)
+        first_step = test_events.get_first_step_event()
+        self.assertNotEqual(first_step.step, last_step.step)
+
+    def test_atorch_ckpt_event(self):
+        test_events = StepEvents(max_events=2)
+        now = int(datetime.now().timestamp())
+
+        ckpt1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.SAVER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_ckpt_event(ckpt1)
+        self.assertEqual(test_events.size(), 0)
+
+        evt1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_step_event(evt1)
+        self.assertEqual(test_events.size(), 1)
+
+        ckpt1 = AtorchEvent(
+            timestamp=None,
+            target=EventTargetName.SAVER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=None,
+        )
+        test_events.add_ckpt_event(ckpt1)
+        last_step = test_events.get_last_step_event()
+        self.assertEqual(last_step.ckpt_start, None)
+
+        ckpt1 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.SAVER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_ckpt_event(ckpt1)
+        last_step = test_events.get_last_step_event()
+        self.assertEqual(last_step.ckpt_start, None)
+
+        evt2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_step_event(evt2)
+        self.assertEqual(test_events.size(), 1)
+
+        ckpt1 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.SAVER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_ckpt_event(ckpt1)
+        last_step = test_events.get_last_step_event()
+        self.assertNotEqual(last_step.ckpt_start, None)
+        self.assertEqual(last_step.ckpt_finish, None)
+
+        ckpt2 = AtorchEvent(
+            timestamp=now + 10,
+            target=EventTargetName.SAVER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_ckpt_event(ckpt2)
+        last_step = test_events.get_last_step_event()
+        self.assertNotEqual(last_step.ckpt_start, None)
+        self.assertNotEqual(last_step.ckpt_finish, None)

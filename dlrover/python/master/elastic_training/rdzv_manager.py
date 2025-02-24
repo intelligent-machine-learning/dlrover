@@ -468,7 +468,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         node_elapsed_time=f"{node_elapsed_time}",
                     )
                     self._rdzv_evt = _master_evt.rendezvous(
-                        rendezvous_type=RendezvousName.ELASTIC_TRAINING,
+                        rendezvous_type=self._name,
                         round_num=self.get_rdzv_round(),
                         timeout_sec=self.get_waiting_timeout(),
                         max_nodes=self.get_max_nodes(),
