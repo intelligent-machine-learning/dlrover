@@ -186,6 +186,7 @@ class LocalJobMasterTest(unittest.TestCase):
         self._master.stop()
         self.job_context.clear_job_nodes()
         self.job_context._request_stopped = False
+        self.job_context._pre_check_status = PreCheckStatus.CHECKING
 
     def test_task_manager(self):
         self.master_client.report_dataset_shard_params(
