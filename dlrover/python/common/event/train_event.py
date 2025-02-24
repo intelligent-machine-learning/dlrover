@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from abc import ABCMeta
-from dataclasses import dataclass
 from datetime import datetime
 
 from dlrover.python.training_event.predefined.trainer import TrainerEventName
@@ -40,6 +39,21 @@ class TrainEventState(object):
 
 
 class TrainEvent(metaclass=ABCMeta):
+    """
+    TrainEvent is an abstract base class that defines the interface for
+    events come from trainer, e.g. Atorch. Users can also add their own
+    events from other trainers, e.g. Megatron, and give DLRover the
+    ability to trace and act on them.
+
+    We write an example of Atorch, by using training_event sdk
+    (dlrover/python/training_event), to expose key events so that DLRover
+    can trace these events, and make a healthcheck on the training procedure
+
+    By doing this, DLRover can check if job is hang, or going slow due to
+    some stragglers, and make diagnosis on these.
+
+    """
+
     def __init__(self, evt_name, evt_state):
         self.event_name = evt_name
         self.event_state = evt_state
@@ -94,14 +108,13 @@ class AtorchPredictEvent(TrainEvent):
         self.end_timestamp = None
 
 
-@dataclass
 class AtorchStepEvent(TrainEvent):
     def __init__(self, evt_name, evt_state, step):
         super().__init__(evt_name, evt_state)
         self.event_state = evt_state
         self.event_name = evt_name
         self.step = step
-        self.cbegin_timestamp = None
+        self.begin_timestamp = None
         self.end_timestamp = None
         self.ckpt_start = None
         self.ckpt_finish = None
@@ -112,3 +125,8 @@ class AtorchStepEvent(TrainEvent):
     def finish_ckpt(self, timestamp: int):
         if timestamp >= self.ckpt_start:
             self.ckpt_finish = timestamp
+
+    def __repr__(self):
+        attributes = [f"{k}={v!r}" for k, v in vars(self).items()]
+        return f"{self.__class__.__name__}({', '.join(attributes)})"
+

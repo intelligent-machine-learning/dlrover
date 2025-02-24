@@ -82,7 +82,7 @@ class StepEvents(object):
                     last_event = self._step_events[keys[-1]]
                     if (
                         event.step != last_event.step
-                        or event.timestamp <= last_event.end_timestamp
+                        or event.timestamp < last_event.end_timestamp
                         or last_event.event_state
                         != TrainEventState.TRAIN_EVT_END
                     ):
@@ -142,6 +142,7 @@ class StepEvents(object):
                 last_step.start_ckpt(event.timestamp)
             elif event.type is EventTypeName.END:
                 last_step.finish_ckpt(event.timestamp)
+                last_step.localtime = int(datetime.now().timestamp())
 
 
 class JobEventContext(Singleton):
@@ -160,6 +161,7 @@ class JobEventContext(Singleton):
         """
         now = int(datetime.now().timestamp())
 
+        # check if step is still active
         step = self.train_steps.get_last_step_event()
         if step is None:
             return False
@@ -167,21 +169,29 @@ class JobEventContext(Singleton):
             if now - step.localtime < self.hang_threshold:
                 return False
 
+        # if ckpt is active, job may not be hang
+        if step.ckpt_start:
+            if not step.ckpt_finish:
+                return False
+            elif now - step.localtime < self.hang_threshold:
+                return False
+
+        # check if trainer is doing evaluation or prediction
         predict_step = self.predict_steps.get_last_step_event()
         if predict_step is None:
-            logger.info(f"Detect hang on {now}: last step {step.localtime}")
+            logger.info(f"Detect hang on {now}: last step {step}")
             return True
         else:
             if now - predict_step.localtime < self.hang_threshold:
                 return False
             else:
                 logger.info(
-                    f"Detect hang on {now}: last step {step.localtime}"
+                    f"Detect hang on {now}: last step {step}"
                     f"last predict step {predict_step.localtime}"
                 )
                 return True
 
-    def check_job_slow(self):
+    def check_job_step_slow(self):
         return False
 
 
