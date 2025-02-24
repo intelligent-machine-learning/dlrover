@@ -15,6 +15,7 @@ import signal
 import sys
 import threading
 from unittest.mock import Mock
+import os
 
 import pytest
 
@@ -73,6 +74,55 @@ def test_handle_signal(exception_handler):
     assert mock_process.instant.call_args.args[0] == "exit_sig"
     assert mock_process.instant.call_args.args[1]["sig"] is not None
     exception_handler.unregister()
+
+
+def test_handle_signal_generate_frame_failed(exception_handler):
+    exception_handler.register()
+    mock_frame = "mock_frame"
+    with pytest.raises(KeyboardInterrupt):
+        exception_handler._handle_signal(signal.SIGINT, mock_frame)
+    mock_process = exception_handler._process
+
+    assert mock_process.instant.call_count == 1
+    assert mock_process.instant.call_args.args[0] == "exit_sig"
+    content = mock_process.instant.call_args.args[1]
+    assert content["sig"] is not None
+    assert content["stack"].startswith("get stack failed: ")
+    exception_handler.unregister()
+
+
+def test_handle_signal_event_failed(exception_handler):
+    exception_handler.register()
+    mock_process = exception_handler._process
+    mock_process.instant.side_effect = RuntimeError("test")
+
+    # assert not raise exception
+    exception_handler._handle_signal(signal.SIGCHLD, None)
+
+    assert mock_process.instant.call_count == 1
+    assert mock_process.instant.call_args.args[0] == "exit_sig"
+    exception_handler.unregister()
+
+
+def test_handle_signal_unregister_signal(exception_handler, monkeypatch):
+
+    def mock_kill(pid, sig):
+        pass
+
+    monkeypatch.setattr(os, "kill", mock_kill)
+
+    exception_handler.register()
+
+    # assert exit signal is sent
+    exception_handler._handle_signal(signal.SIGABRT, None)
+
+    mock_process = exception_handler._process
+    assert mock_process.instant.call_count == 1
+    assert mock_process.instant.call_args.args[0] == "exit_sig"
+
+    # 测试 unregister
+    exception_handler.unregister()
+    assert not exception_handler._registered  # 确保已注销
 
 
 def test_thread_safety():
