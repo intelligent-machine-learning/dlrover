@@ -44,6 +44,7 @@ class DLRoverMasterEventName(Enum):
     DLROVER_WORKER_NO_HEARTBEAT = "#worker_no_heartbeat"
     DLROVER_WORKER_EVENT = "#worker_event"
     DLROVER_JOB_TRAIN = "#job_train"
+    DLROVER_NODE_JOIN = "#node_join"
 
 
 class DLRoverAgentEventName(Enum):
@@ -62,12 +63,6 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
 
     def __init__(self, target: str) -> None:
         super().__init__(target)
-
-    def mock(self):
-        return self.duration(
-            "mock",
-            {},
-        )
 
 
 class DLRoverMasterEvent(DLRoverCommonEvent):
@@ -108,6 +103,25 @@ class DLRoverMasterEvent(DLRoverCommonEvent):
         return self.instant(
             DLRoverMasterEventName.DLROVER_MASTER_EXIT.value,
             {"exit_code": exit_code, **kwargs},
+        )
+
+    def node_join(
+        self,
+        node_id: str,
+        node_rank: str,
+        node_ip: str,
+        rdzv_round: str,
+        **kwargs,
+    ):
+        return self.instant(
+            DLRoverMasterEventName.DLROVER_NODE_JOIN.value,
+            {
+                "node_id": node_id,
+                "node_rank": node_rank,
+                "node_ip": node_ip,
+                "rdzv_round": rdzv_round,
+                **kwargs,
+            },
         )
 
     def rendezvous(
