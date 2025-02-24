@@ -12,9 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import (
-    Observation,
-)
+from dlrover.python.diagnosis.common.constants import Observation
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -34,7 +32,18 @@ class FailureNodeDiagnostician(Diagnostician):
     def __init__(self):
         super().__init__()
 
-    def observe(self, log_file: str, errors: str) -> DiagnosisAction:
+    def observe(self, **kwargs) -> DiagnosisAction:
+        log_file_arg = kwargs.get("log_file")
+        if log_file_arg is None or not isinstance(log_file_arg, str):
+            logger.error(f"Invalid log_file: {log_file_arg}")
+            return NoAction()
+        log_file = str(log_file_arg)
+
+        errors_arg = kwargs.get("errors")
+        if errors_arg is None or not isinstance(errors_arg, str):
+            logger.error(f"Invalid errors: {errors_arg}")
+            return NoAction()
+        errors = str(errors_arg)
         # temp usage: express the env for specified error info
         # e.g.
         # export FAILURE_NODE_ERRORS="#error code is 12345# error code is

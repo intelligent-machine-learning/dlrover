@@ -249,11 +249,7 @@ class DiagnosisAgent(Singleton):
             ob_action.__class__ = ObservationAction
             node_failed = ob_action.node_failed()
 
-
-        if (
-                self._agent_context.remaining_failovers > 0
-                and not node_failed
-        ):
+        if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(
                 f"[{self._agent_context.worker_spec.role}] Worker group "
                 f"{self._agent_context.run_result.state.name}, "

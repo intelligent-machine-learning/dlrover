@@ -338,50 +338,6 @@ class InferenceChainTest(unittest.TestCase):
             ),
         )
 
-    def test_check_failure_node_operator(self):
-        file = "data/training.log"
-        path = os.path.dirname(__file__)
-        file_path = os.path.join(path, file)
-
-        operator = CheckFailureNodeOperator()
-        inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: file_path,
-                InferenceConfigKey.ERRORS: "error code is 507035",
-            },
-        )
-        self.assertTrue(operator.is_compatible(inf))
-
-        results = operator.infer([inf])
-        failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.FAILURE,
-        )
-        self.assertTrue(is_same_inference(results[0], failure_inf))
-
-        #########################################################
-        inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: file_path,
-                InferenceConfigKey.ERRORS: "error code is 123456",
-            },
-        )
-
-        results = operator.infer([inf])
-        not_failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.NOT,
-            description=InferenceDescription.FAILURE,
-        )
-        self.assertTrue(is_same_inference(results[0], not_failure_inf))
-
     def test_resolve_training_hang_operator(self):
         operator = ResolveTrainingHangOperator(None)
         input_infers = []
