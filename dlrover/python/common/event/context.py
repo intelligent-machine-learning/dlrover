@@ -116,6 +116,14 @@ class StepEvents(object):
                 step_event.localtime = int(datetime.now().timestamp())
                 self._step_events[last_key] = step_event
 
+            elif event.type is EventTypeName.INSTANT:
+                step_event = AtorchStepEvent(
+                    event.name, TrainEventState.TRAIN_EVT_ONCE, event.step
+                )
+                step_event.begin_timestamp = event.timestamp
+                step_event.end_timestamp = event.timestamp
+                self._step_events[event.timestamp] = step_event
+
     def add_ckpt_event(self, event: AtorchEvent):
         with self._lock:
             keys = list(self._step_events.keys())

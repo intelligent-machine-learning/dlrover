@@ -438,22 +438,10 @@ class TrainingEventTest(unittest.TestCase):
             timestamp=now,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_PREDICT_STEP,
-            type=EventTypeName.BEGIN,
+            type=EventTypeName.INSTANT,
             step=1,
         )
         _event_context.predict_steps.add_step_event(evt3)
         self.assertEqual(_event_context.check_job_step_hang(), False)
         time.sleep(1.2)
         self.assertEqual(_event_context.check_job_step_hang(), True)
-
-        evt4 = AtorchEvent(
-            timestamp=now,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_PREDICT_STEP,
-            type=EventTypeName.END,
-            step=2,
-        )
-        _event_context.predict_steps.add_step_event(evt4)
-        self.assertEqual(_event_context.check_job_step_hang(), False)
-
-        

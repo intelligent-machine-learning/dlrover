@@ -129,4 +129,3 @@ class AtorchStepEvent(TrainEvent):
     def __repr__(self):
         attributes = [f"{k}={v!r}" for k, v in vars(self).items()]
         return f"{self.__class__.__name__}({', '.join(attributes)})"
-
