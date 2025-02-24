@@ -18,7 +18,7 @@ from dlrover.python.common.constants import (
     NodeType,
     OptimizeMode,
     RendezvousName,
-    ReporterType,
+    ReporterType, PreCheckStatus,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
@@ -34,6 +34,7 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.master.node.job_context import get_job_context
 
 
 class LocalJobMaster(JobMaster):
@@ -89,7 +90,7 @@ class LocalJobMaster(JobMaster):
         self.job_manager.start()
 
     def pre_check(self):
-        pass
+        get_job_context().set_pre_check_status(PreCheckStatus.DISABLED)
 
     def run(self):
         """
