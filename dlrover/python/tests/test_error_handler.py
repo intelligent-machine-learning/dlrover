@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import signal
 import sys
 import threading
 from unittest.mock import Mock
-import os
 
 import pytest
 
@@ -65,6 +65,10 @@ def test_handle_exception(exception_handler):
 
 
 def test_handle_signal(exception_handler):
+    # set default signal handler for SIGINT in case other
+    # modules have already set it
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+
     exception_handler.register()
     mock_frame = None
     with pytest.raises(KeyboardInterrupt):
@@ -77,6 +81,10 @@ def test_handle_signal(exception_handler):
 
 
 def test_handle_signal_generate_frame_failed(exception_handler):
+    # set default signal handler for SIGINT in case other
+    # modules have already set it
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+
     exception_handler.register()
     mock_frame = "mock_frame"
     with pytest.raises(KeyboardInterrupt):
@@ -105,7 +113,6 @@ def test_handle_signal_event_failed(exception_handler):
 
 
 def test_handle_signal_unregister_signal(exception_handler, monkeypatch):
-
     def mock_kill(pid, sig):
         pass
 
