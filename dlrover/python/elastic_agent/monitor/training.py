@@ -114,7 +114,6 @@ class TorchTrainingMonitor(Singleton):
                 step = record.get("step", 0)
                 timestamp = record.get("timestamp", 0)
             if step > 0 and timestamp - self._last_timestamp > 15:
-                self._resource_monitor.report_resource()
                 self._last_timestamp = timestamp
                 self._master_client.report_global_step(
                     step,

@@ -65,6 +65,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
     def test_diagnose_agent(self):
         agent = DiagnosisAgent.singleton_instance()
+
         agent.stop()
 
         agent._accumulate_observe_time = 0
