@@ -16,7 +16,6 @@ import signal
 import sys
 import threading
 import traceback
-from inspect import iscallable
 
 from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.emitter import Process
@@ -91,7 +90,7 @@ class ErrorHandler:
 
     def _call_original_handler(self, signum, frame):
         """call original handler with signal"""
-        if iscallable(self._original_handlers[signum]):
+        if callable(self._original_handlers[signum]):
             self._original_handlers[signum](signum, frame)
         elif self._original_handlers[signum] == signal.SIG_IGN:
             return
