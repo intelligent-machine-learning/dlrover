@@ -37,7 +37,7 @@ class Diagnostician(metaclass=ABCMeta):
 
     @abstractmethod
     def resolve(self, problem: DiagnosisAction, **kwargs) -> DiagnosisAction:
-        # explore the solution to resolve the
+        # explore the solution to resolve the problem
         return NoAction()
 
 
