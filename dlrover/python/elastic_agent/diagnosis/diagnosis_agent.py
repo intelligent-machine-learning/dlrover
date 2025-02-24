@@ -242,7 +242,6 @@ class DiagnosisAgent(Singleton):
             log_file=self._training_log_file,
             errors=self._errors,
         )
-        print(f"observation: {ob_action.__repr__()}\n")
 
         node_failed = False
         if isinstance(ob_action, ObservationAction):
