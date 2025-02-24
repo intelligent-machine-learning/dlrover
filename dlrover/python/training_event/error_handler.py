@@ -19,7 +19,6 @@ import traceback
 
 from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.emitter import Process
-from dlrover.python.training_event.exporter import close_default_exporter
 
 logger = get_default_logger()
 
@@ -80,7 +79,6 @@ class ErrorHandler:
                 content["stack"] = f"get stack failed: {str(e)}"
 
             self._process.instant("exit_sig", content)
-            close_default_exporter()
 
         except Exception as e:
             logger.error(f"process signal {signum} error: {str(e)}")
