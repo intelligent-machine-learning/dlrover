@@ -80,6 +80,8 @@ class PodWatcherTest(unittest.TestCase):
                 "2022-11-11 11:11:11", "%Y-%m-%d %H:%M:%S"
             ),
         )
+        self.assertIsNotNone(node.host_name)
+        self.assertIsNotNone(node.host_ip)
         node: Node = nodes[-2]
         self.assertEqual(node.id, 2)
         self.assertEqual(node.type, NodeType.WORKER)

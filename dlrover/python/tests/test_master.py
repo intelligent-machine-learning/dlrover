@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     JobExitReason,
     NodeStatus,
     NodeType,
+    PreCheckStatus,
     RendezvousName,
 )
 from dlrover.python.common.global_context import Context
@@ -222,3 +223,12 @@ class LocalJobMasterTest(unittest.TestCase):
             master.request_stop(True, "", "")
         except Exception:
             pass
+
+    def test_pre_check(self):
+        self.assertEqual(
+            self.job_context.get_pre_check_status(), PreCheckStatus.CHECKING
+        )
+        self._master.pre_check()
+        self.assertEqual(
+            self.job_context.get_pre_check_status(), PreCheckStatus.DISABLED
+        )
