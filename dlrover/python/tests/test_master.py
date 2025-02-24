@@ -181,6 +181,7 @@ class LocalJobMasterTest(unittest.TestCase):
         self._master, addr = start_local_master()
         self.master_client = build_master_client(addr, 0.5)
         self.job_context = get_job_context()
+        self.job_context._pre_check_status = PreCheckStatus.CHECKING
 
     def tearDown(self):
         self._master.stop()
