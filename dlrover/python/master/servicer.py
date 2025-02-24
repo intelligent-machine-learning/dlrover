@@ -36,6 +36,8 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     TrainingLoopStatus,
 )
+from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
@@ -71,6 +73,7 @@ except ImportError:
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
+_event_context = JobEventContext.singleton_instance()
 
 
 class MasterServicer(ABC):
@@ -365,6 +368,8 @@ class MasterServicer(ABC):
             success = self._update_node_address(message)
         elif isinstance(message, comm.NodeEvent):
             success = self._deal_with_reported_node_event(message)
+        elif isinstance(message, comm.AtorchEvent):
+            success = self._handle_reported_atorch_event(message)
         elif isinstance(message, comm.SyncJoin):
             success = self._join_sync(node_type, node_id, message)
         elif isinstance(message, comm.SyncFinish):
@@ -556,6 +561,16 @@ class MasterServicer(ABC):
 
         # let job manager deal with node issue
         self._job_manager.process_reported_node_event(event)
+        return True
+
+    def _handle_reported_atorch_event(self, message: comm.AtorchEvent):
+        if comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_STEP:
+            _event_context.train_steps.add_step_event(message)
+        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_PREDICT_STEP:
+            _event_context.predict_steps.add_step_event(message)
+        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            _event_context.train_steps.add_ckpt_event(message)
+
         return True
 
     def _join_sync(self, node_type, node_id, message: comm.SyncJoin):

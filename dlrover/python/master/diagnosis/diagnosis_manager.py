@@ -22,6 +22,7 @@ from dlrover.python.common.constants import (
     NpuMetricEnum,
     PreCheckStatus,
 )
+from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
@@ -59,6 +60,7 @@ from dlrover.python.util.function_util import TimeoutException, timeout
 from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
+_event_context = JobEventContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 

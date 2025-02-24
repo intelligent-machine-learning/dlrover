@@ -78,6 +78,7 @@ class AtorchEventCollector(Singleton):
         event_name = str(match[4])
         if event_name not in (
             TrainerEventName.TRAIN_STEP.value,
+            TrainerEventName.PREDICT_STEP.value,
             TrainerEventName.SAVE.value,
         ):
             raise AtorchNotFoundException()
