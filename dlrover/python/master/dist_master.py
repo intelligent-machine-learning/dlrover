@@ -14,8 +14,6 @@ import threading
 import time
 from typing import Dict
 
-from common.event.reporter import EventReporter, get_event_reporter
-
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -28,6 +26,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     ReporterType,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
