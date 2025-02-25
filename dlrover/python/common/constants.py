@@ -444,6 +444,12 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
 
+    ACTION_PRE_CHECK_DISABLE = "pre_check_disable"
+    ACTION_PRE_CHECK_TIMEOUT = "pre_check_timeout"
+    ACTION_PRE_CHECK_ERROR = "pre_check_error"
+    ACTION_PRE_CHECK_PASS = "pre_check_pass"
+    ACTION_PRE_CHECK_FAIL = "pre_check_fail"
+
 
 class PreCheckStatus(object):
     CHECKING = "CHECKING"

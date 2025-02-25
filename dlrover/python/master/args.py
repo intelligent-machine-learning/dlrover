@@ -81,7 +81,7 @@ def parse_tuple_dict(value):
             raise ValueError("invalid format: not dict")
     except Exception:
         raise argparse.ArgumentTypeError(
-            "Invalid format. Expected format: " "{(v1, v2): ${boolean}, ...}"
+            "Invalid format. Expected format: {(v1, v2): ${boolean}, ...}"
         )
 
 
