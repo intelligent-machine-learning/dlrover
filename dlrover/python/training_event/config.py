@@ -87,6 +87,14 @@ def get_env_key(key):
     return f"{ENV_PREFIX}_{key}"
 
 
+def is_dlrover_event_enabled():
+    key = get_env_key("enable")
+    if key in os.environ and parse_bool(os.environ[key]) is True:
+        return True
+    else:
+        return False
+
+
 @dataclass
 class Config(Singleton):
 
