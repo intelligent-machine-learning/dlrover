@@ -398,7 +398,7 @@ class JobConstant(object):
     SYNC_PORTS_DEFAULT_INTERVAL = 5
 
     # interval seconds for pre-check waiting
-    PRE_CHECK_WAIT_SECS = 5
+    PRE_CHECK_WAIT_SECS = 10
 
 
 class Accelerators(object):
