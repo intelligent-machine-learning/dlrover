@@ -13,6 +13,7 @@
 
 import datetime
 import os
+import random
 import time
 from unittest import mock
 
@@ -192,6 +193,10 @@ def create_pod(labels, with_deletion_timestamp=False):
             )
         ],
         phase=NodeStatus.RUNNING,
+        host_ip=f"{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}",
     )
 
     resource = {"cpu": 1, "memory": "10Gi"}
@@ -211,6 +216,7 @@ def create_pod(labels, with_deletion_timestamp=False):
         containers=[container],
         restart_policy="Never",
         priority_class_name="high",
+        node_name="randomhost-" + str(random.randint(0, 1000)),
     )
 
     deletion_timestamp = (
