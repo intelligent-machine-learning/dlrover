@@ -35,7 +35,7 @@ class ResourceCollectionOperator(InferenceOperator):
 
     def __init__(self):
         super().__init__(None)
-        self._monitor = ResourceMonitor()
+        self._monitor = ResourceMonitor().singleton_instance()
 
     def is_compatible(self, inference: Inference) -> bool:
         if (
