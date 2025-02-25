@@ -482,13 +482,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
             monitor = TorchTrainingMonitor(config_file)
             monitor.start()
-            monitor.report_resource_with_step()
+            monitor.report_step()
             self.assertEqual(self._master.speed_monitor._global_step, 0)
             record = {"step": 100, "timestamp": time.time()}
             with open(config_file, "w") as f:
                 f.write(json.dumps(record))
 
-            monitor.report_resource_with_step()
+            monitor.report_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
 
     def test_check_network_rdzv_for_elastic_training(self):

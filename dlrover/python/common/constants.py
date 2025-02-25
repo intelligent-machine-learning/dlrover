@@ -398,7 +398,7 @@ class JobConstant(object):
     SYNC_PORTS_DEFAULT_INTERVAL = 5
 
     # interval seconds for pre-check waiting
-    PRE_CHECK_WAIT_SECS = 5
+    PRE_CHECK_WAIT_SECS = 10
 
 
 class Accelerators(object):
@@ -443,6 +443,12 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+
+    ACTION_PRE_CHECK_DISABLE = "pre_check_disable"
+    ACTION_PRE_CHECK_TIMEOUT = "pre_check_timeout"
+    ACTION_PRE_CHECK_ERROR = "pre_check_error"
+    ACTION_PRE_CHECK_PASS = "pre_check_pass"
+    ACTION_PRE_CHECK_FAIL = "pre_check_fail"
 
 
 class PreCheckStatus(object):

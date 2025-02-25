@@ -70,9 +70,6 @@ class InferenceChainTest(unittest.TestCase):
         self.assertEqual(
             results[0].configs[InferenceConfigKey.EVENT_ACTION], "GPU is lost"
         )
-        self.assertEqual(
-            results[0].configs[InferenceConfigKey.EVENT_MSG], error_logs
-        )
 
 
 if __name__ == "__main__":

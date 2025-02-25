@@ -186,9 +186,7 @@ class ShardingClient(object):
 
     def _report_training_local_step(self):
         if not self._training_reporter.called_in_tf_hook:
-            self._training_reporter.report_resource_with_step(
-                self._batch_count
-            )
+            self._training_reporter.report_step(self._batch_count)
 
     def fetch_shard(self):
         """Fetch data shard and each shard contains the name,

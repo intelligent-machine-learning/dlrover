@@ -158,16 +158,16 @@ class JobMetricContext(Singleton):
         with self._lock:
             keys = list(self._xpu_job_metrics.keys())
             if len(keys) > 0 and timestamp <= keys[-1]:
-                """timestamp should be sorted"""
+                # timestamp should be sorted
                 return
             elif len(keys) >= self.max_metric_records:
-                """remove first item"""
+                # remove first item
                 self._xpu_job_metrics.popitem(last=False)
             self._xpu_job_metrics[timestamp] = metrics
 
     def clear_node_metrics(self) -> None:
         with self._lock:
-            self._xpu_job_metrics = OrderedDict()
+            self._xpu_job_metrics.clear()
 
     def size(self):
         with self._lock:
