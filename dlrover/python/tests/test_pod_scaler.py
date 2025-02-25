@@ -24,7 +24,6 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -45,8 +44,7 @@ class PodScalerTest(unittest.TestCase):
         os.environ.clear()
 
     def test_init_pod_template(self):
-        error_monitor = SimpleErrorMonitor()
-        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler = PodScaler("elasticjob-sample", "default")
         scaler._check_master_service_avaliable = mock.MagicMock(
             return_value=True
         )
@@ -73,8 +71,7 @@ class PodScalerTest(unittest.TestCase):
         )
 
     def test_check_master_service_avaliable(self):
-        error_monitor = SimpleErrorMonitor()
-        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler = PodScaler("elasticjob-sample", "default")
         _dlrover_ctx.config_master_port()
         port = _dlrover_ctx.master_port
         if 22222 == port:
@@ -95,8 +92,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertFalse(passed)
 
     def test_periodic_create_pod(self):
-        error_monitor = SimpleErrorMonitor()
-        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler = PodScaler("elasticjob-sample", "default")
         scaler._check_master_service_avaliable = unittest.mock.MagicMock(
             return_value=True
         )
@@ -120,8 +116,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(scaler._create_service_for_pod.call_count, test_num)
 
     def test_create_pod(self):
-        error_monitor = SimpleErrorMonitor()
-        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler = PodScaler("elasticjob-sample", "default")
         scaler._check_master_service_avaliable = mock.MagicMock(
             return_value=True
         )
@@ -211,8 +206,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(rank, 0)
 
     def test_scale(self):
-        error_monitor = SimpleErrorMonitor()
-        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler = PodScaler("elasticjob-sample", "default")
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()

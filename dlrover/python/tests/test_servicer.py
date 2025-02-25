@@ -38,7 +38,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import (
@@ -153,10 +153,10 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         worker_resource = params.node_args[NodeType.WORKER].group_resource
         worker_resource.node_resource.gpu_num = 1
         worker_resource.node_resource.gpu_type = "a100"
-        speed_monitor = SpeedMonitor()
-        self.task_manager = TaskManager(False, speed_monitor)
+        perf_monitor = PerfMonitor()
+        self.task_manager = TaskManager(False, perf_monitor)
 
-        self.job_manager = create_job_manager(params, speed_monitor)
+        self.job_manager = create_job_manager(params, perf_monitor)
         self.job_context = get_job_context()
 
         self.job_manager._init_nodes()
@@ -178,7 +178,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.servicer = GrpcMasterServicer(
             task_manager=self.task_manager,
             job_manager=self.job_manager,
-            speed_monitor=speed_monitor,
+            perf_monitor=perf_monitor,
             rdzv_managers=rdzv_managers,
             diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,
@@ -279,8 +279,8 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.job_context.update_job_node(ps0)
 
         request = comm.GlobalStep()
-        self.task_manager._speed_monitor.add_running_worker(NodeType.WORKER, 0)
-        self.task_manager._speed_monitor.set_target_worker_num(1)
+        self.task_manager._perf_monitor.add_running_worker(NodeType.WORKER, 0)
+        self.task_manager._perf_monitor.set_target_worker_num(1)
         ts = int(time.time())
         request.timestamp = ts
         request.step = 100
@@ -389,7 +389,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         message = comm.TaskResult("test", 0, "")
         request.data = message.serialize()
         self.servicer._start_autoscale = False
-        self.servicer._speed_monitor.completed_global_step == 0
+        self.servicer._perf_monitor.completed_global_step == 0
         self.servicer._start_training_time = time.time() - 3600
         response = self.servicer.report(request, None)
         self.assertTrue(self.servicer._start_autoscale)
@@ -594,9 +594,9 @@ class MasterServicerForRayTest(unittest.TestCase):
         ray.init = mock.MagicMock(return_value=True)
         params = MockRayJobArgs()
         params.initilize()
-        speed_monitor = SpeedMonitor()
-        self.task_manager = TaskManager(False, speed_monitor)
-        self.job_manager = create_job_manager(params, speed_monitor)
+        perf_monitor = PerfMonitor()
+        self.task_manager = TaskManager(False, perf_monitor)
+        self.job_manager = create_job_manager(params, perf_monitor)
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )
@@ -604,7 +604,7 @@ class MasterServicerForRayTest(unittest.TestCase):
         self.servicer = GrpcMasterServicer(
             task_manager=self.task_manager,
             job_manager=self.job_manager,
-            speed_monitor=speed_monitor,
+            perf_monitor=perf_monitor,
             rdzv_managers={},
             diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,

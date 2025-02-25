@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
     NetworkFailureReason,
     RendezvousName,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
@@ -61,7 +62,7 @@ class RendezvousParameters(object):
 
 
 class RendezvousManager(metaclass=ABCMeta):
-    def __init__(self, error_monitor=None):
+    def __init__(self):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
@@ -82,7 +83,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._save_ckpt_nodes: Dict[int, int] = {}
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -314,10 +315,10 @@ class RendezvousManager(metaclass=ABCMeta):
                 rdzv_type=self._name,
                 waiting_nodes=self._waiting_nodes.keys(),
             )
-            if self._error_monitor:
+            if self._event_reporter:
                 node_elapsed_time = self._node_rdzv_times[node_rank]
                 class_type = type(self).__name__
-                self._error_monitor.report_event(
+                self._event_reporter.report_event(
                     ErrorMonitorConstants.TYPE_INFO,
                     node_rank,
                     ErrorMonitorConstants.ACTION_RDZV_JOIN,
@@ -422,8 +423,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     Elasticjob of DLRover, the node has an unique node ID.
     """
 
-    def __init__(self, error_monitor=None):
-        super().__init__(error_monitor)
+    def __init__(self):
+        super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
         self._rdzv_evt = _master_evt.rendezvous(
             rendezvous_type=RendezvousName.ELASTIC_TRAINING,
@@ -480,9 +481,9 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         max_nodes=self.get_max_nodes(),
                         min_nodes=self.get_min_nodes(),
                     )
-                    if self._error_monitor:
+                    if self._event_reporter:
                         class_type = type(self).__name__
-                        self._error_monitor.report_event(
+                        self._event_reporter.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
                             "job",
                             ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
@@ -503,10 +504,10 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
-                    and self._error_monitor
+                    and self._event_reporter
                 ):
                     class_type = type(self).__name__
-                    self._error_monitor.report_event(
+                    self._event_reporter.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
@@ -546,8 +547,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node-1 if not available.
     """
 
-    def __init__(self, error_monitor=None):
-        super().__init__(error_monitor)
+    def __init__(self):
+        super().__init__()
         self._name = RendezvousName.NETWORK_CHECK
         self._node_status: Dict[int, bool] = {}
         self._node_times: Dict[int, float] = {}
@@ -610,9 +611,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         max_nodes=self.get_max_nodes(),
                         min_nodes=self.get_min_nodes(),
                     )
-                    if self._error_monitor:
+                    if self._event_reporter:
                         class_type = type(self).__name__
-                        self._error_monitor.report_event(
+                        self._event_reporter.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
                             "job",
                             ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
@@ -631,11 +632,11 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
-                    and self._error_monitor
+                    and self._event_reporter
                 ):
                     node_group = self._group_nodes(self._rdzv_round)
                     class_type = type(self).__name__
-                    self._error_monitor.report_event(
+                    self._event_reporter.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
@@ -754,9 +755,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 f"Round {self._rdzv_round}: The node elapsed time "
                 f"are {node_check_times}"
             )
-            if self._error_monitor:
+            if self._event_reporter:
                 class_type = type(self).__name__
-                self._error_monitor.report_event(
+                self._event_reporter.report_event(
                     event_type=ErrorMonitorConstants.TYPE_INFO,
                     instance=class_type,
                     action=ErrorMonitorConstants.ACTION_STOP,

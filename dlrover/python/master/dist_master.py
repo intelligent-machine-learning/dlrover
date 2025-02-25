@@ -14,6 +14,8 @@ import threading
 import time
 from typing import Dict
 
+from common.event.reporter import EventReporter, get_event_reporter
+
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
@@ -41,8 +43,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster, get_service_type
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
@@ -117,9 +118,7 @@ class DistributedJobMaster(JobMaster):
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
     """
 
-    def __init__(
-        self, port, args: JobArgs, error_monitor: ErrorMonitor = None
-    ):
+    def __init__(self, port, args: JobArgs):
         if args.platform in [
             PlatformType.KUBERNETES,
             PlatformType.PY_KUBERNETES,
@@ -134,29 +133,27 @@ class DistributedJobMaster(JobMaster):
                 )
 
         self._job_ctx = get_job_context()
-        self.speed_monitor = SpeedMonitor()
+        self.perf_monitor = PerfMonitor()
         self.job_manager = (
-            create_job_manager(args, self.speed_monitor)
+            create_job_manager(args, self.perf_monitor)
             if args.enable_elastic_scheduling
             else None
         )
         self.task_manager = (
             TaskManager(
                 args.node_args[NodeType.WORKER].restart_timeout,
-                self.speed_monitor,
+                self.perf_monitor,
             )
             if args.enable_dynamic_sharding
             else None
         )
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(error_monitor),
-            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(
-                error_monitor
-            ),
+            elastic_training: ElasticTrainingRendezvousManager(),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.diagnosis_manager = DiagnosisManager(args)
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -175,13 +172,12 @@ class DistributedJobMaster(JobMaster):
             port,
             self.task_manager,
             self.job_manager,
-            self.speed_monitor,
+            self.perf_monitor,
             self.rdzv_managers,
             self.diagnosis_manager,
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
-            self._error_monitor,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):
@@ -400,8 +396,8 @@ class DistributedJobMaster(JobMaster):
         action = ErrorMonitorConstants.ACTION_STOP
         if not success:
             action = ErrorMonitorConstants.ACTION_EARLY_STOP
-        if self._error_monitor:
-            self._error_monitor.report_event(
+        if self._event_reporter:
+            self._event_reporter.report_event(
                 event_type=ErrorMonitorConstants.TYPE_ERROR,
                 instance="job",
                 action=action,

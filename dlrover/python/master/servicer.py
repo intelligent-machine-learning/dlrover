@@ -37,6 +37,7 @@ from dlrover.python.common.constants import (
     TrainingLoopStatus,
 )
 from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
@@ -50,7 +51,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
     RendezvousManager,
 )
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
@@ -83,17 +84,16 @@ class MasterServicer(ABC):
         self,
         task_manager,
         job_manager,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
-        error_monitor=None,
     ):
         self._task_manager: TaskManager = task_manager
         self._job_manager: JobManager = job_manager
-        self._speed_monitor = speed_monitor
+        self._perf_monitor = perf_monitor
         self._rdzv_managers = rdzv_managers
         self._diagnosis_manager = diagnosis_manager
         self._kv_store = KVStoreService()
@@ -104,7 +104,7 @@ class MasterServicer(ABC):
         self._version = 0
         self._start_training_time = 0
         self._start_autoscale = False
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
 
         # preload module for class reflection
         self._diagnosis_data_module = importlib.import_module(
@@ -457,9 +457,7 @@ class MasterServicer(ABC):
         return True
 
     def _collect_global_step(self, metrics: comm.GlobalStep):
-        self._speed_monitor.collect_global_step(
-            metrics.step, metrics.timestamp
-        )
+        self._perf_monitor.collect_global_step(metrics.step, metrics.timestamp)
         self._collect_runtime_stats()
         self._check_start_auto_scale_worker()
         return True
@@ -474,7 +472,7 @@ class MasterServicer(ABC):
         if self._job_metric_collector and self._job_manager:
             nodes = self._job_manager.get_running_nodes()
             self._job_metric_collector.collect_runtime_stats(
-                self._speed_monitor, nodes
+                self._perf_monitor, nodes
             )
 
     def _report_task_result(self, request: comm.TaskResult):
@@ -486,7 +484,7 @@ class MasterServicer(ABC):
         if (
             not self._start_autoscale
             and self._job_manager
-            and self._speed_monitor.completed_global_step == 0
+            and self._perf_monitor.completed_global_step == 0
             and int(time.time()) - self._start_training_time
             > _dlrover_context.seconds_to_autoscale_worker
         ):
@@ -504,7 +502,7 @@ class MasterServicer(ABC):
         return success
 
     def _check_start_auto_scale_worker(self):
-        sample_count = self._speed_monitor.get_sample_count()
+        sample_count = self._perf_monitor.get_sample_count()
         if (
             not self._start_autoscale
             and sample_count >= _dlrover_context.sample_count_to_adjust_worker
@@ -692,8 +690,8 @@ class MasterServicer(ABC):
         )
 
     def _report_event(self, message: comm.Event):
-        if self._error_monitor:
-            self._error_monitor.report_event(
+        if self._event_reporter:
+            self._event_reporter.report_event(
                 message.event_type,
                 message.instance,
                 message.action,
@@ -722,24 +720,22 @@ class HttpMasterServicer(MasterServicer):
         self,
         task_manager,
         job_manager,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
-        error_monitor=None,
     ):
         super().__init__(
             task_manager,
             job_manager,
-            speed_monitor,
+            perf_monitor,
             rdzv_managers,
             diagnosis_manager,
             job_metric_collector,
             elastic_ps_service,
             sync_service,
-            error_monitor,
         )
 
     def get_response(self, method):
@@ -758,24 +754,22 @@ class GrpcMasterServicer(
         self,
         task_manager,
         job_manager,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
-        error_monitor=None,
     ):
         super(GrpcMasterServicer, self).__init__(
             task_manager,
             job_manager,
-            speed_monitor,
+            perf_monitor,
             rdzv_managers,
             diagnosis_manager,
             job_metric_collector,
             elastic_ps_service,
             sync_service,
-            error_monitor,
         )
 
     def get_response(self, method):
@@ -836,13 +830,12 @@ def create_master_service(
     port,
     task_manager,
     job_manager,
-    speed_monitor,
+    perf_monitor,
     rdzv_managers,
     diagnosis_manager,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
-    error_monitor=None,
     max_threads=64,
 ):
     service_type = _dlrover_context.master_service_type
@@ -865,13 +858,12 @@ def create_master_service(
         master_servicer = GrpcMasterServicer(
             task_manager=task_manager,
             job_manager=job_manager,
-            speed_monitor=speed_monitor,
+            perf_monitor=perf_monitor,
             rdzv_managers=rdzv_managers,
             diagnosis_manager=diagnosis_manager,
             job_metric_collector=job_metric_collector,
             elastic_ps_service=elastic_ps_service,
             sync_service=sync_service,
-            error_monitor=error_monitor,
         )
 
         elastic_training_pb2_grpc.add_MasterServicer_to_server(
@@ -882,13 +874,12 @@ def create_master_service(
         master_servicer = HttpMasterServicer(
             task_manager=task_manager,
             job_manager=job_manager,
-            speed_monitor=speed_monitor,
+            perf_monitor=perf_monitor,
             rdzv_managers=rdzv_managers,
             diagnosis_manager=diagnosis_manager,
             job_metric_collector=job_metric_collector,
             elastic_ps_service=elastic_ps_service,
             sync_service=sync_service,
-            error_monitor=error_monitor,
         )
         server = TornadoHTTPServer(
             "localhost",

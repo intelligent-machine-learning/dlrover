@@ -15,7 +15,7 @@ import unittest
 
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
@@ -27,7 +27,7 @@ class SyncServiceTest(unittest.TestCase):
         params = MockK8sPSJobArgs()
         params.node_args
         params.initilize()
-        self.job_manager = create_job_manager(params, SpeedMonitor())
+        self.job_manager = create_job_manager(params, PerfMonitor())
         self.job_manager._init_nodes()
         self.job_context = get_job_context()
 

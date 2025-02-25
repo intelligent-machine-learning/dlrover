@@ -43,7 +43,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
     NodeAction,
 )
-from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -110,17 +109,15 @@ class DistributedJobManager(JobManager):
         job_args: JobArgs,
         critical_worker_index={},
         wait_pending_relaunch=False,
-        speed_monitor=None,
+        perf_monitor=None,
         job=None,
         node_watcher: Optional[NodeWatcher] = None,
         job_scaler=None,
-        error_monitor=None,
         external_config=None,
     ):
         super().__init__(
             job_args=job_args,
-            speed_monitor=speed_monitor,
-            error_monitor=error_monitor,
+            perf_monitor=perf_monitor,
             external_config=external_config,
         )
         self._remove_exited_node = job_args.remove_exited_node
@@ -193,7 +190,6 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
-        self._error_monitor = error_monitor
 
     def start(self):
         self._scaler.start()
@@ -220,7 +216,7 @@ class DistributedJobManager(JobManager):
         if NodeType.CHIEF in plan.node_group_resources:
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
         self._job_context.update_total_worker_num(worker_num)
-        self._speed_monitor.set_target_worker_num(worker_num)
+        self._perf_monitor.set_target_worker_num(worker_num)
         self._training_node_config.set_node_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
@@ -444,7 +440,7 @@ class DistributedJobManager(JobManager):
             self._job_args.distribution_strategy,
             self._job_resource,
             self._job_optimizer,
-            self._speed_monitor,
+            self._perf_monitor,
             self._ps_manager,
             self._worker_manager,
             self._scaler,
@@ -1104,7 +1100,7 @@ class DistributedJobManager(JobManager):
                         node.relaunchable = False
                         self._job_context.update_job_node(node)
                 for node in job_nodes[NodeType.WORKER].values():
-                    node.eval_time = self._speed_monitor.get_worker_eval_time(
+                    node.eval_time = self._perf_monitor.get_worker_eval_time(
                         node.id
                     )
                     self._job_context.update_job_node(node)
@@ -1202,8 +1198,8 @@ class DistributedJobManager(JobManager):
         msg: str,
         labels: Dict[str, str],
     ):
-        if self._error_monitor:
-            self._error_monitor.report_event(
+        if self._event_reporter:
+            self._event_reporter.report_event(
                 event_type, instance, action, msg, labels
             )
 
@@ -1217,10 +1213,7 @@ class DistributedJobManager(JobManager):
         if node:
             if level == TrainingExceptionLevel.NODE_ERROR:
                 self._job_context.report_failed_node(node.id)
-            if self._error_monitor:
-                return self._error_monitor.process_error(
-                    node, restart_count, error_data, level
-                )
+            return self.process_error(node, restart_count, error_data, level)
         return False
 
     def all_running_node_hanged(self):
@@ -1334,8 +1327,19 @@ class DistributedJobManager(JobManager):
     def get_job_strategy(self):
         return self._job_args.distribution_strategy
 
+    def _handle_node_error(self, node: Node, error_data: str):
+        logger.info(
+            f"{node.name} on {node.host_name} is down. "
+            f"Reason: {error_data}"
+        )
+        if self._job_args.cordon_fault_node:
+            succeed = self._k8s_client.cordon_node(node.host_name)
+            if succeed:
+                logger.info(f"Host {node.host_name} is marked unscheduled.")
+        return True
 
-def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
+
+def create_job_manager(args: JobArgs, perf_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
@@ -1347,17 +1351,13 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
-    node_error_monitor = K8sJobErrorMonitor(
-        args.namespace, args.cordon_fault_node
-    )
 
     return DistributedJobManager(
         job_args=args,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
-        speed_monitor=speed_monitor,
+        perf_monitor=perf_monitor,
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=node_error_monitor,
     )
