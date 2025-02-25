@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import os
+import threading
+import time
 
 import psutil
 import pynvml
@@ -101,7 +103,24 @@ class ResourceMonitor(Singleton):
             get_process_cpu_percent()
 
     def start(self):
-        pass
+        if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
+            return
+
+        logger.info("Resource Monitor Initializing ...")
+
+        try:
+            thread = threading.Thread(
+                target=self._monitor_resource,
+                name="monitor_resource",
+                daemon=True,
+            )
+            thread.start()
+            if thread.is_alive():
+                logger.info("Resource Monitor initialized successfully")
+        except Exception as e:
+            logger.error(
+                f"Failed to start the monitor resource thread. Error: {e}"
+            )
 
     def stop(self):
         if self._gpu_enabled:
@@ -152,3 +171,12 @@ class ResourceMonitor(Singleton):
             used_mem,
             self._gpu_stats,
         )
+
+    def _monitor_resource(self):
+        logger.info("Start to monitor resource usage")
+        while True:
+            try:
+                self.report_resource()
+            except Exception as e:
+                logger.debug(f"report resource error: {e}")
+            time.sleep(15)

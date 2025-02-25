@@ -13,7 +13,6 @@
 
 from typing import List
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisErrorConstant,
     InferenceConfigKey,
@@ -49,7 +48,6 @@ class ResourceCollectionOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        logger.info("Execute ResourceCollectionOperator")
         error_logs = ""
         try:
             self._monitor.report_resource()

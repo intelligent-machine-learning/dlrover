@@ -48,7 +48,6 @@ class TFTrainingReporter(Singleton):
 
     def set_start_time(self):
         if self._start_time == 0:
-            self._resource_monitor.start()
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp
@@ -57,7 +56,7 @@ class TFTrainingReporter(Singleton):
                 self.called_in_tf_hook,
             )
 
-    def report_resource_with_step(self, step):
+    def report_step(self, step):
         if not self._is_tf_chief:
             return
         try:
@@ -92,7 +91,6 @@ class TorchTrainingMonitor(Singleton):
                 "disabled."
             )
             return
-        self._resource_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
             name="node_reporter",
