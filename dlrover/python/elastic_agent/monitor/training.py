@@ -62,7 +62,6 @@ class TFTrainingReporter(Singleton):
         try:
             timestamp = int(time.time())
             if step > 0 and timestamp - self._last_timestamp > 30:
-                self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
                 self._master_client.report_global_step(
@@ -101,7 +100,7 @@ class TorchTrainingMonitor(Singleton):
     def stop(self):
         self._resource_monitor.stop()
 
-    def report_resource_with_step(self):
+    def report_step(self):
         if self._group_rank != 0:
             return
         try:
@@ -124,5 +123,5 @@ class TorchTrainingMonitor(Singleton):
         logger.info("Start training agent reporter.")
         while True:
             if self._group_rank == 0:
-                self.report_resource_with_step()
+                self.report_step()
             time.sleep(15)
