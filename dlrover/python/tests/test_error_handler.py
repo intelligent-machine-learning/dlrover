@@ -47,7 +47,7 @@ def test_register_unregister(exception_handler):
     assert len(exception_handler._original_handlers) > 0
 
     exception_handler.unregister()
-    assert sys.excepthook is original_excepthook  # 使用 'is' 而不是 '=='
+    assert sys.excepthook is original_excepthook  # use 'is' instead of '=='
     assert len(exception_handler._original_handlers) == 0
 
 
@@ -127,9 +127,9 @@ def test_handle_signal_unregister_signal(exception_handler, monkeypatch):
     assert mock_process.instant.call_count == 1
     assert mock_process.instant.call_args.args[0] == "exit_sig"
 
-    # 测试 unregister
+    #  test unregister
     exception_handler.unregister()
-    assert not exception_handler._registered  # 确保已注销
+    assert not exception_handler._registered  # ensure unregistered
 
 
 def test_thread_safety():
