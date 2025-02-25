@@ -516,7 +516,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._diagnose_agent = DiagnosisAgent.singleton_instance(
                 training_log_file=training_log_file,
                 errors=failure_node_errors,
-                rank=node_rank,
+                node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
             )
         self._agent_context = get_agent_context()
