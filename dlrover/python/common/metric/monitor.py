@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import threading
 import time
 import traceback
@@ -219,11 +218,11 @@ class SimpleMetricMonitor(MetricMonitor):
     def query_job_metrics(
         self, job_name, metric_type, start, end, is_gpu=True, pod_name=None
     ):
-        url = os.getenv("DLROVER_METRIC_URL", "")
+        url = _dlrover_context.metric_url
         if url == "":
             logger.warning("No GPU metrics url defined")
             return None
-        token = os.getenv("DLROVER_METRIC_TOKEN", "")
+        token = _dlrover_context.metric_token
         if token == "":
             logger.warning("No GPU metrics token defined")
             return None

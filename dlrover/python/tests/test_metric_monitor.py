@@ -42,9 +42,11 @@ from dlrover.python.common.metric.monitor import (
     NpuMetricMonitor,
     SimpleMetricMonitor,
 )
+from dlrover.python.common.global_context import Context
+
 
 _metric_context = JobMetricContext.singleton_instance()
-
+_dlrover_context = Context.singleton_instance()
 
 class MetricContextTests(unittest.TestCase):
     def test_gpu_metric(self):
@@ -569,6 +571,8 @@ class MetricMonitorTests(unittest.TestCase):
         logging.basicConfig()
         logging.getLogger().setLevel(logging.DEBUG)
         _metric_context.clear_node_metrics()
+        _dlrover_context.metric_url = "test"
+        _dlrover_context.metric_token = "test"
 
     def tearDown(self):
         _metric_context.clear_node_metrics()

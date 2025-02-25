@@ -406,6 +406,12 @@ class Accelerators(object):
     ASCEND_NPU = "ascend-npu"
 
 
+class XpuType(object):
+    GPU = "nvidia"
+    NPU = "ascend"
+    CPU = "cpu"
+
+
 class AscendConstants(object):
     # By default， there are 16(max) npu on one machine
     NPU_PER_NODE = 16

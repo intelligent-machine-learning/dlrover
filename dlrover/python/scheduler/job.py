@@ -99,6 +99,9 @@ class JobArgs(JsonSerializable):
         self.relaunch_always = True
         self.remove_exited_node = False
         self.cordon_fault_node = False
+        self.xpu_type = ""
+        self.metric_url = ""
+        self.metric_token = ""
 
     @abstractmethod
     def initilize(self):

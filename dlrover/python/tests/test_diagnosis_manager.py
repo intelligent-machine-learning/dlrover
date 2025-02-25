@@ -20,9 +20,10 @@ from unittest import mock
 from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
-    Accelerators,
     GpuMetricEnum,
+    PlatformType,
     PreCheckStatus,
+    XpuType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
@@ -60,6 +61,7 @@ from dlrover.python.master.diagnosis.precheck_operator import (
     PreCheckResult,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.scheduler.kubernetes import K8sJobArgs
 from dlrover.python.util.function_util import TimeoutException
 
 _metric_context = JobMetricContext.singleton_instance()
@@ -91,7 +93,8 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertEqual(len(logs), 1)
 
     def test_diagnosis_manager_api(self):
-        mgr = DiagnosisManager()
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        mgr = DiagnosisManager(job_args=args)
         mgr.pre_check()
         mgr.start_observing()
         mgr.stop_observing()
@@ -133,10 +136,11 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertEqual(action.action_type, DiagnosisActionType.NONE)
 
     def test_gpu_tensor_drop_zero(self):
-        mgr = DiagnosisManager()
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = XpuType.GPU
+        mgr = DiagnosisManager(job_args=args)
         _metric_context.clear_node_metrics()
 
-        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
         job_metrics = {}
         metric = GpuNodeMetric()
         for i in range(8):
