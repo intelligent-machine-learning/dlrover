@@ -107,6 +107,7 @@ class DiagnosisManager:
             logger.info(
                 "Pre-check operator config is empty, pre-check disabled."
             )
+            self._job_context.set_pre_check_status(PreCheckStatus.DISABLED)
             return
 
         start = time.time()
