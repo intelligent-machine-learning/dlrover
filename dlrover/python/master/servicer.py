@@ -835,7 +835,10 @@ def create_master_service(
 
     if service_type == CommunicationType.COMM_SERVICE_GRPC:
         server = grpc_lib.server(
-            futures.ThreadPoolExecutor(max_workers=max_threads),
+            futures.ThreadPoolExecutor(
+                max_workers=max_threads,
+                thread_name_prefix="grpc_master_service",
+            ),
             options=[
                 ("comm.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),
                 (

@@ -27,6 +27,7 @@ from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 def update_context(job_args: JobArgs):
@@ -49,6 +50,10 @@ def run(args):
     _dlrover_context.config_master_port(port=args.port)
     _dlrover_context.hang_detection = args.hang_detection
     _dlrover_context.hang_downtime = args.hang_downtime
+    _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
+    _dlrover_context.pending_timeout = args.pending_timeout
+    _dlrover_context.master_service_type = args.service_type
+    _dlrover_context.pre_check_operators = args.pre_check_ops
     if args.xpu_type.lower() == "ascend":
         _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":
@@ -79,10 +84,12 @@ def main():
     args = parse_master_args()
 
     # export event for dlrover master
-    master = DLRoverMasterEvent.singleton_instance()
-    master.start(pid=vars(args))
+    _master_evt.start(args=vars(args))
 
     exit_code = run(args)
+
+    _master_evt.exit(exit_code=exit_code)
+
     return exit_code
 
 

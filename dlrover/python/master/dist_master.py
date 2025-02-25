@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
 import time
 from typing import Dict
 
@@ -22,10 +22,16 @@ from dlrover.python.common.constants import (
     NodeType,
     OptimizeMode,
     PlatformType,
+    PreCheckStatus,
     RendezvousName,
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisResult,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -43,10 +49,15 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.training_event import DLRoverMasterEvent
+from dlrover.python.util.function_util import TimeoutException
+
+_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -122,6 +133,7 @@ class DistributedJobMaster(JobMaster):
                     "The master cannot recover from the failure."
                 )
 
+        self._job_ctx = get_job_context()
         self.speed_monitor = SpeedMonitor()
         self.job_manager = (
             create_job_manager(args, self.speed_monitor)
@@ -143,7 +155,7 @@ class DistributedJobMaster(JobMaster):
                 error_monitor
             ),
         }
-        self.diagnosis_manager = DiagnosisManager(job_name=args.job_name)
+        self.diagnosis_manager = DiagnosisManager(args)
         self._error_monitor = error_monitor
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
@@ -152,9 +164,11 @@ class DistributedJobMaster(JobMaster):
         self.sync_service = SyncService(self.job_manager)
         self._master_server = self._create_master_service(port, args)
         self._job_args = args
-        self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
+        self._job_evt = _master_evt.train_job(
+            job_name=args.job_name, args=vars(args)
+        )
 
     def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
@@ -203,9 +217,46 @@ class DistributedJobMaster(JobMaster):
         if self.job_manager:
             self.job_manager.start()
 
+        threading.Thread(
+            target=self._diagnose_job,
+            name="job_diagnosing",
+            daemon=True,
+        ).start()
+
+    def _diagnose_job(self):
+        logger.info("Start diagnosing the job.")
+        while True:
+            if self._job_ctx.is_request_stopped():
+                logger.info("Stop diagnosing job.")
+                break
+
+            # deal with diagnosis action
+            action = self._job_ctx.next_action(
+                instance=DiagnosisConstant.MASTER_INSTANCE
+            )
+
+            if isinstance(action, JobAbortionAction):
+                logger.info(f"Got job abortion action: {action}")
+                self.request_stop(
+                    success=False,
+                    reason=DiagnosisResult.DIAG_ABORT,
+                    msg=action.reason,
+                )
+            else:
+                self.job_manager.process_diagnosis_action(action)
+
+            # 10 actions per second
+            time.sleep(0.1)
+
     def pre_check(self):
         logger.info("Pre-check before running.")
-        self.diagnosis_manager.pre_check()
+        start = time.time()
+        try:
+            self.diagnosis_manager.pre_check()
+            logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
+        except TimeoutException:
+            logger.warning("Pre-check timeout, set pass as result for safety.")
+            self._job_ctx.set_pre_check_status(PreCheckStatus.PASS)
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""
@@ -228,7 +279,6 @@ class DistributedJobMaster(JobMaster):
         The main loop of master.
         Dispatch the tasks to the workers until all the tasks are completed.
         """
-
         # start training runtime diagnosis
         try:
             self.diagnosis_manager.start_metric_collect()
@@ -242,10 +292,12 @@ class DistributedJobMaster(JobMaster):
                 f"Failed to start training runtime diagnosis: {str(e)}"
             )
 
+        self._job_evt.begin()
+
         # into running loop
         try:
             while True:
-                if self._stop_requested:
+                if self._job_ctx.is_request_stopped():
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
@@ -298,6 +350,11 @@ class DistributedJobMaster(JobMaster):
                 self.diagnosis_manager.stop_observing()
             self.stop()
 
+        if self._exit_code == 0:
+            self._job_evt.success()
+        else:
+            self._job_evt.failure(error=self._exit_reason)
+
         return self._exit_code
 
     def _remove_not_participated_workers(self):
@@ -326,7 +383,6 @@ class DistributedJobMaster(JobMaster):
         logger.info("Master stopped")
 
     def request_stop(self, success, reason, msg=""):
-        self._stop_requested = True
         self._exit_reason = reason
         if success:
             self._exit_code = 0
@@ -355,3 +411,4 @@ class DistributedJobMaster(JobMaster):
                     "success": f"{success}",
                 },
             )
+        self._job_ctx.request_stop()
