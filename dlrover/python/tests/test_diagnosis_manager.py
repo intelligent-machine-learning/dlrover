@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import os
 import time
 import unittest
 from datetime import datetime
@@ -94,6 +95,38 @@ class DiagnosisManagerTest(unittest.TestCase):
 
     def test_diagnosis_manager_api(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = XpuType.GPU
+        mgr = DiagnosisManager(job_args=args)
+        self.assertEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+        os.environ["DLROVER_METRIC_URL"] = "test"
+        self.assertEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+        os.environ["DLROVER_METRIC_TOKEN"] = "test"
+        self.assertNotEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+
+        os.environ["DLROVER_METRIC_URL"] = ""
+        os.environ["DLROVER_METRIC_TOKEN"] = ""
+        _dlrover_context.metric_url = ""
+        _dlrover_context.token = ""
+        mgr._job_args.metric_url = "test"
+        self.assertEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+        mgr._job_args.metric_token = "test"
+        self.assertNotEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+
+        mgr._job_args.xpu_type = XpuType.NPU
+        self.assertNotEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+        )
+
         mgr = DiagnosisManager(job_args=args)
         mgr.pre_check()
         mgr.start_observing()

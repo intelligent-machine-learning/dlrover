@@ -276,22 +276,26 @@ class DiagnosisManager:
 
         """
         if not self._job_args.metric_url:
-            self._job_args.metric_url = os.getenv("DLROVER_METRIC_URL", "")
-        _dlrover_context.metric_url = self._job_args.metric_url
+            _dlrover_context.metric_url = os.getenv("DLROVER_METRIC_URL", "")
+        else:
+            _dlrover_context.metric_url = self._job_args.metric_url
 
         if not self._job_args.metric_token:
-            self._job_args.metric_token = os.getenv("DLROVER_METRIC_TOKEN", "")
-        _dlrover_context.metric_token = self._job_args.metric_token
+            _dlrover_context.metric_token = os.getenv(
+                "DLROVER_METRIC_TOKEN", ""
+            )
+        else:
+            _dlrover_context.metric_token = self._job_args.metric_token
 
         logger.info(f"start {self._job_args.xpu_type} metric collector...")
         if not _dlrover_context.metric_url:
             logger.warning("no GPU metrics url defined, stop metric collector")
-            return
+            return DiagnosisResult.DIAG_ERROR
         if not _dlrover_context.metric_token:
             logger.warning(
                 "no GPU metrics token defined, stop metric collector"
             )
-            return
+            return DiagnosisResult.DIAG_ERROR
 
         if self._job_args.xpu_type is XpuType.NPU:
             self._metric_monitor = NpuMetricMonitor(
@@ -312,7 +316,7 @@ class DiagnosisManager:
             logger.info(
                 f"No need to collect metrics in {self._job_args.xpu_type}"
             )
-            return
+            return DiagnosisResult.DIAG_ERROR
 
         if self._metric_monitor:
             self._metric_monitor.start()
