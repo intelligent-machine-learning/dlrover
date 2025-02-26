@@ -146,7 +146,7 @@ def _get_local_ip():
             local_ip = socket.gethostbyname(_get_fq_hostname())
         except socket.gaierror:
             logger.warning(
-                "Can not resolve host IP. " "Use default '127.0.0.1' instead."
+                "Can not resolve host IP. Use default '127.0.0.1' instead."
             )
             local_ip = "127.0.0.1"
     return local_ip
@@ -516,7 +516,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._diagnose_agent = DiagnosisAgent.singleton_instance(
                 training_log_file=training_log_file,
                 errors=failure_node_errors,
-                rank=node_rank,
+                node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
             )
         self._agent_context = get_agent_context()
