@@ -69,7 +69,7 @@ class EventReporter(Singleton):
                 "rendezvous_type": rdzv_type,
                 "max_node": f"{rdzv_params.max_nodes}",
                 "min_node": f"{rdzv_params.min_nodes}",
-                "node_group": f"{[waiting_nodes.keys()]}",
+                "waiting_nodes": f"{[waiting_nodes.keys()]}",
                 "node_elapsed_time": f"{node_elapsed_time}",
             },
         )
@@ -95,7 +95,7 @@ class EventReporter(Singleton):
                 "status": "success",
                 "max_nodes": f"{rdzv_params.max_nodes}",
                 "min_nodes": f"{rdzv_params.min_nodes}",
-                "node_group": f"{node_ids}",
+                "node_ids": f"{node_ids}",
                 "elapsed_time": f"{elapsed_time}",
                 "error_message": "",
             },

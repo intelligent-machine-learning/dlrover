@@ -479,7 +479,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         self._name,
                         finished_rdzv_round,
                         self._rdzv_params,
-                        node_group=[],
+                        node_groups=[],
                         elapsed_time=waiting_time,
                     )
 
