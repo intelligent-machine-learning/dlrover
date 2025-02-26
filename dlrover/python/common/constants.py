@@ -415,7 +415,7 @@ class AscendConstants(object):
     HCCL_PORT_START_DEFAULT = 64000
 
 
-class ErrorMonitorConstants(object):
+class EventReportConstants(object):
     TYPE_INFO = "info"
     TYPE_WARN = "warn"
     TYPE_ERROR = "error"

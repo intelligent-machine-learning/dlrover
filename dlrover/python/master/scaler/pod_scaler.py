@@ -28,7 +28,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     NodeEnv,
     NodeStatus,
     NodeType,
@@ -567,10 +567,10 @@ class PodScaler(Scaler):
         )
         self._patch_tf_config_into_env(pod, node)
         if self._event_reporter:
-            self._event_reporter.report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+            self._event_reporter.inner_report(
+                EventReportConstants.TYPE_INFO,
                 pod_name,
-                ErrorMonitorConstants.ACTION_WORKER_CREATE,
+                EventReportConstants.ACTION_WORKER_CREATE,
                 "",
                 {},
             )

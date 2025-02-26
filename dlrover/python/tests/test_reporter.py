@@ -19,4 +19,4 @@ from dlrover.python.common.event.reporter import get_event_reporter
 class EventReporterTest(unittest.TestCase):
     def test_report_event(self):
         reporter = get_event_reporter()
-        reporter.report_event("1", "2", "3", "", {})
+        reporter.inner_report("1", "2", "3", "", {})

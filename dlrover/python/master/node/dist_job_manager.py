@@ -24,7 +24,7 @@ from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
@@ -274,9 +274,9 @@ class DistributedJobManager(JobManager):
             )
 
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "All node check failed",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
@@ -301,9 +301,9 @@ class DistributedJobManager(JobManager):
                 level=TrainingExceptionLevel.ERROR,
             )
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "PS OOM",
                 {},
             )
@@ -330,9 +330,9 @@ class DistributedJobManager(JobManager):
                 first_pending_node = self._worker_manager.first_pending_node
 
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
                     "first_pending_node": first_pending_node,
@@ -354,9 +354,9 @@ class DistributedJobManager(JobManager):
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
@@ -789,9 +789,9 @@ class DistributedJobManager(JobManager):
         if event.event_type == "exit":
             self.close_job()
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+                EventReportConstants.TYPE_INFO,
                 self._job_args.job_name,
-                ErrorMonitorConstants.ACTION_STOP,
+                EventReportConstants.ACTION_STOP,
                 "",
                 {},
             )
@@ -827,15 +827,15 @@ class DistributedJobManager(JobManager):
             f"{cur_node.name} status change: {old_status} to {new_status} "
             f"by the event {event.event_type}. "
         )
-        event_type = ErrorMonitorConstants.TYPE_INFO
+        event_type = EventReportConstants.TYPE_INFO
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             msg += f"Exit reason is {cur_node.exit_reason}"
-            event_type = ErrorMonitorConstants.TYPE_ERROR
+            event_type = EventReportConstants.TYPE_ERROR
         logger.info(msg)
         self._report_event(
             event_type=event_type,
             instance=cur_node.name,
-            action=ErrorMonitorConstants.ACTION_STATUS_UPDATE,
+            action=EventReportConstants.ACTION_STATUS_UPDATE,
             msg=f"{old_status} to {new_status}",
             labels={
                 "from_state": old_status,
@@ -941,9 +941,9 @@ class DistributedJobManager(JobManager):
 
         if not should_relaunch and len(msg) > 0:
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+                EventReportConstants.TYPE_INFO,
                 node.name,
-                ErrorMonitorConstants.ACTION_NOT_RELAUNCH,
+                EventReportConstants.ACTION_NOT_RELAUNCH,
                 msg,
                 {},
             )
@@ -971,9 +971,9 @@ class DistributedJobManager(JobManager):
             logger.error("Not support node type %s", node.type)
         if plan and len(plan.launch_nodes) > 0:
             self._report_event(
-                event_type=ErrorMonitorConstants.TYPE_INFO,
+                event_type=EventReportConstants.TYPE_INFO,
                 instance=node.name,
-                action=ErrorMonitorConstants.ACTION_RELAUNCH,
+                action=EventReportConstants.ACTION_RELAUNCH,
                 msg=f"{plan.launch_nodes[0].id}",
                 labels={
                     "relaunch_pod": f"{plan.launch_nodes[0].id}",
@@ -1199,7 +1199,7 @@ class DistributedJobManager(JobManager):
         labels: Dict[str, str],
     ):
         if self._event_reporter:
-            self._event_reporter.report_event(
+            self._event_reporter.inner_report(
                 event_type, instance, action, msg, labels
             )
 

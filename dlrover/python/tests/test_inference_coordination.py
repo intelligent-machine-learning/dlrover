@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.constants import ErrorMonitorConstants
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -46,9 +46,9 @@ class InferenceCoordinationTest(unittest.TestCase):
                 attribution=InferenceAttribute.IS,
                 description=InferenceDescription.EVENT,
                 configs={
-                    "event_type": ErrorMonitorConstants.TYPE_WARN,
-                    "event_instance": ErrorMonitorConstants.JOB_INSTANCE,
-                    "event_action": ErrorMonitorConstants.ACTION_HANG_WARN,
+                    "event_type": EventReportConstants.TYPE_WARN,
+                    "event_instance": EventReportConstants.JOB_INSTANCE,
+                    "event_action": EventReportConstants.ACTION_HANG_WARN,
                     "event_msg": "",
                     "event_labels": "{}",
                 },
@@ -56,12 +56,12 @@ class InferenceCoordinationTest(unittest.TestCase):
         )
         action = coordinate_solutions(test_solutions)
         self.assertEqual(action.action_type, DiagnosisActionType.EVENT)
-        self.assertEqual(action.event_type, ErrorMonitorConstants.TYPE_WARN)
+        self.assertEqual(action.event_type, EventReportConstants.TYPE_WARN)
         self.assertEqual(
-            action.event_instance, ErrorMonitorConstants.JOB_INSTANCE
+            action.event_instance, EventReportConstants.JOB_INSTANCE
         )
         self.assertEqual(
-            action.event_action, ErrorMonitorConstants.ACTION_HANG_WARN
+            action.event_action, EventReportConstants.ACTION_HANG_WARN
         )
         self.assertEqual(action.event_msg, "")
         self.assertEqual(action.event_labels, {})

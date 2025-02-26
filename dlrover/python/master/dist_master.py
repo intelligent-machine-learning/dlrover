@@ -17,7 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     JobExitReason,
     NodeType,
     OptimizeMode,
@@ -392,12 +392,12 @@ class DistributedJobMaster(JobMaster):
                 f"msg: {msg}."
             )
 
-        action = ErrorMonitorConstants.ACTION_STOP
+        action = EventReportConstants.ACTION_STOP
         if not success:
-            action = ErrorMonitorConstants.ACTION_EARLY_STOP
+            action = EventReportConstants.ACTION_EARLY_STOP
         if self._event_reporter:
-            self._event_reporter.report_event(
-                event_type=ErrorMonitorConstants.TYPE_ERROR,
+            self._event_reporter.inner_report(
+                event_type=EventReportConstants.TYPE_ERROR,
                 instance="job",
                 action=action,
                 msg=msg,

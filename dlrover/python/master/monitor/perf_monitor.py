@@ -14,7 +14,7 @@
 import time
 from typing import Dict, List, Set, Tuple
 
-from dlrover.python.common.constants import ErrorMonitorConstants
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -92,10 +92,10 @@ class PerfMonitor(object):
                 self._start_training_time - self._init_time,
             )
             if self._event_reporter:
-                self._event_reporter.report_event(
-                    ErrorMonitorConstants.TYPE_INFO,
+                self._event_reporter.inner_report(
+                    EventReportConstants.TYPE_INFO,
                     "job",
-                    ErrorMonitorConstants.ACTION_TRAINING_START,
+                    EventReportConstants.ACTION_TRAINING_START,
                     "",
                     {},
                 )
@@ -117,10 +117,10 @@ class PerfMonitor(object):
                 round(self.running_speed, 2),
             )
             if self._event_reporter:
-                self._event_reporter.report_event(
-                    ErrorMonitorConstants.TYPE_INFO,
+                self._event_reporter.inner_report(
+                    EventReportConstants.TYPE_INFO,
                     "job",
-                    ErrorMonitorConstants.ACTION_GLOBAL_STEP,
+                    EventReportConstants.ACTION_GLOBAL_STEP,
                     f"global_step={self._global_step}",
                     {},
                 )
