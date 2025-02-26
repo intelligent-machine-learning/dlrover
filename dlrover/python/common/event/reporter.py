@@ -15,10 +15,12 @@ import json
 from datetime import datetime
 from typing import Dict
 
-from dlrover.python.common.constants import EventReportConstants
+from dlrover.python.common.constants import EventReportConstants, NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
+from dlrover.python.training_event.emitter import DurationSpan
 
 _master_evt = DLRoverMasterEvent().singleton_instance()
 
@@ -42,6 +44,110 @@ class EventReporter(Singleton):
             f"[{time_str}][{event_type}][{instance}]"
             f"[{action}][{msg}][{labels_str}]"
         )
+
+    # ================ Master Start ================
+    def report_job_start(self, job_evt: DurationSpan, args: JobArgs):
+        job_evt.begin()
+
+        self.inner_report(
+            EventReportConstants.TYPE_INFO,
+            EventReportConstants.JOB_INSTANCE,
+            EventReportConstants.ACTION_JOB_START,
+            f"{args.job_name}",
+            {},
+        )
+
+    def report_job_success(self, job_evt: DurationSpan, args: JobArgs):
+        job_evt.success()
+
+        self.inner_report(
+            EventReportConstants.TYPE_INFO,
+            EventReportConstants.JOB_INSTANCE,
+            EventReportConstants.ACTION_JOB_SUCCESS,
+            f"{args.job_name}",
+            {},
+        )
+
+    def report_job_fail(
+        self, job_evt: DurationSpan, args: JobArgs, error: str
+    ):
+        job_evt.fail(error=error)
+
+        self.inner_report(
+            EventReportConstants.TYPE_ERROR,
+            EventReportConstants.JOB_INSTANCE,
+            EventReportConstants.ACTION_JOB_FAIL,
+            f"{args.job_name}",
+            {},
+        )
+
+    # ================ Master End ================
+
+    # ================ JobManager Start ================
+
+    def report_node_status_change(self, node, old_status, new_status):
+        """Report node status when changing."""
+
+        _master_evt.worker_event(
+            pod_name=node.name,
+            from_state=old_status,
+            to_state=new_status,
+            reason=node.exit_reason,
+        )
+
+        event_type = EventReportConstants.TYPE_INFO
+        if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
+            event_type = EventReportConstants.TYPE_WARN
+
+        self.inner_report(
+            event_type=event_type,
+            instance=node.name,
+            action=EventReportConstants.ACTION_STATUS_UPDATE,
+            msg=f"{old_status} to {new_status}",
+            labels={
+                "from_state": old_status,
+                "to_state": new_status,
+                "node": node.name,
+                "exit reason": node.exit_reason,
+            },
+        )
+
+    def report_node_relaunch(self, node, new_node):
+        """Report node when relaunching."""
+
+        _master_evt.worker_relaunch(
+            pod_name=node.name,
+            relaunch_pod_name=new_node.name,
+        )
+
+        self.inner_report(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=node.name,
+            action=EventReportConstants.ACTION_RELAUNCH,
+            msg=f"{new_node.id}",
+            labels={
+                "node": node.host_name,
+                "new_node": f"{new_node.name}",
+            },
+        )
+
+    def report_node_no_heartbeat(self, node, timeout):
+        """Report node if heartbeat timeout."""
+
+        _master_evt.worker_no_heartbeat(
+            pod_name=node.name,
+            timeout=timeout,
+        )
+
+        self.inner_report(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=node.name,
+            action=EventReportConstants.ACTION_WORKER_NO_HEARTBEAT,
+            msg="",
+            labels={},
+        )
+
+    # ================ JobManager End ================
 
     # ================ RDZV Start ================
 
@@ -75,7 +181,12 @@ class EventReporter(Singleton):
         )
 
     def report_rdzv_complete(
-        self, rdzv_evt, rdzv_type, rdzv_round, rdzv_params, **kwargs
+        self,
+        rdzv_evt: DurationSpan,
+        rdzv_type,
+        rdzv_round,
+        rdzv_params,
+        **kwargs,
     ):
         """Report rendezvous complete."""
 
@@ -102,7 +213,12 @@ class EventReporter(Singleton):
         )
 
     def report_rdzv_timeout(
-        self, rdzv_evt, rdzv_type, rdzv_round, rdzv_params, **kwargs
+        self,
+        rdzv_evt: DurationSpan,
+        rdzv_type,
+        rdzv_round,
+        rdzv_params,
+        **kwargs,
     ):
         """Report rendezvous timeout."""
 

@@ -539,9 +539,8 @@ class DistributedJobManager(JobManager):
                         f"created at: {node.create_time}, "
                         f"started at: {node.start_time}."
                     )
-                    _master_evt.worker_no_heartbeat(
-                        pod_name=node.name,
-                        timeout=window_interval,
+                    self._event_reporter.report_node_no_heartbeat(
+                        node, window_interval
                     )
         return dead_events
 
@@ -827,29 +826,13 @@ class DistributedJobManager(JobManager):
             f"{cur_node.name} status change: {old_status} to {new_status} "
             f"by the event {event.event_type}. "
         )
-        event_type = EventReportConstants.TYPE_INFO
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             msg += f"Exit reason is {cur_node.exit_reason}"
-            event_type = EventReportConstants.TYPE_ERROR
         logger.info(msg)
-        self._report_event(
-            event_type=event_type,
-            instance=cur_node.name,
-            action=EventReportConstants.ACTION_STATUS_UPDATE,
-            msg=f"{old_status} to {new_status}",
-            labels={
-                "from_state": old_status,
-                "to_state": new_status,
-                "node": cur_node.host_name,
-                "exit reason": cur_node.exit_reason,
-            },
+        self._event_reporter.report_node_status_change(
+            cur_node, old_status, new_status
         )
-        _master_evt.worker_event(
-            pod_name=cur_node.name,
-            from_state=old_status,
-            to_state=new_status,
-            reason=cur_node.exit_reason,
-        )
+
         if should_relaunch:
             self._relaunch_node(cur_node)
 
@@ -970,25 +953,17 @@ class DistributedJobManager(JobManager):
         else:
             logger.error("Not support node type %s", node.type)
         if plan and len(plan.launch_nodes) > 0:
-            self._report_event(
-                event_type=EventReportConstants.TYPE_INFO,
-                instance=node.name,
-                action=EventReportConstants.ACTION_RELAUNCH,
-                msg=f"{plan.launch_nodes[0].id}",
-                labels={
-                    "relaunch_pod": f"{plan.launch_nodes[0].id}",
-                    "node": node.host_name,
-                },
+            self._event_reporter.report_node_relaunch(
+                node, plan.launch_nodes[0]
             )
-            _master_evt.worker_relaunch(
-                pod_name=node.name,
-                relaunch_pod_name=plan.launch_nodes[0].id,
-            )
+
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:
             plan.remove_nodes.append(node)
+
         # Avoid repeatedly relaunching the node.
         node.relaunchable = False
+
         self._job_context.update_job_node(node)
         self._scaler.scale(plan)
 
@@ -1198,10 +1173,9 @@ class DistributedJobManager(JobManager):
         msg: str,
         labels: Dict[str, str],
     ):
-        if self._event_reporter:
-            self._event_reporter.inner_report(
-                event_type, instance, action, msg, labels
-            )
+        self._event_reporter.inner_report(
+            event_type, instance, action, msg, labels
+        )
 
     def _process_error(
         self,

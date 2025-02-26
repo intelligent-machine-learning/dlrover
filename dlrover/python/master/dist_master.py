@@ -287,7 +287,7 @@ class DistributedJobMaster(JobMaster):
                 f"Failed to start training runtime diagnosis: {str(e)}"
             )
 
-        self._job_evt.begin()
+        self._event_reporter.report_job_start(self._job_evt, self._job_args)
 
         # into running loop
         try:
@@ -346,9 +346,13 @@ class DistributedJobMaster(JobMaster):
             self.stop()
 
         if self._exit_code == 0:
-            self._job_evt.success()
+            self._event_reporter.report_job_success(
+                self._job_evt, self._job_args
+            )
         else:
-            self._job_evt.failure(error=self._exit_reason)
+            self._event_reporter.report_job_fail(
+                self._job_evt, self._job_args, self._exit_reason
+            )
 
         return self._exit_code
 
