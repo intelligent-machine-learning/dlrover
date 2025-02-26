@@ -15,8 +15,7 @@ import json
 from datetime import datetime
 from typing import Dict
 
-from common.constants import EventReportConstants
-
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event import DLRoverMasterEvent
