@@ -463,7 +463,7 @@ def _check_to_use_dlrover_run(job_name):
     # try dist master connection
     if not _check_dlrover_master_available(master_addr, timeout=60):
         logger.warning(
-            "Distributed dlrover master is not available: {master_addr}"
+            f"Distributed dlrover master is not available: {master_addr}"
         )
 
         # for node 0 (max-node is 1)
@@ -475,7 +475,7 @@ def _check_to_use_dlrover_run(job_name):
                     job_name,
                 )
                 logger.info(
-                    "Set the dlrover master(local) addr " f"as {master_addr}"
+                    f"Set the dlrover master(local) addr as {master_addr}"
                 )
                 os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
 
