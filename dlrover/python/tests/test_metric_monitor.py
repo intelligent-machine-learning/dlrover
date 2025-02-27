@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
     GpuMetricEnum,
     NpuMetricEnum,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import (
     JobMetricContext,
     get_job_metric_context,
@@ -44,6 +45,7 @@ from dlrover.python.common.metric.monitor import (
 )
 
 _metric_context = JobMetricContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class MetricContextTests(unittest.TestCase):

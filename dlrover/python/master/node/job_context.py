@@ -207,9 +207,7 @@ class JobContext(Singleton):
         self._pre_check_status = status
 
     def get_pre_check_status(self):
-        if _dlrover_context.pre_check_enabled():
-            return self._pre_check_status
-        return PreCheckStatus.DISABLED
+        return self._pre_check_status
 
     def update_total_worker_num(self, worker_num: int):
         self._total_worker_num = worker_num

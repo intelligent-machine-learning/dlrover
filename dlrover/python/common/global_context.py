@@ -15,7 +15,6 @@ import os
 from typing import List, Tuple
 
 from dlrover.python.common.constants import (
-    Accelerators,
     CommunicationType,
     PendingTimeoutStrategyType,
     UserEnv,
@@ -69,6 +68,7 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
+    MAX_TRAIN_STEPS = 1000_000
     PRE_CHECK_OPS: List[Tuple] = [
         (
             "dlrover.python.master.diagnosis.precheck_operator",
@@ -76,6 +76,7 @@ class DefaultValues(object):
             True,
         )
     ]
+    MAX_HANG_THRESHOLD = 300  # seconds
 
 
 class Context(Singleton):
@@ -124,8 +125,6 @@ class Context(Singleton):
         self.hang_detection = DefaultValues.HANG_DETECTION
         # The duration of downtime as training hang, unit is minute
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
-        # The default xpu device type.
-        self.xpu_type = Accelerators.NVIDIA_GPU
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args

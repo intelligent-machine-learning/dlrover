@@ -48,6 +48,9 @@ from dlrover.python.diagnosis.diagnostician.diagnostician import (
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
+from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
+    AtorchEventCollector,
+)
 from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
 )
@@ -60,6 +63,12 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.training_event.config import (
+    Config,
+    is_dlrover_event_enabled,
+)
+
+evt_config = Config.singleton_instance()
 
 
 class DiagnosisAgentConstants(object):
@@ -71,7 +80,8 @@ class DiagnosisAgent(Singleton):
         self,
         training_log_file="",
         errors="",
-        rank=-1,
+        node_rank=-1,
+        local_world_size=0,
     ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
@@ -107,7 +117,11 @@ class DiagnosisAgent(Singleton):
         self._agent_context = get_agent_context()
         self._diagnosis_thread = None
         self._report_thread = None
-        self._rank = rank
+        self._node_rank = node_rank
+        self._local_world_size = local_world_size
+        self._atorch_collector = AtorchEventCollector(
+            local_world_size=local_world_size, retry_timeout=30
+        )
 
         self.start()
 
@@ -127,7 +141,7 @@ class DiagnosisAgent(Singleton):
             self._errors = errors
             logger.info(f"Update errors: {errors}")
         if rank >= 0:
-            self._rank = rank
+            self._node_rank = rank
             logger.info(f"Update rank: {rank}")
 
     def start(self):
@@ -148,6 +162,9 @@ class DiagnosisAgent(Singleton):
         )
         self._report_thread.start()
 
+        if is_dlrover_event_enabled():
+            self._atorch_collector.start_collectors
+
     def stop(self):
         self._stopped = True
 
@@ -166,7 +183,7 @@ class DiagnosisAgent(Singleton):
         for problem in problems:
             if problem.configs is None:
                 problem.configs = {}
-            problem.configs[InferenceConfigKey.RANK] = str(self._rank)
+            problem.configs[InferenceConfigKey.RANK] = str(self._node_rank)
             ic = InferenceChain([problem], self._diagnosis_operators)
             try:
                 infs = ic.infer()

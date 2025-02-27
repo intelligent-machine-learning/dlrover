@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     JobExitReason,
     NodeStatus,
     NodeType,
+    PreCheckStatus,
     RendezvousName,
 )
 from dlrover.python.common.global_context import Context
@@ -180,11 +181,13 @@ class LocalJobMasterTest(unittest.TestCase):
         self._master, addr = start_local_master()
         self.master_client = build_master_client(addr, 0.5)
         self.job_context = get_job_context()
+        self.job_context._pre_check_status = PreCheckStatus.CHECKING
 
     def tearDown(self):
         self._master.stop()
         self.job_context.clear_job_nodes()
         self.job_context._request_stopped = False
+        self.job_context._pre_check_status = PreCheckStatus.CHECKING
 
     def test_task_manager(self):
         self.master_client.report_dataset_shard_params(
@@ -222,3 +225,12 @@ class LocalJobMasterTest(unittest.TestCase):
             master.request_stop(True, "", "")
         except Exception:
             pass
+
+    def test_pre_check(self):
+        self.assertEqual(
+            self.job_context.get_pre_check_status(), PreCheckStatus.CHECKING
+        )
+        self._master.pre_check()
+        self.assertEqual(
+            self.job_context.get_pre_check_status(), PreCheckStatus.DISABLED
+        )

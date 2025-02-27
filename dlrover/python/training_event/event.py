@@ -20,6 +20,17 @@ from typing import Optional
 from dlrover.python.training_event.config import Config
 
 
+class EventTargetName(object):
+    TRAINER = "AtorchTrainerV2"
+    SAVER = "AsyncSaver"
+
+
+class EventTypeName(object):
+    BEGIN = "BEGIN"
+    END = "END"
+    INSTANT = "INSTANT"
+
+
 class EventType(Enum):
     """
     The type of the event.
@@ -58,6 +69,7 @@ class Event:
     event_type: EventType
     content: dict
     target: str = ""
+    max_event_prefix = 6
 
     def __str__(self):
         return "[%s] [%s] [%s] [%s] [%s] [%s] %s" % (
