@@ -73,6 +73,8 @@ class DiagnosisActionType(object):
 
 
 class DiagnosisResult(object):
+    # diag invalid param
+    DIAG_INVALID_PARAM = "invalid"
     # diag error
     DIAG_ERROR = "error"
     # waiting for more data to finish diag

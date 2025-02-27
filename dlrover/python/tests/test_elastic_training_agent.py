@@ -442,7 +442,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
 
             self._master.diagnosis_manager.stop_metric_collect()
 
@@ -458,7 +457,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
 
             self._master.diagnosis_manager.stop_metric_collect()
 
