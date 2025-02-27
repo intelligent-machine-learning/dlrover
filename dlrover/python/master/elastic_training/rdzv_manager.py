@@ -83,7 +83,6 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
         self._error_monitor = error_monitor
-        self._rdzv_evt = _master_evt.mock()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -301,12 +300,19 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"rank: {meta.node_rank} and ip: {meta.node_ip} "
                 f"joining rendezvous for round: {self._rdzv_round}."
             )
-            self._rdzv_evt.begin()
             self._waiting_nodes[node_rank] = meta
             self._rdzv_nodes = OrderedDict()
             self._lastcall_time = time.time()
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
+            )
+            _master_evt.node_join(
+                node_id=str(meta.node_id),
+                node_rank=str(meta.node_rank),
+                node_ip=str(meta.node_ip),
+                rdzv_round=str(self._rdzv_round),
+                rdzv_type=self._name,
+                waiting_nodes=self._waiting_nodes.keys(),
             )
             if self._error_monitor:
                 node_elapsed_time = self._node_rdzv_times[node_rank]
@@ -468,7 +474,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         node_elapsed_time=f"{node_elapsed_time}",
                     )
                     self._rdzv_evt = _master_evt.rendezvous(
-                        rendezvous_type=RendezvousName.ELASTIC_TRAINING,
+                        rendezvous_type=self._name,
                         round_num=self.get_rdzv_round(),
                         timeout_sec=self.get_waiting_timeout(),
                         max_nodes=self.get_max_nodes(),

@@ -18,10 +18,12 @@ from datetime import datetime
 
 from dlrover.python.common.constants import (
     Accelerators,
+    ErrorMonitorConstants,
     GpuMetricEnum,
     NpuMetricEnum,
     PreCheckStatus,
 )
+from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
@@ -59,6 +61,7 @@ from dlrover.python.util.function_util import TimeoutException, timeout
 from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
+_event_context = JobEventContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 
@@ -72,24 +75,39 @@ class DiagnosisManager:
     DiagnosisManager is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_args: JobArgs = None):
+    def __init__(self, job_args: JobArgs = None, error_monitor=None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
         self._job_args = job_args
+        self._error_monitor = error_monitor
         self._metric_monitor = None
         self._lock = threading.Lock()
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
+    def _report_event(self, event_type, instance, action, msg="", labels=None):
+        if labels is None:
+            labels = {}
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                event_type, instance, action, msg, labels
+            )
+
     @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled():
-            logger.info(
-                "Pre-check operator config is empty, " "pre-check disabled."
+            self._report_event(
+                ErrorMonitorConstants.TYPE_INFO,
+                ErrorMonitorConstants.JOB_INSTANCE,
+                ErrorMonitorConstants.ACTION_PRE_CHECK_DISABLE,
             )
+            logger.info(
+                "Pre-check operator config is empty, pre-check disabled."
+            )
+            self._job_context.set_pre_check_status(PreCheckStatus.DISABLED)
             return
 
         start = time.time()
@@ -209,8 +227,20 @@ class DiagnosisManager:
                             )
                             continue
                 except TimeoutException as te:
+                    self._report_event(
+                        ErrorMonitorConstants.TYPE_WARN,
+                        ErrorMonitorConstants.JOB_INSTANCE,
+                        ErrorMonitorConstants.ACTION_PRE_CHECK_TIMEOUT,
+                        pre_check_op.__class__.__name__,
+                    )
                     raise te
                 except Exception as e:
+                    self._report_event(
+                        ErrorMonitorConstants.TYPE_WARN,
+                        ErrorMonitorConstants.JOB_INSTANCE,
+                        ErrorMonitorConstants.ACTION_PRE_CHECK_ERROR,
+                        pre_check_op.__class__.__name__,
+                    )
                     logger.error(
                         f"{pre_check_op.__class__.__name__} "
                         f"got unexpected error: {e}",
@@ -224,6 +254,11 @@ class DiagnosisManager:
             # outer loop continue here
             if pre_check_finish:
                 self._job_context.set_pre_check_status(PreCheckStatus.PASS)
+                self._report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    ErrorMonitorConstants.JOB_INSTANCE,
+                    ErrorMonitorConstants.ACTION_PRE_CHECK_PASS,
+                )
                 break
             else:
                 round += 1

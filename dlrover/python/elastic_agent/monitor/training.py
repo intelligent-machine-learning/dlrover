@@ -48,7 +48,6 @@ class TFTrainingReporter(Singleton):
 
     def set_start_time(self):
         if self._start_time == 0:
-            self._resource_monitor.start()
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp
@@ -57,13 +56,12 @@ class TFTrainingReporter(Singleton):
                 self.called_in_tf_hook,
             )
 
-    def report_resource_with_step(self, step):
+    def report_step(self, step):
         if not self._is_tf_chief:
             return
         try:
             timestamp = int(time.time())
             if step > 0 and timestamp - self._last_timestamp > 30:
-                self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
                 self._master_client.report_global_step(
@@ -92,7 +90,6 @@ class TorchTrainingMonitor(Singleton):
                 "disabled."
             )
             return
-        self._resource_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
             name="node_reporter",
@@ -103,7 +100,7 @@ class TorchTrainingMonitor(Singleton):
     def stop(self):
         self._resource_monitor.stop()
 
-    def report_resource_with_step(self):
+    def report_step(self):
         if self._group_rank != 0:
             return
         try:
@@ -114,7 +111,6 @@ class TorchTrainingMonitor(Singleton):
                 step = record.get("step", 0)
                 timestamp = record.get("timestamp", 0)
             if step > 0 and timestamp - self._last_timestamp > 15:
-                self._resource_monitor.report_resource()
                 self._last_timestamp = timestamp
                 self._master_client.report_global_step(
                     step,
@@ -127,5 +123,5 @@ class TorchTrainingMonitor(Singleton):
         logger.info("Start training agent reporter.")
         while True:
             if self._group_rank == 0:
-                self.report_resource_with_step()
+                self.report_step()
             time.sleep(15)

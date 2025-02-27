@@ -257,6 +257,24 @@ class MasterClient(Singleton, ABC):
 
         return self._report(message)
 
+    def report_atorch_event(
+        self,
+        event_ts,
+        event_target,
+        event_name,
+        event_type,
+        event_step,
+    ):
+        message = comm.AtorchEvent(
+            timestamp=event_ts,
+            step=event_step,
+            target=event_target,
+            name=event_name,
+            type=event_type,
+        )
+
+        return self._report(message)
+
     def report_network_check_status(self, node_rank, status, elapsed_time):
         return self.report_node_event(
             event_type=status,

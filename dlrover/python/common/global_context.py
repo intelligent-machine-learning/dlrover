@@ -70,6 +70,7 @@ class DefaultValues(object):
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
+    MAX_TRAIN_STEPS = 1000_000
     PRE_CHECK_OPS: List[Tuple] = [
         (
             "dlrover.python.master.diagnosis.precheck_operator",
@@ -77,6 +78,7 @@ class DefaultValues(object):
             True,
         )
     ]
+    MAX_HANG_THRESHOLD = 300  # seconds
 
 
 class Context(Singleton):
