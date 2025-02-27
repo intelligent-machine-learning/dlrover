@@ -79,6 +79,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeEventType,
+    NodeExitDescription,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -1564,7 +1565,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                         "No need for another round of network "
                         "check because the nodes is less than 3."
                     )
-                    raise NodeCheckFailedError("This node is down.")
+                    raise NodeCheckFailedError(
+                        NodeExitDescription.CHECK_FAILED_MSG
+                    )
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
@@ -1577,7 +1580,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise NodeCheckFailedError("This node is down.")
+            raise NodeCheckFailedError(NodeExitDescription.CHECK_FAILED_MSG)
         elif self._node_rank in stragglers:
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:

@@ -152,6 +152,13 @@ class NodeExitReason(object):
     DIAG_FAIL = "DiagnosticFailure"
 
 
+class NodeExitDescription(object):
+    CHECK_FAILED_MSG = (
+        "This node failed the node-check "
+        "procedure(mat-mul + comm) before training."
+    )
+
+
 class JobExitReason(object):
     SUCCEEDED = "Completed"
     CODE_ERROR = "CodeError"
