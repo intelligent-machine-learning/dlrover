@@ -14,10 +14,10 @@ coverage:
     patch:
       default:
         target: 90%
-        threshold: 3%
+        threshold: 2%
         removed_code_behavior: fully_covered_patch
     project:
       default:
         target: 83%
-        threshold: 3%
+        threshold: 2%
         removed_code_behavior: fully_covered_patch
