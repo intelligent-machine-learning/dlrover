@@ -408,6 +408,7 @@ class JobConstant(object):
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+    GENERIC_CPU = "cpu"
 
 
 class AscendConstants(object):

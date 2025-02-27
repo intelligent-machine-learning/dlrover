@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import threading
 import time
 from datetime import datetime
@@ -275,24 +274,17 @@ class DiagnosisManager:
         store the data into global JobMetricContext
 
         """
-        logger.info(f"start {_dlrover_context.xpu_type} metric collector...")
-        if not os.getenv("DLROVER_METRIC_URL", ""):
-            logger.warning("no GPU metrics url defined, stop metric collector")
-            return
-        if not os.getenv("DLROVER_METRIC_TOKEN", ""):
-            logger.warning(
-                "no GPU metrics token defined, stop metric collector"
-            )
-            return
 
-        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
+        logger.info(f"start {self._job_args.xpu_type} metric collector...")
+
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
-        else:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             self._metric_monitor = GpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
@@ -300,6 +292,11 @@ class DiagnosisManager:
                     GpuMetricEnum.GPU_TENSOR_UTIL,
                 ],
             )
+        else:
+            logger.info(
+                f"No need to collect metrics in {self._job_args.xpu_type}"
+            )
+            return DiagnosisResult.DIAG_INVALID_PARAM
 
         if self._metric_monitor:
             self._metric_monitor.start()
@@ -362,19 +359,20 @@ class DiagnosisManager:
         logger.info("Stop diagnosis manager training observation...")
         self._is_observing_started = False
 
-    @staticmethod
-    def check_tensor_drop_zero(duration):
+    def check_tensor_drop_zero(self, duration):
         if duration > _metric_context.max_metric_records:
             duration = _metric_context.max_metric_records
 
-        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 NpuMetricEnum.NPU_UTIL, duration
             )
-        else:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 GpuMetricEnum.GPU_TENSOR_UTIL, duration
             )
+        else:
+            return DiagnosisResult.DIAG_INVALID_PARAM, 0, 0
 
         if metrics is None:
             logger.warning(f"invalid metrics: {metrics}")
