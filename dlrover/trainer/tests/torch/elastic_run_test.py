@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import socket
 import telnetlib
 import threading
@@ -30,9 +30,8 @@ from dlrover.trainer.torch.elastic_run import (
     _check_dlrover_master_available,
     _check_to_use_dlrover_run,
     _elastic_config_from_args,
+    _is_local_master_supported,
     _launch_dlrover_local_master,
-    check_dlrover_master_address,
-    is_local_master_supported,
     parse_args,
     wait_pre_check,
 )
@@ -47,6 +46,7 @@ class ElasticRunTest(unittest.TestCase):
 
     def tearDown(self):
         self._master.stop()
+        os.environ.clear()
 
     @patch(f"{MC_PATH}.report_failures")
     def test_launch_local_master(self, some_func):
@@ -67,13 +67,55 @@ class ElasticRunTest(unittest.TestCase):
         telnetlib.Telnet = old_telnet
         handler.close()
 
-    def test_check_to_use_dlrover_run(self):
-        use_dlrover_run = _check_to_use_dlrover_run("", 1, 3)
-        self.assertFalse(use_dlrover_run)
-        with self.assertRaises(ValueError):
-            _check_to_use_dlrover_run("", 2, 3)
-        with self.assertRaises(ValueError):
-            _check_to_use_dlrover_run("127.0.0.1:23456", 2, 3)
+    @patch("dlrover.trainer.torch.elastic_run._check_dlrover_master_available")
+    @patch("dlrover.trainer.torch.elastic_run._is_local_master_supported")
+    @patch("dlrover.trainer.torch.elastic_run._launch_dlrover_local_master")
+    def test_check_to_use_dlrover_run(
+        self,
+        mock_launch_local_master,
+        mock_is_local_master_enabled,
+        mock_check_dlrover_master,
+    ):
+        job_name = "test"
+
+        # 1) no dist master 2) node 0 3) local master disabled
+        mock_check_dlrover_master.return_value = False
+        mock_is_local_master_enabled.return_value = False
+        self.assertFalse(_check_to_use_dlrover_run(job_name))
+
+        # 1) no dist master 2) node 0 3) local master enable + available
+        mock_check_dlrover_master.return_value = True
+        mock_is_local_master_enabled.return_value = True
+        mock_launch_local_master.return_value = None, "127.0.0.1:8000"
+        self.assertTrue(_check_to_use_dlrover_run(job_name))
+
+        # 1) no dist master 2) node 0 3) local master enable + unavailable
+        mock_check_dlrover_master.return_value = False
+        self.assertFalse(_check_to_use_dlrover_run(job_name))
+
+        # 1) with master address 2) node 0
+        mock_check_dlrover_master.return_value = True
+        self.assertTrue(_check_to_use_dlrover_run(job_name))
+
+        # 1) with master address 2) node 1
+        env_utils.set_env(NodeEnv.WORKER_RANK, "1")
+        self.assertTrue(_check_to_use_dlrover_run(job_name))
+
+        # 1) no master address 2) node 1
+        mock_check_dlrover_master.return_value = False
+        try:
+            self.assertFalse(_check_to_use_dlrover_run(job_name))
+            self.fail()
+        except Exception:
+            pass
+
+        # 1) no master address 2) node 1 3) local master enable
+        mock_is_local_master_enabled.return_value = True
+        try:
+            self.assertFalse(_check_to_use_dlrover_run(job_name))
+            self.fail()
+        except Exception:
+            pass
 
     def test_elastic_config_from_args(self):
         args = [
@@ -174,29 +216,19 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue(time.time() - start > 0.5)
 
     def test_is_local_master_supported(self):
-        self.assertFalse(is_local_master_supported())
+        self.assertFalse(_is_local_master_supported())
 
         env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "False")
-        self.assertFalse(is_local_master_supported())
+        self.assertFalse(_is_local_master_supported())
 
         env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "F")
-        self.assertFalse(is_local_master_supported())
+        self.assertFalse(_is_local_master_supported())
 
         env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, None)
-        self.assertFalse(is_local_master_supported())
+        self.assertFalse(_is_local_master_supported())
 
         env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "")
-        self.assertFalse(is_local_master_supported())
+        self.assertFalse(_is_local_master_supported())
 
         env_utils.set_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED, "True")
-        self.assertTrue(is_local_master_supported())
-
-    def test_check_dlrover_master_address(self):
-        start = time.time()
-        try:
-            check_dlrover_master_address("")
-            self.fail()
-        except ValueError:
-            self.assertTrue(time.time() - start > 3)
-        except Exception:
-            self.fail()
+        self.assertTrue(_is_local_master_supported())

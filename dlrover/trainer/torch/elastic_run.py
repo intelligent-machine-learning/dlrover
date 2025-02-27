@@ -100,21 +100,15 @@ from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
-from torch.distributed.run import (
-    config_from_args,
-    get_args_parser,
-    parse_min_max_nnodes,
-)
+from torch.distributed.run import config_from_args, get_args_parser
 
 import dlrover.python.util.common_util as cu
-from dlrover.python.common import comm, env_utils
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
     JobConstant,
     NodeEnv,
-    NodeEventType,
     PreCheckStatus,
-    TrainingExceptionLevel,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -123,7 +117,6 @@ from dlrover.python.elastic_agent.torch.training import (
     launch_agent,
 )
 from dlrover.python.training_event import DLRoverAgentEvent
-from dlrover.python.util.function_util import retry
 from dlrover.trainer.torch.utils import version_less_than_230
 
 
@@ -219,7 +212,7 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-class elastic_launch:
+class ElasticLaunch:
     """
     Launches an torchelastic agent on the container
     that invoked the entrypoint.
@@ -291,7 +284,7 @@ def wait_pre_check():
         time.sleep(wait_secs)
 
 
-def _launch_dlrover_local_master(master_addr, job_name, node_num):
+def _launch_dlrover_local_master(master_addr, job_name):
     """Launch a subprocess to run the DLRover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
@@ -308,7 +301,7 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
         "--port",
         f"{port}",
         "--node_num",
-        f"{node_num}",
+        "1",
         "--job_name",
         job_name,
         "--platform",
@@ -324,11 +317,17 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
 
 
 def _check_dlrover_master_available(addr, timeout=120):
-    """Verify that the master grpc servicer is available."""
+    """Verify that the master servicer is available."""
     if not addr:
         return False
-    host = addr.split(":")[0]
-    port = int(addr.split(":")[1])
+
+    try:
+        host = addr.split(":")[0]
+        port = int(addr.split(":")[1])
+    except Exception:
+        logger.error(f"Invalid master addr: {addr}")
+        return False
+
     start_time = time.time()
     while True:
         try:
@@ -336,14 +335,13 @@ def _check_dlrover_master_available(addr, timeout=120):
             logger.info("DLRover master has already started.")
             return True
         except (socket.timeout, ConnectionRefusedError):
-            time.sleep(1)
-        except socket.gaierror as e:
-            client = MasterClient.singleton_instance(addr)
-            client.report_failures(
-                NodeEventType.MASTER_CONNECTION_FAILED,
-                level=TrainingExceptionLevel.NODE_ERROR,
+            logger.warning(
+                "Got connection timeout when checking dlrover master."
             )
-            raise e
+            time.sleep(1)
+        except socket.gaierror:
+            logger.warning("Got gaierror when checking dlrover master.")
+            time.sleep(3)
 
         if time.time() - start_time > timeout:
             return False
@@ -458,32 +456,56 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
     return elastic_config
 
 
-def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
-    if _check_dlrover_master_available(master_addr, timeout):
-        return True
-    elif max_nodes == 1:
-        logger.info("Use native torchrun to start job on the single node.")
-        return False
-    elif not master_addr:
-        raise ValueError(
-            "DLRover job master address cannot be empty. "
-            f"Please set the env {NodeEnv.DLROVER_MASTER_ADDR} as "
-            "the address of node rank 0"
+def _check_to_use_dlrover_run(job_name):
+    master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+    node_rank = env_utils.get_node_rank()
+
+    # try dist master connection
+    if not _check_dlrover_master_available(master_addr, timeout=60):
+        logger.warning(
+            "Distributed dlrover master is not available: {master_addr}"
         )
-    else:
-        raise ValueError(f"{master_addr} is not connected. ")
 
+        # for node 0 (max-node is 1)
+        if node_rank == 0:
+            if _is_local_master_supported():
+                # create local master(rank 0) if dist master connection failed
+                master_handler, master_addr = _launch_dlrover_local_master(
+                    master_addr,
+                    job_name,
+                )
+                logger.info(
+                    "Set the dlrover master(local) addr " f"as {master_addr}"
+                )
+                os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
 
-@retry(retry_times=5, retry_interval=1)
-def check_dlrover_master_address(master_addr):
-    if not master_addr:
-        raise ValueError("Master address is invalid.")
-    if not comm.addr_connected(master_addr):
-        raise RuntimeError("Failed to connect to master.")
+                # try local master connection
+                if not _check_dlrover_master_available(
+                    master_addr, timeout=30
+                ):
+                    logger.warning(
+                        "Downgrade to use torchrun in standalone for neither "
+                        "distributed master is unavailable nor "
+                        "local master is unavailable."
+                    )
+                    return False
+            else:
+                logger.warning(
+                    "Downgrade to use torchrun in standalone for neither "
+                    "distributed master is unavailable nor "
+                    "local master is not enabled."
+                )
+                return False
+        else:
+            # raise exception directly
+            raise RuntimeError(
+                "Distributed dlrover master is unavailable "
+                "for distribution."
+            )
     return True
 
 
-def is_local_master_supported() -> bool:
+def _is_local_master_supported() -> bool:
     env_value = env_utils.get_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED)
     if env_value and "true" == env_value.lower():
         return True
@@ -497,35 +519,12 @@ def run(args):
 
     logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None
-    master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    node_rank = env_utils.get_node_rank()
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
-    _, max_nodes = parse_min_max_nnodes(args.nnodes)
 
-    if is_local_master_supported():
-        # if dist master connection failed, will use local master instead
-        try:
-            check_dlrover_master_address(master_addr)
-        except Exception as e:
-            logger.warning(f"{e}")
-
-            # create local master(rank 0) if dist master connection failed
-            if node_rank == 0:
-                # Only start the dlrover master on the rank-0 node.
-                master_handler, master_addr = _launch_dlrover_local_master(
-                    master_addr,
-                    job_name,
-                    max_nodes,
-                )
-                logger.info(f"Set the dlrover master addr as {master_addr}")
-                os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
-    else:
-        # if dist master connection failed, will raise exception directly
-        check_dlrover_master_address(master_addr)
-
-    use_dlrover_launch = _check_to_use_dlrover_run(master_addr, max_nodes)
+    use_dlrover_launch = _check_to_use_dlrover_run(job_name)
 
     if args.standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
@@ -544,7 +543,7 @@ def run(args):
     config.run_id = job_name
     config.role = "dlrover-trainer"
     try:
-        elastic_launch(
+        ElasticLaunch(
             config=config,
             entrypoint=cmd,
             use_dlrover_launch=use_dlrover_launch,

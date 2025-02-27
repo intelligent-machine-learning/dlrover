@@ -105,8 +105,9 @@ def add_params(parser):
         "--local-master-enabled",
         default=True,
         type=str2bool,
-        help="Whether to enable local master "
-        "if there is no distributed master.",
+        help="Whether to enable local master if there is no distributed "
+        "master. To be noticed: local-master is suitable for standalone "
+        "only.",
     )
     parser.add_argument(
         "--pending_timeout",
