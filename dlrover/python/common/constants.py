@@ -422,6 +422,8 @@ class EventReportConstants(object):
 
     JOB_INSTANCE = "job"
 
+    ACTION_MASTER_START = "master_start"
+    ACTION_MASTER_END = "master_end"
     ACTION_JOB_START = "job_start"
     ACTION_JOB_SUCCESS = "job_success"
     ACTION_JOB_FAIL = "job_fail"

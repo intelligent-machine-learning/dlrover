@@ -46,6 +46,29 @@ class EventReporter(Singleton):
         )
 
     # ================ Master Start ================
+
+    def report_master_start(self, args: JobArgs):
+        _master_evt.start(args=vars(args))
+
+        self.inner_report(
+            EventReportConstants.TYPE_INFO,
+            EventReportConstants.JOB_INSTANCE,
+            EventReportConstants.ACTION_MASTER_START,
+            f"{args.job_name}",
+            {},
+        )
+
+    def report_master_end(self, args: JobArgs, exit_code: int):
+        _master_evt.exit(exit_code=exit_code)
+
+        self.inner_report(
+            EventReportConstants.TYPE_INFO,
+            EventReportConstants.JOB_INSTANCE,
+            EventReportConstants.ACTION_MASTER_END,
+            f"{args.job_name}",
+            {"exit reason": f"{exit_code}"},
+        )
+
     def report_job_start(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.begin()
 
