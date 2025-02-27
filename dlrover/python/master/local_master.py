@@ -20,7 +20,6 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
     RendezvousName,
     ReporterType,
-    XpuType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
@@ -44,7 +43,6 @@ class LocalJobMaster(JobMaster):
         self.speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(0, self.speed_monitor)
         self.job_manager = create_job_manager(args, self.speed_monitor)
-        args.xpu_type = XpuType.GPU
         self.diagnosis_manager = DiagnosisManager(args)
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {

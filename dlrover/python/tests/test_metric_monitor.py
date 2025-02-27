@@ -571,8 +571,6 @@ class MetricMonitorTests(unittest.TestCase):
         logging.basicConfig()
         logging.getLogger().setLevel(logging.DEBUG)
         _metric_context.clear_node_metrics()
-        _dlrover_context.metric_url = "test"
-        _dlrover_context.metric_token = "test"
 
     def tearDown(self):
         _metric_context.clear_node_metrics()

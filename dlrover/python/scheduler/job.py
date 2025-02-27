@@ -14,7 +14,11 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.constants import DistributionStrategy, NodeType
+from dlrover.python.common.constants import (
+    Accelerators,
+    DistributionStrategy,
+    NodeType,
+)
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
 
@@ -99,9 +103,7 @@ class JobArgs(JsonSerializable):
         self.relaunch_always = True
         self.remove_exited_node = False
         self.cordon_fault_node = False
-        self.xpu_type = ""
-        self.metric_url = ""
-        self.metric_token = ""
+        self.xpu_type: Accelerators = Accelerators.GENERIC_CPU
 
     @abstractmethod
     def initilize(self):

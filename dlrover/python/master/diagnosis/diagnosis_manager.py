@@ -11,17 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import threading
 import time
 from datetime import datetime
 
 from dlrover.python.common.constants import (
+    Accelerators,
     ErrorMonitorConstants,
     GpuMetricEnum,
     NpuMetricEnum,
     PreCheckStatus,
-    XpuType,
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.global_context import Context, DefaultValues
@@ -275,36 +274,17 @@ class DiagnosisManager:
         store the data into global JobMetricContext
 
         """
-        if not self._job_args.metric_url:
-            _dlrover_context.metric_url = os.getenv("DLROVER_METRIC_URL", "")
-        else:
-            _dlrover_context.metric_url = self._job_args.metric_url
-
-        if not self._job_args.metric_token:
-            _dlrover_context.metric_token = os.getenv(
-                "DLROVER_METRIC_TOKEN", ""
-            )
-        else:
-            _dlrover_context.metric_token = self._job_args.metric_token
 
         logger.info(f"start {self._job_args.xpu_type} metric collector...")
-        if not _dlrover_context.metric_url:
-            logger.warning("no GPU metrics url defined, stop metric collector")
-            return DiagnosisResult.DIAG_ERROR
-        if not _dlrover_context.metric_token:
-            logger.warning(
-                "no GPU metrics token defined, stop metric collector"
-            )
-            return DiagnosisResult.DIAG_ERROR
 
-        if self._job_args.xpu_type is XpuType.NPU:
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
-        elif self._job_args.xpu_type is XpuType.GPU:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             self._metric_monitor = GpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
@@ -316,7 +296,7 @@ class DiagnosisManager:
             logger.info(
                 f"No need to collect metrics in {self._job_args.xpu_type}"
             )
-            return DiagnosisResult.DIAG_ERROR
+            return DiagnosisResult.DIAG_INVALID_PARAM
 
         if self._metric_monitor:
             self._metric_monitor.start()
@@ -383,16 +363,16 @@ class DiagnosisManager:
         if duration > _metric_context.max_metric_records:
             duration = _metric_context.max_metric_records
 
-        if self._job_args.xpu_type is XpuType.NPU:
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 NpuMetricEnum.NPU_UTIL, duration
             )
-        elif self._job_args.xpu_type is XpuType.GPU:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 GpuMetricEnum.GPU_TENSOR_UTIL, duration
             )
         else:
-            return DiagnosisResult.DIAG_ERROR, 0, 0
+            return DiagnosisResult.DIAG_INVALID_PARAM, 0, 0
 
         if metrics is None:
             logger.warning(f"invalid metrics: {metrics}")

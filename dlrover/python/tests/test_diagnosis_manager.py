@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import copy
-import os
 import time
 import unittest
 from datetime import datetime
@@ -21,10 +20,10 @@ from unittest import mock
 from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
+    Accelerators,
     GpuMetricEnum,
     PlatformType,
     PreCheckStatus,
-    XpuType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
@@ -95,36 +94,14 @@ class DiagnosisManagerTest(unittest.TestCase):
 
     def test_diagnosis_manager_api(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
-        args.xpu_type = XpuType.GPU
+        args.xpu_type = Accelerators.GENERIC_CPU
         mgr = DiagnosisManager(job_args=args)
         self.assertEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
         )
-        os.environ["DLROVER_METRIC_URL"] = "test"
-        self.assertEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
-        )
-        os.environ["DLROVER_METRIC_TOKEN"] = "test"
+        mgr._job_args.xpu_type = Accelerators.ASCEND_NPU
         self.assertNotEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
-        )
-
-        os.environ["DLROVER_METRIC_URL"] = ""
-        os.environ["DLROVER_METRIC_TOKEN"] = ""
-        _dlrover_context.metric_url = ""
-        _dlrover_context.token = ""
-        mgr._job_args.metric_url = "test"
-        self.assertEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
-        )
-        mgr._job_args.metric_token = "test"
-        self.assertNotEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
-        )
-
-        mgr._job_args.xpu_type = XpuType.NPU
-        self.assertNotEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_ERROR
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
         )
 
         mgr = DiagnosisManager(job_args=args)
@@ -170,7 +147,7 @@ class DiagnosisManagerTest(unittest.TestCase):
 
     def test_gpu_tensor_drop_zero(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
-        args.xpu_type = XpuType.GPU
+        args.xpu_type = Accelerators.NVIDIA_GPU
         mgr = DiagnosisManager(job_args=args)
         _metric_context.clear_node_metrics()
 

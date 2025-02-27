@@ -14,10 +14,10 @@
 import os
 
 from dlrover.python.common.constants import (
+    Accelerators,
     DistributionStrategy,
     NodeType,
     PlatformType,
-    XpuType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -55,12 +55,12 @@ def run(args):
     _dlrover_context.master_service_type = args.service_type
     _dlrover_context.pre_check_operators = args.pre_check_ops
     if args.xpu_type.lower() == "ascend":
-        job_args.xpu_type = XpuType.NPU
+        job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":
-        job_args.xpu_type = XpuType.GPU
+        job_args.xpu_type = Accelerators.NVIDIA_GPU
     else:
         logger.info(f"{args.xpu_type}, use cpu as default")
-        job_args.xpu_type = XpuType.CPU
+        job_args.xpu_type = Accelerators.GENERIC_CPU
 
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
