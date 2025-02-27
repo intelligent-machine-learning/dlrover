@@ -1,9 +1,7 @@
 ---
 coverage:
   precision: 2
-  range:
-    - 60.0
-    - 80.0
+  range: 60..90
   round: down
   ignore:
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
@@ -15,11 +13,11 @@ coverage:
       flag_coverage_not_uploaded_behavior: include
     patch:
       default:
-        target: 85%
+        target: 90%
         threshold: 3%
         removed_code_behavior: fully_covered_patch
     project:
       default:
-        target: 80%
+        target: 83%
         threshold: 3%
         removed_code_behavior: fully_covered_patch
