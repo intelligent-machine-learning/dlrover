@@ -17,7 +17,11 @@ from typing import Dict
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.master.elastic_training.net_topology import (
+    NodeTopologyMeta,
+)
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.training_event.emitter import DurationSpan
@@ -108,7 +112,9 @@ class EventReporter(Singleton):
 
     # ================ JobManager Start ================
 
-    def report_node_status_change(self, node, old_status, new_status):
+    def report_node_status_change(
+        self, node: Node, old_status: str, new_status: str
+    ):
         """Report node status when changing."""
 
         _master_evt.worker_event(
@@ -135,7 +141,7 @@ class EventReporter(Singleton):
             },
         )
 
-    def report_node_relaunch(self, node, new_node):
+    def report_node_relaunch(self, node: Node, new_node: Node):
         """Report node when relaunching."""
 
         _master_evt.worker_relaunch(
@@ -154,7 +160,7 @@ class EventReporter(Singleton):
             },
         )
 
-    def report_node_no_heartbeat(self, node, timeout):
+    def report_node_no_heartbeat(self, node: Node, timeout: int):
         """Report node if heartbeat timeout."""
 
         _master_evt.worker_no_heartbeat(
@@ -175,7 +181,12 @@ class EventReporter(Singleton):
     # ================ RDZV Start ================
 
     def report_rdzv_node_join(
-        self, node_meta, rdzv_type, rdzv_round, rdzv_params, **kwargs
+        self,
+        node_meta: NodeTopologyMeta,
+        rdzv_type,
+        rdzv_round,
+        rdzv_params,
+        **kwargs,
     ):
         """Report node joining rendezvous."""
 
