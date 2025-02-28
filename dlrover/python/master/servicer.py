@@ -691,7 +691,7 @@ class MasterServicer(ABC):
 
     def _report_event(self, message: comm.Event):
         if self._event_reporter:
-            self._event_reporter.inner_report(
+            self._event_reporter.report(
                 message.event_type,
                 message.instance,
                 message.action,

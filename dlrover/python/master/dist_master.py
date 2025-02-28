@@ -400,7 +400,7 @@ class DistributedJobMaster(JobMaster):
         if not success:
             action = EventReportConstants.ACTION_EARLY_STOP
         if self._event_reporter:
-            self._event_reporter.inner_report(
+            self._event_reporter.report(
                 event_type=EventReportConstants.TYPE_ERROR,
                 instance="job",
                 action=action,

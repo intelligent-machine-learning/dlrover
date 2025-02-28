@@ -92,7 +92,7 @@ class PerfMonitor(object):
                 self._start_training_time - self._init_time,
             )
             if self._event_reporter:
-                self._event_reporter.inner_report(
+                self._event_reporter.report(
                     EventReportConstants.TYPE_INFO,
                     "job",
                     EventReportConstants.ACTION_TRAINING_START,
@@ -117,7 +117,7 @@ class PerfMonitor(object):
                 round(self.running_speed, 2),
             )
             if self._event_reporter:
-                self._event_reporter.inner_report(
+                self._event_reporter.report(
                     EventReportConstants.TYPE_INFO,
                     "job",
                     EventReportConstants.ACTION_GLOBAL_STEP,

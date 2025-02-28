@@ -565,7 +565,7 @@ class PodScaler(Scaler):
         )
         self._patch_tf_config_into_env(pod, node)
         if self._event_reporter:
-            self._event_reporter.inner_report(
+            self._event_reporter.report(
                 EventReportConstants.TYPE_INFO,
                 pod_name,
                 EventReportConstants.ACTION_WORKER_CREATE,

@@ -31,7 +31,7 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 
 class EventReporter(Singleton):
     @classmethod
-    def inner_report(
+    def report(
         cls,
         event_type: str,
         instance: str,
@@ -39,6 +39,13 @@ class EventReporter(Singleton):
         msg: str,
         labels: Dict[str, str],
     ):
+        """
+        The basic 'report' implementation, can be overridden by subclasses.
+
+        The default implementation is the outputs logs in the following format:
+        [${level}][${instance}][${action}][${msg}][${labels}]
+        """
+
         time_str = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")
         labels_str = "{}"
         if labels and len(labels) > 0:
@@ -54,7 +61,7 @@ class EventReporter(Singleton):
     def report_master_start(self, args: JobArgs):
         _master_evt.start(args=vars(args))
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_MASTER_START,
@@ -65,7 +72,7 @@ class EventReporter(Singleton):
     def report_master_end(self, args: JobArgs, exit_code: int):
         _master_evt.exit(exit_code=exit_code)
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_MASTER_END,
@@ -76,7 +83,7 @@ class EventReporter(Singleton):
     def report_job_start(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.begin()
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_JOB_START,
@@ -87,7 +94,7 @@ class EventReporter(Singleton):
     def report_job_success(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.success()
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_JOB_SUCCESS,
@@ -100,7 +107,7 @@ class EventReporter(Singleton):
     ):
         job_evt.fail(error=error)
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_ERROR,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_JOB_FAIL,
@@ -128,7 +135,7 @@ class EventReporter(Singleton):
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             event_type = EventReportConstants.TYPE_WARN
 
-        self.inner_report(
+        self.report(
             event_type=event_type,
             instance=node.name,
             action=EventReportConstants.ACTION_STATUS_UPDATE,
@@ -149,7 +156,7 @@ class EventReporter(Singleton):
             relaunch_pod_name=new_node.name,
         )
 
-        self.inner_report(
+        self.report(
             event_type=EventReportConstants.TYPE_WARN,
             instance=node.name,
             action=EventReportConstants.ACTION_RELAUNCH,
@@ -168,7 +175,7 @@ class EventReporter(Singleton):
             timeout=timeout,
         )
 
-        self.inner_report(
+        self.report(
             event_type=EventReportConstants.TYPE_WARN,
             instance=node.name,
             action=EventReportConstants.ACTION_WORKER_NO_HEARTBEAT,
@@ -200,7 +207,7 @@ class EventReporter(Singleton):
             rdzv_type=rdzv_type,
             waiting_nodes=waiting_nodes.keys(),
         )
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             str(node_meta.node_rank),
             EventReportConstants.ACTION_RDZV_JOIN,
@@ -230,7 +237,7 @@ class EventReporter(Singleton):
             node_group=f"{node_ids}",
             elapsed_time=f"{elapsed_time}",
         )
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_INFO,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_RDZV_COMPLETE,
@@ -263,7 +270,7 @@ class EventReporter(Singleton):
             elapsed_time=f"{elapsed_time}",
         )
 
-        self.inner_report(
+        self.report(
             EventReportConstants.TYPE_ERROR,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_RDZV_TIMEOUT,

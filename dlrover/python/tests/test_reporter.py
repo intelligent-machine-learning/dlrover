@@ -35,7 +35,7 @@ class EventReporterTest(unittest.TestCase):
         )
 
     def test_inner_report(self):
-        self.reporter.inner_report("1", "2", "3", "", {})
+        self.reporter.report("1", "2", "3", "", {})
 
     def test_master_report(self):
         self.reporter.report_master_start(self.args)

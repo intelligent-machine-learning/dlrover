@@ -1173,7 +1173,7 @@ class DistributedJobManager(JobManager):
         msg: str,
         labels: Dict[str, str],
     ):
-        self._event_reporter.inner_report(
+        self._event_reporter.report(
             event_type, instance, action, msg, labels
         )
 

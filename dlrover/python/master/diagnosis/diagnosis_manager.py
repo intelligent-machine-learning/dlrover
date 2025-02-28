@@ -91,7 +91,7 @@ class DiagnosisManager:
         if labels is None:
             labels = {}
         if self._error_monitor:
-            self._error_monitor.inner_report(
+            self._error_monitor.report(
                 event_type, instance, action, msg, labels
             )
 

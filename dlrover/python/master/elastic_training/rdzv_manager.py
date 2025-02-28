@@ -674,7 +674,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             )
             if self._event_reporter:
                 class_type = type(self).__name__
-                self._event_reporter.inner_report(
+                self._event_reporter.report(
                     event_type=EventReportConstants.TYPE_INFO,
                     instance=class_type,
                     action=EventReportConstants.ACTION_STOP,
