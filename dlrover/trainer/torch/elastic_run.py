@@ -232,13 +232,13 @@ class ElasticLaunch:
 
     def main():
         # entrypoint is a function.
-        outputs = elastic_launch(LaunchConfig, worker_fn)(foo)
+        outputs = ElasticLaunch(LaunchConfig, worker_fn)(foo)
         # return rank 0's output
         return outputs[0]
 
         # entrypoint is a command and ``script.py`` is the python module.
-        outputs = elastic_launch(LaunchConfig, "script.py")(args)
-        outputs = elastic_launch(LaunchConfig, "python")("script.py")
+        outputs = ElasticLaunch(LaunchConfig, "script.py")(args)
+        outputs = ElasticLaunch(LaunchConfig, "python")("script.py")
     """
 
     def __init__(

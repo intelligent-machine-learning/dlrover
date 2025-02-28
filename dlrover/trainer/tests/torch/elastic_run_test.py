@@ -19,7 +19,11 @@ from unittest import mock
 from unittest.mock import MagicMock, patch
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import NodeEnv, PreCheckStatus
+from dlrover.python.common.constants import (
+    JobConstant,
+    NodeEnv,
+    PreCheckStatus,
+)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -42,10 +46,13 @@ class ElasticRunTest(unittest.TestCase):
     def setUp(self):
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 1)
+        self._pre_check_interval_ori = JobConstant.PRE_CHECK_WAIT_SECS
+        JobConstant.PRE_CHECK_WAIT_SECS = 1
 
     def tearDown(self):
         self._master.stop()
         os.environ.clear()
+        JobConstant.PRE_CHECK_WAIT_SECS = self._pre_check_interval_ori
 
     def test_launch_local_master(self):
         handler, addr = _launch_dlrover_local_master("test:1234", "test")
