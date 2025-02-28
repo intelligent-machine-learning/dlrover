@@ -43,7 +43,7 @@ class EventReporter(Singleton):
         The basic 'report' implementation, can be overridden by subclasses.
 
         The default implementation is the outputs logs in the following format:
-        [${level}][${instance}][${action}][${msg}][${labels}]
+        [${datetime}][${level}][${instance}][${action}][${msg}][${labels}]
         """
 
         time_str = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")

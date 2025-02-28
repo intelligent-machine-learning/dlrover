@@ -1173,9 +1173,7 @@ class DistributedJobManager(JobManager):
         msg: str,
         labels: Dict[str, str],
     ):
-        self._event_reporter.report(
-            event_type, instance, action, msg, labels
-        )
+        self._event_reporter.report(event_type, instance, action, msg, labels)
 
     def _process_error(
         self,
