@@ -13,11 +13,14 @@
 
 import unittest
 
-from master.elastic_training.net_topology import NodeTopologyMeta
-from master.elastic_training.rdzv_manager import RendezvousParameters
-
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.node import Node
+from dlrover.python.master.elastic_training.net_topology import (
+    NodeTopologyMeta,
+)
+from dlrover.python.master.elastic_training.rdzv_manager import (
+    RendezvousParameters,
+)
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 
