@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import socket
-import telnetlib
 import threading
 import time
 import unittest
@@ -27,7 +25,6 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.elastic_run import (
-    _check_dlrover_master_available,
     _check_to_use_dlrover_run,
     _elastic_config_from_args,
     _is_local_master_supported,
@@ -48,23 +45,15 @@ class ElasticRunTest(unittest.TestCase):
         self._master.stop()
         os.environ.clear()
 
-    @patch(f"{MC_PATH}.report_failures")
-    def test_launch_local_master(self, some_func):
-        available = _check_dlrover_master_available("", timeout=3)
-        self.assertFalse(available)
-        handler, addr = _launch_dlrover_local_master("", "test", 1)
-        available = _check_dlrover_master_available(addr, timeout=15)
-        self.assertTrue(available)
+    def test_launch_local_master(self):
+        handler, addr = _launch_dlrover_local_master("test:1234", "test")
+        self.assertEqual(addr, "test:1234")
+        self.assertIsNotNone(handler)
+        handler.close()
 
-        def mock_telent(*args, **kwargs):
-            raise socket.gaierror("Mock gaierror")
-
-        old_telnet = telnetlib.Telnet
-        telnetlib.Telnet = mock_telent
-        some_func.return_value = True
-        with self.assertRaises(socket.gaierror):
-            _check_dlrover_master_available(addr)
-        telnetlib.Telnet = old_telnet
+        handler, addr = _launch_dlrover_local_master("", "test")
+        self.assertTrue("127.0.0.1" in addr)
+        self.assertIsNotNone(handler)
         handler.close()
 
     @patch("dlrover.trainer.torch.elastic_run._check_dlrover_master_available")
