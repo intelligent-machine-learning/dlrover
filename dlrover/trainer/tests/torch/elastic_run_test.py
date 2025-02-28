@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import socket
 import threading
 import time
 import unittest
@@ -25,6 +26,7 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.elastic_run import (
+    _check_dlrover_master_available,
     _check_to_use_dlrover_run,
     _elastic_config_from_args,
     _is_local_master_supported,
@@ -55,6 +57,26 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue("127.0.0.1" in addr)
         self.assertIsNotNone(handler)
         handler.close()
+
+    @patch("dlrover.trainer.torch.elastic_run.telnetlib.Telnet")
+    def test_check_dlrover_master_available(self, mock_telnet):
+        self.assertFalse(_check_dlrover_master_available("", timeout=0))
+        self.assertFalse(_check_dlrover_master_available("test123", timeout=0))
+
+        mock_telnet.return_value = MagicMock()
+        self.assertTrue(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
+
+        mock_telnet.side_effect = ConnectionRefusedError()
+        self.assertFalse(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
+
+        mock_telnet.side_effect = socket.gaierror
+        self.assertFalse(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
 
     @patch("dlrover.trainer.torch.elastic_run._check_dlrover_master_available")
     @patch("dlrover.trainer.torch.elastic_run._is_local_master_supported")
