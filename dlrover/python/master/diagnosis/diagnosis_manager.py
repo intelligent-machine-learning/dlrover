@@ -379,13 +379,15 @@ class DiagnosisManager:
             return DiagnosisResult.DIAG_ERROR, 0, 0
 
         if len(metrics) < duration:
-            logger.warning(
+            logger.debug(
                 f"Waiting for tensor metrics: {len(metrics)}/{duration}"
             )
             return DiagnosisResult.DIAG_WAITING, 0, 0
 
         key_list = list(metrics.keys())
         key_list.sort(reverse=True)
+
+        logger.debug(f"check tensor metrics: {dict(metrics)}")
 
         start_ts = key_list[0]
         end_ts = key_list[0]
