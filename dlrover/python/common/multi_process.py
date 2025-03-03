@@ -307,15 +307,19 @@ class SharedLock(LocalSocketComm):
                 BrokenPipeError,
                 ConnectionError,
             ) as e:
+                # connection exception, need to re-connect a new one
                 logger.error(f"SharedLock connection error: {e}")
                 break
             except OSError as e:
+                # unexpected os error, re-connect and retry
                 logger.error(f"SharedLock os error: {e}")
                 break
             except EOFError as e:
+                # client has closed connection, exit safely
                 logger.info(f"SharedLock eof {e}: peer closed and exit")
                 break
             except Exception as e:
+                # unexpected exception, the connection may be ok
                 logger.error(f"SharedLock unexpected recv error: {e}")
                 response = SocketResponse()
                 response.status = ERROR_CODE
