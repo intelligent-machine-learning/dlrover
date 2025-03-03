@@ -387,7 +387,7 @@ class DiagnosisManager:
         key_list = list(metrics.keys())
         key_list.sort(reverse=True)
 
-        logger.debug(f"check tensor metrics: {dict(metrics)}")
+        logger.debug(f"Check tensor metrics: {dict(metrics)}")
 
         start_ts = key_list[0]
         end_ts = key_list[0]
