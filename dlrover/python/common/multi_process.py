@@ -313,7 +313,7 @@ class SharedLock(LocalSocketComm):
                 logger.error(f"SharedLock os error: {e}")
                 break
             except EOFError as e:
-                logger.error(f"SharedLock eof error: {e}")
+                logger.info(f"SharedLock eof {e}: peer closed and exit")
                 break
             except Exception as e:
                 logger.error(f"SharedLock unexpected recv error: {e}")
