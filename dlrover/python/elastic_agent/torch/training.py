@@ -160,6 +160,10 @@ class NodeCheckFailedError(RuntimeError):
     pass
 
 
+class RdzvTimeoutError(RuntimeError):
+    pass
+
+
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
@@ -376,7 +380,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
                         _rdzv_evt.fail(error=err_msg)
-                        raise TimeoutError(err_msg)
+                        raise RdzvTimeoutError(err_msg)
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
@@ -388,7 +392,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 _rdzv_evt.fail(error=err_msg)
-                raise TimeoutError(err_msg)
+                raise RdzvTimeoutError(err_msg)
             time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
@@ -910,9 +914,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                 time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
-                    raise TimeoutError("Timeout to wait for new nodes.")
+                    raise RdzvTimeoutError("Timeout to wait for new nodes.")
             except NodeCheckFailedError as node_check_error:
                 raise node_check_error
+            except RdzvTimeoutError as rdzv_timeout_error:
+                raise rdzv_timeout_error
             except Exception as e:
                 err_cnt += 1
                 if err_cnt < max_errors:
@@ -946,14 +952,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
-        except TimeoutError as te:
+        except RdzvTimeoutError as te:
             logger.error(str(te))
-            raise
+            raise te
         finally:
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        raise TimeoutError("Timed out waiting for stopping workers.")
+        raise RdzvTimeoutError("Timed out waiting for stopping workers.")
 
     def _set_numa_affinity(self):
         """set numa affinity to workers processes,
