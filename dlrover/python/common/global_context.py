@@ -64,7 +64,7 @@ class DefaultValues(object):
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
     HANG_DETECTION = 1
-    HANG_DOWNTIME = 30
+    HANG_DOWNTIME = 5
     MIN_HANG_DOWNTIME = 3
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
