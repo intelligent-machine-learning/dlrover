@@ -73,8 +73,8 @@ from dlrover.python.elastic_agent.torch.training import (
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
     NodeCheckFailedError,
-    RdzvTimeoutError,
     RendezvousOutSyncError,
+    RendezvousTimeoutError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
@@ -284,7 +284,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             raise RendezvousOutSyncError("test")
 
         agent._rendezvous = _mock_rendezvous
-        with self.assertRaises(RdzvTimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
@@ -771,7 +771,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             try:
                 agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
-            except RdzvTimeoutError:
+            except RendezvousTimeoutError:
                 self.assertTrue(True)
 
     def test_diagnosis(self):
@@ -1033,7 +1033,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         rdzv_handler._client.get_comm_world = mock.MagicMock(
             return_value=(0, 0, {1: 8})
         )
-        with self.assertRaises(RdzvTimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
 
