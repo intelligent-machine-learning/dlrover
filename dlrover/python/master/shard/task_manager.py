@@ -21,7 +21,7 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.shard.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,
@@ -37,14 +37,12 @@ _TASK_TIMEOUT_THRESHOLD_SECS = 1800
 class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 
-    def __init__(
-        self, worker_restart_timeout: int, speed_monitor: SpeedMonitor
-    ):
+    def __init__(self, worker_restart_timeout: int, perf_monitor: PerfMonitor):
         """
         Args:
             worker_restart_timeout: Whether to relaunch a worker
                 when it does not report a task status for a long time.
-            speed_monitor: monitor the training speed with workers.
+            perf_monitor: monitor the training speed with workers.
         """
         self._lock = threading.Lock()
         self._worker_restart_timeout = worker_restart_timeout
@@ -52,7 +50,7 @@ class TaskManager(object):
         self._datasets: Dict[str, DatasetManger] = OrderedDict()
         self._worker_start_task_time: Dict[int, float] = {}
         self._task_timeout_callbacks: List[Callable] = []
-        self._speed_monitor = speed_monitor
+        self._perf_monitor = perf_monitor
         self._paral_eval_count = 0
         self._paral_eval_started = False
 
@@ -106,14 +104,14 @@ class TaskManager(object):
                     logger.info(
                         "Reset speed monitor if the worker starts evaluation"
                     )
-                    self._speed_monitor.reset_running_speed_monitor()
-                    self._speed_monitor.set_worker_start_eval_time(node_id)
+                    self._perf_monitor.reset_running_perf_monitor()
+                    self._perf_monitor.set_worker_start_eval_time(node_id)
                     if not self._paral_eval_started:
                         self._paral_eval_count += 1
                         self._paral_eval_started = True
                 if task.task_type == elastic_training_pb2.TRAINING:
-                    self._speed_monitor.add_running_worker(node_type, node_id)
-                    self._speed_monitor.update_worker_eval_time(node_id)
+                    self._perf_monitor.add_running_worker(node_type, node_id)
+                    self._perf_monitor.update_worker_eval_time(node_id)
                     self._paral_eval_started = False
                 self._worker_start_task_time[node_id] = time.time()
                 return task

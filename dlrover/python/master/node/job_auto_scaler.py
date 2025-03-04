@@ -24,7 +24,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeResource
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
@@ -42,7 +42,7 @@ def new_job_auto_scaler(
     job_strategy,
     job_resource: JobResource,
     job_optimizer: JobResourceOptimizer,
-    speed_monitor: SpeedMonitor,
+    perf_monitor: PerfMonitor,
     ps_manager: ParameterServerManager,
     worker_manager: WorkerManager,
     node_scaler: Scaler,
@@ -51,7 +51,7 @@ def new_job_auto_scaler(
         return PSTrainingAutoScaler(
             job_resource,
             job_optimizer,
-            speed_monitor,
+            perf_monitor,
             ps_manager,
             worker_manager,
             node_scaler,
@@ -60,7 +60,7 @@ def new_job_auto_scaler(
         return AllreduceTrainingAutoScaler(
             job_resource,
             job_optimizer,
-            speed_monitor,
+            perf_monitor,
             worker_manager,
             node_scaler,
         )
@@ -75,13 +75,13 @@ class JobAutoScaler(metaclass=ABCMeta):
         self,
         job_resource: JobResource,
         job_optimizer: JobResourceOptimizer,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         node_scaler: Scaler,
         scale_interval: int,
     ):
         self._job_resource = job_resource
         self._job_optimizer = job_optimizer
-        self._speed_monitor = speed_monitor
+        self._perf_monitor = perf_monitor
         self._scaler = node_scaler
         self._scale_interval = scale_interval
         self._job_context = get_job_context()
@@ -116,7 +116,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         self,
         job_resource: JobResource,
         job_optimizer: JobResourceOptimizer,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         ps_manager: ParameterServerManager,
         worker_manager: WorkerManager,
         node_scaler: Scaler,
@@ -124,7 +124,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         super().__init__(
             job_resource,
             job_optimizer,
-            speed_monitor,
+            perf_monitor,
             node_scaler,
             30,
         )
@@ -161,8 +161,8 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 and not _dlrover_context.auto_worker_enabled
             ):
                 return
-            if self._speed_monitor:
-                self._speed_monitor.set_target_worker_num(
+            if self._perf_monitor:
+                self._perf_monitor.set_target_worker_num(
                     self._job_resource.worker_num
                     + self._job_resource.chief_num
                 )
@@ -188,7 +188,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 break
             try:
                 if (
-                    self._speed_monitor.worker_adjustment_finished()
+                    self._perf_monitor.worker_adjustment_finished()
                     # Control the interval to query plans
                     and time.time() - last_plan_time > opt_interval
                     and not self._ps_manager.exist_migrated_ps_nodes()
@@ -222,12 +222,12 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 if node_type == NodeType.PS:
                     ps_plan = self._ps_manager.adjust_ps(group)
                     scale_plan.merge(ps_plan)
-                    self._speed_monitor.reset_running_speed_monitor()
+                    self._perf_monitor.reset_running_perf_monitor()
                 elif node_type == NodeType.WORKER:
                     chief_nodes = self.get_job_nodes(NodeType.CHIEF)
                     chief_num = len(chief_nodes)
                     worker_num = chief_num + group.count
-                    self._speed_monitor.set_target_worker_num(worker_num)
+                    self._perf_monitor.set_target_worker_num(worker_num)
                     worker_plan = self._worker_manager.adjust_worker(group)
                     scale_plan.merge(worker_plan)
         if len(plan.node_resources) > 0:
@@ -252,7 +252,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         if len(ps) > 0:
             plan = self._ps_manager.migrate_parameter_servers(ps)
             scale_plan.merge(plan)
-            self._speed_monitor.reset_running_speed_monitor()
+            self._perf_monitor.reset_running_perf_monitor()
 
         if len(workers) > 0:
             plan = self._worker_manager.migrate_workers(workers)
@@ -280,14 +280,14 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         self,
         job_resource: JobResource,
         job_optimizer: JobResourceOptimizer,
-        speed_monitor: SpeedMonitor,
+        perf_monitor: PerfMonitor,
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
         super().__init__(
             job_resource,
             job_optimizer,
-            speed_monitor,
+            perf_monitor,
             node_scaler,
             1800,
         )
@@ -368,7 +368,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                     group.node_resource.memory,
                 )
                 group = self._job_resource.get_node_group_resource(node_type)
-                self._speed_monitor.set_target_worker_num(group.count)
+                self._perf_monitor.set_target_worker_num(group.count)
                 worker_plan = self._worker_manager.adjust_worker(group)
                 scale_plan.merge(worker_plan)
         self._scaler.scale(scale_plan)

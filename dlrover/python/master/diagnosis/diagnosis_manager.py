@@ -17,7 +17,7 @@ from datetime import datetime
 
 from dlrover.python.common.constants import (
     Accelerators,
-    ErrorMonitorConstants,
+    EventReportConstants,
     GpuMetricEnum,
     NpuMetricEnum,
     PreCheckStatus,
@@ -91,7 +91,7 @@ class DiagnosisManager:
         if labels is None:
             labels = {}
         if self._error_monitor:
-            self._error_monitor.report_event(
+            self._error_monitor.report(
                 event_type, instance, action, msg, labels
             )
 
@@ -99,9 +99,9 @@ class DiagnosisManager:
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled():
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_PRE_CHECK_DISABLE,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_PRE_CHECK_DISABLE,
             )
             logger.info(
                 "Pre-check operator config is empty, pre-check disabled."
@@ -227,17 +227,17 @@ class DiagnosisManager:
                             continue
                 except TimeoutException as te:
                     self._report_event(
-                        ErrorMonitorConstants.TYPE_WARN,
-                        ErrorMonitorConstants.JOB_INSTANCE,
-                        ErrorMonitorConstants.ACTION_PRE_CHECK_TIMEOUT,
+                        EventReportConstants.TYPE_WARN,
+                        EventReportConstants.JOB_INSTANCE,
+                        EventReportConstants.ACTION_PRE_CHECK_TIMEOUT,
                         pre_check_op.__class__.__name__,
                     )
                     raise te
                 except Exception as e:
                     self._report_event(
-                        ErrorMonitorConstants.TYPE_WARN,
-                        ErrorMonitorConstants.JOB_INSTANCE,
-                        ErrorMonitorConstants.ACTION_PRE_CHECK_ERROR,
+                        EventReportConstants.TYPE_WARN,
+                        EventReportConstants.JOB_INSTANCE,
+                        EventReportConstants.ACTION_PRE_CHECK_ERROR,
                         pre_check_op.__class__.__name__,
                     )
                     logger.error(
@@ -254,9 +254,9 @@ class DiagnosisManager:
             if pre_check_finish:
                 self._job_context.set_pre_check_status(PreCheckStatus.PASS)
                 self._report_event(
-                    ErrorMonitorConstants.TYPE_INFO,
-                    ErrorMonitorConstants.JOB_INSTANCE,
-                    ErrorMonitorConstants.ACTION_PRE_CHECK_PASS,
+                    EventReportConstants.TYPE_INFO,
+                    EventReportConstants.JOB_INSTANCE,
+                    EventReportConstants.ACTION_PRE_CHECK_PASS,
                 )
                 break
             else:

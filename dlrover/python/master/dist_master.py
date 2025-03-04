@@ -17,7 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     JobExitReason,
     NodeType,
     OptimizeMode,
@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     ReporterType,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
@@ -41,8 +42,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster, get_service_type
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
@@ -117,9 +117,7 @@ class DistributedJobMaster(JobMaster):
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
     """
 
-    def __init__(
-        self, port, args: JobArgs, error_monitor: ErrorMonitor = None
-    ):
+    def __init__(self, port, args: JobArgs):
         if args.platform in [
             PlatformType.KUBERNETES,
             PlatformType.PY_KUBERNETES,
@@ -134,29 +132,27 @@ class DistributedJobMaster(JobMaster):
                 )
 
         self._job_ctx = get_job_context()
-        self.speed_monitor = SpeedMonitor()
+        self.perf_monitor = PerfMonitor()
         self.job_manager = (
-            create_job_manager(args, self.speed_monitor)
+            create_job_manager(args, self.perf_monitor)
             if args.enable_elastic_scheduling
             else None
         )
         self.task_manager = (
             TaskManager(
                 args.node_args[NodeType.WORKER].restart_timeout,
-                self.speed_monitor,
+                self.perf_monitor,
             )
             if args.enable_dynamic_sharding
             else None
         )
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(error_monitor),
-            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(
-                error_monitor
-            ),
+            elastic_training: ElasticTrainingRendezvousManager(),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.diagnosis_manager = DiagnosisManager(args)
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -175,13 +171,12 @@ class DistributedJobMaster(JobMaster):
             port,
             self.task_manager,
             self.job_manager,
-            self.speed_monitor,
+            self.perf_monitor,
             self.rdzv_managers,
             self.diagnosis_manager,
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
-            self._error_monitor,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):
@@ -292,7 +287,7 @@ class DistributedJobMaster(JobMaster):
                 f"Failed to start training runtime diagnosis: {str(e)}"
             )
 
-        self._job_evt.begin()
+        self._event_reporter.report_job_start(self._job_evt, self._job_args)
 
         # into running loop
         try:
@@ -351,9 +346,13 @@ class DistributedJobMaster(JobMaster):
             self.stop()
 
         if self._exit_code == 0:
-            self._job_evt.success()
+            self._event_reporter.report_job_success(
+                self._job_evt, self._job_args
+            )
         else:
-            self._job_evt.failure(error=self._exit_reason)
+            self._event_reporter.report_job_fail(
+                self._job_evt, self._job_args, self._exit_reason
+            )
 
         return self._exit_code
 
@@ -397,12 +396,12 @@ class DistributedJobMaster(JobMaster):
                 f"msg: {msg}."
             )
 
-        action = ErrorMonitorConstants.ACTION_STOP
+        action = EventReportConstants.ACTION_STOP
         if not success:
-            action = ErrorMonitorConstants.ACTION_EARLY_STOP
-        if self._error_monitor:
-            self._error_monitor.report_event(
-                event_type=ErrorMonitorConstants.TYPE_ERROR,
+            action = EventReportConstants.ACTION_EARLY_STOP
+        if self._event_reporter:
+            self._event_reporter.report(
+                event_type=EventReportConstants.TYPE_ERROR,
                 instance="job",
                 action=action,
                 msg=msg,

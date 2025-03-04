@@ -20,10 +20,11 @@ from threading import Lock
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
-    ErrorMonitorConstants,
+    EventReportConstants,
     NetworkFailureReason,
     RendezvousName,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
@@ -61,7 +62,7 @@ class RendezvousParameters(object):
 
 
 class RendezvousManager(metaclass=ABCMeta):
-    def __init__(self, error_monitor=None):
+    def __init__(self):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
@@ -82,7 +83,8 @@ class RendezvousManager(metaclass=ABCMeta):
         self._save_ckpt_nodes: Dict[int, int] = {}
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
+        self._rdzv_evt = self.new_rdzv_evt()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -306,30 +308,14 @@ class RendezvousManager(metaclass=ABCMeta):
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
-            _master_evt.node_join(
-                node_id=str(meta.node_id),
-                node_rank=str(meta.node_rank),
-                node_ip=str(meta.node_ip),
-                rdzv_round=str(self._rdzv_round),
-                rdzv_type=self._name,
-                waiting_nodes=self._waiting_nodes.keys(),
+            self._event_reporter.report_rdzv_node_join(
+                meta,
+                self._name,
+                self._rdzv_round,
+                self._rdzv_params,
+                waiting_nodes=self._waiting_nodes,
+                node_elapsed_time=self._node_rdzv_times[node_rank],
             )
-            if self._error_monitor:
-                node_elapsed_time = self._node_rdzv_times[node_rank]
-                class_type = type(self).__name__
-                self._error_monitor.report_event(
-                    ErrorMonitorConstants.TYPE_INFO,
-                    node_rank,
-                    ErrorMonitorConstants.ACTION_RDZV_JOIN,
-                    f"{class_type}={self._rdzv_round}",
-                    {
-                        "rendezvous_type": class_type,
-                        "max_node": f"{self._rdzv_params.max_nodes}",
-                        "min_node": f"{self._rdzv_params.min_nodes}",
-                        "node_group": f"{[self._waiting_nodes.keys()]}",
-                        "node_elapsed_time": f"{node_elapsed_time}",
-                    },
-                )
 
         return self._rdzv_round
 
@@ -381,6 +367,15 @@ class RendezvousManager(metaclass=ABCMeta):
             return True
         return False
 
+    def new_rdzv_evt(self):
+        return _master_evt.rendezvous(
+            rendezvous_type=self._name,
+            round_num=self.get_rdzv_round(),
+            timeout_sec=self.get_waiting_timeout(),
+            max_nodes=self.get_max_nodes(),
+            min_nodes=self.get_min_nodes(),
+        )
+
     @abstractmethod
     def get_comm_world(
         self, node_rank
@@ -422,16 +417,9 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     Elasticjob of DLRover, the node has an unique node ID.
     """
 
-    def __init__(self, error_monitor=None):
-        super().__init__(error_monitor)
+    def __init__(self):
+        super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
-        self._rdzv_evt = _master_evt.rendezvous(
-            rendezvous_type=RendezvousName.ELASTIC_TRAINING,
-            round_num=self.get_rdzv_round(),
-            timeout_sec=self.get_waiting_timeout(),
-            max_nodes=self.get_max_nodes(),
-            min_nodes=self.get_min_nodes(),
-        )
 
     def get_comm_world(
         self, node_rank
@@ -454,6 +442,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
             if not self._rdzv_nodes:
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
+                    finished_rdzv_round = self._rdzv_round
                     self._rdzv_round += 1
                     self._rdzv_nodes = self._topology_sorter.sort(
                         self._rdzv_nodes
@@ -469,61 +458,29 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         f"Node ids are {node_ids}.\n Node IPs are {node_ips}"
                     )
                     node_elapsed_time = time.time() - self._lastcall_time
-                    self._rdzv_evt.success(
-                        node_group=f"{node_ids}",
-                        node_elapsed_time=f"{node_elapsed_time}",
+
+                    self._event_reporter.report_rdzv_complete(
+                        self._rdzv_evt,
+                        self._name,
+                        finished_rdzv_round,
+                        self._rdzv_params,
+                        node_ids=node_ids,
+                        node_elapsed_time=node_elapsed_time,
                     )
-                    self._rdzv_evt = _master_evt.rendezvous(
-                        rendezvous_type=self._name,
-                        round_num=self.get_rdzv_round(),
-                        timeout_sec=self.get_waiting_timeout(),
-                        max_nodes=self.get_max_nodes(),
-                        min_nodes=self.get_min_nodes(),
-                    )
-                    if self._error_monitor:
-                        class_type = type(self).__name__
-                        self._error_monitor.report_event(
-                            ErrorMonitorConstants.TYPE_INFO,
-                            "job",
-                            ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
-                            f"{class_type}={self._rdzv_round-1}",
-                            {
-                                "rendezvous_type": class_type,
-                                "status": "success",
-                                "max_nodes": f"{self._rdzv_params.max_nodes}",
-                                "min_nodes": f"{self._rdzv_params.min_nodes}",
-                                "node_group": f"{node_ids}",
-                                "node_elapsed_time": f"{node_elapsed_time}",
-                                "error_message": "",
-                            },
-                        )
+                    self._rdzv_evt = self.new_rdzv_evt()
 
                 waiting_time = time.time() - self._lastcall_time
-                node_ids = []
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
-                    and self._error_monitor
                 ):
-                    class_type = type(self).__name__
-                    self._error_monitor.report_event(
-                        ErrorMonitorConstants.TYPE_ERROR,
-                        "job",
-                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        f"{class_type}={self._rdzv_round}",
-                        {
-                            "rendezvous_type": class_type,
-                            "status": "timeout",
-                            "max_nodes": f"{self._rdzv_params.max_nodes}",
-                            "min_nodes": f"{self._rdzv_params.min_nodes}",
-                            "node_group": f"{node_ids}",
-                            "node_elapsed_time": f"{waiting_time}",
-                            "error_message": "",
-                        },
-                    )
-                    self._rdzv_evt.fail(
-                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        node_elapsed_time=f"{waiting_time}",
+                    self._event_reporter.report_rdzv_timeout(
+                        self._rdzv_evt,
+                        self._name,
+                        finished_rdzv_round,
+                        self._rdzv_params,
+                        node_groups=[],
+                        elapsed_time=waiting_time,
                     )
 
             return self._rdzv_round, 0, self._rdzv_nodes
@@ -546,8 +503,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node-1 if not available.
     """
 
-    def __init__(self, error_monitor=None):
-        super().__init__(error_monitor)
+    def __init__(self):
+        super().__init__()
         self._name = RendezvousName.NETWORK_CHECK
         self._node_status: Dict[int, bool] = {}
         self._node_times: Dict[int, float] = {}
@@ -556,13 +513,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._check_round = 2
         self._fault_nodes = set()
         self._straggler_nodes = set()
-        self._rdzv_evt = _master_evt.rendezvous(
-            rendezvous_type=RendezvousName.NETWORK_CHECK,
-            round_num=self.get_rdzv_round(),
-            timeout_sec=self.get_waiting_timeout(),
-            max_nodes=self.get_max_nodes(),
-            min_nodes=self.get_min_nodes(),
-        )
 
     def _get_print_node_groups(self):
         printing_node_groups = []
@@ -593,66 +543,34 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
                     self._reported_nodes = set()
-                    print_node_group = []
-                    if len(print_node_groups) > self._rdzv_round:
-                        print_node_group = print_node_groups[self._rdzv_round]
 
+                    finished_rdzv_round = self._rdzv_round
                     self._rdzv_round += 1
-                    node_elapsed_time = time.time() - self._lastcall_time
-                    self._rdzv_evt.success(
-                        node_group=f"{print_node_groups}",
-                        node_elapsed_time=f"{node_elapsed_time}",
+                    elapsed_time = time.time() - self._lastcall_time
+
+                    self._event_reporter.report_rdzv_complete(
+                        self._rdzv_evt,
+                        self._name,
+                        finished_rdzv_round,
+                        self._rdzv_params,
+                        node_ids=print_node_groups,
+                        elapsed_time=elapsed_time,
                     )
-                    self._rdzv_evt = _master_evt.rendezvous(
-                        rendezvous_type=RendezvousName.NETWORK_CHECK,
-                        round_num=self.get_rdzv_round(),
-                        timeout_sec=self.get_waiting_timeout(),
-                        max_nodes=self.get_max_nodes(),
-                        min_nodes=self.get_min_nodes(),
-                    )
-                    if self._error_monitor:
-                        class_type = type(self).__name__
-                        self._error_monitor.report_event(
-                            ErrorMonitorConstants.TYPE_INFO,
-                            "job",
-                            ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
-                            f"{class_type}={self._rdzv_round-1}",
-                            {
-                                "rendezvous_type": class_type,
-                                "status": "success",
-                                "max_nodes": f"{self._rdzv_params.max_nodes}",
-                                "min_nodes": f"{self._rdzv_params.min_nodes}",
-                                "node_group": f"{print_node_group}",
-                                "node_elapsed_time": f"{node_elapsed_time}",
-                                "error_message": "",
-                            },
-                        )
+                    self._rdzv_evt = self.new_rdzv_evt()
+
                 waiting_time = time.time() - self._lastcall_time
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
-                    and self._error_monitor
                 ):
                     node_group = self._group_nodes(self._rdzv_round)
-                    class_type = type(self).__name__
-                    self._error_monitor.report_event(
-                        ErrorMonitorConstants.TYPE_ERROR,
-                        "job",
-                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        f"{class_type}={self._rdzv_round}",
-                        {
-                            "rendezvous_type": class_type,
-                            "status": "timeout",
-                            "max_nodes": f"{self._rdzv_params.max_nodes}",
-                            "min_nodes": f"{self._rdzv_params.min_nodes}",
-                            "node_group": json.dumps(node_group),
-                            "node_elapsed_time": f"{waiting_time}",
-                            "error_message": "",
-                        },
-                    )
-                    self._rdzv_evt.fail(
-                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        node_elapsed_time=f"{waiting_time}",
+                    self._event_reporter.report_rdzv_timeout(
+                        self._rdzv_evt,
+                        self._name,
+                        finished_rdzv_round,
+                        self._rdzv_params,
+                        node_group=node_group,
+                        elapsed_time=waiting_time,
                     )
 
             for i, group in enumerate(self._node_groups):
@@ -754,12 +672,12 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 f"Round {self._rdzv_round}: The node elapsed time "
                 f"are {node_check_times}"
             )
-            if self._error_monitor:
+            if self._event_reporter:
                 class_type = type(self).__name__
-                self._error_monitor.report_event(
-                    event_type=ErrorMonitorConstants.TYPE_INFO,
+                self._event_reporter.report(
+                    event_type=EventReportConstants.TYPE_INFO,
                     instance=class_type,
-                    action=ErrorMonitorConstants.ACTION_STOP,
+                    action=EventReportConstants.ACTION_STOP,
                     msg=f"{node_check_times}",
                     labels={
                         "status": json.dumps(node_status),

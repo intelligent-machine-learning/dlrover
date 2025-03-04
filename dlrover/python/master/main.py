@@ -19,15 +19,15 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.scheduler.factory import new_job_args
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
-_master_evt = DLRoverMasterEvent().singleton_instance()
+_event_reporter = get_event_reporter()
 
 
 def update_context(job_args: JobArgs):
@@ -81,13 +81,10 @@ def run(args):
 
 def main():
     args = parse_master_args()
-
-    # export event for dlrover master
-    _master_evt.start(args=vars(args))
+    _event_reporter.report_master_start(args)
 
     exit_code = run(args)
-
-    _master_evt.exit(exit_code=exit_code)
+    _event_reporter.report_master_end(args, exit_code)
 
     return exit_code
 

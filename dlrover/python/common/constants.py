@@ -427,15 +427,21 @@ class AscendConstants(object):
     HCCL_PORT_START_DEFAULT = 64000
 
 
-class ErrorMonitorConstants(object):
+class EventReportConstants(object):
     TYPE_INFO = "info"
     TYPE_WARN = "warn"
     TYPE_ERROR = "error"
 
     JOB_INSTANCE = "job"
 
+    ACTION_MASTER_START = "master_start"
+    ACTION_MASTER_END = "master_end"
+    ACTION_JOB_START = "job_start"
+    ACTION_JOB_SUCCESS = "job_success"
+    ACTION_JOB_FAIL = "job_fail"
     ACTION_WORKER_CREATE = "worker_create"
     ACTION_WORKER_PENDING = "worker_pending"
+    ACTION_WORKER_NO_HEARTBEAT = "worker_no_heartbeat"
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"

@@ -32,7 +32,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.local_master import LocalJobMaster
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
@@ -306,7 +306,7 @@ def create_test_dataset_splitter(dataset_name="test"):
 
 
 def create_task_manager(dataset_name="test"):
-    task_manager = TaskManager(False, SpeedMonitor())
+    task_manager = TaskManager(False, PerfMonitor())
     splitter = create_test_dataset_splitter(dataset_name)
     task_manager.new_dataset(
         batch_size=10,

@@ -29,7 +29,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.master import JobMaster, get_service_type
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
@@ -40,9 +40,9 @@ from dlrover.python.scheduler.job import JobArgs
 
 class LocalJobMaster(JobMaster):
     def __init__(self, port, args: JobArgs):
-        self.speed_monitor = SpeedMonitor()
-        self.task_manager = TaskManager(0, self.speed_monitor)
-        self.job_manager = create_job_manager(args, self.speed_monitor)
+        self.perf_monitor = PerfMonitor()
+        self.task_manager = TaskManager(0, self.perf_monitor)
+        self.job_manager = create_job_manager(args, self.perf_monitor)
         self.diagnosis_manager = DiagnosisManager(args)
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
@@ -55,15 +55,15 @@ class LocalJobMaster(JobMaster):
         self._master_server = self._create_master_service(port, args)
         self._job_args = args
         for i in range(args.node_args[NodeType.WORKER].group_resource.count):
-            self.speed_monitor.add_running_worker(NodeType.WORKER, i)
-        self.speed_monitor.set_target_worker_num(1)
+            self.perf_monitor.add_running_worker(NodeType.WORKER, i)
+        self.perf_monitor.set_target_worker_num(1)
 
     def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,
             self.job_manager,
-            self.speed_monitor,
+            self.perf_monitor,
             self.rdzv_managers,
             self.diagnosis_manager,
             self.job_metric_collector,
