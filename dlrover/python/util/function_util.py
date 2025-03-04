@@ -14,6 +14,7 @@
 import functools
 import signal
 import time
+import traceback
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -67,9 +68,13 @@ def retry(retry_times=10, retry_interval=5, raise_exception=True):
                 except Exception as e:
                     class_name = func.__class__.__name__
                     func_name = func.__name__
+                    tb = traceback.format_exception(
+                        type(e), e, e.__traceback__, limit=3
+                    )
                     logger.warning(
                         f"Retry {i} to {class_name}.{func_name} "
-                        f"with failure {e}",
+                        f"with failure {e}, ",
+                        f"with traceback {tb}",
                     )
                     exception = e
                     time.sleep(retry_interval)
