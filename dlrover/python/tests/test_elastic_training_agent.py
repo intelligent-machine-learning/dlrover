@@ -301,6 +301,18 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._config.network_check = False
 
         agent._rendezvous = mock.MagicMock(
+            side_effect=[NodeCheckFailedError("test")],
+        )
+        with self.assertRaises(NodeCheckFailedError):
+            agent._initialize_workers(agent._worker_group)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[RendezvousTimeoutError("test")],
+        )
+        with self.assertRaises(RendezvousTimeoutError):
+            agent._initialize_workers(agent._worker_group)
+
+        agent._rendezvous = mock.MagicMock(
             side_effect=[ValueError("test")],
         )
         with self.assertRaises(ValueError):
