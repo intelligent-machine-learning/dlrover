@@ -32,7 +32,7 @@ import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     CheckpointConstant,
-    ErrorMonitorConstants,
+    EventReportConstants,
     NodeEnv,
     TrainingExceptionLevel,
 )
@@ -316,9 +316,9 @@ class SharedMemoryHandler(object):
         ckpt_conf.writing_shm = True
 
         report_local_event(
-            event_type=ErrorMonitorConstants.TYPE_INFO,
+            event_type=EventReportConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
-            action=ErrorMonitorConstants.ACTION_MEM_CKPT_START,
+            action=EventReportConstants.ACTION_MEM_CKPT_START,
             msg=f"step={ckpt_conf.step}",
         )
         self.metadata.set(meta_dict)
@@ -327,9 +327,9 @@ class SharedMemoryHandler(object):
         ckpt_conf.writing_shm = False
         self.metadata.set(meta_dict)
         report_local_event(
-            event_type=ErrorMonitorConstants.TYPE_INFO,
+            event_type=EventReportConstants.TYPE_INFO,
             instance=str(ckpt_conf.rank),
-            action=ErrorMonitorConstants.ACTION_MEM_CKPT_COMPLETE,
+            action=EventReportConstants.ACTION_MEM_CKPT_COMPLETE,
             msg=f"step={ckpt_conf.step}",
         )
 
@@ -352,16 +352,16 @@ class SharedMemoryHandler(object):
             return {}
 
         report_local_event(
-            event_type=ErrorMonitorConstants.TYPE_INFO,
+            event_type=EventReportConstants.TYPE_INFO,
             instance=str(config.rank),
-            action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_START,
+            action=EventReportConstants.ACTION_RESUME_MEM_CKPT_START,
             msg=f"step={config.step}",
         )
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
         report_local_event(
-            event_type=ErrorMonitorConstants.TYPE_INFO,
+            event_type=EventReportConstants.TYPE_INFO,
             instance=str(config.rank),
-            action=ErrorMonitorConstants.ACTION_RESUME_MEM_CKPT_COMPLETE,
+            action=EventReportConstants.ACTION_RESUME_MEM_CKPT_COMPLETE,
             msg=f"step={config.step}",
         )
         return state_dict
@@ -677,16 +677,16 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"shared memory into the storage {ckpt_config}."
             )
             report_local_event(
-                event_type=ErrorMonitorConstants.TYPE_INFO,
+                event_type=EventReportConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
-                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_START,
+                action=EventReportConstants.ACTION_SAVE_SHARD_START,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             report_local_event(
-                event_type=ErrorMonitorConstants.TYPE_INFO,
+                event_type=EventReportConstants.TYPE_INFO,
                 instance=str(ckpt_config.rank),
-                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_COMPLETE,
+                action=EventReportConstants.ACTION_SAVE_SHARD_COMPLETE,
                 msg=f"local_id={local_shard_id}, step={step}",
             )
             shm_lock.release()
@@ -704,9 +704,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 exc_info=True,
             )
             report_local_event(
-                event_type=ErrorMonitorConstants.TYPE_ERROR,
+                event_type=EventReportConstants.TYPE_ERROR,
                 instance=str(ckpt_config.rank),
-                action=ErrorMonitorConstants.ACTION_SAVE_SHARD_ERROR,
+                action=EventReportConstants.ACTION_SAVE_SHARD_ERROR,
                 msg=f"local_id={local_shard_id}, step={step}, error={e}",
             )
             return False

@@ -14,13 +14,15 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
+from dlrover.python.common.constants import TrainingExceptionLevel
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
@@ -40,8 +42,7 @@ class JobManager(metaclass=ABCMeta):
     def __init__(
         self,
         job_args: JobArgs,
-        speed_monitor=None,
-        error_monitor=None,
+        perf_monitor=None,
         external_config=None,
     ):
         self._job_resource = JobResource()
@@ -50,10 +51,11 @@ class JobManager(metaclass=ABCMeta):
         self._job_strategy_generator: SimpleStrategyGenerator = (
             SimpleStrategyGenerator(self._job_args.job_uuid)
         )
+        self._perf_monitor: PerfMonitor = perf_monitor
+        self._event_reporter = get_event_reporter()
 
         self._stopped = False
-        self._speed_monitor: SpeedMonitor = speed_monitor
-        self._error_monitor: ErrorMonitor = error_monitor
+        self._restart_errors: Dict[int, str] = {}
         self._nodes_required = (0, 0, 0)
 
         self._training_node_config = TrainingNodeConfig(external_config)
@@ -256,3 +258,67 @@ class JobManager(metaclass=ABCMeta):
         """
 
         pass
+
+    def process_error(
+        self, node: Node, restart_count: int, error_data: str, level: str
+    ) -> bool:
+        """
+        Handle the error of training.
+
+        Args:
+            node: The Node instance.
+            restart_count: The restart count of training on the node.
+            error_data: The error message data.
+            level: The error level.
+
+        Returns:
+            bool: whether to relaunch the node.
+        """
+
+        if level == TrainingExceptionLevel.PROCESS_ERROR:
+            return self._handle_process_error(node, restart_count, error_data)
+        elif level == TrainingExceptionLevel.NODE_ERROR:
+            return self._handle_node_error(node, error_data)
+        elif level == TrainingExceptionLevel.RDZV_ERROR:
+            logger.error(f"Rendezvous fails with reason {error_data}")
+        elif level == TrainingExceptionLevel.WARNING:
+            logger.warning(error_data)
+        elif level == TrainingExceptionLevel.ERROR:
+            logger.error(error_data)
+        return False
+
+    def _handle_process_error(
+        self, node: Node, restart_count: int, error_data: str
+    ):
+        """
+        Handle the process error of training.
+
+        Args:
+            node: The Node instance.
+            error_data: The error message data.
+
+        Returns:
+            bool: whether to relaunch the node.
+        """
+
+        if restart_count not in self._restart_errors:
+            self._restart_errors[restart_count] = error_data
+            logger.error(
+                f"{node.type}-{node.id} restart {restart_count} "
+                f"fails: {error_data}"
+            )
+        return False
+
+    def _handle_node_error(self, node: Node, error_data: str):
+        """
+        Handle the node error of training.
+
+        Args:
+            node: The Node instance.
+            error_data: The error message data.
+        Returns:
+            bool: whether to relaunch the node.
+        """
+
+        logger.info(f"{node.type}-{node.id} is down. Reason: {error_data}")
+        return True

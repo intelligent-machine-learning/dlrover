@@ -16,7 +16,7 @@ import unittest
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node, NodeResource
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
@@ -68,17 +68,17 @@ class StatsCollectorTest(unittest.TestCase):
         collector.collect_custom_data(custom_metric)
         self.assertDictEqual(custom_metric, collector._custom_metric)
 
-        speed_monitor = SpeedMonitor()
+        perf_monitor = PerfMonitor()
         t = int(time.time())
-        speed_monitor.set_target_worker_num(1)
-        speed_monitor.collect_global_step(100, t)
-        speed_monitor.collect_global_step(1100, t + 10)
-        speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        perf_monitor.set_target_worker_num(1)
+        perf_monitor.collect_global_step(100, t)
+        perf_monitor.collect_global_step(1100, t + 10)
+        perf_monitor.add_running_worker(NodeType.WORKER, 0)
         worker = Node(NodeType.WORKER, 0, None)
         collector._stats_reporter._runtime_stats = []
-        speed_monitor._start_training_time = 100
-        speed_monitor._init_time = 10
-        collector.collect_runtime_stats(speed_monitor, [worker])
+        perf_monitor._start_training_time = 100
+        perf_monitor._init_time = 10
+        collector.collect_runtime_stats(perf_monitor, [worker])
         self.assertEqual(len(collector._runtime_metric.running_nodes), 1)
         self.assertEqual(collector._runtime_metric.speed, 100)
         self.assertEqual(len(collector._stats_reporter._runtime_stats), 1)

@@ -13,7 +13,7 @@
 import json
 from typing import List
 
-from dlrover.python.common.constants import ErrorMonitorConstants
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -57,9 +57,9 @@ class ResolveTrainingHangOperator(InferenceOperator):
                         attribution=InferenceAttribute.IS,
                         description=InferenceDescription.EVENT,
                         configs={
-                            "event_type": ErrorMonitorConstants.TYPE_WARN,
-                            "event_instance": ErrorMonitorConstants.JOB_INSTANCE,  # noqa: E501
-                            "event_action": ErrorMonitorConstants.ACTION_HANG_WARN,  # noqa: E501
+                            "event_type": EventReportConstants.TYPE_WARN,
+                            "event_instance": EventReportConstants.JOB_INSTANCE,  # noqa: E501
+                            "event_action": EventReportConstants.ACTION_HANG_WARN,  # noqa: E501
                             "event_msg": "",
                             "event_labels": json.dumps({}),
                         },
