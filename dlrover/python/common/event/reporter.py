@@ -148,8 +148,23 @@ class EventReporter(Singleton):
             },
         )
 
+    def report_process_relaunch(self, node: Node):
+        """Report process relaunching."""
+
+        # TODO: evt for process relaunching
+
+        self.report(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=node.name,
+            action=EventReportConstants.ACTION_RESTART_TRAINING,
+            msg=f"{node.id}",
+            labels={
+                "node": node.id,
+            },
+        )
+
     def report_node_relaunch(self, node: Node, new_node: Node):
-        """Report node when relaunching."""
+        """Report node relaunching."""
 
         _master_evt.worker_relaunch(
             pod_name=node.name,
@@ -289,5 +304,5 @@ class EventReporter(Singleton):
     # ================ RDZV End ================
 
 
-def get_event_reporter() -> EventReporter:
-    return EventReporter.singleton_instance()
+def get_event_reporter(*args, **kwargs) -> EventReporter:
+    return EventReporter.singleton_instance(*args, **kwargs)
