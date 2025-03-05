@@ -99,7 +99,7 @@ def is_dlrover_event_enabled():
 class Config(Singleton):
 
     event_exporter: str = DEFAULT_EVENT_EXPORTER
-    async_exporter: bool = False
+    async_exporter: bool = True
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
