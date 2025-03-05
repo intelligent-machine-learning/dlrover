@@ -42,14 +42,14 @@ from dlrover.python.diagnosis.common.inference_chain import (
     combine_inferences,
     is_inference_included,
 )
+from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
+    AtorchEventCollector,
+)
 from dlrover.python.diagnosis.diagnostician.diagnostician import (
     DiagnosticianManager,
 )
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
-)
-from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
-    AtorchEventCollector,
 )
 from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
