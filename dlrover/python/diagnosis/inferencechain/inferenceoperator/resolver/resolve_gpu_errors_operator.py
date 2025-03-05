@@ -14,7 +14,7 @@
 import json
 from typing import List
 
-from dlrover.python.common.constants import ErrorMonitorConstants
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
@@ -75,7 +75,7 @@ class ResolveGPUErrorsOperator(InferenceOperator):
                     attribution=InferenceAttribute.IS,
                     description=InferenceDescription.EVENT,
                     configs={
-                        InferenceConfigKey.EVENT_TYPE: ErrorMonitorConstants.TYPE_WARN,  # noqa: E501
+                        InferenceConfigKey.EVENT_TYPE: EventReportConstants.TYPE_WARN,  # noqa: E501
                         InferenceConfigKey.EVENT_INSTANCE: f"{DiagnosisConstant.LOCAL_INSTANCE}",  # noqa: E501
                         InferenceConfigKey.EVENT_ACTION: inf.configs[
                             InferenceConfigKey.ERRORS

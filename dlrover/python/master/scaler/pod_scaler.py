@@ -28,11 +28,12 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     NodeEnv,
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
@@ -47,10 +48,8 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
-_master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class FakeKubeResponse:
@@ -87,7 +86,7 @@ class PodScaler(Scaler):
     in a queue.
     """
 
-    def __init__(self, job_name, namespace, error_monitor=None):
+    def __init__(self, job_name, namespace):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._svc_factory = k8sServiceFactory(namespace, job_name)
@@ -104,7 +103,7 @@ class PodScaler(Scaler):
         self.api_client = client.ApiClient()
         self._master_addr = ""
         self._master_service_type = _dlrover_context.master_service_type
-        self._error_monitor = error_monitor
+        self._event_reporter = get_event_reporter()
         self._started = False
 
     def start(self):
@@ -565,11 +564,11 @@ class PodScaler(Scaler):
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
         self._patch_tf_config_into_env(pod, node)
-        if self._error_monitor:
-            self._error_monitor.report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+        if self._event_reporter:
+            self._event_reporter.report(
+                EventReportConstants.TYPE_INFO,
                 pod_name,
-                ErrorMonitorConstants.ACTION_WORKER_CREATE,
+                EventReportConstants.ACTION_WORKER_CREATE,
                 "",
                 {},
             )

@@ -74,6 +74,8 @@ from dlrover.python.elastic_agent.torch.training import (
     NodeCheckElasticAgent,
     NodeCheckFailedError,
     RendezvousOutSyncError,
+    RendezvousTimeoutError,
+    StopWorkerTimeoutError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
@@ -283,7 +285,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             raise RendezvousOutSyncError("test")
 
         agent._rendezvous = _mock_rendezvous
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
@@ -298,6 +300,18 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             log_dir=self.config.log_dir,
         )
         agent._config.network_check = False
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[NodeCheckFailedError("test")],
+        )
+        with self.assertRaises(NodeCheckFailedError):
+            agent._initialize_workers(agent._worker_group)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[RendezvousTimeoutError("test")],
+        )
+        with self.assertRaises(RendezvousTimeoutError):
+            agent._initialize_workers(agent._worker_group)
 
         agent._rendezvous = mock.MagicMock(
             side_effect=[ValueError("test")],
@@ -481,13 +495,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor = TorchTrainingMonitor(config_file)
             monitor.start()
             monitor.report_step()
-            self.assertEqual(self._master.speed_monitor._global_step, 0)
+            self.assertEqual(self._master.perf_monitor._global_step, 0)
             record = {"step": 100, "timestamp": time.time()}
             with open(config_file, "w") as f:
                 f.write(json.dumps(record))
 
             monitor.report_step()
-            self.assertEqual(self._master.speed_monitor._global_step, 100)
+            self.assertEqual(self._master.perf_monitor._global_step, 100)
 
     def test_check_network_rdzv_for_elastic_training(self):
         self._master.rdzv_managers[
@@ -770,7 +784,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             try:
                 agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
-            except TimeoutError:
+            except StopWorkerTimeoutError:
                 self.assertTrue(True)
 
     def test_diagnosis(self):
@@ -1032,7 +1046,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         rdzv_handler._client.get_comm_world = mock.MagicMock(
             return_value=(0, 0, {1: 8})
         )
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
 

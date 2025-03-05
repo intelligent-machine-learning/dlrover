@@ -20,7 +20,7 @@ from unittest import mock
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_auto_scaler import (
     AllreduceTrainingAutoScaler,
@@ -48,7 +48,7 @@ class JobAutoScalerTest(unittest.TestCase):
     def test_execute_job_optimization_plan(self):
         params = MockK8sPSJobArgs()
         params.initilize()
-        manager = create_job_manager(params, SpeedMonitor())
+        manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
@@ -56,7 +56,7 @@ class JobAutoScalerTest(unittest.TestCase):
         auto_scaler = PSTrainingAutoScaler(
             manager._job_resource,
             manager._job_optimizer,
-            manager._speed_monitor,
+            manager._perf_monitor,
             manager._ps_manager,
             manager._worker_manager,
             manager._scaler,
@@ -103,7 +103,7 @@ class JobAutoScalerTest(unittest.TestCase):
         self.assertIsNotNone(scale_plan)
 
         # mock for following async thread testing
-        auto_scaler._speed_monitor.worker_adjustment_finished = mock.MagicMock(
+        auto_scaler._perf_monitor.worker_adjustment_finished = mock.MagicMock(
             side_effect=Exception()
         )
         _dlrover_context = Context.singleton_instance()
@@ -122,7 +122,7 @@ class JobAutoScalerTest(unittest.TestCase):
     def test_reduce_timeout_pending_node_resource(self):
         params = MockK8sPSJobArgs()
         params.initilize()
-        manager = create_job_manager(params, SpeedMonitor())
+        manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
@@ -130,7 +130,7 @@ class JobAutoScalerTest(unittest.TestCase):
         auto_scaler = PSTrainingAutoScaler(
             manager._job_resource,
             manager._job_optimizer,
-            manager._speed_monitor,
+            manager._perf_monitor,
             manager._ps_manager,
             manager._worker_manager,
             manager._scaler,
@@ -166,7 +166,7 @@ class AllreduceAutoScalerTest(unittest.TestCase):
     def test_execute_job_optimization_plan(self):
         params = MockK8sAllreduceJobArgs()
         params.initilize()
-        manager = create_job_manager(params, SpeedMonitor())
+        manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
         worker_nodes = self.job_context.job_nodes_by_type(NodeType.WORKER)
@@ -182,7 +182,7 @@ class AllreduceAutoScalerTest(unittest.TestCase):
         auto_scaler = AllreduceTrainingAutoScaler(
             manager._job_resource,
             manager._job_optimizer,
-            manager._speed_monitor,
+            manager._perf_monitor,
             manager._worker_manager,
             manager._scaler,
         )
