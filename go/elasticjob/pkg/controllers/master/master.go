@@ -242,7 +242,7 @@ func (m *Manager) StopRunningPods(
 
 func getMasterArguments() []string {
 	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType,
-	    preCheckOperatorsArg, preCheckBypassArg}
+		preCheckOperatorsArg, preCheckBypassArg}
 }
 
 // NewMasterTemplateToJob sets configurations to the master template of a job.
