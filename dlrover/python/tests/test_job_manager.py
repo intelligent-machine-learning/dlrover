@@ -1062,3 +1062,13 @@ class LocalJobManagerTest(unittest.TestCase):
         self.assertFalse(job_context.is_request_stopped())
         job_context.request_stop()
         self.assertTrue(job_context.is_request_stopped())
+
+        self.assertEqual(job_context.get_failed_node_cnt(), 0)
+        self.assertEqual(job_context.get_failed_cnt_by_rank(0), 0)
+        node = Node("worker", 0)
+        node.rank_index = 1
+        job_context.report_failed_node(node)
+
+        self.assertEqual(job_context.get_failed_node_cnt(), 1)
+        self.assertEqual(job_context.get_failed_cnt_by_rank(1), 1)
+        self.assertEqual(job_context.get_failed_cnt_by_rank(0), 0)

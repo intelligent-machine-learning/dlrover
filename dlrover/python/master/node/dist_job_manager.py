@@ -1184,7 +1184,7 @@ class DistributedJobManager(JobManager):
     ) -> bool:
         if node:
             if level == TrainingExceptionLevel.NODE_ERROR:
-                self._job_context.report_failed_node(node.id)
+                self._job_context.report_failed_node(node)
             return self.process_error(node, restart_count, error_data, level)
         return False
 

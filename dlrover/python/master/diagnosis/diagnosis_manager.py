@@ -15,7 +15,6 @@ import threading
 import time
 from datetime import datetime
 
-from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.constants import (
     Accelerators,
     EventReportConstants,
@@ -24,6 +23,7 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
 )
 from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
@@ -91,9 +91,7 @@ class DiagnosisManager:
     def _report_event(self, event_type, instance, action, msg="", labels=None):
         if labels is None:
             labels = {}
-        self._reporter.report(
-            event_type, instance, action, msg, labels
-        )
+        self._reporter.report(event_type, instance, action, msg, labels)
 
     @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):

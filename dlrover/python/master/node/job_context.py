@@ -14,7 +14,7 @@
 import copy
 import threading
 import time
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import NodeType, PreCheckStatus
 from dlrover.python.common.global_context import Context
@@ -41,7 +41,10 @@ class JobContext(Singleton):
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._total_worker_num = 0
+        # key: id; value: failed timestamp
         self._failed_nodes: Dict[int, int] = {}
+        # key: rank; value: multi failed timestamps
+        self._failed_ranks: Dict[int, List[int]] = {}
         self._pre_check_status: str = PreCheckStatus.CHECKING
         self._request_stopped = False
         self._locker = threading.Lock()
@@ -191,17 +194,27 @@ class JobContext(Singleton):
         with self._locker:
             self._job_nodes = {}
 
-    def report_failed_node(self, node_id: Union[int, str] = None):
-        if node_id is None:
+    def report_failed_node(self, node: Node):
+        if not node:
             return
 
-        node_id = int(node_id)
+        node_id = node.id
+        node_rank = node.rank_index
         with self._locker:
             if node_id not in self._failed_nodes:
                 self._failed_nodes[node_id] = int(time.time())
+            if node_rank not in self._failed_ranks:
+                self._failed_ranks[node_rank] = [int(time.time())]
+            else:
+                self._failed_ranks[node_rank].append(int(time.time()))
 
     def get_failed_node_cnt(self):
         return len(self._failed_nodes)
+
+    def get_failed_cnt_by_rank(self, rank):
+        if rank not in self._failed_ranks:
+            return 0
+        return len(self._failed_ranks[rank])
 
     def set_pre_check_status(self, status: str):
         self._pre_check_status = status
