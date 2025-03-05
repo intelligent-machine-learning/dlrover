@@ -48,7 +48,6 @@ def run(args):
     job_args.initilize()
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
-    _dlrover_context.local_master_enabled = args.local_master_enabled
     _dlrover_context.hang_detection = args.hang_detection
     _dlrover_context.hang_downtime = args.hang_downtime
     _dlrover_context.pending_fail_strategy = args.pending_fail_strategy

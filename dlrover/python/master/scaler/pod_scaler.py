@@ -473,12 +473,6 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.JOB_NAME, value=self._job_name))
         env.append(V1EnvVar(name=NodeEnv.JOB_UID, value=self._job_uid))
-        env.append(
-            V1EnvVar(
-                name=NodeEnv.DLROVER_LOCAL_MASTER_ENABLED,
-                value=str(_dlrover_context.local_master_enabled).lower(),
-            )
-        )
 
         # History background1: https://chromium.googlesource.com/external/
         # github.com/grpc/grpc/+/refs/tags/v1.19.0-pre1/doc/fork_support.md

@@ -167,6 +167,7 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
+        standalone: run training in standalone mode.
         precheck: the level to run pre-check task before starting
             the training task.
         network_check: whether to check the network available before training.
@@ -187,6 +188,7 @@ class ElasticLaunchConfig(LaunchConfig):
             is a failure node
     """
 
+    standalone: bool = False
     precheck: int = 0
     network_check: bool = False
     comm_perf_test: bool = False

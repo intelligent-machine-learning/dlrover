@@ -101,15 +101,6 @@ def add_params(parser):
         help="The name of platform which can be pyk8s, k8s, ray or local.",
     )
     parser.add_argument(
-        "--local_master_enabled",
-        "--local-master-enabled",
-        default=True,
-        type=str2bool,
-        help="Whether to enable local master if there is no distributed "
-        "master. To be noticed: local-master is suitable for standalone "
-        "only.",
-    )
-    parser.add_argument(
         "--pending_timeout",
         "--pending-timeout",
         default=DefaultValues.SEC_TO_WAIT_PENDING_POD,

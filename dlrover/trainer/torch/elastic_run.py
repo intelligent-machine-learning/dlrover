@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -123,6 +123,7 @@ from dlrover.trainer.torch.utils import version_less_than_230
 def parse_args(args):
     parser = get_args_parser()
     parser.allow_abbrev = False
+
     parser.add_argument(
         "--precheck",
         type=int,
@@ -456,20 +457,33 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
     return elastic_config
 
 
-def _check_to_use_dlrover_run(job_name):
+def _check_to_use_dlrover_run(job_name, is_standalone=False):
+    """
+    Standalone mode:
+        1) dlrover-run with local master
+        2) torchrun without dlrover master
+
+    Distributed mode:
+        dlrover-run with distributed master
+
+    Notice: 'torchrun' is not supported in dlrover with distributed mode.
+    So user should use 'torchrun' directly(without 'dlrover-run') to run
+    distributed training if no dlrover available.
+    """
+
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_rank = env_utils.get_node_rank()
 
     # try dist master connection
-    if not _check_dlrover_master_available(master_addr, timeout=60):
-        logger.warning(
-            f"Distributed dlrover master is not available: {master_addr}"
-        )
+    dist_master_available = _check_dlrover_master_available(
+        master_addr, timeout=60
+    )
 
-        # for node 0 (max-node is 1)
-        if node_rank == 0:
-            if _is_local_master_supported():
-                # create local master(rank 0) if dist master connection failed
+    if not dist_master_available:
+        if is_standalone:
+            # for standalone mode
+            if node_rank == 0:
+                # create local master
                 master_handler, master_addr = _launch_dlrover_local_master(
                     master_addr,
                     job_name,
@@ -484,32 +498,35 @@ def _check_to_use_dlrover_run(job_name):
                     master_addr, timeout=30
                 ):
                     logger.warning(
-                        "Downgrade to use torchrun in standalone for neither "
-                        "distributed master is unavailable nor "
-                        "local master is unavailable."
+                        "Downgrade to use torch-run in standalone for "
+                        "local dlrover master is unavailable."
                     )
+                    # torch-run(standalone)
                     return False
+                else:
+                    # dlrover-run + local-master(standalone)
+                    return True
             else:
-                logger.warning(
-                    "Downgrade to use torchrun in standalone for neither "
-                    "distributed master is unavailable nor "
-                    "local master is not enabled."
+                # raise exception directly
+                raise RuntimeError(
+                    "Only single node is supported in standalone mode."
                 )
-                return False
         else:
+            # for distribution mode
             # raise exception directly
             raise RuntimeError(
                 "Distributed dlrover master is unavailable "
                 "for distribution."
             )
-    return True
+    else:
+        if is_standalone:
+            logger.info(
+                "Use distributed mode instead of standalone mode for "
+                "distributed dlrover master is available"
+            )
 
-
-def _is_local_master_supported() -> bool:
-    env_value = env_utils.get_env(NodeEnv.DLROVER_LOCAL_MASTER_ENABLED)
-    if env_value and "true" == env_value.lower():
+        # dlrover-run + dist-master(distributed)
         return True
-    return False
 
 
 def run(args):
@@ -524,9 +541,12 @@ def run(args):
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
 
-    use_dlrover_launch = _check_to_use_dlrover_run(job_name)
+    is_standalone = args.standalone
+    logger.info(f"Standalone mode: {is_standalone}")
+    use_dlrover_launch = _check_to_use_dlrover_run(job_name, is_standalone)
 
-    if args.standalone and not use_dlrover_launch:
+    # for torchrun standalone mode
+    if is_standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
         args.rdzv_endpoint = "localhost:29400"
         args.rdzv_id = str(uuid.uuid4())

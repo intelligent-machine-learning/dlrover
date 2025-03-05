@@ -46,7 +46,6 @@ class ConfigKeys(object):
 
 
 class DefaultValues(object):
-    LOCAL_MASTER_ENABLED = True
     SERVICE_TYPE = CommunicationType.COMM_SERVICE_GRPC
     TRAIN_SPEED_RECORD_NUM = 50
     SEC_TO_START_AUTOSCALE_WORKER = 90
@@ -82,7 +81,6 @@ class DefaultValues(object):
 
 class Context(Singleton):
     def __init__(self):
-        self.local_master_enabled = DefaultValues.LOCAL_MASTER_ENABLED
         self.master_service_type = DefaultValues.SERVICE_TYPE
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
