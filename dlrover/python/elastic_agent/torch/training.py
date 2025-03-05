@@ -164,6 +164,10 @@ class RendezvousTimeoutError(RuntimeError):
     pass
 
 
+class StopWorkerTimeoutError(RuntimeError):
+    pass
+
+
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
@@ -917,7 +921,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     raise RendezvousTimeoutError(
                         "Timeout to wait for new nodes."
                     )
-            except (NodeCheckFailedError, RendezvousTimeoutError) as e:
+            except (
+                NodeCheckFailedError,
+                RendezvousTimeoutError,
+                StopWorkerTimeoutError,
+            ) as e:
                 raise e
             except Exception as e:
                 err_cnt += 1
@@ -952,14 +960,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
-        except RendezvousTimeoutError as te:
+        except StopWorkerTimeoutError as te:
             logger.error(str(te))
             raise te
         finally:
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        raise RendezvousTimeoutError("Timed out waiting for stopping workers.")
+        raise StopWorkerTimeoutError("Timed out waiting for stopping workers.")
 
     def _set_numa_affinity(self):
         """set numa affinity to workers processes,

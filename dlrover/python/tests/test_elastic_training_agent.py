@@ -75,6 +75,7 @@ from dlrover.python.elastic_agent.torch.training import (
     NodeCheckFailedError,
     RendezvousOutSyncError,
     RendezvousTimeoutError,
+    StopWorkerTimeoutError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
@@ -783,7 +784,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             try:
                 agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
-            except RendezvousTimeoutError:
+            except StopWorkerTimeoutError:
                 self.assertTrue(True)
 
     def test_diagnosis(self):
