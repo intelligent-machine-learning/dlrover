@@ -272,7 +272,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
-        self._job_context.report_failed_node(node)
+        self._job_context.report_failed_node(node.id)
         self._stop_job_if_needed(node)
         if node.is_unrecoverable_failure():
             self._master.perf_monitor.reduce_target_worker_num(
