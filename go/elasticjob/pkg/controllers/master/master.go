@@ -46,7 +46,6 @@ const (
 	ReplicaTypeJobMaster commonv1.ReplicaType = "dlrover-master"
 
 	// supported arguments(should be supported in 'dlrover.python.master.args')
-	localMasterEnabledArg  = "local_master_enabled"
 	pendingTimeoutArg      = "pending_timeout"
 	pendingFailStrategyArg = "pending_fail_strategy"
 	serviceType            = "service_type"
@@ -242,8 +241,8 @@ func (m *Manager) StopRunningPods(
 }
 
 func getMasterArguments() []string {
-	return []string{localMasterEnabledArg, pendingTimeoutArg,
-		pendingFailStrategyArg, serviceType, preCheckOperatorsArg, preCheckBypassArg}
+	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType,
+	    preCheckOperatorsArg, preCheckBypassArg}
 }
 
 // NewMasterTemplateToJob sets configurations to the master template of a job.
