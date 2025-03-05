@@ -74,6 +74,8 @@ from dlrover.python.elastic_agent.torch.training import (
     NodeCheckElasticAgent,
     NodeCheckFailedError,
     RendezvousOutSyncError,
+    RendezvousTimeoutError,
+    StopWorkerTimeoutError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
@@ -283,7 +285,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             raise RendezvousOutSyncError("test")
 
         agent._rendezvous = _mock_rendezvous
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
@@ -298,6 +300,18 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             log_dir=self.config.log_dir,
         )
         agent._config.network_check = False
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[NodeCheckFailedError("test")],
+        )
+        with self.assertRaises(NodeCheckFailedError):
+            agent._initialize_workers(agent._worker_group)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[RendezvousTimeoutError("test")],
+        )
+        with self.assertRaises(RendezvousTimeoutError):
+            agent._initialize_workers(agent._worker_group)
 
         agent._rendezvous = mock.MagicMock(
             side_effect=[ValueError("test")],
@@ -770,7 +784,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             try:
                 agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
-            except TimeoutError:
+            except StopWorkerTimeoutError:
                 self.assertTrue(True)
 
     def test_diagnosis(self):
@@ -1032,7 +1046,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         rdzv_handler._client.get_comm_world = mock.MagicMock(
             return_value=(0, 0, {1: 8})
         )
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
 
