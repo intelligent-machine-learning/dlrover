@@ -35,7 +35,6 @@ class Singleton(object):
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
-
         if not cls._instance_lock:
             with cls._lock:
                 if not cls._instance_lock:

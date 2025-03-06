@@ -100,6 +100,9 @@ class NodeEventType(object):
     NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
     MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
+    WAIT_PRE_CHECK = "WAIT_PRE_CHECK"
+    PRE_CHECK_PASSED = "PRE_CHECK_PASSED"
+    PRE_CHECK_FAILED = "PRE_CHECK_FAILED"
 
 
 class PendingTimeoutStrategyType(object):
@@ -147,6 +150,13 @@ class NodeExitReason(object):
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
+
+
+class NodeExitDescription(object):
+    CHECK_FAILED_MSG = (
+        "This node failed the node-check "
+        "procedure(mat-mul + comm) before training."
+    )
 
 
 class JobExitReason(object):

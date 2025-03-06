@@ -13,6 +13,10 @@
 
 import functools
 import signal
+import time
+import traceback
+
+from dlrover.python.common.log import default_logger as logger
 
 TIMEOUT_MAX = 24 * 60 * 60
 
@@ -45,6 +49,40 @@ def timeout(secs=-1, callback_func=None):
             finally:
                 signal.alarm(0)
             return result
+
+        return wrapped
+
+    return decorator
+
+
+def retry(retry_times=10, retry_interval=5, raise_exception=True):
+    """Decorator for function with retry mechanism using."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            exception = None
+            for i in range(retry_times):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    class_name = func.__class__.__name__
+                    func_name = func.__name__
+                    tb = traceback.format_exception(
+                        type(e), e, e.__traceback__, limit=3
+                    )
+                    logger.warning(
+                        f"Retry {i} to {class_name}.{func_name} "
+                        f"with failure {e}, ",
+                        f"with traceback {tb}",
+                    )
+                    exception = e
+                    time.sleep(retry_interval)
+            if exception:
+                logger.error(exception)
+                if raise_exception:
+                    raise exception
+            return None
 
         return wrapped
 
