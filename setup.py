@@ -21,7 +21,6 @@ install_requires = [
     "deprecated",
     "requests",
     "packaging",
-    "tornado",
 ]
 
 
@@ -30,6 +29,7 @@ extra_require = {
     "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
+    "master": ["tornado"],
 }
 
 
