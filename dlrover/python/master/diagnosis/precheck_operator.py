@@ -15,8 +15,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Tuple, Union
 
+from diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+    DiagnosisErrorConstant,
+)
+
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    NodeEventType,
     NodeStatus,
     NodeType,
     PendingTimeoutStrategyType,
@@ -28,6 +35,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     JobAbortionAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.scheduler.job import JobArgs
@@ -324,3 +332,86 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         ):
             msg = result_msg + ":" + str(abnormal_nodes[0].id)
         return [JobAbortionAction(reason=msg)]
+
+
+class ConnectionPreCheckOperator(PreCheckOperator):
+    """
+    This operator will check whether all the target workers can establish
+    connection with master.
+
+    Notice:
+    1) This operator is available for all-reduce(torch) job only for now.
+    2) Can not be used independently, and must be used after
+       'SchedulingPreCheckOperator'.
+    """
+
+    RETRY_TIMES = 3
+    RETRY_INTERVAL = 10
+    CONN_CHECK_FAILED_MSG = "CONNECTION_CHECK_FAILED"
+
+    @classmethod
+    def get_retry_interval_secs(cls) -> int:
+        return 60  # need to wait node fault tolerance
+
+    def check(self, *args, **kwargs) -> PreCheckResult:
+        retry_times = ConnectionPreCheckOperator.RETRY_TIMES
+        each_retry_interval = ConnectionPreCheckOperator.RETRY_INTERVAL
+        abnormal_nodes = []
+
+        job_nodes = job_ctx.job_nodes()
+
+        # use a retry here
+        for i in range(retry_times):
+            for _, nodes in job_nodes.items():
+                for _, node in nodes.items():
+                    if node.reported_status != NodeEventType.WAIT_PRE_CHECK:
+                        logger.debug(
+                            f"Node {node.id} failed connection check."
+                        )
+                        abnormal_nodes.append(node)
+
+            if abnormal_nodes:
+                # with connection issue
+                if i + 1 == retry_times:
+                    # retry out of limit
+                    break
+                else:
+                    logger.warning(
+                        f"Got {len(abnormal_nodes)} node with "
+                        f"connection issue for {i}/{retry_times}, "
+                        f"wait {each_retry_interval}s for next retry"
+                    )
+                    abnormal_nodes.clear()
+                    time.sleep(each_retry_interval)
+            else:
+                # no connection issue
+                break
+
+        if abnormal_nodes:
+            return PreCheckResult(
+                result=1,
+                result_msg=ConnectionPreCheckOperator.CONN_CHECK_FAILED_MSG,
+                abnormal_nodes=abnormal_nodes,
+            )
+
+        return PreCheckResult()
+
+    def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
+        abnormal_nodes = kwargs.get("abnormal_nodes")
+        failed_actions: List[DiagnosisAction] = []
+        if not abnormal_nodes or not isinstance(abnormal_nodes, List):
+            logger.warning("No valid abnormal nodes for failed actions.")
+            return failed_actions
+
+        for node in abnormal_nodes:
+            failed_actions.append(
+                NodeAction(
+                    node_status=DiagnosisErrorConstant.PRE_CHECK_FAILED,
+                    reason=ConnectionPreCheckOperator.CONN_CHECK_FAILED_MSG,
+                    node_id=node.id,
+                    node_type=node.type,
+                    instance=DiagnosisConstant.MASTER_INSTANCE,
+                    action_type=DiagnosisActionType.MASTER_RELAUNCH_WORKER,
+                )
+            )
+        return failed_actions

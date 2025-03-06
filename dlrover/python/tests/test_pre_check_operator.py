@@ -14,6 +14,7 @@
 import unittest
 from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import patch
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -25,8 +26,10 @@ from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.master.diagnosis.precheck_operator import (
+    ConnectionPreCheckOperator,
     NoPreCheckOperator,
     SchedulingPreCheckOperator,
 )
@@ -354,6 +357,37 @@ class SchedulingPreCheckOperatorTest(unittest.TestCase):
     def test_wait_scheduling_started(self):
         op = SchedulingPreCheckOperator()
         self.assertFalse(op.wait_scheduling_started(1, 2))
+
+
+class ConnectionPreCheckOperatorTest(unittest.TestCase):
+    def test_basic(self):
+        op = ConnectionPreCheckOperator()
+        self.assertEqual(op.get_retry_interval_secs(), 60)
+
+    @patch("dlrover.python.master.diagnosis.precheck_operator.job_ctx")
+    def test_check(self, mock_ctx):
+        ConnectionPreCheckOperator.RETRY_TIMES = 2
+        ConnectionPreCheckOperator.RETRY_INTERVAL = 1
+
+        # all good
+        op = ConnectionPreCheckOperator()
+        self.assertEqual(op.check().result, 0)
+
+        # with issue
+        mock_ctx.job_nodes = mock.MagicMock(
+            return_value={"worker": {0: Node("worker", 0)}}
+        )
+        self.assertEqual(op.check().result, 1)
+
+    def test_failed_actions(self):
+        op = ConnectionPreCheckOperator()
+        failed_actions = op.failed_actions()
+        self.assertEqual(len(failed_actions), 0)
+
+        abnormal_nodes = [Node("worker", 0), Node("worker", 1)]
+        failed_actions = op.failed_actions(abnormal_nodes=abnormal_nodes)
+        self.assertEqual(len(failed_actions), 2)
+        self.assertTrue(isinstance(failed_actions[0], NodeAction))
 
 
 if __name__ == "__main__":
