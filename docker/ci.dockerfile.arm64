@@ -31,7 +31,7 @@ COPY docker/scripts/install-go.bash-arm64 /install-go.bash
 RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 
 # Install protobuf and protoc
-COPY docker/scripts/install-protobuf.bash /
+COPY docker/scripts/install-protobuf.bash-arm64 /install-protobuf.bash
 RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install python deps
