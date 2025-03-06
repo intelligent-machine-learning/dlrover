@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y \
 ARG GO_MIRROR_URL=https://dl.google.com/go
 ENV GOPATH /root/go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
-COPY docker/scripts/install-go.bash /
+COPY docker/scripts/install-go.bash-arm64 /install-go.bash
 RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 
 # Install protobuf and protoc
