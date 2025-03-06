@@ -477,7 +477,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     self._event_reporter.report_rdzv_timeout(
                         self._rdzv_evt,
                         self._name,
-                        finished_rdzv_round,
+                        self._rdzv_round,
                         self._rdzv_params,
                         node_groups=[],
                         elapsed_time=waiting_time,
@@ -567,7 +567,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._event_reporter.report_rdzv_timeout(
                         self._rdzv_evt,
                         self._name,
-                        finished_rdzv_round,
+                        self._rdzv_round,
                         self._rdzv_params,
                         node_group=node_group,
                         elapsed_time=waiting_time,
