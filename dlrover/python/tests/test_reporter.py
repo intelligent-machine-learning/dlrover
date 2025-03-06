@@ -45,6 +45,7 @@ class EventReporterTest(unittest.TestCase):
         self.reporter.report_job_fail(self.job_evt, self.args, "error")
 
     def test_manager_report(self):
+        self.reporter.report_process_relaunch(Node("worker", 0))
         self.reporter.report_node_relaunch(
             Node("worker", 0), Node("worker", 1)
         )
