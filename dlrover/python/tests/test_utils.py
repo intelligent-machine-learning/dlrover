@@ -63,7 +63,7 @@ def _get_training_job(*args, **kwargs):
             job_content = f.read()
     else:
         with open(
-            "dlrover/python/tests/data" "/elasticjob_sample.yaml", "r"
+            "dlrover/python/tests/data/elasticjob_sample.yaml", "r"
         ) as f:
             job_content = f.read()
     job = yaml.safe_load(job_content)

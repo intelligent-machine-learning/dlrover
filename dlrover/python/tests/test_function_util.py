@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 import unittest
 
 import dlrover.python.util.function_util as fu
@@ -46,3 +46,34 @@ class FunctionUtilTest(unittest.TestCase):
             self.fail()
         except fu.TimeoutException:
             pass
+
+    def test_retry_request_decorator(self):
+        @fu.retry(retry_times=2, retry_interval=1, raise_exception=True)
+        def test0(t):
+            if t > 0:
+                return t
+            else:
+                raise Exception()
+
+        self.assertEqual(test0(1), 1)
+        start = time.time()
+        try:
+            test0(-1)
+            self.fail()
+        except Exception:
+            self.assertTrue(time.time() - start > 1)
+
+        @fu.retry(retry_times=2, retry_interval=1, raise_exception=False)
+        def test1(t):
+            if t > 0:
+                return t
+            else:
+                raise Exception()
+
+        self.assertEqual(test1(2), 2)
+        start = time.time()
+        try:
+            self.assertIsNone(test1(-1))
+            self.assertTrue(time.time() - start > 1)
+        except Exception:
+            self.fail()
