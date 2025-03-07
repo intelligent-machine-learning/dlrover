@@ -326,7 +326,6 @@ def get_event_reporter(*args, **kwargs) -> EventReporter:
     class_name = reporter_cls[1]
     module = importlib.import_module(module_name)
 
-    instance = None
     if hasattr(module, class_name):
         cls = getattr(module, class_name)
         logger.debug(f"Got event reporter: {cls}")

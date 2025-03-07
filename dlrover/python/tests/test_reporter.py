@@ -13,7 +13,11 @@
 
 import unittest
 
-from dlrover.python.common.event.reporter import get_event_reporter
+from dlrover.python.common.event.reporter import (
+    EventReporter,
+    get_event_reporter,
+)
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
     NodeTopologyMeta,
@@ -23,6 +27,8 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
+
+context = Context.singleton_instance()
 
 
 class EventReporterTest(unittest.TestCase):
@@ -34,9 +40,22 @@ class EventReporterTest(unittest.TestCase):
             job_name=self.args.job_name, args=vars(self.args)
         )
 
-    def test_inner_report(self):
+    def tearDown(self):
+        context.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "EventReporter",
+        )
+
+    def test_basic(self):
+        self.reporter.initialize()
         self.assertTrue(self.reporter.is_initialized())
         self.reporter.report("1", "2", "3", "", {})
+
+        context.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "WrongReporter",
+        )
+        self.assertTrue(isinstance(get_event_reporter(), EventReporter))
 
     def test_master_report(self):
         self.reporter.report_master_start(self.args)
