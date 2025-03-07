@@ -35,6 +35,7 @@ class EventReporterTest(unittest.TestCase):
         )
 
     def test_inner_report(self):
+        self.assertTrue(self.reporter.is_initialized())
         self.reporter.report("1", "2", "3", "", {})
 
     def test_master_report(self):
