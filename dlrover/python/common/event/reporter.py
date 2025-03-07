@@ -31,6 +31,17 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class EventReporter(Singleton):
+    def initialize(self, *args, **kwargs):
+        """Subclassed can override this method to initialize the reporter."""
+        pass
+
+    def is_initialized(self):
+        """
+        Subclassed can override this method to knnow whether
+        the reporter is initialized.
+        """
+        return True
+
     @classmethod
     def report(
         cls,
@@ -314,10 +325,16 @@ def get_event_reporter(*args, **kwargs) -> EventReporter:
     module_name = reporter_cls[0]
     class_name = reporter_cls[1]
     module = importlib.import_module(module_name)
+
     if hasattr(module, class_name):
         cls = getattr(module, class_name)
         logger.debug(f"Got event reporter: {cls}")
-        return cls.singleton_instance(*args, **kwargs)
+        instance = cls.singleton_instance()
     else:
         logger.debug("Got event reporter: EventReporter")
-        return EventReporter.singleton_instance(*args, **kwargs)
+        instance = EventReporter.singleton_instance()
+
+    if not instance.is_initialized():
+        instance.initialize(*args, **kwargs)
+
+    return instance
