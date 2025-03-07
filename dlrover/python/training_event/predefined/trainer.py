@@ -21,8 +21,8 @@ from dlrover.python.training_event.predefined.common import CommonPredefined
 class TrainerEventName(Enum):
     TRAIN_START = "#start"
     TRAIN_INIT = "#init"
-    TRAIN_LOAD_DATASET = "load_dataset"
-    TRAIN_LOAD_CKPT = "load_ckpt"
+    TRAIN_LOAD_DATASET = "#load_dataset"
+    TRAIN_LOAD_CKPT = "#load_ckpt"
     TRAIN_PERSIST_CKPT = "#persist_ckpt"
     TRAIN_FINISH = "#finish"
 
