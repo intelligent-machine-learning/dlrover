@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package controllers
 
 import (
 	"strings"
@@ -34,7 +34,7 @@ func TestCreateMasterPod(t *testing.T) {
 		},
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	NewMasterTemplateToJob(job, "dlrover-master:test")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
@@ -62,7 +62,7 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		ImagePullPolicy: "Always",
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[JobMasterReplicaType] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
@@ -73,7 +73,7 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		},
 	}
 
-	NewMasterTemplateToJob(job, "dlrover-master:test")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
@@ -92,7 +92,7 @@ func TestCreateMasterPodWithOptimizeMode(t *testing.T) {
 	}
 	job.Spec.OptimizeMode = "cluster"
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	NewMasterTemplateToJob(job, "dlrover-master:test")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")

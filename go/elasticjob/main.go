@@ -18,22 +18,32 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers"
-	_ "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers/training"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -75,36 +85,57 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "9b6611a4.iml.github.io",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
+		LeaderElectionID:       "dlrover-elasticjob",
+		NewCache:               createCacheFunc(),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = controllers.NewElasticJobReconciler(mgr, masterImage).SetupWithManager(mgr); err != nil {
+	elasticJobReconciler := controllers.NewElasticJobReconciler(mgr, masterImage)
+	c, err := controller.New("elasticjob", mgr, controller.Options{
+		Reconciler: elasticJobReconciler,
+	})
+	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ElasticJob")
 		os.Exit(1)
 	}
 
-	if err = controllers.NewScalePlanReconciler(mgr).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ScalePlan")
-		os.Exit(1)
+	err = c.Watch(&source.Kind{Type: &v1alpha1.ElasticJob{}}, &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		CreateFunc: func(createEvent event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			return false
+		},
+		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
+			job := deleteEvent.Object.(*v1alpha1.ElasticJob)
+			delete(elasticJobReconciler.CachedJobs, job.Name)
+			setupLog.Info(fmt.Sprintf("Remove the job %s from cached buffer.", job.Name))
+			return false
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "fail to set watching ElasticJobs.")
+	}
+
+	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		CreateFunc: func(createEvent event.CreateEvent) bool {
+			return elasticJobReconciler.ProcessPodCreateEvent(&createEvent)
+		},
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			return elasticJobReconciler.ProcessPodUpdateEvent(&updateEvent)
+		},
+		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
+			return elasticJobReconciler.ProcessDeleteEvent(&deleteEvent)
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "fail to set watching Pods.")
 	}
 
 	//+kubebuilder:scaffold:builder
-
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
@@ -119,4 +150,20 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func createCacheFunc() cache.NewCacheFunc {
+	// Only watch the dlrover master Pod to recover the Pod or decide the job status.
+	// The dlrover master will watch the other Pods and decide the scale plan to
+	// notify the elasticjob controller to modify Pods.
+	return cache.BuilderWithOptions(cache.Options{
+		Scheme: scheme,
+		SelectorsByObject: cache.SelectorsByObject{
+			&corev1.Pod{}: {
+				Label: labels.SelectorFromSet(labels.Set{
+					common.LabelAppNameKey: common.ElasticJobAppName,
+				}),
+			},
+		},
+	})
 }
