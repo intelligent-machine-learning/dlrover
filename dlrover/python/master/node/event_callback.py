@@ -54,9 +54,8 @@ class NodeEventCallback(metaclass=abc.ABCMeta):
                 func(self, *args, **kwargs)
             except Exception as e:
                 logger.warning(
-                    "Fail to call {}.{} ".format(
-                        self.__class__.__name__, func.__name__
-                    ),
+                    f"Fail to call {self.__class__.__name__}"
+                    f".{func.__name__}",
                     e,
                 )
 
@@ -208,10 +207,8 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "Critical node (type={}, id={}) is failed "
-                    "and {}.".format(
-                        node.type, node.id, node.unrecoverable_failure_msg
-                    )
+                    f"Critical node(type={node.type}, id={node.id}) is failed "
+                    f"and reason is {node.get_unrecoverable_failure_msg()}."
                 ),
             )
 
