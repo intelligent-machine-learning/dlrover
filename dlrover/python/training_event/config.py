@@ -99,11 +99,11 @@ def is_dlrover_event_enabled():
 class Config(Singleton):
 
     event_exporter: str = DEFAULT_EVENT_EXPORTER
-    async_exporter: bool = True
+    async_exporter: bool = False  # Be careful, Don't use async exporter
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
-    hook_error: bool = True
+    hook_error: bool = False  # Be careful, Don't hook signal
 
     rank: str = "empty"
     pid: str = "empty"
