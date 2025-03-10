@@ -112,8 +112,8 @@ class ErrorHandler:
             self._original_excepthook = sys.excepthook
             sys.excepthook = self._handle_exception
 
-            # only catch critical signals
-            # non critical signal like sigchld, will cause reentrance error
+            # only catch exit signals
+            # non exit signals like sigchld, will cause reentrance/deadlock
             signals = [
                 signal.SIGINT,
                 signal.SIGTERM,
