@@ -322,12 +322,8 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "Critical node (type={}, id={}) is failed "
-                    "and reason is {}".format(
-                        node.type,
-                        node.id,
-                        node.get_unrecoverable_failure_msg(),
-                    )
+                    f"Critical node(type={node.type}, id={node.id}) is failed "
+                    f"and reason is {node.get_unrecoverable_failure_msg()}"
                 ),
             )
         elif self._job_context.get_failed_node_cnt() >= max_failure_num:
