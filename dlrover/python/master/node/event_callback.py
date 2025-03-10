@@ -323,8 +323,10 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "Critical node (type={}, id={}) is failed "
-                    "and {}".format(
-                        node.type, node.id, node.unrecoverable_failure_msg
+                    "and reason is {}".format(
+                        node.type,
+                        node.id,
+                        node.get_unrecoverable_failure_msg(),
                     )
                 ),
             )
