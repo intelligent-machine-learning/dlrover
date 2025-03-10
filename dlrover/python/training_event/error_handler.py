@@ -112,6 +112,8 @@ class ErrorHandler:
             self._original_excepthook = sys.excepthook
             sys.excepthook = self._handle_exception
 
+            # only catch critical signals
+            # non critical signal like sigchld, will cause reentrance error
             signals = [
                 signal.SIGINT,
                 signal.SIGTERM,
@@ -120,8 +122,9 @@ class ErrorHandler:
                 signal.SIGBUS,
                 signal.SIGPIPE,
                 signal.SIGSEGV,
+                signal.SIGILL,
                 signal.SIGHUP,
-                signal.SIGCHLD,
+                signal.SIGQUIT,
             ]
             for sig in signals:
                 self._original_handlers[sig] = signal.getsignal(sig)
