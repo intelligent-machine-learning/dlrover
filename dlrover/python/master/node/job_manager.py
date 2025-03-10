@@ -17,7 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node
+from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
@@ -29,7 +29,6 @@ from dlrover.python.master.node.training_node import (
     TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
-from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 

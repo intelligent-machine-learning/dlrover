@@ -42,6 +42,7 @@ from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
@@ -58,7 +59,7 @@ from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.util.queue.queue import RayEventQueue
 
 try:
@@ -557,7 +558,7 @@ class MasterServicer(ABC):
                     node.rank_index, succeed, message.event_elapsed_time
                 )
 
-        # let job manager deal with node issue
+        # let job manager deal with node issue(update status)
         self._job_manager.process_reported_node_event(event)
         return True
 

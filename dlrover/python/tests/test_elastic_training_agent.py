@@ -147,6 +147,20 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
         self.assertEqual(node_unit, 2)
 
+    def test_config_to_json(self):
+        config = ElasticLaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=8,
+            run_id="test",
+            auto_config=True,
+        )
+        json_config = config.to_json()
+        self.assertIsNotNone(json_config)
+        self.assertEqual(json_config["min_nodes"], 1)
+        self.assertEqual(json_config["rdzv_backend"], "etcd")
+        self.assertTrue(len(json.loads(json_config["rdzv_configs"])) > 0)
+
     def test_auto_configure(self):
         config = ElasticLaunchConfig(
             min_nodes=1,
@@ -887,8 +901,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            # redirects=self.config.redirects,
-            # tee=self.config.tee,
+            redirects=self.config.redirects,
+            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
