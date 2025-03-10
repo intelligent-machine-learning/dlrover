@@ -11,9 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
-    CheckFailureNodeOperator,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_resource_collection_operator import (  # noqa: E501
     CheckResourceCollectionOperator,
 )
@@ -29,7 +26,7 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_
 
 
 def get_training_failure_operators():
-    return [CheckFailureNodeOperator()]
+    return []
 
 
 def get_worker_observe_operators():

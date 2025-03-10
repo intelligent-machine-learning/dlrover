@@ -31,6 +31,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
     NodeAction,
+    ObservationAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -44,6 +45,12 @@ from dlrover.python.diagnosis.common.inference_chain import (
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
 )
+from dlrover.python.diagnosis.diagnostician.diagnostician import (
+    DiagnosticianManager,
+)
+from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
+    FailureNodeDiagnostician,
+)
 from dlrover.python.diagnosis.inferencechain.coordinator import (
     coordinate_solutions,
 )
@@ -51,7 +58,6 @@ from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    get_training_failure_operators,
     get_worker_observe_operators,
     get_worker_resolve_operators,
 )
@@ -63,6 +69,10 @@ from dlrover.python.training_event.config import (
 )
 
 evt_config = Config.singleton_instance()
+
+
+class DiagnosisAgentConstants(object):
+    NODE_FAILED = "node_failed"
 
 
 class DiagnosisAgent(Singleton):
@@ -77,6 +87,12 @@ class DiagnosisAgent(Singleton):
         self._training_log_file = training_log_file
         self._errors = errors
         self._stopped = False
+
+        self._diagnostician_mgr = DiagnosticianManager()
+        self._diagnostician_mgr.register_diagnostician(
+            DiagnosisAgentConstants.NODE_FAILED, FailureNodeDiagnostician()
+        )
+
         # The key is the time interval in seconds
         self._observe_problems: Dict[int, List[Inference]] = {
             30: [
@@ -120,10 +136,13 @@ class DiagnosisAgent(Singleton):
     ):
         if len(training_log_file) > 0:
             self._training_log_file = training_log_file
+            logger.info(f"Update training_log_file: {training_log_file}")
         if len(errors) > 0:
             self._errors = errors
+            logger.info(f"Update errors: {errors}")
         if rank >= 0:
             self._node_rank = rank
+            logger.info(f"Update rank: {rank}")
 
     def start(self):
         self._stopped = False
@@ -230,35 +249,27 @@ class DiagnosisAgent(Singleton):
                 DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
             )
 
-    def diagnose_training_failure(self) -> NodeAction:
+    def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
         )
-        # check if the node is failed
-        inference = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: self._training_log_file,
-                InferenceConfigKey.ERRORS: self._errors,
-            },
+        ob_action = self._diagnostician_mgr.observe(
+            DiagnosisAgentConstants.NODE_FAILED,
+            log_file=self._training_log_file,
+            errors=self._errors,
         )
-        ic = InferenceChain([inference], get_training_failure_operators())
-        infer_results = ic.infer()
-        failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.FAILURE,
-        )
-        failure_node = is_inference_included(infer_results, failure_inf)
 
-        if self._agent_context.remaining_failovers > 0 and not failure_node:
+        node_failed = False
+        if isinstance(ob_action, ObservationAction):
+            ob_action.__class__ = ObservationAction
+            node_failed = ob_action.node_failed()
+
+        if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(
                 f"[{self._agent_context.worker_spec.role}] Worker group "
                 f"{self._agent_context.run_result.state.name}, "
-                f"is failure node: {failure_node},"
+                f"is failure node: {node_failed},"
                 f"{self._agent_context.remaining_failovers}/"
                 f"{self._agent_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
@@ -273,7 +284,7 @@ class DiagnosisAgent(Singleton):
             logger.info(
                 f"[{self._agent_context.worker_spec.role}] Worker group "
                 f"{self._agent_context.run_result.state.name}, "
-                f"is failure node: {failure_node}, "
+                f"is failure node: {node_failed}, "
                 f"no attempts("
                 f"{self._agent_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
