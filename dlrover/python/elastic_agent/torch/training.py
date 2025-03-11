@@ -457,7 +457,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         key_prefix = f"torch.rendezvous.{self._name}.{round}.{group}"
         return PrefixStore(key_prefix, self._store)
 
-    def num_nodes_waiting(self) -> int:
+    def num_nodes_waiting(self):
         return self._client.num_nodes_waiting(self._name)
 
     def get_run_id(self) -> str:

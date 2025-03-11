@@ -32,6 +32,7 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
     JobExitReason,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
@@ -296,6 +297,11 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertTrue(should_relaunch)
+
+        self.job_context.update_job_stage(JobStage.JOB_PRE_STOP)
+        should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
+        self.assertFalse(should_relaunch)
+        self.job_context.update_job_stage(JobStage.JOB_INIT)
 
         node.relaunch_count = node.max_relaunch_count + 1
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])

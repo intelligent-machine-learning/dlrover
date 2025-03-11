@@ -1049,6 +1049,24 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         with self.assertRaises(JobPreStopError):
             rdzv_handler.next_rendezvous()
 
+        rdzv_handler._client.join_rendezvous = mock.MagicMock(
+            return_value=(0, JobStage.JOB_INIT)
+        )
+        rdzv_handler._client.num_nodes_waiting = mock.MagicMock(
+            return_value=(0, JobStage.JOB_PRE_STOP)
+        )
+        with self.assertRaises(JobPreStopError):
+            rdzv_handler.next_rendezvous()
+
+        rdzv_handler._client.join_rendezvous = mock.MagicMock(
+            return_value=(0, JobStage.JOB_INIT)
+        )
+        rdzv_handler._client.num_nodes_waiting = mock.MagicMock(
+            return_value=(1, JobStage.JOB_PRE_STOP)
+        )
+        with self.assertRaises(RendezvousOutSyncError):
+            rdzv_handler.next_rendezvous()
+
     def test_pend_timeout(self):
         launch_config = LaunchConfig(
             min_nodes=1,
