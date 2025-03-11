@@ -344,17 +344,23 @@ class ConnectionPreCheckOperator(PreCheckOperator):
        'SchedulingPreCheckOperator'.
     """
 
-    RETRY_TIMES = 3
-    RETRY_INTERVAL = 10
     CONN_CHECK_FAILED_MSG = "CONNECTION_CHECK_FAILED"
 
     @classmethod
     def get_retry_interval_secs(cls) -> int:
         return 60  # need to wait node fault tolerance
 
+    def _get_check_retry_times(self):
+        """Can be overridden in subclass."""
+        return 15
+
+    def _get_check_retry_interval(self):
+        """Can be overridden in subclass."""
+        return 60
+
     def check(self, *args, **kwargs) -> PreCheckResult:
-        retry_times = ConnectionPreCheckOperator.RETRY_TIMES
-        each_retry_interval = ConnectionPreCheckOperator.RETRY_INTERVAL
+        retry_times = self._get_check_retry_times()
+        each_retry_interval = self._get_check_retry_interval()
         abnormal_nodes = []
 
         job_nodes = job_ctx.job_nodes()
@@ -363,9 +369,14 @@ class ConnectionPreCheckOperator(PreCheckOperator):
         for i in range(retry_times):
             for _, nodes in job_nodes.items():
                 for _, node in nodes.items():
-                    if node.reported_status != NodeEventType.WAIT_PRE_CHECK:
+                    if (
+                        node.status == NodeStatus.RUNNING
+                        and node.reported_status
+                        != NodeEventType.WAIT_PRE_CHECK
+                    ):
                         logger.debug(
-                            f"Node {node.id} failed connection check."
+                            f"Node {node.id} failed connection check, "
+                            f"retry time: {i}."
                         )
                         abnormal_nodes.append(node)
 
@@ -376,7 +387,7 @@ class ConnectionPreCheckOperator(PreCheckOperator):
                     break
                 else:
                     logger.warning(
-                        f"Got {len(abnormal_nodes)} node with "
+                        f"Got {len(abnormal_nodes)} nodes with "
                         f"connection issue for {i}/{retry_times}, "
                         f"wait {each_retry_interval}s for next retry"
                     )

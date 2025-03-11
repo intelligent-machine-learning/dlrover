@@ -363,19 +363,23 @@ class ConnectionPreCheckOperatorTest(unittest.TestCase):
     def test_basic(self):
         op = ConnectionPreCheckOperator()
         self.assertEqual(op.get_retry_interval_secs(), 60)
+        self.assertEqual(op._get_check_retry_times(), 15)
+        self.assertEqual(op._get_check_retry_interval(), 60)
 
     @patch("dlrover.python.master.diagnosis.precheck_operator.job_ctx")
     def test_check(self, mock_ctx):
-        ConnectionPreCheckOperator.RETRY_TIMES = 2
-        ConnectionPreCheckOperator.RETRY_INTERVAL = 1
+        op = ConnectionPreCheckOperator()
+        op._get_check_retry_times = mock.MagicMock(return_value=2)
+        op._get_check_retry_interval = mock.MagicMock(return_value=1)
 
         # all good
-        op = ConnectionPreCheckOperator()
         self.assertEqual(op.check().result, 0)
 
         # with issue
         mock_ctx.job_nodes = mock.MagicMock(
-            return_value={"worker": {0: Node("worker", 0)}}
+            return_value={
+                "worker": {0: Node("worker", 0, status=NodeStatus.RUNNING)}
+            }
         )
         self.assertEqual(op.check().result, 1)
 
