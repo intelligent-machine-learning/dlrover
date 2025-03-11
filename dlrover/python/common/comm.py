@@ -401,6 +401,7 @@ class RendezvousState(Message):
     waiting_num: int = 0
     round: int = 0
     group: int = 0
+    job_stage: str = ""
 
 
 @dataclass

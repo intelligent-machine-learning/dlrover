@@ -77,6 +77,7 @@ from dlrover.python.common.constants import (
     AscendConstants,
     ConfigPath,
     JobConstant,
+    JobStage,
     NodeEnv,
     NodeEventType,
     NodeExitDescription,
@@ -154,6 +155,10 @@ def _get_local_ip():
 
 
 class RendezvousOutSyncError(Exception):
+    pass
+
+
+class JobPreStopError(Exception):
     pass
 
 
@@ -332,10 +337,15 @@ class MasterRendezvousHandler(RendezvousHandler):
         """The node join a rendezvous by sending its
         ID and local world size.
         """
-        round = self._client.join_rendezvous(
+        round, stage = self._client.join_rendezvous(
             self._node_rank, self._local_world_size, rdzv_name=self._name
         )
-        return round
+
+        if stage == JobStage.JOB_PRE_STOP:
+            logger.info("Exit rendezvous when job is stopping")
+            raise JobPreStopError("Exit rendezvous when job is stopping")
+
+        return round, stage
 
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
@@ -425,13 +435,19 @@ class MasterRendezvousHandler(RendezvousHandler):
         """The worker need to exit the elastic-training rendezvous if there are
         workers to join the network-check rendezvous.
         """
+        num, stage = self._client.num_nodes_waiting(
+            RendezvousName.NETWORK_CHECK
+        )
+
         if self._name == RendezvousName.ELASTIC_TRAINING:
-            num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
             if num > 0:
                 raise RendezvousOutSyncError(
                     "Some workers join the network-check rendezvous"
                     "not the elastic-training rendezvous."
                 )
+
+        if stage == JobStage.JOB_PRE_STOP:
+            raise JobPreStopError("Exit rendezvous when job is stopping")
 
     def _report_failure(self, err_msg, level):
         if self._node_rank == 0:
@@ -926,6 +942,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 NodeCheckFailedError,
                 RendezvousTimeoutError,
                 StopWorkerTimeoutError,
+                JobPreStopError,
             ) as e:
                 raise e
             except Exception as e:
@@ -1250,11 +1267,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
         if self._config.network_check:
-            num_nodes_waiting = self._client.num_nodes_waiting(
+            num_nodes_waiting, _ = self._client.num_nodes_waiting(
                 RendezvousName.NETWORK_CHECK
             )
         else:
-            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
+            num_nodes_waiting, _ = rdzv_handler.num_nodes_waiting()
         group_rank = self._worker_group.group_rank
         if num_nodes_waiting > 0:
             logger.info(

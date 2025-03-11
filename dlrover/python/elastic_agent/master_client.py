@@ -26,6 +26,7 @@ from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CommunicationType,
     JobConstant,
+    JobStage,
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
@@ -344,10 +345,10 @@ class MasterClient(Singleton, ABC):
         request = comm.WaitingNodeNumRequest(rdzv_name=rdzv_name)
         try:
             result: comm.RendezvousState = self._get(request)
-            return result.waiting_num
+            return result.waiting_num, result.job_stage
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
-            return -1
+            return -1, JobStage.JOB_UNKNOWN
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
@@ -358,7 +359,7 @@ class MasterClient(Singleton, ABC):
             node_ip=self._node_ip,
         )
         result: comm.RendezvousState = self._get(request)
-        return result.round
+        return result.round, result.job_stage
 
     def get_comm_world(self, rdzv_name, node_rank):
         request = comm.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)

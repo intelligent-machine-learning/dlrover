@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
+    JobStage,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -123,6 +124,11 @@ class MasterClientTest(unittest.TestCase):
         )
         self.assertTrue(res.success, True)
 
+        res = self._master_client.report_node_event(
+            NodeEventType.SUCCEEDED_EXITED, "SUCCEEDED_EXITED"
+        )
+        self.assertTrue(res.success, True)
+
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
 
@@ -160,8 +166,9 @@ class MasterClientTest(unittest.TestCase):
         nodes, _ = self._master_client.check_fault_node(timeout=1)
         self.assertListEqual(nodes, [])
 
-        round = self._master_client.join_rendezvous(0, 8, "elastic-training")
+        round, stage = self._master_client.join_rendezvous(0, 8, "elastic-training")
         self.assertEqual(round, 0)
+        self.assertEqual(stage, JobStage.JOB_INIT)
 
         config = self._master_client.get_paral_config()
         if config:
@@ -169,8 +176,9 @@ class MasterClientTest(unittest.TestCase):
 
     def test_num_nodes_waiting(self):
         rdzv_name = RendezvousName.ELASTIC_TRAINING
-        num = self._master_client.num_nodes_waiting(rdzv_name)
+        num, stage = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
+        self.assertEqual(stage, JobStage.JOB_INIT)
 
     def test_report_heartbeat(self):
         now = time.time()
@@ -210,8 +218,9 @@ class MasterHttpClientTest(unittest.TestCase):
     def test_http_client(self):
         # get request
         rdzv_name = RendezvousName.ELASTIC_TRAINING
-        num = self._master_client.num_nodes_waiting(rdzv_name)
+        num, stage = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
+        self.assertEqual(stage, JobStage.JOB_INIT)
 
         # report request
         res = self._master_client.ready_for_ps_relaunch()

@@ -75,6 +75,7 @@ _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
+job_ctx = get_job_context()
 
 
 class MasterServicer(ABC):
@@ -284,7 +285,7 @@ class MasterServicer(ABC):
         node_rank = request.node_rank
         if node_rank == -1:  # Back compatibility
             node_rank = request.node_id
-        round = rdzv_manager.join_rendezvous(
+        round, stage = rdzv_manager.join_rendezvous(
             request.node_id,
             node_rank,
             request.local_world_size,
@@ -297,12 +298,13 @@ class MasterServicer(ABC):
                 RendezvousName.ELASTIC_TRAINING
             ]
             training_manager.clear_waiting_nodes()
-        res = comm.RendezvousState(round=round)
+        res = comm.RendezvousState(round=round, job_stage=stage)
         return res
 
     def _num_nodes_waiting(self, rdzv_name):
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
-        res = comm.RendezvousState(waiting_num=waiting_num)
+        stage = job_ctx.get_job_stage()
+        res = comm.RendezvousState(waiting_num=waiting_num, job_stage=stage)
         return res
 
     def _get_comm_world(self, request: comm.CommWorldRequest):
