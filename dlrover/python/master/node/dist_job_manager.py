@@ -885,20 +885,22 @@ class DistributedJobManager(JobManager):
                     should_relaunch = False
                     logger.warning(
                         "The all-reduce type job will not try to recover node "
-                        "error with oom issue."
+                        f"error with oom issue, node: {node.name}."
                     )
                 elif mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "
-                        f"{NodeResourceLimit.MAX_MEMORY} MB."
+                        f"{NodeResourceLimit.MAX_MEMORY} MB, "
+                        f"node: {node.name}."
                     )
                     msg = f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
                     logger.warning(
                         f"The relaunched count {node.relaunch_count} is "
-                        f"beyond the maximum {node.max_relaunch_count}."
+                        f"beyond the maximum {node.max_relaunch_count} "
+                        f"for node: {node.name}."
                     )
                     msg = (
                         f"Relaunched {node.relaunch_count} "
@@ -912,7 +914,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(
                         "The relaunch count "
                         f"{node.relaunch_count}/{node.max_relaunch_count} "
-                        "has been exhausted."
+                        f"has been exhausted for node: {node.name}."
                     )
                     should_relaunch = False
                     msg = (

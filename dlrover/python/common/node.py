@@ -366,6 +366,14 @@ class Node(object):
     def is_node_check_failed(self):
         return self.reported_status == NodeEventType.NODE_CHECK_FAILED
 
+    def get_unrecoverable_failure_msg(self):
+        if self.unrecoverable_failure_msg:
+            return self.unrecoverable_failure_msg
+        else:
+            if self.critical:
+                return "critical worker"
+            return "unknown"
+
     def __repr__(self):
         return (
             f"name:{self.name};"
