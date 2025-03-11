@@ -41,6 +41,7 @@ from dlrover.python.common.constants import (
     ConfigPath,
     GpuMetricEnum,
     JobConstant,
+    JobStage,
     NodeEnv,
     NpuMetricEnum,
     RendezvousName,
@@ -70,6 +71,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
+    JobPreStopError,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
     NodeCheckFailedError,
@@ -1016,6 +1018,36 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
+
+    def test_join_rendezvous(self):
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.ELASTIC_TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        rdzv_handler._client.join_rendezvous = mock.MagicMock(
+            return_value=(0, JobStage.JOB_PRE_STOP)
+        )
+        with self.assertRaises(JobPreStopError):
+            rdzv_handler.next_rendezvous()
 
     def test_pend_timeout(self):
         launch_config = LaunchConfig(

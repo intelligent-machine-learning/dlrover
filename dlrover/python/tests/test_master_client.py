@@ -22,12 +22,12 @@ from dlrover.python.common import comm
 from dlrover.python.common.comm import DiagnosisAction, HeartbeatResponse
 from dlrover.python.common.constants import (
     CommunicationType,
+    JobStage,
     NodeEnv,
     NodeEventType,
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    JobStage,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -166,7 +166,9 @@ class MasterClientTest(unittest.TestCase):
         nodes, _ = self._master_client.check_fault_node(timeout=1)
         self.assertListEqual(nodes, [])
 
-        round, stage = self._master_client.join_rendezvous(0, 8, "elastic-training")
+        round, stage = self._master_client.join_rendezvous(
+            0, 8, "elastic-training"
+        )
         self.assertEqual(round, 0)
         self.assertEqual(stage, JobStage.JOB_INIT)
 
