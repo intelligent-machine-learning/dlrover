@@ -510,7 +510,10 @@ class WorkerManager(TrainingNodeManager):
                 available_nodes.append(node)
 
         now = time.time()
-        if len(available_nodes) < self.get_min_nodes_required():
+        if (
+            len(available_nodes) > 0
+            and len(available_nodes) < self.get_min_nodes_required()
+        ):
             if self._last_insufficient_nodes_timestamp == 0:
                 self._last_insufficient_nodes_timestamp = int(now)
                 logger.warning(
