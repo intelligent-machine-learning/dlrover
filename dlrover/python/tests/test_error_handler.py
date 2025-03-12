@@ -105,7 +105,8 @@ def test_handle_signal_event_failed(exception_handler):
     mock_process.instant.side_effect = RuntimeError("test")
 
     # assert not raise exception
-    exception_handler._handle_signal(signal.SIGCHLD, None)
+    with pytest.raises(KeyboardInterrupt):
+        exception_handler._handle_signal(signal.SIGINT, None)
 
     assert mock_process.instant.call_count == 1
     assert mock_process.instant.call_args.args[0] == "exit_sig"
