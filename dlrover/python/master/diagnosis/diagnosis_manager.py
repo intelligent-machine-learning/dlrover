@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
 )
 from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
@@ -74,13 +75,13 @@ class DiagnosisManager:
     DiagnosisManager is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_args: JobArgs = None, error_monitor=None):
+    def __init__(self, job_args: JobArgs = None):
         self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
         self._job_args = job_args
-        self._error_monitor = error_monitor
+        self._reporter = get_event_reporter()
         self._metric_monitor = None
         self._lock = threading.Lock()
 
@@ -90,10 +91,7 @@ class DiagnosisManager:
     def _report_event(self, event_type, instance, action, msg="", labels=None):
         if labels is None:
             labels = {}
-        if self._error_monitor:
-            self._error_monitor.report(
-                event_type, instance, action, msg, labels
-            )
+        self._reporter.report(event_type, instance, action, msg, labels)
 
     @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):

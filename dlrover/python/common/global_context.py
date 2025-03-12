@@ -82,6 +82,10 @@ class DefaultValues(object):
 class Context(Singleton):
     def __init__(self):
         self.master_service_type = DefaultValues.SERVICE_TYPE
+        self.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "EventReporter",
+        )
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
             DefaultValues.SEC_TO_START_AUTOSCALE_WORKER

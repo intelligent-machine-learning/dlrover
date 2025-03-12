@@ -10,12 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import json
 from datetime import datetime
 from typing import Dict
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
@@ -30,6 +31,17 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class EventReporter(Singleton):
+    def initialize(self, *args, **kwargs):
+        """Subclassed can override this method to initialize the reporter."""
+        pass
+
+    def is_initialized(self):
+        """
+        Subclassed can override this method to knnow whether
+        the reporter is initialized.
+        """
+        return True
+
     @classmethod
     def report(
         cls,
@@ -148,8 +160,23 @@ class EventReporter(Singleton):
             },
         )
 
+    def report_process_relaunch(self, node: Node):
+        """Report process relaunching."""
+
+        # TODO: evt for process relaunching
+
+        self.report(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=node.name,
+            action=EventReportConstants.ACTION_RESTART_TRAINING,
+            msg=f"{node.id}",
+            labels={
+                "node": node.id,
+            },
+        )
+
     def report_node_relaunch(self, node: Node, new_node: Node):
-        """Report node when relaunching."""
+        """Report node relaunching."""
 
         _master_evt.worker_relaunch(
             pod_name=node.name,
@@ -289,5 +316,25 @@ class EventReporter(Singleton):
     # ================ RDZV End ================
 
 
-def get_event_reporter() -> EventReporter:
-    return EventReporter.singleton_instance()
+context = Context.singleton_instance()
+
+
+def get_event_reporter(*args, **kwargs) -> EventReporter:
+    reporter_cls = context.reporter_cls
+
+    module_name = reporter_cls[0]
+    class_name = reporter_cls[1]
+    module = importlib.import_module(module_name)
+
+    if hasattr(module, class_name):
+        cls = getattr(module, class_name)
+        logger.debug(f"Got event reporter: {cls}")
+        instance = cls.singleton_instance()
+    else:
+        logger.debug("Got event reporter: EventReporter")
+        instance = EventReporter.singleton_instance()
+
+    if not instance.is_initialized():
+        instance.initialize(*args, **kwargs)
+
+    return instance
