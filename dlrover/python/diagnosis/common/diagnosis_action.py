@@ -22,7 +22,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
-    Observation,
 )
 from dlrover.python.util.time_util import has_expired
 
@@ -273,31 +272,6 @@ class JobAbortionAction(DiagnosisAction):
             f"expired_time_period:{self._expired_time_period};"
             f"reason:{self._reason}"
         )
-
-
-class ObservationAction(DiagnosisAction):
-    def __init__(self, observation: str = ""):
-        super().__init__(
-            DiagnosisActionType.OBSERVATION,
-            DiagnosisConstant.LOCAL_INSTANCE,
-        )
-        self._observation = observation
-
-    @property
-    def observation(self):
-        return self._observation
-
-    def __repr__(self):
-        return (
-            f"action_type:{self._action_type};"
-            f"instance:{self._instance};"
-            f"timestamp:{self._timestamp};"
-            f"expired_time_period:{self._expired_time_period};"
-            f"observation:{self._observation}"
-        )
-
-    def node_failed(self) -> bool:
-        return self._observation == Observation.NODE_FAILED
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:

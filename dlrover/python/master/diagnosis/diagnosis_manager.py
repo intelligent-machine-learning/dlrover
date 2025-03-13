@@ -431,8 +431,10 @@ class DiagnosisManager:
                 )
 
                 if _dlrover_context.hang_detection == 2:
-                    self._job_context.enqueue_action(
+                    self._job_context.enqueue_diagnosis_action(
                         NodeAction(
+                            node_id=0,
+                            node_type="",
                             action_type=DiagnosisActionType.RESTART_WORKER,
                             instance=DiagnosisConstant.ANY_INSTANCE,
                         )
@@ -452,7 +454,7 @@ class DiagnosisManager:
 
             observed_problems = self._diagnostician.observe_training()
             action = self._diagnostician.resolve_problems(observed_problems)
-            self._job_context.enqueue_action(action)
+            self._job_context.enqueue_diagnosis_action(action)
 
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS

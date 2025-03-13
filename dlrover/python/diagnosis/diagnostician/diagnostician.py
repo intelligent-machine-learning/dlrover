@@ -12,17 +12,22 @@
 # limitations under the License.
 
 import threading
-from abc import ABCMeta, abstractmethod
+import time
 from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
+    EventAction,
     NoAction,
 )
+from dlrover.python.diagnosis.common.diagnosis_observation import (
+    DiagnosisObservation,
+)
+from dlrover.python.util.function_util import TimeoutException, timeout
 
 
-class Diagnostician(metaclass=ABCMeta):
+class Diagnostician:
     """
     Diagnostician is to observe problems and resolve those problems
     """
@@ -30,21 +35,34 @@ class Diagnostician(metaclass=ABCMeta):
     def __init__(self):
         pass
 
-    @abstractmethod
-    def observe(self, **kwargs) -> DiagnosisAction:
+    def observe(self, **kwargs) -> DiagnosisObservation:
         # observe if particular problem happened
-        return NoAction()
+        return DiagnosisObservation("unknown")
 
-    @abstractmethod
-    def resolve(self, problem: DiagnosisAction, **kwargs) -> DiagnosisAction:
+    def resolve(
+        self, problem: DiagnosisObservation, **kwargs
+    ) -> DiagnosisAction:
         # explore the solution to resolve the problem
-        return NoAction()
+        return EventAction()
+
+    def diagnose(self, **kwargs) -> DiagnosisAction:
+        # define the diagnosis procedure
+        try:
+            ob = self.observe(**kwargs)
+            return self.resolve(ob, **kwargs)
+        except Exception as e:
+            logger.error(f"Fail to diagnose the problem: {e}")
+            return NoAction()
 
 
 class DiagnosticianManager:
-    def __init__(self):
+    MIN_DIAGNOSIS_INTERVAL = 30
+
+    def __init__(self, context):
         self._diagnosticians: Dict[str, Diagnostician] = {}
+        self._periodical_diagnosis: Dict[str, int] = {}
         self._lock = threading.Lock()
+        self._context = context
 
     def register_diagnostician(self, name: str, diagnostician: Diagnostician):
         if diagnostician is None or len(name) == 0:
@@ -53,20 +71,79 @@ class DiagnosticianManager:
         with self._lock:
             self._diagnosticians[name] = diagnostician
 
-    def observe(self, name: str, **kwargs) -> DiagnosisAction:
+    def register_periodical_diagnosis(self, name: str, time_interval: int):
+        with self._lock:
+            if name not in self._diagnosticians:
+                logger.error(f"The {name} is not registered")
+                return
+            if time_interval < DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL:
+                time_interval = DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL
+
+            self._periodical_diagnosis[name] = time_interval
+
+    def start(self):
+        with self._lock:
+            for name in self._periodical_diagnosis.keys():
+                try:
+                    thread_name = f"periodical_diagnose_{name}"
+                    thread = threading.Thread(
+                        target=self._start_periodical_diagnosis,
+                        name=thread_name,
+                        args=(name,),
+                        daemon=True,
+                    )
+                    thread.start()
+                    if thread.is_alive():
+                        logger.info(f"{thread_name} initialized successfully")
+                    else:
+                        logger.info(f"{thread_name} is not alive")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to start the {thread_name} thread. Error: {e}"
+                    )
+
+    @timeout(secs=MIN_DIAGNOSIS_INTERVAL)
+    def diagnose(self, name, **kwargs) -> DiagnosisAction:
+        if name not in self._diagnosticians:
+            return NoAction()
+        diagnostician = self._diagnosticians[name]
+        return diagnostician.diagnose(**kwargs)
+
+    def _start_periodical_diagnosis(self, name):
+        if name not in self._periodical_diagnosis:
+            logger.warning(
+                f"There is no periodical diagnosis registered for {name}"
+            )
+            return
+
+        diagnostician = self._diagnosticians[name]
+        time_interval = self._periodical_diagnosis[name]
+
+        while True:
+            time.sleep(time_interval)
+            try:
+                action = diagnostician.diagnose()
+                if not isinstance(action, NoAction):
+                    self._context.enqueue_diagnosis_action(action)
+            except TimeoutException:
+                logger.error(f"The diagnosis of {name} is timeout.")
+            except Exception as e:
+                logger.error(f"Fail to diagnose {name}: {e}")
+
+    def observe(self, name: str, **kwargs) -> DiagnosisObservation:
         diagnostician = self._diagnosticians.get(name, None)
         if diagnostician is None:
             logger.error(f"No diagnostician is registered to observe {name}")
-            return NoAction()
+            return DiagnosisObservation()
 
         try:
             return diagnostician.observe(**kwargs)
         except Exception as e:
             logger.error(f"Fail to observe {name}: {e}")
-            return NoAction()
+            return DiagnosisObservation()
 
     def resolve(
-        self, name: str, problem: DiagnosisAction, **kwargs
+        self, name: str, problem: DiagnosisObservation, **kwargs
     ) -> DiagnosisAction:
         diagnostician = self._diagnosticians.get(name, None)
         if diagnostician is None:

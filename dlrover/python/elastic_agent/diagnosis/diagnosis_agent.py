@@ -26,12 +26,12 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
     InferenceConfigKey,
+    Observation,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
     NodeAction,
-    ObservationAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -87,11 +87,13 @@ class DiagnosisAgent(Singleton):
         self._training_log_file = training_log_file
         self._errors = errors
         self._stopped = False
+        self._agent_context = get_agent_context()
 
-        self._diagnostician_mgr = DiagnosticianManager()
+        self._diagnostician_mgr = DiagnosticianManager(self._agent_context)
         self._diagnostician_mgr.register_diagnostician(
             DiagnosisAgentConstants.NODE_FAILED, FailureNodeDiagnostician()
         )
+        self._diagnostician_mgr.start()
 
         # The key is the time interval in seconds
         self._observe_problems: Dict[int, List[Inference]] = {
@@ -114,7 +116,7 @@ class DiagnosisAgent(Singleton):
 
         self._observe_operators = get_worker_observe_operators()
         self._diagnosis_operators = get_worker_resolve_operators()
-        self._agent_context = get_agent_context()
+
         self._diagnosis_thread = None
         self._report_thread = None
         self._node_rank = node_rank
@@ -163,7 +165,7 @@ class DiagnosisAgent(Singleton):
         self._report_thread.start()
 
         if is_dlrover_event_enabled():
-            self._atorch_collector.start_collectors
+            self._atorch_collector.start_collectors()
 
     def stop(self):
         self._stopped = True
@@ -254,16 +256,13 @@ class DiagnosisAgent(Singleton):
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
         )
-        ob_action = self._diagnostician_mgr.observe(
+        ob = self._diagnostician_mgr.observe(
             DiagnosisAgentConstants.NODE_FAILED,
             log_file=self._training_log_file,
             errors=self._errors,
         )
 
-        node_failed = False
-        if isinstance(ob_action, ObservationAction):
-            ob_action.__class__ = ObservationAction
-            node_failed = ob_action.node_failed()
+        node_failed = ob.observation == Observation.NODE_FAILED
 
         if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(

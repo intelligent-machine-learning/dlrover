@@ -13,10 +13,8 @@
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import Observation
-from dlrover.python.diagnosis.common.diagnosis_action import (
-    DiagnosisAction,
-    NoAction,
-    ObservationAction,
+from dlrover.python.diagnosis.common.diagnosis_observation import (
+    DiagnosisObservation,
 )
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
@@ -32,17 +30,17 @@ class FailureNodeDiagnostician(Diagnostician):
     def __init__(self):
         super().__init__()
 
-    def observe(self, **kwargs) -> DiagnosisAction:
+    def observe(self, **kwargs) -> DiagnosisObservation:
         log_file_arg = kwargs.get("log_file")
         if log_file_arg is None or not isinstance(log_file_arg, str):
             logger.error(f"Invalid log_file: {log_file_arg}")
-            return NoAction()
+            return DiagnosisObservation()
         log_file = str(log_file_arg)
 
         errors_arg = kwargs.get("errors")
         if errors_arg is None or not isinstance(errors_arg, str):
             logger.error(f"Invalid errors: {errors_arg}")
-            return NoAction()
+            return DiagnosisObservation()
         errors = str(errors_arg)
         # temp usage: express the env for specified error info
         # e.g.
@@ -56,7 +54,7 @@ class FailureNodeDiagnostician(Diagnostician):
         logs = training_log.logs
         if not logs or len(logs) == 0:
             logger.warning(f"fail to collect training logs from {log_file}")
-            return NoAction()
+            return DiagnosisObservation()
 
         is_failure_node = False
         for log in logs:
@@ -70,10 +68,7 @@ class FailureNodeDiagnostician(Diagnostician):
                     is_failure_node = True
                     break
         if is_failure_node:
-            return ObservationAction(
+            return DiagnosisObservation(
                 observation=Observation.NODE_FAILED,
             )
-        return NoAction()
-
-    def resolve(self, problem: DiagnosisAction, **kwargs) -> DiagnosisAction:
-        return NoAction()
+        return DiagnosisObservation()
