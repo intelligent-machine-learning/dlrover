@@ -23,6 +23,7 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.comm import BaseRequest, GPUStats
 from dlrover.python.common.constants import (
+    JobStage,
     NodeEventType,
     NodeStatus,
     NodeType,
@@ -158,6 +159,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
 
         self.job_manager = create_job_manager(params, perf_monitor)
         self.job_context = get_job_context()
+        self.job_context.update_job_stage(JobStage.JOB_INIT)
 
         self.job_manager._init_nodes()
         self.job_manager._init_job_auto_scaler()

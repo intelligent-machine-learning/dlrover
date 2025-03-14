@@ -280,7 +280,6 @@ class RendezvousManager(metaclass=ABCMeta):
         Returns:
             int: the number of rendezvous round.
         """
-        job_stage = job_ctx.get_job_stage()
         with self._lock:
             if not self._waiting_nodes:
                 self._start_rdzv_ts = time.time()
@@ -290,7 +289,7 @@ class RendezvousManager(metaclass=ABCMeta):
                     "because the target node is no longer in the "
                     "waiting nodes list."
                 )
-                return self._rdzv_round, job_stage
+                return self._rdzv_round
             asw, psw = self._topology_querier.query(node_ip)
             meta = NodeTopologyMeta(
                 node_id=node_id,
@@ -320,7 +319,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 node_elapsed_time=self._node_rdzv_times[node_rank],
             )
 
-        return self._rdzv_round, job_stage
+        return self._rdzv_round
 
     def _map_node_rank_to_id(self, rank_dict):
         """

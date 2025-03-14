@@ -476,13 +476,7 @@ class PreCheckStatus(object):
 
 
 class JobStage(object):
-    JOB_UNKNOWN = "unknown"
     JOB_INIT = "init"
-    JOB_START = "start"
-    JOB_STOP = "stop"
-    JOB_PRE_STOP = "pre_stop"
-    JOB_RENDEZVOUS = "rendezvous"
-    JOB_NODE_CHECK = "node_check"
-    JOB_TRAINING = "training"
-    JOB_CKPT = "checkpoint"
-    JOB_EVAL = "evaluating"
+    JOB_RUNNING = "running"
+    JOB_STOPPING = "stopping"
+    JOB_STOPPED = "stopped"

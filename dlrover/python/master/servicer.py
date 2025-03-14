@@ -30,6 +30,7 @@ from dlrover.python.common.constants import (
     CommunicationType,
     CustomMetricKeys,
     JobConstant,
+    JobStage,
     NodeEventType,
     NodeType,
     RendezvousName,
@@ -285,7 +286,7 @@ class MasterServicer(ABC):
         node_rank = request.node_rank
         if node_rank == -1:  # Back compatibility
             node_rank = request.node_id
-        round, stage = rdzv_manager.join_rendezvous(
+        round = rdzv_manager.join_rendezvous(
             request.node_id,
             node_rank,
             request.local_world_size,
@@ -298,13 +299,14 @@ class MasterServicer(ABC):
                 RendezvousName.ELASTIC_TRAINING
             ]
             training_manager.clear_waiting_nodes()
-        res = comm.RendezvousState(round=round, job_stage=stage)
+        res = comm.RendezvousState(round=round)
         return res
 
     def _num_nodes_waiting(self, rdzv_name):
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
-        stage = job_ctx.get_job_stage()
-        res = comm.RendezvousState(waiting_num=waiting_num, job_stage=stage)
+        if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            waiting_num = -1
+        res = comm.RendezvousState(waiting_num=waiting_num)
         return res
 
     def _get_comm_world(self, request: comm.CommWorldRequest):

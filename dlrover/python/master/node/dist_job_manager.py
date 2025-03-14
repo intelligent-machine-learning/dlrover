@@ -876,7 +876,7 @@ class DistributedJobManager(JobManager):
         )
         msg = ""
         if should_relaunch:
-            if job_ctx.get_job_stage() == JobStage.JOB_PRE_STOP:
+            if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
                 logger.warning(
@@ -1305,7 +1305,7 @@ class DistributedJobManager(JobManager):
                 self._job_context.update_job_node(target_node)
 
             if event_type is NodeEventType.SUCCEEDED_EXITED:
-                self._job_context.update_job_stage(JobStage.JOB_PRE_STOP)
+                self._job_context.update_job_stage(JobStage.JOB_STOPPING)
 
     def get_node_required_info(self):
         return self._nodes_required
