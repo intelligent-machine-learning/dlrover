@@ -330,7 +330,11 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             and isinstance(abnormal_nodes, list)
         ):
             msg = result_msg + ":" + str(abnormal_nodes[0].id)
-        return [JobAbortionAction(reason=msg)]
+        return [
+            JobAbortionAction(
+                reason=SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG, msg=msg
+            )
+        ]
 
 
 class ConnectionPreCheckOperator(PreCheckOperator):
