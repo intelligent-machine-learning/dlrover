@@ -36,7 +36,7 @@ func TestCreateMasterPod(t *testing.T) {
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
 	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
 	pod := newElasticJobMaster(job, int32(0))
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--namespace dlrover"))

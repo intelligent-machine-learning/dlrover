@@ -32,7 +32,7 @@ We can deploy the controller with a released image.
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
-1. Build and push your image to the location specified by `IMG`:
+1. We also can build and push an image to the location specified by `IMG`:
 
 ```sh
 make docker-build docker-push IMG=<some-registry>/operator:tag
