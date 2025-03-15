@@ -128,7 +128,7 @@ func main() {
 			return elasticJobReconciler.ProcessPodUpdateEvent(&updateEvent)
 		},
 		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
-			return elasticJobReconciler.ProcessDeleteEvent(&deleteEvent)
+			return elasticJobReconciler.ProcessPodDeleteEvent(&deleteEvent)
 		},
 	})
 	if err != nil {

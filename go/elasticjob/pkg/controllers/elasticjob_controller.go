@@ -143,13 +143,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 			// The job master is not created now.
 			return ctrl.Result{}, nil
 		}
-	case apiv1.JobPending:
-		activePodNum := getElasticJobActivePodCount(job)
-		if activePodNum > 0 {
-			msg := fmt.Sprintf("%d pods are running", activePodNum)
-			common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
-		}
-	case apiv1.JobRunning:
+	case apiv1.JobPending, apiv1.JobRunning:
 		masterStatus := job.Status.ReplicaStatuses[JobMasterReplicaType]
 		if masterStatus.Initial+masterStatus.Pending+masterStatus.Active == 0 {
 			err := r.createEasticJobMaster(job)
@@ -214,14 +208,14 @@ func (r *ElasticJobReconciler) ProcessPodUpdateEvent(updateEvent *event.UpdateEv
 		return false
 	}
 	incrementReplicaStatus(newPod, ownerJob)
-	decreaseReplicaStatus(newPod, ownerJob)
+	decreaseReplicaStatus(oldPod, ownerJob)
 	if newPod.Labels[common.LabelReplicaTypeKey] == string(JobMasterReplicaType) {
 		updateJobStatusPhase(newPod, ownerJob)
 	}
 	return true
 }
 
-func (r *ElasticJobReconciler) ProcessDeleteEvent(deleteEvent *event.DeleteEvent) bool {
+func (r *ElasticJobReconciler) ProcessPodDeleteEvent(deleteEvent *event.DeleteEvent) bool {
 	pod := deleteEvent.Object.(*corev1.Pod)
 	ownerJob := r.getPodOwnerElasticJob(pod)
 	if ownerJob == nil {
@@ -332,14 +326,6 @@ func (r *ElasticJobReconciler) getPodOwnerElasticJob(pod *corev1.Pod) *v1alpha1.
 		r.CachedJobs[jobName] = job
 	}
 	return r.CachedJobs[jobName]
-}
-
-func getElasticJobActivePodCount(job *elasticv1alpha1.ElasticJob) int32 {
-	activeCount := int32(0)
-	for _, replicaStatus := range job.Status.ReplicaStatuses {
-		activeCount += replicaStatus.Active
-	}
-	return activeCount
 }
 
 func updateElasticJobStatus(client client.Client, job *elasticv1alpha1.ElasticJob) error {

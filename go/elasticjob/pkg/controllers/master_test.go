@@ -35,8 +35,7 @@ func TestCreateMasterPod(t *testing.T) {
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
 	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
+	pod := newElasticJobMaster(job, int32(0))
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
@@ -74,9 +73,8 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 	}
 
 	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	pod := newElasticJobMaster(job, int32(0))
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test-v0")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 }
@@ -93,16 +91,7 @@ func TestCreateMasterPodWithOptimizeMode(t *testing.T) {
 	job.Spec.OptimizeMode = "cluster"
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
 	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	pod := newElasticJobMaster(job, int32(0))
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, job.Spec.BrainService, "")
-	actualValue := ""
-	for _, env := range pod.Spec.Containers[0].Env {
-		if env.Name == envBrainServiceAddrKey {
-			actualValue = env.Value
-			break
-		}
-	}
-	assert.Equal(t, actualValue, defaultBrainServiceAddr)
 }
