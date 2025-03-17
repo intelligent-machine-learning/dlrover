@@ -37,6 +37,7 @@ from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -50,6 +51,7 @@ from dlrover.python.scheduler.kubernetes import (
 )
 
 _dlrover_context = Context.singleton_instance()
+_job_context = get_job_context()
 
 
 class FakeKubeResponse:
@@ -212,7 +214,10 @@ class PodScaler(Scaler):
 
         self._remove_nodes(plan)
         while True:
-            if len(self._create_node_queue) > 0:
+            if (
+                len(self._create_node_queue) > 0
+                and not _job_context.is_request_stopped()
+            ):
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
                 )

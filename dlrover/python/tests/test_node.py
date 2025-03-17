@@ -18,7 +18,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
 )
-from dlrover.python.common.node import Node
+from dlrover.python.common.node import Node, NodeEvent
 
 
 class NodeTest(unittest.TestCase):
@@ -91,3 +91,13 @@ class NodeTest(unittest.TestCase):
         node = node.get_relaunch_node_info(123)
         self.assertEqual(node.id, 123)
         self.assertFalse(node.reported_status)
+
+    def test_node_event(self):
+        node = Node("worker", 0)
+        event = NodeEvent(NodeEventType.NODE_CHECK_FAILED, node)
+        self.assertTrue(event.is_node_check_event())
+        self.assertFalse(event.is_pre_check_event())
+
+        event = NodeEvent(NodeEventType.WAIT_PRE_CHECK, node)
+        self.assertFalse(event.is_node_check_event())
+        self.assertTrue(event.is_pre_check_event())

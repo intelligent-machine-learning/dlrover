@@ -251,6 +251,7 @@ class JobAbortionAction(DiagnosisAction):
     def __init__(
         self,
         reason: str = "",
+        msg: str = "",
     ):
         super().__init__(
             DiagnosisActionType.JOB_ABORT,
@@ -259,10 +260,15 @@ class JobAbortionAction(DiagnosisAction):
             0,
         )
         self._reason = reason
+        self._msg = msg
 
     @property
     def reason(self):
         return self._reason
+
+    @property
+    def msg(self):
+        return self._msg
 
     def __repr__(self):
         return (
@@ -270,7 +276,8 @@ class JobAbortionAction(DiagnosisAction):
             f"instance:{self._instance};"
             f"timestamp:{self._timestamp};"
             f"expired_time_period:{self._expired_time_period};"
-            f"reason:{self._reason}"
+            f"reason:{self._reason};"
+            f"msg:{self._msg}"
         )
 
 
