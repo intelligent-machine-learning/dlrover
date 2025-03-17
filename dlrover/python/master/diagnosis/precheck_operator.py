@@ -107,7 +107,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         pending_workers: List[Node] = []
         now = time.time()
         for node in cur_nodes:
-            if node is None or node.is_released or node.create_time is None:
+            if node is None or node.is_released:
                 continue
             if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
                 pending_workers.append(node)
@@ -147,7 +147,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         pending_workers: List[Node] = []
         now = time.time()
         for node in cur_nodes:
-            if node is None or node.is_released or node.create_time is None:
+            if node is None or node.is_released:
                 continue
             if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
                 if node.type == NodeType.PS:
@@ -390,7 +390,7 @@ class ConnectionPreCheckOperator(PreCheckOperator):
                     # retry out of limit
                     break
                 else:
-                    logger.warning(
+                    logger.info(
                         f"Got {len(abnormal_nodes)} nodes with "
                         f"connection issue for {i}/{retry_times}, "
                         f"wait {each_retry_interval}s for next retry"
