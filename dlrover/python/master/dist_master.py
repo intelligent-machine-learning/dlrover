@@ -28,10 +28,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
-    DiagnosisResult,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
 from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -234,8 +231,8 @@ class DistributedJobMaster(JobMaster):
                 logger.info(f"Got job abortion action: {action}")
                 self.request_stop(
                     success=False,
-                    reason=DiagnosisResult.DIAG_ABORT,
-                    msg=action.reason,
+                    reason=action.reason,
+                    msg=action.msg,
                 )
             else:
                 self.job_manager.process_diagnosis_action(action)
