@@ -296,6 +296,10 @@ class DistributedJobMaster(JobMaster):
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
+                    self._job_evt.fail(
+                        error=f"{reason}",
+                        msg=msg,
+                    )
                     self.request_stop(False, reason, msg)
                     continue
                 self.job_manager.clear_exited_nodes()

@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import math
 import time
 from abc import ABCMeta, abstractmethod
@@ -310,6 +309,7 @@ class RendezvousManager(metaclass=ABCMeta):
             )
             self._event_reporter.report_rdzv_node_join(
                 meta,
+                self._rdzv_evt,
                 self._name,
                 self._rdzv_round,
                 self._rdzv_params,
@@ -420,6 +420,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     def __init__(self):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
+        self._rdzv_evt = self.new_rdzv_evt()
 
     def get_comm_world(
         self, node_rank
@@ -467,7 +468,6 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         node_ids=node_ids,
                         node_elapsed_time=node_elapsed_time,
                     )
-                    self._rdzv_evt = self.new_rdzv_evt()
 
                 waiting_time = time.time() - self._lastcall_time
                 if (
@@ -513,6 +513,11 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._check_round = 2
         self._fault_nodes = set()
         self._straggler_nodes = set()
+        self._rdzv_evt = self.new_rdzv_evt()
+        self._network_check_evt = self.new_network_check_evt()
+
+    def new_network_check_evt(self):
+        return _master_evt.network_check(round=self.get_rdzv_round())
 
     def _get_print_node_groups(self):
         printing_node_groups = []
@@ -543,6 +548,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
                     self._reported_nodes = set()
+                    self._network_check_evt = self.new_network_check_evt()
+                    self._network_check_evt.begin()
 
                     finished_rdzv_round = self._rdzv_round
                     self._rdzv_round += 1
@@ -556,7 +563,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         node_ids=print_node_groups,
                         elapsed_time=elapsed_time,
                     )
-                    self._rdzv_evt = self.new_rdzv_evt()
 
                 waiting_time = time.time() - self._lastcall_time
                 if (
@@ -674,15 +680,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             )
             if self._event_reporter:
                 class_type = type(self).__name__
-                self._event_reporter.report(
+                self._event_reporter.report_network_check_completed(
+                    self._network_check_evt,
                     event_type=EventReportConstants.TYPE_INFO,
                     instance=class_type,
                     action=EventReportConstants.ACTION_STOP,
-                    msg=f"{node_check_times}",
-                    labels={
-                        "status": json.dumps(node_status),
-                        "elapsed_time": f"{node_check_times}",
-                    },
+                    node_status=f"{node_status}",
+                    node_check_times=f"{node_check_times}",
+                    node_groups=f"{self._get_print_node_groups()}",
                 )
 
     def join_rendezvous(
