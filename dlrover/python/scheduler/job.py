@@ -51,7 +51,7 @@ class NodeArgs(metaclass=ABCMeta):
     def __init__(
         self,
         group_resource: NodeGroupResource,
-        process_timeout,
+        process_timeout=1800,
         auto_scale=True,
         restart_count=1,
         restart_timeout=0,
