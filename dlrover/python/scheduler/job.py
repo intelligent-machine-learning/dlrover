@@ -51,15 +51,17 @@ class NodeArgs(metaclass=ABCMeta):
     def __init__(
         self,
         group_resource: NodeGroupResource,
+        process_timeout,
         auto_scale=True,
         restart_count=1,
-        retart_timeout=0,
+        restart_timeout=0,
         critical_nodes="",
     ):
         self.group_resource = group_resource
+        self.process_timeout = process_timeout
         self.restart_count = restart_count
         self.auto_scale = auto_scale
-        self.restart_timeout = retart_timeout
+        self.restart_timeout = restart_timeout
         self.critical_nodes = critical_nodes
 
 
