@@ -132,6 +132,26 @@ def add_params(parser):
         "The boolean value represent 'bypass or not'. If set to False "
         "it indicates a bypass, otherwise it indicates normal execution.",
     )
+    parser.add_argument(
+        "--chief_memory",
+        "--chief-memory",
+        type=int,
+        help="The memory size of chief worker, a.k.a. worker-0."
+        "The unit is MBytes",
+    )
+    parser.add_argument(
+        "--chief_core",
+        "--chief-core",
+        type=int,
+        help="The core size of chief worker, a.k.a. worker-0.",
+    )
+    parser.add_argument(
+        "--chief_disk_quota",
+        "--chief-disk-quota",
+        type=int,
+        help="The disk quota of chief worker, a.k.a. worker-0."
+        "The unit is MBytes",
+    )
 
 
 def print_args(args, exclude_args=[], groups=None):

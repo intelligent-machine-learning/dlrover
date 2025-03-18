@@ -94,6 +94,26 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.pending_fail_strategy, 1)
         self.assertTrue(parsed_args.service_type, "grpc")
         self.assertTrue(parsed_args.pre_check_ops)
+        self.assertIsNone(parsed_args.chief_memory)
+        self.assertIsNone(parsed_args.chief_core)
+        self.assertIsNone(parsed_args.chief_disk_quota)
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+            "--chief_memory",
+            "1024",
+            "--chief-core",
+            "4",
+            "--chief-disk-quota",
+            "20480",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.chief_memory, 1024)
+        self.assertEqual(parsed_args.chief_core, 4)
+        self.assertEqual(parsed_args.chief_disk_quota, 20480)
 
         original_args = [
             "--job_name",
