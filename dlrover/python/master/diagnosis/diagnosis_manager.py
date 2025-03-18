@@ -433,8 +433,6 @@ class DiagnosisManager:
                 if _dlrover_context.hang_detection == 2:
                     self._job_context.enqueue_diagnosis_action(
                         NodeAction(
-                            node_id=0,
-                            node_type="",
                             action_type=DiagnosisActionType.RESTART_WORKER,
                             instance=DiagnosisConstant.ANY_INSTANCE,
                         )

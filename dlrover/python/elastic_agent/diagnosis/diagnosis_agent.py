@@ -71,11 +71,9 @@ from dlrover.python.training_event.config import (
 evt_config = Config.singleton_instance()
 
 
-class DiagnosisAgentConstants(object):
+class DiagnosisAgent(Singleton):
     NODE_FAILED = "node_failed"
 
-
-class DiagnosisAgent(Singleton):
     def __init__(
         self,
         training_log_file="",
@@ -91,7 +89,7 @@ class DiagnosisAgent(Singleton):
 
         self._diagnostician_mgr = DiagnosticianManager(self._agent_context)
         self._diagnostician_mgr.register_diagnostician(
-            DiagnosisAgentConstants.NODE_FAILED, FailureNodeDiagnostician()
+            DiagnosisAgent.NODE_FAILED, FailureNodeDiagnostician()
         )
         self._diagnostician_mgr.start()
 
@@ -257,7 +255,7 @@ class DiagnosisAgent(Singleton):
             self._agent_context.restart_count,
         )
         ob = self._diagnostician_mgr.observe(
-            DiagnosisAgentConstants.NODE_FAILED,
+            DiagnosisAgent.NODE_FAILED,
             log_file=self._training_log_file,
             errors=self._errors,
         )

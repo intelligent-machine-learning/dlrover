@@ -13,9 +13,7 @@
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import Observation
-from dlrover.python.diagnosis.common.diagnosis_observation import (
-    DiagnosisObservation,
-)
+from dlrover.python.diagnosis.common.diagnostician import DiagnosisObservation
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )

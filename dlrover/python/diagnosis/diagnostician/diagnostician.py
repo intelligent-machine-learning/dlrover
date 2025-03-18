@@ -21,15 +21,20 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
 )
-from dlrover.python.diagnosis.common.diagnosis_observation import (
-    DiagnosisObservation,
-)
+from dlrover.python.diagnosis.common.diagnostician import DiagnosisObservation
 from dlrover.python.util.function_util import TimeoutException, timeout
 
 
 class Diagnostician:
     """
-    Diagnostician is to observe problems and resolve those problems
+    Diagnostician is to observe problems and resolve those problems.
+
+    It includes three APIs here:
+    1. observe: observe if one particular problem happened or not
+    2. resolve: generates the DiagnosisAction to handle the problem
+    observed.
+    3. diagnose: define the procedure of the whole diagnosis for
+    a particular problem.
     """
 
     def __init__(self):
@@ -83,6 +88,9 @@ class DiagnosticianManager:
 
     def start(self):
         with self._lock:
+            logger.info(
+                f"Start periodical diagnosis: {self._periodical_diagnosis}"
+            )
             for name in self._periodical_diagnosis.keys():
                 try:
                     thread_name = f"periodical_diagnose_{name}"
@@ -96,7 +104,7 @@ class DiagnosticianManager:
                     if thread.is_alive():
                         logger.info(f"{thread_name} initialized successfully")
                     else:
-                        logger.info(f"{thread_name} is not alive")
+                        logger.error(f"{thread_name} is not alive")
                 except Exception as e:
                     logger.error(
                         f"Failed to start the {thread_name} thread. Error: {e}"
@@ -133,7 +141,7 @@ class DiagnosticianManager:
     def observe(self, name: str, **kwargs) -> DiagnosisObservation:
         diagnostician = self._diagnosticians.get(name, None)
         if diagnostician is None:
-            logger.error(f"No diagnostician is registered to observe {name}")
+            logger.warning(f"No diagnostician is registered to observe {name}")
             return DiagnosisObservation()
 
         try:
@@ -147,7 +155,7 @@ class DiagnosticianManager:
     ) -> DiagnosisAction:
         diagnostician = self._diagnosticians.get(name, None)
         if diagnostician is None:
-            logger.error(f"No diagnostician is registered to resolve {name}")
+            logger.warning(f"No diagnostician is registered to resolve {name}")
             return NoAction()
 
         try:
