@@ -36,7 +36,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.node import Node, NodeEvent, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -76,7 +76,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
+from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.master.watcher.factory import (
     new_node_watcher,
     new_scale_plan_watcher,

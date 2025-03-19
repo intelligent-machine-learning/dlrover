@@ -108,6 +108,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     JobConstant,
     NodeEnv,
+    NodeEventType,
     PreCheckStatus,
 )
 from dlrover.python.common.log import default_logger as logger
@@ -254,7 +255,7 @@ class ElasticLaunch:
 
     def __call__(self, *args):
         if self._use_dlrover_launch:
-            wait_pre_check()
+            wait_pre_check(self._config)
             return launch_agent(self._config, self._entrypoint, list(args))
         else:
             return torch_launch_agent(
@@ -262,10 +263,15 @@ class ElasticLaunch:
             )
 
 
-def wait_pre_check():
+def wait_pre_check(config: ElasticLaunchConfig):
     """Wait master's pre-check result."""
     client = MasterClient.singleton_instance()
     wait_secs = JobConstant.PRE_CHECK_WAIT_SECS
+
+    # call master once for connection pre-check
+    client.report_pre_check_status(
+        NodeEventType.WAIT_PRE_CHECK, config.to_json()
+    )
 
     while True:
         status = client.get_pre_check_result()

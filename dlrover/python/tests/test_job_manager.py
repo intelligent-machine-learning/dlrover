@@ -40,7 +40,11 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.common.node import (
+    NodeEvent,
+    NodeGroupResource,
+    NodeResource,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -73,7 +77,7 @@ from dlrover.python.master.node.training_node import (
     update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource
-from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,

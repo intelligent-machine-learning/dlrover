@@ -42,8 +42,10 @@ class JobContext(Singleton):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._total_worker_num = 0
         self._failed_nodes: Dict[int, int] = {}
+
         self._pre_check_status: str = PreCheckStatus.CHECKING
         self._request_stopped = False
+
         self._locker = threading.Lock()
         self._job_stage = JobStage.JOB_INIT
 

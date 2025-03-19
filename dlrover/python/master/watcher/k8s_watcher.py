@@ -26,9 +26,14 @@ from dlrover.python.common.constants import (
     ScalePlanLabel,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.node import (
+    Node,
+    NodeEvent,
+    NodeGroupResource,
+    NodeResource,
+)
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
+from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.kubernetes import (
     convert_cpu_to_decimal,
     convert_memory_to_mb,

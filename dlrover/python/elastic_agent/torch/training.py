@@ -264,6 +264,18 @@ class ElasticLaunchConfig(LaunchConfig):
             self.network_check = True
             self.comm_perf_test = True
 
+    def to_json(self):
+        return {
+            "min_nodes": self.min_nodes,
+            "max_nodes": self.max_nodes,
+            "nproc_per_node": self.nproc_per_node,
+            "rdzv_backend": self.rdzv_backend,
+            "rdzv_endpoint": self.rdzv_endpoint,
+            "rdzv_configs": json.dumps(self.rdzv_configs),
+            "max_restarts": self.max_restarts,
+            "accelerator": self.accelerator,
+        }
+
 
 class MasterRendezvousHandler(RendezvousHandler):
     """The rendezvous handler completes rendezvous by connecting

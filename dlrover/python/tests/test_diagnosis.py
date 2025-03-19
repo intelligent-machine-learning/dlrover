@@ -101,7 +101,7 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertTrue(event_action.is_needed())
 
-        job_abortion_action = JobAbortionAction("test123")
+        job_abortion_action = JobAbortionAction("test123", "test321")
         self.assertEqual(
             job_abortion_action.action_type,
             DiagnosisActionType.JOB_ABORT,
@@ -110,6 +110,7 @@ class DiagnosisTest(unittest.TestCase):
             job_abortion_action._instance, DiagnosisConstant.MASTER_INSTANCE
         )
         self.assertEqual(job_abortion_action.reason, "test123")
+        self.assertEqual(job_abortion_action.msg, "test321")
         logging.info(job_abortion_action)
 
     def test_action_queue(self):
