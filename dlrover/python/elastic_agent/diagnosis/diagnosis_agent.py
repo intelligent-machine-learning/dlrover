@@ -144,7 +144,7 @@ class DiagnosisAgent(Singleton):
         self._report_thread.start()
 
         if is_dlrover_event_enabled():
-            self._atorch_collector.start_collectors
+            self._atorch_collector.start_collectors()
 
     def stop(self):
         self._stopped = True

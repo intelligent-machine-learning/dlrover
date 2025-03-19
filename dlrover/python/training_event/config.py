@@ -88,11 +88,7 @@ def get_env_key(key):
 
 
 def is_dlrover_event_enabled():
-    key = get_env_key("enable")
-    if key in os.environ and parse_bool(os.environ[key]) is True:
-        return True
-    else:
-        return False
+    return True if Config.enable is True else False
 
 
 @dataclass
