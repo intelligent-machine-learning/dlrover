@@ -146,7 +146,7 @@ class JobResource(JsonSerializable):
         )
         return job_nodes
 
-    def adjust_worker_for_estimator(self):
+    def adjust_worker_for_estimator(self, chief_core, chief_memory):
         if (
             NodeType.CHIEF in self.node_group_resources
             and self.node_group_resources[NodeType.CHIEF].count > 0
@@ -161,8 +161,14 @@ class JobResource(JsonSerializable):
             NodeType.CHIEF, NodeGroupResource.new_empty()
         )
         chief.count = 1
-        chief.node_resource.cpu = worker.node_resource.cpu
-        chief.node_resource.memory = worker.node_resource.memory
+        if not chief_core:
+            chief.node_resource.cpu = worker.node_resource.cpu
+        else:
+            chief.node_resource.cpu = chief_core
+        if not chief_memory:
+            chief.node_resource.memory = worker.node_resource.memory
+        else:
+            chief.node_resource.memory = chief_memory
         self.node_group_resources[NodeType.CHIEF] = chief
         worker.count -= 1
         logger.info("self = %s", self.to_json())

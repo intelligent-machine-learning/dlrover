@@ -155,6 +155,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
             5, NodeResource(1, 4096)
         )
+        job.node_group_resources[NodeType.CHIEF] = NodeGroupResource(
+            1, NodeResource(1, 40960)
+        )
+        job.adjust_worker_for_estimator(4, 10240)
         group_resource = job.get_node_group_resource(NodeType.WORKER)
         self.assertEqual(group_resource.count, 5)
         self.assertEqual(group_resource.node_resource.cpu, 1)
@@ -163,19 +167,71 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(group_resource.count, 3)
         self.assertEqual(group_resource.node_resource.cpu, 1)
         self.assertEqual(group_resource.node_resource.memory, 4096)
+        group_resource = job.get_node_group_resource(NodeType.CHIEF)
+        self.assertEqual(group_resource.count, 1)
+        self.assertEqual(group_resource.node_resource.cpu, 1)
+        self.assertEqual(group_resource.node_resource.memory, 40960)
+
         node_types = job.get_node_types()
-        self.assertListEqual(node_types, [NodeType.PS, NodeType.WORKER])
+        self.assertListEqual(
+            node_types, [NodeType.PS, NodeType.WORKER, NodeType.CHIEF]
+        )
         self.assertEqual(job.worker_num, 5)
         self.assertEqual(job.ps_num, 3)
 
         nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         self.assertEqual(len(nodes[NodeType.WORKER]), 5)
         self.assertEqual(len(nodes[NodeType.PS]), 3)
+        self.assertEqual(len(nodes[NodeType.CHIEF]), 1)
         self.assertEqual(nodes[NodeType.PS][0].id, 0)
         self.assertEqual(nodes[NodeType.PS][0].type, NodeType.PS)
         self.assertEqual(nodes[NodeType.WORKER][2].id, 2)
         self.assertEqual(nodes[NodeType.WORKER][0].type, NodeType.WORKER)
         self.assertEqual(nodes[NodeType.WORKER][0].config_resource.cpu, 1)
+        self.assertEqual(nodes[NodeType.CHIEF][0].config_resource.cpu, 1)
+        self.assertEqual(
+            nodes[NodeType.CHIEF][0].config_resource.memory, 40960
+        )
+        self.assertEqual(nodes[NodeType.CHIEF][0].id, 0)
+        self.assertEqual(
+            nodes[NodeType.WORKER][0].config_resource.memory, 4096
+        )
+
+        job = JobResource()
+        job.node_group_resources[NodeType.PS] = NodeGroupResource(
+            3, NodeResource(1, 4096)
+        )
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            5, NodeResource(1, 4096)
+        )
+        job.adjust_worker_for_estimator(4, 10240)
+        group_resource = job.get_node_group_resource(NodeType.WORKER)
+        self.assertEqual(group_resource.count, 4)
+        self.assertEqual(group_resource.node_resource.cpu, 1)
+        self.assertEqual(group_resource.node_resource.memory, 4096)
+        group_resource = job.get_node_group_resource(NodeType.PS)
+        self.assertEqual(group_resource.count, 3)
+        self.assertEqual(group_resource.node_resource.cpu, 1)
+        self.assertEqual(group_resource.node_resource.memory, 4096)
+        group_resource = job.get_node_group_resource(NodeType.CHIEF)
+        self.assertEqual(group_resource.count, 1)
+        self.assertEqual(group_resource.node_resource.cpu, 4)
+        self.assertEqual(group_resource.node_resource.memory, 10240)
+
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        self.assertEqual(len(nodes[NodeType.WORKER]), 4)
+        self.assertEqual(len(nodes[NodeType.PS]), 3)
+        self.assertEqual(len(nodes[NodeType.CHIEF]), 1)
+        self.assertEqual(nodes[NodeType.PS][0].id, 0)
+        self.assertEqual(nodes[NodeType.PS][0].type, NodeType.PS)
+        self.assertEqual(nodes[NodeType.WORKER][2].id, 2)
+        self.assertEqual(nodes[NodeType.WORKER][0].type, NodeType.WORKER)
+        self.assertEqual(nodes[NodeType.WORKER][0].config_resource.cpu, 1)
+        self.assertEqual(nodes[NodeType.CHIEF][0].config_resource.cpu, 4)
+        self.assertEqual(
+            nodes[NodeType.CHIEF][0].config_resource.memory, 10240
+        )
+        self.assertEqual(nodes[NodeType.CHIEF][0].id, 0)
         self.assertEqual(
             nodes[NodeType.WORKER][0].config_resource.memory, 4096
         )
