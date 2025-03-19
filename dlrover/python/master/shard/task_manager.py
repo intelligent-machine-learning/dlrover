@@ -51,8 +51,10 @@ class TaskManager(object):
         self._perf_monitor = perf_monitor
         self._paral_eval_count = 0
         self._paral_eval_started = False
-        logger.info("Task manager initialized with "
-                    f"process-timeout: {task_process_timeout}")
+        logger.info(
+            "Task manager initialized with "
+            f"process-timeout: {task_process_timeout}"
+        )
 
     def new_dataset(
         self,
