@@ -160,10 +160,13 @@ class EventReporter(Singleton):
             },
         )
 
-    def report_process_relaunch(self, node: Node):
+    def report_process_relaunch(self, node: Node, errmsg=None):
         """Report process relaunching."""
 
-        # TODO: evt for process relaunching
+        _master_evt.process_restart(
+            pod_name=f"{node.name}",
+            errmsg=f"{errmsg}" if errmsg else "",
+        )
 
         self.report(
             event_type=EventReportConstants.TYPE_WARN,

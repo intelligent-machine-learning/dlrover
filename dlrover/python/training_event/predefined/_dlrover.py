@@ -249,6 +249,20 @@ class DLRoverMasterEvent(DLRoverCommonEvent):
             {"job_name": job_name, "params": args, **kwargs},
         )
 
+    def process_restart(
+        self,
+        pod_name: str,
+        **kwargs,
+    ):
+        """Process restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_PROCESS_RESTART.value,
+            {
+                "pod_name": pod_name,
+                **kwargs,
+            },
+        )
+
 
 class DLRoverAgentEvent(DLRoverCommonEvent):
     """DLRover Agent events"""
