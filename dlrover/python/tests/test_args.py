@@ -17,7 +17,7 @@ from dlrover.python.master.args import (
     parse_master_args,
     parse_tuple_dict,
     parse_tuple_list,
-    str2bool,
+    str2bool, print_args,
 )
 
 
@@ -160,3 +160,5 @@ class ArgsTest(unittest.TestCase):
         ]
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.xpu_type, "nvidia")
+
+        print_args(parsed_args)
