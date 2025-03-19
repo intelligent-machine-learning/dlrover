@@ -464,11 +464,11 @@ class K8sJobArgs(JobArgs):
             critical_nodes = spec.get("criticalNodes", "")
             self.node_args[replica] = NodeArgs(
                 group_resource,
-                _dlrover_context.seconds_to_timeout_task_process,
                 auto_scale,
                 restart_count,
                 restart_timeout,
                 critical_nodes,
+                _dlrover_context.seconds_to_timeout_task_process,
             )
         logger.info("Job args = %s", self.__dict__)
 
