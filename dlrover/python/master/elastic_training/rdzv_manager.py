@@ -307,6 +307,7 @@ class RendezvousManager(metaclass=ABCMeta):
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
+            self._rdzv_evt = self.new_rdzv_evt()
             self._event_reporter.report_rdzv_node_join(
                 meta,
                 self._rdzv_evt,
@@ -420,7 +421,6 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     def __init__(self):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
-        self._rdzv_evt = self.new_rdzv_evt()
 
     def get_comm_world(
         self, node_rank
@@ -513,7 +513,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._check_round = 2
         self._fault_nodes = set()
         self._straggler_nodes = set()
-        self._rdzv_evt = self.new_rdzv_evt()
         self._network_check_evt = self.new_network_check_evt()
 
     def new_network_check_evt(self):
