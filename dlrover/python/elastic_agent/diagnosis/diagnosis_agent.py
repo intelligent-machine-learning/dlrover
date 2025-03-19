@@ -25,6 +25,7 @@ from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
+    DiagnosisErrorConstant,
     InferenceConfigKey,
     Observation,
 )
@@ -34,6 +35,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
+from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -44,9 +46,6 @@ from dlrover.python.diagnosis.common.inference_chain import (
 )
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
-)
-from dlrover.python.diagnosis.diagnostician.diagnostician import (
-    DiagnosticianManager,
 )
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
@@ -71,9 +70,7 @@ from dlrover.python.training_event.config import (
 evt_config = Config.singleton_instance()
 
 
-class DiagnosisAgent(Singleton):
-    NODE_FAILED = "node_failed"
-
+class DiagnosisAgent(Singleton, DiagnosisManager):
     def __init__(
         self,
         training_log_file="",
@@ -87,11 +84,10 @@ class DiagnosisAgent(Singleton):
         self._stopped = False
         self._agent_context = get_agent_context()
 
-        self._diagnostician_mgr = DiagnosticianManager(self._agent_context)
-        self._diagnostician_mgr.register_diagnostician(
-            DiagnosisAgent.NODE_FAILED, FailureNodeDiagnostician()
+        DiagnosisManager.__init__(self, self._agent_context)
+        self.register_diagnostician(
+            DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
         )
-        self._diagnostician_mgr.start()
 
         # The key is the time interval in seconds
         self._observe_problems: Dict[int, List[Inference]] = {
@@ -145,6 +141,8 @@ class DiagnosisAgent(Singleton):
             logger.info(f"Update rank: {rank}")
 
     def start(self):
+        self.start_diagnosis()
+
         self._stopped = False
 
         # start a async thread to diagnose periodically
@@ -254,8 +252,8 @@ class DiagnosisAgent(Singleton):
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
         )
-        ob = self._diagnostician_mgr.observe(
-            DiagnosisAgent.NODE_FAILED,
+        ob = self.observe(
+            DiagnosisErrorConstant.NODE_FAILED,
             log_file=self._training_log_file,
             errors=self._errors,
         )

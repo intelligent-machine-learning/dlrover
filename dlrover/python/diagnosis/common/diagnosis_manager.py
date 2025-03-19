@@ -18,49 +18,16 @@ from typing import Dict
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    EventAction,
     NoAction,
 )
-from dlrover.python.diagnosis.common.diagnostician import DiagnosisObservation
+from dlrover.python.diagnosis.common.diagnostician import (
+    DiagnosisObservation,
+    Diagnostician,
+)
 from dlrover.python.util.function_util import TimeoutException, timeout
 
 
-class Diagnostician:
-    """
-    Diagnostician is to observe problems and resolve those problems.
-
-    It includes three APIs here:
-    1. observe: observe if one particular problem happened or not
-    2. resolve: generates the DiagnosisAction to handle the problem
-    observed.
-    3. diagnose: define the procedure of the whole diagnosis for
-    a particular problem.
-    """
-
-    def __init__(self):
-        pass
-
-    def observe(self, **kwargs) -> DiagnosisObservation:
-        # observe if particular problem happened
-        return DiagnosisObservation("unknown")
-
-    def resolve(
-        self, problem: DiagnosisObservation, **kwargs
-    ) -> DiagnosisAction:
-        # explore the solution to resolve the problem
-        return EventAction()
-
-    def diagnose(self, **kwargs) -> DiagnosisAction:
-        # define the diagnosis procedure
-        try:
-            ob = self.observe(**kwargs)
-            return self.resolve(ob, **kwargs)
-        except Exception as e:
-            logger.error(f"Fail to diagnose the problem: {e}")
-            return NoAction()
-
-
-class DiagnosticianManager:
+class DiagnosisManager:
     MIN_DIAGNOSIS_INTERVAL = 30
 
     def __init__(self, context):
@@ -81,12 +48,12 @@ class DiagnosticianManager:
             if name not in self._diagnosticians:
                 logger.error(f"The {name} is not registered")
                 return
-            if time_interval < DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL:
-                time_interval = DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL
+            if time_interval < DiagnosisManager.MIN_DIAGNOSIS_INTERVAL:
+                time_interval = DiagnosisManager.MIN_DIAGNOSIS_INTERVAL
 
             self._periodical_diagnosis[name] = time_interval
 
-    def start(self):
+    def start_diagnosis(self):
         with self._lock:
             logger.info(
                 f"Start periodical diagnosis: {self._periodical_diagnosis}"

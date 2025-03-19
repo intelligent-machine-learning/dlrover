@@ -33,7 +33,7 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisResult,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -151,7 +151,7 @@ class DistributedJobMaster(JobMaster):
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
-        self.diagnosis_manager = DiagnosisManager(args)
+        self.diagnosis_manager = DiagnosisMaster(args)
         self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args

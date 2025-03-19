@@ -15,7 +15,7 @@ import os
 import unittest
 
 from dlrover.python.common.global_context import Context
-from dlrover.python.tests.test_diagnosis_manager import TestOperator
+from dlrover.python.tests.test_diagnosis_master import TestOperator
 
 
 class GlobalContextTest(unittest.TestCase):

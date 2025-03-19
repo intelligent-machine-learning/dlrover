@@ -43,7 +43,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -86,7 +86,7 @@ class MasterServicer(ABC):
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -722,7 +722,7 @@ class HttpMasterServicer(MasterServicer):
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -756,7 +756,7 @@ class GrpcMasterServicer(
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,

@@ -19,14 +19,9 @@ from unittest.mock import patch
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import Observation
-from dlrover.python.diagnosis.common.diagnosis_action import (
-    EventAction,
-    NoAction,
-)
-from dlrover.python.diagnosis.diagnostician.diagnostician import (
-    Diagnostician,
-    DiagnosticianManager,
-)
+from dlrover.python.diagnosis.common.diagnosis_action import NoAction
+from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
+from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
@@ -41,59 +36,12 @@ class DiagnosticianTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_diagnostician_mgr(self):
-        context = get_agent_context()
-        mgr = DiagnosticianManager(context)
-
-        # Test basic function
-        diagnostician = Diagnostician()
-        mgr.register_diagnostician("", diagnostician)
-        self.assertEqual(len(mgr._diagnosticians), 0)
-
-        name = "test"
-        ob = mgr.observe(name)
-        self.assertTrue(len(ob.observation) == 0)
-
-        action = mgr.resolve(name, ob)
-        self.assertTrue(isinstance(action, NoAction))
-
-        action = mgr.diagnose(name)
-        self.assertTrue(isinstance(action, NoAction))
-
-        mgr.register_diagnostician(name, diagnostician)
-        ob = mgr.observe(name)
-        self.assertTrue(len(ob.observation) > 0)
-
-        action = mgr.resolve(name, ob)
-        self.assertTrue(isinstance(action, EventAction))
-
-        action = mgr.diagnose(name)
-        self.assertTrue((isinstance(action, EventAction)))
-
-        # test register_periodical_diagnosis
-        mgr.register_periodical_diagnosis("unknown", 60)
-        self.assertTrue(len(mgr._periodical_diagnosis) == 0)
-
-        mgr.register_periodical_diagnosis(
-            name, DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL - 5
-        )
-        self.assertEqual(
-            mgr._periodical_diagnosis[name],
-            DiagnosticianManager.MIN_DIAGNOSIS_INTERVAL,
-        )
-
-        # test start
-        mgr.start()
-        thread_name = f"periodical_diagnose_{name}"
-        thread_names = [t.name for t in threading.enumerate()]
-        self.assertIn(thread_name, thread_names, f"Not found {thread_name}")
-
     @patch(
-        "dlrover.python.diagnosis.diagnostician"
+        "dlrover.python.diagnosis.common"
         ".diagnostician.Diagnostician.observe"
     )
     @patch(
-        "dlrover.python.diagnosis.diagnostician"
+        "dlrover.python.diagnosis.common"
         ".diagnostician.Diagnostician.resolve"
     )
     def test_diagnostician_observe_exception(self, mock_resolve, mock_observe):
@@ -101,7 +49,7 @@ class DiagnosticianTest(unittest.TestCase):
         mock_resolve.side_effect = Exception("resolve_error")
 
         context = get_agent_context()
-        mgr = DiagnosticianManager(context)
+        mgr = DiagnosisManager(context)
 
         name = "test"
         diagnostician = Diagnostician()
@@ -117,12 +65,12 @@ class DiagnosticianTest(unittest.TestCase):
         self.assertTrue(isinstance(action, NoAction))
 
     @patch(
-        "dlrover.python.diagnosis.diagnostician"
+        "dlrover.python.diagnosis.common"
         ".diagnostician.Diagnostician.diagnose"
     )
     def test_diagnostician_start_periodical_diagnosis(self, mock_diagnose):
         context = get_agent_context()
-        mgr = DiagnosticianManager(context)
+        mgr = DiagnosisManager(context)
         diagnostician = Diagnostician()
         name = "test"
         mgr.register_diagnostician(name, diagnostician)
