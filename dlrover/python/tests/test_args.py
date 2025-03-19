@@ -17,7 +17,8 @@ from dlrover.python.master.args import (
     parse_master_args,
     parse_tuple_dict,
     parse_tuple_list,
-    str2bool, print_args,
+    print_args,
+    str2bool,
 )
 
 
@@ -141,4 +142,18 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.xpu_type, "nvidia")
 
+        # test print
         print_args(parsed_args)
+
+        # test invalid
+        original_args = [
+            "--job_name",
+            "test",
+            "--xpu_type",
+            "nvidia",
+            "--hang_downtime",
+            "-1",
+        ]
+        with self.assertRaises(SystemExit) as cm:
+            parse_master_args(original_args)
+            self.assertEqual(cm.exception.code, 2)
