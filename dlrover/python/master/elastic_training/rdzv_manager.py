@@ -32,6 +32,7 @@ from dlrover.python.master.elastic_training.net_topology import (
     NodeTopologyMeta,
 )
 from dlrover.python.training_event import DLRoverMasterEvent
+from dlrover.python.training_event.emitter import DurationSpan
 
 _master_evt = DLRoverMasterEvent().singleton_instance()
 
@@ -83,7 +84,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
         self._event_reporter = get_event_reporter()
-        self._rdzv_evt = self.new_rdzv_evt()
+        self.rendezvous_events: Dict[int, DurationSpan] = {}
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -307,10 +308,11 @@ class RendezvousManager(metaclass=ABCMeta):
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
-            self._rdzv_evt = self.new_rdzv_evt()
+            if self._rdzv_round not in self.rendezvous_events.keys():
+                self.rendezvous_events[self._rdzv_round] = self.new_rdzv_evt()
             self._event_reporter.report_rdzv_node_join(
                 meta,
-                self._rdzv_evt,
+                self.rendezvous_events[self._rdzv_round],
                 self._name,
                 self._rdzv_round,
                 self._rdzv_params,
@@ -460,28 +462,30 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     )
                     node_elapsed_time = time.time() - self._lastcall_time
 
-                    self._event_reporter.report_rdzv_complete(
-                        self._rdzv_evt,
-                        self._name,
-                        finished_rdzv_round,
-                        self._rdzv_params,
-                        node_ids=node_ids,
-                        node_elapsed_time=node_elapsed_time,
-                    )
+                    if finished_rdzv_round in self.rendezvous_events.keys():
+                        self._event_reporter.report_rdzv_complete(
+                            self.rendezvous_events[finished_rdzv_round],
+                            self._name,
+                            finished_rdzv_round,
+                            self._rdzv_params,
+                            node_ids=node_ids,
+                            node_elapsed_time=node_elapsed_time,
+                        )
 
                 waiting_time = time.time() - self._lastcall_time
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
                 ):
-                    self._event_reporter.report_rdzv_timeout(
-                        self._rdzv_evt,
-                        self._name,
-                        self._rdzv_round,
-                        self._rdzv_params,
-                        node_groups=[],
-                        elapsed_time=waiting_time,
-                    )
+                    if self._rdzv_round in self.rendezvous_events.keys():
+                        self._event_reporter.report_rdzv_timeout(
+                            self.rendezvous_events[self._rdzv_round],
+                            self._name,
+                            self._rdzv_round,
+                            self._rdzv_params,
+                            node_groups=[],
+                            elapsed_time=waiting_time,
+                        )
 
             return self._rdzv_round, 0, self._rdzv_nodes
 
@@ -554,14 +558,15 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
                     elapsed_time = time.time() - self._lastcall_time
 
-                    self._event_reporter.report_rdzv_complete(
-                        self._rdzv_evt,
-                        self._name,
-                        finished_rdzv_round,
-                        self._rdzv_params,
-                        node_ids=print_node_groups,
-                        elapsed_time=elapsed_time,
-                    )
+                    if finished_rdzv_round in self.rendezvous_events.keys():
+                        self._event_reporter.report_rdzv_complete(
+                            self.rendezvous_events[finished_rdzv_round],
+                            self._name,
+                            finished_rdzv_round,
+                            self._rdzv_params,
+                            node_ids=print_node_groups,
+                            elapsed_time=elapsed_time,
+                        )
 
                 waiting_time = time.time() - self._lastcall_time
                 if (
@@ -569,14 +574,15 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     and not rdzv_completed
                 ):
                     node_group = self._group_nodes(self._rdzv_round)
-                    self._event_reporter.report_rdzv_timeout(
-                        self._rdzv_evt,
-                        self._name,
-                        self._rdzv_round,
-                        self._rdzv_params,
-                        node_group=node_group,
-                        elapsed_time=waiting_time,
-                    )
+                    if self._rdzv_round in self.rendezvous_events.keys():
+                        self._event_reporter.report_rdzv_timeout(
+                            self.rendezvous_events[self._rdzv_round],
+                            self._name,
+                            self._rdzv_round,
+                            self._rdzv_params,
+                            node_group=node_group,
+                            elapsed_time=waiting_time,
+                        )
 
             for i, group in enumerate(self._node_groups):
                 if node_rank in group:

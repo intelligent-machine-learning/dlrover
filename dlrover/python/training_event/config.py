@@ -88,7 +88,8 @@ def get_env_key(key):
 
 
 def is_dlrover_event_enabled():
-    return True if Config.enable is True else False
+    config = Config.singleton_instance()
+    return True if config.enable is True else False
 
 
 @dataclass
