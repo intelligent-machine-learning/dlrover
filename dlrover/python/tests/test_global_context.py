@@ -47,7 +47,7 @@ class GlobalContextTest(unittest.TestCase):
 
         ctx.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_manager",
+                "dlrover.python.tests.test_diagnosis_master",
                 "TestOperator",
                 True,
             )
@@ -64,7 +64,7 @@ class GlobalContextTest(unittest.TestCase):
 
         ctx.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_manager",
+                "dlrover.python.tests.test_diagnosis_master",
                 "TestOperator",
                 True,
             )
@@ -74,7 +74,7 @@ class GlobalContextTest(unittest.TestCase):
 
         ctx.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_manager",
+                "dlrover.python.tests.test_diagnosis_master",
                 "TestOperator",
                 "y",
             )
@@ -83,7 +83,7 @@ class GlobalContextTest(unittest.TestCase):
 
         ctx.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_manager",
+                "dlrover.python.tests.test_diagnosis_master",
                 "TestOperator",
                 False,
             )
@@ -92,7 +92,7 @@ class GlobalContextTest(unittest.TestCase):
 
         ctx.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_manager",
+                "dlrover.python.tests.test_diagnosis_master",
                 "TestOperator",
                 "false",
             )
