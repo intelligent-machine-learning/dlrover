@@ -80,6 +80,36 @@ class MasterKVStoreTest(unittest.TestCase):
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
+    def test_rdzv_timeout(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager.update_rdzv_params(3, 3, 0.5, 1)
+        rdzv_round = rdzv_manager.get_rdzv_round()
+        self.assertEqual(rdzv_round, 0)
+        self.assertEqual(rdzv_manager.rendezvous_events, {})
+        rdzv_manager._alive_nodes = [0, 1, 2]
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
+        time.sleep(1)
+        round, _, world = rdzv_manager.get_comm_world(0)
+        self.assertEqual(round, 0)
+        self.assertDictEqual(world, {})
+        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
+
+        rdzv_manager = NetworkCheckRendezvousManager()
+        rdzv_manager.update_rdzv_params(2, 2, 0.5, 1)
+        rdzv_round = rdzv_manager.get_rdzv_round()
+        self.assertEqual(rdzv_round, 0)
+        self.assertEqual(rdzv_manager.rendezvous_events, {})
+        rdzv_manager._alive_nodes = [0, 1]
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        time.sleep(1)
+        round, _, world = rdzv_manager.get_comm_world(0)
+        self.assertEqual(round, 0)
+        self.assertDictEqual(world, {})
+        self.assertEqual(len(rdzv_manager._waiting_nodes), 1)
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
+
     def test_max_nodes(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
         rdzv_manager.update_rdzv_params(3, 3, 60, 1)
