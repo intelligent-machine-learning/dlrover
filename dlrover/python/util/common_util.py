@@ -140,3 +140,35 @@ def find_free_port_for_hccl(
                 cur_start = 0
                 break
     return cur_start
+
+
+def print_args(args, exclude_args=[], groups=None):
+    """
+    Args:
+        args: parsing results returned from `parser.parse_args`
+        exclude_args: the arguments which won't be printed.
+        groups: It is a list of a list. It controls which options should be
+        printed together. For example, we expect all model specifications such
+        as `optimizer`, `loss` are better printed together.
+        groups = [["optimizer", "loss"]]
+    """
+
+    def _get_attr(instance, attribute):
+        try:
+            return getattr(instance, attribute)
+        except AttributeError:
+            return None
+
+    dedup = set()
+    if groups:
+        for group in groups:
+            for element in group:
+                dedup.add(element)
+                logger.info("%s = %s", element, _get_attr(args, element))
+    other_options = [
+        (key, value)
+        for (key, value) in args.__dict__.items()
+        if key not in dedup and key not in exclude_args
+    ]
+    for key, value in other_options:
+        logger.info("%s = %s", key, value)

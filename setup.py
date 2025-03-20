@@ -25,11 +25,12 @@ install_requires = [
 
 
 extra_require = {
+    "master": ["tornado", "ray", "kubernetes", "omegaconf"],
     "k8s": ["kubernetes"],
     "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
-    "master": ["tornado"],
+    "rl": ["ray"],
 }
 
 
