@@ -85,6 +85,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.update_rdzv_params(3, 3, 60, 1)
         rdzv_round = rdzv_manager.get_rdzv_round()
         self.assertEqual(rdzv_round, 0)
+        self.assertEqual(rdzv_manager.rendezvous_events, {})
         rdzv_manager._alive_nodes = [0, 1, 2]
         rdzv_manager.join_rendezvous(0, 0, 8)
         rdzv_manager.join_rendezvous(1, 1, 8)
@@ -93,16 +94,18 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertDictEqual(world, {})
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
+        self.assertEqual(list(rdzv_manager.rendezvous_events.keys()), [0])
         rdzv_manager.join_rendezvous(2, 2, 8)
-        self.assertDictEqual(
-            rdzv_manager._node_rdzv_times, {0: 0.0, 1: 0.0, 2: 0.0}
-        )
+        self.assertListEqual(list(rdzv_manager._node_rdzv_times), [0, 1, 2])
+        for key in rdzv_manager._node_rdzv_times:
+            self.assertLessEqual(rdzv_manager._node_rdzv_times[key], 0.05)
         round, _, world = rdzv_manager.get_comm_world(0)
         self.assertDictEqual(rdzv_manager._node_rdzv_times, {})
         self.assertEqual(round, 1)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 3)
         self.assertListEqual(list(world.keys()), [0, 1, 2])
+        self.assertEqual(list(rdzv_manager.rendezvous_events.keys()), [0])
 
     def test_min_nodes(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
@@ -256,9 +259,11 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(4, 4, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3]
+        self.assertEqual(rdzv_manager.rendezvous_events, {})
         for i in range(4):
             round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 0)
+        self.assertEqual(list(rdzv_manager.rendezvous_events.keys()), [0])
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
         self.assertEqual(group, 0)
