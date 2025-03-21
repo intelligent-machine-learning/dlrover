@@ -98,6 +98,10 @@ class ArgsTest(unittest.TestCase):
         self.assertIsNone(parsed_args.chief_memory)
         self.assertIsNone(parsed_args.chief_core)
         self.assertIsNone(parsed_args.chief_disk_quota)
+        self.assertTrue(parsed_args.task_process_timeout, 1800)
+        self.assertIsNone(parsed_args.chief_memory)
+        self.assertIsNone(parsed_args.chief_core)
+        self.assertIsNone(parsed_args.chief_disk_quota)
 
         original_args = [
             "--job_name",
@@ -115,10 +119,6 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.chief_memory, 1024)
         self.assertEqual(parsed_args.chief_core, 4)
         self.assertEqual(parsed_args.chief_disk_quota, 20480)
-        self.assertTrue(parsed_args.task_process_timeout, 1800)
-        self.assertIsNone(parsed_args.chief_memory)
-        self.assertIsNone(parsed_args.chief_core)
-        self.assertIsNone(parsed_args.chief_disk_quota)
 
         original_args = [
             "--job_name",
