@@ -31,10 +31,12 @@ from dlrover.python.master.elastic_training.net_topology import (
     DpTopologySorter,
     NodeTopologyMeta,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.training_event.emitter import DurationSpan
 
 _master_evt = DLRoverMasterEvent().singleton_instance()
+job_ctx = get_job_context()
 
 
 class RendezvousParameters(object):

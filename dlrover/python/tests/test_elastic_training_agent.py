@@ -74,6 +74,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
+    JobStoppingError,
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
     NodeCheckFailedError,
@@ -546,12 +547,12 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor.report_step()
             self.assertEqual(self._master.perf_monitor._global_step, 100)
 
-    def test_check_network_rdzv_for_elastic_training(self):
+    def test_check_network_rdzv(self):
         self._master.rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ].join_rendezvous(0, 0, 8)
         with self.assertRaises(RendezvousOutSyncError):
-            self.rdzv_handler._check_network_rdzv_for_elastic_training()
+            self.rdzv_handler._check_network_rdzv()
 
     def test_get_free_port(self):
         agent = ElasticTrainingAgent(
@@ -1089,6 +1090,42 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
+
+    def test_join_rendezvous(self):
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.ELASTIC_TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        rdzv_handler._client.join_rendezvous = mock.MagicMock(return_value=0)
+        rdzv_handler._client.num_nodes_waiting = mock.MagicMock(
+            return_value=-1
+        )
+        with self.assertRaises(JobStoppingError):
+            rdzv_handler.next_rendezvous()
+
+        rdzv_handler._client.join_rendezvous = mock.MagicMock(return_value=0)
+        rdzv_handler._client.num_nodes_waiting = mock.MagicMock(return_value=1)
+        with self.assertRaises(RendezvousOutSyncError):
+            rdzv_handler.next_rendezvous()
 
     def test_pend_timeout(self):
         launch_config = LaunchConfig(

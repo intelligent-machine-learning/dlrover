@@ -350,7 +350,7 @@ class MasterClient(Singleton, ABC):
             return result.waiting_num
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
-            return -1
+            return 0
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
