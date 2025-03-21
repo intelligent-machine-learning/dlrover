@@ -166,8 +166,8 @@ class DistributedJobMasterTest(unittest.TestCase):
         threading.Thread(target=stop_master).start()
 
         # test actions
-        get_job_context().enqueue_action(JobAbortionAction())
-        get_job_context().enqueue_action(NoAction())
+        get_job_context().enqueue_diagnosis_action(JobAbortionAction())
+        get_job_context().enqueue_diagnosis_action(NoAction())
         self.master._diagnose_job()
         mock_request_stop.assert_called_once()
 

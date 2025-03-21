@@ -49,6 +49,8 @@ class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
     PRE_CHECK_FAILED = "Pre-check failed"
 
+    NODE_FAILED = "node_failed"
+
 
 class DiagnosisDataType(object):
     GENERIC = "GENERIC"
@@ -66,6 +68,8 @@ class DiagnosisActionType(object):
     JOB_ABORT = "job_abortion"
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
+
+    OBSERVATION = "observation"
 
     # node operation
     RESTART_WORKER = "restart_worker"
@@ -114,3 +118,7 @@ class JobHangWatermark(object):
     # NPU_UTIL is [0, 100]
     NPU_UTIL_LOW_WM = 0.5
     NPU_UTIL_HIGH_WM = 98
+
+
+class Observation(object):
+    NODE_FAILED = "node_failed"
