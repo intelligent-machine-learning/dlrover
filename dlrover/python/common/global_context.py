@@ -53,6 +53,7 @@ class DefaultValues(object):
     OPTIMIZED_WORKER_CPU_THRESHOLD = 20
     SEC_FOR_STABLE_WORKER_COUNT = 60
     SEC_INTERVAL_TO_OPTIMIZE = 300
+    SEC_TO_TIMEOUT_TASK_PROCESS = 1800
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
@@ -99,6 +100,9 @@ class Context(Singleton):
         )
         self.seconds_interval_to_optimize = (
             DefaultValues.SEC_INTERVAL_TO_OPTIMIZE
+        )
+        self.seconds_to_timeout_task_process = (
+            DefaultValues.SEC_TO_TIMEOUT_TASK_PROCESS
         )
         self.factor_to_cut_pending_cpu = (
             DefaultValues.FACTOR_TO_CUT_PENDING_CPU

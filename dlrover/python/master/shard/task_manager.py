@@ -31,21 +31,19 @@ from dlrover.python.master.shard.batch_dataset_manager import (
 )
 from dlrover.python.master.shard.dataset_splitter import DatasetSplitter
 
-_TASK_TIMEOUT_THRESHOLD_SECS = 1800
-
 
 class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 
-    def __init__(self, worker_restart_timeout: int, perf_monitor: PerfMonitor):
+    def __init__(self, task_process_timeout: int, perf_monitor: PerfMonitor):
         """
         Args:
-            worker_restart_timeout: Whether to relaunch a worker
+            task_process_timeout: Whether to relaunch a worker
                 when it does not report a task status for a long time.
             perf_monitor: monitor the training speed with workers.
         """
         self._lock = threading.Lock()
-        self._worker_restart_timeout = worker_restart_timeout
+        self._task_process_timeout = task_process_timeout
         self._should_stop = False
         self._datasets: Dict[str, DatasetManger] = OrderedDict()
         self._worker_start_task_time: Dict[int, float] = {}
@@ -53,6 +51,10 @@ class TaskManager(object):
         self._perf_monitor = perf_monitor
         self._paral_eval_count = 0
         self._paral_eval_started = False
+        logger.info(
+            "Task manager initialized with "
+            f"process-timeout: {task_process_timeout}"
+        )
 
     def new_dataset(
         self,
@@ -146,7 +148,7 @@ class TaskManager(object):
             end_time = ds.get_latest_task_end_time()
             hang = (
                 end_time > 0
-                and time.time() - end_time > _TASK_TIMEOUT_THRESHOLD_SECS
+                and time.time() - end_time > self._task_process_timeout
             )
             dataset_hang.append(hang)
         if dataset_hang:
@@ -194,7 +196,7 @@ class TaskManager(object):
             )
 
     def start(self):
-        if self._worker_restart_timeout > 0:
+        if self._task_process_timeout > 0:
             threading.Thread(
                 target=self._check_and_reassign_timeout_tasks,
                 name="check_timeout_tasks",
@@ -227,11 +229,7 @@ class TaskManager(object):
                     if (
                         doing_task.task.task_type
                         == elastic_training_pb2.EVALUATION
-                        and cur - start
-                        > max(
-                            _TASK_TIMEOUT_THRESHOLD_SECS,
-                            self._worker_restart_timeout,
-                        )
+                        and cur - start > self._task_process_timeout
                     ):
                         logger.info(
                             f"The task {task_id} of {doing_task.node_type}-"
