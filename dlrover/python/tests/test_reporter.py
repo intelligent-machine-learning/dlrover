@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import MagicMock
 
 from dlrover.python.common.event.reporter import (
     EventReporter,
@@ -39,12 +40,14 @@ class EventReporterTest(unittest.TestCase):
         self.job_evt = self.master_evt.train_job(
             job_name=self.args.job_name, args=vars(self.args)
         )
+        self.origin_report = self.reporter.report
 
     def tearDown(self):
         context.reporter_cls = (
             "dlrover.python.common.event.reporter",
             "EventReporter",
         )
+        self.reporter.report = self.origin_report
 
     def test_basic(self):
         self.reporter.initialize()
@@ -99,3 +102,7 @@ class EventReporterTest(unittest.TestCase):
         self.reporter.report_rdzv_complete(
             rdzv_evt, "test", 0, rdzv_params, node_ids=[], elapsed_time=1
         )
+
+    def test_exception_ignored(self):
+        self.reporter.report = MagicMock(side_effect=Exception("test"))
+        self.reporter.report_master_start(self.args)
