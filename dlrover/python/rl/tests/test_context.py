@@ -12,12 +12,15 @@
 # limitations under the License.
 
 import unittest
+from unittest import mock
+from unittest.mock import patch
 
-from rl.common.args import parse_rl_args
-from rl.common.context import RLContext
+from dlrover.python.rl.common.args import parse_rl_args
+from dlrover.python.rl.common.context import RLContext
 
 from dlrover.python.rl.common.enums import RLAlgorithmType, TrainerArcType, \
     TrainerType
+from dlrover.python.rl.common.exception import InvalidRLConfiguration
 
 UD_RL_CONF = {
     "type": "USER_DEFINED",
@@ -40,7 +43,8 @@ UD_RL_CONF = {
 
 
 class RLContextTest(unittest.TestCase):
-    def test_building(self):
+    @patch("dlrover.python.rl.common.context.get_class_by_module_and_class_name")
+    def test_building(self, mock_get_class):
         # with valid input
         args = [
             "--rl_config",
@@ -81,8 +85,19 @@ class RLContextTest(unittest.TestCase):
             rl_context.actor_workload.class_name, "TestActor"
         )
 
-        # with invalid input
+        self.assertTrue(rl_context.validate())
+        mock_get_class = None
+        self.assertTrue(rl_context.validate())
 
+        # with invalid input(build failed)
+        invalid_conf = UD_RL_CONF
+        invalid_conf["algorithm_type"] = "DPO"
+        args = [
+            "--rl_config",
+            f"{invalid_conf}",
+        ]
+        with self.assertRaises(InvalidRLConfiguration):
+            RLContext.build_from_args(parse_rl_args(args))
 
     def test_serialization(self):
         args = [
@@ -96,3 +111,4 @@ class RLContextTest(unittest.TestCase):
         deserialized = RLContext.deserialize(serialized)
         self.assertIsNotNone(deserialized)
         self.assertEqual(deserialized.trainer.algorithm_type, RLAlgorithmType.GRPO)
+        self.assertEqual(deserialized.trainer.config.get("c1"), "v1")

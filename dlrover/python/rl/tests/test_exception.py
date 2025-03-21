@@ -13,13 +13,13 @@
 
 import unittest
 
-from dlrover.python.rl.common.exception import InvalidTrainerConfiguration
+from dlrover.python.rl.common.exception import InvalidRLConfiguration
 
 
 class ExceptionTest(unittest.TestCase):
     def test_basic(self):
-        with self.assertRaises(InvalidTrainerConfiguration) as e:
-            raise InvalidTrainerConfiguration()
+        with self.assertRaises(InvalidRLConfiguration) as e:
+            raise InvalidRLConfiguration()
 
         self.assertEqual(
             str(e.exception), "The trainer configuration is invalid."

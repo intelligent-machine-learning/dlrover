@@ -12,8 +12,8 @@
 # limitations under the License.
 
 
-class InvalidTrainerConfiguration(Exception):
+class InvalidRLConfiguration(Exception):
     def __init__(self):
-        super(InvalidTrainerConfiguration, self).__init__(
-            "The trainer configuration is invalid."
+        super(InvalidRLConfiguration, self).__init__(
+            "The rl configuration is invalid."
         )

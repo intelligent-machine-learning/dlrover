@@ -54,6 +54,9 @@ class CommonUtilTest(unittest.TestCase):
         port = cu.find_free_port_for_hccl()
         self.assertEqual(port, 64004)
 
+    def test_get_class_by_module_and_class_name(self):
+        self.assertIsNotNone(cu.get_class_by_module_and_class_name(self.__module__, self.__class__.__name__))
+
 
 if __name__ == "__main__":
     unittest.main()

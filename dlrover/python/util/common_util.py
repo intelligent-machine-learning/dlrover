@@ -172,3 +172,14 @@ def print_args(args, exclude_args=[], groups=None):
     ]
     for key, value in other_options:
         logger.info("%s = %s", key, value)
+
+
+def get_class_by_module_and_class_name(module_name, class_name):
+    """
+    Get class object by the given module name and a class name.
+    """
+
+    module = importlib.import_module(module_name)
+    if hasattr(module, class_name):
+        return getattr(module, class_name)
+    return None
