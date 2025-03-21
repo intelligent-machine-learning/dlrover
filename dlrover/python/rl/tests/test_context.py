@@ -84,6 +84,7 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(
             rl_context.actor_workload.class_name, "TestActor"
         )
+        self.assertTrue(rl_context.__str__())
 
         self.assertTrue(rl_context.validate())
         mock_get_class = None

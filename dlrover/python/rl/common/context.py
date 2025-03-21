@@ -50,6 +50,9 @@ class TrainerDesc(object):
         self._algorithm_type: RLAlgorithmType = RLAlgorithmType[algorithm_type]
         self._config: DictConfig = config
 
+    def __str__(self):
+        return f"Trainer(class={self._module_class}, type={self._trainer_type}, arc_type={self._trainer_arc_type}, algorithm_type={self._algorithm_type}, config={self._config})"
+
     @property
     def module_name(self) -> str:
         return self._module_class[0]
@@ -91,6 +94,9 @@ class WorkloadDesc(object):
             self._resource: Dict[str, float] = resource
         else:
             self._resource: Dict[str, float] = {}
+
+    def __str__(self):
+        return f"Workload(class={self._module_class}, num={self._num}, resource={self._resource})"
 
     @property
     def module_name(self) -> str:
@@ -137,6 +143,9 @@ class RLContext(object):
         self._ref_workload = ref_workload
         self._reward_workload = reward_workload
         self._critic_workload = critic_workload
+
+    def __str__(self):
+        return f"RLContext({self._trainer}, actor:{self._actor_workload}, generator:{self._generator_workload}, reference:{self._ref_workload}, reward:{self._reward_workload}, critic:{self._critic_workload})"
 
     @property
     def trainer(self):

@@ -15,7 +15,9 @@ import argparse
 from typing import Any, Dict, Union
 
 from omegaconf import OmegaConf
-from util.common_util import print_args
+
+from dlrover.python.util.args_util import pos_int
+from dlrover.python.util.common_util import print_args
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import (
@@ -67,11 +69,32 @@ def _parse_omega_config(value: Union[str, Dict[str, Any]]):
 def _build_rl_args_parser():
     parser = argparse.ArgumentParser(description="RL Training")
     parser.add_argument(
+        "--job_name",
+        help="ElasticJob name",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--master_cpu",
+        "--master-cpu",
+        default=2,
+        type=pos_int,
+        help="The number of cpu for the dlrover rl master actor. Default is 2.",
+    )
+    parser.add_argument(
+        "--master_mem",
+        "--master-mem",
+        default=4096,
+        type=pos_int,
+        help="The size of memory(mb) for the dlrover rl master actor. Default is 4096.",
+    )
+    parser.add_argument(
         "--rl_config",
         "--rl-config",
         default={},
         type=_parse_omega_config,
         help='The full configurations for rl trainer in JSON/DICT format: {"trainer_type":"USER_DEFINED / OPENRLHF_DEEPSPEED / ...","trainer_arc_type":"MEGATRON / FSDP / ...","algorithm_type":"GRPO / PPO / ...","config":{},"workload":{"actor":{"num":"n","module":"xxx","class":"xxx"},"generator":{"num":"n","module":"xxx","class":"xxx"},"reference":{"num":"n","module":"xxx","class":"xxx"},"reward":{"num":"n","module":"xxx","class":"xxx"},"critic":{"num":"n","module":"xxx","class":"xxx"}}}',
+        required=True,
     )
     return parser
 
