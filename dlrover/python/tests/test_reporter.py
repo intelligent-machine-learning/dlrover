@@ -87,6 +87,7 @@ class EventReporterTest(unittest.TestCase):
         rdzv_params = RendezvousParameters(0, 0)
         self.reporter.report_rdzv_node_join(
             node_meta,
+            rdzv_evt,
             "test",
             0,
             rdzv_params,

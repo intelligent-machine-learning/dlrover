@@ -169,10 +169,13 @@ class EventReporter(Singleton):
         )
 
     @ignore_exceptions()
-    def report_process_relaunch(self, node: Node):
+    def report_process_relaunch(self, node: Node, err_msg=None):
         """Report process relaunching."""
 
-        # TODO: evt for process relaunching
+        _master_evt.process_restart(
+            pod_name=f"{node.name}",
+            errmsg=f"{err_msg}" if err_msg else "",
+        )
 
         self.report(
             event_type=EventReportConstants.TYPE_WARN,
@@ -189,8 +192,11 @@ class EventReporter(Singleton):
         """Report node relaunching."""
 
         _master_evt.worker_relaunch(
-            pod_name=node.name,
-            relaunch_pod_name=new_node.name,
+            pod_name=f"{node.name}",
+            relaunch_pod_name=f"{new_node.name}",
+            rank=f"{node.rank_index}",
+            relaunch_count=f"{node.relaunch_count}",
+            max_relaunch_count=f"{node.max_relaunch_count}",
         )
 
         self.report(
@@ -229,6 +235,7 @@ class EventReporter(Singleton):
     def report_rdzv_node_join(
         self,
         node_meta: NodeTopologyMeta,
+        rdzv_evt: DurationSpan,
         rdzv_type,
         rdzv_round,
         rdzv_params,
@@ -238,13 +245,14 @@ class EventReporter(Singleton):
 
         waiting_nodes = kwargs.get("waiting_nodes", {})
         node_elapsed_time = kwargs.get("node_elapsed_time", -1)
+        rdzv_evt.begin()
         _master_evt.node_join(
             node_id=str(node_meta.node_id),
             node_rank=str(node_meta.node_rank),
             node_ip=str(node_meta.node_ip),
             rdzv_round=str(rdzv_round),
             rdzv_type=rdzv_type,
-            waiting_nodes=waiting_nodes.keys(),
+            waiting_nodes=f"{[waiting_nodes.keys()]}",
         )
         self.report(
             EventReportConstants.TYPE_INFO,
@@ -328,6 +336,34 @@ class EventReporter(Singleton):
         )
 
     # ================ RDZV End ================
+
+    def report_network_check_completed(
+        self,
+        evt: DurationSpan,
+        event_type,
+        instance,
+        action,
+        node_status,
+        node_check_times,
+        node_groups,
+    ):
+        """Report network check completed"""
+        evt.success(
+            node_status=node_status,
+            node_check_times=node_check_times,
+            node_groups=node_groups,
+        )
+
+        self.report(
+            event_type=event_type,
+            instance=instance,
+            action=action,
+            msg=node_check_times,
+            labels={
+                "status": node_status,
+                "elapsed_time": node_check_times,
+            },
+        )
 
 
 context = Context.singleton_instance()
