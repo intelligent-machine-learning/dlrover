@@ -47,6 +47,9 @@ def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
 
+    job_args.chief_core = args.chief_core
+    job_args.chief_memory = args.chief_memory
+
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
     _dlrover_context.hang_detection = args.hang_detection
@@ -74,6 +77,7 @@ def run(args):
 
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
+
     master.prepare()
     master.pre_check()
     return master.run()
