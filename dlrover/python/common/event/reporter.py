@@ -26,6 +26,7 @@ from dlrover.python.master.elastic_training.net_topology import (
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.training_event.emitter import DurationSpan
+from dlrover.python.util.function_util import ignore_exceptions
 
 _master_evt = DLRoverMasterEvent().singleton_instance()
 
@@ -43,6 +44,7 @@ class EventReporter(Singleton):
         return True
 
     @classmethod
+    @ignore_exceptions()
     def report(
         cls,
         event_type: str,
@@ -70,6 +72,7 @@ class EventReporter(Singleton):
 
     # ================ Master Start ================
 
+    @ignore_exceptions()
     def report_master_start(self, args: JobArgs):
         _master_evt.start(args=vars(args))
 
@@ -81,6 +84,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_master_end(self, args: JobArgs, exit_code: int):
         _master_evt.exit(exit_code=exit_code)
 
@@ -92,6 +96,7 @@ class EventReporter(Singleton):
             {"exit reason": f"{exit_code}"},
         )
 
+    @ignore_exceptions()
     def report_job_start(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.begin()
 
@@ -103,6 +108,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_job_success(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.success()
 
@@ -114,6 +120,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_job_fail(
         self, job_evt: DurationSpan, args: JobArgs, error: str
     ):
@@ -131,6 +138,7 @@ class EventReporter(Singleton):
 
     # ================ JobManager Start ================
 
+    @ignore_exceptions()
     def report_node_status_change(
         self, node: Node, old_status: str, new_status: str
     ):
@@ -160,6 +168,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_process_relaunch(self, node: Node, err_msg=None):
         """Report process relaunching."""
 
@@ -178,6 +187,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_node_relaunch(self, node: Node, new_node: Node):
         """Report node relaunching."""
 
@@ -200,6 +210,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_node_no_heartbeat(self, node: Node, timeout: int):
         """Report node if heartbeat timeout."""
 
@@ -220,6 +231,7 @@ class EventReporter(Singleton):
 
     # ================ RDZV Start ================
 
+    @ignore_exceptions()
     def report_rdzv_node_join(
         self,
         node_meta: NodeTopologyMeta,
@@ -256,6 +268,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_rdzv_complete(
         self,
         rdzv_evt: DurationSpan,
@@ -288,6 +301,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_rdzv_timeout(
         self,
         rdzv_evt: DurationSpan,
