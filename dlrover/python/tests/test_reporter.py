@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import MagicMock
 
 from dlrover.python.common.event.reporter import (
     EventReporter,
@@ -98,3 +99,7 @@ class EventReporterTest(unittest.TestCase):
         self.reporter.report_rdzv_complete(
             rdzv_evt, "test", 0, rdzv_params, node_ids=[], elapsed_time=1
         )
+
+    def test_exception_ignored(self):
+        self.reporter.report = MagicMock(side_effect=Exception("test"))
+        self.reporter.report_master_start(self.args)
