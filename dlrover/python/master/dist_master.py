@@ -137,7 +137,7 @@ class DistributedJobMaster(JobMaster):
         )
         self.task_manager = (
             TaskManager(
-                args.node_args[NodeType.WORKER].restart_timeout,
+                args.node_args[NodeType.WORKER].process_timeout,
                 self.perf_monitor,
             )
             if args.enable_dynamic_sharding

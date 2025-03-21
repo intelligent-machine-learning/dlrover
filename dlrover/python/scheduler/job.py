@@ -53,14 +53,16 @@ class NodeArgs(metaclass=ABCMeta):
         group_resource: NodeGroupResource,
         auto_scale=True,
         restart_count=1,
-        retart_timeout=0,
+        restart_timeout=0,
         critical_nodes="",
+        process_timeout=1800,
     ):
         self.group_resource = group_resource
         self.restart_count = restart_count
         self.auto_scale = auto_scale
-        self.restart_timeout = retart_timeout
+        self.restart_timeout = restart_timeout
         self.critical_nodes = critical_nodes
+        self.process_timeout = process_timeout
 
 
 class ResourceLimits(object):
