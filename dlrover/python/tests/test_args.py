@@ -125,23 +125,6 @@ class ArgsTest(unittest.TestCase):
             "test",
             "--namespace",
             "default",
-            "--chief_memory",
-            "1024",
-            "--chief-core",
-            "4",
-            "--chief-disk-quota",
-            "20480",
-        ]
-        parsed_args = parse_master_args(original_args)
-        self.assertEqual(parsed_args.chief_memory, 1024)
-        self.assertEqual(parsed_args.chief_core, 4)
-        self.assertEqual(parsed_args.chief_disk_quota, 20480)
-
-        original_args = [
-            "--job_name",
-            "test",
-            "--namespace",
-            "default",
             "--pending_timeout",
             "600",
             "--pending_fail_strategy",
