@@ -40,12 +40,14 @@ class EventReporterTest(unittest.TestCase):
         self.job_evt = self.master_evt.train_job(
             job_name=self.args.job_name, args=vars(self.args)
         )
+        self.origin_report = self.reporter.report
 
     def tearDown(self):
         context.reporter_cls = (
             "dlrover.python.common.event.reporter",
             "EventReporter",
         )
+        self.reporter.report = self.origin_report
 
     def test_basic(self):
         self.reporter.initialize()
