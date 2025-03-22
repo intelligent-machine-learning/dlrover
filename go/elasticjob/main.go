@@ -49,7 +49,7 @@ import (
 
 var (
 	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	setupLog = ctrl.Log.WithName("main")
 )
 
 func init() {
@@ -107,7 +107,7 @@ func main() {
 			return true
 		},
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return false
+			return updateEvent.ObjectOld.GetResourceVersion() != updateEvent.ObjectNew.GetResourceVersion()
 		},
 		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
 			job := deleteEvent.Object.(*v1alpha1.ElasticJob)
@@ -120,15 +120,25 @@ func main() {
 		setupLog.Error(err, "fail to set watching ElasticJobs.")
 	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}, predicate.Funcs{
+	enqueue := &controllers.EnqueueRequestForPod{
+		Reconciler: elasticJobReconciler,
+	}
+	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, enqueue, predicate.Funcs{
 		CreateFunc: func(createEvent event.CreateEvent) bool {
-			return elasticJobReconciler.ProcessPodCreateEvent(&createEvent)
+			return true
 		},
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return elasticJobReconciler.ProcessPodUpdateEvent(&updateEvent)
+			oldPod := updateEvent.ObjectOld.(*corev1.Pod)
+			newPod := updateEvent.ObjectNew.(*corev1.Pod)
+			if oldPod.ResourceVersion == newPod.ResourceVersion ||
+				oldPod.Status.Phase == corev1.PodFailed ||
+				oldPod.Status.Phase == corev1.PodSucceeded {
+				return false
+			}
+			return true
 		},
 		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
-			return elasticJobReconciler.ProcessPodDeleteEvent(&deleteEvent)
+			return true
 		},
 	})
 	if err != nil {

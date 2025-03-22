@@ -34,7 +34,7 @@ const (
 	// LabelAppNameKey is the key of application name in the cluster.
 	LabelAppNameKey = "app.kubernets.io/name"
 	// ElasticJobAppName is the application name of dlrover elasticjob.
-	ElasticJobAppName = "dlrover-elasticjob"
+	ElasticJobAppName = "elasticjob"
 	// LabelJobNameKey is the label key of the elasticjob name.
 	LabelJobNameKey = "elasticjob.dlrover/name"
 	// LabelReplicaTypeKey is the key of ReplicaType in labels.

@@ -23,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -63,17 +62,10 @@ func ReconcileJobMasterPod(
 	}
 	masterServiceName := newJobMasterServiceName(job.Name)
 	service := &corev1.Service{}
-	err = client.Get(context.Background(), types.NamespacedName{
-		Namespace: job.Namespace,
-		Name:      masterServiceName,
-	}, service)
-	if errors.IsAlreadyExists(err) {
-		return nil
-	}
 	service = newJobMasterService(job, masterServiceName)
 	err = client.Create(context.Background(), service)
-	if err != nil {
-		return err
+	if errors.IsAlreadyExists(err) {
+		return nil
 	}
 	return nil
 }
