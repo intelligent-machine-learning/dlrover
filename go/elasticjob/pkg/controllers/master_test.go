@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package master
+package controllers
 
 import (
 	"strings"
@@ -34,10 +34,9 @@ func TestCreateMasterPod(t *testing.T) {
 		},
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	NewMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
+	pod := newElasticJobMaster(job, int32(0))
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--namespace dlrover"))
@@ -62,7 +61,7 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		ImagePullPolicy: "Always",
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[JobMasterReplicaType] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
@@ -73,10 +72,9 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		},
 	}
 
-	NewMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
+	pod := newElasticJobMaster(job, int32(0))
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test-v0")
 	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 }
@@ -92,17 +90,8 @@ func TestCreateMasterPodWithOptimizeMode(t *testing.T) {
 	}
 	job.Spec.OptimizeMode = "cluster"
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	NewMasterTemplateToJob(job, "dlrover-master:test")
-	manager := &Manager{}
-	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	SetDefaultMasterTemplateToJob(job, "dlrover-master:test")
+	pod := newElasticJobMaster(job, int32(0))
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master-0")
 	assert.Equal(t, job.Spec.BrainService, "")
-	actualValue := ""
-	for _, env := range pod.Spec.Containers[0].Env {
-		if env.Name == envBrainServiceAddrKey {
-			actualValue = env.Value
-			break
-		}
-	}
-	assert.Equal(t, actualValue, defaultBrainServiceAddr)
 }

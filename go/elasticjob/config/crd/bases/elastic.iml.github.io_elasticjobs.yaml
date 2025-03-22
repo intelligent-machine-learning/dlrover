@@ -7214,10 +7214,6 @@ spec:
               phase:
                 description: Phase shows the phase of job lifecycle
                 type: string
-              scalePlan:
-                description: ScalePlan is a name of ScalePlan CRD to scale the job
-                  resource.
-                type: string
               status:
                 description: JobStatus represents the current observed state of the
                   training Job.

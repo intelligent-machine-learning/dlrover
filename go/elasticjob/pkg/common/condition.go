@@ -33,11 +33,6 @@ const (
 	JobRestartingReason = "JobRestarting"
 	// JobPendingReason is added in a job when it is pending.
 	JobPendingReason = "JobPending"
-	// JobScalingReason is added in a job when it is scaling up/down Pods.
-	JobScalingReason = "JobScaling"
-
-	// labels for pods and servers.
-
 )
 
 // IsSucceeded checks if the job is succeeded
@@ -48,13 +43,6 @@ func IsSucceeded(status apiv1.JobStatus) bool {
 // IsFailed checks if the job is failed
 func IsFailed(status apiv1.JobStatus) bool {
 	return HasCondition(status, apiv1.JobFailed)
-}
-
-// UpdateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message
-func UpdateJobConditions(jobStatus *apiv1.JobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
-	condition := NewCondition(conditionType, reason, message)
-	SetCondition(jobStatus, condition)
-	return nil
 }
 
 // HasCondition check wether there is the conditionType in jobStatus.
@@ -140,43 +128,23 @@ func filterOutCondition(conditions []apiv1.JobCondition, condType apiv1.JobCondi
 	return newConditions
 }
 
-// isRunning checks if the job is running.
-func isRunning(status elasticv1alpha1.ElasticJobStatus) bool {
-	return HasCondition(status.JobStatus, apiv1.JobRunning)
-}
-
-func updatePhase(jobStatus *elasticv1alpha1.ElasticJobStatus, status apiv1.JobConditionType) {
-	jobStatus.Phase = status
-}
-
 // InitializeJobStatuses initializes the ReplicaStatuses for TrainingJob.
 func InitializeJobStatuses(jobStatus *elasticv1alpha1.ElasticJobStatus, rtype apiv1.ReplicaType) {
-	initializeJobStatus(jobStatus)
-
-	replicaType := apiv1.ReplicaType(rtype)
-	jobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
-}
-
-// initializeJobStatus initializes the ReplicaStatuses for TrainingJob.
-func initializeJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus) {
 	if jobStatus.ReplicaStatuses == nil {
 		jobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)
 	}
 	if len(jobStatus.Conditions) == 0 {
 		jobStatus.Conditions = []apiv1.JobCondition{}
 	}
+
+	replicaType := apiv1.ReplicaType(rtype)
+	jobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
 }
 
-// UpdateStatus adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
-func UpdateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
-	updateJobConditions(jobStatus, conditionType, reason, message)
-	updatePhase(jobStatus, conditionType)
-	return nil
-}
-
-// updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
-func updateJobConditions(status *elasticv1alpha1.ElasticJobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
+// UpdateJobStatus adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
+func UpdateJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
 	condition := NewCondition(conditionType, reason, message)
-	SetCondition(&status.JobStatus, condition)
+	SetCondition(&jobStatus.JobStatus, condition)
+	jobStatus.Phase = conditionType
 	return nil
 }

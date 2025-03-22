@@ -5,11 +5,9 @@ including the number of nodes, CPU and memory of each node.
 
 ## Description
 
-The operator contains 2 CRDs, `elasticjob` and `scaleplan`. Users don't need
-to set replica resource when they apply a `elasticjob` to train on a cluster.
-The `elasticjob` controller will create a EasyDL master Pod for each
-`elasticjob`. The master will generate a `scaleplan` with PS/worker resources
-to notify the controller to launch Pods for the training.
+The operator contains the CRD `elasticjob`. An `elasticjob` only launches the
+job master Pod and update the job status by the owned Pods. The master Pod
+will launch the worker Pods.
 
 ## Getting Started
 
@@ -32,7 +30,7 @@ We can deploy the controller with a released image.
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
-1. Build and push your image to the location specified by `IMG`:
+1. We also can build and push an image to the location specified by `IMG`:
 
 ```sh
 make docker-build docker-push IMG=<some-registry>/operator:tag

@@ -31,30 +31,19 @@ import (
 )
 
 const (
-	labelAppName = "app"
-	labelJobName = "elasticjob.dlrover/name"
-	appName      = "dlrover"
-	// LabelReplicaTypeKey is the key of ReplicaType in labels
+	// LabelAppNameKey is the key of application name in the cluster.
+	LabelAppNameKey = "app.kubernets.io/name"
+	// ElasticJobAppName is the application name of dlrover elasticjob.
+	ElasticJobAppName = "elasticjob"
+	// LabelJobNameKey is the label key of the elasticjob name.
+	LabelJobNameKey = "elasticjob.dlrover/name"
+	// LabelReplicaTypeKey is the key of ReplicaType in labels.
 	LabelReplicaTypeKey = "elasticjob.dlrover/replica-type"
-	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
+	// LabelReplicaIndexKey is the key of ReplicaIndex in labels.
 	LabelReplicaIndexKey = "elasticjob.dlrover/replica-index"
 	// LabelRankIndexKey is the key of rankIndex.
 	LabelRankIndexKey = "elasticjob.dlrover/rank-index"
 )
-
-// ReplicaManagers contains the manager for each ReplicaType
-var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
-
-// ReplicaManager manage pods of ReplicaType
-type ReplicaManager interface {
-	ReconcilePods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error
-
-	SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
-
-	HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
-
-	StopRunningPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
-}
 
 // NewPod creates a Pod according to a PodTemplateSpec
 func NewPod(
@@ -70,8 +59,8 @@ func NewPod(
 	if len(podSpec.Annotations) == 0 {
 		podSpec.Annotations = make(map[string]string)
 	}
-	podSpec.Labels[labelAppName] = appName
-	podSpec.Labels[labelJobName] = job.Name
+	podSpec.Labels[LabelAppNameKey] = ElasticJobAppName
+	podSpec.Labels[LabelJobNameKey] = job.Name
 
 	for key, value := range job.Labels {
 		podSpec.Labels[key] = value
@@ -116,7 +105,7 @@ func GetReplicaTypePods(
 ) ([]corev1.Pod, error) {
 	replicaLabels := make(map[string]string)
 	replicaLabels[LabelReplicaTypeKey] = string(replicaType)
-	replicaLabels[labelJobName] = job.Name
+	replicaLabels[LabelJobNameKey] = job.Name
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: replicaLabels,
 	}
@@ -174,8 +163,8 @@ func GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus {
 
 // NewService create a service
 func NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector map[string]string) *corev1.Service {
-	selector[labelAppName] = appName
-	selector[labelJobName] = job.Name
+	selector[LabelAppNameKey] = ElasticJobAppName
+	selector[LabelJobNameKey] = job.Name
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
