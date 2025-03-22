@@ -44,6 +44,7 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common"
 	"github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers"
+	"github.com/sirupsen/logrus"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -76,6 +77,8 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	logrus.Infof("The default master image is %s", masterImage)
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
