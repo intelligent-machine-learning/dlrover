@@ -184,6 +184,7 @@ func (r *ElasticJobReconciler) createEasticJobMaster(job *elasticv1alpha1.Elasti
 	return err
 }
 
+// ProcessPodCreateEvent updates job status by a Pod creation event.
 func (r *ElasticJobReconciler) ProcessPodCreateEvent(createEvent *event.CreateEvent) {
 	pod := createEvent.Object.(*corev1.Pod)
 	ownerJob := r.getPodOwnerElasticJob(pod)
@@ -193,6 +194,7 @@ func (r *ElasticJobReconciler) ProcessPodCreateEvent(createEvent *event.CreateEv
 	incrementReplicaStatus(pod, ownerJob)
 }
 
+// ProcessPodUpdateEvent updates job status by an Pod updation event
 func (r *ElasticJobReconciler) ProcessPodUpdateEvent(updateEvent *event.UpdateEvent) {
 	oldPod := updateEvent.ObjectOld.(*corev1.Pod)
 	newPod := updateEvent.ObjectNew.(*corev1.Pod)
@@ -206,6 +208,7 @@ func (r *ElasticJobReconciler) ProcessPodUpdateEvent(updateEvent *event.UpdateEv
 	}
 }
 
+// ProcessPodDeleteEvent updates job status by a Pod delete event.
 func (r *ElasticJobReconciler) ProcessPodDeleteEvent(deleteEvent *event.DeleteEvent) {
 	pod := deleteEvent.Object.(*corev1.Pod)
 	ownerJob := r.getPodOwnerElasticJob(pod)
@@ -222,11 +225,11 @@ func (r *ElasticJobReconciler) ProcessPodDeleteEvent(deleteEvent *event.DeleteEv
 		}
 		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
 		if pod.Status.Phase == corev1.PodPending {
-			replicaStatus.Pending -= 1
-			replicaStatus.Failed += 1
+			replicaStatus.Pending--
+			replicaStatus.Failed++
 		} else if pod.Status.Phase == corev1.PodRunning {
-			replicaStatus.Active -= 1
-			replicaStatus.Failed += 1
+			replicaStatus.Active--
+			replicaStatus.Failed++
 		}
 	}
 
@@ -246,13 +249,13 @@ func incrementReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJo
 		}
 		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
 		if pod.Status.Phase == corev1.PodPending {
-			replicaStatus.Pending += 1
+			replicaStatus.Pending++
 		} else if pod.Status.Phase == corev1.PodRunning {
-			replicaStatus.Active += 1
+			replicaStatus.Active++
 		} else if pod.Status.Phase == corev1.PodFailed {
-			replicaStatus.Failed += 1
+			replicaStatus.Failed++
 		} else if pod.Status.Phase == corev1.PodSucceeded {
-			replicaStatus.Succeeded += 1
+			replicaStatus.Succeeded++
 		}
 	}
 }
@@ -268,13 +271,13 @@ func decreaseReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJob
 		}
 		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
 		if pod.Status.Phase == corev1.PodPending {
-			replicaStatus.Pending -= 1
+			replicaStatus.Pending--
 		} else if pod.Status.Phase == corev1.PodRunning {
-			replicaStatus.Active -= 1
+			replicaStatus.Active--
 		} else if pod.Status.Phase == corev1.PodFailed {
-			replicaStatus.Failed -= 1
+			replicaStatus.Failed--
 		} else if pod.Status.Phase == corev1.PodSucceeded {
-			replicaStatus.Succeeded -= 1
+			replicaStatus.Succeeded--
 		}
 	}
 }
