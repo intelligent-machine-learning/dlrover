@@ -82,10 +82,13 @@ will be used in job-level failure diagnosis.
 ### Diagnostician
 
 Diagnostician is responsible for identifying failures and propose final solutions. It provides 
-**observe** to identify the failure and **resolve** to explore solution. 
+**observe** to identify the failure and **resolve** to explore solution. The
+**diagnose** is to define the diagnosis procedure. For example, in some cases, we
+have to invoke **observe** multiple times to identify different problems for a single
+failure.
 
 ```python
-class Diagnostician(metaclass=ABCMeta):
+class Diagnostician:
     """
     Diagnostician is to observe problems and resolve those problems
     """
@@ -93,15 +96,24 @@ class Diagnostician(metaclass=ABCMeta):
     def __init__(self):
         pass
 
-    @abstractmethod
-    def observe(self, **kwargs) -> DiagnosisAction:
+    def observe(self, **kwargs) -> DiagnosisObservation:
         # observe if particular problem happened
-        return NoAction()
+        return DiagnosisObservation("unknown")
 
-    @abstractmethod
-    def resolve(self, problem: DiagnosisAction, **kwargs) -> DiagnosisAction:
+    def resolve(
+            self, problem: DiagnosisObservation, **kwargs
+    ) -> DiagnosisAction:
         # explore the solution to resolve the problem
-        return NoAction()
+        return EventAction()
+
+    def diagnose(self, **kwargs) -> DiagnosisAction:
+        # define the diagnosis procedure
+        try:
+            ob = self.observe(**kwargs)
+            return self.resolve(ob, **kwargs)
+        except Exception as e:
+            logger.error(f"Fail to diagnose the problem: {e}")
+            return NoAction()
 ```
 
 ### InferenceChain
