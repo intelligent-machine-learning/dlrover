@@ -55,9 +55,7 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertEqual(chief_params.restart_timeout, 0)
         self.assertEqual(chief_params.group_resource.count, 0)
         self.assertEqual(chief_params.group_resource.node_resource.cpu, 0)
-        self.assertEqual(
-            chief_params.group_resource.node_resource.memory, 0
-        )
+        self.assertEqual(chief_params.group_resource.node_resource.memory, 0)
         self.assertTrue(params.relaunch_always)
 
     def test_adjust_params(self):
