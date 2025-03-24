@@ -10,7 +10,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dlrover.python.rl.trainer.trainer import BaseTrainer
+from dlrover.python.rl.trainer.workload import BaseWorkload
 
 
-class RLMasterConstant(object):
-    JOB_CONTEXT_STATE_KEY = "job-context"
+class TestTrainer(BaseTrainer):
+    def init(self):
+        pass
+
+    def fit(self):
+        pass
+
+
+class TestActor(BaseWorkload):
+    pass
+
+
+class TestGenerator(BaseWorkload):
+    pass
+
+
+class TestReference(BaseWorkload):
+    pass
+
+
+class TestReward(BaseWorkload):
+    pass

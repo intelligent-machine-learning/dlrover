@@ -10,15 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pickle
 from typing import Dict
 
-from rl.common.enums import MasterStateBackendType
+from dlrover.python.common.serialize import PickleSerializable
+from dlrover.python.rl.common.enums import MasterStateBackendType
 
 
-class JobConfig(object):
+class JobConfig(PickleSerializable):
     def __init__(
         self,
+        job_name: str,
         master_state_backend_type: MasterStateBackendType,
         master_state_backend_config: Dict,
     ):
@@ -26,27 +27,27 @@ class JobConfig(object):
         Configuration(non-business part) of the job.
 
         Args:
+            job_name: Name of the job.
             master_state_backend_type: The type of the master state backend.
             master_state_backend_config: The configuration of the master state
                 backend, like: path and so on.
         """
 
+        self._job_name = job_name
         self._master_state_backend_type = master_state_backend_type
         self._master_state_backend_config = master_state_backend_config
 
     def __repr__(self):
         return (
             "JobConfig("
+            f"job_name={self._job_name}, "
             f"master_state_backend_type={self._master_state_backend_type}, "
             f"master_state_backend_config={self._master_state_backend_config})"
         )
 
-    def serialize(self):
-        return pickle.dumps(self)
-
-    @classmethod
-    def deserialize(cls, data) -> "JobConfig":
-        return pickle.loads(data)
+    @property
+    def job_name(self) -> str:
+        return self._job_name
 
     @property
     def master_state_backend_type(self) -> MasterStateBackendType:
@@ -59,5 +60,7 @@ class JobConfig(object):
     @classmethod
     def build_from_args(cls, args):
         return JobConfig(
-            args.master_state_backend_type, args.master_state_backend_config
+            args.job_name,
+            args.master_state_backend_type,
+            args.master_state_backend_config,
         )

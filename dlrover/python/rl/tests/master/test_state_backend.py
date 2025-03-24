@@ -13,10 +13,6 @@
 import unittest
 
 import ray
-from ray.experimental.internal_kv import (
-    _initialize_internal_kv,
-    _internal_kv_initialized,
-)
 
 from dlrover.python.rl.master.state_backend import (
     MasterStateBackendFactory,
@@ -48,8 +44,9 @@ class RayInternalMasterStateBackendTest(unittest.TestCase):
 
     def test_basic(self):
         test_key = self._key_prefix + "k1"
-        self._backend.set(test_key.encode(), b"v1")
-        self.assertEqual(self._backend.get(test_key.encode()), b"v1")
-        self.assertTrue(self._backend.exists(test_key.encode()))
-        self._backend.delete(test_key.encode())
-        self.assertFalse(self._backend.exists(test_key.encode()))
+        test_key_b = test_key.encode()
+        self._backend.set(test_key_b, b"v1")
+        self.assertEqual(self._backend.get(test_key_b), b"v1")
+        self.assertTrue(self._backend.exists(test_key_b))
+        self._backend.delete(test_key_b)
+        self.assertFalse(self._backend.exists(test_key_b))

@@ -12,5 +12,6 @@
 # limitations under the License.
 
 
-class RLMasterConstant(object):
-    JOB_CONTEXT_STATE_KEY = "job-context"
+class Executor(object):
+    def __init__(self):
+        self.__

@@ -10,17 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pickle
 import threading
 from typing import Dict, Tuple
 
-from common.singleton import Singleton
 from omegaconf import DictConfig
-from rl.common.config import JobConfig
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import PickleSerializable
+from dlrover.python.common.singleton import Singleton
+from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
+    RLRoleType,
     TrainerArcType,
     TrainerType,
 )
@@ -56,7 +57,13 @@ class TrainerDesc(object):
         self._config: DictConfig = config
 
     def __repr__(self):
-        return f"Trainer(class={self._module_class}, type={self._trainer_type}, arc_type={self._trainer_arc_type}, algorithm_type={self._algorithm_type}, config={self._config})"
+        return (
+            f"Trainer(class={self._module_class}, "
+            f"type={self._trainer_type}, "
+            f"arc_type={self._trainer_arc_type}, "
+            f"algorithm_type={self._algorithm_type}, "
+            f"config={self._config})"
+        )
 
     @property
     def module_name(self) -> str:
@@ -101,7 +108,11 @@ class WorkloadDesc(object):
             self._resource: Dict[str, float] = {}
 
     def __repr__(self):
-        return f"Workload(class={self._module_class}, num={self._num}, resource={self._resource})"
+        return (
+            f"Workload(class={self._module_class}, "
+            f"num={self._num}, "
+            f"resource={self._resource})"
+        )
 
     @property
     def module_name(self) -> str:
@@ -120,68 +131,62 @@ class WorkloadDesc(object):
         return self._resource
 
 
-class RLContext(object):
+class RLContext(PickleSerializable):
     def __init__(
         self,
         trainer: TrainerDesc,
-        actor_workload: WorkloadDesc,
-        generator_workload: WorkloadDesc,
-        ref_workload: WorkloadDesc,
-        reward_workload: WorkloadDesc,
-        critic_workload: WorkloadDesc,
+        workloads: Dict[RLRoleType, WorkloadDesc],
     ):
         """
-        Description of a workload.
+        Description of reinforcement learning's computing architecture.
 
         Args:
             trainer: The description for the trainer.
-            actor_workload: The description for the actor workload.
-            generator_workload: The description for the generator workload.
-            ref_workload: The description for the reference workload.
-            reward_workload: The description for the reward workload.
-            critic_workload: The description for the critic workload.
+            workloads: A dictionary of workloads, including: actor_workload,
+                generator_workload, ref_workload, reward_workload,
+                critic_workload.
         """
 
         self._trainer = trainer
-        self._actor_workload = actor_workload
-        self._generator_workload = generator_workload
-        self._ref_workload = ref_workload
-        self._reward_workload = reward_workload
-        self._critic_workload = critic_workload
+        self._workloads = workloads
 
     def __repr__(self):
-        return f"RLContext({self._trainer}, actor:{self._actor_workload}, generator:{self._generator_workload}, reference:{self._ref_workload}, reward:{self._reward_workload}, critic:{self._critic_workload})"
+        return (
+            f"RLContext({self._trainer}, "
+            f"actor:{self.actor_workload}, "
+            f"generator:{self.generator_workload}, "
+            f"reference:{self.ref_workload}, "
+            f"reward:{self.reward_workload}, "
+            f"critic:{self.critic_workload})"
+        )
 
     @property
     def trainer(self):
         return self._trainer
 
     @property
+    def workloads(self) -> Dict[RLRoleType, WorkloadDesc]:
+        return self._workloads
+
+    @property
     def actor_workload(self):
-        return self._actor_workload
+        return self._workloads[RLRoleType.ACTOR]
 
     @property
     def generator_workload(self):
-        return self._generator_workload
+        return self._workloads[RLRoleType.GENERATOR]
 
     @property
     def ref_workload(self):
-        return self._ref_workload
+        return self._workloads[RLRoleType.REFERENCE]
 
     @property
     def reward_workload(self):
-        return self._reward_workload
+        return self._workloads[RLRoleType.REWARD]
 
     @property
     def critic_workload(self):
-        return self._critic_workload
-
-    def serialize(self):
-        return pickle.dumps(self)
-
-    @classmethod
-    def deserialize(cls, data) -> "RLContext":
-        return pickle.loads(data)
+        return self._workloads[RLRoleType.CRITIC]
 
     @classmethod
     def build_from_args(cls, args):
@@ -262,11 +267,13 @@ class RLContext(object):
                     )
             return RLContext(
                 trainer_desc,
-                actor_desc,
-                generator_desc,
-                reference_desc,
-                reward_desc,
-                critic_desc,
+                {
+                    RLRoleType.ACTOR: actor_desc,
+                    RLRoleType.GENERATOR: generator_desc,
+                    RLRoleType.REFERENCE: reference_desc,
+                    RLRoleType.REWARD: reward_desc,
+                    RLRoleType.CRITIC: critic_desc,
+                },
             )
         except Exception as e:
             logger.error(
@@ -327,7 +334,7 @@ class RLContext(object):
         return True
 
 
-class JobContext(Singleton):
+class JobContext(Singleton, PickleSerializable):
     """
     JobContext includes all the key runtime information.
     """

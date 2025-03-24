@@ -14,6 +14,7 @@
 import unittest
 
 from dlrover.python.master.args import parse_master_args
+from dlrover.python.util.common_util import print_args
 
 
 class ArgsTest(unittest.TestCase):

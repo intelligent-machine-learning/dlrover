@@ -34,7 +34,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_RL_CONF}",
+            f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
         self.assertIsNotNone(rl_context)
@@ -59,7 +59,6 @@ class RLContextTest(unittest.TestCase):
         self.assertTrue(rl_context.__str__())
 
         self.assertTrue(rl_context.validate())
-        mock_get_class = None
         self.assertTrue(rl_context.validate())
 
         # with invalid input(build failed)
@@ -67,7 +66,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_DPO_RL_CONF}",
+            f"{TestData.UD_DPO_MOCK_RL_CONF}",
         ]
         with self.assertRaises(InvalidRLConfiguration):
             RLContext.build_from_args(parse_job_args(args))
@@ -77,7 +76,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_RL_CONF}",
+            f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
         serialized = rl_context.serialize()

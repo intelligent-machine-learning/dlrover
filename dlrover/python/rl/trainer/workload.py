@@ -10,7 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from abc import ABC
+
+import ray
+from ray.actor import ActorHandle
 
 
-class RLMasterConstant(object):
-    JOB_CONTEXT_STATE_KEY = "job-context"
+class BaseWorkload(ABC):
+    def __init__(self, master_handle: ActorHandle):
+        self._master_handle = master_handle
+
+    @property
+    def master_handle(self) -> ActorHandle:
+        return self._master_handle
+
+    def report_master(self):
+        ray.get(self._master_handle.report.remote())

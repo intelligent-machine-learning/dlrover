@@ -14,7 +14,7 @@
 
 class TestData(object):
 
-    UD_SIMPLE_RL_CONF = {
+    UD_SIMPLE_MOCK_RL_CONF = {
         "type": "USER_DEFINED",
         "arc_type": "MEGATRON",
         "module": "test_trainer",
@@ -37,7 +37,38 @@ class TestData(object):
         },
     }
 
-    UD_DPO_RL_CONF = {
+    UD_SIMPLE_TEST_RL_CONF = {
+        "type": "USER_DEFINED",
+        "arc_type": "MEGATRON",
+        "module": "dlrover.python.rl.tests.test_class",
+        "class": "TestTrainer",
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "workload": {
+            "actor": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+            },
+            "generator": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestGenerator",
+            },
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+            },
+            "reward": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
+            },
+        },
+    }
+
+    UD_DPO_MOCK_RL_CONF = {
         "type": "USER_DEFINED",
         "arc_type": "MEGATRON",
         "module": "test_trainer",

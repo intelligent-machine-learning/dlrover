@@ -17,12 +17,7 @@ from typing import Any, Dict, Union
 from omegaconf import OmegaConf
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.enums import (
-    MasterStateBackendType,
-    RLAlgorithmType,
-    TrainerArcType,
-    TrainerType,
-)
+from dlrover.python.rl.common.enums import MasterStateBackendType
 from dlrover.python.util.args_util import parse_dict, pos_int
 from dlrover.python.util.common_util import print_args
 
@@ -58,33 +53,45 @@ def _build_job_args_parser():
         "--master_cpu",
         default=2,
         type=pos_int,
-        help="The number of cpu for the dlrover rl master actor. Default is 2.",
+        help="The number of cpu for the dlrover rl master actor. "
+        "Default is 2.",
     )
     parser.add_argument(
         "--master_mem",
         default=4096,
         type=pos_int,
-        help="The size of memory(mb) for the dlrover rl master actor. Default is 4096.",
+        help="The size of memory(mb) for the dlrover rl master actor. "
+        "Default is 4096.",
     )
     parser.add_argument(
         "--master_state_backend_type",
         "--state_backend_type",
         default=MasterStateBackendType.RAY_INTERNAL.value,
         type=_parse_master_state_backend_type,
-        help="The state backend type for the dlrover rl master actor. Default is 'RAY_INTERNAL'.",
+        help="The state backend type for the dlrover rl master actor. "
+        "Default is 'RAY_INTERNAL'.",
     )
     parser.add_argument(
         "--master_state_backend_config",
         "--state_backend_config",
         default={},
         type=parse_dict,
-        help="The state backend configuration for the dlrover rl master actor. Default is {}.",
+        help="The state backend configuration for the dlrover rl "
+        "master actor. Default is {}.",
     )
     parser.add_argument(
         "--rl_config",
         default={},
         type=_parse_omega_config,
-        help='The full configurations for rl trainer in JSON/DICT format: {"trainer_type":"USER_DEFINED / OPENRLHF_DEEPSPEED / ...","trainer_arc_type":"MEGATRON / FSDP / ...","algorithm_type":"GRPO / PPO / ...","config":{},"workload":{"actor":{"num":"n","module":"xxx","class":"xxx"},"generator":{"num":"n","module":"xxx","class":"xxx"},"reference":{"num":"n","module":"xxx","class":"xxx"},"reward":{"num":"n","module":"xxx","class":"xxx"},"critic":{"num":"n","module":"xxx","class":"xxx"}}}',
+        help="The full configurations for rl trainer in JSON/DICT format: "
+        '{"trainer_type":"USER_DEFINED / OPENRLHF_DEEPSPEED / ...",'
+        '"trainer_arc_type":"MEGATRON / FSDP / ...","algorithm_type":'
+        '"GRPO / PPO / ...","config":{},"workload":{"actor":{"num":"n",'
+        '"module":"xxx","class":"xxx"},"generator":{"num":"n","module":'
+        '"xxx","class":"xxx"},"reference":{"num":"n","module":"xxx",'
+        '"class":"xxx"},"reward":{"num":"n","module":"xxx",'
+        '"class":"xxx"},"critic":{"num":"n","module":"xxx",'
+        '"class":"xxx"}}}',
         required=True,
     )
     return parser

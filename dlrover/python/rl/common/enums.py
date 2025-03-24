@@ -35,6 +35,14 @@ class TrainerArcType(Enum):
     DEEPSPEED = "DEEPSPEED"
 
 
+class RLRoleType(Enum):
+    ACTOR = "ACTOR"
+    GENERATOR = "GENERATOR"
+    REFERENCE = "REFERENCE"
+    REWARD = "REWARD"
+    CRITIC = "CRITIC"
+
+
 class MasterStateBackendType(Enum):
     RAY_INTERNAL = "RAY_INTERNAL"
     HDFS = "HDFS"
