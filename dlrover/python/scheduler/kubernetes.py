@@ -494,13 +494,9 @@ class K8sJobArgs(JobArgs):
             return
 
         node_arg = copy.deepcopy(self.node_args[NodeType.WORKER])
-        group_res = copy.deepcopy(
-            self.node_args[NodeType.WORKER].group_resource
-        )
-        group_res.count = 1
-        group_res.node_resource.cpu = chief_core
-        group_res.node_resource.memory = chief_memory
-        node_arg.group_resource = group_res
+        node_arg.group_resource.count = 1
+        node_arg.group_resource.node_resource.cpu = chief_core
+        node_arg.group_resource.node_resource.memory = chief_memory
         self.node_args[NodeType.CHIEF] = node_arg
 
         logger.info(f"Add new chief worker: {self.node_args}")
