@@ -16,44 +16,24 @@ from typing import Any, Dict, Union
 
 from omegaconf import OmegaConf
 
-from dlrover.python.util.args_util import pos_int
-from dlrover.python.util.common_util import print_args
-
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import (
+    MasterStateBackendType,
     RLAlgorithmType,
     TrainerArcType,
     TrainerType,
 )
+from dlrover.python.util.args_util import parse_dict, pos_int
+from dlrover.python.util.common_util import print_args
 
 
-def _parse_trainer_type(value: str):
+def _parse_master_state_backend_type(value: str):
     try:
-        return TrainerType(value.upper())
+        return MasterStateBackendType(value.upper())
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"Invalid trainer type: {value}. "
-            f"Expected one of {[a.value for a in TrainerType]}"
-        )
-
-
-def _parse_algorithm_type(value: str):
-    try:
-        return RLAlgorithmType(value.upper())
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid algorithm type: {value}. "
-            f"Expected one of {[a.value for a in RLAlgorithmType]}"
-        )
-
-
-def _parse_trainer_arc_type(value: str):
-    try:
-        return TrainerArcType(value.upper())
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid trainer arc type: {value}. "
-            f"Expected one of {[a.value for a in TrainerArcType]}"
+            f"Invalid master state backend type: {value}. "
+            f"Expected one of {[a.value for a in MasterStateBackendType]}"
         )
 
 
@@ -66,7 +46,7 @@ def _parse_omega_config(value: Union[str, Dict[str, Any]]):
         )
 
 
-def _build_rl_args_parser():
+def _build_job_args_parser():
     parser = argparse.ArgumentParser(description="RL Training")
     parser.add_argument(
         "--job_name",
@@ -76,21 +56,32 @@ def _build_rl_args_parser():
     )
     parser.add_argument(
         "--master_cpu",
-        "--master-cpu",
         default=2,
         type=pos_int,
         help="The number of cpu for the dlrover rl master actor. Default is 2.",
     )
     parser.add_argument(
         "--master_mem",
-        "--master-mem",
         default=4096,
         type=pos_int,
         help="The size of memory(mb) for the dlrover rl master actor. Default is 4096.",
     )
     parser.add_argument(
+        "--master_state_backend_type",
+        "--state_backend_type",
+        default=MasterStateBackendType.RAY_INTERNAL.value,
+        type=_parse_master_state_backend_type,
+        help="The state backend type for the dlrover rl master actor. Default is 'RAY_INTERNAL'.",
+    )
+    parser.add_argument(
+        "--master_state_backend_config",
+        "--state_backend_config",
+        default={},
+        type=parse_dict,
+        help="The state backend configuration for the dlrover rl master actor. Default is {}.",
+    )
+    parser.add_argument(
         "--rl_config",
-        "--rl-config",
         default={},
         type=_parse_omega_config,
         help='The full configurations for rl trainer in JSON/DICT format: {"trainer_type":"USER_DEFINED / OPENRLHF_DEEPSPEED / ...","trainer_arc_type":"MEGATRON / FSDP / ...","algorithm_type":"GRPO / PPO / ...","config":{},"workload":{"actor":{"num":"n","module":"xxx","class":"xxx"},"generator":{"num":"n","module":"xxx","class":"xxx"},"reference":{"num":"n","module":"xxx","class":"xxx"},"reward":{"num":"n","module":"xxx","class":"xxx"},"critic":{"num":"n","module":"xxx","class":"xxx"}}}',
@@ -99,8 +90,8 @@ def _build_rl_args_parser():
     return parser
 
 
-def parse_rl_args(args=None):
-    parser = _build_rl_args_parser()
+def parse_job_args(args=None):
+    parser = _build_job_args_parser()
 
     args, unknown_args = parser.parse_known_args(args=args)
     print_args(args)

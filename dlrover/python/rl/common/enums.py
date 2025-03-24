@@ -15,8 +15,13 @@ from enum import Enum
 
 
 class TrainerType(Enum):
-    USER_DEFINED = "USER_DEFINED"
-    OPENRLHF_DEEPSPEED = "OPENRLHF_DEEPSPEED"
+    USER_DEFINED = ("USER_DEFINED", None, None)
+    OPENRLHF_PPO_DEEPSPEED = ("OPENRLHF_PPO_DEEPSPEED", "PPO", "DEEPSPEED")
+
+    def __init__(self, value, algorithm_type, arc_type):
+        self._value = value
+        self.algorithmType = algorithm_type
+        self.arc_type = arc_type
 
 
 class RLAlgorithmType(Enum):
@@ -28,3 +33,8 @@ class TrainerArcType(Enum):
     MEGATRON = "MEGATRON"
     FSDP = "FSDP"
     DEEPSPEED = "DEEPSPEED"
+
+
+class MasterStateBackendType(Enum):
+    RAY_INTERNAL = "RAY_INTERNAL"
+    HDFS = "HDFS"

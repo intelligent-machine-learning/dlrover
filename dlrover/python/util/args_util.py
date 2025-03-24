@@ -56,6 +56,25 @@ def parse_tuple_list(value):
         )
 
 
+def parse_dict(value):
+    """
+    Format：{${key}: ${value}, ...}
+    """
+    if not value or value == "":
+        return {}
+    try:
+        parsed_dict = ast.literal_eval(value)
+
+        if isinstance(parsed_dict, dict):
+            return parsed_dict
+        else:
+            raise ValueError("invalid format: not dict")
+    except Exception:
+        raise argparse.ArgumentTypeError(
+            "Invalid format. Expected format: {k1: v1, ...}"
+        )
+
+
 def parse_tuple_dict(value):
     """
     Format：{(${value1}, ${value2}): ${boolean}, ...}

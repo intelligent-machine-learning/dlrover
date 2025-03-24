@@ -10,32 +10,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import unittest
 
-import ray
-
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.context import RLContext, get_job_context
+from dlrover.python.rl.tests.test_data import TestData
 
 
-@ray.remote
-class DLRoverRLMaster(object):
-    def __init__(self, job_config_serialized, rl_context_serialized):
-        self._job_config = JobConfig.deserialize(job_config_serialized)
-        self._rl_context = RLContext.deserialize(rl_context_serialized)
+class BaseMasterTest(unittest.TestCase):
+    def setUp(self):
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_RL_CONF}",
+        ]
+        parsed_args = parse_job_args(args)
+        job_config = JobConfig.build_from_args(parsed_args)
+        rl_context = RLContext.build_from_args(parsed_args)
+
         self._job_context = get_job_context()
-        self._job_context.init(self._job_config, self._rl_context)
+        self._job_context.init(job_config, rl_context)
 
-        self._started = False
-
-        logger.infof(
-            "DLRover RLMaster initiated with "
-            f"job-config: {self._job_config}, "
-            f"rl-context: {self._rl_context}."
-        )
-        self.start()
-
-    def start(self):
-        self._started = True
-
-        # load context from backend
+    def tearDown(self):
+        pass

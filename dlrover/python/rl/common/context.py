@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pickle
+import threading
 from typing import Dict, Tuple
 
+from common.singleton import Singleton
 from omegaconf import DictConfig
+from rl.common.config import JobConfig
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import (
@@ -46,11 +49,13 @@ class TrainerDesc(object):
         """
         self._module_class: Tuple[str, str] = module_class
         self._trainer_type: TrainerType = TrainerType[trainer_type]
-        self._trainer_arc_type: TrainerArcType = TrainerArcType[trainer_arc_type]
+        self._trainer_arc_type: TrainerArcType = TrainerArcType[
+            trainer_arc_type
+        ]
         self._algorithm_type: RLAlgorithmType = RLAlgorithmType[algorithm_type]
         self._config: DictConfig = config
 
-    def __str__(self):
+    def __repr__(self):
         return f"Trainer(class={self._module_class}, type={self._trainer_type}, arc_type={self._trainer_arc_type}, algorithm_type={self._algorithm_type}, config={self._config})"
 
     @property
@@ -95,7 +100,7 @@ class WorkloadDesc(object):
         else:
             self._resource: Dict[str, float] = {}
 
-    def __str__(self):
+    def __repr__(self):
         return f"Workload(class={self._module_class}, num={self._num}, resource={self._resource})"
 
     @property
@@ -144,7 +149,7 @@ class RLContext(object):
         self._reward_workload = reward_workload
         self._critic_workload = critic_workload
 
-    def __str__(self):
+    def __repr__(self):
         return f"RLContext({self._trainer}, actor:{self._actor_workload}, generator:{self._generator_workload}, reference:{self._ref_workload}, reward:{self._reward_workload}, critic:{self._critic_workload})"
 
     @property
@@ -199,7 +204,7 @@ class RLContext(object):
             reference_desc = None
             reward_desc = None
             critic_desc = None
-            if trainer_desc.trainer_type == TrainerType.OPENRLHF_DEEPSPEED:
+            if trainer_desc.trainer_type == TrainerType.OPENRLHF_PPO_DEEPSPEED:
                 # TODO
                 pass
             else:
@@ -275,14 +280,24 @@ class RLContext(object):
             logger.error("Trainer not set.")
             return False
         else:
-            if not self.trainer.module_name or not self.trainer.class_name or not self.trainer.config:
-                logger.error("Trainer mandatory arguments: module, class or "
-                             "config has empty value.")
+            if (
+                not self.trainer.module_name
+                or not self.trainer.class_name
+                or not self.trainer.config
+            ):
+                logger.error(
+                    "Trainer mandatory arguments: module, class or "
+                    "config has empty value."
+                )
                 return False
-            if not get_class_by_module_and_class_name(self.trainer.module_name, self.trainer.class_name):
-                logger.error("Trainer not found "
-                             f"by module {self.trainer.module_name} "
-                             f"and class {self.trainer.class_name}.")
+            if not get_class_by_module_and_class_name(
+                self.trainer.module_name, self.trainer.class_name
+            ):
+                logger.error(
+                    "Trainer not found "
+                    f"by module {self.trainer.module_name} "
+                    f"and class {self.trainer.class_name}."
+                )
                 return False
 
         # actor
@@ -290,14 +305,52 @@ class RLContext(object):
             logger.error("Actor workload not set.")
             return False
         else:
-            if not self.actor_workload.module_name or not self.actor_workload.class_name:
-                logger.error("Actor workload mandatory arguments: module or "
-                             "class has empty value.")
+            if (
+                not self.actor_workload.module_name
+                or not self.actor_workload.class_name
+            ):
+                logger.error(
+                    "Actor workload mandatory arguments: module or "
+                    "class has empty value."
+                )
                 return False
-            if not get_class_by_module_and_class_name(self.actor_workload.module_name, self.actor_workload.class_name):
-                logger.error("Actor workload not found "
-                             f"by module {self.actor_workload.module_name} "
-                             f"and class {self.actor_workload.class_name}.")
+            if not get_class_by_module_and_class_name(
+                self.actor_workload.module_name, self.actor_workload.class_name
+            ):
+                logger.error(
+                    "Actor workload not found "
+                    f"by module {self.actor_workload.module_name} "
+                    f"and class {self.actor_workload.class_name}."
+                )
                 return False
 
         return True
+
+
+class JobContext(Singleton):
+    """
+    JobContext includes all the key runtime information.
+    """
+
+    def __init__(self):
+        self._job_config = None
+        self._rl_context = None
+
+        self._locker = threading.Lock()
+
+    def init(self, job_config: JobConfig, rl_context: RLContext):
+        self._job_config = job_config
+        self._rl_context = rl_context
+
+    @property
+    def job_config(self) -> JobConfig:
+        return self._job_config
+
+    @property
+    def rl_context(self) -> RLContext:
+        return self._rl_context
+
+
+def get_job_context() -> JobContext:
+    job_context = JobContext.singleton_instance()
+    return job_context

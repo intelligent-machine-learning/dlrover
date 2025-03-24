@@ -55,7 +55,11 @@ class CommonUtilTest(unittest.TestCase):
         self.assertEqual(port, 64004)
 
     def test_get_class_by_module_and_class_name(self):
-        self.assertIsNotNone(cu.get_class_by_module_and_class_name(self.__module__, self.__class__.__name__))
+        self.assertIsNotNone(
+            cu.get_class_by_module_and_class_name(
+                self.__module__, self.__class__.__name__
+            )
+        )
 
 
 if __name__ == "__main__":
