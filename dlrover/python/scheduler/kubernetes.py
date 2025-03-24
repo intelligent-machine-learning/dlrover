@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 import time
 from typing import Dict
@@ -20,6 +21,7 @@ from kubernetes.utils.quantity import parse_quantity
 
 from dlrover.python.common.constants import (
     DefaultResourceLimits,
+    DistributionStrategy,
     ElasticJobLabel,
     NodeType,
     OptimizeMode,
@@ -471,6 +473,37 @@ class K8sJobArgs(JobArgs):
                 _dlrover_context.seconds_to_timeout_task_process,
             )
         logger.info("Job args = %s", self.__dict__)
+
+    def add_chief_node_arg(self, chief_core, chief_memory):
+        if (
+            self.distribution_strategy != DistributionStrategy.PS
+            or not chief_core
+            or not chief_memory
+        ):
+            logger.info(
+                f"No need to adjust workers: {self.distribution_strategy}, "
+                f"{chief_core}, {chief_memory}"
+            )
+            return
+
+        if (
+            NodeType.CHIEF in self.node_args
+            and self.node_args[NodeType.CHIEF].group_resource.count > 0
+        ) or (NodeType.WORKER not in self.node_args):
+            logger.info(f"No need to adjust workers: {self.node_args}")
+            return
+
+        node_arg = copy.deepcopy(self.node_args[NodeType.WORKER])
+        group_res = copy.deepcopy(
+            self.node_args[NodeType.WORKER].group_resource
+        )
+        group_res.count = 1
+        group_res.node_resource.cpu = chief_core
+        group_res.node_resource.memory = chief_memory
+        node_arg.group_resource = group_res
+        self.node_args[NodeType.CHIEF] = node_arg
+
+        logger.info(f"Add new chief worker: {self.node_args}")
 
     def _retry_to_get_job(self, k8s_client: k8sClient):
         for _ in range(3):

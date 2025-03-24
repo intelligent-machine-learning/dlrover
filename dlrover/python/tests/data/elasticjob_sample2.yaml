@@ -29,28 +29,6 @@ spec:
                   requests:
                     cpu: 1
                     memory: 4096Mi
-    chief:
-      restartCount: 2
-      replicas: 1
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: dlrover/elasticjob:iris_estimator
-                command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
-                resources:
-                  requests:
-                    cpu: 4
-                    memory: 40960Mi
     worker:
       restartCount: 3
       template:
@@ -68,6 +46,10 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: 1
+                    memory: 4096Mi
                 env:
                 - name: HOST_PORTS
                   value: 1,2,3,4,5

@@ -29,6 +29,7 @@ class k8sJobArgsTest(unittest.TestCase):
         params.initilize()
         self.assertTrue(NodeType.WORKER in params.node_args)
         self.assertTrue(NodeType.PS in params.node_args)
+        self.assertTrue(NodeType.CHIEF in params.node_args)
         self.assertTrue(
             params.distribution_strategy == DistributionStrategy.PS
         )
@@ -47,5 +48,84 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertEqual(ps_params.group_resource.node_resource.memory, 4096)
         self.assertEqual(
             ps_params.group_resource.node_resource.priority, "high"
+        )
+
+        chief_params = params.node_args[NodeType.CHIEF]
+        self.assertEqual(chief_params.restart_count, 2)
+        self.assertEqual(chief_params.restart_timeout, 0)
+        self.assertEqual(chief_params.group_resource.count, 1)
+        self.assertEqual(chief_params.group_resource.node_resource.cpu, 4)
+        self.assertEqual(
+            chief_params.group_resource.node_resource.memory, 40960
+        )
+        self.assertTrue(params.relaunch_always)
+
+    def test_adjust_params(self):
+        mock_k8s_client(yml="sample2")
+        params = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        params.initilize()
+        self.assertTrue(NodeType.WORKER in params.node_args)
+        self.assertTrue(NodeType.PS in params.node_args)
+        self.assertTrue(
+            params.distribution_strategy == DistributionStrategy.PS
+        )
+        self.assertTrue(NodeType.CHIEF not in params.node_args)
+
+        worker_params = params.node_args[NodeType.WORKER]
+        self.assertEqual(worker_params.restart_count, 3)
+        self.assertEqual(worker_params.restart_timeout, 0)
+        self.assertEqual(worker_params.group_resource.count, 0)
+        self.assertEqual(worker_params.group_resource.node_resource.cpu, 1)
+        self.assertEqual(
+            worker_params.group_resource.node_resource.memory, 4096
+        )
+
+        ps_params = params.node_args[NodeType.PS]
+        self.assertEqual(ps_params.restart_count, 3)
+        self.assertEqual(ps_params.restart_timeout, 0)
+        self.assertEqual(ps_params.group_resource.count, 3)
+        self.assertEqual(ps_params.group_resource.node_resource.cpu, 1)
+        self.assertEqual(ps_params.group_resource.node_resource.memory, 4096)
+        self.assertEqual(
+            ps_params.group_resource.node_resource.priority, "high"
+        )
+
+        mock_k8s_client(yml="sample2")
+        params = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        params.initilize()
+        params.add_chief_node_arg(4, 10240)
+        self.assertTrue(NodeType.WORKER in params.node_args)
+        self.assertTrue(NodeType.PS in params.node_args)
+        self.assertTrue(
+            params.distribution_strategy == DistributionStrategy.PS
+        )
+        self.assertTrue(NodeType.CHIEF in params.node_args)
+
+        worker_params = params.node_args[NodeType.WORKER]
+        self.assertEqual(worker_params.restart_count, 3)
+        self.assertEqual(worker_params.restart_timeout, 0)
+        self.assertEqual(worker_params.group_resource.count, 0)
+        self.assertEqual(worker_params.group_resource.node_resource.cpu, 1)
+        self.assertEqual(
+            worker_params.group_resource.node_resource.memory, 4096
+        )
+
+        ps_params = params.node_args[NodeType.PS]
+        self.assertEqual(ps_params.restart_count, 3)
+        self.assertEqual(ps_params.restart_timeout, 0)
+        self.assertEqual(ps_params.group_resource.count, 3)
+        self.assertEqual(ps_params.group_resource.node_resource.cpu, 1)
+        self.assertEqual(ps_params.group_resource.node_resource.memory, 4096)
+        self.assertEqual(
+            ps_params.group_resource.node_resource.priority, "high"
+        )
+
+        chief_params = params.node_args[NodeType.CHIEF]
+        self.assertEqual(chief_params.restart_count, 3)
+        self.assertEqual(chief_params.restart_timeout, 0)
+        self.assertEqual(chief_params.group_resource.count, 1)
+        self.assertEqual(chief_params.group_resource.node_resource.cpu, 4)
+        self.assertEqual(
+            chief_params.group_resource.node_resource.memory, 10240
         )
         self.assertTrue(params.relaunch_always)

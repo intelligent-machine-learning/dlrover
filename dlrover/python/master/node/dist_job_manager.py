@@ -367,9 +367,7 @@ class DistributedJobManager(JobManager):
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:
-            self._job_resource.adjust_worker_for_estimator(
-                self._job_args.chief_core, self._job_args.chief_memory
-            )
+            self._job_resource.adjust_worker_for_estimator()
 
     def _create_initial_scale_plan(self):
         scale_plan = ScalePlan()

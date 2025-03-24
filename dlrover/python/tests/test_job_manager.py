@@ -159,9 +159,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
             5, NodeResource(1, 4096)
         )
-        job.adjust_worker_for_estimator(
-            job_args.chief_core, job_args.chief_memory
-        )
+        job.adjust_worker_for_estimator()
         group_resource = job.get_node_group_resource(NodeType.WORKER)
         self.assertEqual(group_resource.count, 4)
         self.assertEqual(group_resource.node_resource.cpu, 1)
@@ -193,7 +191,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         job.node_group_resources[NodeType.CHIEF] = NodeGroupResource(
             1, NodeResource(1, 40960)
         )
-        job.adjust_worker_for_estimator(4, 10240)
+        job.adjust_worker_for_estimator()
         group_resource = job.get_node_group_resource(NodeType.WORKER)
         self.assertEqual(group_resource.count, 5)
         self.assertEqual(group_resource.node_resource.cpu, 1)
@@ -239,7 +237,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
             5, NodeResource(1, 4096)
         )
-        job.adjust_worker_for_estimator(4, 10240)
+        job.adjust_worker_for_estimator()
         group_resource = job.get_node_group_resource(NodeType.WORKER)
         self.assertEqual(group_resource.count, 4)
         self.assertEqual(group_resource.node_resource.cpu, 1)
@@ -250,8 +248,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(group_resource.node_resource.memory, 4096)
         group_resource = job.get_node_group_resource(NodeType.CHIEF)
         self.assertEqual(group_resource.count, 1)
-        self.assertEqual(group_resource.node_resource.cpu, 4)
-        self.assertEqual(group_resource.node_resource.memory, 10240)
+        self.assertEqual(group_resource.node_resource.cpu, 1)
+        self.assertEqual(group_resource.node_resource.memory, 4096)
 
         nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         self.assertEqual(len(nodes[NodeType.WORKER]), 4)
@@ -262,10 +260,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(nodes[NodeType.WORKER][2].id, 2)
         self.assertEqual(nodes[NodeType.WORKER][0].type, NodeType.WORKER)
         self.assertEqual(nodes[NodeType.WORKER][0].config_resource.cpu, 1)
-        self.assertEqual(nodes[NodeType.CHIEF][0].config_resource.cpu, 4)
-        self.assertEqual(
-            nodes[NodeType.CHIEF][0].config_resource.memory, 10240
-        )
+        self.assertEqual(nodes[NodeType.CHIEF][0].config_resource.cpu, 1)
+        self.assertEqual(nodes[NodeType.CHIEF][0].config_resource.memory, 4096)
         self.assertEqual(nodes[NodeType.CHIEF][0].id, 0)
         self.assertEqual(
             nodes[NodeType.WORKER][0].config_resource.memory, 4096
