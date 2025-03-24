@@ -51,12 +51,12 @@ class k8sJobArgsTest(unittest.TestCase):
         )
 
         chief_params = params.node_args[NodeType.CHIEF]
-        self.assertEqual(chief_params.restart_count, 2)
+        self.assertEqual(chief_params.restart_count, 1)
         self.assertEqual(chief_params.restart_timeout, 0)
-        self.assertEqual(chief_params.group_resource.count, 1)
-        self.assertEqual(chief_params.group_resource.node_resource.cpu, 4)
+        self.assertEqual(chief_params.group_resource.count, 0)
+        self.assertEqual(chief_params.group_resource.node_resource.cpu, 0)
         self.assertEqual(
-            chief_params.group_resource.node_resource.memory, 40960
+            chief_params.group_resource.node_resource.memory, 0
         )
         self.assertTrue(params.relaunch_always)
 

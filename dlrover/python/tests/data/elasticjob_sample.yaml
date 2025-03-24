@@ -30,8 +30,7 @@ spec:
                     cpu: 1
                     memory: 4096Mi
     chief:
-      restartCount: 2
-      replicas: 1
+      restartCount: 1
       template:
           metadata:
             annotations:
@@ -47,10 +46,6 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
-                resources:
-                  requests:
-                    cpu: 4
-                    memory: 40960Mi
     worker:
       restartCount: 3
       template:
