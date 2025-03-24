@@ -85,7 +85,47 @@ def parse_tuple_dict(value):
         )
 
 
-def add_params(parser):
+def print_args(args, exclude_args=[], groups=None):
+    """
+    Args:
+        args: parsing results returned from `parser.parse_args`
+        exclude_args: the arguments which won't be printed.
+        groups: It is a list of a list. It controls which options should be
+        printed together. For example, we expect all model specifications such
+        as `optimizer`, `loss` are better printed together.
+        groups = [["optimizer", "loss"]]
+    """
+
+    def _get_attr(instance, attribute):
+        try:
+            return getattr(instance, attribute)
+        except AttributeError:
+            return None
+
+    dedup = set()
+    if groups:
+        for group in groups:
+            for element in group:
+                dedup.add(element)
+                logger.info("%s = %s", element, _get_attr(args, element))
+    other_options = [
+        (key, value)
+        for (key, value) in args.__dict__.items()
+        if key not in dedup and key not in exclude_args
+    ]
+    for key, value in other_options:
+        logger.info("%s = %s", key, value)
+
+
+def pos_int(arg):
+    res = int(arg)
+    if res <= 0:
+        raise ValueError("Positive integer argument required. Got %s" % res)
+    return res
+
+
+def _build_master_args_parser():
+    parser = argparse.ArgumentParser(description="Training Master")
     parser.add_argument("--job_name", help="ElasticJob name", required=True)
     parser.add_argument(
         "--namespace",
@@ -132,49 +172,6 @@ def add_params(parser):
         "The boolean value represent 'bypass or not'. If set to False "
         "it indicates a bypass, otherwise it indicates normal execution.",
     )
-
-
-def print_args(args, exclude_args=[], groups=None):
-    """
-    Args:
-        args: parsing results returned from `parser.parse_args`
-        exclude_args: the arguments which won't be printed.
-        groups: It is a list of a list. It controls which options should be
-        printed together. For example, we expect all model specifications such
-        as `optimizer`, `loss` are better printed together.
-        groups = [["optimizer", "loss"]]
-    """
-
-    def _get_attr(instance, attribute):
-        try:
-            return getattr(instance, attribute)
-        except AttributeError:
-            return None
-
-    dedup = set()
-    if groups:
-        for group in groups:
-            for element in group:
-                dedup.add(element)
-                logger.info("%s = %s", element, _get_attr(args, element))
-    other_options = [
-        (key, value)
-        for (key, value) in args.__dict__.items()
-        if key not in dedup and key not in exclude_args
-    ]
-    for key, value in other_options:
-        logger.info("%s = %s", key, value)
-
-
-def pos_int(arg):
-    res = int(arg)
-    if res <= 0:
-        raise ValueError("Positive integer argument required. Got %s" % res)
-    return res
-
-
-def _build_master_args_parser():
-    parser = argparse.ArgumentParser(description="Training Master")
     parser.add_argument(
         "--port",
         default=0,
@@ -206,7 +203,12 @@ def _build_master_args_parser():
         type=str,
         help="The type of XPU, should be 'nvidia' or 'ascend'",
     )
-    add_params(parser)
+    parser.add_argument(
+        "--task_process_timeout",
+        default=DefaultValues.SEC_TO_TIMEOUT_TASK_PROCESS,
+        type=pos_int,
+        help="The timeout value of worker task process(For PS type job).",
+    )
     return parser
 
 

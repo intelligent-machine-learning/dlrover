@@ -77,3 +77,14 @@ class FunctionUtilTest(unittest.TestCase):
             self.assertTrue(time.time() - start > 1)
         except Exception:
             self.fail()
+
+    def test_ignore_exceptions(self):
+        @fu.ignore_exceptions()
+        def test0(t):
+            if t > 0:
+                return t
+            else:
+                raise Exception()
+
+        self.assertEqual(test0(1), 1)
+        self.assertIsNone(test0(0))

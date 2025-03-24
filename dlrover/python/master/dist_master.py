@@ -28,10 +28,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisConstant,
-    DiagnosisResult,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -140,7 +137,7 @@ class DistributedJobMaster(JobMaster):
         )
         self.task_manager = (
             TaskManager(
-                args.node_args[NodeType.WORKER].restart_timeout,
+                args.node_args[NodeType.WORKER].process_timeout,
                 self.perf_monitor,
             )
             if args.enable_dynamic_sharding
@@ -234,8 +231,8 @@ class DistributedJobMaster(JobMaster):
                 logger.info(f"Got job abortion action: {action}")
                 self.request_stop(
                     success=False,
-                    reason=DiagnosisResult.DIAG_ABORT,
-                    msg=action.reason,
+                    reason=action.reason,
+                    msg=action.msg,
                 )
             else:
                 self.job_manager.process_diagnosis_action(action)
@@ -296,6 +293,10 @@ class DistributedJobMaster(JobMaster):
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
+                    self._job_evt.fail(
+                        error=f"{reason}",
+                        msg=msg,
+                    )
                     self.request_stop(False, reason, msg)
                     continue
                 self.job_manager.clear_exited_nodes()

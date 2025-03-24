@@ -260,6 +260,18 @@ class ElasticLaunchConfig(LaunchConfig):
             self.network_check = True
             self.comm_perf_test = True
 
+    def to_json(self):
+        return {
+            "min_nodes": self.min_nodes,
+            "max_nodes": self.max_nodes,
+            "nproc_per_node": self.nproc_per_node,
+            "rdzv_backend": self.rdzv_backend,
+            "rdzv_endpoint": self.rdzv_endpoint,
+            "rdzv_configs": json.dumps(self.rdzv_configs),
+            "max_restarts": self.max_restarts,
+            "accelerator": self.accelerator,
+        }
+
 
 class MasterRendezvousHandler(RendezvousHandler):
     """The rendezvous handler completes rendezvous by connecting
@@ -1070,7 +1082,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info("Succeeded and exit.")
                     _agent_evt.process_succeeded(
                         node_rank=self._node_rank,
-                        return_values=run_result.return_values,
+                        return_values=f"{run_result.return_values}",
+                        state=f"{run_result.state.name}",
                     )
 
                 return run_result
@@ -1102,33 +1115,44 @@ class ElasticTrainingAgent(LocalElasticAgent):
                             instance=DiagnosisConstant.LOCAL_INSTANCE,
                             action_type=DiagnosisActionType.RELAUNCH_WORKER,
                         )
+
+                if action.action_type == DiagnosisActionType.RESTART_WORKER:
+                    _agent_evt.process_restart(
+                        node_rank=self._node_rank,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+                elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+                    _agent_evt.process_fail(
+                        node_rank=self._node_rank,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+
                 self._process_diagnosis_action(action)
 
                 if self._worker_group.state == WorkerState.FAILED:
-                    _agent_evt.process_fail(
-                        node_rank=self._node_rank,
-                        return_values=run_result.return_values,
-                    )
                     return run_result
-
-                _agent_evt.process_restart(
-                    node_rank=self._node_rank,
-                    return_values=run_result.return_values,
-                    restart_count=self._restart_count,
-                    remaining_restarts=self._remaining_failovers,
-                )
 
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
-                    self._save_ckpt_to_storage()
-                    self._restart_workers(self._worker_group)
-                    _agent_evt.process_restart(
+                    _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
-                        return_values=run_result.return_values,
                         restart_count=self._restart_count,
                         remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
                     )
+                    self._save_ckpt_to_storage()
+                    self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
@@ -1394,7 +1418,6 @@ def launch_agent(
             # if the error files for the failed children exist
             # @record will copy the first error (root cause)
             # to the error file of the launcher process.
-            _agent_evt.exit(success=False)
             raise ChildFailedError(
                 name=entrypoint_name,
                 failures=result.failures,
@@ -1428,6 +1451,24 @@ def launch_agent(
             logger.info("Failed and exit.")
         elif is_node_check_failed:
             logger.info("Node check failed and exit.")
+
+        if result is None:
+            _agent_evt.exit(
+                success=False,
+                exc_type=f"{exc_type}",
+                exc_value=f"{exc_value}",
+                exc_traceback=f"{exc_traceback}",
+            )
+        else:
+            _agent_evt.exit(
+                success=False,
+                exc_type=f"{exc_type}",
+                exc_value=f"{exc_value}",
+                exc_traceback=f"{exc_traceback}",
+                state=f"{result.state.name}",
+                return_values=f"{result.return_values}",
+                failures=f"{result.failures}",
+            )
 
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
@@ -1516,6 +1557,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
+    def network_check_evt(self, round, node_rank):
+        return _agent_evt.network_check(
+            round=round,
+            node_rank=node_rank,
+        )
+
     def _get_check_node_timeout(self):
         return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT
 
@@ -1531,6 +1578,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         fault_nodes = []
         stragglers = []
         for i in range(self._check_round):
+            evt = self.network_check_evt(i, self._node_rank)
+            evt.begin()
+
             result, elapsed_time = self._run_node_check(
                 timeout=JobConstant.NODE_CHECK_TIMEOUT
             )
@@ -1538,11 +1588,6 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
-            )
-            _agent_evt.node_check(
-                round=i,
-                elapsed_time=elapsed_time,
-                status=result,
             )
 
             success = success or result
@@ -1556,6 +1601,18 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 status,
                 elapsed_time,
             )
+            if success:
+                evt.success(
+                    result=f"{result}",
+                    status=f"{status}",
+                    elapsed_time=f"{elapsed_time}",
+                )
+            else:
+                evt.fail(
+                    result=f"{result}",
+                    status=f"{status}",
+                    elapsed_time=f"{elapsed_time}",
+                )
 
             fault_nodes, fault_reason = self._client.check_fault_node(
                 timeout=self._get_check_node_timeout()
@@ -1765,11 +1822,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         # DLRover will replace the abnormal node with a new node.
         success = node_health_check(
             config=config, entrypoint=entrypoint, args=cmd_args
-        )
-        _agent_evt.network_check(
-            round=_round,
-            success=success,
-            config=config,
         )
 
         if success:
