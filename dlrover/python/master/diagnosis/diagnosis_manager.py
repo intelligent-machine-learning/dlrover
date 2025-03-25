@@ -109,6 +109,10 @@ class DiagnosisManager:
 
         start = time.time()
         job_ctx = get_job_context()
+        if job_ctx.get_pre_check_status() == PreCheckStatus.PASS:
+            logger.info("Skip pre-check for the result is pass.")
+            return
+
         pre_check_ops = _dlrover_context.get_pre_check_operators()
         logger.info(
             "Start training pre-check with "
