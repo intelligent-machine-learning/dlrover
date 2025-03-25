@@ -256,6 +256,7 @@ class DiagnosisManagerTest(unittest.TestCase):
             return_value=PreCheckStatus.PASS
         )
         mgr.pre_check()
+        mgr._job_context.get_pre_check_status = original_get_pre_check_status
 
 
 class TestOperator(PreCheckOperator):
