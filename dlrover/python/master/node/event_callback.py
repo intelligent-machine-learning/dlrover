@@ -280,7 +280,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 node.type,
                 node.id,
                 error_data=NodeExitReason.HARDWARE_ERROR,
-                level=TrainingExceptionLevel.NODE_ERROR,
+                level=TrainingExceptionLevel.ERROR,
             )
         self._remove_node_from_rdzv(node)
 
