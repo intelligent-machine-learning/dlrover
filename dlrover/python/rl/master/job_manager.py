@@ -11,9 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.context import get_job_context
+from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.master.execution.executor import Executor
 from dlrover.python.rl.master.execution.graph import RLExecutionGraph
+from dlrover.python.rl.master.execution.scheduling_strategy import (
+    SimpleOrderedStrategy,
+)
 
 
 class JobManager(object):
@@ -21,16 +26,20 @@ class JobManager(object):
         self._job_ctx = get_job_context()
 
         self._execution_graph = RLExecutionGraph(self._job_ctx.rl_context)
-        self._executor = Executor(self._execution_graph)
+        self._executor = Executor(
+            self._execution_graph, self._get_scheduling_strategy()
+        )
+
+    def _get_scheduling_strategy(self):
+        strategy_type = self._job_ctx.job_config.scheduling_strategy_type
+        if strategy_type == SchedulingStrategyType.SIMPLE:
+            return SimpleOrderedStrategy()
+        else:
+            raise NotImplementedError()
 
     def start(self):
+        logger.info("Starting job manager.")
+        self._executor.execute()
+
+    def stop(self):
         pass
-
-    def build_execution_graph(self):
-        if self._execution_graph:
-            return self._execution_graph
-
-        # build graph from rl context
-        self._execution_graph = RLExecutionGraph.build_from_rl_context(
-            self._job_ctx.rl_context
-        )

@@ -17,7 +17,10 @@ from typing import Any, Dict, Union
 from omegaconf import OmegaConf
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.enums import MasterStateBackendType
+from dlrover.python.rl.common.enums import (
+    MasterStateBackendType,
+    SchedulingStrategyType,
+)
 from dlrover.python.util.args_util import parse_dict, pos_int
 from dlrover.python.util.common_util import print_args
 
@@ -29,6 +32,16 @@ def _parse_master_state_backend_type(value: str):
         raise argparse.ArgumentTypeError(
             f"Invalid master state backend type: {value}. "
             f"Expected one of {[a.value for a in MasterStateBackendType]}"
+        )
+
+
+def _parse_scheduling_strategy_type(value: str):
+    try:
+        return SchedulingStrategyType(value.upper())
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid scheduling strategy type: {value}. "
+            f"Expected one of {[a.value for a in SchedulingStrategyType]}"
         )
 
 
@@ -78,6 +91,14 @@ def _build_job_args_parser():
         type=parse_dict,
         help="The state backend configuration for the dlrover rl "
         "master actor. Default is {}.",
+    )
+    parser.add_argument(
+        "--scheduling_strategy_type",
+        "--scheduling_strategy_type",
+        default=SchedulingStrategyType.SIMPLE.value,
+        type=_parse_scheduling_strategy_type,
+        help="The scheduling strategy type for the dlrover rl master to "
+        "create workloads.",
     )
     parser.add_argument(
         "--rl_config",

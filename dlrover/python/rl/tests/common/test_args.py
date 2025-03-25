@@ -16,9 +16,13 @@ import unittest
 from dlrover.python.rl.common.args import (
     _parse_master_state_backend_type,
     _parse_omega_config,
+    _parse_scheduling_strategy_type,
     parse_job_args,
 )
-from dlrover.python.rl.common.enums import MasterStateBackendType
+from dlrover.python.rl.common.enums import (
+    MasterStateBackendType,
+    SchedulingStrategyType,
+)
 
 
 class ArgsTest(unittest.TestCase):
@@ -33,6 +37,15 @@ class ArgsTest(unittest.TestCase):
         )
         with self.assertRaises(argparse.ArgumentTypeError):
             _parse_master_state_backend_type("local")
+
+    def test_parse_scheduling_strategy_type(self):
+        self.assertEqual(
+            _parse_scheduling_strategy_type("simple"),
+            SchedulingStrategyType.SIMPLE,
+        )
+
+        with self.assertRaises(argparse.ArgumentTypeError):
+            _parse_scheduling_strategy_type("test")
 
     def test_parse_trainer_config(self):
         self.assertIsNotNone(_parse_omega_config({}))

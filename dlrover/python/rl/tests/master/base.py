@@ -24,7 +24,7 @@ class BaseMasterTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
         job_config = JobConfig.build_from_args(parsed_args)

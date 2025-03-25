@@ -10,11 +10,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
+
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 from dlrover.python.rl.trainer.workload import BaseWorkload
 
 
 class TestTrainer(BaseTrainer):
+    def init(self):
+        logger.info("TestTrainer init called")
+        time.sleep(1)
+
+    def fit(self):
+        logger.info("TestTrainer fit called")
+        time.sleep(1)
+
+
+class TestInteractiveTrainer(BaseTrainer):
     def init(self):
         pass
 
@@ -23,16 +36,20 @@ class TestTrainer(BaseTrainer):
 
 
 class TestActor(BaseWorkload):
-    pass
+    def init(self):
+        time.sleep(2)
 
 
 class TestGenerator(BaseWorkload):
-    pass
+    def init(self):
+        time.sleep(1)
 
 
 class TestReference(BaseWorkload):
-    pass
+    def init(self):
+        time.sleep(1)
 
 
 class TestReward(BaseWorkload):
-    pass
+    def init(self):
+        time.sleep(1)

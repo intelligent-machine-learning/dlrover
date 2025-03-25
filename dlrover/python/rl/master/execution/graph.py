@@ -13,6 +13,8 @@
 from itertools import chain
 from typing import Dict, List
 
+from rl.trainer.trainer import BaseTrainer
+
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.rl.common.context import RLContext
@@ -41,6 +43,7 @@ class RLExecutionVertex(PickleSerializable):
         self.__world_size = world_size
 
         # runtime info
+        self._actor_handle = None
         self._create_time = 0
         self._exit_time = 0
         self._hostname = ""
@@ -70,6 +73,10 @@ class RLExecutionVertex(PickleSerializable):
     @property
     def world_size(self):
         return self.__world_size
+
+    @property
+    def actor_handle(self):
+        return self._actor_handle
 
     @property
     def create_time(self):
@@ -147,6 +154,7 @@ class RLExecutionGraph(PickleSerializable):
                             role,
                             desc.module_name,
                             desc.class_name,
+                            desc.instance_resource,
                             i,
                             desc.instance_number,
                         )
@@ -171,3 +179,12 @@ class RLExecutionGraph(PickleSerializable):
 
     def get_vertex(self, role_type: RLRoleType, rank) -> RLExecutionVertex:
         return self.__execution_vertices[role_type][rank]
+
+    def get_all_actor_handles(self):
+        return [vertex.actor_handle for vertex in self.get_all_vertices()]
+
+    def get_trainer(self) -> BaseTrainer:
+        return get_class_by_module_and_class_name(
+            self.__rl_context.trainer.module_name,
+            self.__rl_context.trainer.class_name,
+        )

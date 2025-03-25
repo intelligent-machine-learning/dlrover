@@ -40,7 +40,7 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(len(actor_vertices), 2)
         self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
         self.assertEqual(
-            actor_vertices[0].role, RLRoleType.ACTOR.value + "-" + 0
+            actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
         )
         self.assertEqual(actor_vertices[0].class_obj, TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
@@ -51,7 +51,7 @@ class ExecutionGraphTest(BaseMasterTest):
         generator_vertex_0 = graph.get_vertex(RLRoleType.GENERATOR, 0)
         self.assertEqual(generator_vertex_0.role, RLRoleType.GENERATOR)
         self.assertEqual(
-            actor_vertices[0].role, RLRoleType.GENERATOR.value + "-" + 0
+            generator_vertex_0.name, RLRoleType.GENERATOR.value + "-" + str(0)
         )
         self.assertEqual(generator_vertex_0.class_obj, TestGenerator)
         self.assertEqual(generator_vertex_0.rank, 0)
@@ -59,9 +59,9 @@ class ExecutionGraphTest(BaseMasterTest):
 
         now = int(time.time())
         generator_vertex_0.update_runtime_info(
-            create_time=time.time(), hostname="test.com", restart_count=2
+            create_time=now, hostname="test.com", restart_count=2
         )
-        self.assertEqual(generator_vertex_0.create_time(), now)
+        self.assertEqual(generator_vertex_0.create_time, now)
         self.assertEqual(generator_vertex_0.exit_time, 0)
         self.assertEqual(generator_vertex_0.hostname, "test.com")
         self.assertEqual(generator_vertex_0.hostip, "")

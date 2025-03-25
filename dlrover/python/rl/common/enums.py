@@ -46,3 +46,7 @@ class RLRoleType(Enum):
 class MasterStateBackendType(Enum):
     RAY_INTERNAL = "RAY_INTERNAL"
     HDFS = "HDFS"
+
+
+class SchedulingStrategyType(Enum):
+    SIMPLE = "SIMPLE"
