@@ -51,7 +51,7 @@ determines the necessary actions to be executed. The specific diagnostic process
 is shown in the following diagram, which is implemented through a simple inference chain. 
 The final actions can be either an event output or a specific fault-tolerance operation.
 
-<img src="../figures/diagnosis_manager_arc.png" alt="Diagnosis Manager">
+<img src="../figures/diagnosis_manager_arc.jpg" alt="Diagnosis Manager">
 
 Then it will interact with other core roles of the master, such as the 
 job-manager, to assist in the lifecycle management of training.
