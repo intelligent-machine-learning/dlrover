@@ -13,6 +13,7 @@
 import threading
 from typing import Dict, Tuple
 
+from common.resource import Resource
 from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
@@ -103,9 +104,9 @@ class WorkloadDesc(object):
         self._module_class: Tuple[str, str] = module_class
         self._num: int = num
         if resource:
-            self._resource: Dict[str, float] = resource
+            self._resource: Resource = Resource.from_dict(resource)
         else:
-            self._resource: Dict[str, float] = {}
+            self._resource: Resource = Resource.default_gpu()
 
     def __repr__(self):
         return (
@@ -307,7 +308,7 @@ class RLContext(PickleSerializable):
                 )
                 return False
 
-        # actor
+        # actor validation
         if not self.actor_workload:
             logger.error("Actor workload not set.")
             return False
@@ -328,6 +329,15 @@ class RLContext(PickleSerializable):
                     "Actor workload not found "
                     f"by module {self.actor_workload.module_name} "
                     f"and class {self.actor_workload.class_name}."
+                )
+                return False
+
+        # resource validation
+        for role, workload in self.workloads.items():
+            if workload and not workload.instance_resource.validate():
+                logger.error(
+                    f"Workload {role} resource validation "
+                    f"failed: {workload.instance_resource}."
                 )
                 return False
 

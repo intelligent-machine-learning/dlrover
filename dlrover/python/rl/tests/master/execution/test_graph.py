@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.context import RLContext
@@ -38,6 +39,9 @@ class ExecutionGraphTest(BaseMasterTest):
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
         self.assertEqual(len(actor_vertices), 2)
         self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
+        self.assertEqual(
+            actor_vertices[0].role, RLRoleType.ACTOR.value + "-" + 0
+        )
         self.assertEqual(actor_vertices[0].class_obj, TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
         self.assertEqual(actor_vertices[0].world_size, 2)
@@ -46,6 +50,19 @@ class ExecutionGraphTest(BaseMasterTest):
 
         generator_vertex_0 = graph.get_vertex(RLRoleType.GENERATOR, 0)
         self.assertEqual(generator_vertex_0.role, RLRoleType.GENERATOR)
+        self.assertEqual(
+            actor_vertices[0].role, RLRoleType.GENERATOR.value + "-" + 0
+        )
         self.assertEqual(generator_vertex_0.class_obj, TestGenerator)
         self.assertEqual(generator_vertex_0.rank, 0)
         self.assertEqual(generator_vertex_0.world_size, 1)
+
+        now = int(time.time())
+        generator_vertex_0.update_runtime_info(
+            create_time=time.time(), hostname="test.com", restart_count=2
+        )
+        self.assertEqual(generator_vertex_0.create_time(), now)
+        self.assertEqual(generator_vertex_0.exit_time, 0)
+        self.assertEqual(generator_vertex_0.hostname, "test.com")
+        self.assertEqual(generator_vertex_0.hostip, "")
+        self.assertEqual(generator_vertex_0.restart_count, 2)

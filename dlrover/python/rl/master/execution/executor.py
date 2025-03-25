@@ -10,8 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 
 
 class Executor(object):
-    def __init__(self):
-        self.__
+    def __init__(self, execution_graph: RLExecutionGraph):
+        self.__execution_graph = execution_graph
+
+    def create_workloads(self):
+        pass
+
+    def destroy_workloads(self):
+        pass

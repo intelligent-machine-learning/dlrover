@@ -13,31 +13,55 @@
 from itertools import chain
 from typing import Dict, List
 
-from rl.common.context import RLContext
-
+from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
+from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
 class RLExecutionVertex(PickleSerializable):
     def __init__(
-        self, role: RLRoleType, module_name, class_name, rank, world_size
+        self,
+        role: RLRoleType,
+        module_name: str,
+        class_name: str,
+        resource: Resource,
+        rank: int,
+        world_size: int,
     ):
+        # static info
         self.__role = role
+        self.__name = role.value + "-" + str(rank)
         self.__class_obj = get_class_by_module_and_class_name(
             module_name, class_name
         )
+        self.__resource = resource
         self.__rank = rank
         self.__world_size = world_size
+
+        # runtime info
+        self._create_time = 0
+        self._exit_time = 0
+        self._hostname = ""
+        self._hostip = ""
+        self._restart_count = 0
 
     @property
     def role(self):
         return self.__role
 
     @property
+    def name(self):
+        return self.__name
+
+    @property
     def class_obj(self):
         return self.__class_obj
+
+    @property
+    def resource(self):
+        return self.__resource
 
     @property
     def rank(self):
@@ -46,6 +70,45 @@ class RLExecutionVertex(PickleSerializable):
     @property
     def world_size(self):
         return self.__world_size
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def exit_time(self):
+        return self._exit_time
+
+    @property
+    def hostname(self):
+        return self._hostname
+
+    @property
+    def hostip(self):
+        return self._hostip
+
+    @property
+    def restart_count(self):
+        return self._restart_count
+
+    def update_runtime_info(
+        self,
+        create_time=None,
+        exit_time=None,
+        hostname=None,
+        hostip=None,
+        restart_count=None,
+    ):
+        if create_time:
+            self._create_time = create_time
+        if exit_time:
+            self._exit_time = exit_time
+        if hostname:
+            self._hostname = hostname
+        if hostip:
+            self._hostip = hostip
+        if restart_count:
+            self._restart_count = restart_count
 
 
 class RLExecutionEdge(PickleSerializable):

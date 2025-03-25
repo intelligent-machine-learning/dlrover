@@ -37,6 +37,34 @@ class TestData(object):
         },
     }
 
+    UD_INVALID_RESOURCE_RL_CONF = {
+        "type": "USER_DEFINED",
+        "arc_type": "MEGATRON",
+        "module": "test_trainer",
+        "class": "TestTrainer",
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "workload": {
+            "actor": {
+                "num": 2,
+                "module": "test_actor",
+                "class": "TestActor",
+                "resource": {"gpu": -1},
+            },
+            "generator": {
+                "num": 1,
+                "module": "test_generator",
+                "class": "TestGenerator",
+            },
+            "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
+            "reward": {
+                "num": 1,
+                "module": "test_reward",
+                "class": "testReward",
+            },
+        },
+    }
+
     UD_SIMPLE_TEST_RL_CONF = {
         "type": "USER_DEFINED",
         "arc_type": "MEGATRON",

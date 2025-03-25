@@ -53,7 +53,7 @@ class RLContextTest(unittest.TestCase):
         self.assertIsNone(rl_context.critic_workload)
         self.assertIsNotNone(rl_context.actor_workload)
         self.assertEqual(rl_context.actor_workload.instance_number, 2)
-        self.assertEqual(rl_context.actor_workload.instance_resource, {})
+        self.assertEqual(rl_context.actor_workload.instance_resource.gpu, 1)
         self.assertEqual(rl_context.actor_workload.module_name, "test_actor")
         self.assertEqual(rl_context.actor_workload.class_name, "TestActor")
         self.assertTrue(rl_context.__str__())
@@ -61,7 +61,7 @@ class RLContextTest(unittest.TestCase):
         self.assertTrue(rl_context.validate())
         self.assertTrue(rl_context.validate())
 
-        # with invalid input(build failed)
+        # with invalid type(build failed)
         args = [
             "--job_name",
             "test",
@@ -70,6 +70,16 @@ class RLContextTest(unittest.TestCase):
         ]
         with self.assertRaises(InvalidRLConfiguration):
             RLContext.build_from_args(parse_job_args(args))
+
+        # with invalid resource(validate failed)
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_INVALID_RESOURCE_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        self.assertFalse(rl_context.validate())
 
     def test_serialization(self):
         args = [
