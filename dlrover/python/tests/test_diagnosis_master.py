@@ -214,23 +214,29 @@ class DiagnosisMasterTest(unittest.TestCase):
         mock_get_pre_check_timeout.return_value = 2
         job_context = get_job_context()
         mgr = DiagnosisMaster()
+        original_get_pre_check_status = mgr._job_context.get_pre_check_status
+
         mgr.pre_check()
         self.assertEqual(job_context._action_queue.len(), 0)
 
         _dlrover_context = Context.singleton_instance()
         _dlrover_context.pre_check_operators = [
-            ("dlrover.python.tests.test_diagnosis_master", "TestOperator")
+            ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
         ]
+        mgr._job_context.get_pre_check_status = MagicMock(
+            return_value=PreCheckStatus.CHECKING
+        )
         mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
         try:
             mgr.pre_check()
             self.fail()
         except TimeoutException:
             pass
+        mgr._job_context.get_pre_check_status = original_get_pre_check_status
 
         _dlrover_context.pre_check_operators = [
             (
-                "dlrover.python.tests.test_diagnosis_master",
+                "dlrover.python.tests.test_diagnosis_manager",
                 "TestOperator",
                 True,
             )
@@ -245,6 +251,12 @@ class DiagnosisMasterTest(unittest.TestCase):
         self.assertEqual(
             job_context.get_pre_check_status(), PreCheckStatus.DISABLED
         )
+
+        mgr._job_context.get_pre_check_status = MagicMock(
+            return_value=PreCheckStatus.PASS
+        )
+        mgr.pre_check()
+        mgr._job_context.get_pre_check_status = original_get_pre_check_status
 
 
 class TestOperator(PreCheckOperator):

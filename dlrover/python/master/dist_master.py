@@ -245,7 +245,9 @@ class DistributedJobMaster(JobMaster):
         start = time.time()
         try:
             self.diagnosis_manager.pre_check()
-            logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
+            logger.info(
+                f"Pre-check finished, cost: {time.time() - start:.2f}s."
+            )
         except TimeoutException:
             logger.warning("Pre-check timeout, set pass as result for safety.")
             self._job_ctx.set_pre_check_status(PreCheckStatus.PASS)
