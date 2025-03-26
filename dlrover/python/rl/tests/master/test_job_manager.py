@@ -13,7 +13,7 @@
 from unittest.mock import MagicMock
 
 from dlrover.python.rl.master.execution.scheduling_strategy import (
-    SimpleOrderedStrategy,
+    SimpleStrategy,
 )
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.tests.master.base import BaseMasterTest
@@ -24,7 +24,7 @@ class JobManagerTest(BaseMasterTest):
         job_manager = JobManager()
         self.assertTrue(
             isinstance(
-                job_manager._get_scheduling_strategy(), SimpleOrderedStrategy
+                job_manager._get_scheduling_strategy(), SimpleStrategy
             )
         )
 

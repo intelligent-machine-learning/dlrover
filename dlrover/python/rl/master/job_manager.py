@@ -17,7 +17,7 @@ from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.master.execution.executor import Executor
 from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.master.execution.scheduling_strategy import (
-    SimpleOrderedStrategy,
+    SimpleStrategy,
 )
 
 
@@ -33,7 +33,7 @@ class JobManager(object):
     def _get_scheduling_strategy(self):
         strategy_type = self._job_ctx.job_config.scheduling_strategy_type
         if strategy_type == SchedulingStrategyType.SIMPLE:
-            return SimpleOrderedStrategy()
+            return SimpleStrategy()
         else:
             raise NotImplementedError()
 

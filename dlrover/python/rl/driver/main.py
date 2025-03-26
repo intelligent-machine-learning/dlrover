@@ -14,17 +14,18 @@ import os
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.args import parse_job_args
-from dlrover.python.rl.common.context import JobContext, RLContext
+from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.rl.master.main import DLRoverRLMaster
+from dlrover.python.rl.common.config import JobConfig
 
 
-def submit(args):
+def submit(args=None):
     # parse input arguments
     parsed_args = parse_job_args(args)
 
     # build job config from arguments
-    job_config = JobContext.build_from_args(parsed_args)
+    job_config = JobConfig.build_from_args(parsed_args)
     logger.info(f"Job config: {job_config}")
 
     # build rl context from arguments
@@ -46,8 +47,8 @@ def submit(args):
     )
 
 
-def main():
-    return submit(parse_job_args())
+def main(args=None):
+    return submit(args=args)
 
 
 if __name__ == "__main__":

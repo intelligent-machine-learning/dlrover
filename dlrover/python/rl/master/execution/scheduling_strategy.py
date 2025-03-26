@@ -37,10 +37,10 @@ class SchedulingStrategy(ABC):
                 future.result()
 
 
-class SimpleOrderedStrategy(SchedulingStrategy):
+class SimpleStrategy(SchedulingStrategy):
     """
-    Schedule workload actor one by one according to the order express
-    by vertices directly in execution graph.
+    Schedule workload actor async directly according to the vertices in
+    execution graph.
     """
 
     def schedule(self, execution_graph: RLExecutionGraph):
