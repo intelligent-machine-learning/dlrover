@@ -11,17 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import threading
 import time
 from datetime import datetime
 
 from dlrover.python.common.constants import (
     Accelerators,
+    EventReportConstants,
     GpuMetricEnum,
     NpuMetricEnum,
     PreCheckStatus,
 )
+from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
@@ -59,6 +61,7 @@ from dlrover.python.util.function_util import TimeoutException, timeout
 from dlrover.python.util.time_util import get_pending_timeout
 
 _metric_context = JobMetricContext.singleton_instance()
+_event_context = JobEventContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
 
 
@@ -78,22 +81,37 @@ class DiagnosisManager:
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
         self._job_args = job_args
+        self._reporter = get_event_reporter()
         self._metric_monitor = None
         self._lock = threading.Lock()
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
 
+    def _report_event(self, event_type, instance, action, msg="", labels=None):
+        if labels is None:
+            labels = {}
+        self._reporter.report(event_type, instance, action, msg, labels)
+
     @timeout(callback_func=get_pre_check_timeout)
     def pre_check(self):
         if not _dlrover_context.pre_check_enabled():
-            logger.info(
-                "Pre-check operator config is empty, " "pre-check disabled."
+            self._report_event(
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_PRE_CHECK_DISABLE,
             )
+            logger.info(
+                "Pre-check operator config is empty, pre-check disabled."
+            )
+            self._job_context.set_pre_check_status(PreCheckStatus.DISABLED)
             return
 
         start = time.time()
-        job_ctx = get_job_context()
+        if self._job_context.get_pre_check_status() == PreCheckStatus.PASS:
+            logger.info("Skip pre-check for the result is pass.")
+            return
+
         pre_check_ops = _dlrover_context.get_pre_check_operators()
         logger.info(
             "Start training pre-check with "
@@ -121,7 +139,7 @@ class DiagnosisManager:
         while True:
             logger.info(f"Pre-check round: {round}")
             for index, pre_check_op in enumerate(pre_check_ops):
-                if job_ctx.is_request_stopped():
+                if self._job_context.is_request_stopped():
                     logger.info(
                         f"Training pre-check({round}) interrupted, "
                         f"total time cost:{time.time() - start:.2f}s."
@@ -209,8 +227,20 @@ class DiagnosisManager:
                             )
                             continue
                 except TimeoutException as te:
+                    self._report_event(
+                        EventReportConstants.TYPE_WARN,
+                        EventReportConstants.JOB_INSTANCE,
+                        EventReportConstants.ACTION_PRE_CHECK_TIMEOUT,
+                        pre_check_op.__class__.__name__,
+                    )
                     raise te
                 except Exception as e:
+                    self._report_event(
+                        EventReportConstants.TYPE_WARN,
+                        EventReportConstants.JOB_INSTANCE,
+                        EventReportConstants.ACTION_PRE_CHECK_ERROR,
+                        pre_check_op.__class__.__name__,
+                    )
                     logger.error(
                         f"{pre_check_op.__class__.__name__} "
                         f"got unexpected error: {e}",
@@ -224,6 +254,11 @@ class DiagnosisManager:
             # outer loop continue here
             if pre_check_finish:
                 self._job_context.set_pre_check_status(PreCheckStatus.PASS)
+                self._report_event(
+                    EventReportConstants.TYPE_INFO,
+                    EventReportConstants.JOB_INSTANCE,
+                    EventReportConstants.ACTION_PRE_CHECK_PASS,
+                )
                 break
             else:
                 round += 1
@@ -240,24 +275,17 @@ class DiagnosisManager:
         store the data into global JobMetricContext
 
         """
-        logger.info(f"start {_dlrover_context.xpu_type} metric collector...")
-        if not os.getenv("DLROVER_METRIC_URL", ""):
-            logger.warning("no GPU metrics url defined, stop metric collector")
-            return
-        if not os.getenv("DLROVER_METRIC_TOKEN", ""):
-            logger.warning(
-                "no GPU metrics token defined, stop metric collector"
-            )
-            return
 
-        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
+        logger.info(f"start {self._job_args.xpu_type} metric collector...")
+
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             self._metric_monitor = NpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
-        else:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             self._metric_monitor = GpuMetricMonitor(
                 job_name=self._job_args.job_name,
                 metrics=[
@@ -265,6 +293,11 @@ class DiagnosisManager:
                     GpuMetricEnum.GPU_TENSOR_UTIL,
                 ],
             )
+        else:
+            logger.info(
+                f"No need to collect metrics in {self._job_args.xpu_type}"
+            )
+            return DiagnosisResult.DIAG_INVALID_PARAM
 
         if self._metric_monitor:
             self._metric_monitor.start()
@@ -327,32 +360,35 @@ class DiagnosisManager:
         logger.info("Stop diagnosis manager training observation...")
         self._is_observing_started = False
 
-    @staticmethod
-    def check_tensor_drop_zero(duration):
+    def check_tensor_drop_zero(self, duration):
         if duration > _metric_context.max_metric_records:
             duration = _metric_context.max_metric_records
 
-        if _dlrover_context.xpu_type is Accelerators.ASCEND_NPU:
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 NpuMetricEnum.NPU_UTIL, duration
             )
-        else:
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 GpuMetricEnum.GPU_TENSOR_UTIL, duration
             )
+        else:
+            return DiagnosisResult.DIAG_INVALID_PARAM, 0, 0
 
         if metrics is None:
             logger.warning(f"invalid metrics: {metrics}")
             return DiagnosisResult.DIAG_ERROR, 0, 0
 
         if len(metrics) < duration:
-            logger.warning(
+            logger.debug(
                 f"Waiting for tensor metrics: {len(metrics)}/{duration}"
             )
             return DiagnosisResult.DIAG_WAITING, 0, 0
 
         key_list = list(metrics.keys())
         key_list.sort(reverse=True)
+
+        logger.debug(f"Check tensor metrics: {dict(metrics)}")
 
         start_ts = key_list[0]
         end_ts = key_list[0]

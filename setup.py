@@ -29,6 +29,7 @@ extra_require = {
     "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
+    "master": ["tornado"],
 }
 
 

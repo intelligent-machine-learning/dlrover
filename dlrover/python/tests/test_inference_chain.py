@@ -14,7 +14,7 @@
 import unittest
 from unittest.mock import patch
 
-from dlrover.python.common.constants import ErrorMonitorConstants
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.diagnosis.common.constants import InferenceConfigKey
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
@@ -65,13 +65,10 @@ class InferenceChainTest(unittest.TestCase):
         self.assertEqual(results[0].name, InferenceName.ACTION)
         self.assertEqual(
             results[0].configs[InferenceConfigKey.EVENT_TYPE],
-            ErrorMonitorConstants.TYPE_WARN,
+            EventReportConstants.TYPE_WARN,
         )
         self.assertEqual(
             results[0].configs[InferenceConfigKey.EVENT_ACTION], "GPU is lost"
-        )
-        self.assertEqual(
-            results[0].configs[InferenceConfigKey.EVENT_MSG], error_logs
         )
 
 

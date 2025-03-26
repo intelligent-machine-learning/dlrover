@@ -18,7 +18,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
-from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
 
@@ -33,10 +32,9 @@ class LocalJobManager(JobManager):
     def __init__(
         self,
         job_args: JobArgs,
-        speed_monitor=None,
-        error_monitor=None,
+        perf_monitor=None,
     ):
-        super().__init__(job_args, speed_monitor, error_monitor)
+        super().__init__(job_args, perf_monitor)
         self._job_resource_optimizer = None
 
     def start(self):
@@ -74,9 +72,7 @@ class LocalJobManager(JobManager):
         node = self._job_context.job_node(node_type, node_id)
         if node is None:
             return
-        self._error_monitor.process_error(
-            node, restart_count, error_data, level
-        )
+        self.process_error(node, restart_count, error_data, level)
 
     def collect_node_heart_beat(
         self, node_type, node_id, timestamp
@@ -168,9 +164,8 @@ class LocalJobManager(JobManager):
         self._job_context.update_job_node(node)
 
 
-def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:
+def create_job_manager(args: JobArgs, perf_monitor) -> LocalJobManager:
     return LocalJobManager(
         job_args=args,
-        speed_monitor=speed_monitor,
-        error_monitor=SimpleErrorMonitor(),
+        perf_monitor=perf_monitor,
     )

@@ -79,6 +79,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeEventType,
+    NodeExitDescription,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -146,7 +147,7 @@ def _get_local_ip():
             local_ip = socket.gethostbyname(_get_fq_hostname())
         except socket.gaierror:
             logger.warning(
-                "Can not resolve host IP. " "Use default '127.0.0.1' instead."
+                "Can not resolve host IP. Use default '127.0.0.1' instead."
             )
             local_ip = "127.0.0.1"
     return local_ip
@@ -157,6 +158,14 @@ class RendezvousOutSyncError(Exception):
 
 
 class NodeCheckFailedError(RuntimeError):
+    pass
+
+
+class RendezvousTimeoutError(RuntimeError):
+    pass
+
+
+class StopWorkerTimeoutError(RuntimeError):
     pass
 
 
@@ -250,6 +259,18 @@ class ElasticLaunchConfig(LaunchConfig):
         if self.precheck == 2:
             self.network_check = True
             self.comm_perf_test = True
+
+    def to_json(self):
+        return {
+            "min_nodes": self.min_nodes,
+            "max_nodes": self.max_nodes,
+            "nproc_per_node": self.nproc_per_node,
+            "rdzv_backend": self.rdzv_backend,
+            "rdzv_endpoint": self.rdzv_endpoint,
+            "rdzv_configs": json.dumps(self.rdzv_configs),
+            "max_restarts": self.max_restarts,
+            "accelerator": self.accelerator,
+        }
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -376,7 +397,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
                         _rdzv_evt.fail(error=err_msg)
-                        raise TimeoutError(err_msg)
+                        raise RendezvousTimeoutError(err_msg)
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
@@ -388,7 +409,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 _rdzv_evt.fail(error=err_msg)
-                raise TimeoutError(err_msg)
+                raise RendezvousTimeoutError(err_msg)
             time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
@@ -514,7 +535,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if with_diagnostician:
             self._diagnose_agent = DiagnosisAgent.singleton_instance(
-                training_log_file, failure_node_errors, node_rank
+                training_log_file=training_log_file,
+                errors=failure_node_errors,
+                node_rank=node_rank,
+                local_world_size=config.nproc_per_node,
             )
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
@@ -907,9 +931,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                 time.sleep(JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL)
                 if time.time() - start_pending > pend_timeout:
-                    raise TimeoutError("Timeout to wait for new nodes.")
-            except NodeCheckFailedError as node_check_error:
-                raise node_check_error
+                    raise RendezvousTimeoutError(
+                        "Timeout to wait for new nodes."
+                    )
+            except (
+                NodeCheckFailedError,
+                RendezvousTimeoutError,
+                StopWorkerTimeoutError,
+            ) as e:
+                raise e
             except Exception as e:
                 err_cnt += 1
                 if err_cnt < max_errors:
@@ -943,14 +973,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
-        except TimeoutError as te:
+        except StopWorkerTimeoutError as te:
             logger.error(str(te))
-            raise
+            raise te
         finally:
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        raise TimeoutError("Timed out waiting for stopping workers.")
+        raise StopWorkerTimeoutError("Timed out waiting for stopping workers.")
 
     def _set_numa_affinity(self):
         """set numa affinity to workers processes,
@@ -1053,7 +1083,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     logger.info("Succeeded and exit.")
                     _agent_evt.process_succeeded(
                         node_rank=self._node_rank,
-                        return_values=run_result.return_values,
+                        return_values=f"{run_result.return_values}",
+                        state=f"{run_result.state.name}",
                     )
 
                 return run_result
@@ -1085,33 +1116,44 @@ class ElasticTrainingAgent(LocalElasticAgent):
                             instance=DiagnosisConstant.LOCAL_INSTANCE,
                             action_type=DiagnosisActionType.RELAUNCH_WORKER,
                         )
+
+                if action.action_type == DiagnosisActionType.RESTART_WORKER:
+                    _agent_evt.process_restart(
+                        node_rank=self._node_rank,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+                elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+                    _agent_evt.process_fail(
+                        node_rank=self._node_rank,
+                        restart_count=self._restart_count,
+                        remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+
                 self._process_diagnosis_action(action)
 
                 if self._worker_group.state == WorkerState.FAILED:
-                    _agent_evt.process_fail(
-                        node_rank=self._node_rank,
-                        return_values=run_result.return_values,
-                    )
                     return run_result
-
-                _agent_evt.process_restart(
-                    node_rank=self._node_rank,
-                    return_values=run_result.return_values,
-                    restart_count=self._restart_count,
-                    remaining_restarts=self._remaining_failovers,
-                )
 
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
-                    self._save_ckpt_to_storage()
-                    self._restart_workers(self._worker_group)
-                    _agent_evt.process_restart(
+                    _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
-                        return_values=run_result.return_values,
                         restart_count=self._restart_count,
                         remaining_restarts=self._remaining_failovers,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
                     )
+                    self._save_ckpt_to_storage()
+                    self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
@@ -1137,7 +1179,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             labels = action.event_labels
             if labels is None:
                 labels = {}
-            self._client.report_event(
+            self._client.report(
                 event_type=action.event_type,
                 instance=action.event_instance,
                 action=action.event_action,
@@ -1377,7 +1419,6 @@ def launch_agent(
             # if the error files for the failed children exist
             # @record will copy the first error (root cause)
             # to the error file of the launcher process.
-            _agent_evt.exit(success=False)
             raise ChildFailedError(
                 name=entrypoint_name,
                 failures=result.failures,
@@ -1411,6 +1452,24 @@ def launch_agent(
             logger.info("Failed and exit.")
         elif is_node_check_failed:
             logger.info("Node check failed and exit.")
+
+        if result is None:
+            _agent_evt.exit(
+                success=False,
+                exc_type=f"{exc_type}",
+                exc_value=f"{exc_value}",
+                exc_traceback=f"{exc_traceback}",
+            )
+        else:
+            _agent_evt.exit(
+                success=False,
+                exc_type=f"{exc_type}",
+                exc_value=f"{exc_value}",
+                exc_traceback=f"{exc_traceback}",
+                state=f"{result.state.name}",
+                return_values=f"{result.return_values}",
+                failures=f"{result.failures}",
+            )
 
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
@@ -1499,6 +1558,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
+    def network_check_evt(self, round, node_rank):
+        return _agent_evt.network_check(
+            round=round,
+            node_rank=node_rank,
+        )
+
     def _get_check_node_timeout(self):
         return JobConstant.MASTER_CLIENT_CHECK_NODE_TIMEOUT
 
@@ -1514,6 +1579,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         fault_nodes = []
         stragglers = []
         for i in range(self._check_round):
+            evt = self.network_check_evt(i, self._node_rank)
+            evt.begin()
+
             result, elapsed_time = self._run_node_check(
                 timeout=JobConstant.NODE_CHECK_TIMEOUT
             )
@@ -1521,11 +1589,6 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
-            )
-            _agent_evt.node_check(
-                round=i,
-                elapsed_time=elapsed_time,
-                status=result,
             )
 
             success = success or result
@@ -1539,6 +1602,18 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 status,
                 elapsed_time,
             )
+            if success:
+                evt.success(
+                    result=f"{result}",
+                    status=f"{status}",
+                    elapsed_time=f"{elapsed_time}",
+                )
+            else:
+                evt.fail(
+                    result=f"{result}",
+                    status=f"{status}",
+                    elapsed_time=f"{elapsed_time}",
+                )
 
             fault_nodes, fault_reason = self._client.check_fault_node(
                 timeout=self._get_check_node_timeout()
@@ -1561,7 +1636,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                         "No need for another round of network "
                         "check because the nodes is less than 3."
                     )
-                    raise NodeCheckFailedError("This node is down.")
+                    raise NodeCheckFailedError(
+                        NodeExitDescription.CHECK_FAILED_MSG
+                    )
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
@@ -1574,7 +1651,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise NodeCheckFailedError("This node is down.")
+            raise NodeCheckFailedError(NodeExitDescription.CHECK_FAILED_MSG)
         elif self._node_rank in stragglers:
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
@@ -1746,11 +1823,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         # DLRover will replace the abnormal node with a new node.
         success = node_health_check(
             config=config, entrypoint=entrypoint, args=cmd_args
-        )
-        _agent_evt.network_check(
-            round=_round,
-            success=success,
-            config=config,
         )
 
         if success:

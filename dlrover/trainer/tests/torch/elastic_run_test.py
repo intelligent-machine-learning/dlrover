@@ -10,20 +10,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import socket
-import telnetlib
 import threading
 import time
 import unittest
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
-from dlrover.python.common.constants import PreCheckStatus
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import (
+    JobConstant,
+    NodeEnv,
+    PreCheckStatus,
+)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.elastic_run import (
     _check_dlrover_master_available,
@@ -41,36 +46,89 @@ class ElasticRunTest(unittest.TestCase):
     def setUp(self):
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 1)
+        self._pre_check_interval_ori = JobConstant.PRE_CHECK_WAIT_SECS
+        JobConstant.PRE_CHECK_WAIT_SECS = 1
 
     def tearDown(self):
         self._master.stop()
+        os.environ.clear()
+        JobConstant.PRE_CHECK_WAIT_SECS = self._pre_check_interval_ori
 
-    @patch(f"{MC_PATH}.report_failures")
-    def test_launch_local_master(self, some_func):
-        available = _check_dlrover_master_available("", timeout=3)
-        self.assertFalse(available)
-        handler, addr = _launch_dlrover_local_master("", "test", 1)
-        available = _check_dlrover_master_available(addr, timeout=15)
-        self.assertTrue(available)
-
-        def mock_telent(*args, **kwargs):
-            raise socket.gaierror("Mock gaierror")
-
-        old_telnet = telnetlib.Telnet
-        telnetlib.Telnet = mock_telent
-        some_func.return_value = True
-        with self.assertRaises(socket.gaierror):
-            _check_dlrover_master_available(addr)
-        telnetlib.Telnet = old_telnet
+    def test_launch_local_master(self):
+        handler, addr = _launch_dlrover_local_master("test:1234", "test")
+        self.assertEqual(addr, "test:1234")
+        self.assertIsNotNone(handler)
         handler.close()
 
-    def test_check_to_use_dlrover_run(self):
-        use_dlrover_run = _check_to_use_dlrover_run("", 1, 3)
-        self.assertFalse(use_dlrover_run)
-        with self.assertRaises(ValueError):
-            _check_to_use_dlrover_run("", 2, 3)
-        with self.assertRaises(ValueError):
-            _check_to_use_dlrover_run("127.0.0.1:23456", 2, 3)
+        handler, addr = _launch_dlrover_local_master("", "test")
+        self.assertTrue("127.0.0.1" in addr)
+        self.assertIsNotNone(handler)
+        handler.close()
+
+    @patch("dlrover.trainer.torch.elastic_run.telnetlib.Telnet")
+    def test_check_dlrover_master_available(self, mock_telnet):
+        self.assertFalse(_check_dlrover_master_available("", timeout=0))
+        self.assertFalse(_check_dlrover_master_available("test123", timeout=0))
+
+        mock_telnet.return_value = MagicMock()
+        self.assertTrue(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
+
+        mock_telnet.side_effect = ConnectionRefusedError()
+        self.assertFalse(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
+
+        mock_telnet.side_effect = socket.gaierror
+        self.assertFalse(
+            _check_dlrover_master_available("test123:1234", timeout=0)
+        )
+
+    @patch("dlrover.trainer.torch.elastic_run._check_dlrover_master_available")
+    @patch("dlrover.trainer.torch.elastic_run._launch_dlrover_local_master")
+    def test_check_to_use_dlrover_run(
+        self,
+        mock_launch_local_master,
+        mock_check_dlrover_master,
+    ):
+        job_name = "test"
+
+        # 1) no dist master 2) dist mode
+        mock_check_dlrover_master.return_value = False
+        try:
+            self.assertFalse(_check_to_use_dlrover_run(job_name))
+            self.fail()
+        except Exception:
+            pass
+
+        # 1) no dist master 2) standalone mode + no local master 3) node 0
+        mock_check_dlrover_master.return_value = False
+        mock_launch_local_master.return_value = None, "127.0.0.1:8000"
+        self.assertFalse(_check_to_use_dlrover_run(job_name, True))
+
+        # 1) with master address 2) node 0
+        mock_check_dlrover_master.return_value = True
+        self.assertTrue(_check_to_use_dlrover_run(job_name, True))
+
+        # 1) with master address 2) node 1
+        env_utils.set_env(NodeEnv.WORKER_RANK, "1")
+        self.assertTrue(_check_to_use_dlrover_run(job_name, True))
+
+        # 1) no master address 2) node 1
+        mock_check_dlrover_master.return_value = False
+        try:
+            self.assertFalse(_check_to_use_dlrover_run(job_name, True))
+            self.fail()
+        except Exception:
+            pass
+
+        # 1) no dist master 2) standalone mode 3) node 1
+        try:
+            self.assertFalse(_check_to_use_dlrover_run(job_name))
+            self.fail()
+        except Exception:
+            pass
 
     def test_elastic_config_from_args(self):
         args = [
@@ -142,13 +200,17 @@ class ElasticRunTest(unittest.TestCase):
         self.assertFalse(config.network_check)
 
     def test_wait_pre_check(self):
+        test_config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
         client = MasterClient.singleton_instance()
 
         # pre-check success
         client.get_pre_check_result = MagicMock(
             return_value=PreCheckStatus.PASS
         )
-        wait_pre_check()
+        client.report_pre_check_status = MagicMock(return_value=True)
+        wait_pre_check(test_config)
 
         # pre-check fail
         client.get_pre_check_result = MagicMock(
@@ -167,5 +229,5 @@ class ElasticRunTest(unittest.TestCase):
 
         start = time.time()
         threading.Thread(target=set_pre_check_success).start()
-        wait_pre_check()
+        wait_pre_check(test_config)
         self.assertTrue(time.time() - start > 0.5)

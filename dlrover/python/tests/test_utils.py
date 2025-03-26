@@ -13,6 +13,7 @@
 
 import datetime
 import os
+import random
 import time
 from unittest import mock
 
@@ -31,7 +32,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.local_master import LocalJobMaster
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
@@ -62,7 +63,7 @@ def _get_training_job(*args, **kwargs):
             job_content = f.read()
     else:
         with open(
-            "dlrover/python/tests/data" "/elasticjob_sample.yaml", "r"
+            "dlrover/python/tests/data/elasticjob_sample.yaml", "r"
         ) as f:
             job_content = f.read()
     job = yaml.safe_load(job_content)
@@ -192,6 +193,10 @@ def create_pod(labels, with_deletion_timestamp=False):
             )
         ],
         phase=NodeStatus.RUNNING,
+        host_ip=f"{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}"
+        f".{random.randint(0, 255)}",
     )
 
     resource = {"cpu": 1, "memory": "10Gi"}
@@ -211,6 +216,7 @@ def create_pod(labels, with_deletion_timestamp=False):
         containers=[container],
         restart_policy="Never",
         priority_class_name="high",
+        node_name="randomhost-" + str(random.randint(0, 1000)),
     )
 
     deletion_timestamp = (
@@ -300,7 +306,7 @@ def create_test_dataset_splitter(dataset_name="test"):
 
 
 def create_task_manager(dataset_name="test"):
-    task_manager = TaskManager(False, SpeedMonitor())
+    task_manager = TaskManager(False, PerfMonitor())
     splitter = create_test_dataset_splitter(dataset_name)
     task_manager.new_dataset(
         batch_size=10,

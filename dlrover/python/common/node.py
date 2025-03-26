@@ -366,6 +366,14 @@ class Node(object):
     def is_node_check_failed(self):
         return self.reported_status == NodeEventType.NODE_CHECK_FAILED
 
+    def get_unrecoverable_failure_msg(self):
+        if self.unrecoverable_failure_msg:
+            return self.unrecoverable_failure_msg
+        else:
+            if self.critical:
+                return "critical worker"
+            return "unknown"
+
     def __repr__(self):
         return (
             f"name:{self.name};"
@@ -390,3 +398,20 @@ class Node(object):
         if self == node:
             return
         self.__dict__.update(node.__dict__)
+
+
+class NodeEvent(object):
+    """NodeEvent is the event to change the status of a Node"""
+
+    def __init__(self, event_type, node):
+        self.event_type = event_type
+        self.node: Node = node
+
+    def is_node_check_event(self):
+        return (
+            self.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
+            or self.event_type == NodeEventType.NODE_CHECK_FAILED
+        )
+
+    def is_pre_check_event(self):
+        return self.event_type == NodeEventType.WAIT_PRE_CHECK

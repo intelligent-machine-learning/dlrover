@@ -20,7 +20,7 @@ from typing import Dict, List
 from dlrover.python.common.comm import ModelInfo
 from dlrover.python.common.constants import MemoryUnit
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
 from dlrover.python.master.stats.training_metrics import (
     CustomMetricKey,
@@ -68,7 +68,7 @@ class BaseMetricCollector(metaclass=ABCMeta):
 
     @abstractmethod
     def collect_runtime_stats(
-        self, speed_monitor: SpeedMonitor, running_nodes: List[Node]
+        self, perf_monitor: PerfMonitor, running_nodes: List[Node]
     ):
         pass
 
@@ -142,27 +142,27 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_reporter.report_customized_data(self._custom_metric)
 
     def collect_runtime_stats(
-        self, speed_monitor: SpeedMonitor, running_nodes: List[Node]
+        self, perf_monitor: PerfMonitor, running_nodes: List[Node]
     ):
         """Set runtime info by global step"""
         if (
-            speed_monitor.running_speed == 0
-            or not speed_monitor.all_worker_joined()
+            perf_monitor.running_speed == 0
+            or not perf_monitor.all_worker_joined()
         ):
             return
         self._runtime_metric.clear()
-        self._runtime_metric.global_step = speed_monitor.completed_global_step
+        self._runtime_metric.global_step = perf_monitor.completed_global_step
         self._runtime_metric.timestamp = int(time.time())
-        self._runtime_metric.speed = speed_monitor.running_speed
+        self._runtime_metric.speed = perf_monitor.running_speed
 
-        if speed_monitor.init_training_time > 0:
+        if perf_monitor.init_training_time > 0:
             init_time_key = CustomMetricKey.INIT_TRAINING_TIME
-            metric = {init_time_key: speed_monitor.init_training_time}
+            metric = {init_time_key: perf_monitor.init_training_time}
             self.collect_custom_data(metric)
         for node in running_nodes:
             node_sample = copy.deepcopy(node)
             node_sample.used_resource.memory *= MemoryUnit.MB
-            if (node.type, node.id) in speed_monitor.running_workers:
+            if (node.type, node.id) in perf_monitor.running_workers:
                 self._runtime_metric.running_nodes.append(node_sample)
             else:
                 self._runtime_metric.running_nodes.append(node_sample)

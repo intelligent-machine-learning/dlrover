@@ -15,7 +15,6 @@ import os
 from typing import List, Tuple
 
 from dlrover.python.common.constants import (
-    Accelerators,
     CommunicationType,
     PendingTimeoutStrategyType,
     UserEnv,
@@ -54,6 +53,7 @@ class DefaultValues(object):
     OPTIMIZED_WORKER_CPU_THRESHOLD = 20
     SEC_FOR_STABLE_WORKER_COUNT = 60
     SEC_INTERVAL_TO_OPTIMIZE = 300
+    SEC_TO_TIMEOUT_TASK_PROCESS = 1800
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
@@ -64,11 +64,12 @@ class DefaultValues(object):
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
     HANG_DETECTION = 1
-    HANG_DOWNTIME = 30
+    HANG_DOWNTIME = 5
     MIN_HANG_DOWNTIME = 3
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
+    MAX_TRAIN_STEPS = 1000_000
     PRE_CHECK_OPS: List[Tuple] = [
         (
             "dlrover.python.master.diagnosis.precheck_operator",
@@ -76,11 +77,16 @@ class DefaultValues(object):
             True,
         )
     ]
+    MAX_HANG_THRESHOLD = 300  # seconds
 
 
 class Context(Singleton):
     def __init__(self):
         self.master_service_type = DefaultValues.SERVICE_TYPE
+        self.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "EventReporter",
+        )
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
             DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
@@ -94,6 +100,9 @@ class Context(Singleton):
         )
         self.seconds_interval_to_optimize = (
             DefaultValues.SEC_INTERVAL_TO_OPTIMIZE
+        )
+        self.seconds_to_timeout_task_process = (
+            DefaultValues.SEC_TO_TIMEOUT_TASK_PROCESS
         )
         self.factor_to_cut_pending_cpu = (
             DefaultValues.FACTOR_TO_CUT_PENDING_CPU
@@ -124,8 +133,6 @@ class Context(Singleton):
         self.hang_detection = DefaultValues.HANG_DETECTION
         # The duration of downtime as training hang, unit is minute
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
-        # The default xpu device type.
-        self.xpu_type = Accelerators.NVIDIA_GPU
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args

@@ -231,6 +231,7 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertFalse(reset)
 
     def test_is_training_hang_by_pending_workers(self):
+        self.job_context.clear_job_nodes()
         _dlrover_ctx.pending_fail_strategy = 2
         worker_manager = WorkerManager(
             self._job_resource,
@@ -547,6 +548,7 @@ class WorkerManagerTest(unittest.TestCase):
         )
 
     def test_is_training_hang_by_insufficient_worker(self):
+        self.job_context.clear_job_nodes()
         worker_manager = WorkerManager(
             self._job_resource,
             3,
@@ -568,6 +570,23 @@ class WorkerManagerTest(unittest.TestCase):
         worker_manager._get_insufficient_timeout = mock.MagicMock(
             return_value=1
         )
+
+        # mock with 2 succeeded
+        for index in range(2):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.SUCCEEDED,
+            )
+            self.job_context.update_job_node(mock_node)
+            mock_nodes[index] = mock_node
+        for _ in range(3):
+            self.assertFalse(
+                worker_manager.is_training_hang_by_insufficient_worker()
+            )
+            time.sleep(0.1)
 
         # mock with 3 running + 1 pending
         for index in range(4):

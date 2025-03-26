@@ -100,6 +100,7 @@ class NodeEventType(object):
     NODE_CHECK_SUCCEEDED = "NODE_CHECK_SUCCEEDED"
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
     MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
+    WAIT_PRE_CHECK = "WAIT_PRE_CHECK"
 
 
 class PendingTimeoutStrategyType(object):
@@ -147,6 +148,13 @@ class NodeExitReason(object):
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
+
+
+class NodeExitDescription(object):
+    CHECK_FAILED_MSG = (
+        "This node failed the node-check "
+        "procedure(mat-mul + comm) before training."
+    )
 
 
 class JobExitReason(object):
@@ -398,12 +406,13 @@ class JobConstant(object):
     SYNC_PORTS_DEFAULT_INTERVAL = 5
 
     # interval seconds for pre-check waiting
-    PRE_CHECK_WAIT_SECS = 5
+    PRE_CHECK_WAIT_SECS = 10
 
 
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+    GENERIC_CPU = "cpu"
 
 
 class AscendConstants(object):
@@ -415,15 +424,21 @@ class AscendConstants(object):
     HCCL_PORT_START_DEFAULT = 64000
 
 
-class ErrorMonitorConstants(object):
+class EventReportConstants(object):
     TYPE_INFO = "info"
     TYPE_WARN = "warn"
     TYPE_ERROR = "error"
 
     JOB_INSTANCE = "job"
 
+    ACTION_MASTER_START = "master_start"
+    ACTION_MASTER_END = "master_end"
+    ACTION_JOB_START = "job_start"
+    ACTION_JOB_SUCCESS = "job_success"
+    ACTION_JOB_FAIL = "job_fail"
     ACTION_WORKER_CREATE = "worker_create"
     ACTION_WORKER_PENDING = "worker_pending"
+    ACTION_WORKER_NO_HEARTBEAT = "worker_no_heartbeat"
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"
@@ -443,6 +458,12 @@ class ErrorMonitorConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+
+    ACTION_PRE_CHECK_DISABLE = "pre_check_disable"
+    ACTION_PRE_CHECK_TIMEOUT = "pre_check_timeout"
+    ACTION_PRE_CHECK_ERROR = "pre_check_error"
+    ACTION_PRE_CHECK_PASS = "pre_check_pass"
+    ACTION_PRE_CHECK_FAIL = "pre_check_fail"
 
 
 class PreCheckStatus(object):

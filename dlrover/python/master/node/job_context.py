@@ -42,8 +42,10 @@ class JobContext(Singleton):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._total_worker_num = 0
         self._failed_nodes: Dict[int, int] = {}
+
         self._pre_check_status: str = PreCheckStatus.CHECKING
         self._request_stopped = False
+
         self._locker = threading.Lock()
 
     def enqueue_actions(self, actions):
@@ -207,9 +209,7 @@ class JobContext(Singleton):
         self._pre_check_status = status
 
     def get_pre_check_status(self):
-        if _dlrover_context.pre_check_enabled():
-            return self._pre_check_status
-        return PreCheckStatus.DISABLED
+        return self._pre_check_status
 
     def update_total_worker_num(self, worker_num: int):
         self._total_worker_num = worker_num

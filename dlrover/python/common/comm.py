@@ -229,6 +229,15 @@ class HeartBeat(Message):
 
 
 @dataclass
+class AtorchEvent(Message):
+    timestamp: int = 0
+    target: str = ""
+    name: str = ""
+    type: str = ""
+    step: int = 0
+
+
+@dataclass
 class PreCheckRequest(Message):
     timestamp: int = 0
     type: str = "INITIAL"

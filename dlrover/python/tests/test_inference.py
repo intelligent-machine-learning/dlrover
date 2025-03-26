@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
-    ErrorMonitorConstants,
+    EventReportConstants,
     NodeEnv,
     NodeType,
 )
@@ -436,9 +436,9 @@ class InferenceChainTest(unittest.TestCase):
                     attribution=InferenceAttribute.IS,
                     description=InferenceDescription.EVENT,
                     configs={
-                        "event_type": ErrorMonitorConstants.TYPE_WARN,
-                        "event_instance": ErrorMonitorConstants.JOB_INSTANCE,
-                        "event_action": ErrorMonitorConstants.ACTION_HANG_WARN,
+                        "event_type": EventReportConstants.TYPE_WARN,
+                        "event_instance": EventReportConstants.JOB_INSTANCE,
+                        "event_action": EventReportConstants.ACTION_HANG_WARN,
                         "event_msg": "",
                         "event_labels": "{}",
                     },
@@ -539,7 +539,7 @@ class InferenceChainTest(unittest.TestCase):
         self.assertEqual(infs[0].name, InferenceName.ACTION)
         self.assertEqual(
             infs[0].configs[InferenceConfigKey.EVENT_TYPE],
-            ErrorMonitorConstants.TYPE_WARN,
+            EventReportConstants.TYPE_WARN,
         )
 
 

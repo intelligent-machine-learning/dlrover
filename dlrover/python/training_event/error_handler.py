@@ -19,7 +19,6 @@ import traceback
 
 from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.emitter import Process
-from dlrover.python.training_event.exporter import close_default_exporter
 
 logger = get_default_logger()
 
@@ -80,13 +79,28 @@ class ErrorHandler:
                 content["stack"] = f"get stack failed: {str(e)}"
 
             self._process.instant("exit_sig", content)
-            close_default_exporter()
 
         except Exception as e:
             logger.error(f"process signal {signum} error: {str(e)}")
 
         finally:
-            self.unregister()
+            self._call_original_handler(signum, frame)
+
+    def _call_original_handler(self, signum, frame):
+        """call original handler with signal"""
+
+        # if the handler is callable, call it
+        if callable(self._original_handlers[signum]):
+            self._original_handlers[signum](signum, frame)
+        # if the handler is SIG_IGN or signal is SIGCHLD, do nothing
+        elif (
+            self._original_handlers[signum] == signal.SIG_IGN
+            or signum == signal.SIGCHLD
+        ):
+            return
+        else:
+            if self._registered:
+                self.unregister()
             # call original handler with signal
             os.kill(os.getpid(), signum)
 
@@ -98,6 +112,8 @@ class ErrorHandler:
             self._original_excepthook = sys.excepthook
             sys.excepthook = self._handle_exception
 
+            # only catch exit signals
+            # non exit signals like sigchld, will cause reentrance/deadlock
             signals = [
                 signal.SIGINT,
                 signal.SIGTERM,
@@ -106,8 +122,9 @@ class ErrorHandler:
                 signal.SIGBUS,
                 signal.SIGPIPE,
                 signal.SIGSEGV,
+                signal.SIGILL,
                 signal.SIGHUP,
-                signal.SIGCHLD,
+                signal.SIGQUIT,
             ]
             for sig in signals:
                 self._original_handlers[sig] = signal.getsignal(sig)

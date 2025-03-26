@@ -87,6 +87,11 @@ def get_env_key(key):
     return f"{ENV_PREFIX}_{key}"
 
 
+def is_dlrover_event_enabled():
+    config = Config.singleton_instance()
+    return True if config.enable is True else False
+
+
 @dataclass
 class Config(Singleton):
 
@@ -95,7 +100,7 @@ class Config(Singleton):
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
-    hook_error: bool = True
+    hook_error: bool = False
 
     rank: str = "empty"
     pid: str = "empty"

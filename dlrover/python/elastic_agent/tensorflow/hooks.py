@@ -99,7 +99,7 @@ class ReportModelInfoHook(SessionRunHook):
         if not self._is_chief:
             return
         self._global_step = run_values.results["global_step"]
-        self._training_reporter.report_resource_with_step(self._global_step)
+        self._training_reporter.report_step(self._global_step)
 
 
 class ElasticDataShardReportHook(SessionRunHook):

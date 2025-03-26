@@ -24,7 +24,7 @@ from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
-    ErrorMonitorConstants,
+    EventReportConstants,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
@@ -35,7 +35,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.node import Node, NodeEvent, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -43,7 +43,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
     NodeAction,
 )
-from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -75,7 +74,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
+from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.master.watcher.factory import (
     new_node_watcher,
     new_scale_plan_watcher,
@@ -110,17 +109,15 @@ class DistributedJobManager(JobManager):
         job_args: JobArgs,
         critical_worker_index={},
         wait_pending_relaunch=False,
-        speed_monitor=None,
+        perf_monitor=None,
         job=None,
         node_watcher: Optional[NodeWatcher] = None,
         job_scaler=None,
-        error_monitor=None,
         external_config=None,
     ):
         super().__init__(
             job_args=job_args,
-            speed_monitor=speed_monitor,
-            error_monitor=error_monitor,
+            perf_monitor=perf_monitor,
             external_config=external_config,
         )
         self._remove_exited_node = job_args.remove_exited_node
@@ -193,7 +190,6 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
-        self._error_monitor = error_monitor
 
     def start(self):
         self._scaler.start()
@@ -220,7 +216,7 @@ class DistributedJobManager(JobManager):
         if NodeType.CHIEF in plan.node_group_resources:
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
         self._job_context.update_total_worker_num(worker_num)
-        self._speed_monitor.set_target_worker_num(worker_num)
+        self._perf_monitor.set_target_worker_num(worker_num)
         self._training_node_config.set_node_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
@@ -278,9 +274,9 @@ class DistributedJobManager(JobManager):
             )
 
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "All node check failed",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
@@ -305,9 +301,9 @@ class DistributedJobManager(JobManager):
                 level=TrainingExceptionLevel.ERROR,
             )
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "PS OOM",
                 {},
             )
@@ -334,9 +330,9 @@ class DistributedJobManager(JobManager):
                 first_pending_node = self._worker_manager.first_pending_node
 
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
                     "first_pending_node": first_pending_node,
@@ -358,9 +354,9 @@ class DistributedJobManager(JobManager):
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                ErrorMonitorConstants.JOB_INSTANCE,
-                ErrorMonitorConstants.ACTION_EARLY_STOP,
+                EventReportConstants.TYPE_INFO,
+                EventReportConstants.JOB_INSTANCE,
+                EventReportConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
                 {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
@@ -444,7 +440,7 @@ class DistributedJobManager(JobManager):
             self._job_args.distribution_strategy,
             self._job_resource,
             self._job_optimizer,
-            self._speed_monitor,
+            self._perf_monitor,
             self._ps_manager,
             self._worker_manager,
             self._scaler,
@@ -543,9 +539,8 @@ class DistributedJobManager(JobManager):
                         f"created at: {node.create_time}, "
                         f"started at: {node.start_time}."
                     )
-                    _master_evt.worker_no_heartbeat(
-                        pod_name=node.name,
-                        timeout=window_interval,
+                    self._event_reporter.report_node_no_heartbeat(
+                        node, window_interval
                     )
         return dead_events
 
@@ -793,9 +788,9 @@ class DistributedJobManager(JobManager):
         if event.event_type == "exit":
             self.close_job()
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+                EventReportConstants.TYPE_INFO,
                 self._job_args.job_name,
-                ErrorMonitorConstants.ACTION_STOP,
+                EventReportConstants.ACTION_STOP,
                 "",
                 {},
             )
@@ -831,29 +826,13 @@ class DistributedJobManager(JobManager):
             f"{cur_node.name} status change: {old_status} to {new_status} "
             f"by the event {event.event_type}. "
         )
-        event_type = ErrorMonitorConstants.TYPE_INFO
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             msg += f"Exit reason is {cur_node.exit_reason}"
-            event_type = ErrorMonitorConstants.TYPE_ERROR
         logger.info(msg)
-        self._report_event(
-            event_type=event_type,
-            instance=cur_node.name,
-            action=ErrorMonitorConstants.ACTION_STATUS_UPDATE,
-            msg=f"{old_status} to {new_status}",
-            labels={
-                "from_state": old_status,
-                "to_state": new_status,
-                "node": cur_node.host_name,
-                "exit reason": cur_node.exit_reason,
-            },
+        self._event_reporter.report_node_status_change(
+            cur_node, old_status, new_status
         )
-        _master_evt.worker_event(
-            pod_name=cur_node.name,
-            from_state=old_status,
-            to_state=new_status,
-            reason=cur_node.exit_reason,
-        )
+
         if should_relaunch:
             self._relaunch_node(cur_node)
 
@@ -906,20 +885,22 @@ class DistributedJobManager(JobManager):
                     should_relaunch = False
                     logger.warning(
                         "The all-reduce type job will not try to recover node "
-                        "error with oom issue."
+                        f"error with oom issue, node: {node.name}."
                     )
                 elif mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "
-                        f"{NodeResourceLimit.MAX_MEMORY} MB."
+                        f"{NodeResourceLimit.MAX_MEMORY} MB, "
+                        f"node: {node.name}."
                     )
                     msg = f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
                     logger.warning(
                         f"The relaunched count {node.relaunch_count} is "
-                        f"beyond the maximum {node.max_relaunch_count}."
+                        f"beyond the maximum {node.max_relaunch_count} "
+                        f"for node: {node.name}."
                     )
                     msg = (
                         f"Relaunched {node.relaunch_count} "
@@ -933,7 +914,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(
                         "The relaunch count "
                         f"{node.relaunch_count}/{node.max_relaunch_count} "
-                        "has been exhausted."
+                        f"has been exhausted for node: {node.name}."
                     )
                     should_relaunch = False
                     msg = (
@@ -945,9 +926,9 @@ class DistributedJobManager(JobManager):
 
         if not should_relaunch and len(msg) > 0:
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
+                EventReportConstants.TYPE_INFO,
                 node.name,
-                ErrorMonitorConstants.ACTION_NOT_RELAUNCH,
+                EventReportConstants.ACTION_NOT_RELAUNCH,
                 msg,
                 {},
             )
@@ -974,25 +955,17 @@ class DistributedJobManager(JobManager):
         else:
             logger.error("Not support node type %s", node.type)
         if plan and len(plan.launch_nodes) > 0:
-            self._report_event(
-                event_type=ErrorMonitorConstants.TYPE_INFO,
-                instance=node.name,
-                action=ErrorMonitorConstants.ACTION_RELAUNCH,
-                msg=f"{plan.launch_nodes[0].id}",
-                labels={
-                    "relaunch_pod": f"{plan.launch_nodes[0].id}",
-                    "node": node.host_name,
-                },
+            self._event_reporter.report_node_relaunch(
+                node, plan.launch_nodes[0]
             )
-            _master_evt.worker_relaunch(
-                pod_name=node.name,
-                relaunch_pod_name=plan.launch_nodes[0].id,
-            )
+
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:
             plan.remove_nodes.append(node)
+
         # Avoid repeatedly relaunching the node.
         node.relaunchable = False
+
         self._job_context.update_job_node(node)
         self._scaler.scale(plan)
 
@@ -1104,7 +1077,7 @@ class DistributedJobManager(JobManager):
                         node.relaunchable = False
                         self._job_context.update_job_node(node)
                 for node in job_nodes[NodeType.WORKER].values():
-                    node.eval_time = self._speed_monitor.get_worker_eval_time(
+                    node.eval_time = self._perf_monitor.get_worker_eval_time(
                         node.id
                     )
                     self._job_context.update_job_node(node)
@@ -1202,10 +1175,7 @@ class DistributedJobManager(JobManager):
         msg: str,
         labels: Dict[str, str],
     ):
-        if self._error_monitor:
-            self._error_monitor.report_event(
-                event_type, instance, action, msg, labels
-            )
+        self._event_reporter.report(event_type, instance, action, msg, labels)
 
     def _process_error(
         self,
@@ -1217,10 +1187,7 @@ class DistributedJobManager(JobManager):
         if node:
             if level == TrainingExceptionLevel.NODE_ERROR:
                 self._job_context.report_failed_node(node.id)
-            if self._error_monitor:
-                return self._error_monitor.process_error(
-                    node, restart_count, error_data, level
-                )
+            return self.process_error(node, restart_count, error_data, level)
         return False
 
     def all_running_node_hanged(self):
@@ -1334,8 +1301,19 @@ class DistributedJobManager(JobManager):
     def get_job_strategy(self):
         return self._job_args.distribution_strategy
 
+    def _handle_node_error(self, node: Node, error_data: str):
+        logger.info(
+            f"{node.name} on {node.host_name} is down. "
+            f"Reason: {error_data}"
+        )
+        if self._job_args.cordon_fault_node:
+            succeed = self._k8s_client.cordon_node(node.host_name)
+            if succeed:
+                logger.info(f"Host {node.host_name} is marked unscheduled.")
+        return True
 
-def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
+
+def create_job_manager(args: JobArgs, perf_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
@@ -1347,17 +1325,13 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
-    node_error_monitor = K8sJobErrorMonitor(
-        args.namespace, args.cordon_fault_node
-    )
 
     return DistributedJobManager(
         job_args=args,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
-        speed_monitor=speed_monitor,
+        perf_monitor=perf_monitor,
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=node_error_monitor,
     )

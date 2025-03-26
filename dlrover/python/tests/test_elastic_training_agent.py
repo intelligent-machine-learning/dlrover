@@ -24,10 +24,14 @@ import time
 import unittest
 from datetime import datetime
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import psutil
-from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
+from torch.distributed.elastic.agent.server.api import (
+    RunResult,
+    WorkerSpec,
+    WorkerState,
+)
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
@@ -74,6 +78,8 @@ from dlrover.python.elastic_agent.torch.training import (
     NodeCheckElasticAgent,
     NodeCheckFailedError,
     RendezvousOutSyncError,
+    RendezvousTimeoutError,
+    StopWorkerTimeoutError,
     _create_check_agent,
     _create_worker_spec,
     _get_local_ip,
@@ -144,6 +150,20 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_node_unit(self):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
         self.assertEqual(node_unit, 2)
+
+    def test_config_to_json(self):
+        config = ElasticLaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=8,
+            run_id="test",
+            auto_config=True,
+        )
+        json_config = config.to_json()
+        self.assertIsNotNone(json_config)
+        self.assertEqual(json_config["min_nodes"], 1)
+        self.assertEqual(json_config["rdzv_backend"], "etcd")
+        self.assertTrue(len(json.loads(json_config["rdzv_configs"])) > 0)
 
     def test_auto_configure(self):
         config = ElasticLaunchConfig(
@@ -283,7 +303,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             raise RendezvousOutSyncError("test")
 
         agent._rendezvous = _mock_rendezvous
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             agent._initialize_workers(agent._worker_group)
             agent._save_ckpt_future
 
@@ -298,6 +318,18 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             log_dir=self.config.log_dir,
         )
         agent._config.network_check = False
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[NodeCheckFailedError("test")],
+        )
+        with self.assertRaises(NodeCheckFailedError):
+            agent._initialize_workers(agent._worker_group)
+
+        agent._rendezvous = mock.MagicMock(
+            side_effect=[RendezvousTimeoutError("test")],
+        )
+        with self.assertRaises(RendezvousTimeoutError):
+            agent._initialize_workers(agent._worker_group)
 
         agent._rendezvous = mock.MagicMock(
             side_effect=[ValueError("test")],
@@ -403,8 +435,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            # redirects=self.config.redirects,
-            # tee=self.config.tee,
+            redirects=self.config.redirects,
+            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
@@ -429,6 +461,31 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+    @mock.patch.object(ElasticTrainingAgent, "_restart_workers")
+    def test_invoke_run(self, mock_restart_workers):
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._monitor_workers = MagicMock(
+            return_value=RunResult(
+                state=WorkerState.HEALTHY,
+                return_values={0: 1, 1: 0},
+                failures={},
+            )
+        )
+        agent._membership_changed = MagicMock(return_value=True)
+        mock_restart_workers.side_effect = RuntimeError("test")
+        try:
+            agent._invoke_run()
+        except RuntimeError:
+            mock_restart_workers.assert_called()
+
     def test_metric_collect(self):
         with patch(
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
@@ -442,7 +499,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
 
             self._master.diagnosis_manager.stop_metric_collect()
 
@@ -458,7 +514,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
 
             _metric_context.clear_node_metrics()
-            _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
 
             self._master.diagnosis_manager.stop_metric_collect()
 
@@ -476,20 +531,20 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
-    def test_report_resource_with_step(self):
+    def test_report_step(self):
         os.environ[NodeEnv.MONITOR_ENABLED] = "true"
         with tempfile.TemporaryDirectory() as tmpdirname:
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
             monitor = TorchTrainingMonitor(config_file)
             monitor.start()
-            monitor.report_resource_with_step()
-            self.assertEqual(self._master.speed_monitor._global_step, 0)
+            monitor.report_step()
+            self.assertEqual(self._master.perf_monitor._global_step, 0)
             record = {"step": 100, "timestamp": time.time()}
             with open(config_file, "w") as f:
                 f.write(json.dumps(record))
 
-            monitor.report_resource_with_step()
-            self.assertEqual(self._master.speed_monitor._global_step, 100)
+            monitor.report_step()
+            self.assertEqual(self._master.perf_monitor._global_step, 100)
 
     def test_check_network_rdzv_for_elastic_training(self):
         self._master.rdzv_managers[
@@ -772,7 +827,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             try:
                 agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
-            except TimeoutError:
+            except StopWorkerTimeoutError:
                 self.assertTrue(True)
 
     def test_diagnosis(self):
@@ -834,6 +889,29 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertEqual(mock_run.call_count, 2)
             mock_report_failed_exited.assert_called_once()
 
+    @patch(
+        "dlrover.python.elastic_agent.torch.training"
+        ".ElasticTrainingAgent.run"
+    )
+    def test_launch_agent(self, mock_run):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+        mock_run.return_value = None
+        try:
+            launch_agent(config, entrypoint, [])
+        except Exception:
+            pass
+
+        mock_run.return_value = RunResult(
+            state=WorkerState.FAILED,
+            return_values={0: 1, 1: 0},
+            failures={},
+        )
+        try:
+            launch_agent(config, entrypoint, [])
+        except Exception:
+            pass
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -875,8 +953,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            # redirects=self.config.redirects,
-            # tee=self.config.tee,
+            redirects=self.config.redirects,
+            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
@@ -938,6 +1016,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         agent._run_node_check = mock.MagicMock(return_value=(True, 100))
         agent._stop_workers = mock.MagicMock(return_value=True)
+        agent._client.report_network_check = mock.MagicMock(return_value=True)
         self.assertTrue(agent.run())
 
         # with fault and no stragglers
@@ -962,6 +1041,12 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             self.fail()
         except RuntimeError:
             pass
+
+        # with _run_node_check return false
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
+        agent._run_node_check = mock.MagicMock(return_value=(False, 100))
+        self.assertFalse(agent.run())
 
     @mock.patch.object(NodeCheckElasticAgent, "run")
     def test_node_health_check(self, mock_run):
@@ -1034,7 +1119,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         rdzv_handler._client.get_comm_world = mock.MagicMock(
             return_value=(0, 0, {1: 8})
         )
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
 

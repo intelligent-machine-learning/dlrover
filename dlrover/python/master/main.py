@@ -19,15 +19,15 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.scheduler.factory import new_job_args
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.training_event import DLRoverMasterEvent
 
 _dlrover_context = Context.singleton_instance()
-_master_evt = DLRoverMasterEvent().singleton_instance()
+_event_reporter = get_event_reporter()
 
 
 def update_context(job_args: JobArgs):
@@ -48,6 +48,9 @@ def run(args):
     job_args.initilize()
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
+    _dlrover_context.seconds_to_timeout_task_process = (
+        args.task_process_timeout
+    )
     _dlrover_context.hang_detection = args.hang_detection
     _dlrover_context.hang_downtime = args.hang_downtime
     _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
@@ -55,14 +58,12 @@ def run(args):
     _dlrover_context.master_service_type = args.service_type
     _dlrover_context.pre_check_operators = args.pre_check_ops
     if args.xpu_type.lower() == "ascend":
-        _dlrover_context.xpu_type = Accelerators.ASCEND_NPU
+        job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":
-        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+        job_args.xpu_type = Accelerators.NVIDIA_GPU
     else:
-        logger.info(
-            f"Invalid XPU type: {args.xpu_type}, use Nvidia as default"
-        )
-        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
+        logger.info(f"{args.xpu_type}, use cpu as default")
+        job_args.xpu_type = Accelerators.GENERIC_CPU
 
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
@@ -82,13 +83,10 @@ def run(args):
 
 def main():
     args = parse_master_args()
-
-    # export event for dlrover master
-    _master_evt.start(args=vars(args))
+    _event_reporter.report_master_start(args)
 
     exit_code = run(args)
-
-    _master_evt.exit(exit_code=exit_code)
+    _event_reporter.report_master_end(args, exit_code)
 
     return exit_code
 

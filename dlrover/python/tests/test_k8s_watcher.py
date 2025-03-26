@@ -27,9 +27,8 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.node import Node
+from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.k8s_watcher import (
     K8sScalePlanWatcher,
     PodWatcher,
@@ -80,6 +79,8 @@ class PodWatcherTest(unittest.TestCase):
                 "2022-11-11 11:11:11", "%Y-%m-%d %H:%M:%S"
             ),
         )
+        self.assertIsNotNone(node.host_name)
+        self.assertIsNotNone(node.host_ip)
         node: Node = nodes[-2]
         self.assertEqual(node.id, 2)
         self.assertEqual(node.type, NodeType.WORKER)

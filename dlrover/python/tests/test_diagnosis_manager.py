@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
+    PlatformType,
     PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
@@ -60,6 +61,7 @@ from dlrover.python.master.diagnosis.precheck_operator import (
     PreCheckResult,
 )
 from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.scheduler.kubernetes import K8sJobArgs
 from dlrover.python.util.function_util import TimeoutException
 
 _metric_context = JobMetricContext.singleton_instance()
@@ -91,7 +93,18 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertEqual(len(logs), 1)
 
     def test_diagnosis_manager_api(self):
-        mgr = DiagnosisManager()
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.GENERIC_CPU
+        mgr = DiagnosisManager(job_args=args)
+        self.assertEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
+        )
+        mgr._job_args.xpu_type = Accelerators.ASCEND_NPU
+        self.assertNotEqual(
+            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
+        )
+
+        mgr = DiagnosisManager(job_args=args)
         mgr.pre_check()
         mgr.start_observing()
         mgr.stop_observing()
@@ -133,10 +146,11 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertEqual(action.action_type, DiagnosisActionType.NONE)
 
     def test_gpu_tensor_drop_zero(self):
-        mgr = DiagnosisManager()
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        mgr = DiagnosisManager(job_args=args)
         _metric_context.clear_node_metrics()
 
-        _dlrover_context.xpu_type = Accelerators.NVIDIA_GPU
         job_metrics = {}
         metric = GpuNodeMetric()
         for i in range(8):
@@ -200,6 +214,8 @@ class DiagnosisManagerTest(unittest.TestCase):
         mock_get_pre_check_timeout.return_value = 2
         job_context = get_job_context()
         mgr = DiagnosisManager()
+        original_get_pre_check_status = mgr._job_context.get_pre_check_status
+
         mgr.pre_check()
         self.assertEqual(job_context._action_queue.len(), 0)
 
@@ -207,12 +223,16 @@ class DiagnosisManagerTest(unittest.TestCase):
         _dlrover_context.pre_check_operators = [
             ("dlrover.python.tests.test_diagnosis_manager", "TestOperator")
         ]
+        mgr._job_context.get_pre_check_status = MagicMock(
+            return_value=PreCheckStatus.CHECKING
+        )
         mgr.get_pre_check_operators = MagicMock(return_value=[TestOperator()])
         try:
             mgr.pre_check()
             self.fail()
         except TimeoutException:
             pass
+        mgr._job_context.get_pre_check_status = original_get_pre_check_status
 
         _dlrover_context.pre_check_operators = [
             (
@@ -225,6 +245,18 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertEqual(
             job_context.get_pre_check_status(), PreCheckStatus.PASS
         )
+
+        _dlrover_context.pre_check_operators = []
+        mgr.pre_check()
+        self.assertEqual(
+            job_context.get_pre_check_status(), PreCheckStatus.DISABLED
+        )
+
+        mgr._job_context.get_pre_check_status = MagicMock(
+            return_value=PreCheckStatus.PASS
+        )
+        mgr.pre_check()
+        mgr._job_context.get_pre_check_status = original_get_pre_check_status
 
 
 class TestOperator(PreCheckOperator):

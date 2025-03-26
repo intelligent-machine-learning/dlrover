@@ -26,9 +26,14 @@ from dlrover.python.common.constants import (
     ScalePlanLabel,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.node import (
+    Node,
+    NodeEvent,
+    NodeGroupResource,
+    NodeResource,
+)
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
+from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.kubernetes import (
     convert_cpu_to_decimal,
     convert_memory_to_mb,
@@ -230,6 +235,8 @@ class PodWatcher(NodeWatcher):
             task_id = int(metadata.labels[rank_index_key])
             relaunch_count = int(metadata.labels[relaunch_count_key])
             resource = _parse_container_resource(pod.spec.containers[0])
+            host_name = pod.spec.node_name
+            host_ip = pod.status.host_ip
 
             # if pod has 'deletion_timestamp', set as deleted status directly
             # because the deletion has low probability of failure will affect
@@ -248,6 +255,8 @@ class PodWatcher(NodeWatcher):
                 status=status,
                 start_time=start_time,
                 config_resource=resource,
+                host_name=host_name,
+                host_ip=host_ip,
                 restart_training=restart_training,
                 relaunch_count=relaunch_count,
             )

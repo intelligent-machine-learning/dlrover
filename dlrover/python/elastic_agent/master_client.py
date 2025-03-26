@@ -38,28 +38,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
 )
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.util.common_util import find_free_port
-
-
-def retry_request(func):
-    def wrapper(self, *args, **kwargs):
-        retry = kwargs.get("retry", 10)
-        exception = None
-        for i in range(retry):
-            try:
-                return func(self, *args, **kwargs)
-            except Exception as e:
-                class_name = self.__class__.__name__
-                func_name = func.__name__
-                logger.warning(
-                    f"Retry {i} to {class_name}.{func_name} with failure {e}",
-                )
-                exception = e
-                time.sleep(5)
-        if exception:
-            logger.error(exception)
-            raise exception
-
-    return wrapper
+from dlrover.python.util.function_util import retry
 
 
 class MasterClient(Singleton, ABC):
@@ -100,13 +79,13 @@ class MasterClient(Singleton, ABC):
             "dlrover.python.diagnosis.common.diagnosis_action"
         )
 
-    @retry_request
+    @retry()
     @abstractmethod
     def _report(self, message: comm.Message):
         """Abstraction of report function."""
         pass
 
-    @retry_request
+    @retry()
     @abstractmethod
     def _get(self, message: comm.Message):
         """Abstraction of get function."""
@@ -241,15 +220,6 @@ class MasterClient(Singleton, ABC):
             action = action_cls.from_json(response.action.action_content)
         return action
 
-    def get_cluster_version(self, version_type, task_type, task_id):
-        request = comm.ClusterVersionRequest(
-            task_type=task_type,
-            task_id=task_id,
-            version_type=version_type,
-        )
-        result: comm.ClusterVersion = self._get(request)
-        return result.version
-
     def update_node_addr(self, task_type, task_id, node_addr):
         message = comm.NodeAddress(type=task_type, id=task_id, addr=node_addr)
         res = self._report(message)
@@ -259,7 +229,7 @@ class MasterClient(Singleton, ABC):
         self,
         event_type,
         event_msg="",
-        event_time=0,
+        event_time=int(time.time()),
         event_elapsed_time=0,
         node_rank=-1,
     ):
@@ -278,6 +248,24 @@ class MasterClient(Singleton, ABC):
 
         return self._report(message)
 
+    def report_atorch_event(
+        self,
+        event_ts,
+        event_target,
+        event_name,
+        event_type,
+        event_step,
+    ):
+        message = comm.AtorchEvent(
+            timestamp=event_ts,
+            step=event_step,
+            target=event_target,
+            name=event_name,
+            type=event_type,
+        )
+
+        return self._report(message)
+
     def report_network_check_status(self, node_rank, status, elapsed_time):
         return self.report_node_event(
             event_type=status,
@@ -285,11 +273,29 @@ class MasterClient(Singleton, ABC):
             node_rank=node_rank,
         )
 
+    def report_pre_check_status(self, status, config_json="{}"):
+        return self.report_node_event(
+            event_type=status,
+            event_msg=config_json,
+            event_time=int(time.time()),
+            event_elapsed_time=0,
+            node_rank=env_utils.get_node_rank(),
+        )
+
     def report_failed_exited(self):
         return self.report_node_event(NodeEventType.FAILED_EXITED)
 
     def report_succeeded_exited(self):
         return self.report_node_event(NodeEventType.SUCCEEDED_EXITED)
+
+    def get_cluster_version(self, version_type, task_type, task_id):
+        request = comm.ClusterVersionRequest(
+            task_type=task_type,
+            task_id=task_id,
+            version_type=version_type,
+        )
+        result: comm.ClusterVersion = self._get(request)
+        return result.version
 
     def update_cluster_version(
         self, version_type, version, task_type, task_id
@@ -501,7 +507,7 @@ class GrpcMasterClient(MasterClient):
         self._channel = comm.build_grpc_channel(self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
-    @retry_request
+    @retry()
     def _report(self, message: comm.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
@@ -509,7 +515,7 @@ class GrpcMasterClient(MasterClient):
         request.data = message.serialize()
         return self._stub.report(request, timeout=self._timeout)
 
-    @retry_request
+    @retry()
     def _get(self, message: comm.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
@@ -529,7 +535,7 @@ class HttpMasterClient(MasterClient):
     def _get_http_request_url(self, path: str) -> str:
         return "http://" + self._master_addr + path
 
-    @retry_request
+    @retry()
     def _report(self, message: comm.Message):
         with requests.post(
             self._get_http_request_url("/report"),
@@ -546,7 +552,7 @@ class HttpMasterClient(MasterClient):
             )
             return response_data
 
-    @retry_request
+    @retry()
     def _get(self, message: comm.Message):
         with requests.post(
             self._get_http_request_url("/get"),
