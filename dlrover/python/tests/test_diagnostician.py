@@ -44,7 +44,7 @@ class DiagnosticianTest(unittest.TestCase):
         "dlrover.python.diagnosis.common"
         ".diagnostician.Diagnostician.resolve"
     )
-    def test_diagnostician_observe_exception(self, mock_resolve, mock_observe):
+    def test_diagnostician_exception(self, mock_resolve, mock_observe):
         mock_observe.side_effect = Exception("observe_error")
         mock_resolve.side_effect = Exception("resolve_error")
 
