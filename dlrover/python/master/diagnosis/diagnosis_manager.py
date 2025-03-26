@@ -108,7 +108,10 @@ class DiagnosisManager:
             return
 
         start = time.time()
-        job_ctx = get_job_context()
+        if self._job_context.get_pre_check_status() == PreCheckStatus.PASS:
+            logger.info("Skip pre-check for the result is pass.")
+            return
+
         pre_check_ops = _dlrover_context.get_pre_check_operators()
         logger.info(
             "Start training pre-check with "
@@ -136,7 +139,7 @@ class DiagnosisManager:
         while True:
             logger.info(f"Pre-check round: {round}")
             for index, pre_check_op in enumerate(pre_check_ops):
-                if job_ctx.is_request_stopped():
+                if self._job_context.is_request_stopped():
                     logger.info(
                         f"Training pre-check({round}) interrupted, "
                         f"total time cost:{time.time() - start:.2f}s."
