@@ -137,7 +137,7 @@ class DistributedJobMaster(JobMaster):
         )
         self.task_manager = (
             TaskManager(
-                args.node_args[NodeType.WORKER].restart_timeout,
+                args.node_args[NodeType.WORKER].process_timeout,
                 self.perf_monitor,
             )
             if args.enable_dynamic_sharding
@@ -245,7 +245,9 @@ class DistributedJobMaster(JobMaster):
         start = time.time()
         try:
             self.diagnosis_manager.pre_check()
-            logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
+            logger.info(
+                f"Pre-check finished, cost: {time.time() - start:.2f}s."
+            )
         except TimeoutException:
             logger.warning("Pre-check timeout, set pass as result for safety.")
             self._job_ctx.set_pre_check_status(PreCheckStatus.PASS)
@@ -293,6 +295,10 @@ class DistributedJobMaster(JobMaster):
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
+                    self._job_evt.fail(
+                        error=f"{reason}",
+                        msg=msg,
+                    )
                     self.request_stop(False, reason, msg)
                     continue
                 self.job_manager.clear_exited_nodes()

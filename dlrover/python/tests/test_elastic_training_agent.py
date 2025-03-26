@@ -24,10 +24,14 @@ import time
 import unittest
 from datetime import datetime
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import psutil
-from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
+from torch.distributed.elastic.agent.server.api import (
+    RunResult,
+    WorkerSpec,
+    WorkerState,
+)
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
@@ -458,6 +462,31 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+    @mock.patch.object(ElasticTrainingAgent, "_restart_workers")
+    def test_invoke_run(self, mock_restart_workers):
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._monitor_workers = MagicMock(
+            return_value=RunResult(
+                state=WorkerState.HEALTHY,
+                return_values={0: 1, 1: 0},
+                failures={},
+            )
+        )
+        agent._membership_changed = MagicMock(return_value=True)
+        mock_restart_workers.side_effect = RuntimeError("test")
+        try:
+            agent._invoke_run()
+        except RuntimeError:
+            mock_restart_workers.assert_called()
+
     def test_metric_collect(self):
         with patch(
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
@@ -861,6 +890,29 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertEqual(mock_run.call_count, 2)
             mock_report_failed_exited.assert_called_once()
 
+    @patch(
+        "dlrover.python.elastic_agent.torch.training"
+        ".ElasticTrainingAgent.run"
+    )
+    def test_launch_agent(self, mock_run):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+        mock_run.return_value = None
+        try:
+            launch_agent(config, entrypoint, [])
+        except Exception:
+            pass
+
+        mock_run.return_value = RunResult(
+            state=WorkerState.FAILED,
+            return_values={0: 1, 1: 0},
+            failures={},
+        )
+        try:
+            launch_agent(config, entrypoint, [])
+        except Exception:
+            pass
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -965,6 +1017,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
         agent._run_node_check = mock.MagicMock(return_value=(True, 100))
         agent._stop_workers = mock.MagicMock(return_value=True)
+        agent._client.report_network_check = mock.MagicMock(return_value=True)
         self.assertTrue(agent.run())
 
         # with fault and no stragglers
@@ -989,6 +1042,12 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             self.fail()
         except RuntimeError:
             pass
+
+        # with _run_node_check return false
+        agent._client.check_fault_node = mock.MagicMock(return_value=([], ""))
+        agent._client.check_straggler = mock.MagicMock(return_value=([], ""))
+        agent._run_node_check = mock.MagicMock(return_value=(False, 100))
+        self.assertFalse(agent.run())
 
     @mock.patch.object(NodeCheckElasticAgent, "run")
     def test_node_health_check(self, mock_run):

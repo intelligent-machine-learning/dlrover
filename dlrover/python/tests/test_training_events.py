@@ -29,10 +29,107 @@ from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchInvalidException,
     AtorchNotFoundException,
 )
+from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.training_event.event import EventTargetName, EventTypeName
 from dlrover.python.training_event.predefined.trainer import TrainerEventName
 
 _event_context = JobEventContext.singleton_instance()
+
+
+class AgentEventTest(unittest.TestCase):
+    def setUp(self):
+        self.agent_evt = DLRoverAgentEvent().singleton_instance()
+
+    def tearDown(self):
+        pass
+
+    def test_agent_events(self):
+        net_check_evt = self.agent_evt.network_check(
+            round=1,
+            node_rank=0,
+        )
+        net_check_evt.begin()
+        net_check_evt.success(
+            result="{0: 0, 1: 0}",
+            status="SUCCEEDED",
+            elapsed_time="1",
+        )
+
+        net_check_evt = self.agent_evt.network_check(
+            round=2,
+            node_rank=1,
+        )
+        net_check_evt.begin()
+        net_check_evt.fail(
+            result="{0: 1, 1: 1}",
+            status="FAILED",
+            elapsed_time="1",
+        )
+
+        rdzv_evt = self.agent_evt.rendezvous(
+            rendezvous_type="test",
+            node_name="node0",
+            node_rank=0,
+            timeout=3,
+        )
+        rdzv_evt.begin()
+        rdzv_evt.fail(
+            error="fatal error",
+        )
+
+        rdzv_evt2 = self.agent_evt.rendezvous(
+            rendezvous_type="test2",
+            node_name="node1",
+            node_rank=1,
+            timeout=3,
+        )
+        rdzv_evt2.begin()
+        rdzv_evt2.success(
+            round=3,
+            rank=1,
+            world_size=1,
+        )
+
+        self.agent_evt.start(
+            args={
+                "entrypoint": "test.sh",
+                "min_nodes": 1,
+                "max_nodes": 2,
+                "nproc_per_node": 1,
+            }
+        )
+
+        self.agent_evt.exit(
+            success=True,
+        )
+
+        self.agent_evt.process_succeeded(
+            node_rank=0,
+            return_values="{0: 0, 1: 0}",
+            state="SUCCEEDED",
+        )
+
+        self.agent_evt.process_fail(
+            node_rank=1,
+            return_values="{0: 1, 1: 1}",
+            state="FAILED",
+        )
+
+        self.agent_evt.process_restart(
+            node_rank=1,
+            restart_count=1,
+            remaining_restarts=0,
+            return_values="{0: 1, 1: 1}",
+            state="FAILED",
+        )
+
+        self.agent_evt.process_restart_membership(
+            node_rank=1,
+            restart_count=1,
+            remaining_restarts=0,
+            return_values="{0: 1, 1: 1}",
+            state="FAILED",
+        )
 
 
 class TrainingEventTest(unittest.TestCase):
