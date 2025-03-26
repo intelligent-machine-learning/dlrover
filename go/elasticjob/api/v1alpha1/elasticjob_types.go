@@ -91,9 +91,6 @@ type ElasticJobStatus struct {
 
 	// Phase shows the phase of job lifecycle
 	Phase commonv1.JobConditionType `json:"phase,omitempty"`
-
-	// ScalePlan is a name of ScalePlan CRD to scale the job resource.
-	ScalePlan string `json:"scalePlan,omitempty"`
 }
 
 //+kubebuilder:object:root=true

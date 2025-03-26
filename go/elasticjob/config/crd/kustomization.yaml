@@ -3,7 +3,6 @@
 # It should be run by config/default
 resources:
 - bases/elastic.iml.github.io_elasticjobs.yaml
-- bases/elastic.iml.github.io_scaleplans.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
