@@ -21,8 +21,8 @@ from ray.experimental.internal_kv import (
     _internal_kv_put,
 )
 
-from dlrover.python.rl.common.context import get_job_context
 from dlrover.python.rl.common.enums import MasterStateBackendType
+from dlrover.python.rl.common.job_context import get_job_context
 
 _job_ctx = get_job_context()
 

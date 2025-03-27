@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import threading
 from typing import Dict, Tuple
 
 from omegaconf import DictConfig
@@ -18,8 +17,6 @@ from omegaconf import DictConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
-from dlrover.python.common.singleton import Singleton
-from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
@@ -121,7 +118,7 @@ class RLContext(PickleSerializable):
             config: The full configuration of rl training.
             trainer: The description for the trainer.
             workloads: A dictionary of workloads, including: actor_workload,
-                generator_workload, ref_workload, reward_workload,
+                rollout_workload, ref_workload, reward_workload,
                 critic_workload.
         """
 
@@ -136,7 +133,7 @@ class RLContext(PickleSerializable):
             f"config:{self.config}, "
             f"trainer:{self.trainer}, "
             f"actor:{self.actor_workload}, "
-            f"generator:{self.generator_workload}, "
+            f"rollout:{self.rollout_workload}, "
             f"reference:{self.ref_workload}, "
             f"reward:{self.reward_workload}, "
             f"critic:{self.critic_workload})"
@@ -163,8 +160,8 @@ class RLContext(PickleSerializable):
         return self._workloads[RLRoleType.ACTOR]
 
     @property
-    def generator_workload(self):
-        return self._workloads[RLRoleType.GENERATOR]
+    def rollout_workload(self):
+        return self._workloads[RLRoleType.ROLLOUT]
 
     @property
     def ref_workload(self):
@@ -196,7 +193,7 @@ class RLContext(PickleSerializable):
             )
 
             actor_desc = None
-            generator_desc = None
+            rollout_desc = None
             reference_desc = None
             reward_desc = None
             critic_desc = None
@@ -215,16 +212,16 @@ class RLContext(PickleSerializable):
                         actor_conf.get("resource"),
                     )
 
-                # generator
-                generator_conf = wl_conf.get("generator", None)
-                if generator_conf:
-                    generator_desc = WorkloadDesc(
+                # rollout
+                rollout_conf = wl_conf.get("rollout", None)
+                if rollout_conf:
+                    rollout_desc = WorkloadDesc(
                         (
-                            generator_conf.get("module"),
-                            generator_conf.get("class"),
+                            rollout_conf.get("module"),
+                            rollout_conf.get("class"),
                         ),
-                        generator_conf.get("num"),
-                        generator_conf.get("resource"),
+                        rollout_conf.get("num"),
+                        rollout_conf.get("resource"),
                     )
 
                 # reference
@@ -262,7 +259,7 @@ class RLContext(PickleSerializable):
                 trainer_desc,
                 {
                     RLRoleType.ACTOR: actor_desc,
-                    RLRoleType.GENERATOR: generator_desc,
+                    RLRoleType.ROLLOUT: rollout_desc,
                     RLRoleType.REFERENCE: reference_desc,
                     RLRoleType.REWARD: reward_desc,
                     RLRoleType.CRITIC: critic_desc,
@@ -340,42 +337,3 @@ class RLContext(PickleSerializable):
                 return False
 
         return True
-
-
-class JobContext(Singleton, PickleSerializable):
-    """
-    JobContext includes all the key runtime information.
-    """
-
-    def __init__(self):
-        self._job_config = None
-        self._rl_context = None
-
-        self._locker = threading.Lock()
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        if "_locker" in state:
-            del state["_locker"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self._locker = threading.Lock()
-
-    def init(self, job_config: JobConfig, rl_context: RLContext):
-        self._job_config = job_config
-        self._rl_context = rl_context
-
-    @property
-    def job_config(self) -> JobConfig:
-        return self._job_config
-
-    @property
-    def rl_context(self) -> RLContext:
-        return self._rl_context
-
-
-def get_job_context() -> JobContext:
-    job_context = JobContext.singleton_instance()
-    return job_context

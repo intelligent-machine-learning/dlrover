@@ -41,7 +41,7 @@ class ModelParallelismArcType(Enum):
 
 class RLRoleType(Enum):
     ACTOR = "ACTOR"
-    GENERATOR = "GENERATOR"
+    ROLLOUT = "ROLLOUT"
     REFERENCE = "REFERENCE"
     REWARD = "REWARD"
     CRITIC = "CRITIC"
@@ -54,3 +54,9 @@ class MasterStateBackendType(Enum):
 
 class SchedulingStrategyType(Enum):
     SIMPLE = "SIMPLE"
+
+
+class JobStage(Enum):
+    INIT = "INIT"
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"

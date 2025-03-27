@@ -17,8 +17,8 @@ from ray.actor import ActorHandle
 
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
-from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.enums import RLRoleType
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
@@ -35,9 +35,8 @@ class RLExecutionVertex(PickleSerializable):
         # static info
         self.__role = role
         self.__name = role.value + "-" + str(rank)
-        self.__class_obj = get_class_by_module_and_class_name(
-            module_name, class_name
-        )
+        self.__module_name = module_name
+        self.__class_name = class_name
         self.__resource = resource
         self.__rank = rank
         self.__world_size = world_size
@@ -59,8 +58,12 @@ class RLExecutionVertex(PickleSerializable):
         return self.__name
 
     @property
-    def class_obj(self):
-        return self.__class_obj
+    def module_name(self):
+        return self.__module_name
+
+    @property
+    def class_name(self):
+        return self.__class_name
 
     @property
     def resource(self):
@@ -98,6 +101,16 @@ class RLExecutionVertex(PickleSerializable):
     def restart_count(self):
         return self._restart_count
 
+    def get_cls(self):
+        return get_class_by_module_and_class_name(
+            self.module_name, self.class_name
+        )
+
+    def get_actor_id(self) -> str:
+        if self._actor_handle:
+            return self._actor_handle.actor_id.hex()
+        return ""
+
     def update_actor_handle(self, actor_handle):
         self._actor_handle = actor_handle
 
@@ -129,12 +142,16 @@ class RLExecutionEdge(PickleSerializable):
 
 class RLExecutionGraph(PickleSerializable):
     def __init__(self, rl_context: RLContext):
+        # core field
         self.__rl_context = rl_context
-
         self.__execution_vertices: Dict[
             RLRoleType, List[RLExecutionVertex]
         ] = {}
         self.__execution_edges: List[RLExecutionEdge] = []  # not used for now
+
+        # mapping field(for easy using)
+        self._name_vertex_mapping: Dict[str, RLExecutionVertex] = {}
+        self._name_actor_mapping: Dict[str, ActorHandle] = {}
 
         self._build()
 
@@ -152,16 +169,17 @@ class RLExecutionGraph(PickleSerializable):
             if desc:
                 vertices = []
                 for i in range(desc.instance_number):
-                    vertices.append(
-                        RLExecutionVertex(
-                            role,
-                            desc.module_name,
-                            desc.class_name,
-                            desc.instance_resource,
-                            i,
-                            desc.instance_number,
-                        )
+                    vertex = RLExecutionVertex(
+                        role,
+                        desc.module_name,
+                        desc.class_name,
+                        desc.instance_resource,
+                        i,
+                        desc.instance_number,
                     )
+                    vertices.append(vertex)
+                    self._name_vertex_mapping[vertex.name] = vertex
+
                 self.__execution_vertices[role] = vertices
 
     @property
@@ -171,6 +189,14 @@ class RLExecutionGraph(PickleSerializable):
     @property
     def execution_edges(self) -> List[RLExecutionEdge]:
         return self.__execution_edges
+
+    @property
+    def name_vertex_mapping(self) -> Dict[str, RLExecutionVertex]:
+        return self._name_vertex_mapping
+
+    @property
+    def name_actor_mapping(self) -> Dict[str, ActorHandle]:
+        return self._name_actor_mapping
 
     def get_all_vertices(self) -> List[RLExecutionVertex]:
         return list(chain(*self.__execution_vertices.values()))
@@ -197,3 +223,9 @@ class RLExecutionGraph(PickleSerializable):
             self.__rl_context.trainer.module_name,
             self.__rl_context.trainer.class_name,
         )
+
+    def update_actor_handle_for_vertex(
+        self, actor_handle: ActorHandle, vertex: RLExecutionVertex
+    ):
+        vertex.update_actor_handle(actor_handle)
+        self._name_actor_mapping[vertex.name] = actor_handle

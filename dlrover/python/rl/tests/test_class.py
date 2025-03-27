@@ -62,7 +62,7 @@ class TestInteractiveTrainer(BaseTrainer):
                 logger.info(
                     f"Done {role} reward, cost {time.time() * 1000 - now}ms"
                 )
-            elif role == RLRoleType.GENERATOR:
+            elif role == RLRoleType.ROLLOUT:
                 method_refs = [
                     actor_handle.generate.remote()
                     for actor_handle in actor_handles
@@ -89,12 +89,12 @@ class TestActor(TestWorkload):
 
 
 @ray.remote
-class TestGenerator(TestWorkload):
+class TestRollout(TestWorkload):
     def init(self):
         time.sleep(0.1)
 
     def generate(self):
-        logger.info("TestGenerator generate called")
+        logger.info("TestRollout generate called")
 
 
 @ray.remote

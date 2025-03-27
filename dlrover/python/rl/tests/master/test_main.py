@@ -14,22 +14,34 @@ import time
 
 import ray
 
+from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.constant import RLMasterConstant
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.main import DLRoverRLMaster
 from dlrover.python.rl.tests.master.base import BaseMasterTest
+from dlrover.python.rl.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
 
 
 class RLMasterTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF}",
+        ]
+        parsed_args = parse_job_args(args)
+        rl_context = RLContext.build_from_args(parsed_args)
+        self._job_context._rl_context = rl_context
         ray.init()
 
     def tearDown(self):
         super().tearDown()
         ray.shutdown()
 
-    @timeout(30)
+    @timeout(15)
     def test_main(self):
         RLMasterConstant.RUN_WAIT_INTERVAL = 1
         master_name = "test"

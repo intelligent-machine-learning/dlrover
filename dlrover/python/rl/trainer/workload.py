@@ -12,25 +12,28 @@
 # limitations under the License.
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 
+import ray
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
 from dlrover.python.common import env_utils
 from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
+from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
 
 class BaseWorkload(ABC):
     def __init__(
         self,
         master_handle: ActorHandle,
+        name: str,
         role: RLRoleType,
         rank: int,
         world_size: int,
         config: DictConfig,
     ):
         self._master_handle = master_handle
+        self._name = name
         self._role = role
         self._rank = rank
         self._world_size = world_size
@@ -38,9 +41,15 @@ class BaseWorkload(ABC):
 
         self.__create_time = int(time.time())
 
+        self._report_master()
+
     @property
     def master_handle(self) -> ActorHandle:
         return self._master_handle
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def role(self) -> RLRoleType:
@@ -62,17 +71,34 @@ class BaseWorkload(ABC):
     def create_time(self):
         return self.__create_time
 
-    def report(self) -> Dict[str, Any]:
+    def _get_actor_id(self):
+        return ray.get_runtime_context().get_actor_id()
+
+    def _report_master(self):
         """
-        Basic function. Can be extended only.
+        Base function. Do not override.
+        """
+        info = self.get_runtime_info()
+        self._master_handle.report.remote(info)
+
+    def ping(self):
+        """
+        Base function. Do not override.
+        """
+        return True
+
+    def get_runtime_info(self) -> RuntimeInfo:
+        """
+        Base function. Can be extended only.
         """
 
         hostname, host_ip = env_utils.get_hostname_and_ip()
-        return {
-            "create_time": self.create_time,
-            "hostname": hostname,
-            "host_ip": host_ip,
-        }
+        return RuntimeInfo(
+            name=self.name,
+            create_time=self.create_time,
+            hostname=hostname,
+            host_ip=host_ip,
+        )
 
     @abstractmethod
     def get_model_arc(self) -> ModelParallelismArcType:

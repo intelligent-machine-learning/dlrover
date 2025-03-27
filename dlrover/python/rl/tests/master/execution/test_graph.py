@@ -13,11 +13,11 @@
 import time
 
 from dlrover.python.rl.common.args import parse_job_args
-from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.enums import RLRoleType
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.tests.master.base import BaseMasterTest
-from dlrover.python.rl.tests.test_class import TestActor, TestGenerator
+from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData
 
 
@@ -35,6 +35,8 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertIsNotNone(graph)
         self.assertIsNotNone(graph.get_rl_config())
         self.assertEqual(len(graph.get_all_vertices()), 2 + 2 + 1 + 1)
+        self.assertEqual(len(graph.name_vertex_mapping), 2 + 2 + 1 + 1)
+        self.assertEqual(len(graph.name_actor_mapping), 0)
 
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
         self.assertEqual(len(actor_vertices), 2)
@@ -48,21 +50,21 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(actor_vertices[1].rank, 1)
         self.assertEqual(actor_vertices[1].world_size, 2)
 
-        generator_vertex_0 = graph.get_vertex(RLRoleType.GENERATOR, 0)
-        self.assertEqual(generator_vertex_0.role, RLRoleType.GENERATOR)
+        rollout_vertex_0 = graph.get_vertex(RLRoleType.ROLLOUT, 0)
+        self.assertEqual(rollout_vertex_0.role, RLRoleType.ROLLOUT)
         self.assertEqual(
-            generator_vertex_0.name, RLRoleType.GENERATOR.value + "-" + str(0)
+            rollout_vertex_0.name, RLRoleType.ROLLOUT.value + "-" + str(0)
         )
-        self.assertEqual(generator_vertex_0.class_obj, TestGenerator)
-        self.assertEqual(generator_vertex_0.rank, 0)
-        self.assertEqual(generator_vertex_0.world_size, 1)
+        self.assertEqual(rollout_vertex_0.class_obj, TestRollout)
+        self.assertEqual(rollout_vertex_0.rank, 0)
+        self.assertEqual(rollout_vertex_0.world_size, 1)
 
         now = int(time.time())
-        generator_vertex_0.update_runtime_info(
+        rollout_vertex_0.update_runtime_info(
             create_time=now, hostname="test.com", restart_count=2
         )
-        self.assertEqual(generator_vertex_0.create_time, now)
-        self.assertEqual(generator_vertex_0.exit_time, 0)
-        self.assertEqual(generator_vertex_0.hostname, "test.com")
-        self.assertEqual(generator_vertex_0.host_ip, "")
-        self.assertEqual(generator_vertex_0.restart_count, 2)
+        self.assertEqual(rollout_vertex_0.create_time, now)
+        self.assertEqual(rollout_vertex_0.exit_time, 0)
+        self.assertEqual(rollout_vertex_0.hostname, "test.com")
+        self.assertEqual(rollout_vertex_0.host_ip, "")
+        self.assertEqual(rollout_vertex_0.restart_count, 2)

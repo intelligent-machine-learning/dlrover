@@ -15,8 +15,8 @@ import os
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.main import DLRoverRLMaster
 
 

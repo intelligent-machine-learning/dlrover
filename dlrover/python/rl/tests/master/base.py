@@ -14,7 +14,8 @@ import unittest
 
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.context import RLContext, get_job_context
+from dlrover.python.rl.common.job_context import get_job_context
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.tests.test_data import TestData
 
 

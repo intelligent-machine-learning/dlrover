@@ -108,7 +108,7 @@ def _build_job_args_parser():
         '{"trainer_type":"USER_DEFINED / OPENRLHF_DEEPSPEED / ...",'
         '"trainer_arc_type":"MEGATRON / FSDP / ...","algorithm_type":'
         '"GRPO / PPO / ...","config":{},"workload":{"actor":{"num":"n",'
-        '"module":"xxx","class":"xxx"},"generator":{"num":"n","module":'
+        '"module":"xxx","class":"xxx"},"rollout":{"num":"n","module":'
         '"xxx","class":"xxx"},"reference":{"num":"n","module":"xxx",'
         '"class":"xxx"},"reward":{"num":"n","module":"xxx",'
         '"class":"xxx"},"critic":{"num":"n","module":"xxx",'

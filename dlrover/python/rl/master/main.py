@@ -17,13 +17,11 @@ import ray
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.constant import RLMasterConstant
-from dlrover.python.rl.common.context import (
-    JobContext,
-    RLContext,
-    get_job_context,
-)
+from dlrover.python.rl.common.job_context import JobContext, get_job_context
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.master.state_backend import MasterStateBackendFactory
+from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
 
 @ray.remote
@@ -117,7 +115,7 @@ class DLRoverRLMaster(object):
                 time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
         except Exception as e:
             logger.info("Got unexpected exception while running.", e)
-            self.exit_job(need_cleanup=False)
+            self.exit_job()
 
     def exit_job(self, need_cleanup=True):
         logger.info(f"RLMaster exit job with cleanup: {need_cleanup}.")
@@ -129,3 +127,36 @@ class DLRoverRLMaster(object):
 
         self._cleanup_context_checkpoint()
         ray.actor.exit_actor()
+
+    """Remote call functions start"""
+
+    def report(self, runtime_info: RuntimeInfo):
+        if not runtime_info:
+            return
+
+        is_actor_failover = False
+        name = runtime_info.name
+
+        logger.info(f"Got runtime info: {runtime_info} reported by: {name}.")
+        name_vertex_mapping = (
+            self._job_context.execution_graph.name_vertex_mapping
+        )
+        if name in name_vertex_mapping:
+            vertex = name_vertex_mapping[name]
+
+            if vertex.create_time:
+                is_actor_failover = True
+
+            # update runtime info
+            name_vertex_mapping[name].update_runtime_info(
+                create_time=runtime_info.create_time,
+                hostname=runtime_info.hostname,
+                host_ip=runtime_info.host_ip,
+            )
+
+        # deal with failover
+        if is_actor_failover:
+            # TODO
+            pass
+
+    """Remote call functions end"""

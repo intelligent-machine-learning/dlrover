@@ -12,8 +12,8 @@
 # limitations under the License.
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.context import get_job_context
 from dlrover.python.rl.common.enums import SchedulingStrategyType
+from dlrover.python.rl.common.job_context import get_job_context
 from dlrover.python.rl.master.execution.executor import Executor
 from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.master.execution.scheduling_strategy import (
@@ -26,6 +26,7 @@ class JobManager(object):
         self._job_ctx = get_job_context()
 
         self._execution_graph = RLExecutionGraph(self._job_ctx.rl_context)
+        self._job_ctx.set_execution_graph(self._execution_graph)
         self._executor = Executor(
             self._execution_graph, self._get_scheduling_strategy()
         )

@@ -14,9 +14,9 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.rl.common.args import parse_job_args
-from dlrover.python.rl.common.context import RLContext
 from dlrover.python.rl.common.enums import RLAlgorithmType, TrainerType
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.tests.test_data import TestData
 
 

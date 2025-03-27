@@ -24,10 +24,10 @@ class TestData(object):
         },
         "workload": {
             "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
-            "generator": {
+            "rollout": {
                 "num": 1,
-                "module": "test_generator",
-                "class": "TestGenerator",
+                "module": "test_rollout",
+                "class": "TestRollout",
             },
             "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
             "reward": {
@@ -53,10 +53,10 @@ class TestData(object):
                 "class": "TestActor",
                 "resource": {"gpu": -1},
             },
-            "generator": {
+            "rollout": {
                 "num": 1,
-                "module": "test_generator",
-                "class": "TestGenerator",
+                "module": "test_rollout",
+                "class": "TestRollout",
             },
             "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
             "reward": {
@@ -73,6 +73,42 @@ class TestData(object):
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestTrainer",
+        },
+        "workload": {
+            "actor": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+                "resource": {"cpu": 0.1},
+            },
+            "rollout": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestRollout",
+                "resource": {"cpu": 0.1},
+            },
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+                "resource": {"cpu": 0.1},
+            },
+            "reward": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
+                "resource": {"cpu": 0.1},
+            },
+        },
+    }
+
+    UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF = {
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
         },
         "workload": {
@@ -82,10 +118,10 @@ class TestData(object):
                 "class": "TestActor",
                 "resource": {"cpu": 0.1},
             },
-            "generator": {
+            "rollout": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestGenerator",
+                "class": "TestRollout",
                 "resource": {"cpu": 0.1},
             },
             "reference": {
@@ -113,10 +149,10 @@ class TestData(object):
         },
         "workload": {
             "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
-            "generator": {
+            "rollout": {
                 "num": 1,
-                "module": "test_generator",
-                "class": "TestGenerator",
+                "module": "test_rollout",
+                "class": "TestRollout",
             },
             "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
             "reward": {
