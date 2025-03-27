@@ -15,7 +15,7 @@ import time
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.enums import ModelParallelismArcType
+from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 from dlrover.python.rl.trainer.workload import BaseWorkload
 
@@ -23,19 +23,55 @@ from dlrover.python.rl.trainer.workload import BaseWorkload
 class TestTrainer(BaseTrainer):
     def init(self):
         logger.info("TestTrainer init called")
-        time.sleep(1)
+        time.sleep(0.1)
 
     def fit(self):
         logger.info("TestTrainer fit called")
-        time.sleep(1)
+        time.sleep(0.1)
 
 
 class TestInteractiveTrainer(BaseTrainer):
     def init(self):
-        time.sleep(1)
+        for role, actor_handles in self.actor_handles.items():
+            now = time.time() * 1000
+            init_refs = [
+                actor_handle.init.remote() for actor_handle in actor_handles
+            ]
+            ray.get(init_refs)
+            logger.info(f"Done {role} init, cost {time.time()*1000 - now}ms")
+        time.sleep(0.1)
 
     def fit(self):
-        time.sleep(1)
+        for role, actor_handles in self.actor_handles.items():
+            now = time.time() * 1000
+            if role == RLRoleType.ACTOR or role == RLRoleType.REFERENCE:
+                method_refs = [
+                    actor_handle.compute.remote()
+                    for actor_handle in actor_handles
+                ]
+                ray.get(method_refs)
+                logger.info(
+                    f"Done {role} compute, cost {time.time() * 1000 - now}ms"
+                )
+            elif role == RLRoleType.REWARD:
+                method_refs = [
+                    actor_handle.reward.remote()
+                    for actor_handle in actor_handles
+                ]
+                ray.get(method_refs)
+                logger.info(
+                    f"Done {role} reward, cost {time.time() * 1000 - now}ms"
+                )
+            elif role == RLRoleType.GENERATOR:
+                method_refs = [
+                    actor_handle.generate.remote()
+                    for actor_handle in actor_handles
+                ]
+                ray.get(method_refs)
+                logger.info(
+                    f"Done {role} generate, cost {time.time() * 1000 - now}ms"
+                )
+        time.sleep(0.1)
 
 
 class TestWorkload(BaseWorkload):
@@ -46,7 +82,7 @@ class TestWorkload(BaseWorkload):
 @ray.remote
 class TestActor(TestWorkload):
     def init(self):
-        time.sleep(1)
+        time.sleep(0.1)
 
     def compute(self):
         logger.info("TestActor compute called")
@@ -55,7 +91,7 @@ class TestActor(TestWorkload):
 @ray.remote
 class TestGenerator(TestWorkload):
     def init(self):
-        time.sleep(1)
+        time.sleep(0.1)
 
     def generate(self):
         logger.info("TestGenerator generate called")
@@ -64,7 +100,7 @@ class TestGenerator(TestWorkload):
 @ray.remote
 class TestReference(TestWorkload):
     def init(self):
-        time.sleep(1)
+        time.sleep(0.1)
 
     def compute(self):
         logger.info("TestReference compute called")
@@ -73,7 +109,7 @@ class TestReference(TestWorkload):
 @ray.remote
 class TestReward(TestWorkload):
     def init(self):
-        time.sleep(1)
+        time.sleep(0.1)
 
     def reward(self):
         logger.info("TestReward reward called")

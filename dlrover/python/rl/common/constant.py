@@ -16,3 +16,4 @@ class RLMasterConstant(object):
     JOB_CONTEXT_STATE_KEY = "job-context"
     SCHEDULING_TIMEOUT_MIN_SECS = 30
     SCHEDULING_TIMEOUT_PER_ACTOR_SECS = 2
+    RUN_WAIT_INTERVAL = 30

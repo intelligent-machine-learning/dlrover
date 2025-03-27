@@ -29,11 +29,11 @@ class BaseTrainer(ABC):
         self._config = config
 
     @property
-    def actor_handles(self):
+    def actor_handles(self) -> Dict[RLRoleType, List[ActorHandle]]:
         return self._actor_handles
 
     @property
-    def config(self):
+    def config(self) -> DictConfig:
         return self._config
 
     def get_actor_handles(self, role_type: RLRoleType) -> List[ActorHandle]:

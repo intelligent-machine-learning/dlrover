@@ -73,7 +73,7 @@ class TestData(object):
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
-            "class": "TestTrainer",
+            "class": "TestInteractiveTrainer",
         },
         "workload": {
             "actor": {

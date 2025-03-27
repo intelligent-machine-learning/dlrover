@@ -14,8 +14,10 @@ import time
 
 import ray
 
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.master.main import DLRoverRLMaster
 from dlrover.python.rl.tests.master.base import BaseMasterTest
+from dlrover.python.util.function_util import timeout
 
 
 class RLMasterTest(BaseMasterTest):
@@ -27,7 +29,9 @@ class RLMasterTest(BaseMasterTest):
         super().tearDown()
         ray.shutdown()
 
+    @timeout(30)
     def test_main(self):
+        RLMasterConstant.RUN_WAIT_INTERVAL = 1
         master_name = "test"
         DLRoverRLMaster.options(name=master_name, lifetime="detached").remote(
             self._job_context.job_config.serialize(),
@@ -40,12 +44,12 @@ class RLMasterTest(BaseMasterTest):
                 ray.get_actor(master_name)
                 break
             except ValueError:
-                time.sleep(1)
+                time.sleep(0.1)
 
         # wait master done
         while True:
             try:
                 ray.get_actor(master_name)
-                time.sleep(1)
+                time.sleep(0.1)
             except ValueError:
                 break

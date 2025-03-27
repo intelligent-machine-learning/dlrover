@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
+
 import ray
 
 from dlrover.python.common.log import default_logger as logger
@@ -112,7 +114,7 @@ class DLRoverRLMaster(object):
             while True:
                 if self._job_manager.is_job_finished():
                     self.exit_job()
-
+                time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
         except Exception as e:
             logger.info("Got unexpected exception while running.", e)
             self.exit_job(need_cleanup=False)

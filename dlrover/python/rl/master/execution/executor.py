@@ -54,12 +54,13 @@ class Executor(object):
         self._scheduling_strategy.cleanup(self.__execution_graph)
 
     def execute(self):
+        self.create_workloads()
+        self.init_trainer()
+
         logger.info(
             "Start trainer execution, "
             f"trainer: {({self.__trainer.__class__.__name__})}"
         )
-        self.create_workloads()
-        self.init_trainer()
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             self.__trainer_result = executor.submit(self._trainer_async)
@@ -77,7 +78,9 @@ class Executor(object):
 
     def _trainer_async(self):
         try:
+            logger.info("Trainer init invocation.")
             self.__trainer.init()
+            logger.info("Trainer fit invocation.")
             self.__trainer.fit()
         except Exception as e:
             logger.error(f"Trainer execution got error: {e}")
