@@ -13,7 +13,7 @@
 from itertools import chain
 from typing import Dict, List
 
-from rl.trainer.trainer import BaseTrainer
+from ray.actor import ActorHandle
 
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
@@ -183,10 +183,16 @@ class RLExecutionGraph(PickleSerializable):
     def get_vertex(self, role_type: RLRoleType, rank) -> RLExecutionVertex:
         return self.__execution_vertices[role_type][rank]
 
-    def get_all_actor_handles(self):
+    def get_all_actor_handles(self) -> List[ActorHandle]:
         return [vertex.actor_handle for vertex in self.get_all_vertices()]
 
-    def get_trainer(self) -> BaseTrainer:
+    def get_actor_handles(self) -> Dict[RLRoleType, List[ActorHandle]]:
+        return {
+            role: [vertex.actor_handle for vertex in vertices]
+            for role, vertices in self.__execution_vertices.items()
+        }
+
+    def get_trainer_cls(self):
         return get_class_by_module_and_class_name(
             self.__rl_context.trainer.module_name,
             self.__rl_context.trainer.class_name,

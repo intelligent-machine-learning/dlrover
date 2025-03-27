@@ -41,7 +41,7 @@ class DLRoverRLMaster(object):
 
         self._started = False
 
-        logger.infof(
+        logger.info(
             "DLRover RLMaster initiated with "
             f"job-config: {self._job_config}, "
             f"rl-context: {self._rl_context}."
@@ -59,6 +59,9 @@ class DLRoverRLMaster(object):
     @property
     def job_manager(self):
         return self._job_manager
+
+    def is_started(self) -> bool:
+        return self._started
 
     def _get_job_context_state_key(self):
         key = (
@@ -103,20 +106,24 @@ class DLRoverRLMaster(object):
                 # TODO: recover logic
             else:
                 logger.info("RLMaster new job executing.")
-                self.job_manager.start()
+                self._save_context_to_checkpoint()
+                self.job_manager.start_job()
+
+            while True:
+                if self._job_manager.is_job_finished():
+                    self.exit_job()
+
         except Exception as e:
             logger.info("Got unexpected exception while running.", e)
             self.exit_job(need_cleanup=False)
 
-    def finish_job(self):
-        self.exit_job()
-
-    def exit_job(self, need_cleanup=False):
+    def exit_job(self, need_cleanup=True):
+        logger.info(f"RLMaster exit job with cleanup: {need_cleanup}.")
         self._started = False
 
         if need_cleanup:
             if self._job_manager:
-                self._job_manager.stop()
+                self._job_manager.stop_job()
 
         self._cleanup_context_checkpoint()
         ray.actor.exit_actor()

@@ -91,5 +91,5 @@ class ElasticReader(metaclass=ABCMeta):
             if not shard:
                 break
             logger.info("shard is {}".format(shard))
-            for d in self.read_data_by_index_range(shard.start, shard.end):
+            for d in self.read_data_by_index_range(shard.start_job, shard.end):
                 yield d

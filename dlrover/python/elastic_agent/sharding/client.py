@@ -120,7 +120,7 @@ class ShardingClient(object):
             if success:
                 break
             time.sleep(5)
-        if task.shard.end - task.shard.start > 0:
+        if task.shard.end - task.shard.start_job > 0:
             with self._lock:
                 self._pending_tasks[task.task_id] = task
                 if len(self._pending_tasks) == 1:
@@ -163,7 +163,7 @@ class ShardingClient(object):
                         continue
 
                     task = self._pending_tasks[task_id]
-                    task_record_count = task.shard.end - task.shard.start
+                    task_record_count = task.shard.end - task.shard.start_job
 
                     self._reported_record_count.setdefault(task_id, 0)
                     cur_count = self._reported_record_count[task_id]
@@ -292,7 +292,7 @@ class IndexShardingClient(ShardingClient):
                 ids = (
                     task.shard.indices
                     if task.shard.indices
-                    else list(range(task.shard.start, task.shard.end))
+                    else list(range(task.shard.start_job, task.shard.end))
                 )
                 for i in ids:
                     self._sample_queue.put(i)

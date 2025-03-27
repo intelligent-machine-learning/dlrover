@@ -42,7 +42,7 @@ class DataShardClientTest(unittest.TestCase):
             dataset_name="test",
         )
         shard = data_shard_service.fetch_shard()
-        self.assertEqual(shard.start, 0)
+        self.assertEqual(shard.start_job, 0)
         self.assertEqual(shard.end, 32)
         shard_count = 1
         while True:

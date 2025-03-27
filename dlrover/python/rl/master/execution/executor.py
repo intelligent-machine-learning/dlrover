@@ -10,13 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from concurrent.futures import ThreadPoolExecutor
+import traceback
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.master.execution.scheduling_strategy import (
     SchedulingStrategy,
 )
+from dlrover.python.rl.trainer.trainer import BaseTrainer
 
 
 class Executor(object):
@@ -28,14 +31,21 @@ class Executor(object):
         self.__execution_graph = execution_graph
         self._scheduling_strategy = scheduling_strategy
 
-        self.__trainer = self.__execution_graph.get_trainer()
-        self.__trainer_result = None
+        self.__trainer: Union[BaseTrainer, None] = None
+        self.__trainer_result: Union[Future, None] = None
 
     def create_workloads(self):
         """Sync operation."""
         logger.info("Create all workloads.")
 
         self._scheduling_strategy.schedule(self.__execution_graph)
+
+    def init_trainer(self):
+        trainer_cls = self.__execution_graph.get_trainer_cls()
+        actor_handles = self.__execution_graph.get_actor_handles()
+        config = self.__execution_graph.get_rl_config()
+
+        self.__trainer = trainer_cls(actor_handles, config)
 
     def destroy_workloads(self):
         """Sync operation."""
@@ -49,6 +59,7 @@ class Executor(object):
             f"trainer: {({self.__trainer.__class__.__name__})}"
         )
         self.create_workloads()
+        self.init_trainer()
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             self.__trainer_result = executor.submit(self._trainer_async)
@@ -59,12 +70,18 @@ class Executor(object):
     def cleanup(self):
         self.destroy_workloads()
 
+    def is_trainer_finished(self):
+        if self.__trainer_result is None:
+            return False
+        return self.__trainer_result.done()
+
     def _trainer_async(self):
         try:
             self.__trainer.init()
             self.__trainer.fit()
         except Exception as e:
             logger.error(f"Trainer execution got error: {e}")
+            traceback.print_exc()
             return False, e
         return True, None
 

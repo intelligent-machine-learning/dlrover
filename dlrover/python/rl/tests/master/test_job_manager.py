@@ -27,5 +27,5 @@ class JobManagerTest(BaseMasterTest):
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)
-        job_manager.start()
+        job_manager.start_job()
         job_manager.stop()

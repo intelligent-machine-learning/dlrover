@@ -65,7 +65,7 @@ class ResourceMonitorTest(unittest.TestCase):
             ):
                 with patch("pynvml.nvmlInit"):
                     resource_monitor = ResourceMonitor.singleton_instance()
-                    resource_monitor.start()
+                    resource_monitor.start_job()
                     time.sleep(0.3)
                     resource_monitor.report_resource()
                     self.assertTrue(resource_monitor._total_cpu >= 0.0)

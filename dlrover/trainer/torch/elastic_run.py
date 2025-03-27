@@ -538,7 +538,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
 def run(args):
     # export event for dlrover agent
     agent = DLRoverAgentEvent.singleton_instance()
-    agent.start(pid=vars(args))
+    agent.start_job(pid=vars(args))
 
     logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None

@@ -32,10 +32,10 @@ class TestTrainer(BaseTrainer):
 
 class TestInteractiveTrainer(BaseTrainer):
     def init(self):
-        pass
+        time.sleep(1)
 
     def fit(self):
-        pass
+        time.sleep(1)
 
 
 class TestWorkload(BaseWorkload):
@@ -46,7 +46,10 @@ class TestWorkload(BaseWorkload):
 @ray.remote
 class TestActor(TestWorkload):
     def init(self):
-        time.sleep(2)
+        time.sleep(1)
+
+    def compute(self):
+        logger.info("TestActor compute called")
 
 
 @ray.remote
@@ -54,14 +57,23 @@ class TestGenerator(TestWorkload):
     def init(self):
         time.sleep(1)
 
+    def generate(self):
+        logger.info("TestGenerator generate called")
+
 
 @ray.remote
 class TestReference(TestWorkload):
     def init(self):
         time.sleep(1)
 
+    def compute(self):
+        logger.info("TestReference compute called")
+
 
 @ray.remote
 class TestReward(TestWorkload):
     def init(self):
         time.sleep(1)
+
+    def reward(self):
+        logger.info("TestReward reward called")

@@ -76,7 +76,8 @@ class RayInternalMasterStateBackend(MasterStateBackend):
     """
 
     def init(self):
-        ray.init()
+        if not ray.is_initialized():
+            ray.init()
 
     def get(self, key):
         return _internal_kv_get(key)

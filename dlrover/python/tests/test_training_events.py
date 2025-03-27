@@ -90,7 +90,7 @@ class AgentEventTest(unittest.TestCase):
             world_size=1,
         )
 
-        self.agent_evt.start(
+        self.agent_evt.start_job(
             args={
                 "entrypoint": "test.sh",
                 "min_nodes": 1,

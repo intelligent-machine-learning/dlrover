@@ -353,6 +353,16 @@ class JobContext(Singleton, PickleSerializable):
 
         self._locker = threading.Lock()
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if "_locker" in state:
+            del state["_locker"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._locker = threading.Lock()
+
     def init(self, job_config: JobConfig, rl_context: RLContext):
         self._job_config = job_config
         self._rl_context = rl_context

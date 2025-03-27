@@ -37,9 +37,12 @@ class JobManager(object):
         else:
             raise NotImplementedError()
 
-    def start(self):
+    def start_job(self):
         logger.info("Starting job manager.")
         self._executor.execute()
 
-    def stop(self):
+    def is_job_finished(self):
+        return self._executor.is_trainer_finished()
+
+    def stop_job(self):
         self._executor.cleanup()

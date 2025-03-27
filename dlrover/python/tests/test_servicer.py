@@ -86,7 +86,7 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertIsNotNone(self.server)
         self.assertFalse(self.server.is_serving())
 
-        self.server.start()
+        self.server.start_job()
         self.assertTrue(self.server.is_serving())
 
         self.server.stop()
@@ -106,7 +106,7 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
         )
         self.assertIsNotNone(self.server)
-        self.server.start()
+        self.server.start_job()
         self.server.stop(grace=None)
 
     def test_http_basic(self):
@@ -124,7 +124,7 @@ class MasterServicerBasicTest(unittest.TestCase):
             None,
             None,
         )
-        self.server.start()
+        self.server.start_job()
 
         response = requests.get("http://localhost:8000/")
         self.assertEqual(response.status_code, 200)
