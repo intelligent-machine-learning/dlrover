@@ -13,17 +13,16 @@
 import threading
 from typing import Dict, Tuple
 
-from common.resource import Resource
 from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
-    TrainerArcType,
     TrainerType,
 )
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
@@ -35,9 +34,6 @@ class TrainerDesc(object):
         self,
         module_class,
         trainer_type,
-        trainer_arc_type,
-        algorithm_type,
-        config,
     ):
         """
         Description of a trainer.
@@ -45,25 +41,14 @@ class TrainerDesc(object):
         Args:
             module_class: The module and class of the trainer.
             trainer_type: The trainer type.
-            trainer_arc_type: The trainer architecture type.
-            algorithm_type: The algorithm type.
-            config: The configuration of the trainer.
         """
         self._module_class: Tuple[str, str] = module_class
         self._trainer_type: TrainerType = TrainerType[trainer_type]
-        self._trainer_arc_type: TrainerArcType = TrainerArcType[
-            trainer_arc_type
-        ]
-        self._algorithm_type: RLAlgorithmType = RLAlgorithmType[algorithm_type]
-        self._config: DictConfig = config
 
     def __repr__(self):
         return (
             f"Trainer(class={self._module_class}, "
-            f"type={self._trainer_type}, "
-            f"arc_type={self._trainer_arc_type}, "
-            f"algorithm_type={self._algorithm_type}, "
-            f"config={self._config})"
+            f"type={self._trainer_type})"
         )
 
     @property
@@ -77,18 +62,6 @@ class TrainerDesc(object):
     @property
     def trainer_type(self) -> TrainerType:
         return self._trainer_type
-
-    @property
-    def trainer_arc_type(self) -> TrainerArcType:
-        return self._trainer_arc_type
-
-    @property
-    def algorithm_type(self) -> RLAlgorithmType:
-        return self._algorithm_type
-
-    @property
-    def config(self) -> DictConfig:
-        return self._config
 
 
 class WorkloadDesc(object):
@@ -135,6 +108,8 @@ class WorkloadDesc(object):
 class RLContext(PickleSerializable):
     def __init__(
         self,
+        algorithm_type: RLAlgorithmType,
+        config: DictConfig,
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
     ):
@@ -142,24 +117,38 @@ class RLContext(PickleSerializable):
         Description of reinforcement learning's computing architecture.
 
         Args:
+            algorithm_type: The algorithm type.
+            config: The full configuration of rl training.
             trainer: The description for the trainer.
             workloads: A dictionary of workloads, including: actor_workload,
                 generator_workload, ref_workload, reward_workload,
                 critic_workload.
         """
 
+        self._algorithm_type: RLAlgorithmType = algorithm_type
+        self._config: DictConfig = config
         self._trainer = trainer
         self._workloads = workloads
 
     def __repr__(self):
         return (
-            f"RLContext({self._trainer}, "
+            f"RLContext(algorithm_type:{self.algorithm_type}, "
+            f"config:{self.config}, "
+            f"trainer:{self.trainer}, "
             f"actor:{self.actor_workload}, "
             f"generator:{self.generator_workload}, "
             f"reference:{self.ref_workload}, "
             f"reward:{self.reward_workload}, "
             f"critic:{self.critic_workload})"
         )
+
+    @property
+    def algorithm_type(self):
+        return self._algorithm_type
+
+    @property
+    def config(self):
+        return self._config
 
     @property
     def trainer(self):
@@ -196,13 +185,14 @@ class RLContext(PickleSerializable):
             raise InvalidRLConfiguration()
 
         try:
+            algorithm_type = RLAlgorithmType[conf.get("algorithm_type")]
+            config = conf.get("config")
+
             # trainer
+            trainer_conf = conf.get("trainer")
             trainer_desc = TrainerDesc(
-                (conf.get("module"), conf.get("class")),
-                conf.get("type"),
-                conf.get("arc_type"),
-                conf.get("algorithm_type"),
-                conf.get("config"),
+                (trainer_conf.get("module"), trainer_conf.get("class")),
+                trainer_conf.get("type"),
             )
 
             actor_desc = None
@@ -267,6 +257,8 @@ class RLContext(PickleSerializable):
                         critic_conf.get("resource"),
                     )
             return RLContext(
+                algorithm_type,
+                config,
                 trainer_desc,
                 {
                     RLRoleType.ACTOR: actor_desc,
@@ -283,19 +275,25 @@ class RLContext(PickleSerializable):
             raise InvalidRLConfiguration()
 
     def validate(self) -> bool:
+        # algorithm_type
+        if not self.algorithm_type:
+            logger.error("Algorithm type not set.")
+            return False
+
+        # config
+        if not self.config:
+            logger.error("Config not set.")
+            return False
+
         # trainer
         if not self.trainer:
             logger.error("Trainer not set.")
             return False
         else:
-            if (
-                not self.trainer.module_name
-                or not self.trainer.class_name
-                or not self.trainer.config
-            ):
+            if not self.trainer.module_name or not self.trainer.class_name:
                 logger.error(
-                    "Trainer mandatory arguments: module, class or "
-                    "config has empty value."
+                    "Trainer mandatory arguments: module or class "
+                    "has empty value."
                 )
                 return False
             if not get_class_by_module_and_class_name(

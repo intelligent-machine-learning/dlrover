@@ -47,7 +47,7 @@ class RLExecutionVertex(PickleSerializable):
         self._create_time = 0
         self._exit_time = 0
         self._hostname = ""
-        self._hostip = ""
+        self._host_ip = ""
         self._restart_count = 0
 
     @property
@@ -91,19 +91,22 @@ class RLExecutionVertex(PickleSerializable):
         return self._hostname
 
     @property
-    def hostip(self):
-        return self._hostip
+    def host_ip(self):
+        return self._host_ip
 
     @property
     def restart_count(self):
         return self._restart_count
+
+    def update_actor_handle(self, actor_handle):
+        self._actor_handle = actor_handle
 
     def update_runtime_info(
         self,
         create_time=None,
         exit_time=None,
         hostname=None,
-        hostip=None,
+        host_ip=None,
         restart_count=None,
     ):
         if create_time:
@@ -112,8 +115,8 @@ class RLExecutionVertex(PickleSerializable):
             self._exit_time = exit_time
         if hostname:
             self._hostname = hostname
-        if hostip:
-            self._hostip = hostip
+        if host_ip:
+            self._host_ip = host_ip
         if restart_count:
             self._restart_count = restart_count
 
@@ -142,7 +145,7 @@ class RLExecutionGraph(PickleSerializable):
         )
 
     def get_rl_config(self):
-        return self.__rl_context.trainer.config
+        return self.__rl_context.config
 
     def _build(self):
         for role, desc in self.__rl_context.workloads.items():
@@ -169,7 +172,7 @@ class RLExecutionGraph(PickleSerializable):
     def execution_edges(self) -> List[RLExecutionEdge]:
         return self.__execution_edges
 
-    def get_all_vertices(self):
+    def get_all_vertices(self) -> List[RLExecutionVertex]:
         return list(chain(*self.__execution_vertices.values()))
 
     def get_vertices_by_role_type(

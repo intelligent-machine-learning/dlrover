@@ -10,18 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import unittest
-from unittest.mock import patch
 
 import ray
 
-from dlrover.python.rl.driver.main import submit, main
+from dlrover.python.rl.driver.main import main
 from dlrover.python.rl.tests.test_data import TestData
 
 
 class DriverTest(unittest.TestCase):
-
     def setUp(self):
         ray.init()
 

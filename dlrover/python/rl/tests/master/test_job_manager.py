@@ -23,9 +23,7 @@ class JobManagerTest(BaseMasterTest):
     def test_basic(self):
         job_manager = JobManager()
         self.assertTrue(
-            isinstance(
-                job_manager._get_scheduling_strategy(), SimpleStrategy
-            )
+            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)

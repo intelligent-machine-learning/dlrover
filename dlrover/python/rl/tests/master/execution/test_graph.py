@@ -64,5 +64,5 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(generator_vertex_0.create_time, now)
         self.assertEqual(generator_vertex_0.exit_time, 0)
         self.assertEqual(generator_vertex_0.hostname, "test.com")
-        self.assertEqual(generator_vertex_0.hostip, "")
+        self.assertEqual(generator_vertex_0.host_ip, "")
         self.assertEqual(generator_vertex_0.restart_count, 2)

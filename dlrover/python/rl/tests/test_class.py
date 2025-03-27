@@ -12,7 +12,10 @@
 # limitations under the License.
 import time
 
+import ray
+
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.enums import ModelParallelismArcType
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 from dlrover.python.rl.trainer.workload import BaseWorkload
 
@@ -35,21 +38,30 @@ class TestInteractiveTrainer(BaseTrainer):
         pass
 
 
-class TestActor(BaseWorkload):
+class TestWorkload(BaseWorkload):
+    def get_model_arc(self) -> ModelParallelismArcType:
+        return ModelParallelismArcType.MEGATRON
+
+
+@ray.remote
+class TestActor(TestWorkload):
     def init(self):
         time.sleep(2)
 
 
-class TestGenerator(BaseWorkload):
+@ray.remote
+class TestGenerator(TestWorkload):
     def init(self):
         time.sleep(1)
 
 
-class TestReference(BaseWorkload):
+@ray.remote
+class TestReference(TestWorkload):
     def init(self):
         time.sleep(1)
 
 
-class TestReward(BaseWorkload):
+@ray.remote
+class TestReward(TestWorkload):
     def init(self):
         time.sleep(1)

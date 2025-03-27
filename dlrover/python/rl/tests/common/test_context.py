@@ -15,11 +15,7 @@ from unittest.mock import patch
 
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.context import RLContext
-from dlrover.python.rl.common.enums import (
-    RLAlgorithmType,
-    TrainerArcType,
-    TrainerType,
-)
+from dlrover.python.rl.common.enums import RLAlgorithmType, TrainerType
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.rl.tests.test_data import TestData
 
@@ -41,13 +37,8 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(
             rl_context.trainer.trainer_type, TrainerType.USER_DEFINED
         )
-        self.assertEqual(
-            rl_context.trainer.trainer_arc_type, TrainerArcType.MEGATRON
-        )
-        self.assertEqual(
-            rl_context.trainer.algorithm_type, RLAlgorithmType.GRPO
-        )
-        self.assertEqual(rl_context.trainer.config.get("c1"), "v1")
+        self.assertEqual(rl_context.algorithm_type, RLAlgorithmType.GRPO)
+        self.assertEqual(rl_context.config.get("c1"), "v1")
         self.assertEqual(rl_context.trainer.class_name, "TestTrainer")
         self.assertEqual(rl_context.trainer.module_name, "test_trainer")
         self.assertIsNone(rl_context.critic_workload)
@@ -94,7 +85,5 @@ class RLContextTest(unittest.TestCase):
 
         deserialized = RLContext.deserialize(serialized)
         self.assertIsNotNone(deserialized)
-        self.assertEqual(
-            deserialized.trainer.algorithm_type, RLAlgorithmType.GRPO
-        )
-        self.assertEqual(deserialized.trainer.config.get("c1"), "v1")
+        self.assertEqual(deserialized.algorithm_type, RLAlgorithmType.GRPO)
+        self.assertEqual(deserialized.config.get("c1"), "v1")

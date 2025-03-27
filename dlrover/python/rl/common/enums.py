@@ -29,10 +29,14 @@ class RLAlgorithmType(Enum):
     PPO = "PPO"
 
 
-class TrainerArcType(Enum):
-    MEGATRON = "MEGATRON"
-    FSDP = "FSDP"
-    DEEPSPEED = "DEEPSPEED"
+class ModelParallelismArcType(Enum):
+    MEGATRON = ("MEGATRON", "3D")
+    FSDP = ("FSDP", "Z3")
+    DEEPSPEED = ("DEEPSPEED", "Z3")
+
+    def __init__(self, value, arc_type):
+        self._value = value
+        self.arc_type = arc_type
 
 
 class RLRoleType(Enum):

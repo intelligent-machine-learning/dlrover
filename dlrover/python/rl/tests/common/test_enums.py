@@ -15,8 +15,8 @@ import unittest
 
 from dlrover.python.rl.common.enums import (
     MasterStateBackendType,
+    ModelParallelismArcType,
     RLAlgorithmType,
-    TrainerArcType,
     TrainerType,
 )
 
@@ -34,7 +34,7 @@ class EnumsTest(unittest.TestCase):
         )
         self.assertEqual(
             TrainerType["OPENRLHF_PPO_DEEPSPEED"].arc_type,
-            TrainerArcType.DEEPSPEED.value,
+            ModelParallelismArcType.DEEPSPEED.value,
         )
 
         with self.assertRaises(KeyError):
@@ -48,9 +48,9 @@ class EnumsTest(unittest.TestCase):
             self.assertTrue(RLAlgorithmType["DPO"])
 
     def test_trainer_arc_type(self):
-        self.assertTrue(TrainerArcType["MEGATRON"])
-        self.assertTrue(TrainerArcType["FSDP"])
-        self.assertTrue(TrainerArcType["DEEPSPEED"])
+        self.assertTrue(ModelParallelismArcType["MEGATRON"])
+        self.assertTrue(ModelParallelismArcType["FSDP"])
+        self.assertTrue(ModelParallelismArcType["DEEPSPEED"])
 
         with self.assertRaises(KeyError):
             self.assertTrue(RLAlgorithmType["DCP"])

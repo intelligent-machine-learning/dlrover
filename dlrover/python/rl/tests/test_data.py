@@ -15,12 +15,13 @@
 class TestData(object):
 
     UD_SIMPLE_MOCK_RL_CONF = {
-        "type": "USER_DEFINED",
-        "arc_type": "MEGATRON",
-        "module": "test_trainer",
-        "class": "TestTrainer",
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "test_trainer",
+            "class": "TestTrainer",
+        },
         "workload": {
             "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
             "generator": {
@@ -38,12 +39,13 @@ class TestData(object):
     }
 
     UD_INVALID_RESOURCE_RL_CONF = {
-        "type": "USER_DEFINED",
-        "arc_type": "MEGATRON",
-        "module": "test_trainer",
-        "class": "TestTrainer",
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "test_trainer",
+            "class": "TestTrainer",
+        },
         "workload": {
             "actor": {
                 "num": 2,
@@ -66,43 +68,49 @@ class TestData(object):
     }
 
     UD_SIMPLE_TEST_RL_CONF = {
-        "type": "USER_DEFINED",
-        "arc_type": "MEGATRON",
-        "module": "dlrover.python.rl.tests.test_class",
-        "class": "TestTrainer",
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestTrainer",
+        },
         "workload": {
             "actor": {
                 "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
+                "resource": {"cpu": 0.1},
             },
             "generator": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestGenerator",
+                "resource": {"cpu": 0.1},
             },
             "reference": {
                 "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReference",
+                "resource": {"cpu": 0.1},
             },
             "reward": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReward",
+                "resource": {"cpu": 0.1},
             },
         },
     }
 
     UD_DPO_MOCK_RL_CONF = {
-        "type": "USER_DEFINED",
-        "arc_type": "MEGATRON",
-        "module": "test_trainer",
-        "class": "TestTrainer",
         "algorithm_type": "DPO",
         "config": {"c1": "v1"},
+        "trainer": {
+            "module": "test_trainer",
+            "class": "TestTrainer",
+            "type": "USER_DEFINED",
+        },
         "workload": {
             "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
             "generator": {
