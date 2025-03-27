@@ -33,10 +33,14 @@ class Executor(object):
 
     def create_workloads(self):
         """Sync operation."""
+        logger.info("Create all workloads.")
+
         self._scheduling_strategy.schedule(self.__execution_graph)
 
     def destroy_workloads(self):
         """Sync operation."""
+
+        logger.info("Destroy all workloads.")
         self._scheduling_strategy.cleanup(self.__execution_graph)
 
     def execute(self):

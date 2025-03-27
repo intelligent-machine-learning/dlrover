@@ -10,8 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-
 import ray
 
 from dlrover.python.common.log import default_logger as logger
@@ -48,7 +46,7 @@ class DLRoverRLMaster(object):
             f"job-config: {self._job_config}, "
             f"rl-context: {self._rl_context}."
         )
-        self.start()
+        self.run()
 
     @property
     def context(self):
@@ -81,29 +79,44 @@ class DLRoverRLMaster(object):
         context_key = self._get_job_context_state_key()
         self.state_backend.set(context_key, self.context.serialize())
 
+    def _cleanup_context_checkpoint(self):
+        context_key = self._get_job_context_state_key()
+        if self.state_backend.exists(context_key):
+            self.state_backend.delete(context_key)
+
     def update_job_context(self):
         # TODO: impl
         self._save_context_to_checkpoint()
 
-    def start(self):
+    def run(self):
         self._started = True
 
-        # load context from backend
-        context_from_ckpt = self._load_context_from_checkpoint()
-        if context_from_ckpt:
-            logger.info(
-                "RLMaster recover from checkpoint, "
-                f"context: {context_from_ckpt}."
-            )
-            self._job_context = context_from_ckpt
-            # TODO: recover logic
-        else:
-            logger.info("RLMaster new job executing.")
-            self.job_manager.start()
+        try:
+            # load context from backend
+            context_from_ckpt = self._load_context_from_checkpoint()
+            if context_from_ckpt:
+                logger.info(
+                    "RLMaster recover from checkpoint, "
+                    f"context: {context_from_ckpt}."
+                )
+                self._job_context = context_from_ckpt
+                # TODO: recover logic
+            else:
+                logger.info("RLMaster new job executing.")
+                self.job_manager.start()
+        except Exception as e:
+            logger.info("Got unexpected exception while running.", e)
+            self.exit_job(need_cleanup=False)
 
-    def stop(self):
+    def finish_job(self):
+        self.exit_job()
+
+    def exit_job(self, need_cleanup=False):
         self._started = False
 
-        # TODO: cleanup
+        if need_cleanup:
+            if self._job_manager:
+                self._job_manager.stop()
 
-        os._exit(0)
+        self._cleanup_context_checkpoint()
+        ray.actor.exit_actor()

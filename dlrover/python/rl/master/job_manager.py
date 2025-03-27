@@ -42,4 +42,4 @@ class JobManager(object):
         self._executor.execute()
 
     def stop(self):
-        pass
+        self._executor.cleanup()
