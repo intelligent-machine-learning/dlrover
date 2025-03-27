@@ -619,5 +619,5 @@ def build_master_client(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:
-            logger.info("The master is not available now.")
+            logger.warning("The master is not available.")
     return master_client
