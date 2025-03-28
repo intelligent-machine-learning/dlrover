@@ -1047,7 +1047,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
-
             self._check_and_process_diagnosis_action()
             try:
                 run_result: RunResult = self._monitor_workers(
