@@ -506,10 +506,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             )
         )
         mock_dlrover_exit_barrier.side_effect = TimeoutException("test")
-        try:
-            agent._invoke_run()
-        except TimeoutException:
-            mock_dlrover_exit_barrier.assert_called()
+        agent._invoke_run()
 
     def test_metric_collect(self):
         with patch(
