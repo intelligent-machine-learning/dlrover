@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import Observation
+from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
 from dlrover.python.diagnosis.common.diagnostician import (
     DiagnosisObservation,
     Diagnostician,
@@ -69,6 +69,6 @@ class FailureNodeDiagnostician(Diagnostician):
                     break
         if is_failure_node:
             return DiagnosisObservation(
-                observation=Observation.NODE_FAILED,
+                observation=DiagnosisErrorConstant.NODE_FAILED,
             )
         return DiagnosisObservation()

@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import Observation
+from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
@@ -111,7 +111,7 @@ class DiagnosticianTest(unittest.TestCase):
         errors = "error code is 507035"
 
         ob = diagnostician.observe(log_file=file_path, errors=errors)
-        self.assertEqual(ob.observation, Observation.NODE_FAILED)
+        self.assertEqual(ob.observation, DiagnosisErrorConstant.NODE_FAILED)
 
         ob = diagnostician.observe(log_file=file_path)
         self.assertTrue(len(ob.observation) == 0)

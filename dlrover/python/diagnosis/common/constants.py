@@ -69,8 +69,6 @@ class DiagnosisActionType(object):
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
 
-    OBSERVATION = "observation"
-
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
@@ -118,7 +116,3 @@ class JobHangWatermark(object):
     # NPU_UTIL is [0, 100]
     NPU_UTIL_LOW_WM = 0.5
     NPU_UTIL_HIGH_WM = 98
-
-
-class Observation(object):
-    NODE_FAILED = "node_failed"

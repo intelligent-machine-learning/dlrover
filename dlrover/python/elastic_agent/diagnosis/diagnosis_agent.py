@@ -27,7 +27,6 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     DiagnosisErrorConstant,
     InferenceConfigKey,
-    Observation,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -258,7 +257,7 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             errors=self._errors,
         )
 
-        node_failed = ob.observation == Observation.NODE_FAILED
+        node_failed = ob.observation == DiagnosisErrorConstant.NODE_FAILED
 
         if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(
