@@ -10,7 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+
+import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.args import parse_job_args
@@ -36,15 +37,22 @@ def submit(args=None):
     logger.info(f"RL context: {rl_context}.")
 
     # create master actor
+    name = "DLRoverRLMaster-" + parsed_args.job_name
     logger.info(f"Create RLMaster for job executing: {parsed_args.job_name}.")
-    (
-        DLRoverRLMaster.options(
-            name="DLRoverRLMaster-" + parsed_args.job_name,
-            lifetime="detached",
-            num_cpus=parsed_args.master_cpu,
-            memory=parsed_args.master_mem,
-        ).remote(job_config.serialize(), rl_context.serialize())
-    )
+    master_actor = DLRoverRLMaster.options(
+        name=name,
+        lifetime="detached",
+        num_cpus=parsed_args.master_cpu,
+        memory=parsed_args.master_mem,
+    ).remote(job_config.serialize(), rl_context.serialize())
+
+    ray.get(master_actor.ping.remote())
+    logger.info("RLMaster created.")
+
+    ray.get(master_actor.run.remote())
+    logger.info("RLMaster is running.")
+
+    logger.info("Driver exit now.")
 
 
 def main(args=None):
@@ -52,4 +60,4 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    os._exit(main())
+    main()

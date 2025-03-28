@@ -22,7 +22,8 @@ from dlrover.python.rl.tests.test_data import TestData
 
 class RLContextTest(unittest.TestCase):
     @patch(
-        "dlrover.python.rl.common.context.get_class_by_module_and_class_name"
+        "dlrover.python.rl.common.rl_context"
+        ".get_class_by_module_and_class_name"
     )
     def test_building(self, mock_get_class):
         # with valid input
@@ -50,6 +51,14 @@ class RLContextTest(unittest.TestCase):
         self.assertTrue(rl_context.__str__())
 
         self.assertTrue(rl_context.validate())
+
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
         self.assertTrue(rl_context.validate())
 
         # with invalid type(build failed)

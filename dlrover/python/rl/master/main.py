@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import ray
 
@@ -40,17 +41,21 @@ class DLRoverRLMaster(object):
         self._job_manager = JobManager()
 
         self._started = False
+        self._executor = ThreadPoolExecutor(max_workers=4)
 
         logger.info(
             "DLRover RLMaster initiated with "
             f"job-config: {self._job_config}, "
             f"rl-context: {self._rl_context}."
         )
-        self.run()
 
     @property
     def context(self):
         return self._job_context
+
+    @property
+    def job_name(self):
+        return self._job_context.job_config.job_name
 
     @property
     def state_backend(self):
@@ -81,11 +86,13 @@ class DLRoverRLMaster(object):
     def _save_context_to_checkpoint(self):
         context_key = self._get_job_context_state_key()
         self.state_backend.set(context_key, self.context.serialize())
+        logger.info("Job context saved checkpoint.")
 
     def _cleanup_context_checkpoint(self):
         context_key = self._get_job_context_state_key()
         if self.state_backend.exists(context_key):
             self.state_backend.delete(context_key)
+            logger.info("Job context cleanup checkpoint.")
 
     def update_job_context(self):
         # TODO: impl
@@ -105,17 +112,21 @@ class DLRoverRLMaster(object):
                 self._job_context = context_from_ckpt
                 # TODO: recover logic
             else:
-                logger.info("RLMaster new job executing.")
+                logger.info(f"RLMaster new job executing: {self.job_name}.")
                 self._save_context_to_checkpoint()
                 self.job_manager.start_job()
 
-            while True:
-                if self._job_manager.is_job_finished():
-                    self.exit_job()
-                time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
+            self._executor.submit(self._wait_and_exit)
         except Exception as e:
             logger.info("Got unexpected exception while running.", e)
             self.exit_job()
+
+    def _wait_and_exit(self):
+        while True:
+            if self._job_manager.is_job_finished():
+                self.exit_job()
+            time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
+            logger.info("RLMaster still running...")
 
     def exit_job(self, need_cleanup=True):
         logger.info(f"RLMaster exit job with cleanup: {need_cleanup}.")
@@ -126,9 +137,18 @@ class DLRoverRLMaster(object):
                 self._job_manager.stop_job()
 
         self._cleanup_context_checkpoint()
+
+        interval = RLMasterConstant.EXIT_WAIT_INTERVAL
+        for i in range(interval):
+            logger.info(f"RLMaster will exit in {interval - i}s.")
+            time.sleep(1)
+        logger.info("RLMaster exit now.")
         ray.actor.exit_actor()
 
     """Remote call functions start"""
+
+    def ping(self):
+        return True
 
     def report(self, runtime_info: RuntimeInfo):
         if not runtime_info:

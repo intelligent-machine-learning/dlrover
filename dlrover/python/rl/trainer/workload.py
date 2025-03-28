@@ -10,14 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import time
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 
 import ray
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
@@ -40,8 +43,14 @@ class BaseWorkload(ABC):
         self._config = config
 
         self.__create_time = int(time.time())
+        self.__executor = ThreadPoolExecutor(max_workers=4)
 
-        self._report_master()
+        self.__executor.submit(self._report_master)
+
+        logger.info(
+            f"Workload {name} created with role: {role}, "
+            f"rank: {rank}, world_size: {world_size}."
+        )
 
     @property
     def master_handle(self) -> ActorHandle:
@@ -79,7 +88,10 @@ class BaseWorkload(ABC):
         Base function. Do not override.
         """
         info = self.get_runtime_info()
-        self._master_handle.report.remote(info)
+        try:
+            ray.get(self._master_handle.report.remote(info))
+        except Exception as e:
+            logger.error(f"Report master got unexpected error: {e}")
 
     def ping(self):
         """

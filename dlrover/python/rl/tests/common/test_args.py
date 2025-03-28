@@ -13,6 +13,8 @@
 import argparse
 import unittest
 
+from omegaconf import DictConfig
+
 from dlrover.python.rl.common.args import (
     _parse_master_state_backend_type,
     _parse_omega_config,
@@ -96,3 +98,35 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(
             parsed_args.master_state_backend_config, {"path": "test_path"}
         )
+
+        args = [
+            "--job_name",
+            "test",
+            "--master_cpu",
+            "4",
+            "--master_memory",
+            "8192",
+            "--master_state_backend_type",
+            "hdfs",
+            "--master_state_backend_config",
+            '{"path": "test_path"}',
+            "--rl_config",
+            '{"algorithm_type":"GRPO","config":{"c1":"v1"},"trainer":{"type":'
+            '"USER_DEFINED","module":"dlrover.python.rl.tests.test_class",'
+            '"class":"TestInteractiveTrainer"},"workload":{"actor":{"num":2,'
+            '"module":"dlrover.python.rl.tests.test_class","class":'
+            '"TestActor","resource":{"cpu":0.1}},"rollout":{"num":1,"module":'
+            '"dlrover.python.rl.tests.test_class","class":"TestRollout",'
+            '"resource":{"cpu":0.1}},"reference":{"num":2,"module":'
+            '"dlrover.python.rl.tests.test_class","class":"TestReference",'
+            '"resource":{"cpu":0.1}},"reward":{"num":1,"module":'
+            '"dlrover.python.rl.tests.test_class","class":"TestReward",'
+            '"resource":{"cpu":0.1}}}}',
+        ]
+        parsed_args = parse_job_args(args)
+        self.assertEqual(parsed_args.master_cpu, 4)
+        self.assertEqual(parsed_args.master_mem, 8192)
+        rl_config: DictConfig = parsed_args.rl_config
+        self.assertIsNotNone(rl_config)
+        self.assertEqual(rl_config.get("algorithm_type"), "GRPO")
+        self.assertEqual(rl_config.get("config").get("c1"), "v1")

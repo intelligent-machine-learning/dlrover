@@ -71,6 +71,7 @@ def _build_job_args_parser():
     )
     parser.add_argument(
         "--master_mem",
+        "--master_memory",
         default=4096,
         type=pos_int,
         help="The size of memory(mb) for the dlrover rl master actor. "

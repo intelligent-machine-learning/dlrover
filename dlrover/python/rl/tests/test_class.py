@@ -71,7 +71,7 @@ class TestInteractiveTrainer(BaseTrainer):
                 logger.info(
                     f"Done {role} generate, cost {time.time() * 1000 - now}ms"
                 )
-        time.sleep(0.1)
+        time.sleep(1)
 
 
 class TestWorkload(BaseWorkload):

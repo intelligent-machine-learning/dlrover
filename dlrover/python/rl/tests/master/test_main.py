@@ -15,7 +15,6 @@ import time
 import ray
 
 from dlrover.python.rl.common.args import parse_job_args
-from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.main import DLRoverRLMaster
 from dlrover.python.rl.tests.master.base import BaseMasterTest
@@ -41,27 +40,31 @@ class RLMasterTest(BaseMasterTest):
         super().tearDown()
         ray.shutdown()
 
-    @timeout(15)
+    @timeout(90)
     def test_main(self):
-        RLMasterConstant.RUN_WAIT_INTERVAL = 1
         master_name = "test"
-        DLRoverRLMaster.options(name=master_name, lifetime="detached").remote(
+
+        master_actor = DLRoverRLMaster.options(
+            name=master_name, lifetime="detached"
+        ).remote(
             self._job_context.job_config.serialize(),
             self._job_context.rl_context.serialize(),
         )
 
-        # wait master creation
-        while True:
-            try:
-                ray.get_actor(master_name)
-                break
-            except ValueError:
-                time.sleep(0.1)
+        ray.get(master_actor.ping.remote())
+        master_actor.run.remote()
+        time.sleep(5)
 
         # wait master done
         while True:
             try:
-                ray.get_actor(master_name)
-                time.sleep(0.1)
-            except ValueError:
+                ready, unready = ray.wait(
+                    [master_actor.ping.remote()], timeout=1
+                )
+                if len(ready) > 0:
+                    time.sleep(1)
+                else:
+                    break
+            except Exception as e:
+                print(e)
                 break
