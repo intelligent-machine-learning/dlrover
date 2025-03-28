@@ -89,6 +89,7 @@ from dlrover.python.elastic_agent.torch.training import (
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.util.function_util import TimeoutException
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -461,6 +462,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+
     @mock.patch.object(ElasticTrainingAgent, "_restart_workers")
     def test_invoke_run(self, mock_restart_workers):
         self.config.network_check = False
@@ -485,6 +487,31 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             agent._invoke_run()
         except RuntimeError:
             mock_restart_workers.assert_called()
+
+    @mock.patch.object(ElasticTrainingAgent, "_dlrover_exit_barrier")
+    def test_exit_barrier(self, mock_dlrover_exit_barrier):
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._monitor_workers = MagicMock(
+            return_value=RunResult(
+                state=WorkerState.SUCCEEDED,
+                return_values={0: 0, 1: 0},
+                failures={},
+            )
+        )
+        mock_dlrover_exit_barrier.side_effect = TimeoutException("test")
+        try:
+            agent._invoke_run()
+        except TimeoutException:
+            mock_dlrover_exit_barrier.assert_called()
+
 
     def test_metric_collect(self):
         with patch(
