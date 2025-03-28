@@ -462,7 +462,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
-
     @mock.patch.object(ElasticTrainingAgent, "_restart_workers")
     def test_invoke_run(self, mock_restart_workers):
         self.config.network_check = False
@@ -511,7 +510,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             agent._invoke_run()
         except TimeoutException:
             mock_dlrover_exit_barrier.assert_called()
-
 
     def test_metric_collect(self):
         with patch(
