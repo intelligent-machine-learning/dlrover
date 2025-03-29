@@ -231,3 +231,14 @@ class ElasticRunTest(unittest.TestCase):
         threading.Thread(target=set_pre_check_success).start()
         wait_pre_check(test_config)
         self.assertTrue(time.time() - start > 0.5)
+
+    @patch(
+        "dlrover.trainer.torch.elastic_run.MasterClient.singleton_instance",
+        return_value=None,
+    )
+    def test_wait_pre_check_with_none_client(self, mock_client):
+        with self.assertRaises(RuntimeError):
+            wait_pre_check(
+                ElasticLaunchConfig(min_nodes=1, max_nodes=1, nproc_per_node=1)
+            )
+            mock_client.assert_called_once()
