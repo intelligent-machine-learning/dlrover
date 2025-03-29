@@ -375,6 +375,7 @@ class DistributedJobManager(JobManager):
             self._job_resource.node_group_resources
         )
         scale_plan.ps_addrs = self._ps_manager.get_ps_addrs()
+
         return scale_plan
 
     def _init_training_node_manager(self):

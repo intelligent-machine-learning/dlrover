@@ -46,6 +46,8 @@ def update_context(job_args: JobArgs):
 def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
+    job_args.add_chief_node_arg(args.chief_core, args.chief_memory)
+
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
     _dlrover_context.seconds_to_timeout_task_process = (
@@ -76,6 +78,7 @@ def run(args):
 
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
+
     master.prepare()
     master.pre_check()
     return master.run()

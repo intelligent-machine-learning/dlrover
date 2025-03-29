@@ -27,6 +27,10 @@ class ElasticJobScalerTest(unittest.TestCase):
         node_resource = NodeResource(
             10, 4096, gpu_type="nvidia.com/gpu", gpu_num=1
         )
+        chief_resource = NodeResource(
+            10,
+            40960,
+        )
         plan.launch_nodes.append(
             Node(
                 NodeType.WORKER,
@@ -50,6 +54,8 @@ class ElasticJobScalerTest(unittest.TestCase):
         plan.ps_addrs = ["test-ps-0:2222", "test-ps-1:2222"]
         group_resource = NodeGroupResource(1, node_resource)
         plan.node_group_resources["worker"] = group_resource
+        group_resource = NodeGroupResource(1, chief_resource)
+        plan.node_group_resources["chief"] = group_resource
 
         scaler = ElasticJobScaler("test", "dlrover")
         scaler.start()
@@ -65,7 +71,14 @@ class ElasticJobScalerTest(unittest.TestCase):
                         "memory": "4096Mi",
                         "nvidia.com/gpu": "1",
                     },
-                }
+                },
+                "chief": {
+                    "replicas": 1,
+                    "resource": {
+                        "cpu": "10",
+                        "memory": "40960Mi",
+                    },
+                },
             },
             "createPods": [
                 {

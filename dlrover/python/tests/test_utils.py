@@ -70,6 +70,13 @@ def _get_training_job(*args, **kwargs):
     return job
 
 
+def _get_training_job_sample2(*args, **kwargs):
+    with open("dlrover/python/tests/data/elasticjob_sample2.yaml", "r") as f:
+        job_content = f.read()
+    job = yaml.safe_load(job_content)
+    return job
+
+
 def _get_pod(name):
     pod = client.V1Pod(
         api_version="v1",
@@ -318,9 +325,12 @@ def create_task_manager(dataset_name="test"):
     return task_manager
 
 
-def mock_k8s_client():
+def mock_k8s_client(yml=None):
     k8s_client = k8sClient.singleton_instance("default")
-    k8s_client.get_custom_resource = _get_training_job  # type: ignore
+    if not yml:
+        k8s_client.get_custom_resource = _get_training_job  # type: ignore
+    else:
+        k8s_client.get_custom_resource = _get_training_job_sample2
     k8s_client.get_pod = _get_pod  # type: ignore
     k8s_client.list_namespaced_pod = mock_list_namespaced_pod  # type: ignore
     k8s_client.create_custom_resource = mock.MagicMock(  # type: ignore

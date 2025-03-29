@@ -121,3 +121,6 @@ class LocalJobArgs(JobArgs):
         self.enable_elastic_scheduling = False
         worker_group = NodeGroupResource(1, NodeResource(0, 0))
         self.node_args[NodeType.WORKER] = NodeArgs(worker_group)
+
+    def add_chief_node_arg(self, chief_core, chief_memory):
+        pass
