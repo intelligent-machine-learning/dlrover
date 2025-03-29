@@ -13,6 +13,8 @@
 
 import copy
 import time
+from datetime import datetime
+from typing import Tuple
 
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
@@ -217,7 +219,7 @@ class Node(object):
         self.migrated = False
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
-        self.reported_status: str = ""
+        self.reported_status: Tuple = ("", 0)
 
     def exited(self):
         return self.status in [
@@ -278,7 +280,7 @@ class Node(object):
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
-        new_node.reported_status = ""
+        new_node.reported_status = ("", 0)
         return new_node
 
     def is_unrecoverable_failure(self):
@@ -349,22 +351,23 @@ class Node(object):
         # no updating if already exited(succeeded or failed)
         if self.is_exited_reported():
             return
-        self.reported_status = status
+        now = int(datetime.now().timestamp())
+        self.reported_status = (status, now)
 
     def is_exited_reported(self):
         return (
-            self.reported_status == NodeEventType.SUCCEEDED_EXITED
-            or self.reported_status == NodeEventType.FAILED_EXITED
+            self.reported_status[0] == NodeEventType.SUCCEEDED_EXITED
+            or self.reported_status[0] == NodeEventType.FAILED_EXITED
         )
 
     def is_succeeded_and_exited(self) -> bool:
-        return self.reported_status == NodeEventType.SUCCEEDED_EXITED
+        return self.reported_status[0] == NodeEventType.SUCCEEDED_EXITED
 
     def is_failed_and_exited(self) -> bool:
-        return self.reported_status == NodeEventType.FAILED_EXITED
+        return self.reported_status[0] == NodeEventType.FAILED_EXITED
 
     def is_node_check_failed(self):
-        return self.reported_status == NodeEventType.NODE_CHECK_FAILED
+        return self.reported_status[0] == NodeEventType.NODE_CHECK_FAILED
 
     def get_unrecoverable_failure_msg(self):
         if self.unrecoverable_failure_msg:

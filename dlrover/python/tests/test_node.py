@@ -79,7 +79,7 @@ class NodeTest(unittest.TestCase):
         self.assertFalse(node.is_failed_and_exited())
         self.assertTrue(node.is_exited_reported())
 
-        node.reported_status = NodeEventType.FAILED_EXITED
+        node.reported_status = (NodeEventType.FAILED_EXITED, 0)
         self.assertFalse(node.is_succeeded_and_exited())
         self.assertTrue(node.is_failed_and_exited())
         self.assertTrue(node.is_exited_reported())
@@ -90,7 +90,7 @@ class NodeTest(unittest.TestCase):
 
         node = node.get_relaunch_node_info(123)
         self.assertEqual(node.id, 123)
-        self.assertFalse(node.reported_status)
+        self.assertFalse(node.reported_status[0])
 
     def test_node_event(self):
         node = Node("worker", 0)

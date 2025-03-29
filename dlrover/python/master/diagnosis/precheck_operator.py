@@ -375,7 +375,7 @@ class ConnectionPreCheckOperator(PreCheckOperator):
                 for _, node in nodes.items():
                     if (
                         node.status == NodeStatus.RUNNING
-                        and node.reported_status
+                        and node.reported_status[0]
                         != NodeEventType.WAIT_PRE_CHECK
                     ):
                         logger.debug(
