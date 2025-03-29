@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     EventReportConstants,
     JobExitReason,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
@@ -51,6 +52,7 @@ from dlrover.python.master.node.job_auto_scaler import (
     JobAutoScaler,
     new_job_auto_scaler,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
@@ -86,6 +88,7 @@ from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 _master_evt = DLRoverMasterEvent().singleton_instance()
+job_ctx = get_job_context()
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -873,7 +876,14 @@ class DistributedJobManager(JobManager):
         )
         msg = ""
         if should_relaunch:
-            if (
+            if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+                should_relaunch = False
+                msg = "Disable relaunch when job is stopping"
+                logger.warning(
+                    f"Disable {node.name}/{node.id} relaunch "
+                    f"when job is stopping."
+                )
+            elif (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
                 and not _dlrover_context.relaunch_always
             ):
@@ -1292,8 +1302,10 @@ class DistributedJobManager(JobManager):
                     f"status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
-
                 self._job_context.update_job_node(target_node)
+
+            if event_type is NodeEventType.SUCCEEDED_EXITED:
+                self._job_context.update_job_stage(JobStage.JOB_STOPPING)
 
     def get_node_required_info(self):
         return self._nodes_required

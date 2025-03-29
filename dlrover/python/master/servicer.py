@@ -30,6 +30,7 @@ from dlrover.python.common.constants import (
     CommunicationType,
     CustomMetricKeys,
     JobConstant,
+    JobStage,
     NodeEventType,
     NodeType,
     RendezvousName,
@@ -76,6 +77,7 @@ _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
+job_ctx = get_job_context()
 
 
 class MasterServicer(ABC):
@@ -302,7 +304,21 @@ class MasterServicer(ABC):
         return res
 
     def _num_nodes_waiting(self, rdzv_name):
+        """
+        Return the number of waiting nodes for a rendezvous.
+
+        Args:
+            rdzv_name: NodeCheck or ElasticTraining
+
+        Returns:
+            >0: the number of waiting nodes
+            0: exception happened
+            -1: the job is stopping, no more rendezvous
+
+        """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
+        if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            waiting_num = -1
         res = comm.RendezvousState(waiting_num=waiting_num)
         return res
 

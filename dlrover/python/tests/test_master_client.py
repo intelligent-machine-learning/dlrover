@@ -123,6 +123,11 @@ class MasterClientTest(unittest.TestCase):
         )
         self.assertTrue(res.success, True)
 
+        res = self._master_client.report_node_event(
+            NodeEventType.SUCCEEDED_EXITED, "SUCCEEDED_EXITED"
+        )
+        self.assertTrue(res.success, True)
+
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
 
