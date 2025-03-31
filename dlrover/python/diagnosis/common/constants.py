@@ -49,6 +49,8 @@ class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
     PRE_CHECK_FAILED = "Pre-check failed"
 
+    NODE_FAILED = "node_failed"
+
 
 class DiagnosisDataType(object):
     GENERIC = "GENERIC"

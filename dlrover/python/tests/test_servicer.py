@@ -32,7 +32,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -182,7 +182,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             job_manager=self.job_manager,
             perf_monitor=perf_monitor,
             rdzv_managers=rdzv_managers,
-            diagnosis_manager=DiagnosisManager(),
+            diagnosis_manager=DiagnosisMaster(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
@@ -608,7 +608,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             job_manager=self.job_manager,
             perf_monitor=perf_monitor,
             rdzv_managers={},
-            diagnosis_manager=DiagnosisManager(),
+            diagnosis_manager=DiagnosisMaster(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )
