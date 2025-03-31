@@ -285,9 +285,9 @@ class PodWatcher(NodeWatcher):
                         and now - ts > 600
                     ):
                         logger.info(
-                            f"Target pod: {pod_name} {pod_type} {pod_id} "
-                            f"Target pod report status: {status} {ts} "
-                            f"Delete succeeded and exited pod: {pod_name} "
+                            f"Delete target pod {pod_name} due to "
+                            f"report status {status} from {ts} to {now} "
+                            f"has exceeded 600s"
                         )
                         self._k8s_client.delete_pod(pod_name)
 
