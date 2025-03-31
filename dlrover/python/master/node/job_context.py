@@ -44,7 +44,6 @@ class JobContext(Singleton):
         self._failed_nodes: Dict[int, int] = {}
 
         self._pre_check_status: str = PreCheckStatus.CHECKING
-        self._request_stopped = False
 
         self._locker = threading.Lock()
         self._job_stage = JobStage.JOB_INIT
@@ -227,10 +226,10 @@ class JobContext(Singleton):
         return self._total_worker_num
 
     def request_stop(self):
-        self._request_stopped = True
+        self._job_stage = JobStage.JOB_STOPPED
 
     def is_request_stopped(self):
-        return self._request_stopped
+        return self._job_stage == JobStage.JOB_STOPPED
 
 
 def get_job_context() -> JobContext:
