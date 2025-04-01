@@ -16,7 +16,7 @@ import threading
 import time
 from typing import Dict, Optional, Union
 
-from dlrover.python.common.constants import NodeType, PreCheckStatus
+from dlrover.python.common.constants import JobStage, NodeType, PreCheckStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
@@ -44,9 +44,17 @@ class JobContext(Singleton):
         self._failed_nodes: Dict[int, int] = {}
 
         self._pre_check_status: str = PreCheckStatus.CHECKING
-        self._request_stopped = False
 
         self._locker = threading.Lock()
+        self._job_stage = JobStage.JOB_INIT
+
+    def get_job_stage(self):
+        with self._locker:
+            return self._job_stage
+
+    def update_job_stage(self, stage):
+        with self._locker:
+            self._job_stage = stage
 
     def enqueue_actions(self, actions):
         for action in actions:
@@ -218,10 +226,10 @@ class JobContext(Singleton):
         return self._total_worker_num
 
     def request_stop(self):
-        self._request_stopped = True
+        self._job_stage = JobStage.JOB_STOPPED
 
     def is_request_stopped(self):
-        return self._request_stopped
+        return self._job_stage == JobStage.JOB_STOPPED
 
 
 def get_job_context() -> JobContext:
