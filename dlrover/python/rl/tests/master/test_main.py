@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import time
 
 import ray
@@ -56,15 +57,11 @@ class RLMasterTest(BaseMasterTest):
         time.sleep(5)
 
         # wait master done
+        print("1")
         while True:
             try:
-                ready, unready = ray.wait(
-                    [master_actor.ping.remote()], timeout=1
-                )
-                if len(ready) > 0:
-                    time.sleep(1)
-                else:
-                    break
-            except Exception as e:
-                print(e)
+                ray.get(master_actor.ping.remote())
+                time.sleep(1)
+                print("2")
+            except Exception:
                 break

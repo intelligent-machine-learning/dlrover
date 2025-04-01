@@ -218,6 +218,12 @@ class RLExecutionGraph(PickleSerializable):
             for role, vertices in self.__execution_vertices.items()
         }
 
+    def get_actor_cls(self) -> Dict[RLRoleType, type]:
+        return {
+            role: vertices[0].get_cls()
+            for role, vertices in self.__execution_vertices.items()
+        }
+
     def get_trainer_cls(self):
         return get_class_by_module_and_class_name(
             self.__rl_context.trainer.module_name,

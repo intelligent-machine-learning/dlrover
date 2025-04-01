@@ -36,7 +36,7 @@ class RayInternalMasterStateBackendTest(unittest.TestCase):
         self._key_prefix = "ut_test_"
         self._backend = RayInternalMasterStateBackend()
         if not ray.is_initialized():
-            ray.init(num_cpus=1, include_dashboard=False)
+            ray.init()
 
     def tearDown(self):
         self._backend.reset(self._key_prefix)

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import importlib.metadata
+import inspect
 import random
 import re
 import socket
@@ -183,3 +184,19 @@ def get_class_by_module_and_class_name(module_name, class_name):
     if hasattr(module, class_name):
         return getattr(module, class_name)
     return None
+
+
+def get_methods_by_class(clz: type, with_protect=False):
+    """
+    Get all (method_name, method) in list format by a give class.
+    """
+
+    result = []
+    for name, method in inspect.getmembers(clz):
+        if not inspect.ismethod(method):
+            continue
+        if not with_protect and name.startswith("_"):
+            continue
+        result.append((name, method))
+
+    return result

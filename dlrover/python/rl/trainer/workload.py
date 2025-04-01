@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
@@ -23,6 +23,28 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
+
+
+def trainer_invocation(is_async=False, timeout=10):
+    """
+    Decorator for timeout controlled function using.
+
+    Args:
+        is_async (optional): Whether invoke by ray.wait().
+        timeout (optional): The timeout set for ray.wait().
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        wrapped._trainer_invocation = True
+        wrapped._trainer_invocation_async = is_async
+        wrapped._trainer_invocation_async_timeout = timeout
+        return wrapped
+
+    return decorator
 
 
 class BaseWorkload(ABC):

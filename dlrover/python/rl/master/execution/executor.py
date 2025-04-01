@@ -43,9 +43,10 @@ class Executor(object):
     def init_trainer(self):
         trainer_cls = self.__execution_graph.get_trainer_cls()
         actor_handles = self.__execution_graph.get_actor_handles()
+        actor_cls = self.__execution_graph.get_actor_cls()
         config = self.__execution_graph.get_rl_config()
 
-        self.__trainer = trainer_cls(actor_handles, config)
+        self.__trainer = trainer_cls(actor_handles, actor_cls, config)
 
     def destroy_workloads(self):
         """Sync operation."""

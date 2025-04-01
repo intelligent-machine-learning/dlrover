@@ -56,6 +56,7 @@ def submit(args=None):
 
 
 def main(args=None):
+    print(type(DLRoverRLMaster))
     return submit(args=args)
 
 

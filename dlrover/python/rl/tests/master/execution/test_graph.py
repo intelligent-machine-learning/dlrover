@@ -44,7 +44,7 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(
             actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
         )
-        self.assertEqual(actor_vertices[0].class_obj, TestActor)
+        self.assertEqual(actor_vertices[0].get_cls(), TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
         self.assertEqual(actor_vertices[0].world_size, 2)
         self.assertEqual(actor_vertices[1].rank, 1)
@@ -55,7 +55,7 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(
             rollout_vertex_0.name, RLRoleType.ROLLOUT.value + "-" + str(0)
         )
-        self.assertEqual(rollout_vertex_0.class_obj, TestRollout)
+        self.assertEqual(rollout_vertex_0.get_cls(), TestRollout)
         self.assertEqual(rollout_vertex_0.rank, 0)
         self.assertEqual(rollout_vertex_0.world_size, 1)
 
