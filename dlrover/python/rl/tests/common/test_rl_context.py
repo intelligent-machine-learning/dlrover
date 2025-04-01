@@ -107,7 +107,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_MOCK_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 
@@ -121,3 +121,13 @@ class RLContextTest(unittest.TestCase):
             ].allocation,
             {RLRoleType.ACTOR: 2, RLRoleType.ROLLOUT: 2},
         )
+        self.assertTrue(rl_context.validate())
+
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        self.assertFalse(rl_context.validate())

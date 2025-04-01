@@ -136,6 +136,9 @@ class WorkloadGroupDesc(object):
     def unit(self) -> str:
         return self._unit
 
+    def get_all_roles(self) -> List[RLRoleType]:
+        return list(self._allocation.keys())
+
 
 class RLContext(PickleSerializable):
     def __init__(
@@ -362,5 +365,25 @@ class RLContext(PickleSerializable):
                     f"failed: {workload.instance_resource}."
                 )
                 return False
+
+        # workload group validation
+        role_group_definition_num: Dict[RLRoleType, int] = {}
+        for group_type, groups in self.workload_groups.items():
+            for group_desc in groups:
+                for role in group_desc.get_all_roles():
+                    if role in role_group_definition_num:
+                        role_group_definition_num[role] = (
+                            role_group_definition_num[role] + 1
+                        )
+                    else:
+                        role_group_definition_num[role] = 1
+
+        # is same role in different group
+        if any(value > 1 for value in role_group_definition_num.values()):
+            logger.error(
+                "Workload group validation failed: exist repeated role "
+                "definition in different group."
+            )
+            return False
 
         return True

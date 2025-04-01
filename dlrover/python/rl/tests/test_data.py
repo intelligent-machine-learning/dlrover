@@ -38,27 +38,73 @@ class TestData(object):
         },
     }
 
-    UD_SIMPLE_MOCK_HOST_GROUPED_RL_CONF = {
+    UD_SIMPLE_HOST_GROUPED_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
-            "module": "test_trainer",
-            "class": "TestTrainer",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveTrainer",
         },
         "workload_group": {"host_group": [{"actor": 2, "rollout": 2}]},
         "workload": {
-            "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
+            "actor": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+            },
             "rollout": {
                 "num": 2,
-                "module": "test_rollout",
+                "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestRollout",
             },
-            "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+            },
             "reward": {
                 "num": 1,
-                "module": "test_reward",
-                "class": "testReward",
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
+            },
+        },
+    }
+
+    UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF = {
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveTrainer",
+        },
+        "workload_group": {
+            "host_group": [
+                {"actor": 2, "rollout": 2},
+                {"actor": 2, "reference": 2},
+            ]
+        },
+        "workload": {
+            "actor": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+            },
+            "rollout": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestRollout",
+            },
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+            },
+            "reward": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
             },
         },
     }
@@ -68,26 +114,30 @@ class TestData(object):
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
-            "module": "test_trainer",
-            "class": "TestTrainer",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveTrainer",
         },
         "workload": {
             "actor": {
                 "num": 2,
-                "module": "test_actor",
+                "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
                 "resource": {"gpu": -1},
             },
             "rollout": {
                 "num": 1,
-                "module": "test_rollout",
+                "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestRollout",
             },
-            "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+            },
             "reward": {
                 "num": 1,
-                "module": "test_reward",
-                "class": "testReward",
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
             },
         },
     }
