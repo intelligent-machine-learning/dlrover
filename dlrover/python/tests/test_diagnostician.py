@@ -15,41 +15,38 @@ import os
 import threading
 import time
 import unittest
+from unittest import mock
 from unittest.mock import patch
 
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisErrorConstant,
     EnvConfigKey,
 )
-from dlrover.python.common.constants import (
-    NodeEnv,
-    NodeType,
-)
 from dlrover.python.diagnosis.common.diagnosis_action import (
-    NoAction,
     EventAction,
+    NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (
-    ResourceCollectDiagnostician
+from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (  # noqa: E501
+    MetricsCollectDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (
-    MetricsCollectDiagnostician
+from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (  # noqa: E501
+    ResourceCollectDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
-from dlrover.python.util.function_util import TimeoutException
-from unittest import mock
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
 from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.common import env_utils
+from dlrover.python.util.function_util import TimeoutException
 
 
 class DiagnosticianTest(unittest.TestCase):

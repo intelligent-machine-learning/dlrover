@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta
+from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -19,7 +20,6 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
 )
-from typing import Dict
 
 
 class DiagnosisObservation(metaclass=ABCMeta):

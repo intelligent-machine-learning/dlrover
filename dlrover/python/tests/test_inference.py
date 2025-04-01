@@ -15,12 +15,10 @@ import os
 import unittest
 from typing import Dict, List, Tuple
 from unittest import mock
-from dlrover.python.common.constants import (
-    EventReportConstants,
-)
+
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
-    DiagnosisErrorConstant,
     InferenceConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
@@ -33,14 +31,11 @@ from dlrover.python.diagnosis.common.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    SimpleOperator,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
-    ResolveGPUErrorsOperator,
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
+    SimpleOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,

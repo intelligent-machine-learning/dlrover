@@ -38,10 +38,10 @@ from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (
+from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (  # noqa: E501
     MetricsCollectDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (
+from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (  # noqa: E501
     ResourceCollectDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
@@ -74,15 +74,21 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
         )
         self.register_diagnostician(
-            DiagnosisErrorConstant.METRICS_COLLECT, MetricsCollectDiagnostician()
+            DiagnosisErrorConstant.METRICS_COLLECT,
+            MetricsCollectDiagnostician(),
         )
         self.register_diagnostician(
-            DiagnosisErrorConstant.RESOURCE_COLLECT, ResourceCollectDiagnostician(),
+            DiagnosisErrorConstant.RESOURCE_COLLECT,
+            ResourceCollectDiagnostician(),
         )
 
         # register periodical diagnosis
-        self.register_periodical_diagnosis(DiagnosisErrorConstant.RESOURCE_COLLECT, 30)
-        self.register_periodical_diagnosis(DiagnosisErrorConstant.METRICS_COLLECT, 60)
+        self.register_periodical_diagnosis(
+            DiagnosisErrorConstant.RESOURCE_COLLECT, 30
+        )
+        self.register_periodical_diagnosis(
+            DiagnosisErrorConstant.METRICS_COLLECT, 60
+        )
 
         self._report_thread = None
         self._node_rank = node_rank
