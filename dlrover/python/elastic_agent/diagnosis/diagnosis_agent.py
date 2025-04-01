@@ -15,7 +15,6 @@ import json
 import threading
 import time
 from datetime import datetime
-from typing import Dict, List
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
@@ -26,38 +25,24 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
     DiagnosisErrorConstant,
-    InferenceConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    NoAction,
     NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
-from dlrover.python.diagnosis.common.inference_chain import (
-    Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-    combine_inferences,
-    is_inference_included,
-)
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
 )
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.inferencechain.coordinator import (
-    coordinate_solutions,
+from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (
+    MetricsCollectDiagnostician,
 )
-from dlrover.python.diagnosis.inferencechain.inference_chain import (
-    InferenceChain,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
-    get_worker_observe_operators,
-    get_worker_resolve_operators,
+from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (
+    ResourceCollectDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -84,33 +69,21 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         self._agent_context = get_agent_context()
 
         DiagnosisManager.__init__(self, self._agent_context)
+        # register diagnostician
         self.register_diagnostician(
             DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
         )
+        self.register_diagnostician(
+            DiagnosisErrorConstant.METRICS_COLLECT, MetricsCollectDiagnostician()
+        )
+        self.register_diagnostician(
+            DiagnosisErrorConstant.RESOURCE_COLLECT, ResourceCollectDiagnostician(),
+        )
 
-        # The key is the time interval in seconds
-        self._observe_problems: Dict[int, List[Inference]] = {
-            30: [
-                Inference(
-                    name=InferenceName.WORKER,
-                    attribution=InferenceAttribute.COLLECT,
-                    description=InferenceDescription.RESOURCE,
-                ),
-            ],
-            60: [
-                Inference(
-                    name=InferenceName.WORKER,
-                    attribution=InferenceAttribute.COLLECT,
-                    description=InferenceDescription.METRICS,
-                ),
-            ],
-        }
-        self._accumulate_observe_time = 0
+        # register periodical diagnosis
+        self.register_periodical_diagnosis(DiagnosisErrorConstant.RESOURCE_COLLECT, 30)
+        self.register_periodical_diagnosis(DiagnosisErrorConstant.METRICS_COLLECT, 60)
 
-        self._observe_operators = get_worker_observe_operators()
-        self._diagnosis_operators = get_worker_resolve_operators()
-
-        self._diagnosis_thread = None
         self._report_thread = None
         self._node_rank = node_rank
         self._local_world_size = local_world_size
@@ -144,14 +117,6 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
         self._stopped = False
 
-        # start a async thread to diagnose periodically
-        self._diagnosis_thread = threading.Thread(
-            target=self._periodically_diagnosis,
-            name="periodically_diagnostician",
-            daemon=True,
-        )
-        self._diagnosis_thread.start()
-
         self._report_thread = threading.Thread(
             target=self._periodically_report,
             name="periodically_reporter",
@@ -164,87 +129,6 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
     def stop(self):
         self._stopped = True
-
-    def _get_observe_problems(self) -> List[Inference]:
-        observe_problems: List[Inference] = []
-        for time_period, infs in self._observe_problems.items():
-            if (
-                self._accumulate_observe_time > 0
-                and self._accumulate_observe_time % time_period == 0
-            ):
-                observe_problems = observe_problems + infs
-        return observe_problems
-
-    def diagnose_problems(self, problems: List[Inference]) -> DiagnosisAction:
-        conclusions: List[Inference] = []
-        for problem in problems:
-            if problem.configs is None:
-                problem.configs = {}
-            problem.configs[InferenceConfigKey.RANK] = str(self._node_rank)
-            ic = InferenceChain([problem], self._diagnosis_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    conclusions = combine_inferences(conclusions, infs)
-            except Exception as e:
-                logger.error(f"fail to diagnose observation {problem}: {e}")
-        return coordinate_solutions(conclusions)
-
-    def _observe(self, observe_problems: List[Inference]) -> List[Inference]:
-        observations: List[Inference] = []
-        for problem in observe_problems:
-            ic = InferenceChain([problem], self._observe_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    observations = combine_inferences(observations, infs)
-            except Exception as e:
-                logger.error(f"fail to observe problem {problem}: {e}")
-        new_obs: List[Inference] = []
-        for ob in observations:
-            if not is_inference_included(observe_problems, ob):
-                new_obs.append(ob)
-        return new_obs
-
-    def _diagnose_observations(
-        self, observations: List[Inference]
-    ) -> DiagnosisAction:
-        if len(observations) == 0:
-            return NoAction()
-        conclusions: List[Inference] = []
-        for ob in observations:
-            ic = InferenceChain([ob], self._diagnosis_operators)
-            try:
-                infs = ic.infer()
-                if len(infs) > 0:
-                    conclusions = combine_inferences(conclusions, infs)
-            except Exception as e:
-                logger.error(f"fail to diagnose observation {ob}: {e}")
-        return coordinate_solutions(conclusions)
-
-    def _periodically_diagnosis(self):
-        logger.info("Start periodically diagnosis...")
-        while True:
-            if self._stopped:
-                logger.info("Stop periodically diagnosis.")
-                break
-            observe_problems = self._get_observe_problems()
-
-            observations = self._observe(observe_problems)
-            if len(observations) > 0:
-                logger.debug(f"Observed problems: {observations}")
-                action = self.diagnose_problems(observations)
-                if not isinstance(action, NoAction):
-                    self._agent_context.enqueue_diagnosis_action(action)
-            if self._accumulate_observe_time > 600:
-                self._accumulate_observe_time = 0
-
-            time.sleep(
-                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
-            )
-            self._accumulate_observe_time += (
-                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
-            )
 
     def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(

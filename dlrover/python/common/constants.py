@@ -471,3 +471,7 @@ class PreCheckStatus(object):
     FAIL = "FAIL"
     PASS = "PASS"
     DISABLED = "DISABLED"
+
+
+class DictKey(object):
+    LOGS = "logs"
