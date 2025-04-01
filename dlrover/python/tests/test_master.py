@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     NodeType,
     PreCheckStatus,
     RendezvousName,
+    JobStage,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -54,10 +55,11 @@ class DistributedJobMasterTest(unittest.TestCase):
         params.initilize()
         self.master = DistributedJobMaster(2222, params)
         self.job_context = get_job_context()
+        self.job_context.update_job_stage(JobStage.JOB_INIT)
 
     def tearDown(self):
         self.job_context.clear_job_nodes()
-        self.job_context._request_stopped = False
+        self.job_context.request_stop()
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()
@@ -186,7 +188,7 @@ class LocalJobMasterTest(unittest.TestCase):
     def tearDown(self):
         self._master.stop()
         self.job_context.clear_job_nodes()
-        self.job_context._request_stopped = False
+        self.job_context.request_stop()
         self.job_context._pre_check_status = PreCheckStatus.CHECKING
 
     def test_task_manager(self):

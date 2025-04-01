@@ -1023,7 +1023,7 @@ class LocalJobManagerTest(unittest.TestCase):
 
     def tearDown(self):
         self.job_context.clear_job_nodes()
-        self.job_context._request_stopped = False
+        self.job_context.request_stop()
 
     def test_local_job_manager(self):
         args = LocalJobArgs("local", "default", "test")
