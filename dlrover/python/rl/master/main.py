@@ -17,7 +17,7 @@ import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.constant import RLMasterConstant
+from dlrover.python.rl.common.constant import RLJobStatus, RLMasterConstant
 from dlrover.python.rl.common.job_context import JobContext, get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.job_manager import JobManager
@@ -40,7 +40,7 @@ class DLRoverRLMaster(object):
 
         self._job_manager = JobManager()
 
-        self._started = False
+        self._status = RLJobStatus.INIT
         self._executor = ThreadPoolExecutor(max_workers=4)
 
         logger.info(
@@ -66,7 +66,7 @@ class DLRoverRLMaster(object):
         return self._job_manager
 
     def is_started(self) -> bool:
-        return self._started
+        return self._status == RLJobStatus.RUNNING
 
     def _get_job_context_state_key(self):
         key = (
@@ -98,8 +98,11 @@ class DLRoverRLMaster(object):
         # TODO: impl
         self._save_context_to_checkpoint()
 
+    def _update_job_status(self, status):
+        self._status = status
+
     def run(self):
-        self._started = True
+        self._update_job_status(RLJobStatus.RUNNING)
 
         try:
             # load context from backend
@@ -130,7 +133,7 @@ class DLRoverRLMaster(object):
 
     def exit_job(self, need_cleanup=True):
         logger.info(f"RLMaster exit job with cleanup: {need_cleanup}.")
-        self._started = False
+        self._update_job_status(RLJobStatus.FINISHED)
 
         if need_cleanup:
             if self._job_manager:
@@ -148,7 +151,11 @@ class DLRoverRLMaster(object):
     """Remote call functions start"""
 
     def ping(self):
+        logger.info("pint called.")
         return True
+
+    def get_job_status(self):
+        return self._status
 
     def report(self, runtime_info: RuntimeInfo):
         if not runtime_info:

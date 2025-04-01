@@ -84,16 +84,21 @@ class CommonUtilTest(unittest.TestCase):
         self.assertEqual(cu.get_methods_by_class(TestCls)[1][0], "m3")
 
         self.assertEqual(
-            len(cu.get_methods_by_class(TestCls, with_protect=True)), 4)
+            len(cu.get_methods_by_class(TestCls, with_protect=True)), 4
+        )
         self.assertEqual(
             cu.get_methods_by_class(TestCls, with_protect=True)[0][0],
-            "_TestCls__m0")
+            "_TestCls__m0",
+        )
         self.assertEqual(
-            cu.get_methods_by_class(TestCls, with_protect=True)[1][0], "_m1")
+            cu.get_methods_by_class(TestCls, with_protect=True)[1][0], "_m1"
+        )
         self.assertEqual(
-            cu.get_methods_by_class(TestCls, with_protect=True)[2][0], "m2")
+            cu.get_methods_by_class(TestCls, with_protect=True)[2][0], "m2"
+        )
         self.assertEqual(
-            cu.get_methods_by_class(TestCls, with_protect=True)[3][0], "m3")
+            cu.get_methods_by_class(TestCls, with_protect=True)[3][0], "m3"
+        )
 
 
 if __name__ == "__main__":

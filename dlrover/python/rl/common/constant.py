@@ -18,3 +18,9 @@ class RLMasterConstant(object):
     SCHEDULING_TIMEOUT_PER_ACTOR_SECS = 2
     RUN_WAIT_INTERVAL = 30
     EXIT_WAIT_INTERVAL = 10
+
+
+class RLJobStatus(object):
+    INIT = "INIT"
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"

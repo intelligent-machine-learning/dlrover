@@ -48,6 +48,22 @@ def trainer_invocation(is_async=False, timeout=10):
 
 
 class BaseWorkload(ABC):
+    """
+    Workload is the core computational unit for RL (Reinforcement Learning)
+    training. Users need to extend the current base class and implement their
+    own business logic. Workloads for different roles perform distinct
+    implementations, such as the actor handling policy updates and the reward
+    handling reward calculations.
+
+    Args:
+        master_handle: The actor handle of RLMaster.
+        name: The of current actor.
+        role: The role of current workload.
+        rank: Rank(parallelism index) of current workload.
+        world_size: World size(parallelism size) of current workload.
+        config: The configuration used for training.
+    """
+
     def __init__(
         self,
         master_handle: ActorHandle,

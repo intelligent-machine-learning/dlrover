@@ -15,7 +15,7 @@ import time
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
+from dlrover.python.rl.common.enums import ModelParallelismArcType
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 from dlrover.python.rl.trainer.workload import BaseWorkload, trainer_invocation
 

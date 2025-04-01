@@ -18,17 +18,33 @@ import ray
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
-from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.exception import IllegalTrainerInvocation
+from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.util.common_util import get_methods_by_class
 
 
 class RoleGroupProxy(object):
-
-    def __init__(self, role: RLRoleType, role_cls: type, role_methods: Dict[str, Tuple], actor_handles: List[ActorHandle]):
+    def __init__(
+        self,
+        role: RLRoleType,
+        role_cls: type,
+        role_methods: Dict[str, Tuple],
+        actor_handles: List[ActorHandle],
+    ):
         """
+        The role group proxy is designed to provide method call delegation for
+        workloads of different roles. Through this proxy, users can directly
+        call a specific method of all actor roles' actors, such as RG_ACTOR.
+        Alternatively, users can bypass the proxy and directly use the
+        actor_handle to perform remote method calls on any actor.
 
+        Args:
+            role: The role type.
+            role_cls: The class of the target role.
+            role_methods: All the methods exposed by '@trainer_invocation'.
+                Format: key is the method name, value is a tuple:
+                (${method}, ${is_async}, ${async_timeout})
+            actor_handles: All the actor handles of current role.
         """
 
         self._role = role
@@ -41,17 +57,13 @@ class RoleGroupProxy(object):
             if not self._actor_handles:
                 raise RuntimeError("Actor handle is empty.")
 
-            if method_name not in self._role_methods:
-                logger.error(f"Method: {method_name} is not decorated by "
-                             "'trainer_invocation' for "
-                             f"role: {self._role.name} "
-                             f"used by class: {self._role_cls.__name__}.")
-                raise IllegalTrainerInvocation()
-
-            method_attr = self._role_methods[method_name]
-            use_wait = method_attr[1]
-            wait_timeout = method_attr[2]
-            logger.info(f"use_wait: {use_wait}-{wait_timeout}")
+            if method_name in self._role_methods:
+                method_attr = self._role_methods[method_name]
+                use_wait = method_attr[1]
+                wait_timeout = method_attr[2]
+            else:
+                use_wait = False
+                wait_timeout = 10
 
             refs = [
                 getattr(actor, method_name).remote(*args, **kwargs)
@@ -67,6 +79,18 @@ class RoleGroupProxy(object):
 
 
 class BaseTrainer(ABC):
+    """
+    The trainer is the core logic for RL (Reinforcement Learning) training.
+    Users need to extend the current base class and implement their own
+    business logic. In the trainer, users operate the workloads of different
+    RL roles to complete the training process.
+
+    Args:
+        actor_handles: All the actor handles in dict format by role type.
+        actor_classes: The class type in dict format by role type.
+        config: The configuration used for training.
+    """
+
     def __init__(
         self,
         actor_handles: Dict[RLRoleType, List[ActorHandle]],
@@ -77,14 +101,19 @@ class BaseTrainer(ABC):
         self._actor_classes = actor_classes
         self._config = config
 
-        self.__role_group_proxy = {}
+        self.__role_group_proxy: Dict[str, RoleGroupProxy] = {}
         self.__init_role_group_proxy()
-        logger.info(f"Trainer initiated with workloads: {self._get_workloads_size()}, "
-                    f"role actor classes: {self._actor_classes}, "
-                    f"config: {config}")
+        logger.info(
+            f"Trainer initiated with workloads: {self._get_workloads_size()}, "
+            f"role actor classes: {self._actor_classes}, "
+            f"config: {config}"
+        )
 
     def _get_workloads_size(self) -> Dict[str, int]:
-        return {role.name: len(handles) for role, handles in self._actor_handles.items()}
+        return {
+            role.name: len(handles)
+            for role, handles in self._actor_handles.items()
+        }
 
     def __init_role_group_proxy(self):
         for role, handles in self._actor_handles.items():
@@ -96,10 +125,18 @@ class BaseTrainer(ABC):
             for name, method in get_methods_by_class(cls):
                 if hasattr(method, "_trainer_invocation"):
                     is_async = getattr(method, "_trainer_invocation_async")
-                    async_timeout = getattr(method, "_trainer_invocation_async_timeout")
-                    invocation_methods[name] = (method, is_async, async_timeout)
+                    async_timeout = getattr(
+                        method, "_trainer_invocation_async_timeout"
+                    )
+                    invocation_methods[name] = (
+                        method,
+                        is_async,
+                        async_timeout,
+                    )
 
-            role_group_proxy = RoleGroupProxy(role, cls, invocation_methods, handles)
+            role_group_proxy = RoleGroupProxy(
+                role, cls, invocation_methods, handles
+            )
             setattr(self, workload_group_name, role_group_proxy)
             self.__role_group_proxy[workload_group_name] = role_group_proxy
 

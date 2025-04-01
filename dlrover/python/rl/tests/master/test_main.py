@@ -10,9 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import time
-
 import ray
 
 from dlrover.python.rl.common.args import parse_job_args
@@ -57,11 +55,9 @@ class RLMasterTest(BaseMasterTest):
         time.sleep(5)
 
         # wait master done
-        print("1")
         while True:
-            try:
-                ray.get(master_actor.ping.remote())
-                time.sleep(1)
-                print("2")
-            except Exception:
+            result = ray.get(master_actor.get_job_status.remote())
+            if result != "FINISHED":
+                time.sleep(3)
+            else:
                 break

@@ -12,17 +12,21 @@
 # limitations under the License.
 import unittest
 
-import ray
-
 from dlrover.python.rl.common.enums import RLRoleType
-from dlrover.python.rl.tests.test_class import TestInteractiveTrainer, TestActor
+from dlrover.python.rl.tests.test_class import (
+    TestActor,
+    TestInteractiveTrainer,
+)
 from dlrover.python.rl.trainer.trainer import RoleGroupProxy
 
 
 class TrainerTest(unittest.TestCase):
-
     def test_construct(self):
-        trainer = TestInteractiveTrainer({RLRoleType.ACTOR: [None, None]}, {RLRoleType.ACTOR: TestActor}, None)
+        trainer = TestInteractiveTrainer(
+            {RLRoleType.ACTOR: [None, None]},
+            {RLRoleType.ACTOR: TestActor},
+            None,
+        )
         self.assertIsNotNone(trainer)
         self.assertEqual(len(trainer.get_role_groups()), 1)
         self.assertTrue(isinstance(trainer.RG_ACTOR, RoleGroupProxy))
