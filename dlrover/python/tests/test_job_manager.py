@@ -454,7 +454,7 @@ class DistributedJobManagerTest(unittest.TestCase):
                 node.start_time = now - timedelta(seconds=600)
             else:
                 if index == 1:
-                    node.reported_status = NodeEventType.SUCCEEDED_EXITED
+                    node.reported_status = (NodeEventType.SUCCEEDED_EXITED, 0)
                 node.create_time = now - timedelta(seconds=1400)
                 node.start_time = now - timedelta(seconds=1200)
             self.job_context.update_job_node(node)
@@ -466,7 +466,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
             now = datetime.now()
             node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
-            node.reported_status = NodeEventType.FAILED_EXITED
+            node.reported_status = (NodeEventType.FAILED_EXITED, 0)
             node.create_time = now - timedelta(seconds=800)
             node.start_time = now - timedelta(seconds=600)
             self.job_context.update_job_node(node)
@@ -479,9 +479,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             now = datetime.now()
             node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
             if index == 0:
-                node.reported_status = NodeEventType.SUCCEEDED_EXITED
+                node.reported_status = (NodeEventType.SUCCEEDED_EXITED, 0)
             else:
-                node.reported_status = NodeEventType.FAILED_EXITED
+                node.reported_status = (NodeEventType.FAILED_EXITED, 0)
             node.create_time = now - timedelta(seconds=1400)
             node.start_time = now - timedelta(seconds=1200)
             self.job_context.update_job_node(node)
@@ -687,7 +687,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
         for worker in job_nodes[NodeType.WORKER].values():
-            worker.reported_status = NodeEventType.NODE_CHECK_FAILED
+            worker.reported_status = (NodeEventType.NODE_CHECK_FAILED, 0)
         self.job_context.update_job_nodes(job_nodes)
         self.assertTrue(
             manager._worker_manager.is_all_workers_node_check_failed()

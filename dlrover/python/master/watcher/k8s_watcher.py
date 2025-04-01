@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import json
+from datetime import datetime
 from typing import List
 
 from kubernetes import client, watch
@@ -20,6 +21,7 @@ from dlrover.python.common.constants import (
     ElasticJobApi,
     ElasticJobLabel,
     ExitCode,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -32,6 +34,7 @@ from dlrover.python.common.node import (
     NodeGroupResource,
     NodeResource,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.kubernetes import (
@@ -39,6 +42,8 @@ from dlrover.python.scheduler.kubernetes import (
     convert_memory_to_mb,
     k8sClient,
 )
+
+job_ctx = get_job_context()
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -268,6 +273,23 @@ class PodWatcher(NodeWatcher):
             if pod.status.phase == NodeStatus.SUCCEEDED:
                 logger.info(f"Delete succeeded pod: {pod_name}")
                 self._k8s_client.delete_pod(pod_name)
+            else:
+                node_type = pod_type
+                node_id = pod_id
+                target_node = job_ctx.job_node(node_type, node_id)
+                now = int(datetime.now().timestamp())
+                if target_node:
+                    status, ts = target_node.reported_status
+                    if (
+                        status == NodeEventType.SUCCEEDED_EXITED
+                        and now - ts > 600
+                    ):
+                        logger.info(
+                            f"Delete target pod {pod_name} due to "
+                            f"report status {status} from {ts} to {now} "
+                            f"has exceeded 600s"
+                        )
+                        self._k8s_client.delete_pod(pod_name)
 
         return nodes
 
