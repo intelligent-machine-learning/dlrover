@@ -475,3 +475,10 @@ class PreCheckStatus(object):
 
 class DictKey(object):
     LOGS = "logs"
+
+
+class JobStage(object):
+    JOB_INIT = "init"
+    JOB_RUNNING = "running"
+    JOB_STOPPING = "stopping"
+    JOB_STOPPED = "stopped"
