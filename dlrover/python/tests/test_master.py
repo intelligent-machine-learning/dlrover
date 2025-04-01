@@ -19,11 +19,11 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     DistributionStrategy,
     JobExitReason,
+    JobStage,
     NodeStatus,
     NodeType,
     PreCheckStatus,
     RendezvousName,
-    JobStage,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
