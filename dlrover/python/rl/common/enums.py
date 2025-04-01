@@ -47,6 +47,12 @@ class RLRoleType(Enum):
     CRITIC = "CRITIC"
 
 
+class WorkloadGroupType(Enum):
+    HOST_GROUP = "HOST_GROUP"  # colocate on single host
+    DEVICE_GROUP = "DEVICE_GROUP"  # colocate on single device
+    ANTI_HOST_GROUP = "ANTI_HOST_GROUP"  # separate in different host
+
+
 class MasterStateBackendType(Enum):
     RAY_INTERNAL = "RAY_INTERNAL"
     HDFS = "HDFS"

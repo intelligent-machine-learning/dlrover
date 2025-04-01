@@ -38,6 +38,31 @@ class TestData(object):
         },
     }
 
+    UD_SIMPLE_MOCK_HOST_GROUPED_RL_CONF = {
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "test_trainer",
+            "class": "TestTrainer",
+        },
+        "workload_group": {"host_group": [{"actor": 2, "rollout": 2}]},
+        "workload": {
+            "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
+            "rollout": {
+                "num": 2,
+                "module": "test_rollout",
+                "class": "TestRollout",
+            },
+            "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
+            "reward": {
+                "num": 1,
+                "module": "test_reward",
+                "class": "testReward",
+            },
+        },
+    }
+
     UD_INVALID_RESOURCE_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},

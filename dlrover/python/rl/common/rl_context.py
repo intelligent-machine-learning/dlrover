@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 from omegaconf import DictConfig
 
@@ -21,6 +21,7 @@ from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
     TrainerType,
+    WorkloadGroupType,
 )
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
@@ -102,6 +103,40 @@ class WorkloadDesc(object):
         return self._resource
 
 
+class WorkloadGroupDesc(object):
+    def __init__(self, allocation, unit="process"):
+        """
+        Description of a workload group(for scheduling).
+
+        Args:
+            allocation: The number of the workload instance.
+            unit: The allocation unit, default is 'process'.
+        """
+        self._allocation: Dict[RLRoleType, int] = allocation
+        self._unit = unit
+
+    def __repr__(self):
+        return (
+            f"WorkloadGroupDesc(allocation={self._allocation}, "
+            f"unit={self._unit})"
+        )
+
+    @classmethod
+    def from_dict(cls, dict_value: Dict[str, int]):
+        allocation = {}
+        for key, value in dict_value.items():
+            allocation[RLRoleType[key.upper()]] = value
+        return WorkloadGroupDesc(allocation)
+
+    @property
+    def allocation(self) -> Dict[RLRoleType, int]:
+        return self._allocation
+
+    @property
+    def unit(self) -> str:
+        return self._unit
+
+
 class RLContext(PickleSerializable):
     def __init__(
         self,
@@ -109,6 +144,7 @@ class RLContext(PickleSerializable):
         config: DictConfig,
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
+        workload_groups: Dict[WorkloadGroupType, List[WorkloadGroupDesc]],
     ):
         """
         Description of reinforcement learning's computing architecture.
@@ -120,18 +156,22 @@ class RLContext(PickleSerializable):
             workloads: A dictionary of workloads, including: actor_workload,
                 rollout_workload, ref_workload, reward_workload,
                 critic_workload.
+            workload_groups: The group definition when scheduling the
+                different role workloads.
         """
 
         self._algorithm_type: RLAlgorithmType = algorithm_type
         self._config: DictConfig = config
         self._trainer = trainer
         self._workloads = workloads
+        self._workload_groups = workload_groups
 
     def __repr__(self):
         return (
             f"RLContext(algorithm_type:{self.algorithm_type}, "
             f"config:{self.config}, "
             f"trainer:{self.trainer}, "
+            f"group:{self.workload_groups}, "
             f"actor:{self.actor_workload}, "
             f"rollout:{self.rollout_workload}, "
             f"reference:{self.ref_workload}, "
@@ -152,28 +192,44 @@ class RLContext(PickleSerializable):
         return self._trainer
 
     @property
+    def workload_groups(
+        self,
+    ) -> Dict[WorkloadGroupType, List[WorkloadGroupDesc]]:
+        return self._workload_groups
+
+    @property
     def workloads(self) -> Dict[RLRoleType, WorkloadDesc]:
         return self._workloads
 
     @property
     def actor_workload(self):
-        return self._workloads[RLRoleType.ACTOR]
+        if RLRoleType.ACTOR in self._workloads:
+            return self._workloads[RLRoleType.ACTOR]
+        return None
 
     @property
     def rollout_workload(self):
-        return self._workloads[RLRoleType.ROLLOUT]
+        if RLRoleType.ROLLOUT in self._workloads:
+            return self._workloads[RLRoleType.ROLLOUT]
+        return None
 
     @property
     def ref_workload(self):
-        return self._workloads[RLRoleType.REFERENCE]
+        if RLRoleType.REFERENCE in self._workloads:
+            return self._workloads[RLRoleType.REFERENCE]
+        return None
 
     @property
     def reward_workload(self):
-        return self._workloads[RLRoleType.REWARD]
+        if RLRoleType.REWARD in self._workloads:
+            return self._workloads[RLRoleType.REWARD]
+        return None
 
     @property
     def critic_workload(self):
-        return self._workloads[RLRoleType.CRITIC]
+        if RLRoleType.CRITIC in self._workloads:
+            return self._workloads[RLRoleType.CRITIC]
+        return None
 
     @classmethod
     def build_from_args(cls, args):
@@ -192,78 +248,49 @@ class RLContext(PickleSerializable):
                 trainer_conf.get("type"),
             )
 
-            actor_desc = None
-            rollout_desc = None
-            reference_desc = None
-            reward_desc = None
-            critic_desc = None
+            # workload
+            workload_dict = {}
+            wl_conf: DictConfig = conf.get("workload")
             if trainer_desc.trainer_type == TrainerType.OPENRLHF_PPO_DEEPSPEED:
-                # TODO
+                # TODO: default workload specify
                 pass
             else:
-                # actor
-                wl_conf = conf.get("workload")
-                actor_conf = wl_conf.get("actor", None)
-
-                if actor_conf:
-                    actor_desc = WorkloadDesc(
-                        (actor_conf.get("module"), actor_conf.get("class")),
-                        actor_conf.get("num"),
-                        actor_conf.get("resource"),
-                    )
-
-                # rollout
-                rollout_conf = wl_conf.get("rollout", None)
-                if rollout_conf:
-                    rollout_desc = WorkloadDesc(
+                for role_str, workload_desc_dict in wl_conf.items():
+                    role_type = RLRoleType[role_str.upper()]
+                    workload_desc = WorkloadDesc(
                         (
-                            rollout_conf.get("module"),
-                            rollout_conf.get("class"),
+                            workload_desc_dict.get("module"),
+                            workload_desc_dict.get("class"),
                         ),
-                        rollout_conf.get("num"),
-                        rollout_conf.get("resource"),
+                        workload_desc_dict.get("num"),
+                        workload_desc_dict.get("resource"),
                     )
+                    workload_dict[role_type] = workload_desc
 
-                # reference
-                reference_conf = wl_conf.get("reference", None)
-                if reference_conf:
-                    reference_desc = WorkloadDesc(
-                        (
-                            reference_conf.get("module"),
-                            reference_conf.get("class"),
-                        ),
-                        reference_conf.get("num"),
-                        reference_conf.get("resource"),
-                    )
+            # workload group
+            workload_group_dict = {}
+            workload_group_conf: DictConfig = conf.get("workload_group", None)
+            if workload_group_conf:
+                for group_type_str, groups in workload_group_conf.items():
+                    try:
+                        group_type = WorkloadGroupType[group_type_str.upper()]
+                        workload_group_dict[group_type] = []
+                        for group_dict in groups:
+                            workload_group_dict[group_type].append(
+                                WorkloadGroupDesc.from_dict(group_dict)
+                            )
+                    except KeyError:
+                        logger.warning(
+                            f"Invalid workload group type: {group_type_str}."
+                        )
+                        continue
 
-                # reward
-                reward_conf = wl_conf.get("reward", None)
-                if reward_conf:
-                    reward_desc = WorkloadDesc(
-                        (reward_conf.get("module"), reward_conf.get("class")),
-                        reward_conf.get("num"),
-                        reward_conf.get("resource"),
-                    )
-
-                # critic
-                critic_conf = wl_conf.get("critic", None)
-                if critic_conf:
-                    critic_desc = WorkloadDesc(
-                        (critic_conf.get("module"), critic_conf.get("class")),
-                        critic_conf.get("num"),
-                        critic_conf.get("resource"),
-                    )
             return RLContext(
                 algorithm_type,
                 config,
                 trainer_desc,
-                {
-                    RLRoleType.ACTOR: actor_desc,
-                    RLRoleType.ROLLOUT: rollout_desc,
-                    RLRoleType.REFERENCE: reference_desc,
-                    RLRoleType.REWARD: reward_desc,
-                    RLRoleType.CRITIC: critic_desc,
-                },
+                workload_dict,
+                workload_group_dict,
             )
         except Exception as e:
             logger.error(

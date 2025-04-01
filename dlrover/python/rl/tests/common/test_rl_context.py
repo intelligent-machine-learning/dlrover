@@ -14,7 +14,12 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.rl.common.args import parse_job_args
-from dlrover.python.rl.common.enums import RLAlgorithmType, TrainerType
+from dlrover.python.rl.common.enums import (
+    RLAlgorithmType,
+    RLRoleType,
+    TrainerType,
+    WorkloadGroupType,
+)
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.tests.test_data import TestData
@@ -96,3 +101,23 @@ class RLContextTest(unittest.TestCase):
         self.assertIsNotNone(deserialized)
         self.assertEqual(deserialized.algorithm_type, RLAlgorithmType.GRPO)
         self.assertEqual(deserialized.config.get("c1"), "v1")
+
+    def test_workload_group_resolve_and_validate(self):
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_MOCK_HOST_GROUPED_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+
+        self.assertEqual(len(rl_context.workload_groups), 1)
+        self.assertEqual(
+            len(rl_context.workload_groups[WorkloadGroupType.HOST_GROUP]), 1
+        )
+        self.assertEqual(
+            rl_context.workload_groups[WorkloadGroupType.HOST_GROUP][
+                0
+            ].allocation,
+            {RLRoleType.ACTOR: 2, RLRoleType.ROLLOUT: 2},
+        )
