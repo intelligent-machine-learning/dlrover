@@ -13,6 +13,9 @@
 import unittest
 from unittest.mock import patch
 
+from omegaconf import OmegaConf
+
+from dlrover.python.common.enums import ResourceType
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
@@ -21,7 +24,7 @@ from dlrover.python.rl.common.enums import (
     WorkloadGroupType,
 )
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
-from dlrover.python.rl.common.rl_context import RLContext
+from dlrover.python.rl.common.rl_context import RLContext, WorkloadGroupDesc
 from dlrover.python.rl.tests.test_data import TestData
 
 
@@ -101,6 +104,21 @@ class RLContextTest(unittest.TestCase):
         self.assertIsNotNone(deserialized)
         self.assertEqual(deserialized.algorithm_type, RLAlgorithmType.GRPO)
         self.assertEqual(deserialized.config.get("c1"), "v1")
+
+    def test_workload_group_desc(self):
+        conf_dict = OmegaConf.create(TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF)
+        desc = WorkloadGroupDesc.from_dict(
+            WorkloadGroupType.HOST_GROUP,
+            conf_dict.get("workload_group").get("host_group")[0],
+        )
+
+        self.assertIsNotNone(desc)
+        self.assertEqual(desc.group_type, WorkloadGroupType.HOST_GROUP)
+        self.assertEqual(len(desc.allocation), 2)
+        self.assertEqual(desc.capacity, 4)
+        self.assertEqual(desc.unit, ResourceType.CPU)
+        self.assertTrue(desc.is_capacity_limit())
+        self.assertEqual(len(desc.get_all_roles()), 2)
 
     def test_workload_group_resolve_and_validate(self):
         args = [

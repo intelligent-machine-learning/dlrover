@@ -46,7 +46,15 @@ class TestData(object):
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
         },
-        "workload_group": {"host_group": [{"actor": 2, "rollout": 2}]},
+        "workload_group": {
+            "host_group": [
+                {
+                    "groups": {"actor": 2, "rollout": 2},
+                    "capacity": 4,
+                    "unit": "cpu",
+                }
+            ]
+        },
         "workload": {
             "actor": {
                 "num": 2,
@@ -81,8 +89,8 @@ class TestData(object):
         },
         "workload_group": {
             "host_group": [
-                {"actor": 2, "rollout": 2},
-                {"actor": 2, "reference": 2},
+                {"groups": {"actor": 2, "rollout": 2}},
+                {"groups": {"actor": 2, "reference": 2}},
             ]
         },
         "workload": {

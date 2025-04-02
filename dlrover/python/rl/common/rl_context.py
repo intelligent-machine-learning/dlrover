@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple
 
 from omegaconf import DictConfig
 
+from dlrover.python.common.enums import ResourceType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
@@ -104,37 +105,65 @@ class WorkloadDesc(object):
 
 
 class WorkloadGroupDesc(object):
-    def __init__(self, allocation, unit="process"):
+    def __init__(self, group_type, allocation, capacity=0, unit="GPU"):
         """
         Description of a workload group(for scheduling).
 
         Args:
-            allocation: The number of the workload instance.
-            unit: The allocation unit, default is 'process'.
+            group_type: The type of group.
+            allocation: The number of the workload instance in group.
+            capacity (optional): The resource capacity for each group.
+                Default is 0(no limit).
+            unit (optional): The resource unit if capacity is specified.
+                Default is 'GPU'.
         """
+        self._group_type: WorkloadGroupType = group_type
         self._allocation: Dict[RLRoleType, int] = allocation
-        self._unit = unit
+        self._capacity = capacity
+        self._unit: ResourceType = ResourceType[unit.upper()]
 
     def __repr__(self):
         return (
-            f"WorkloadGroupDesc(allocation={self._allocation}, "
+            f"WorkloadGroupDesc(type={self._group_type}, "
+            f"allocation={self._allocation}, "
+            f"capacity={self._capacity}, "
             f"unit={self._unit})"
         )
 
     @classmethod
-    def from_dict(cls, dict_value: Dict[str, int]):
+    def from_dict(cls, group_type, dict_value):
         allocation = {}
-        for key, value in dict_value.items():
-            allocation[RLRoleType[key.upper()]] = value
-        return WorkloadGroupDesc(allocation)
+        groups = dict_value.get("groups", None)
+        if groups:
+            for key, value in groups.items():
+                allocation[RLRoleType[key.upper()]] = value
+
+        # capacity
+        capacity = dict_value.get("capacity", 0)
+
+        # unit
+        unit = dict_value.get("unit", "GPU")
+
+        return WorkloadGroupDesc(group_type, allocation, capacity, unit)
+
+    @property
+    def group_type(self) -> WorkloadGroupType:
+        return self._group_type
 
     @property
     def allocation(self) -> Dict[RLRoleType, int]:
         return self._allocation
 
     @property
-    def unit(self) -> str:
+    def capacity(self):
+        return self._capacity
+
+    @property
+    def unit(self) -> ResourceType:
         return self._unit
+
+    def is_capacity_limit(self):
+        return self._capacity > 0
 
     def get_all_roles(self) -> List[RLRoleType]:
         return list(self._allocation.keys())
@@ -280,7 +309,9 @@ class RLContext(PickleSerializable):
                         workload_group_dict[group_type] = []
                         for group_dict in groups:
                             workload_group_dict[group_type].append(
-                                WorkloadGroupDesc.from_dict(group_dict)
+                                WorkloadGroupDesc.from_dict(
+                                    group_type, group_dict
+                                )
                             )
                     except KeyError:
                         logger.warning(
@@ -333,6 +364,7 @@ class RLContext(PickleSerializable):
                 )
                 return False
 
+        # ====== workload validation ======
         # actor validation
         if not self.actor_workload:
             logger.error("Actor workload not set.")
@@ -366,7 +398,7 @@ class RLContext(PickleSerializable):
                 )
                 return False
 
-        # workload group validation
+        # ====== workload group validation ======
         role_group_definition_num: Dict[RLRoleType, int] = {}
         for group_type, groups in self.workload_groups.items():
             for group_desc in groups:

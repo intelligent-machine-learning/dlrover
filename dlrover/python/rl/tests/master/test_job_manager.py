@@ -12,12 +12,13 @@
 # limitations under the License.
 from unittest.mock import MagicMock
 
+from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.master.execution.scheduling_strategy import (
-    SimpleStrategy, GroupOrderedStrategy,
+    GroupOrderedStrategy,
+    SimpleStrategy,
 )
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.tests.master.base import BaseMasterTest
-from dlrover.python.rl.common.enums import SchedulingStrategyType
 
 
 class JobManagerTest(BaseMasterTest):
@@ -33,20 +34,34 @@ class JobManagerTest(BaseMasterTest):
 
     def test_get_scheduling_strategy(self):
         job_manager = JobManager()
-        job_manager._get_scheduling_type_from_context = MagicMock(return_value=SchedulingStrategyType.SIMPLE)
-        self.assertTrue(isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy))
+        job_manager._get_scheduling_type_from_context = MagicMock(
+            return_value=SchedulingStrategyType.SIMPLE
+        )
+        self.assertTrue(
+            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
+        )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
-            return_value=SchedulingStrategyType.GROUP)
-        self.assertTrue(isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy))
+            return_value=SchedulingStrategyType.GROUP
+        )
+        self.assertTrue(
+            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
+        )
 
         job_manager._job_ctx.rl_context.has_workload_group = MagicMock(
-            return_value=True)
+            return_value=True
+        )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), GroupOrderedStrategy))
+            isinstance(
+                job_manager._get_scheduling_strategy(), GroupOrderedStrategy
+            )
+        )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
-            return_value=SchedulingStrategyType.AUTO)
+            return_value=SchedulingStrategyType.AUTO
+        )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(),
-                       GroupOrderedStrategy))
+            isinstance(
+                job_manager._get_scheduling_strategy(), GroupOrderedStrategy
+            )
+        )

@@ -42,12 +42,15 @@ class JobManager(object):
             return SimpleStrategy()
         elif strategy_type == SchedulingStrategyType.GROUP:
             if self._job_ctx.rl_context.has_workload_group():
-                logger.info("Use group strategy for scheduling by specification.")
+                logger.info(
+                    "Use group strategy for scheduling by specification."
+                )
                 return GroupOrderedStrategy()
             else:
                 logger.info(
                     "Downgrade to simple strategy for scheduling because "
-                    "workload group description is empty in rl-context.")
+                    "workload group description is empty in rl-context."
+                )
                 return SimpleStrategy()
         else:
             # for auto type:
