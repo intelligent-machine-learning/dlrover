@@ -26,8 +26,8 @@ class InvalidRLConfiguration(Exception):
         )
 
 
-class IllegalTrainerInvocation(Exception):
+class ResourceError(Exception):
     def __init__(self):
-        super(IllegalTrainerInvocation, self).__init__(
-            "The invocation in trainer is invalid."
+        super(ResourceError, self).__init__(
+            "The resource is not satisfied."
         )

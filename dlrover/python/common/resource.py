@@ -90,6 +90,25 @@ class Resource(object):
             ud_resource=ud_value,
         )
 
+    def to_dict(
+        self,
+        cpu_flag="cpu",
+        gpu_flag="gpu",
+        mem_flag="memory",
+        disk_flag="disk",
+    ) -> Dict[str, float]:
+        result = {}
+        if cpu_flag and self.cpu > 0:
+            result[cpu_flag] = self.cpu
+        if gpu_flag and self.gpu > 0:
+            result[gpu_flag] = self.gpu
+        if mem_flag and self.memory > 0:
+            result[mem_flag] = self.memory
+        if disk_flag and self.disk > 0:
+            result[disk_flag] = self.disk
+
+        return result
+
     def validate(self) -> bool:
         if self.cpu < 0 or self.memory < 0 or self.disk < 0 or self.gpu < 0:
             return False

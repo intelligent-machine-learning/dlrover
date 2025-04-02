@@ -156,6 +156,8 @@ class WorkloadGroupDesc(object):
 
     @property
     def capacity(self):
+        if self._capacity <= 0:
+            return sum(self._allocation.values())
         return self._capacity
 
     @property
@@ -167,6 +169,17 @@ class WorkloadGroupDesc(object):
 
     def get_all_roles(self) -> List[RLRoleType]:
         return list(self._allocation.keys())
+
+    def has_role(self, role: RLRoleType):
+        return role in self.get_all_roles()
+
+    def get_group_name(self) -> str:
+        suffix = "_"
+        for index, role in enumerate(self.get_all_roles()):
+            suffix += role.name
+            if index < len(self.get_all_roles()) - 1:
+                suffix += "_"
+        return self.group_type.name + suffix
 
 
 class RLContext(PickleSerializable):

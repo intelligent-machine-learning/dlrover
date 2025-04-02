@@ -46,6 +46,7 @@ class ResourceTest(unittest.TestCase):
         self.assertEqual(resource.disk, 0)
         self.assertEqual(resource.ud_resource, {"k1": "v1", "k2": "v2"})
         self.assertTrue(resource.validate())
+        self.assertEqual(resource.to_dict(cpu_flag="CPU").get("CPU"), 1.1)
 
         resource = Resource(cpu=-2, gpu=1)
         self.assertFalse(resource.validate())

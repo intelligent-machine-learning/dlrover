@@ -50,7 +50,6 @@ class TestData(object):
             "host_group": [
                 {
                     "groups": {"actor": 2, "rollout": 2},
-                    "capacity": 4,
                     "unit": "cpu",
                 }
             ]

@@ -117,8 +117,9 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(len(desc.allocation), 2)
         self.assertEqual(desc.capacity, 4)
         self.assertEqual(desc.unit, ResourceType.CPU)
-        self.assertTrue(desc.is_capacity_limit())
+        self.assertFalse(desc.is_capacity_limit())
         self.assertEqual(len(desc.get_all_roles()), 2)
+        self.assertEqual(desc.get_group_name(), "HOST_GROUP_ACTOR_ROLLOUT")
 
     def test_workload_group_resolve_and_validate(self):
         args = [

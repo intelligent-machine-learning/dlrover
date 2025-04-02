@@ -11,11 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from typing import Dict, List, Tuple
 
+from dlrover.python.common.resource import Resource
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
-from dlrover.python.rl.master.execution.graph import RLExecutionGraph
+from dlrover.python.rl.master.execution.graph import (
+    PlacementGroupAllocation,
+    RLExecutionGraph,
+)
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData
@@ -47,6 +52,7 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(actor_vertices[0].get_cls(), TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
         self.assertEqual(actor_vertices[0].world_size, 2)
+        self.assertFalse(actor_vertices[0].use_pg())
         self.assertEqual(actor_vertices[1].rank, 1)
         self.assertEqual(actor_vertices[1].world_size, 2)
 
@@ -68,3 +74,60 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(rollout_vertex_0.hostname, "test.com")
         self.assertEqual(rollout_vertex_0.host_ip, "")
         self.assertEqual(rollout_vertex_0.restart_count, 2)
+
+    def test_graph_with_pg(self):
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+
+        graph = RLExecutionGraph(rl_context)
+        self.assertIsNotNone(graph)
+
+        vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        self.assertTrue(vertices[0].use_pg())
+        self.assertFalse(vertices[0].is_pg_allocated())
+
+        vertices = graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        self.assertTrue(vertices[0].use_pg())
+        self.assertFalse(vertices[0].is_pg_allocated())
+
+        vertices = graph.get_vertices_by_role_type(RLRoleType.REWARD)
+        self.assertFalse(vertices[0].use_pg())
+        self.assertFalse(vertices[0].is_pg_allocated())
+
+        vertices = graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
+        self.assertFalse(vertices[0].use_pg())
+        self.assertFalse(vertices[0].is_pg_allocated())
+
+    def test_pg_allocation(self):
+        resource0 = Resource(gpu=1)
+        resource1 = Resource(gpu=2)
+        bundles: Dict[RLRoleType, List[Tuple[int, Resource]]] = {
+            RLRoleType.ACTOR: [(0, resource0), (1, resource0)],
+            RLRoleType.ROLLOUT: [(2, resource1)],
+        }
+        pg_allocation = PlacementGroupAllocation("test", 0, "PACK", bundles)
+
+        self.assertIsNotNone(pg_allocation)
+        self.assertIsNone(pg_allocation._instance)
+        self.assertEqual(
+            pg_allocation._get_bundle_resource(),
+            [{"GPU": 1}, {"GPU": 1}, {"GPU": 2}],
+        )
+        self.assertEqual(pg_allocation.get_bundle_size(), 3)
+        self.assertEqual(
+            pg_allocation.get_bundle_index_by_vertex_name("a1"), -1
+        )
+        self.assertFalse(pg_allocation.is_full())
+
+        self.assertEqual(pg_allocation.allocate(RLRoleType.ROLLOUT, "r0"), 2)
+        self.assertEqual(pg_allocation.allocate(RLRoleType.ROLLOUT, "r1"), -1)
+        self.assertFalse(pg_allocation.is_full())
+        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a0"), 0)
+        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a1"), 1)
+        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a3"), -1)
+        self.assertTrue(pg_allocation.is_full())
