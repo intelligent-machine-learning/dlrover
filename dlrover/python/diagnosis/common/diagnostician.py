@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta
+from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_action import (
@@ -30,6 +31,7 @@ class DiagnosisObservation(metaclass=ABCMeta):
     def __init__(self, observation: str = ""):
         # The simple description info for the problem.
         self._observation: str = observation
+        self.extra_infos: Dict[str, str] = {}
 
     @property
     def observation(self):
