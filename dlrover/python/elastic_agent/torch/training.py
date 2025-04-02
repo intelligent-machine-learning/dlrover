@@ -112,6 +112,7 @@ from dlrover.python.util.common_util import (
     find_free_port_in_range,
     find_free_port_in_set,
 )
+from dlrover.python.util.function_util import TimeoutException, timeout
 from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
 from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
@@ -1029,6 +1030,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     f"rank {local_rank} worker {pid} invalid affinity"
                 )
 
+    @timeout(callback_func=lambda: 900)
+    def _dlrover_exit_barrier(self):
+        self._exit_barrier()
+
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
         self.sync_training_ports()
@@ -1082,11 +1087,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
 
                 try:
-                    self._exit_barrier()
+                    self._dlrover_exit_barrier()
                     logger.info("Barrier exited.")
 
                     self._wait_async_saver()
                     logger.info("Async saver stopped.")
+                except TimeoutException:
+                    logger.warning("Unexpected _exit_barrier timeout")
                 except Exception as e:
                     logger.warning(f"Unexpected exception when ending: {e}")
                 finally:
