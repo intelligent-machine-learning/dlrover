@@ -39,6 +39,7 @@ from dlrover.python.diagnosis.common.constants import (
 )
 from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
@@ -70,9 +71,9 @@ def get_pre_check_timeout():
     return get_pending_timeout() + 600
 
 
-class DiagnosisManager:
+class DiagnosisMaster(DiagnosisManager):
     """
-    DiagnosisManager is used to manage all diagnosis issues in a training job.
+    DiagnosisMaster is used to manage all diagnosis issues in a training job.
     """
 
     def __init__(self, job_args: JobArgs = None):
@@ -84,6 +85,8 @@ class DiagnosisManager:
         self._reporter = get_event_reporter()
         self._metric_monitor = None
         self._lock = threading.Lock()
+
+        super().__init__(self._job_context)
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -434,7 +437,7 @@ class DiagnosisManager:
                 )
 
                 if _dlrover_context.hang_detection == 2:
-                    self._job_context.enqueue_action(
+                    self._job_context.enqueue_diagnosis_action(
                         NodeAction(
                             action_type=DiagnosisActionType.RESTART_WORKER,
                             instance=DiagnosisConstant.ANY_INSTANCE,
@@ -455,7 +458,7 @@ class DiagnosisManager:
 
             observed_problems = self._diagnostician.observe_training()
             action = self._diagnostician.resolve_problems(observed_problems)
-            self._job_context.enqueue_action(action)
+            self._job_context.enqueue_diagnosis_action(action)
 
             time.sleep(
                 DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS

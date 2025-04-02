@@ -471,3 +471,10 @@ class PreCheckStatus(object):
     FAIL = "FAIL"
     PASS = "PASS"
     DISABLED = "DISABLED"
+
+
+class JobStage(object):
+    JOB_INIT = "init"
+    JOB_RUNNING = "running"
+    JOB_STOPPING = "stopping"
+    JOB_STOPPED = "stopped"

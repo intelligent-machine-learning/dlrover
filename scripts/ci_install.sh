@@ -15,6 +15,8 @@
 echo "Start installing CI python packages."
 start_time=$(date +%s)
 
+echo "Upgrading pip tools"
+pip install --upgrade pip
 pip install -q kubernetes
 pip install -q grpcio-tools
 pip install -q psutil
