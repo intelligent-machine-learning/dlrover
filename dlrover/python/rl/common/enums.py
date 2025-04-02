@@ -59,7 +59,9 @@ class MasterStateBackendType(Enum):
 
 
 class SchedulingStrategyType(Enum):
+    AUTO = "AUTO"
     SIMPLE = "SIMPLE"
+    GROUP = "GROUP"
 
 
 class JobStage(Enum):

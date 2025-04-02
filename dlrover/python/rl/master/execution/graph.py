@@ -230,6 +230,9 @@ class RLExecutionGraph(PickleSerializable):
             self.__rl_context.trainer.class_name,
         )
 
+    def get_workload_groups(self):
+        return self.__rl_context.workload_groups
+
     def update_actor_handle_for_vertex(
         self, actor_handle: ActorHandle, vertex: RLExecutionVertex
     ):
