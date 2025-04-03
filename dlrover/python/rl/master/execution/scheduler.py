@@ -16,15 +16,15 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Tuple
 
 import ray
-from common.resource import Resource
 from ray.actor import ActorHandle
 from ray.exceptions import GetTimeoutError
 from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
-from rl.common.enums import RLRoleType, WorkloadGroupType
-from rl.common.exception import ResourceError
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.resource import Resource
 from dlrover.python.rl.common.constant import RLMasterConstant
+from dlrover.python.rl.common.enums import RLRoleType, WorkloadGroupType
+from dlrover.python.rl.common.exception import ResourceError
 from dlrover.python.rl.common.job_context import get_job_context
 from dlrover.python.rl.master.execution.graph import (
     PlacementGroupAllocation,

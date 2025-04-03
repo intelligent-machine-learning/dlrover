@@ -38,50 +38,6 @@ class TestData(object):
         },
     }
 
-    UD_SIMPLE_HOST_GROUPED_RL_CONF = {
-        "algorithm_type": "GRPO",
-        "config": {"c1": "v1"},
-        "trainer": {
-            "type": "USER_DEFINED",
-            "module": "dlrover.python.rl.tests.test_class",
-            "class": "TestInteractiveTrainer",
-        },
-        "workload_group": {
-            "host_group": [
-                {
-                    "groups": {"actor": 2, "rollout": 2},
-                    "unit": "cpu",
-                }
-            ]
-        },
-        "workload": {
-            "actor": {
-                "num": 4,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestActor",
-                "resource": {"cpu": 0.1},
-            },
-            "reference": {
-                "num": 2,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestReference",
-                "resource": {"cpu": 0.1},
-            },
-            "rollout": {
-                "num": 4,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestRollout",
-                "resource": {"cpu": 0.1},
-            },
-            "reward": {
-                "num": 1,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestReward",
-                "resource": {"cpu": 0.1},
-            },
-        },
-    }
-
     UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
@@ -214,6 +170,50 @@ class TestData(object):
                 "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReference",
+                "resource": {"cpu": 0.1},
+            },
+            "reward": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
+                "resource": {"cpu": 0.1},
+            },
+        },
+    }
+
+    UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF = {
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveTrainer",
+        },
+        "workload_group": {
+            "host_group": [
+                {
+                    "groups": {"actor": 2, "rollout": 2},
+                    "unit": "cpu",
+                }
+            ]
+        },
+        "workload": {
+            "actor": {
+                "num": 4,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+                "resource": {"cpu": 0.1},
+            },
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+                "resource": {"cpu": 0.1},
+            },
+            "rollout": {
+                "num": 4,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestRollout",
                 "resource": {"cpu": 0.1},
             },
             "reward": {

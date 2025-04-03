@@ -58,7 +58,7 @@ class JobManager(object):
             # or use simple strategy
             if self._job_ctx.rl_context.has_workload_group():
                 logger.info("Use group strategy for scheduling by auto.")
-                return GroupOrderedScheduler()
+                return GroupOrderedScheduler(self._execution_graph)
             else:
                 logger.info("Use simple strategy for scheduling by auto.")
                 return SimpleScheduler(self._execution_graph)

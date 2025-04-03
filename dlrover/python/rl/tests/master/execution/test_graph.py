@@ -80,7 +80,7 @@ class ExecutionGraphTest(BaseMasterTest):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 

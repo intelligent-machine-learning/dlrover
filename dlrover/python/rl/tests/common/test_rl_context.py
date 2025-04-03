@@ -106,7 +106,9 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(deserialized.config.get("c1"), "v1")
 
     def test_workload_group_desc(self):
-        conf_dict = OmegaConf.create(TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF)
+        conf_dict = OmegaConf.create(
+            TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF
+        )
         desc = WorkloadGroupDesc.from_dict(
             WorkloadGroupType.HOST_GROUP,
             conf_dict.get("workload_group").get("host_group")[0],
@@ -126,7 +128,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 
