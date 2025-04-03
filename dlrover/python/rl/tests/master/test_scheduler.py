@@ -55,6 +55,9 @@ class SimpleSchedulerTest(BaseMasterTest):
 
         for vertex in graph.get_all_vertices():
             self.assertIsNone(vertex.actor_handle)
+            self.assertIsNone(vertex.pg)
+            self.assertIsNone(vertex.pg_bundle_index)
+            self.assertEqual(vertex.create_time, 0)
 
 
 class GroupOrderedSchedulerTest(unittest.TestCase):
@@ -112,6 +115,15 @@ class GroupOrderedSchedulerTest(unittest.TestCase):
 
         self.assertIsNotNone(ray.get_actor("ACTOR-0"))
         self.assertIsNotNone(ray.get_actor("ROLLOUT-2"))
+
         self.scheduler.cleanup()
         with self.assertRaises(ValueError):
             ray.get_actor("ACTOR-0")
+
+        for vertex in self.graph.get_all_vertices():
+            self.assertIsNone(vertex.actor_handle)
+            self.assertIsNone(vertex.pg)
+            self.assertIsNone(vertex.pg_bundle_index)
+            self.assertEqual(vertex.create_time, 0)
+
+        self.assertFalse(bool(self.graph.get_placement_group()))

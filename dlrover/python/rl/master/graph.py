@@ -16,7 +16,11 @@ from typing import Dict, List, Optional, Tuple
 import ray
 from ray.actor import ActorHandle
 from ray.exceptions import GetTimeoutError
-from ray.util.placement_group import PlacementGroup, placement_group
+from ray.util.placement_group import (
+    PlacementGroup,
+    placement_group,
+    remove_placement_group,
+)
 
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
@@ -280,7 +284,7 @@ class PlacementGroupAllocation(PickleSerializable):
     def is_full(self):
         return len(self._allocation) == self.get_bundle_size()
 
-    def build_placement_group(self, timeout=10):
+    def create_placement_group(self, timeout=10):
         if not self._instance:
             pg = placement_group(
                 self._get_bundle_resource(), strategy=self._strategy
@@ -291,6 +295,10 @@ class PlacementGroupAllocation(PickleSerializable):
                 ray.get(self._instance.ready(), timeout=timeout)
             except GetTimeoutError as e:
                 raise e
+
+    def remove_placement_group(self):
+        if self._instance:
+            remove_placement_group(self._instance)
 
 
 class RLExecutionGraph(PickleSerializable):
@@ -466,4 +474,12 @@ class RLExecutionGraph(PickleSerializable):
     def create_placement_group(self):
         for pg_allocations in self.__placement_groups.values():
             for pg_allocation in pg_allocations:
-                pg_allocation.build_placement_group()
+                pg_allocation.create_placement_group()
+
+    def remove_placement_group(self):
+        for pg_allocations in self.__placement_groups.values():
+            for pg_allocation in pg_allocations:
+                pg_allocation.remove_placement_group()
+
+    def cleanup_placement_group_allocation(self):
+        self.__placement_groups = {}

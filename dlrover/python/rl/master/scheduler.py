@@ -58,14 +58,23 @@ class Scheduler(ABC):
         return None
 
     def cleanup(self):
+        # remove actors
         futures = []
+        vertices = self.graph.get_all_vertices()
         with ThreadPoolExecutor(max_workers=4) as executor:
-            for vertex in self.graph.get_all_vertices():
+            for vertex in vertices:
                 futures.append(executor.submit(vertex.cleanup))
 
             # wait all result
             for future in futures:
                 future.result()
+        logger.info(f"{len(vertices)} workloads actor is removed.")
+
+        # remove placement groups
+        if self.graph.get_placement_group():
+            self.graph.remove_placement_group()
+            self.graph.cleanup_placement_group_allocation()
+            logger.info("Placement group is removed and allocation is reset.")
 
     def _create_actor_by_graph(self, with_pg=False):
         start = time.time() * 1000
