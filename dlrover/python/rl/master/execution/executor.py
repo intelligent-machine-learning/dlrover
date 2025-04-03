@@ -15,33 +15,20 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.master.execution.scheduler import Scheduler
+from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 
 
 class Executor(object):
-    def __init__(
-        self,
-        scheduler: Scheduler,
-    ):
-        self._scheduler = scheduler
+    def __init__(self, execution_graph: RLExecutionGraph):
+        self._graph = execution_graph
 
         self.__trainer: Union[BaseTrainer, None] = None
         self.__trainer_result: Union[Future, None] = None
 
     @property
-    def scheduler(self):
-        return self._scheduler
-
-    @property
     def graph(self):
-        return self.scheduler.graph
-
-    def create_workloads(self):
-        """Sync operation."""
-        logger.info("Create all workloads.")
-
-        self._scheduler.schedule()
+        return self._graph
 
     def init_trainer(self):
         trainer_cls = self.graph.get_trainer_cls()
@@ -51,14 +38,7 @@ class Executor(object):
 
         self.__trainer = trainer_cls(actor_handles, actor_cls, config)
 
-    def destroy_workloads(self):
-        """Sync operation."""
-
-        logger.info("Destroy all workloads.")
-        self._scheduler.cleanup()
-
     def execute(self):
-        self.create_workloads()
         self.init_trainer()
 
         logger.info(
@@ -71,9 +51,6 @@ class Executor(object):
             self.__trainer_result.add_done_callback(
                 self._trainer_done_callback
             )
-
-    def cleanup(self):
-        self.destroy_workloads()
 
     def is_trainer_finished(self):
         if self.__trainer_result is None:

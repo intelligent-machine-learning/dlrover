@@ -432,3 +432,6 @@ class RLContext(PickleSerializable):
             return False
 
         return True
+
+    def has_workload_group(self) -> bool:
+        return bool(self.workload_groups)

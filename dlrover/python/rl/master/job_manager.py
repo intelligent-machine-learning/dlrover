@@ -28,30 +28,30 @@ class JobManager(object):
 
         self._execution_graph = RLExecutionGraph(self._job_ctx.rl_context)
         self._job_ctx.set_execution_graph(self._execution_graph)
-        self._executor = Executor(
-            self._execution_graph, self._get_scheduling_strategy()
-        )
+
+        self._scheduler = self._get_scheduler()
+        self._executor = Executor(self._execution_graph)
 
     def _get_scheduling_type_from_context(self):
         return self._job_ctx.job_config.scheduling_strategy_type
 
-    def _get_scheduling_strategy(self):
+    def _get_scheduler(self):
         strategy_type = self._get_scheduling_type_from_context()
         if strategy_type == SchedulingStrategyType.SIMPLE:
             logger.info("Use simple strategy for scheduling by specification.")
-            return SimpleScheduler()
+            return SimpleScheduler(self._execution_graph)
         elif strategy_type == SchedulingStrategyType.GROUP:
             if self._job_ctx.rl_context.has_workload_group():
                 logger.info(
                     "Use group strategy for scheduling by specification."
                 )
-                return GroupOrderedScheduler()
+                return GroupOrderedScheduler(self._execution_graph)
             else:
                 logger.info(
                     "Downgrade to simple strategy for scheduling because "
                     "workload group description is empty in rl-context."
                 )
-                return SimpleScheduler()
+                return SimpleScheduler(self._execution_graph)
         else:
             # for auto type:
             # use group strategy if exits group in context,
@@ -61,14 +61,32 @@ class JobManager(object):
                 return GroupOrderedScheduler()
             else:
                 logger.info("Use simple strategy for scheduling by auto.")
-                return SimpleScheduler()
+                return SimpleScheduler(self._execution_graph)
 
     def start_job(self):
-        logger.info("Starting job manager.")
+        logger.info("Start job execution.")
+
+        # create workloads
+        self.create_workloads()
+
+        # execute trainer
         self._executor.execute()
+
+    def stop_job(self):
+        # destroy all workloads
+        self.destroy_workloads()
+
+    def create_workloads(self):
+        """Sync operation."""
+        logger.info("Create all workloads.")
+
+        self._scheduler.schedule()
+
+    def destroy_workloads(self):
+        """Sync operation."""
+
+        logger.info("Destroy all workloads.")
+        self._scheduler.cleanup()
 
     def is_job_finished(self):
         return self._executor.is_trainer_finished()
-
-    def stop_job(self):
-        self._executor.cleanup()

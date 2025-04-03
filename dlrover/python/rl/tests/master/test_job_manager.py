@@ -25,7 +25,7 @@ class JobManagerTest(BaseMasterTest):
     def test_basic(self):
         job_manager = JobManager()
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
+            isinstance(job_manager._get_scheduler(), SimpleScheduler)
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)
@@ -38,30 +38,26 @@ class JobManagerTest(BaseMasterTest):
             return_value=SchedulingStrategyType.SIMPLE
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
+            isinstance(job_manager._get_scheduler(), SimpleScheduler)
         )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.GROUP
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
+            isinstance(job_manager._get_scheduler(), SimpleScheduler)
         )
 
         job_manager._job_ctx.rl_context.has_workload_group = MagicMock(
             return_value=True
         )
         self.assertTrue(
-            isinstance(
-                job_manager._get_scheduling_strategy(), GroupOrderedScheduler
-            )
+            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.AUTO
         )
         self.assertTrue(
-            isinstance(
-                job_manager._get_scheduling_strategy(), GroupOrderedScheduler
-            )
+            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
         )

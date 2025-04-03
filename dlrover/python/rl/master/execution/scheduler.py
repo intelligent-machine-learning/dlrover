@@ -87,7 +87,6 @@ class Scheduler(ABC):
                 logger.info(f"Creating workload actor: {vertex.name}")
                 self.graph.update_actor_handle_for_vertex(actor_handle, vertex)
 
-        logger.info(f"{len(vertices)} workloads' actor creating...")
         return start
 
     def __create_actor_by_vertex(
