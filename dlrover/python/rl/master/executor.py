@@ -14,8 +14,9 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
+from rl.master.graph import RLExecutionGraph
+
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 
 

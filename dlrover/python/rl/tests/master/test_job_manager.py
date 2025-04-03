@@ -12,11 +12,9 @@
 # limitations under the License.
 from unittest.mock import MagicMock
 
+from rl.master.scheduler import GroupOrderedScheduler, SimpleScheduler
+
 from dlrover.python.rl.common.enums import SchedulingStrategyType
-from dlrover.python.rl.master.execution.scheduler import (
-    GroupOrderedScheduler,
-    SimpleScheduler,
-)
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 

@@ -12,12 +12,13 @@
 # limitations under the License.
 import threading
 
+from rl.master.graph import RLExecutionGraph
+
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.enums import JobStage
 from dlrover.python.rl.common.rl_context import RLContext
-from dlrover.python.rl.master.execution.graph import RLExecutionGraph
 
 
 class JobContext(Singleton, PickleSerializable):
