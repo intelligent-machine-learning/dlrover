@@ -56,24 +56,28 @@ class TestData(object):
         },
         "workload": {
             "actor": {
-                "num": 2,
+                "num": 4,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
-            },
-            "rollout": {
-                "num": 2,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestRollout",
+                "resource": {"cpu": 0.1},
             },
             "reference": {
                 "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReference",
+                "resource": {"cpu": 0.1},
+            },
+            "rollout": {
+                "num": 4,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestRollout",
+                "resource": {"cpu": 0.1},
             },
             "reward": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReward",
+                "resource": {"cpu": 0.1},
             },
         },
     }

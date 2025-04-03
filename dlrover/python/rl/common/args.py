@@ -96,7 +96,7 @@ def _build_job_args_parser():
     parser.add_argument(
         "--scheduling_strategy_type",
         "--scheduling_strategy_type",
-        default=SchedulingStrategyType.SIMPLE.value,
+        default=SchedulingStrategyType.AUTO.value,
         type=_parse_scheduling_strategy_type,
         help="The scheduling strategy type for the dlrover rl master to "
         "create workloads.",

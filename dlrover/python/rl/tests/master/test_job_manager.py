@@ -13,9 +13,9 @@
 from unittest.mock import MagicMock
 
 from dlrover.python.rl.common.enums import SchedulingStrategyType
-from dlrover.python.rl.master.execution.scheduling_strategy import (
-    GroupOrderedStrategy,
-    SimpleStrategy,
+from dlrover.python.rl.master.execution.scheduler import (
+    GroupOrderedScheduler,
+    SimpleScheduler,
 )
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.tests.master.base import BaseMasterTest
@@ -25,7 +25,7 @@ class JobManagerTest(BaseMasterTest):
     def test_basic(self):
         job_manager = JobManager()
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
+            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)
@@ -38,14 +38,14 @@ class JobManagerTest(BaseMasterTest):
             return_value=SchedulingStrategyType.SIMPLE
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
+            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
         )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.GROUP
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduling_strategy(), SimpleStrategy)
+            isinstance(job_manager._get_scheduling_strategy(), SimpleScheduler)
         )
 
         job_manager._job_ctx.rl_context.has_workload_group = MagicMock(
@@ -53,7 +53,7 @@ class JobManagerTest(BaseMasterTest):
         )
         self.assertTrue(
             isinstance(
-                job_manager._get_scheduling_strategy(), GroupOrderedStrategy
+                job_manager._get_scheduling_strategy(), GroupOrderedScheduler
             )
         )
 
@@ -62,6 +62,6 @@ class JobManagerTest(BaseMasterTest):
         )
         self.assertTrue(
             isinstance(
-                job_manager._get_scheduling_strategy(), GroupOrderedStrategy
+                job_manager._get_scheduling_strategy(), GroupOrderedScheduler
             )
         )

@@ -15,36 +15,39 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.master.execution.graph import RLExecutionGraph
-from dlrover.python.rl.master.execution.scheduling_strategy import (
-    SchedulingStrategy,
-)
+from dlrover.python.rl.master.execution.scheduler import Scheduler
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 
 
 class Executor(object):
     def __init__(
         self,
-        execution_graph: RLExecutionGraph,
-        scheduling_strategy: SchedulingStrategy,
+        scheduler: Scheduler,
     ):
-        self.__execution_graph = execution_graph
-        self._scheduling_strategy = scheduling_strategy
+        self._scheduler = scheduler
 
         self.__trainer: Union[BaseTrainer, None] = None
         self.__trainer_result: Union[Future, None] = None
+
+    @property
+    def scheduler(self):
+        return self._scheduler
+
+    @property
+    def graph(self):
+        return self.scheduler.graph
 
     def create_workloads(self):
         """Sync operation."""
         logger.info("Create all workloads.")
 
-        self._scheduling_strategy.schedule(self.__execution_graph)
+        self._scheduler.schedule()
 
     def init_trainer(self):
-        trainer_cls = self.__execution_graph.get_trainer_cls()
-        actor_handles = self.__execution_graph.get_actor_handles()
-        actor_cls = self.__execution_graph.get_actor_cls()
-        config = self.__execution_graph.get_rl_config()
+        trainer_cls = self.graph.get_trainer_cls()
+        actor_handles = self.graph.get_actor_handles()
+        actor_cls = self.graph.get_actor_cls()
+        config = self.graph.get_rl_config()
 
         self.__trainer = trainer_cls(actor_handles, actor_cls, config)
 
@@ -52,7 +55,7 @@ class Executor(object):
         """Sync operation."""
 
         logger.info("Destroy all workloads.")
-        self._scheduling_strategy.cleanup(self.__execution_graph)
+        self._scheduler.cleanup()
 
     def execute(self):
         self.create_workloads()

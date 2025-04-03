@@ -28,6 +28,4 @@ class InvalidRLConfiguration(Exception):
 
 class ResourceError(Exception):
     def __init__(self):
-        super(ResourceError, self).__init__(
-            "The resource is not satisfied."
-        )
+        super(ResourceError, self).__init__("The resource is not satisfied.")

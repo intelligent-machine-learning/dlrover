@@ -103,6 +103,10 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertFalse(vertices[0].use_pg())
         self.assertFalse(vertices[0].is_pg_allocated())
 
+        self.assertNotEqual(
+            graph.get_all_vertices_with_pg_priority(), graph.get_all_vertices()
+        )
+
     def test_pg_allocation(self):
         resource0 = Resource(gpu=1)
         resource1 = Resource(gpu=2)

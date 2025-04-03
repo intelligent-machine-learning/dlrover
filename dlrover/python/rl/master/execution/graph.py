@@ -14,9 +14,8 @@ from itertools import chain
 from typing import Dict, List, Optional, Tuple
 
 import ray
-from ray.exceptions import GetTimeoutError
-
 from ray.actor import ActorHandle
+from ray.exceptions import GetTimeoutError
 from ray.util.placement_group import PlacementGroup, placement_group
 
 from dlrover.python.common.resource import Resource
@@ -30,6 +29,36 @@ def get_vertex_name(role: RLRoleType, index: int):
     return role.value + "-" + str(index)
 
 
+class PlacementGroupInfo(PickleSerializable):
+    def __init__(self, use_pg=False):
+        self._use_pg = use_pg
+
+        self._pg_instance = None
+        self._bundle_index = None
+
+    def reset(self):
+        self._pg_instance = None
+        self._bundle_index = None
+
+    @property
+    def use_pg(self):
+        return self._use_pg
+
+    @property
+    def pg_instance(self):
+        return self._pg_instance
+
+    @property
+    def bundle_index(self):
+        return self._bundle_index
+
+    def update_pg_instance(self, pg: PlacementGroup):
+        self._pg_instance = pg
+
+    def update_bundle_index(self, bundle_index: int):
+        self._bundle_index = bundle_index
+
+
 class RLExecutionVertex(PickleSerializable):
     def __init__(
         self,
@@ -39,7 +68,7 @@ class RLExecutionVertex(PickleSerializable):
         resource: Resource,
         rank: int,
         world_size: int,
-        pg_flag: int = -1,
+        use_pg: bool = False,
     ):
         # static info
         self.__role = role
@@ -50,12 +79,8 @@ class RLExecutionVertex(PickleSerializable):
         self.__rank = rank
         self.__world_size = world_size
 
-        # -1: no use pg
-        # 0: use pg but no allocated
-        # 1: use pg and allocated
-        self.__pg_flag = pg_flag
-
         # runtime info
+        self._pg_info = PlacementGroupInfo(use_pg)
         self._actor_handle = None
         self._create_time = 0
         self._exit_time = 0
@@ -92,6 +117,14 @@ class RLExecutionVertex(PickleSerializable):
         return self.__world_size
 
     @property
+    def pg(self):
+        return self._pg_info.pg_instance
+
+    @property
+    def pg_bundle_index(self):
+        return self._pg_info.bundle_index
+
+    @property
     def actor_handle(self):
         return self._actor_handle
 
@@ -126,13 +159,31 @@ class RLExecutionVertex(PickleSerializable):
         return ""
 
     def use_pg(self) -> bool:
-        return self.__pg_flag == 0
+        return self._pg_info.use_pg
 
     def is_pg_allocated(self) -> bool:
-        return self.__pg_flag == 1
+        return self._pg_info.pg_instance is not None
+
+    def update_pg_info(self, pg: PlacementGroup, bundle_index: int):
+        self._pg_info.update_pg_instance(pg)
+        self._pg_info.update_bundle_index(bundle_index)
 
     def update_actor_handle(self, actor_handle):
         self._actor_handle = actor_handle
+
+    def cleanup(self):
+        if self._actor_handle:
+            ray.kill(self._actor_handle)
+        self.reset()
+
+    def reset(self):
+        self._pg_info.reset()
+        self._actor_handle = None
+        self._create_time = 0
+        self._exit_time = 0
+        self._hostname = ""
+        self._host_ip = ""
+        self._restart_count = 0
 
     def update_runtime_info(
         self,
@@ -177,6 +228,10 @@ class PlacementGroupAllocation(PickleSerializable):
         # key: vertex name, value: bundle index
         self._allocation: Dict[str, int] = {}
         self._instance: Optional[PlacementGroup] = None
+
+    @property
+    def pg_instance(self):
+        return self._instance
 
     def _get_bundle_resource(self) -> List[Dict[str, float]]:
         sorted_resources: List[Resource] = [
@@ -268,9 +323,9 @@ class RLExecutionGraph(PickleSerializable):
         for role, desc in self.__rl_context.workloads.items():
             if desc:
                 if self.is_grouped_by_role(role):
-                    use_pg_flag = 0
+                    use_pg = True
                 else:
-                    use_pg_flag = -1
+                    use_pg = False
 
                 vertices = []
                 for i in range(desc.instance_number):
@@ -281,7 +336,7 @@ class RLExecutionGraph(PickleSerializable):
                         desc.instance_resource,
                         i,
                         desc.instance_number,
-                        use_pg_flag,
+                        use_pg,
                     )
                     vertices.append(vertex)
                     self._name_vertex_mapping[vertex.name] = vertex
@@ -306,6 +361,9 @@ class RLExecutionGraph(PickleSerializable):
 
     def get_all_vertices(self) -> List[RLExecutionVertex]:
         return list(chain(*self.__execution_vertices.values()))
+
+    def get_all_vertices_with_pg_priority(self) -> List[RLExecutionVertex]:
+        return sorted(self.get_all_vertices(), key=lambda v: not v.use_pg())
 
     def get_vertices_by_role_type(
         self, role_type: RLRoleType
@@ -374,8 +432,13 @@ class RLExecutionGraph(PickleSerializable):
         else:
             self.__placement_groups[pg_name] = [pg]
 
+    def get_placement_group(self):
+        return self.__placement_groups
+
     def get_pg_name_by_role(self, role: RLRoleType) -> str:
-        merged_group_desc: List[WorkloadGroupDesc] = list(chain.from_iterable(self.get_workload_groups().values()))
+        merged_group_desc: List[WorkloadGroupDesc] = list(
+            chain.from_iterable(self.get_workload_groups().values())
+        )
         for group_desc in merged_group_desc:
             if group_desc.has_role(role):
                 return group_desc.get_group_name()
@@ -384,9 +447,21 @@ class RLExecutionGraph(PickleSerializable):
     def allocate_placement_group(self):
         for vertex in self.get_all_vertices():
             role = vertex.role
+            pg_instance = None
+            bundle_index = None
+
             if vertex.use_pg() and not vertex.is_pg_allocated():
-                for pg_allocation in self.__placement_groups[self.get_pg_name_by_role(role)]:
-                    pg_allocation.allocate(role, vertex.name)
+                for pg_allocation in self.__placement_groups[
+                    self.get_pg_name_by_role(role)
+                ]:
+                    bundle_index = pg_allocation.allocate(role, vertex.name)
+                    if bundle_index != -1:
+                        pg_instance = pg_allocation.pg_instance
+                        break
+
+                assert pg_instance is not None
+                assert bundle_index is not None
+                vertex.update_pg_info(pg_instance, bundle_index)
 
     def create_placement_group(self):
         for pg_allocations in self.__placement_groups.values():
