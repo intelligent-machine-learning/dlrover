@@ -183,6 +183,23 @@ class BaseTrainer(ABC):
     def get_role_groups(self):
         return list(self.__role_group_proxy.keys())
 
+    def is_recoverable(self):
+        """
+        Indicates whether the current trainer process (or thread)
+        can be directly resumed. Default is False, can override by user.
+
+        False: Indicates that it cannot be directly resumed. If the trainer
+        exits abnormally, upon restarting, a global reset will be triggered,
+        meaning all workloads will be rebuilt and the trainer
+        logic (init + fit) will be re-executed.
+
+        True: Indicates that it can be directly resumed. If the trainer exits
+        abnormally, upon restarting, as long as there are no other workload
+        exceptions, only the trainer logic (init + fit) will be re-executed.
+
+        """
+        return False
+
     @abstractmethod
     def init(self):
         """

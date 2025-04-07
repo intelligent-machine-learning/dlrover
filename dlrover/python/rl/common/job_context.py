@@ -12,13 +12,13 @@
 # limitations under the License.
 import threading
 
-from rl.master.graph import RLExecutionGraph
-
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.enums import JobStage
 from dlrover.python.rl.common.rl_context import RLContext
+from dlrover.python.rl.master.graph import RLExecutionGraph
 
 
 class JobContext(Singleton, PickleSerializable):
@@ -68,6 +68,7 @@ class JobContext(Singleton, PickleSerializable):
         self._execution_graph = execution_graph
 
     def set_trainer_recoverable(self):
+        logger.info("Set trainer as recoverable.")
         self._is_trainer_recoverable = True
 
     def is_trainer_recoverable(self):

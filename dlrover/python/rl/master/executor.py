@@ -14,9 +14,9 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
-from rl.master.graph import RLExecutionGraph
-
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.job_context import get_job_context
+from dlrover.python.rl.master.graph import RLExecutionGraph
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 
 
@@ -38,6 +38,8 @@ class Executor(object):
         config = self.graph.get_rl_config()
 
         self.__trainer = trainer_cls(actor_handles, actor_cls, config)
+        if self.__trainer.is_recoverable():
+            get_job_context().set_trainer_recoverable()
 
     def execute(self):
         self.init_trainer()
