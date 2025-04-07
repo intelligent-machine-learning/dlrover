@@ -18,8 +18,10 @@ import ray
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.constant import RLJobStatus, RLMasterConstant
+from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import JobContext, get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
+from dlrover.python.rl.master.failover_coordinator import FailoverCoordinator
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.master.state_backend import MasterStateBackendFactory
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
@@ -38,8 +40,13 @@ class DLRoverRLMaster(object):
         self._state_backend = MasterStateBackendFactory.get_state_backend()
         self._state_backend.init()
 
+        # init core components
         self._job_manager = JobManager()
+        self._failover_coordinator = FailoverCoordinator(
+            self._job_manager, self._save_context_to_checkpoint
+        )
 
+        self._create_time = int(time.time())
         self._status = RLJobStatus.INIT
         self._executor = ThreadPoolExecutor(max_workers=4)
 
@@ -101,6 +108,19 @@ class DLRoverRLMaster(object):
     def _update_job_status(self, status):
         self._status = status
 
+    def _gen_master_failure(self):
+        if self.context.is_trainer_recoverable():
+            failure_level = 1
+        else:
+            failure_level = 2
+
+        return FailureDesc(
+            is_workload=False,
+            failure_time=self._create_time,
+            failure_level=failure_level,
+            reason="RLMaster unexpected exit.",
+        )
+
     def run(self):
         self._update_job_status(RLJobStatus.RUNNING)
 
@@ -113,7 +133,7 @@ class DLRoverRLMaster(object):
                     f"context: {context_from_ckpt}."
                 )
                 self._job_context = context_from_ckpt
-                # TODO: recover logic
+                self._handle_failure(self._gen_master_failure())
             else:
                 logger.info(f"RLMaster new job executing: {self.job_name}.")
                 self._save_context_to_checkpoint()
@@ -147,6 +167,9 @@ class DLRoverRLMaster(object):
             time.sleep(1)
         logger.info("RLMaster exit now.")
         ray.actor.exit_actor()
+
+    def _handle_failure(self, failure: FailureDesc):
+        self._failover_coordinator.handle_failure(failure)
 
     """Remote call functions start"""
 
@@ -183,7 +206,14 @@ class DLRoverRLMaster(object):
 
         # deal with failover
         if is_actor_failover:
-            # TODO
-            pass
+            failure_desc = FailureDesc(
+                workload_name=runtime_info.name,
+                failure_time=runtime_info.create_time,
+                reason="unknown",
+            )
+            self._handle_failure(failure_desc)
+
+    def report_failure(self, failure: FailureDesc):
+        self._handle_failure(failure)
 
     """Remote call functions end"""

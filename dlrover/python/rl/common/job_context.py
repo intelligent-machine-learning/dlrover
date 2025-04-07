@@ -30,7 +30,11 @@ class JobContext(Singleton, PickleSerializable):
         self._job_config = None
         self._rl_context = None
         self._execution_graph = None
+
         self._job_stage = JobStage.INIT
+        # will retry(invoke 'fit') trainer only(without restart other
+        # workloads) if this param is set to True
+        self._is_trainer_recoverable = False
 
         self._locker = threading.Lock()
 
@@ -62,6 +66,12 @@ class JobContext(Singleton, PickleSerializable):
 
     def set_execution_graph(self, execution_graph: RLExecutionGraph):
         self._execution_graph = execution_graph
+
+    def set_trainer_recoverable(self):
+        self._is_trainer_recoverable = True
+
+    def is_trainer_recoverable(self):
+        return self._is_trainer_recoverable
 
 
 def get_job_context() -> JobContext:

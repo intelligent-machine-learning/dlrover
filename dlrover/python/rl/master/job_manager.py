@@ -21,6 +21,10 @@ from dlrover.python.rl.common.job_context import get_job_context
 
 
 class JobManager(object):
+    """
+    Core job life cycle management.
+    """
+
     def __init__(self):
         self._job_ctx = get_job_context()
 

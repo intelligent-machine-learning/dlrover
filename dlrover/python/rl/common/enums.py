@@ -68,3 +68,9 @@ class JobStage(Enum):
     INIT = "INIT"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
+
+
+class FailoverLevel(Enum):
+    GLOBAL = "GLOBAL"
+    PARTIAL = "PARTIAL"
+    IGNORE = "IGNORE"

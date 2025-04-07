@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 from itertools import chain
 from typing import Dict, List, Optional, Tuple
 
@@ -178,6 +179,15 @@ class RLExecutionVertex(PickleSerializable):
     def cleanup(self):
         if self._actor_handle:
             ray.kill(self._actor_handle)
+
+        # re-check to makesure actor is removed
+        while True:
+            try:
+                ray.get_actor(self.name)
+                time.sleep(0.1)
+            except ValueError:
+                break
+
         self.reset()
 
     def reset(self):

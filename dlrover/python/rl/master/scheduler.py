@@ -59,16 +59,22 @@ class Scheduler(ABC):
 
     def cleanup(self):
         # remove actors
+        start = time.time() * 1000
         futures = []
         vertices = self.graph.get_all_vertices()
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        max_workers = max(int(len(vertices) / 4), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for vertex in vertices:
                 futures.append(executor.submit(vertex.cleanup))
 
             # wait all result
             for future in futures:
                 future.result()
-        logger.info(f"{len(vertices)} workloads actor is removed.")
+
+        logger.info(
+            f"{len(vertices)} workload actors are removed, "
+            f"cost: {time.time() * 1000 - start:.2f}ms."
+        )
 
         # remove placement groups
         if self.graph.get_placement_group():
@@ -155,7 +161,7 @@ class Scheduler(ABC):
                 f"creation timeout: {timeout}s."
             )
         logger.info(
-            f"{len(readies)} workloads created, "
+            f"{len(readies)} workload actors created, "
             f"cost: {time.time() * 1000 - start:.2f}ms."
         )
 
