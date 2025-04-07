@@ -10,9 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import time
 
 import ray
+import torch
+import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import ModelParallelismArcType
@@ -96,3 +99,57 @@ class TestReward(TestWorkload):
     @trainer_invocation()
     def reward(self):
         logger.info("TestReward reward called")
+
+
+class TestInteractiveTorchTrainer(BaseTrainer):
+    def init(self):
+        self.RG_ACTOR.init()
+        self.RG_ROLLOUT.init()
+        self.RG_REFERENCE.init()
+        self.RG_REWARD.init()
+
+        logger.info("TestInteractiveTorchTrainer init done")
+
+    def fit(self):
+        self.RG_ACTOR.compute()
+        self.RG_ROLLOUT.generate(2)
+        self.RG_REFERENCE.compute(3)
+        self.RG_REWARD.reward()
+
+        time.sleep(0.5)
+
+        self.RG_ACTOR.close()
+
+
+@ray.remote
+class TestTorchActor(TestWorkload):
+    @trainer_invocation()
+    def init(self):
+        logger.info("TestTorchActor init called")
+
+        os.environ["MASTER_ADDR"] = "127.0.0.1"
+        os.environ["MASTER_PORT"] = "25500"
+
+        dist.init_process_group(
+            backend="gloo",
+            init_method="env://",
+            rank=self.rank,
+            world_size=self.world_size,
+        )
+        self.matrix = torch.randn(1024, 1024)
+
+    @trainer_invocation()
+    def compute(self):
+        logger.info("TestTorchActor compute called")
+
+        local_result = torch.mm(self.matrix, self.matrix.t())
+        torch.distributed.all_reduce(
+            local_result, op=torch.distributed.ReduceOp.SUM
+        )
+
+        logger.info("TestTorchActor compute done")
+        return local_result
+
+    @trainer_invocation()
+    def close(self):
+        dist.destroy_process_group()
