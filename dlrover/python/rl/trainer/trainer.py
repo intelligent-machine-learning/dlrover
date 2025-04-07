@@ -59,9 +59,11 @@ class RoleGroupProxy(object):
 
             if method_name in self._role_methods:
                 method_attr = self._role_methods[method_name]
-                use_wait = method_attr[1]
-                wait_timeout = method_attr[2]
+                ret_ref = method_attr[1]
+                use_wait = method_attr[2]
+                wait_timeout = method_attr[3]
             else:
+                ret_ref = False
                 use_wait = False
                 wait_timeout = 10
 
@@ -69,11 +71,15 @@ class RoleGroupProxy(object):
                 getattr(actor, method_name).remote(*args, **kwargs)
                 for actor in self._actor_handles
             ]
-            if use_wait:
-                ready, unready = ray.wait(refs, timeout=wait_timeout)
-                return ray.get(ready)
+
+            if ret_ref:
+                return refs
             else:
-                return ray.get(refs)
+                if use_wait:
+                    ready, unready = ray.wait(refs, timeout=wait_timeout)
+                    return ray.get(ready)
+                else:
+                    return ray.get(refs)
 
         return remote_method
 
@@ -124,12 +130,14 @@ class BaseTrainer(ABC):
             invocation_methods = {}
             for name, method in get_methods_by_class(cls):
                 if hasattr(method, "_trainer_invocation"):
+                    ret_ref = getattr(method, "_trainer_invocation_ret_ref")
                     is_async = getattr(method, "_trainer_invocation_async")
                     async_timeout = getattr(
                         method, "_trainer_invocation_async_timeout"
                     )
                     invocation_methods[name] = (
                         method,
+                        ret_ref,
                         is_async,
                         async_timeout,
                     )

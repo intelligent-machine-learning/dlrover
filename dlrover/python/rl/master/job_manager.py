@@ -11,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from rl.master.executor import Executor
-from rl.master.graph import RLExecutionGraph
-from rl.master.scheduler import GroupOrderedScheduler, SimpleScheduler
-
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.common.job_context import get_job_context
+from dlrover.python.rl.master.executor import Executor
+from dlrover.python.rl.master.graph import RLExecutionGraph
+from dlrover.python.rl.master.scheduler import (
+    GroupOrderedScheduler,
+    SimpleScheduler,
+)
 
 
 class JobManager(object):

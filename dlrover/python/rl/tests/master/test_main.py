@@ -40,7 +40,7 @@ class RLMasterTest(BaseMasterTest):
         super().tearDown()
         ray.shutdown()
 
-    @timeout(90)
+    @timeout(20)
     def test_main(self):
         master_name = "test"
 

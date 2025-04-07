@@ -12,9 +12,8 @@
 # limitations under the License.
 from unittest.mock import MagicMock
 
-from rl.master.executor import Executor
-from rl.master.graph import RLExecutionGraph
-
+from dlrover.python.rl.master.executor import Executor
+from dlrover.python.rl.master.graph import RLExecutionGraph
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 
 

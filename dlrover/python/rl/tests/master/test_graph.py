@@ -13,12 +13,14 @@
 import time
 from typing import Dict, List, Tuple
 
-from rl.master.graph import PlacementGroupAllocation, RLExecutionGraph
-
 from dlrover.python.common.resource import Resource
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
+from dlrover.python.rl.master.graph import (
+    PlacementGroupAllocation,
+    RLExecutionGraph,
+)
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData

@@ -25,13 +25,17 @@ from dlrover.python.rl.common.enums import ModelParallelismArcType, RLRoleType
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
 
-def trainer_invocation(is_async=False, timeout=10):
+def trainer_invocation(ret_ref=False, is_async=False, timeout=10):
     """
     Decorator for timeout controlled function using.
 
     Args:
-        is_async (optional): Whether invoke by ray.wait().
-        timeout (optional): The timeout set for ray.wait().
+        ret_ref (bool, optional): Whether return the remote object ref
+            directly. Default is False.
+        is_async (bool, optional): Whether invoke by ray.wait(),
+            when 'get_ref=' is False. Default is False.
+        timeout (int, optional): The timeout(seconds) set for ray.wait(),
+            when 'get_ref=' is False. Default is 10(seconds).
     """
 
     def decorator(func):
@@ -40,6 +44,7 @@ def trainer_invocation(is_async=False, timeout=10):
             return func(*args, **kwargs)
 
         wrapped._trainer_invocation = True
+        wrapped._trainer_invocation_ret_ref = ret_ref
         wrapped._trainer_invocation_async = is_async
         wrapped._trainer_invocation_async_timeout = timeout
         return wrapped

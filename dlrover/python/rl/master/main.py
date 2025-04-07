@@ -174,7 +174,7 @@ class DLRoverRLMaster(object):
     """Remote call functions start"""
 
     def ping(self):
-        logger.info("pint called.")
+        logger.debug("Ping called.")
         return True
 
     def get_job_status(self):
