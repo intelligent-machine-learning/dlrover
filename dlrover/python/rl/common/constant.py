@@ -30,3 +30,12 @@ class RLJobStatus(object):
 class RLJobExitReason(object):
     FINISHED = "FINISHED"
     ERROR = "ERROR"
+
+
+class RLWorkloadEnv(object):
+    NAME = "NAME"
+    ROLE = "ROLE"
+    RANK = "RANK"
+    WORLD_SIZE = "WORLD_SIZE"
+    LOCAL_RANK = "LOCAL_RANK"
+    LOCAL_WORLD_SIZE = "LOCAL_WORLD_SIZE"

@@ -66,13 +66,8 @@ class TestInteractiveErrorTrainer(BaseTrainer):
         time.sleep(1)
 
 
-class TestWorkload(BaseWorkload):
-    def get_model_arc(self) -> ModelParallelismArcType:
-        return ModelParallelismArcType.MEGATRON
-
-
 @ray.remote
-class TestActor(TestWorkload):
+class TestActor(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestActor init called")
@@ -84,7 +79,7 @@ class TestActor(TestWorkload):
 
 
 @ray.remote
-class TestRollout(TestWorkload):
+class TestRollout(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestRollout init called")
@@ -96,7 +91,7 @@ class TestRollout(TestWorkload):
 
 
 @ray.remote
-class TestReference(TestWorkload):
+class TestReference(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestReference init called")
@@ -107,7 +102,7 @@ class TestReference(TestWorkload):
 
 
 @ray.remote
-class TestReward(TestWorkload):
+class TestReward(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestReward init called")
@@ -139,7 +134,7 @@ class TestInteractiveTorchTrainer(BaseTrainer):
 
 
 @ray.remote
-class TestTorchActor(TestWorkload):
+class TestTorchActor(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestTorchActor init called")

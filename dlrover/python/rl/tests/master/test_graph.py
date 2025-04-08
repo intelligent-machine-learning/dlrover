@@ -38,7 +38,7 @@ class ExecutionGraphTest(BaseMasterTest):
 
         graph = RLExecutionGraph(rl_context)
         self.assertIsNotNone(graph)
-        self.assertIsNotNone(graph.get_rl_config())
+        self.assertIsNotNone(graph.rl_config)
         self.assertEqual(len(graph.get_all_vertices()), 2 + 2 + 1 + 1)
         self.assertEqual(len(graph.name_vertex_mapping), 2 + 2 + 1 + 1)
         self.assertEqual(len(graph.name_actor_mapping), 0)

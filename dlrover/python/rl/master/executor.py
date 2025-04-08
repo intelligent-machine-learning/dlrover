@@ -37,7 +37,7 @@ class Executor(object):
         trainer_cls = self.graph.get_trainer_cls()
         actor_handles = self.graph.get_actor_handles()
         actor_cls = self.graph.get_actor_cls()
-        config = self.graph.get_rl_config()
+        config = self.graph.rl_config
 
         self.__trainer = trainer_cls(actor_handles, actor_cls, config)
         self.__trainer_error = None

@@ -22,7 +22,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.resource import Resource
-from dlrover.python.rl.common.constant import RLMasterConstant
+from dlrover.python.rl.common.constant import RLMasterConstant, RLWorkloadEnv
 from dlrover.python.rl.common.enums import RLRoleType, WorkloadGroupType
 from dlrover.python.rl.common.exception import ResourceError
 from dlrover.python.rl.common.job_context import get_job_context
@@ -85,7 +85,7 @@ class Scheduler(ABC):
     def _create_actor_by_graph(self, with_pg=False):
         start = time.time() * 1000
         master_handle = self.get_master_actor_handle()
-        config = self.graph.get_rl_config()
+        config = self.graph.rl_config
 
         if with_pg:
             # create actor with pg 1st then others
@@ -104,6 +104,18 @@ class Scheduler(ABC):
 
         return start
 
+    def __get_runtime_env(self, vertex: RLExecutionVertex):
+        return {
+            "env_vars": {
+                RLWorkloadEnv.NAME: vertex.name,
+                RLWorkloadEnv.ROLE: vertex.role.name,
+                RLWorkloadEnv.RANK: str(vertex.rank),
+                RLWorkloadEnv.WORLD_SIZE: str(vertex.world_size),
+                RLWorkloadEnv.LOCAL_RANK: str(vertex.local_rank),
+                RLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
+            }
+        }
+
     def __create_actor_by_vertex(
         self, master_handle, vertex: RLExecutionVertex, config
     ) -> ActorHandle:
@@ -115,6 +127,7 @@ class Scheduler(ABC):
                 num_cpus=vertex.resource.cpu,
                 memory=vertex.resource.memory,
                 num_gpus=vertex.resource.gpu,
+                runtime_env=self.__get_runtime_env(vertex),
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=vertex.pg,
                     placement_group_bundle_index=vertex.pg_bundle_index,
@@ -127,14 +140,11 @@ class Scheduler(ABC):
                 num_cpus=vertex.resource.cpu,
                 memory=vertex.resource.memory,
                 num_gpus=vertex.resource.gpu,
+                runtime_env=self.__get_runtime_env(vertex),
             )
 
         return actor_creation_opts.remote(
             master_handle,
-            vertex.name,
-            vertex.role,
-            vertex.rank,
-            vertex.world_size,
             config,
         )
 

@@ -186,6 +186,7 @@ class RLContext(PickleSerializable):
     def __init__(
         self,
         algorithm_type: RLAlgorithmType,
+        device_per_node: int,
         config: DictConfig,
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
@@ -196,6 +197,7 @@ class RLContext(PickleSerializable):
 
         Args:
             algorithm_type: The algorithm type.
+            device_per_node: How many gpu(cpu) per node.
             config: The full configuration of rl training.
             trainer: The description for the trainer.
             workloads: A dictionary of workloads, including: actor_workload,
@@ -206,6 +208,7 @@ class RLContext(PickleSerializable):
         """
 
         self._algorithm_type: RLAlgorithmType = algorithm_type
+        self._device_per_node: int = device_per_node
         self._config: DictConfig = config
         self._trainer = trainer
         self._workloads = workloads
@@ -214,6 +217,7 @@ class RLContext(PickleSerializable):
     def __repr__(self):
         return (
             f"RLContext(algorithm_type:{self.algorithm_type}, "
+            f"device_per_node:{self.device_per_node}, "
             f"config:{self.config}, "
             f"trainer:{self.trainer}, "
             f"group:{self.workload_groups}, "
@@ -227,6 +231,10 @@ class RLContext(PickleSerializable):
     @property
     def algorithm_type(self):
         return self._algorithm_type
+
+    @property
+    def device_per_node(self):
+        return self._device_per_node
 
     @property
     def config(self):
@@ -284,6 +292,7 @@ class RLContext(PickleSerializable):
 
         try:
             algorithm_type = RLAlgorithmType[conf.get("algorithm_type")]
+            device_per_node = conf.get("device_per_node", 8)
             config = conf.get("config")
 
             # trainer
@@ -334,6 +343,7 @@ class RLContext(PickleSerializable):
 
             return RLContext(
                 algorithm_type,
+                device_per_node,
                 config,
                 trainer_desc,
                 workload_dict,
@@ -350,6 +360,11 @@ class RLContext(PickleSerializable):
             # algorithm_type
             if not self.algorithm_type:
                 logger.error("Algorithm type not set.")
+                return False
+
+            # device per node
+            if self.device_per_node <= 0:
+                logger.error("Device per node not set.")
                 return False
 
             # config
