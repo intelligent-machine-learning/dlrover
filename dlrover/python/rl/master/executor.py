@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
@@ -26,6 +27,7 @@ class Executor(object):
 
         self.__trainer: Union[BaseTrainer, None] = None
         self.__trainer_result: Union[Future, None] = None
+        self.__trainer_error = None
 
     @property
     def graph(self):
@@ -38,6 +40,7 @@ class Executor(object):
         config = self.graph.get_rl_config()
 
         self.__trainer = trainer_cls(actor_handles, actor_cls, config)
+        self.__trainer_error = None
         if self.__trainer.is_recoverable():
             get_job_context().set_trainer_recoverable()
 
@@ -58,7 +61,15 @@ class Executor(object):
     def is_trainer_finished(self):
         if self.__trainer_result is None:
             return False
-        return self.__trainer_result.done()
+        return (
+            self.__trainer_result.done() and self.__trainer_result.result()[0]
+        )
+
+    def is_trainer_error(self):
+        return self.__trainer_error is not None
+
+    def get_trainer_error(self):
+        return self.__trainer_error
 
     def _trainer_async(self):
         try:
@@ -77,4 +88,7 @@ class Executor(object):
         if result[0]:
             logger.info("Trainer execution finished.")
         else:
-            logger.error(f"Trainer execution failed by: {result[1]}.")
+            self.__trainer_error = int(time.time()), result[1]
+            logger.error(
+                f"Trainer execution failed by: {self.__trainer_error}."
+            )

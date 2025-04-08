@@ -74,6 +74,12 @@ class ArgsTest(unittest.TestCase):
             MasterStateBackendType.RAY_INTERNAL,
         )
         self.assertEqual(parsed_args.master_state_backend_config, {})
+        self.assertEqual(
+            parsed_args.scheduling_strategy_type, SchedulingStrategyType.AUTO
+        )
+        self.assertEqual(parsed_args.job_max_restart, 10)
+        self.assertEqual(parsed_args.master_max_restart, 10)
+        self.assertEqual(parsed_args.workload_max_restart, {})
 
         args = [
             "--job_name",
@@ -86,6 +92,10 @@ class ArgsTest(unittest.TestCase):
             "hdfs",
             "--master_state_backend_config",
             '{"path": "test_path"}',
+            "--max_restart",
+            "11",
+            "--workload_max_restart",
+            "{'actor': 10}",
             "--rl_config",
             "{}",
         ]
@@ -98,6 +108,8 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(
             parsed_args.master_state_backend_config, {"path": "test_path"}
         )
+        self.assertEqual(parsed_args.job_max_restart, 11)
+        self.assertEqual(parsed_args.workload_max_restart, {"actor": 10})
 
         args = [
             "--job_name",

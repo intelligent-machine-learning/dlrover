@@ -24,6 +24,7 @@ class FailureDesc(object):
         workload_name (str, optional): The name of the workload(same with
             vertex name and actor name) who got failure. Must be specified if
             'is_workload' is True.
+        workload_role (str, optional): The type of the workload.
         failure_time (int, optional): The timestamp of failure.
         failure_level (int, optional): The severity of the failure:
             -1: not known,
@@ -36,6 +37,7 @@ class FailureDesc(object):
 
     is_workload: bool = True
     workload_name: str = ""
+    workload_role: str = ""
     failure_time: int = 0
     failure_level: int = -1
     reason: str = ""

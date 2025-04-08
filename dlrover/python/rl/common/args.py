@@ -95,11 +95,33 @@ def _build_job_args_parser():
     )
     parser.add_argument(
         "--scheduling_strategy_type",
-        "--scheduling_strategy_type",
         default=SchedulingStrategyType.AUTO.value,
         type=_parse_scheduling_strategy_type,
         help="The scheduling strategy type for the dlrover rl master to "
         "create workloads.",
+    )
+    parser.add_argument(
+        "--job_max_restart",
+        "--max_restart",
+        default=10,
+        type=pos_int,
+        help="The maximum limit on the number of job-level restarts.",
+    )
+    parser.add_argument(
+        "--master_max_restart",
+        default=10,
+        type=pos_int,
+        help="The maximum limit on the number of master restarts.",
+    )
+    parser.add_argument(
+        "--workload_max_restart",
+        default={},
+        type=parse_dict,
+        help="The maximum limit on the number of workload actor restarts. "
+        "Format is {${role}: ${restart_num}}. "
+        'For example: {"actor": 10, "rollout": 20} means workload in '
+        "'actor' role can restart 10 times in total and workload in "
+        "'rollout' role can restart 20 times in total",
     )
     parser.add_argument(
         "--rl_config",

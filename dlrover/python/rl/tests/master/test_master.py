@@ -22,7 +22,7 @@ from dlrover.python.rl.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
 
 
-class RLMasterTest(BaseMasterTest):
+class RLMasterNormalTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
         args = [
@@ -41,7 +41,51 @@ class RLMasterTest(BaseMasterTest):
         ray.shutdown()
 
     @timeout(20)
-    def test_main(self):
+    def test(self):
+        master_name = "test"
+
+        master_actor = DLRoverRLMaster.options(
+            name=master_name, lifetime="detached"
+        ).remote(
+            self._job_context.job_config.serialize(),
+            self._job_context.rl_context.serialize(),
+        )
+
+        ray.get(master_actor.ping.remote())
+        master_actor.run.remote()
+        time.sleep(5)
+
+        # wait master done
+        while True:
+            result = ray.get(master_actor.get_job_status.remote())
+            if result != "FINISHED":
+                time.sleep(3)
+            else:
+                break
+
+
+class RLMasterTrainerAbnormalTest(BaseMasterTest):
+    def setUp(self):
+        super().setUp()
+        args = [
+            "--job_name",
+            "test",
+            "--job_max_restart",
+            "1",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_WITH_ERROR_TRAINER_RL_CONF}",
+        ]
+        parsed_args = parse_job_args(args)
+        rl_context = RLContext.build_from_args(parsed_args)
+        self._job_context._rl_context = rl_context
+        ray.init()
+
+    def tearDown(self):
+        super().tearDown()
+        ray.shutdown()
+
+    @timeout(60)
+    def test_trainer_abnoraml(self):
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(

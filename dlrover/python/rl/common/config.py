@@ -10,11 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
+from typing import Dict, Union
 
 from dlrover.python.common.serialize import PickleSerializable
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.enums import (
     MasterStateBackendType,
+    RLRoleType,
     SchedulingStrategyType,
 )
 
@@ -26,6 +28,9 @@ class JobConfig(PickleSerializable):
         master_state_backend_type: MasterStateBackendType,
         master_state_backend_config: Dict,
         scheduling_strategy_type: SchedulingStrategyType,
+        job_max_restart: int,
+        master_max_restart: int,
+        workload_max_restart: Dict[RLRoleType, int],
     ):
         """
         Configuration(non-business part) of the job.
@@ -43,6 +48,9 @@ class JobConfig(PickleSerializable):
         self._master_state_backend_type = master_state_backend_type
         self._master_state_backend_config = master_state_backend_config
         self._scheduling_strategy_type = scheduling_strategy_type
+        self._job_max_restart = job_max_restart
+        self._master_max_restart = master_max_restart
+        self._workload_max_restart = workload_max_restart
 
     def __repr__(self):
         return (
@@ -70,6 +78,26 @@ class JobConfig(PickleSerializable):
     def scheduling_strategy_type(self) -> SchedulingStrategyType:
         return self._scheduling_strategy_type
 
+    @property
+    def job_max_restart(self):
+        return self._job_max_restart
+
+    @property
+    def master_max_restart(self):
+        return self._master_max_restart
+
+    @property
+    def workload_max_restart(self):
+        return self._workload_max_restart
+
+    def get_workload_max_restart(self, role: Union[str, RLRoleType]):
+        if isinstance(role, str):
+            role = RLRoleType[role.upper()]
+
+        if role in self._workload_max_restart:
+            return max(self._workload_max_restart[role], self.job_max_restart)
+        return RLMasterConstant.WORKLOAD_MAX_RESTART
+
     @classmethod
     def build_from_args(cls, args):
         return JobConfig(
@@ -77,4 +105,7 @@ class JobConfig(PickleSerializable):
             args.master_state_backend_type,
             args.master_state_backend_config,
             args.scheduling_strategy_type,
+            args.job_max_restart,
+            args.master_max_restart,
+            args.workload_max_restart,
         )

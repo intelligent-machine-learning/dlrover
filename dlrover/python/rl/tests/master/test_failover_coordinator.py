@@ -28,7 +28,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
         def callback():
             return
 
-        fc = FailoverCoordinator(job_manager, callback)
+        fc = FailoverCoordinator(job_manager, callback, callback)
 
         desc = FailureDesc(
             workload_name="test",

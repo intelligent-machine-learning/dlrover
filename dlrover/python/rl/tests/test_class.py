@@ -49,6 +49,23 @@ class TestInteractiveTrainer(BaseTrainer):
         time.sleep(1)
 
 
+class TestInteractiveErrorTrainer(BaseTrainer):
+    def init(self):
+        self.RG_ACTOR.init()
+        self.RG_ROLLOUT.init()
+        self.RG_REFERENCE.init()
+        self.RG_REWARD.init()
+        time.sleep(0.1)
+
+    def fit(self):
+        self.RG_ACTOR.compute(1)
+        self.RG_ROLLOUT.generate(2)
+        raise RuntimeError("Failover testing...")
+        self.RG_REFERENCE.compute(3)
+        self.RG_REWARD.reward()
+        time.sleep(1)
+
+
 class TestWorkload(BaseWorkload):
     def get_model_arc(self) -> ModelParallelismArcType:
         return ModelParallelismArcType.MEGATRON
@@ -152,4 +169,5 @@ class TestTorchActor(TestWorkload):
 
     @trainer_invocation()
     def close(self):
+        logger.info("TestTorchActor close called")
         dist.destroy_process_group()

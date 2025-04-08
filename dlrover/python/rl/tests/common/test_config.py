@@ -15,7 +15,8 @@ import unittest
 
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.enums import MasterStateBackendType
+from dlrover.python.rl.common.constant import RLMasterConstant
+from dlrover.python.rl.common.enums import MasterStateBackendType, RLRoleType
 
 
 class JobConfigTest(unittest.TestCase):
@@ -49,6 +50,12 @@ class JobConfigTest(unittest.TestCase):
             job_config.master_state_backend_type, MasterStateBackendType.HDFS
         )
         self.assertEqual(job_config.master_state_backend_config, {"k1": "v1"})
+        self.assertEqual(job_config.job_max_restart, 10)
+        self.assertEqual(job_config.master_max_restart, 10)
+        self.assertEqual(
+            job_config.get_workload_max_restart(RLRoleType.ACTOR),
+            RLMasterConstant.WORKLOAD_MAX_RESTART,
+        )
 
     def test_serialization(self):
         args = [

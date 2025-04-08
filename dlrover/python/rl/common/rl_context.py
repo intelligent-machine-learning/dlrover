@@ -346,89 +346,113 @@ class RLContext(PickleSerializable):
             raise InvalidRLConfiguration()
 
     def validate(self) -> bool:
-        # algorithm_type
-        if not self.algorithm_type:
-            logger.error("Algorithm type not set.")
-            return False
-
-        # config
-        if not self.config:
-            logger.error("Config not set.")
-            return False
-
-        # trainer
-        if not self.trainer:
-            logger.error("Trainer not set.")
-            return False
-        else:
-            if not self.trainer.module_name or not self.trainer.class_name:
-                logger.error(
-                    "Trainer mandatory arguments: module or class "
-                    "has empty value."
-                )
-                return False
-            if not get_class_by_module_and_class_name(
-                self.trainer.module_name, self.trainer.class_name
-            ):
-                logger.error(
-                    "Trainer not found "
-                    f"by module {self.trainer.module_name} "
-                    f"and class {self.trainer.class_name}."
-                )
+        try:
+            # algorithm_type
+            if not self.algorithm_type:
+                logger.error("Algorithm type not set.")
                 return False
 
-        # ====== workload validation ======
-        # actor validation
-        if not self.actor_workload:
-            logger.error("Actor workload not set.")
-            return False
-        else:
-            if (
-                not self.actor_workload.module_name
-                or not self.actor_workload.class_name
-            ):
-                logger.error(
-                    "Actor workload mandatory arguments: module or "
-                    "class has empty value."
-                )
-                return False
-            if not get_class_by_module_and_class_name(
-                self.actor_workload.module_name, self.actor_workload.class_name
-            ):
-                logger.error(
-                    "Actor workload not found "
-                    f"by module {self.actor_workload.module_name} "
-                    f"and class {self.actor_workload.class_name}."
-                )
+            # config
+            if not self.config:
+                logger.error("Config not set.")
                 return False
 
-        # resource validation
-        for role, workload in self.workloads.items():
-            if workload and not workload.instance_resource.validate():
+            # trainer
+            if not self.trainer:
+                logger.error("Trainer not set.")
+                return False
+            else:
+                if not self.trainer.module_name or not self.trainer.class_name:
+                    logger.error(
+                        "Trainer mandatory arguments: module or class "
+                        "has empty value."
+                    )
+                    return False
+                if not get_class_by_module_and_class_name(
+                    self.trainer.module_name, self.trainer.class_name
+                ):
+                    logger.error(
+                        "Trainer not found "
+                        f"by module {self.trainer.module_name} "
+                        f"and class {self.trainer.class_name}."
+                    )
+                    return False
+
+            # ====== workload validation ======
+            # actor validation
+            if not self.actor_workload:
+                logger.error("Actor workload not set.")
+                return False
+            else:
+                if (
+                    not self.actor_workload.module_name
+                    or not self.actor_workload.class_name
+                ):
+                    logger.error(
+                        "Actor workload mandatory arguments: module or "
+                        "class has empty value."
+                    )
+                    return False
+                if not get_class_by_module_and_class_name(
+                    self.actor_workload.module_name,
+                    self.actor_workload.class_name,
+                ):
+                    logger.error(
+                        "Actor workload not found "
+                        f"by module {self.actor_workload.module_name} "
+                        f"and class {self.actor_workload.class_name}."
+                    )
+                    return False
+
+            # resource validation
+            for role, workload in self.workloads.items():
+                if workload and not workload.instance_resource.validate():
+                    logger.error(
+                        f"Workload {role} resource validation "
+                        f"failed: {workload.instance_resource}."
+                    )
+                    return False
+
+            # ====== workload group validation ======
+            role_group_definition_num: Dict[RLRoleType, int] = {}
+            for group_type, groups in self.workload_groups.items():
+                for group_desc in groups:
+                    # collect role definition
+                    for role in group_desc.get_all_roles():
+                        if role in role_group_definition_num:
+                            role_group_definition_num[role] = (
+                                role_group_definition_num[role] + 1
+                            )
+                        else:
+                            role_group_definition_num[role] = 1
+
+                    # verify whether the number of instances matches the
+                    # number of groups
+                    factor = 0
+                    for role, num in group_desc.allocation.items():
+                        if factor == 0:
+                            factor = self.workloads[role].instance_number / num
+                        else:
+                            if (
+                                factor
+                                != self.workloads[role].instance_number / num
+                            ):
+                                logger.error(
+                                    "Workload group validation failed: the "
+                                    "number of instances does not match the "
+                                    "number definition in group."
+                                )
+                                return False
+
+            # is same role in different group
+            if any(value > 1 for value in role_group_definition_num.values()):
                 logger.error(
-                    f"Workload {role} resource validation "
-                    f"failed: {workload.instance_resource}."
+                    "Workload group validation failed: exist repeated role "
+                    "definition in different group."
                 )
                 return False
-
-        # ====== workload group validation ======
-        role_group_definition_num: Dict[RLRoleType, int] = {}
-        for group_type, groups in self.workload_groups.items():
-            for group_desc in groups:
-                for role in group_desc.get_all_roles():
-                    if role in role_group_definition_num:
-                        role_group_definition_num[role] = (
-                            role_group_definition_num[role] + 1
-                        )
-                    else:
-                        role_group_definition_num[role] = 1
-
-        # is same role in different group
-        if any(value > 1 for value in role_group_definition_num.values()):
-            logger.error(
-                "Workload group validation failed: exist repeated role "
-                "definition in different group."
-            )
+        except Exception as e:
+            logger.error(f"Unexpected error when validate rl context: {e}")
             return False
 
         return True

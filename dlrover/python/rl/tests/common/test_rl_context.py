@@ -84,7 +84,7 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_INVALID_RESOURCE_RL_CONF}",
+            f"{TestData.UD_INVALID_RESOURCE_RL_CONF_0}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
         self.assertFalse(rl_context.validate())
@@ -148,7 +148,16 @@ class RLContextTest(unittest.TestCase):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_0}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        self.assertFalse(rl_context.validate())
+
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_1}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
         self.assertFalse(rl_context.validate())

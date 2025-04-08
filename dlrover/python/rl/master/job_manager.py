@@ -82,15 +82,21 @@ class JobManager(object):
 
     def create_workloads(self):
         """Sync operation."""
-        logger.info("Create all workloads.")
+        logger.info("Start creating all workloads...")
 
         self._scheduler.schedule()
 
     def destroy_workloads(self):
         """Sync operation."""
 
-        logger.info("Destroy all workloads.")
+        logger.info("Start destroying all workloads...")
         self._scheduler.cleanup()
 
     def is_job_finished(self):
         return self._executor.is_trainer_finished()
+
+    def is_trainer_error(self):
+        return self._executor.is_trainer_error()
+
+    def get_trainer_error(self):
+        return self._executor.get_trainer_error()

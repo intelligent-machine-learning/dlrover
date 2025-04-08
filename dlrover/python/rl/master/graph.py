@@ -297,7 +297,9 @@ class PlacementGroupAllocation(PickleSerializable):
     def create_placement_group(self, timeout=10):
         if not self._instance:
             pg = placement_group(
-                self._get_bundle_resource(), strategy=self._strategy
+                self._get_bundle_resource(),
+                strategy=self._strategy,
+                lifetime="detached",
             )
             self._instance = pg
         if self._instance:

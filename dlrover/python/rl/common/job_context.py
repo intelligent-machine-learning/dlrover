@@ -11,14 +11,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
+from dataclasses import dataclass
+from typing import Dict, List, Union
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.enums import JobStage
+from dlrover.python.rl.common.enums import JobStage, RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.graph import RLExecutionGraph
+
+
+@dataclass
+class RestartInfo(object):
+
+    restart_time: int = 0
+    with_failover: bool = True
+    reason: str = ""
 
 
 class JobContext(Singleton, PickleSerializable):
@@ -32,10 +42,23 @@ class JobContext(Singleton, PickleSerializable):
         self._execution_graph = None
 
         self._job_stage = JobStage.INIT
+
         # will retry(invoke 'fit') trainer only(without restart other
         # workloads) if this param is set to True
         self._is_trainer_recoverable = False
 
+        # consistent history restart info, format: type: List[RestartInfo]
+        self._restart_info: Dict[str, List[RestartInfo]] = {
+            "JOB": [],
+            "MASTER": [],
+            "ACTOR": [],
+            "ROLLOUT": [],
+            "REFERENCE": [],
+            "REWARD": [],
+            "CRITIC": [],
+        }
+
+        # exclude fields for serialization
         self._locker = threading.Lock()
 
     def __getstate__(self):
@@ -73,6 +96,33 @@ class JobContext(Singleton, PickleSerializable):
 
     def is_trainer_recoverable(self):
         return self._is_trainer_recoverable
+
+    def add_job_restart(self, restart_time, with_failover):
+        self.add_restart_info(
+            "job",
+            RestartInfo(
+                restart_time=restart_time, with_failover=with_failover
+            ),
+        )
+
+    def add_restart_info(self, restart_type: str, restart_info: RestartInfo):
+        self._restart_info[restart_type].append(restart_info)
+
+    def get_job_restart_info(self):
+        return self.get_restart_info("JOB")
+
+    def get_master_restart_info(self):
+        return self.get_restart_info("MASTER")
+
+    def get_workload_restart_info(self, role: Union[str, RLRoleType]):
+        if isinstance(role, RLRoleType):
+            role_name = role.name
+        else:
+            role_name = role
+        return self.get_restart_info(role_name)
+
+    def get_restart_info(self, restart_type: str):
+        return self._restart_info[restart_type]
 
 
 def get_job_context() -> JobContext:

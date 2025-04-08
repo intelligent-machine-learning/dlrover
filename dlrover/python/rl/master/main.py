@@ -17,7 +17,11 @@ import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.constant import RLJobStatus, RLMasterConstant
+from dlrover.python.rl.common.constant import (
+    RLJobExitReason,
+    RLJobStatus,
+    RLMasterConstant,
+)
 from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import JobContext, get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
@@ -43,7 +47,7 @@ class DLRoverRLMaster(object):
         # init core components
         self._job_manager = JobManager()
         self._failover_coordinator = FailoverCoordinator(
-            self._job_manager, self._save_context_to_checkpoint
+            self._job_manager, self._save_context_to_checkpoint, self.exit_job
         )
 
         self._create_time = int(time.time())
@@ -146,13 +150,26 @@ class DLRoverRLMaster(object):
 
     def _wait_and_exit(self):
         while True:
+            trainer_error = self._job_manager.get_trainer_error()
             if self._job_manager.is_job_finished():
-                self.exit_job()
+                self.exit_job(reason=RLJobExitReason.FINISHED)
+            elif trainer_error is not None:
+                logger.warning("Trainer got error, do trainer failover.")
+                self._handle_failure(
+                    FailureDesc(
+                        is_workload=False,
+                        failure_time=trainer_error[0],
+                        failure_level=-1,
+                    )
+                )
             time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
             logger.info("RLMaster still running...")
 
-    def exit_job(self, need_cleanup=True):
-        logger.info(f"RLMaster exit job with cleanup: {need_cleanup}.")
+    def exit_job(self, need_cleanup=True, reason=""):
+        logger.info(
+            f"RLMaster exit job with cleanup: {need_cleanup}, "
+            f"reason: {reason}."
+        )
         self._update_job_status(RLJobStatus.FINISHED)
 
         if need_cleanup:
@@ -184,10 +201,9 @@ class DLRoverRLMaster(object):
         if not runtime_info:
             return
 
-        is_actor_failover = False
+        is_actor_restart = False
         name = runtime_info.name
 
-        logger.info(f"Got runtime info: {runtime_info} reported by: {name}.")
         name_vertex_mapping = (
             self._job_context.execution_graph.name_vertex_mapping
         )
@@ -195,7 +211,7 @@ class DLRoverRLMaster(object):
             vertex = name_vertex_mapping[name]
 
             if vertex.create_time:
-                is_actor_failover = True
+                is_actor_restart = True
 
             # update runtime info
             name_vertex_mapping[name].update_runtime_info(
@@ -203,11 +219,20 @@ class DLRoverRLMaster(object):
                 hostname=runtime_info.hostname,
                 host_ip=runtime_info.host_ip,
             )
+        logger.info(
+            f"Got runtime info: {runtime_info} reported by: {name}, "
+            f"is restart: {is_actor_restart}."
+        )
 
-        # deal with failover
-        if is_actor_failover:
+        # deal with workload restart
+        if is_actor_restart:
+            vertex_name = runtime_info.name
+            vertex_role = self.context.execution_graph.name_vertex_mapping[
+                vertex_name
+            ].role.name
             failure_desc = FailureDesc(
-                workload_name=runtime_info.name,
+                workload_name=vertex_name,
+                workload_role=vertex_role,
                 failure_time=runtime_info.create_time,
                 reason="unknown",
             )

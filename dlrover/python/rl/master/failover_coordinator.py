@@ -10,11 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.constant import RLJobExitReason
 from dlrover.python.rl.common.enums import FailoverLevel
 from dlrover.python.rl.common.failure import FailureDesc
-from dlrover.python.rl.common.job_context import get_job_context
+from dlrover.python.rl.common.job_context import RestartInfo, get_job_context
 from dlrover.python.rl.master.job_manager import JobManager
 
 
@@ -23,21 +25,60 @@ class FailoverCoordinator(object):
     To coordinate job management when failure happens.
     """
 
-    def __init__(self, job_manager, save_context_callback):
+    def __init__(self, job_manager, save_context_callback, exit_job_callback):
         self._job_manager: JobManager = job_manager
         self._save_context_callback = save_context_callback
+        self._exit_job_callback = exit_job_callback
+
         self._job_context = get_job_context()
+
+    @property
+    def context(self):
+        return self._job_context
 
     def handle_failure(self, failure: FailureDesc):
         logger.info(f"Handle failure: {failure}")
         level = self._get_failover_level(failure)
-
+        role = failure.workload_role
+        if self._is_failure_exceeded_limit(failure):
+            logger.error(
+                f"Failure exceed limit, master limit: "
+                f"{len(self.context.get_master_restart_info())}/"
+                f"{self.context.job_config.master_max_restart}, "
+                f"workload({role}) limit: "
+                f"{len(self.context.get_workload_restart_info(role))}/"
+                f"{self.context.job_config.get_workload_max_restart(role)}"
+            )
+            self._abort_job()
+            return
         if level == FailoverLevel.PARTIAL:
             self._do_partial_failover(failure)
         elif level == FailoverLevel.IGNORE:
             self._ignore_failover(failure)
         else:
             self._do_global_failover(failure)
+
+        # update restart info
+        if failure.is_workload:
+            self._job_context.add_restart_info(
+                "workload", RestartInfo(restart_time=failure.failure_time)
+            )
+        else:
+            self._job_context.add_restart_info(
+                "master", RestartInfo(restart_time=failure.failure_time)
+            )
+
+    def _is_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
+        if failure.is_workload:
+            role = failure.workload_role
+            return len(
+                self.context.get_workload_restart_info(role)
+            ) >= self.context.job_config.get_workload_max_restart(role)
+        else:
+            return (
+                len(self.context.get_master_restart_info())
+                >= self.context.job_config.master_max_restart
+            )
 
     def _get_failover_level(self, failure: FailureDesc):
         level = failure.failure_level
@@ -51,11 +92,32 @@ class FailoverCoordinator(object):
                 pass
             return FailoverLevel.GLOBAL
 
+    def _is_job_restart_exceeded_limit(self) -> bool:
+        return (
+            len(self.context.get_job_restart_info())
+            >= self.context.job_config.job_max_restart
+        )
+
     def _do_global_failover(self, failure: FailureDesc):
         logger.info("Trigger global failover procedure.")
+        if self._is_job_restart_exceeded_limit():
+            logger.error(
+                "Job restart exceed limit: "
+                f"{self.context.job_config.job_max_restart}"
+            )
+            self._abort_job()
+            return
+
+        start = int(time.time())
+
         self._job_manager.stop_job()
         self._job_manager.start_job()
         self._save_context()
+        logger.info(
+            f"Global failover procedure cost {time.time() - start:.2f}s"
+        )
+
+        self._job_context.add_job_restart(start, True)
 
     def _do_partial_failover(self, failure: FailureDesc):
         logger.info("Trigger partial failover procedure.")
@@ -68,3 +130,7 @@ class FailoverCoordinator(object):
     def _save_context(self):
         logger.info("Save context after failover.")
         self._save_context_callback()
+
+    def _abort_job(self):
+        logger.info("Abort job for failover can no longer proceed.")
+        self._exit_job_callback(RLJobExitReason.ERROR)
