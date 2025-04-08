@@ -114,6 +114,12 @@ def _build_job_args_parser():
         help="The maximum limit on the number of master restarts.",
     )
     parser.add_argument(
+        "--trainer_max_restart",
+        default=10,
+        type=pos_int,
+        help="The maximum limit on the number of trainer restarts.",
+    )
+    parser.add_argument(
         "--workload_max_restart",
         default={},
         type=parse_dict,

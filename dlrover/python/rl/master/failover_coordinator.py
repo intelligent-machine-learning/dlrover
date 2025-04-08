@@ -59,21 +59,30 @@ class FailoverCoordinator(object):
             self._do_global_failover(failure)
 
         # update restart info
-        if failure.is_workload:
+        if failure.is_workload_failure():
             self._job_context.add_restart_info(
-                "workload", RestartInfo(restart_time=failure.failure_time)
+                "WORKLOAD", RestartInfo(restart_time=failure.failure_time)
+            )
+        elif failure.is_trainer_failure():
+            self._job_context.add_trainer_restart_info(
+                RestartInfo(restart_time=failure.failure_time)
             )
         else:
-            self._job_context.add_restart_info(
-                "master", RestartInfo(restart_time=failure.failure_time)
+            self._job_context.add_master_restart_info(
+                RestartInfo(restart_time=failure.failure_time)
             )
 
     def _is_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
-        if failure.is_workload:
+        if failure.is_workload_failure():
             role = failure.workload_role
             return len(
                 self.context.get_workload_restart_info(role)
             ) >= self.context.job_config.get_workload_max_restart(role)
+        elif failure.is_trainer_failure():
+            return (
+                len(self.context.get_trainer_restart_info())
+                >= self.context.job_config.trainer_max_restart
+            )
         else:
             return (
                 len(self.context.get_master_restart_info())

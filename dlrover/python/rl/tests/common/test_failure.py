@@ -18,14 +18,12 @@ from dlrover.python.rl.common.failure import FailureDesc
 
 class FailureDescTest(unittest.TestCase):
     def test_basic(self):
-        desc = FailureDesc()
-        self.assertTrue(desc.is_workload)
-
         desc = FailureDesc(
             workload_name="test",
             failure_time=int(time.time()),
             failure_level=1,
             reason="unknown",
         )
+        self.assertEqual(desc.failure_obj, "WORKLOAD")
         self.assertEqual(desc.workload_name, "test")
         self.assertEqual(desc.failure_level, 1)

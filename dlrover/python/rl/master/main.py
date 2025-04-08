@@ -119,7 +119,7 @@ class DLRoverRLMaster(object):
             failure_level = 2
 
         return FailureDesc(
-            is_workload=False,
+            failure_obj="MASTER",
             failure_time=self._create_time,
             failure_level=failure_level,
             reason="RLMaster unexpected exit.",
@@ -157,7 +157,7 @@ class DLRoverRLMaster(object):
                 logger.warning("Trainer got error, do trainer failover.")
                 self._handle_failure(
                     FailureDesc(
-                        is_workload=False,
+                        failure_obj="TRAINER",
                         failure_time=trainer_error[0],
                         failure_level=-1,
                     )
@@ -231,6 +231,7 @@ class DLRoverRLMaster(object):
                 vertex_name
             ].role.name
             failure_desc = FailureDesc(
+                failure_obj="WORKLOAD",
                 workload_name=vertex_name,
                 workload_role=vertex_role,
                 failure_time=runtime_info.create_time,

@@ -51,6 +51,7 @@ class JobContext(Singleton, PickleSerializable):
         self._restart_info: Dict[str, List[RestartInfo]] = {
             "JOB": [],
             "MASTER": [],
+            "TRAINER": [],
             "ACTOR": [],
             "ROLLOUT": [],
             "REFERENCE": [],
@@ -99,11 +100,17 @@ class JobContext(Singleton, PickleSerializable):
 
     def add_job_restart(self, restart_time, with_failover):
         self.add_restart_info(
-            "job",
+            "JOB",
             RestartInfo(
                 restart_time=restart_time, with_failover=with_failover
             ),
         )
+
+    def add_trainer_restart_info(self, restart_info: RestartInfo):
+        self._restart_info["TRAINER"].append(restart_info)
+
+    def add_master_restart_info(self, restart_info: RestartInfo):
+        self._restart_info["MASTER"].append(restart_info)
 
     def add_restart_info(self, restart_type: str, restart_info: RestartInfo):
         self._restart_info[restart_type].append(restart_info)
@@ -113,6 +120,9 @@ class JobContext(Singleton, PickleSerializable):
 
     def get_master_restart_info(self):
         return self.get_restart_info("MASTER")
+
+    def get_trainer_restart_info(self):
+        return self.get_restart_info("TRAINER")
 
     def get_workload_restart_info(self, role: Union[str, RLRoleType]):
         if isinstance(role, RLRoleType):

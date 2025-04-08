@@ -19,11 +19,12 @@ class FailureDesc(object):
     Description of a failure to achieve elaborate fault tolerance.
 
     Attributes:
-        is_workload (bool): Is workload failure or master failure.
-            Default is True(is workload failure).
+        failure_obj (str): Is workload failure or master failure or trainer
+            failure. Supported: MASTER, TRAINER, WORKLOAD. Default is
+            'WORKLOAD'.
         workload_name (str, optional): The name of the workload(same with
             vertex name and actor name) who got failure. Must be specified if
-            'is_workload' is True.
+            'failure_obj' is 'WORKLOAD'.
         workload_role (str, optional): The type of the workload.
         failure_time (int, optional): The timestamp of failure.
         failure_level (int, optional): The severity of the failure:
@@ -35,9 +36,18 @@ class FailureDesc(object):
         reason (str, optional): The failure reason in str format.
     """
 
-    is_workload: bool = True
+    failure_obj: str = "WORKLOAD"
     workload_name: str = ""
     workload_role: str = ""
     failure_time: int = 0
     failure_level: int = -1
     reason: str = ""
+
+    def is_master_failure(self) -> bool:
+        return self.failure_obj == "MASTER"
+
+    def is_trainer_failure(self) -> bool:
+        return self.failure_obj == "TRAINER"
+
+    def is_workload_failure(self) -> bool:
+        return self.failure_obj == "WORKLOAD"
