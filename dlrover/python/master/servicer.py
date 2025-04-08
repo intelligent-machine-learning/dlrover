@@ -30,6 +30,7 @@ from dlrover.python.common.constants import (
     CommunicationType,
     CustomMetricKeys,
     JobConstant,
+    JobStage,
     NodeEventType,
     NodeType,
     RendezvousName,
@@ -44,7 +45,7 @@ from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -76,6 +77,7 @@ _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
+job_ctx = get_job_context()
 
 
 class MasterServicer(ABC):
@@ -87,7 +89,7 @@ class MasterServicer(ABC):
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -302,7 +304,21 @@ class MasterServicer(ABC):
         return res
 
     def _num_nodes_waiting(self, rdzv_name):
+        """
+        Return the number of waiting nodes for a rendezvous.
+
+        Args:
+            rdzv_name: NodeCheck or ElasticTraining
+
+        Returns:
+            >0: the number of waiting nodes
+            0: exception happened
+            -1: the job is stopping, no more rendezvous
+
+        """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
+        if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            waiting_num = -1
         res = comm.RendezvousState(waiting_num=waiting_num)
         return res
 
@@ -723,7 +739,7 @@ class HttpMasterServicer(MasterServicer):
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -757,7 +773,7 @@ class GrpcMasterServicer(
         job_manager,
         perf_monitor: PerfMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisManager,
+        diagnosis_manager: DiagnosisMaster,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,

@@ -30,7 +30,7 @@ from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -148,7 +148,7 @@ class DistributedJobMaster(JobMaster):
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
-        self.diagnosis_manager = DiagnosisManager(args)
+        self.diagnosis_manager = DiagnosisMaster(args)
         self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
@@ -245,7 +245,9 @@ class DistributedJobMaster(JobMaster):
         start = time.time()
         try:
             self.diagnosis_manager.pre_check()
-            logger.info(f"Pre-check finished, cost: {time.time() - start}s.")
+            logger.info(
+                f"Pre-check finished, cost: {time.time() - start:.2f}s."
+            )
         except TimeoutException:
             logger.warning("Pre-check timeout, set pass as result for safety.")
             self._job_ctx.set_pre_check_status(PreCheckStatus.PASS)

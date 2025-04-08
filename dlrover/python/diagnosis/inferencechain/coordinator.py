@@ -50,7 +50,7 @@ def coordinate_solutions(
     if len(solutions) == 0:
         return NoAction()
 
-    logger.info(f"coordinate solutions: {solutions}")
+    logger.debug(f"Coordinate solutions: {solutions}")
     event_solution = Inference(
         name=InferenceName.ACTION,
         attribution=InferenceAttribute.IS,

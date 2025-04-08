@@ -157,6 +157,10 @@ class RendezvousOutSyncError(Exception):
     pass
 
 
+class JobStoppingError(Exception):
+    pass
+
+
 class NodeCheckFailedError(RuntimeError):
     pass
 
@@ -347,6 +351,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         round = self._client.join_rendezvous(
             self._node_rank, self._local_world_size, rdzv_name=self._name
         )
+
         return round
 
     def next_rendezvous(self):
@@ -376,7 +381,7 @@ class MasterRendezvousHandler(RendezvousHandler):
 
         start_pending = 0
         while True:
-            self._check_network_rdzv_for_elastic_training()
+            self._check_network_rdzv()
             round, group, world = self._client.get_comm_world(
                 self._name, self._node_rank
             )
@@ -433,17 +438,23 @@ class MasterRendezvousHandler(RendezvousHandler):
         store = self._get_store(round, group)
         return store, world
 
-    def _check_network_rdzv_for_elastic_training(self):
-        """The worker need to exit the elastic-training rendezvous if there are
-        workers to join the network-check rendezvous.
+    def _check_network_rdzv(self):
         """
+        1. The worker need to exit the elastic-training rendezvous if there are
+        workers to join the network-check rendezvous.
+        2. If job is stopping, raise exception and stop rendezvous
+        """
+        num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
+
         if self._name == RendezvousName.ELASTIC_TRAINING:
-            num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
             if num > 0:
                 raise RendezvousOutSyncError(
                     "Some workers join the network-check rendezvous"
                     "not the elastic-training rendezvous."
                 )
+
+        if num < 0:
+            raise JobStoppingError("Exit rendezvous when job is stopping")
 
     def _report_failure(self, err_msg, level):
         if self._node_rank == 0:
@@ -453,7 +464,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         key_prefix = f"torch.rendezvous.{self._name}.{round}.{group}"
         return PrefixStore(key_prefix, self._store)
 
-    def num_nodes_waiting(self) -> int:
+    def num_nodes_waiting(self):
         return self._client.num_nodes_waiting(self._name)
 
     def get_run_id(self) -> str:
@@ -938,6 +949,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 NodeCheckFailedError,
                 RendezvousTimeoutError,
                 StopWorkerTimeoutError,
+                JobStoppingError,
             ) as e:
                 raise e
             except Exception as e:
@@ -1047,7 +1059,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
-
             self._check_and_process_diagnosis_action()
             try:
                 run_result: RunResult = self._monitor_workers(

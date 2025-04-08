@@ -266,6 +266,9 @@ class ElasticLaunch:
 def wait_pre_check(config: ElasticLaunchConfig):
     """Wait master's pre-check result."""
     client = MasterClient.singleton_instance()
+    if not client:
+        raise RuntimeError("MasterClient is not available.")
+
     wait_secs = JobConstant.PRE_CHECK_WAIT_SECS
 
     # call master once for connection pre-check
