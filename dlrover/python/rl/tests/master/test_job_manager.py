@@ -30,9 +30,9 @@ class JobManagerTest(BaseMasterTest):
 
         job_manager._executor.execute = MagicMock(return_value=None)
         job_manager.start_job()
-        job_manager.stop()
+        job_manager.stop_job()
 
-    def test_get_scheduling_strategy(self):
+    def test_get_scheduler(self):
         job_manager = JobManager()
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.SIMPLE

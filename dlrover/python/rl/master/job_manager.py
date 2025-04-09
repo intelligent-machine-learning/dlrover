@@ -10,6 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
+
+import ray
+from rl.common.constant import RLMasterConstant, RLWorkloadEnv
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.enums import SchedulingStrategyType
@@ -35,6 +39,10 @@ class JobManager(object):
 
         self._scheduler = self._get_scheduler()
         self._executor = Executor(self._execution_graph)
+
+    @property
+    def graph(self):
+        return self._execution_graph
 
     def _get_scheduling_type_from_context(self):
         return self._job_ctx.job_config.scheduling_strategy_type
@@ -70,21 +78,92 @@ class JobManager(object):
     def start_job(self):
         logger.info("Start job execution.")
 
-        # create workloads
+        # create all workloads
         self.create_workloads()
 
+        # setup all workloads
+        self.setup_workloads()
+
         # execute trainer
-        self._executor.execute()
+        self.execute()
 
     def stop_job(self):
+        self._reset()
+
         # destroy all workloads
         self.destroy_workloads()
+
+    def _reset(self):
+        pass
 
     def create_workloads(self):
         """Sync operation."""
         logger.info("Start creating all workloads...")
 
         self._scheduler.schedule()
+
+    def _check_runtime_info(self):
+        if any(
+            create_vertex.create_time == 0
+            for create_vertex in self.graph.get_all_vertices()
+        ):
+            logger.info(
+                "Still waiting actor creation callback for "
+                "updating runtime info..."
+            )
+            return False
+        return True
+
+    def setup_workloads(self):
+        """Sync operation."""
+        logger.info("Start setup all workloads...")
+        start = time.time() * 1000
+
+        # envs for setup
+        env_dict_by_role = {}
+        for role, vertices in self.graph.execution_vertices.items():
+            env_dict = {}
+            # master addr and port
+            for vertex in vertices:
+                if vertex.rank == 0:
+                    runtime_info = ray.get(
+                        vertex.actor_handle.get_runtime_info.remote()
+                    )
+                    env_dict[RLWorkloadEnv.MASTER_ADDR] = runtime_info.host_ip
+                    env_dict[RLWorkloadEnv.MASTER_PORT] = str(
+                        self.graph.rl_context.trainer.torch_master_port
+                    )
+                    break
+            env_dict_by_role[role] = env_dict
+
+        timeout = max(
+            RLMasterConstant.SETUP_TIMEOUT_MIN_SECS,
+            len(self.graph.get_all_actor_handles())
+            * RLMasterConstant.SETUP_TIMEOUT_PER_ACTOR_SECS,
+        )
+
+        setup_refs = [
+            vertex.actor_handle.setup.remote(env_dict_by_role[vertex.role])
+            for vertex in self.graph.get_all_vertices()
+        ]
+        ready, not_ready = ray.wait(
+            setup_refs,
+            num_returns=len(setup_refs),
+            timeout=timeout,
+        )
+        if len(not_ready) > 0:
+            raise TimeoutError(
+                f"{len(not_ready)} workload actors "
+                f"setup timeout: {timeout}s."
+            )
+
+        end = time.time() * 1000 - start
+        logger.info(
+            f"Finish setup all workloads({len(ready)})," f" cost: {end:.2f}ms"
+        )
+
+    def execute(self):
+        self._executor.execute()
 
     def destroy_workloads(self):
         """Sync operation."""

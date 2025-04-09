@@ -160,18 +160,18 @@ class Scheduler(ABC):
             vertex.actor_handle.ping.remote()
             for vertex in self.graph.get_all_vertices()
         ]
-        readies, not_readies = ray.wait(
+        ready, not_ready = ray.wait(
             ping_refs,
             num_returns=len(ping_refs),
             timeout=timeout,
         )
-        if len(not_readies) > 0:
+        if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_readies)} workload actor "
+                f"{len(not_ready)} workload actor "
                 f"creation timeout: {timeout}s."
             )
         logger.info(
-            f"{len(readies)} workload actors created, "
+            f"{len(ready)} workload actors created, "
             f"cost: {time.time() * 1000 - start:.2f}ms."
         )
 

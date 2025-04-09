@@ -16,12 +16,12 @@ class TestData(object):
 
     UD_SIMPLE_MOCK_RL_CONF = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "test_trainer",
             "class": "TestTrainer",
+            "device_per_nod": 4,
         },
         "workload": {
             "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
@@ -41,12 +41,12 @@ class TestData(object):
 
     UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_0 = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
+            "device_per_nod": 4,
         },
         "workload_group": {
             "host_group": [
@@ -80,12 +80,12 @@ class TestData(object):
 
     UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_1 = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
+            "device_per_nod": 4,
         },
         "workload_group": {
             "host_group": [
@@ -108,12 +108,12 @@ class TestData(object):
 
     UD_INVALID_RESOURCE_RL_CONF_0 = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
+            "device_per_nod": 4,
         },
         "workload": {
             "actor": {
@@ -142,12 +142,12 @@ class TestData(object):
 
     UD_SIMPLE_TEST_RL_CONF = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestTrainer",
+            "device_per_nod": 4,
         },
         "workload": {
             "actor": {
@@ -179,12 +179,12 @@ class TestData(object):
 
     UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
+            "device_per_nod": 4,
         },
         "workload": {
             "actor": {
@@ -216,12 +216,12 @@ class TestData(object):
 
     UD_SIMPLE_TEST_WITH_ERROR_TRAINER_RL_CONF = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveErrorTrainer",
+            "device_per_nod": 4,
         },
         "workload": {
             "actor": {
@@ -253,12 +253,12 @@ class TestData(object):
 
     UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF = {
         "algorithm_type": "GRPO",
-        "device_per_nod": 4,
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestInteractiveTrainer",
+            "device_per_nod": 4,
         },
         "workload_group": {
             "host_group": [

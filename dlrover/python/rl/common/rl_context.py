@@ -18,6 +18,7 @@ from dlrover.python.common.enums import ResourceType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
+from dlrover.python.rl.common.constant import RLTrainerConstant
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
@@ -33,21 +34,32 @@ class TrainerDesc(object):
         self,
         module_class,
         trainer_type,
+        device_per_node=RLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
+        torch_master_port=RLTrainerConstant.TORCH_MASTER_PORT_DEFAULT,
     ):
         """
         Description of a trainer.
 
         Args:
-            module_class: The module and class of the trainer.
-            trainer_type: The trainer type.
+            module_class (str,str): The module and class of the trainer.
+            trainer_type (str): The trainer type. Must be the type of
+                'TrainerType'. Default is 'USER_DEFINED'.
+            device_per_node (int, optional): How many gpu(cpu) per node.
+                Default is 8.
+            torch_master_port (int, optional): The port used for torch
+                rendzvous(for env 'MASTER_PORT'). Default is 23333.
         """
         self._module_class: Tuple[str, str] = module_class
         self._trainer_type: TrainerType = TrainerType[trainer_type]
+        self._device_per_node: int = device_per_node
+        self._torch_master_port: int = torch_master_port
 
     def __repr__(self):
         return (
             f"Trainer(class={self._module_class}, "
-            f"type={self._trainer_type})"
+            f"type={self._trainer_type}, "
+            f"device_per_node={self._device_per_node}, "
+            f"torch_master_port={self._torch_master_port})"
         )
 
     @property
@@ -61,6 +73,14 @@ class TrainerDesc(object):
     @property
     def trainer_type(self) -> TrainerType:
         return self._trainer_type
+
+    @property
+    def device_per_node(self):
+        return self._device_per_node
+
+    @property
+    def torch_master_port(self):
+        return self._torch_master_port
 
 
 class WorkloadDesc(object):
@@ -186,7 +206,6 @@ class RLContext(PickleSerializable):
     def __init__(
         self,
         algorithm_type: RLAlgorithmType,
-        device_per_node: int,
         config: DictConfig,
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
@@ -197,7 +216,6 @@ class RLContext(PickleSerializable):
 
         Args:
             algorithm_type: The algorithm type.
-            device_per_node: How many gpu(cpu) per node.
             config: The full configuration of rl training.
             trainer: The description for the trainer.
             workloads: A dictionary of workloads, including: actor_workload,
@@ -208,7 +226,6 @@ class RLContext(PickleSerializable):
         """
 
         self._algorithm_type: RLAlgorithmType = algorithm_type
-        self._device_per_node: int = device_per_node
         self._config: DictConfig = config
         self._trainer = trainer
         self._workloads = workloads
@@ -217,7 +234,6 @@ class RLContext(PickleSerializable):
     def __repr__(self):
         return (
             f"RLContext(algorithm_type:{self.algorithm_type}, "
-            f"device_per_node:{self.device_per_node}, "
             f"config:{self.config}, "
             f"trainer:{self.trainer}, "
             f"group:{self.workload_groups}, "
@@ -231,10 +247,6 @@ class RLContext(PickleSerializable):
     @property
     def algorithm_type(self):
         return self._algorithm_type
-
-    @property
-    def device_per_node(self):
-        return self._device_per_node
 
     @property
     def config(self):
@@ -292,7 +304,6 @@ class RLContext(PickleSerializable):
 
         try:
             algorithm_type = RLAlgorithmType[conf.get("algorithm_type")]
-            device_per_node = conf.get("device_per_node", 8)
             config = conf.get("config")
 
             # trainer
@@ -300,6 +311,14 @@ class RLContext(PickleSerializable):
             trainer_desc = TrainerDesc(
                 (trainer_conf.get("module"), trainer_conf.get("class")),
                 trainer_conf.get("type"),
+                trainer_conf.get(
+                    "device_per_node",
+                    RLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
+                ),
+                trainer_conf.get(
+                    "torch_master_port",
+                    RLTrainerConstant.TORCH_MASTER_PORT_DEFAULT,
+                ),
             )
 
             # workload
@@ -343,7 +362,6 @@ class RLContext(PickleSerializable):
 
             return RLContext(
                 algorithm_type,
-                device_per_node,
                 config,
                 trainer_desc,
                 workload_dict,
@@ -357,19 +375,9 @@ class RLContext(PickleSerializable):
 
     def validate(self) -> bool:
         try:
-            # algorithm_type
-            if not self.algorithm_type:
-                logger.error("Algorithm type not set.")
-                return False
-
-            # device per node
-            if self.device_per_node <= 0:
-                logger.error("Device per node not set.")
-                return False
-
             # config
             if not self.config:
-                logger.error("Config not set.")
+                logger.error("Training config not set.")
                 return False
 
             # trainer
@@ -391,6 +399,16 @@ class RLContext(PickleSerializable):
                         f"by module {self.trainer.module_name} "
                         f"and class {self.trainer.class_name}."
                     )
+                    return False
+
+                # device per node
+                if self.trainer.device_per_node <= 0:
+                    logger.error("Device per node is invalid.")
+                    return False
+
+                # torch master prot
+                if self.trainer.torch_master_port <= 0:
+                    logger.error("Torch master port is invalid.")
                     return False
 
             # ====== workload validation ======

@@ -15,6 +15,7 @@ import os
 import time
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict
 
 import ray
 from omegaconf import DictConfig
@@ -133,6 +134,18 @@ class BaseWorkload(ABC):
         return self._local_world_size
 
     @property
+    def torch_master_addr(self) -> str:
+        if RLWorkloadEnv.MASTER_ADDR in os.environ:
+            return os.environ[RLWorkloadEnv.MASTER_ADDR]
+        return ""
+
+    @property
+    def torch_master_port(self) -> int:
+        if RLWorkloadEnv.MASTER_PORT in os.environ:
+            return int(os.environ[RLWorkloadEnv.MASTER_PORT])
+        return -1
+
+    @property
     def config(self) -> DictConfig:
         return self._config
 
@@ -162,7 +175,7 @@ class BaseWorkload(ABC):
 
     def _report_master(self):
         """
-        Base function. Do not override.
+        Internal function. Do not override.
         """
         info = self.get_runtime_info()
         try:
@@ -172,13 +185,13 @@ class BaseWorkload(ABC):
 
     def ping(self):
         """
-        Base function. Do not override.
+        Internal function. Do not override.
         """
         return True
 
     def get_runtime_info(self) -> RuntimeInfo:
         """
-        Base function. Can be extended only.
+        Internal function. Do not override.
         """
 
         hostname, host_ip = env_utils.get_hostname_and_ip()
@@ -188,5 +201,17 @@ class BaseWorkload(ABC):
             hostname=hostname,
             host_ip=host_ip,
         )
+
+    def setup(self, env_dict: Dict[str, str]) -> bool:
+        """
+        Internal function. Do not override.
+        """
+
+        # update envs
+        for key, value in env_dict.items():
+            os.environ[key] = value
+            logger.info(f"Setup env: {key}-{value}")
+
+        return True
 
     """Remote call functions end"""

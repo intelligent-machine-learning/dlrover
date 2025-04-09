@@ -18,7 +18,6 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.enums import ModelParallelismArcType
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 from dlrover.python.rl.trainer.workload import BaseWorkload, trainer_invocation
 
@@ -138,9 +137,6 @@ class TestTorchActor(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestTorchActor init called")
-
-        os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["MASTER_PORT"] = "25500"
 
         dist.init_process_group(
             backend="gloo",

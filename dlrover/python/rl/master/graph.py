@@ -365,6 +365,7 @@ class RLExecutionGraph(PickleSerializable):
 
                 vertices = []
                 for i in range(desc.instance_number):
+                    vertex = None
                     if use_pg:
                         for j in range(group_size):
                             vertex = RLExecutionVertex(
@@ -379,7 +380,10 @@ class RLExecutionGraph(PickleSerializable):
                                 use_pg,
                             )
                     else:
-                        for j in range(self.rl_context.device_per_node):
+                        device_per_node = (
+                            self.rl_context.trainer.device_per_node
+                        )
+                        for j in range(device_per_node):
                             vertex = RLExecutionVertex(
                                 role,
                                 desc.module_name,
@@ -388,7 +392,7 @@ class RLExecutionGraph(PickleSerializable):
                                 i,
                                 desc.instance_number,
                                 j,
-                                self.rl_context.device_per_node,
+                                device_per_node,
                                 use_pg,
                             )
                     vertices.append(vertex)
