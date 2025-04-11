@@ -12,7 +12,7 @@
 # limitations under the License.
 import time
 from itertools import chain
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import ray
 from ray.actor import ActorHandle
@@ -26,7 +26,7 @@ from ray.util.placement_group import (
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.rl.common.enums import RLRoleType
-from dlrover.python.rl.common.rl_context import RLContext, WorkloadGroupDesc
+from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
@@ -35,19 +35,13 @@ def get_vertex_name(role: RLRoleType, index: int):
 
 
 class PlacementGroupInfo(PickleSerializable):
-    def __init__(self, use_pg=False):
-        self._use_pg = use_pg
-
+    def __init__(self):
         self._pg_instance = None
         self._bundle_index = None
 
     def reset(self):
         self._pg_instance = None
         self._bundle_index = None
-
-    @property
-    def use_pg(self):
-        return self._use_pg
 
     @property
     def pg_instance(self):
@@ -75,7 +69,6 @@ class RLExecutionVertex(PickleSerializable):
         world_size: int,
         local_rank: int,
         local_world_size: int,
-        use_pg: bool = False,
     ):
         # static info
         self.__role = role
@@ -89,7 +82,7 @@ class RLExecutionVertex(PickleSerializable):
         self.__local_world_size = local_world_size
 
         # runtime info
-        self._pg_info = PlacementGroupInfo(use_pg)
+        self._pg_info = PlacementGroupInfo()
         self._actor_handle = None
         self._create_time = 0
         self._exit_time = 0
@@ -127,11 +120,11 @@ class RLExecutionVertex(PickleSerializable):
 
     @property
     def local_rank(self):
-        return self.__rank
+        return self.__local_rank
 
     @property
     def local_world_size(self):
-        return self.__world_size
+        return self.__local_world_size
 
     @property
     def pg(self):
@@ -175,11 +168,11 @@ class RLExecutionVertex(PickleSerializable):
             return self._actor_handle.actor_id.hex()
         return ""
 
-    def use_pg(self) -> bool:
-        return self._pg_info.use_pg
-
     def is_pg_allocated(self) -> bool:
         return self._pg_info.pg_instance is not None
+
+    def use_pg(self) -> bool:
+        return self.is_pg_allocated() and self.pg_bundle_index is not None
 
     def update_pg_info(self, pg: PlacementGroup, bundle_index: int):
         self._pg_info.update_pg_instance(pg)
@@ -243,7 +236,10 @@ class PlacementGroupAllocation(PickleSerializable):
         group_name,
         group_index,
         strategy,
-        bundles: Dict[RLRoleType, List[Tuple[int, Resource]]],
+        bundles: Union[
+            List[Dict[str, float]],
+            Dict[RLRoleType, List[Tuple[int, Resource]]],
+        ],
     ):
         self._group_name = group_name
         self._group_index = group_index
@@ -260,48 +256,59 @@ class PlacementGroupAllocation(PickleSerializable):
         return self._instance
 
     def _get_bundle_resource(self) -> List[Dict[str, float]]:
-        sorted_resources: List[Resource] = [
-            resource
-            for _, resource in sorted(
-                (
-                    tup
-                    for value_list in self._bundles.values()
-                    for tup in value_list
-                ),
-                key=lambda x: x[0],
-            )
-        ]
-        return [
-            resource.to_dict(
-                cpu_flag="CPU", gpu_flag="GPU", mem_flag="", disk_flag=""
-            )
-            for resource in sorted_resources
-        ]
+        if isinstance(self._bundles, Dict):
+            sorted_resources: List[Resource] = [
+                resource
+                for _, resource in sorted(
+                    (
+                        tup
+                        for value_list in self._bundles.values()
+                        for tup in value_list
+                    ),
+                    key=lambda x: x[0],
+                )
+            ]
+            return [
+                resource.to_dict(
+                    cpu_flag="CPU", gpu_flag="GPU", mem_flag="", disk_flag=""
+                )
+                for resource in sorted_resources
+            ]
+        else:
+            return self._bundles
 
     def get_bundle_index_by_vertex_name(self, vertex_name) -> int:
         if vertex_name in self._allocation:
             return self._allocation[vertex_name]
         return -1
 
+    # only for dict bundle type
     def get_bundle_size(self) -> int:
-        return sum(
-            len(resource_list) for resource_list in self._bundles.values()
-        )
+        if isinstance(self._bundles, Dict):
+            return sum(
+                len(resource_list) for resource_list in self._bundles.values()
+            )
+        return -1
 
     def is_bundle_allocated(self, bundle_index):
         return bundle_index in self._allocation.values()
 
-    def allocate(self, role: RLRoleType, vertex_name: str) -> int:
+    def allocate_by_role(self, role: RLRoleType, vertex_name: str) -> int:
         if self.is_full():
             return -1
-        for resource_tuple in self._bundles[role]:
-            bundle_index = resource_tuple[0]
-            if self.is_bundle_allocated(bundle_index):
-                continue
-            self._allocation[vertex_name] = bundle_index
-            return bundle_index
+
+        if isinstance(self._bundles, Dict):
+            for resource_tuple in self._bundles[role]:
+                bundle_index = resource_tuple[0]
+                if self.is_bundle_allocated(bundle_index):
+                    continue
+                return self.allocate(vertex_name, bundle_index)
 
         return -1
+
+    def allocate(self, vertex_name: str, bundle_index: int) -> int:
+        self._allocation[vertex_name] = bundle_index
+        return bundle_index
 
     def is_full(self):
         return len(self._allocation) == self.get_bundle_size()
@@ -357,44 +364,35 @@ class RLExecutionGraph(PickleSerializable):
         return self.__rl_context.config
 
     def _build(self):
-        for role, desc in self.rl_context.workloads.items():
-            if desc:
-                pg_tuple = self.is_grouped_by_role(role)
-                use_pg = pg_tuple[0]
-                group_size = pg_tuple[1]
+        # for role in group
+        for group_desc_tuple in self.get_workload_group().groups:
+            # for each group
+            group_dict = group_desc_tuple[0]
+            group_num = group_desc_tuple[1]
+            single_group_size = sum(group_dict.values())
+            local_world_size = single_group_size
+            world_size = local_world_size * group_num
+            rank = 0
+
+            # create vertex for each group
+            for role, role_group_size in group_dict.items():
+                workload_desc = self.rl_context.workloads[role]
+                assert workload_desc is not None
 
                 vertices = []
-                for i in range(desc.instance_number):
-                    vertex = None
-                    if use_pg:
-                        for j in range(group_size):
-                            vertex = RLExecutionVertex(
-                                role,
-                                desc.module_name,
-                                desc.class_name,
-                                desc.instance_resource,
-                                i,
-                                desc.instance_number,
-                                j,
-                                group_size,
-                                use_pg,
-                            )
-                    else:
-                        device_per_node = (
-                            self.rl_context.trainer.device_per_node
-                        )
-                        for j in range(device_per_node):
-                            vertex = RLExecutionVertex(
-                                role,
-                                desc.module_name,
-                                desc.class_name,
-                                desc.instance_resource,
-                                i,
-                                desc.instance_number,
-                                j,
-                                device_per_node,
-                                use_pg,
-                            )
+                for i in range(workload_desc.instance_number):
+                    vertex = RLExecutionVertex(
+                        role,
+                        workload_desc.module_name,
+                        workload_desc.class_name,
+                        workload_desc.instance_resource,
+                        rank=rank,
+                        world_size=int(world_size),
+                        local_rank=rank % local_world_size,
+                        local_world_size=local_world_size,
+                    )
+                    rank += 1
+
                     vertices.append(vertex)
                     self._name_vertex_mapping[vertex.name] = vertex
 
@@ -418,9 +416,6 @@ class RLExecutionGraph(PickleSerializable):
 
     def get_all_vertices(self) -> List[RLExecutionVertex]:
         return list(chain(*self.__execution_vertices.values()))
-
-    def get_all_vertices_with_pg_priority(self) -> List[RLExecutionVertex]:
-        return sorted(self.get_all_vertices(), key=lambda v: not v.use_pg())
 
     def get_vertices_by_role_type(
         self, role_type: RLRoleType
@@ -453,8 +448,8 @@ class RLExecutionGraph(PickleSerializable):
             self.rl_context.trainer.class_name,
         )
 
-    def get_workload_groups(self):
-        return self.rl_context.workload_groups
+    def get_workload_group(self):
+        return self.rl_context.workload_group
 
     def get_unit_resource_by_role(
         self, role: RLRoleType
@@ -466,16 +461,6 @@ class RLExecutionGraph(PickleSerializable):
 
     def get_workloads_size_by_role(self, role: RLRoleType) -> int:
         return len(self.get_vertices_by_role_type(role))
-
-    def is_grouped_by_role(self, role: RLRoleType) -> Tuple[bool, int]:
-        if not self.get_workload_groups():
-            return False, 0
-
-        for groups_desc in self.get_workload_groups().values():
-            for group in groups_desc:
-                if role in group.get_all_roles():
-                    return True, group.allocation[role]
-        return False, 0
 
     def update_actor_handle_for_vertex(
         self, actor_handle: ActorHandle, vertex: RLExecutionVertex
@@ -492,34 +477,6 @@ class RLExecutionGraph(PickleSerializable):
     def get_placement_group(self):
         return self.__placement_groups
 
-    def get_pg_name_by_role(self, role: RLRoleType) -> str:
-        merged_group_desc: List[WorkloadGroupDesc] = list(
-            chain.from_iterable(self.get_workload_groups().values())
-        )
-        for group_desc in merged_group_desc:
-            if group_desc.has_role(role):
-                return group_desc.get_group_name()
-        return "unknown"
-
-    def allocate_placement_group(self):
-        for vertex in self.get_all_vertices():
-            role = vertex.role
-            pg_instance = None
-            bundle_index = None
-
-            if vertex.use_pg() and not vertex.is_pg_allocated():
-                for pg_allocation in self.__placement_groups[
-                    self.get_pg_name_by_role(role)
-                ]:
-                    bundle_index = pg_allocation.allocate(role, vertex.name)
-                    if bundle_index != -1:
-                        pg_instance = pg_allocation.pg_instance
-                        break
-
-                assert pg_instance is not None
-                assert bundle_index is not None
-                vertex.update_pg_info(pg_instance, bundle_index)
-
     def create_placement_group(self):
         for pg_allocations in self.__placement_groups.values():
             for pg_allocation in pg_allocations:
@@ -532,3 +489,13 @@ class RLExecutionGraph(PickleSerializable):
 
     def cleanup_placement_group_allocation(self):
         self.__placement_groups = {}
+
+    def get_bundle_topology(self):
+        """Return topology in format: [${vertex_num}]"""
+        topology = []
+        for group_desc_tuple in self.get_workload_group().groups:
+            group_size = sum(group_desc_tuple[0].values())
+            for _ in range(group_desc_tuple[1]):
+                topology.append(group_size)
+
+        return topology

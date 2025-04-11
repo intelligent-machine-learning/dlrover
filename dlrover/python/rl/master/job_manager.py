@@ -13,9 +13,9 @@
 import time
 
 import ray
-from rl.common.constant import RLMasterConstant, RLWorkloadEnv
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.constant import RLMasterConstant, RLWorkloadEnv
 from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.common.job_context import get_job_context
 from dlrover.python.rl.master.executor import Executor
@@ -120,7 +120,9 @@ class JobManager(object):
         start = time.time() * 1000
 
         # envs for setup
+        ports = self.graph.rl_context.trainer.torch_master_port
         env_dict_by_role = {}
+        i = 0
         for role, vertices in self.graph.execution_vertices.items():
             env_dict = {}
             # master addr and port
@@ -130,11 +132,10 @@ class JobManager(object):
                         vertex.actor_handle.get_runtime_info.remote()
                     )
                     env_dict[RLWorkloadEnv.MASTER_ADDR] = runtime_info.host_ip
-                    env_dict[RLWorkloadEnv.MASTER_PORT] = str(
-                        self.graph.rl_context.trainer.torch_master_port
-                    )
+                    env_dict[RLWorkloadEnv.MASTER_PORT] = str(ports[i])
                     break
             env_dict_by_role[role] = env_dict
+            i += 1
 
         timeout = max(
             RLMasterConstant.SETUP_TIMEOUT_MIN_SECS,

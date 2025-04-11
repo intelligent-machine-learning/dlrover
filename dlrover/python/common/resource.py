@@ -112,4 +112,8 @@ class Resource(object):
     def validate(self) -> bool:
         if self.cpu < 0 or self.memory < 0 or self.disk < 0 or self.gpu < 0:
             return False
+        if self.cpu > 0 and self.cpu != 0.5 and self.cpu != 1:
+            return False
+        if self.gpu > 0 and self.gpu != 0.5 and self.gpu != 1:
+            return False
         return True

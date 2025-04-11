@@ -34,7 +34,7 @@ class DriverTest(unittest.TestCase):
             "--master_memory",
             "100",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
         ]
 
         main(args)

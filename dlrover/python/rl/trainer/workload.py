@@ -157,19 +157,19 @@ class BaseWorkload(ABC):
         return ray.get_runtime_context().get_actor_id()
 
     def is_actor_role(self):
-        return self._role == RLRoleType.ACTOR
+        return self._role.name == RLRoleType.ACTOR.name
 
     def is_rollout_role(self):
-        return self._role == RLRoleType.ROLLOUT
+        return self._role.name == RLRoleType.ROLLOUT.name
 
     def is_reward_role(self):
-        return self._role == RLRoleType.REWARD
+        return self._role.name == RLRoleType.REWARD.name
 
     def is_ref_role(self):
-        return self._role == RLRoleType.REFERENCE
+        return self._role.name == RLRoleType.REFERENCE.name
 
     def is_critic_role(self):
-        return self._role == RLRoleType.CRITIC
+        return self._role.name == RLRoleType.CRITIC.name
 
     """Remote call functions start"""
 

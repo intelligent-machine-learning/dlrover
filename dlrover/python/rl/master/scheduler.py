@@ -11,19 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+import typing
 from abc import ABC, abstractmethod
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Tuple
 
 import ray
 from ray.actor import ActorHandle
 from ray.exceptions import GetTimeoutError
 from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
+from dlrover.python.common import env_utils
+from dlrover.python.common.enums import ResourceType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.resource import Resource
 from dlrover.python.rl.common.constant import RLMasterConstant, RLWorkloadEnv
-from dlrover.python.rl.common.enums import RLRoleType, WorkloadGroupType
 from dlrover.python.rl.common.exception import ResourceError
 from dlrover.python.rl.common.job_context import get_job_context
 from dlrover.python.rl.master.graph import (
@@ -87,13 +88,7 @@ class Scheduler(ABC):
         master_handle = self.get_master_actor_handle()
         config = self.graph.rl_config
 
-        if with_pg:
-            # create actor with pg 1st then others
-            vertices = self.graph.get_all_vertices_with_pg_priority()
-        else:
-            # create actor directly
-            vertices = self.graph.get_all_vertices()
-
+        vertices = self.graph.get_all_vertices()
         for vertex in vertices:
             if vertex:
                 actor_handle = self.__create_actor_by_vertex(
@@ -196,6 +191,8 @@ class GroupOrderedScheduler(Scheduler):
     by resource-group in execution graph.
     """
 
+    SINGLE_PG_NAME = "SINGLE_PG_WITH_SINGLE_BUNDLE_PER_NODE"
+
     def schedule(self):
         # prepare pg
         self._prepare_placement_group()
@@ -206,7 +203,7 @@ class GroupOrderedScheduler(Scheduler):
         self._create_placement_group()
 
         # allocate pg to actor
-        self.graph.allocate_placement_group()
+        self._allocate_placement_group()
 
         # do creation
         start = self._create_actor_by_graph(with_pg=True)
@@ -214,57 +211,79 @@ class GroupOrderedScheduler(Scheduler):
         # check creation
         self._check_actor_creation(start)
 
+    # TODO: abstraction on pg operation: prepare, allocate, create
+
+    def _get_placement_strategy(self):
+        strategy_from_env = env_utils.get_env(RLMasterConstant.PG_STRATEGY_ENV)
+
+        if not strategy_from_env:
+            return "STRICT_SPREAD"
+        return strategy_from_env
+
     # prepare placement group
     def _prepare_placement_group(self):
-        for group_type, groups in self.graph.get_workload_groups().items():
-            if (
-                group_type.name == WorkloadGroupType.HOST_GROUP.name
-                or group_type.name == WorkloadGroupType.DEVICE_GROUP.name
-            ):
-                strategy = "STRICT_PACK"
-            elif group_type.name == WorkloadGroupType.ANTI_HOST_GROUP.name:
-                strategy = "STRICT_SPREAD"
-            else:
-                raise NotImplementedError()
+        # single pg and single bundle per node
 
-            for group_desc in groups:
-                # create pg one by one
-                group_allocation: Dict[RLRoleType, int] = group_desc.allocation
+        strategy = self._get_placement_strategy()
 
-                # 1st role and number in group
-                role, number = next(iter(group_allocation.items()))
+        # define bundle unit resource
+        device_per_node = self.graph.rl_context.trainer.device_per_node
+        if self.graph.rl_context.trainer.device_type == ResourceType.CPU:
+            bundle_unit_resource = {"CPU": device_per_node}
+        else:
+            bundle_unit_resource = {"GPU": device_per_node}
 
-                # pg number to create
-                pg_num = self.graph.get_workloads_size_by_role(role) / number
-                # the validation is already done when building rl context
-                assert pg_num == int(pg_num)
-                pg_num = int(pg_num)
+        # create bundle by nodes number
+        bundles = []
+        for i in range(self.graph.rl_context.trainer.node_number):
+            bundles.append(bundle_unit_resource)
 
-                # calculate bundles
-                bundles: Dict[RLRoleType, List[Tuple[int, Resource]]] = {}
-                bundle_index = 0
-                for role, number in group_allocation.items():
-                    resource = self.graph.get_unit_resource_by_role(role)
-                    for index in range(number):
-                        bundles.setdefault(role, []).append(
-                            (bundle_index, resource)
-                        )
-                        bundle_index += 1
+        logger.info(f"Prepare placement group with bundles: {bundles}")
+        self.graph.add_placement_group(
+            GroupOrderedScheduler.SINGLE_PG_NAME,
+            PlacementGroupAllocation(
+                GroupOrderedScheduler.SINGLE_PG_NAME, 0, strategy, bundles
+            ),
+        )
 
-                # create pg allocation
-                pg_name = group_desc.get_group_name()
-                logger.info(
-                    f"Prepare {pg_num} placement group, "
-                    f"group name: {pg_name}, strategy: {strategy}, "
-                    f"bundles(size:{bundle_index}): {bundles}"
+    def __get_start_bundle(self, allocated_bundles, bundle_topology) -> int:
+        if not allocated_bundles:
+            return 0
+
+        counter: typing.Counter[int] = Counter(allocated_bundles)
+        max_bundle_index = max(counter.keys())
+        for bundle_allocated in list(counter.items()):
+            if bundle_allocated[1] >= bundle_topology[bundle_allocated[0]]:
+                continue
+            return int(bundle_allocated[0])
+
+        return max_bundle_index + 1
+
+    # allocate placement group
+    def _allocate_placement_group(self):
+        workload_group = self.graph.get_workload_group()
+        pg = self.graph.get_placement_group()[
+            GroupOrderedScheduler.SINGLE_PG_NAME
+        ][0]
+        allocated_bundles = []
+        bundle_topology = self.graph.get_bundle_topology()
+
+        for group_desc_tuple in workload_group.groups:
+            group_dict = group_desc_tuple[0]
+
+            for role, role_group_size in group_dict.items():
+                bundle_index = self.__get_start_bundle(
+                    allocated_bundles, bundle_topology
                 )
-                for pg_index in range(pg_num):
-                    self.graph.add_placement_group(
-                        pg_name,
-                        PlacementGroupAllocation(
-                            pg_name, pg_index, strategy, bundles
-                        ),
-                    )
+                i = 0
+                for vertex in self.graph.execution_vertices[role]:
+                    vertex.update_pg_info(pg.pg_instance, bundle_index)
+                    allocated_bundles.append(bundle_index)
+                    pg.allocate(vertex.name, bundle_index)
+
+                    i += 1
+                    if i == role_group_size:
+                        bundle_index += 1
 
     # create placement group by ray api
     def _create_placement_group(self):

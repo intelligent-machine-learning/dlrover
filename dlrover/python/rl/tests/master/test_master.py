@@ -10,11 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import time
 
 import ray
 
 from dlrover.python.rl.common.args import parse_job_args
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.main import DLRoverRLMaster
 from dlrover.python.rl.tests.master.base import BaseMasterTest
@@ -34,6 +36,8 @@ class RLMasterNormalTest(BaseMasterTest):
         parsed_args = parse_job_args(args)
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._rl_context = rl_context
+
+        os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
         ray.init()
 
     def tearDown(self):
@@ -45,7 +49,8 @@ class RLMasterNormalTest(BaseMasterTest):
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(
-            name=master_name, lifetime="detached"
+            name=master_name,
+            lifetime="detached",
         ).remote(
             self._job_context.job_config.serialize(),
             self._job_context.rl_context.serialize(),

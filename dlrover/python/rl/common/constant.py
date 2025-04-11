@@ -21,6 +21,7 @@ class RLMasterConstant(object):
     RUN_WAIT_INTERVAL = 10
     EXIT_WAIT_INTERVAL = 10
     WORKLOAD_MAX_RESTART = 30
+    PG_STRATEGY_ENV = "PG_STRATEGY"
 
 
 class RLJobStatus(object):
@@ -46,5 +47,6 @@ class RLWorkloadEnv(object):
 
 
 class RLTrainerConstant(object):
+    DEVICE_TYPE_DEFAULT = "GPU"
     DEVICE_PER_NODE_DEFAULT = 8
-    TORCH_MASTER_PORT_DEFAULT = 23333
+    TORCH_MASTER_PORT_DEFAULT = [21111, 22222, 23333, 24444, 25555]

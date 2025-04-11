@@ -13,15 +13,12 @@
 import unittest
 from unittest.mock import patch
 
-from omegaconf import OmegaConf
-
 from dlrover.python.common.enums import ResourceType
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
     TrainerType,
-    WorkloadGroupType,
 )
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.rl.common.rl_context import RLContext, WorkloadGroupDesc
@@ -105,23 +102,121 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(deserialized.algorithm_type, RLAlgorithmType.GRPO)
         self.assertEqual(deserialized.config.get("c1"), "v1")
 
-    def test_workload_group_desc(self):
-        conf_dict = OmegaConf.create(
-            TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF
+    def test_workload_group_desc_build(self):
+        # all spread
+        roles = {
+            RLRoleType.ACTOR: 8,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 4,
+        }
+        resource = {
+            RLRoleType.ACTOR: 1,
+            RLRoleType.ROLLOUT: 1,
+            RLRoleType.CRITIC: 1,
+        }
+        desc = WorkloadGroupDesc.build(
+            [], roles, resource, 4, unit=ResourceType.CPU
         )
-        desc = WorkloadGroupDesc.from_dict(
-            WorkloadGroupType.HOST_GROUP,
-            conf_dict.get("workload_group").get("host_group")[0],
-        )
-
         self.assertIsNotNone(desc)
-        self.assertEqual(desc.group_type, WorkloadGroupType.HOST_GROUP)
-        self.assertEqual(len(desc.allocation), 2)
         self.assertEqual(desc.capacity, 4)
         self.assertEqual(desc.unit, ResourceType.CPU)
-        self.assertFalse(desc.is_capacity_limit())
-        self.assertEqual(len(desc.get_all_roles()), 2)
-        self.assertEqual(desc.get_group_name(), "HOST_GROUP_ACTOR_ROLLOUT")
+        self.assertEqual(len(desc.groups), 3)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ACTOR), 4)
+        self.assertEqual(desc.groups[0][1], 2)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.ROLLOUT), 4)
+        self.assertEqual(desc.groups[1][1], 1)
+        self.assertEqual(desc.groups[2][0].get(RLRoleType.CRITIC), 4)
+        self.assertEqual(desc.groups[2][1], 1)
+        self.assertTrue(desc.validate())
+
+        # some grouped
+        groups = [{"actor": 2, "rollout": 2}]
+        roles = {
+            RLRoleType.ACTOR: 4,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 4,
+        }
+        desc = WorkloadGroupDesc.build(
+            groups, roles, resource, 4, unit=ResourceType.CPU
+        )
+        self.assertIsNotNone(desc)
+        self.assertEqual(desc.capacity, 4)
+        self.assertEqual(desc.unit, ResourceType.CPU)
+        self.assertEqual(len(desc.groups), 2)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ACTOR), 2)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ROLLOUT), 2)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.CRITIC), 4)
+        self.assertTrue(desc.validate())
+
+        roles = {
+            RLRoleType.ACTOR: 8,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 4,
+        }
+        with self.assertRaises(AssertionError):
+            WorkloadGroupDesc.build(
+                groups, roles, resource, 4, ResourceType.GPU
+            )
+
+        groups = [{"actor": 2, "rollout": 2}, {"critic": 3, "reference": 1}]
+        roles = {
+            RLRoleType.ACTOR: 4,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 3,
+            RLRoleType.REWARD: 4,
+            RLRoleType.REFERENCE: 1,
+        }
+        resource = {
+            RLRoleType.ACTOR: 1,
+            RLRoleType.ROLLOUT: 1,
+            RLRoleType.CRITIC: 1,
+            RLRoleType.REFERENCE: 1,
+            RLRoleType.REWARD: 1,
+        }
+        desc = WorkloadGroupDesc.build(
+            groups, roles, resource, 4, ResourceType.GPU
+        )
+        self.assertEqual(len(desc.groups), 3)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ACTOR), 2)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ROLLOUT), 2)
+        self.assertEqual(desc.groups[0][1], 2)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.CRITIC), 3)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.REFERENCE), 1)
+        self.assertEqual(desc.groups[1][1], 1)
+        self.assertEqual(desc.groups[2][0].get(RLRoleType.REWARD), 4)
+        self.assertEqual(desc.groups[2][1], 1)
+        self.assertTrue(desc.validate())
+
+        # all grouped
+        roles = {
+            RLRoleType.ACTOR: 4,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 3,
+            RLRoleType.REFERENCE: 1,
+        }
+        desc = WorkloadGroupDesc.build(
+            groups, roles, resource, 4, ResourceType.GPU
+        )
+        self.assertEqual(len(desc.groups), 2)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ACTOR), 2)
+        self.assertEqual(desc.groups[0][0].get(RLRoleType.ROLLOUT), 2)
+        self.assertEqual(desc.groups[0][1], 2)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.CRITIC), 3)
+        self.assertEqual(desc.groups[1][0].get(RLRoleType.REFERENCE), 1)
+        self.assertEqual(desc.groups[1][1], 1)
+        self.assertTrue(desc.validate())
+
+        groups = [{"actor": 2, "rollout": 2}, {"actor": 1, "reference": 1}]
+        roles = {
+            RLRoleType.ACTOR: 4,
+            RLRoleType.ROLLOUT: 4,
+            RLRoleType.CRITIC: 3,
+            RLRoleType.REFERENCE: 4,
+        }
+        desc = WorkloadGroupDesc.build(
+            groups, roles, resource, 4, ResourceType.GPU
+        )
+        self.assertFalse(desc.validate())
 
     def test_workload_group_resolve_and_validate(self):
         args = [
@@ -132,15 +227,9 @@ class RLContextTest(unittest.TestCase):
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 
-        self.assertEqual(len(rl_context.workload_groups), 1)
         self.assertEqual(
-            len(rl_context.workload_groups[WorkloadGroupType.HOST_GROUP]), 1
-        )
-        self.assertEqual(
-            rl_context.workload_groups[WorkloadGroupType.HOST_GROUP][
-                0
-            ].allocation,
-            {RLRoleType.ACTOR: 2, RLRoleType.ROLLOUT: 2},
+            len(rl_context.workload_group.groups),
+            3,
         )
         self.assertTrue(rl_context.validate())
 

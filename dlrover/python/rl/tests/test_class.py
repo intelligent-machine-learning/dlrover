@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import time
 
 import ray
@@ -37,14 +36,12 @@ class TestInteractiveTrainer(BaseTrainer):
         self.RG_ACTOR.init()
         self.RG_ROLLOUT.init()
         self.RG_REFERENCE.init()
-        self.RG_REWARD.init()
         time.sleep(0.1)
 
     def fit(self):
         self.RG_ACTOR.compute(1)
         self.RG_ROLLOUT.generate(2)
         self.RG_REFERENCE.compute(3)
-        self.RG_REWARD.reward()
         time.sleep(1)
 
 
@@ -53,7 +50,6 @@ class TestInteractiveErrorTrainer(BaseTrainer):
         self.RG_ACTOR.init()
         self.RG_ROLLOUT.init()
         self.RG_REFERENCE.init()
-        self.RG_REWARD.init()
         time.sleep(0.1)
 
     def fit(self):
@@ -61,7 +57,6 @@ class TestInteractiveErrorTrainer(BaseTrainer):
         self.RG_ROLLOUT.generate(2)
         raise RuntimeError("Failover testing...")
         self.RG_REFERENCE.compute(3)
-        self.RG_REWARD.reward()
         time.sleep(1)
 
 

@@ -32,29 +32,26 @@ class ExecutionGraphTest(BaseMasterTest):
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 
         graph = RLExecutionGraph(rl_context)
         self.assertIsNotNone(graph)
         self.assertIsNotNone(graph.rl_config)
-        self.assertEqual(len(graph.get_all_vertices()), 2 + 2 + 1 + 1)
-        self.assertEqual(len(graph.name_vertex_mapping), 2 + 2 + 1 + 1)
+        self.assertEqual(len(graph.get_all_vertices()), 1 + 1 + 1 + 1)
+        self.assertEqual(len(graph.name_vertex_mapping), 1 + 1 + 1 + 1)
         self.assertEqual(len(graph.name_actor_mapping), 0)
 
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
-        self.assertEqual(len(actor_vertices), 2)
+        self.assertEqual(len(actor_vertices), 1)
         self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
         self.assertEqual(
             actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
         )
         self.assertEqual(actor_vertices[0].get_cls(), TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
-        self.assertEqual(actor_vertices[0].world_size, 2)
-        self.assertFalse(actor_vertices[0].use_pg())
-        self.assertEqual(actor_vertices[1].rank, 1)
-        self.assertEqual(actor_vertices[1].world_size, 2)
+        self.assertEqual(actor_vertices[0].world_size, 1)
 
         rollout_vertex_0 = graph.get_vertex(RLRoleType.ROLLOUT, 0)
         self.assertEqual(rollout_vertex_0.role, RLRoleType.ROLLOUT)
@@ -75,37 +72,46 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(rollout_vertex_0.host_ip, "")
         self.assertEqual(rollout_vertex_0.restart_count, 2)
 
-    def test_graph_with_pg(self):
         args = [
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_RL_CONF_1}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 
         graph = RLExecutionGraph(rl_context)
         self.assertIsNotNone(graph)
+        self.assertIsNotNone(graph.rl_config)
+        self.assertEqual(len(graph.get_all_vertices()), 2 + 2 + 1 + 1)
+        self.assertEqual(len(graph.name_vertex_mapping), 2 + 2 + 1 + 1)
+        self.assertEqual(len(graph.name_actor_mapping), 0)
 
-        vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
-        self.assertTrue(vertices[0].use_pg())
-        self.assertFalse(vertices[0].is_pg_allocated())
-
-        vertices = graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
-        self.assertTrue(vertices[0].use_pg())
-        self.assertFalse(vertices[0].is_pg_allocated())
-
-        vertices = graph.get_vertices_by_role_type(RLRoleType.REWARD)
-        self.assertFalse(vertices[0].use_pg())
-        self.assertFalse(vertices[0].is_pg_allocated())
-
-        vertices = graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
-        self.assertFalse(vertices[0].use_pg())
-        self.assertFalse(vertices[0].is_pg_allocated())
-
-        self.assertNotEqual(
-            graph.get_all_vertices_with_pg_priority(), graph.get_all_vertices()
+        actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        self.assertEqual(len(actor_vertices), 2)
+        self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
+        self.assertEqual(
+            actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
         )
+        self.assertEqual(actor_vertices[0].get_cls(), TestActor)
+        self.assertEqual(actor_vertices[0].rank, 0)
+        self.assertEqual(actor_vertices[0].world_size, 4)
+        self.assertEqual(actor_vertices[0].local_rank, 0)
+        self.assertEqual(actor_vertices[0].local_world_size, 2)
+        self.assertEqual(actor_vertices[1].rank, 1)
+        self.assertEqual(actor_vertices[1].world_size, 4)
+        self.assertEqual(actor_vertices[1].local_rank, 1)
+        self.assertEqual(actor_vertices[1].local_world_size, 2)
+
+        rollout_vertices = graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        self.assertEqual(rollout_vertices[0].rank, 2)
+        self.assertEqual(rollout_vertices[0].world_size, 4)
+        self.assertEqual(rollout_vertices[0].local_rank, 0)
+        self.assertEqual(rollout_vertices[0].local_world_size, 2)
+        self.assertEqual(rollout_vertices[1].rank, 3)
+        self.assertEqual(rollout_vertices[1].world_size, 4)
+        self.assertEqual(rollout_vertices[1].local_rank, 1)
+        self.assertEqual(rollout_vertices[1].local_world_size, 2)
 
     def test_pg_allocation(self):
         resource0 = Resource(gpu=1)
@@ -128,10 +134,20 @@ class ExecutionGraphTest(BaseMasterTest):
         )
         self.assertFalse(pg_allocation.is_full())
 
-        self.assertEqual(pg_allocation.allocate(RLRoleType.ROLLOUT, "r0"), 2)
-        self.assertEqual(pg_allocation.allocate(RLRoleType.ROLLOUT, "r1"), -1)
+        self.assertEqual(
+            pg_allocation.allocate_by_role(RLRoleType.ROLLOUT, "r0"), 2
+        )
+        self.assertEqual(
+            pg_allocation.allocate_by_role(RLRoleType.ROLLOUT, "r1"), -1
+        )
         self.assertFalse(pg_allocation.is_full())
-        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a0"), 0)
-        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a1"), 1)
-        self.assertEqual(pg_allocation.allocate(RLRoleType.ACTOR, "a3"), -1)
+        self.assertEqual(
+            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a0"), 0
+        )
+        self.assertEqual(
+            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a1"), 1
+        )
+        self.assertEqual(
+            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a3"), -1
+        )
         self.assertTrue(pg_allocation.is_full())

@@ -10,9 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from dlrover.python.common.enums import ResourceType
 from dlrover.python.common.log import default_logger as logger
@@ -23,7 +23,6 @@ from dlrover.python.rl.common.enums import (
     RLAlgorithmType,
     RLRoleType,
     TrainerType,
-    WorkloadGroupType,
 )
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
@@ -34,6 +33,8 @@ class TrainerDesc(object):
         self,
         module_class,
         trainer_type,
+        node_number=0,
+        device_type=RLTrainerConstant.DEVICE_TYPE_DEFAULT,
         device_per_node=RLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
         torch_master_port=RLTrainerConstant.TORCH_MASTER_PORT_DEFAULT,
     ):
@@ -44,20 +45,28 @@ class TrainerDesc(object):
             module_class (str,str): The module and class of the trainer.
             trainer_type (str): The trainer type. Must be the type of
                 'TrainerType'. Default is 'USER_DEFINED'.
+            node_number (int): How many nodes.
+            device_type (ResourceType, optional): Device type: 'GPU' or 'CPU'.
+                Default is 'GPU'.
             device_per_node (int, optional): How many gpu(cpu) per node.
                 Default is 8.
             torch_master_port (int, optional): The port used for torch
-                rendzvous(for env 'MASTER_PORT'). Default is 23333.
+                rendzvous(for env 'MASTER_PORT'), must > 1000.
+                Default is [21111, 22222, 23333, 24444, 25555].
         """
         self._module_class: Tuple[str, str] = module_class
         self._trainer_type: TrainerType = TrainerType[trainer_type]
+        self._node_number: int = node_number
+        self._device_type: ResourceType = ResourceType[device_type.upper()]
         self._device_per_node: int = device_per_node
-        self._torch_master_port: int = torch_master_port
+        self._torch_master_port: List[int] = torch_master_port
 
     def __repr__(self):
         return (
             f"Trainer(class={self._module_class}, "
             f"type={self._trainer_type}, "
+            f"node_number={self._node_number}, "
+            f"device_type={self._device_type}, "
             f"device_per_node={self._device_per_node}, "
             f"torch_master_port={self._torch_master_port})"
         )
@@ -75,6 +84,14 @@ class TrainerDesc(object):
         return self._trainer_type
 
     @property
+    def node_number(self):
+        return self._node_number
+
+    @property
+    def device_type(self):
+        return self._device_type
+
+    @property
     def device_per_node(self):
         return self._device_per_node
 
@@ -84,7 +101,9 @@ class TrainerDesc(object):
 
 
 class WorkloadDesc(object):
-    def __init__(self, module_class, num, resource):
+    def __init__(
+        self, module_class, num, resource, resource_type: ResourceType
+    ):
         """
         Description of a workload.
 
@@ -96,9 +115,14 @@ class WorkloadDesc(object):
         self._module_class: Tuple[str, str] = module_class
         self._num: int = num
         if resource:
-            self._resource: Resource = Resource.from_dict(resource)
+            adjusted_resource = Resource.from_dict(resource)
         else:
-            self._resource: Resource = Resource.default_gpu()
+            if resource_type.name == ResourceType.CPU.name:
+                adjusted_resource = Resource.default_cpu()
+            else:
+                adjusted_resource = Resource.default_gpu()
+
+        self._resource: Resource = adjusted_resource
 
     def __repr__(self):
         return (
@@ -125,81 +149,109 @@ class WorkloadDesc(object):
 
 
 class WorkloadGroupDesc(object):
-    def __init__(self, group_type, allocation, capacity=0, unit="GPU"):
+    def __init__(self, groups, capacity=0, unit=ResourceType.GPU):
         """
         Description of a workload group(for scheduling).
 
         Args:
-            group_type: The type of group.
-            allocation: The number of the workload instance in group.
-            capacity (optional): The resource capacity for each group.
+            groups: The number of the workload instance in group.
+                Format: [({${role}:${group_size}}, ${group_num},
+                ${resource_unit}), (${role}, ${group_num}, ${resource_unit})].
+                'resource_unit' can only be 1 or 0.5.
+            capacity (int, optional): The resource capacity for each group.
                 Default is 0(no limit).
-            unit (optional): The resource unit if capacity is specified.
-                Default is 'GPU'.
+            unit (ResourceType, optional): The resource unit if capacity is
+                specified. Default is 'GPU'.
         """
-        self._group_type: WorkloadGroupType = group_type
-        self._allocation: Dict[RLRoleType, int] = allocation
+        self._groups: List[
+            Tuple[Dict[RLRoleType, int], int, Union[int, float]]
+        ] = groups
         self._capacity = capacity
-        self._unit: ResourceType = ResourceType[unit.upper()]
+        self._unit: ResourceType = unit
 
     def __repr__(self):
         return (
-            f"WorkloadGroupDesc(type={self._group_type}, "
-            f"allocation={self._allocation}, "
+            f"WorkloadGroupDesc("
+            f"groups={self._groups}, "
             f"capacity={self._capacity}, "
             f"unit={self._unit})"
         )
 
     @classmethod
-    def from_dict(cls, group_type, dict_value):
-        allocation = {}
-        groups = dict_value.get("groups", None)
+    def build(
+        cls,
+        groups,
+        roles: Dict[RLRoleType, int],
+        unit_resource: Dict[RLRoleType, Union[int, float]],
+        capacity,
+        unit,
+    ):
+        result: List[Tuple[Dict[RLRoleType, int], int, Union[int, float]]] = []
+
+        # for role in groups
+        role_in_groups = []
         if groups:
-            for key, value in groups.items():
-                allocation[RLRoleType[key.upper()]] = value
+            for group in groups:
+                each_allocation = {}
+                group_num = 0
+                resource_unit: Union[int, float] = 1
+                for key, value in group.items():
+                    role = RLRoleType[key.upper()]
+                    each_allocation[role] = value
+                    role_in_groups.append(role)
+                    if group_num == 0:
+                        group_num = roles[role] / value
+                    else:
+                        assert group_num == roles[role] / value
 
-        # capacity
-        capacity = dict_value.get("capacity", 0)
+                    if unit_resource[role] < 1:
+                        resource_unit = unit_resource[role]
 
-        # unit
-        unit = dict_value.get("unit", "GPU")
+                assert int(group_num) == group_num and group_num >= 1
 
-        return WorkloadGroupDesc(group_type, allocation, capacity, unit)
+                result.append((each_allocation, int(group_num), resource_unit))
+
+        # role not in groups
+        for role, instance_num in roles.items():
+            if role in role_in_groups:
+                continue
+            group_size = capacity / (unit_resource[role])
+            assert int(group_size) == group_size and group_size >= 1
+
+            group_num = instance_num / group_size
+            assert int(group_num) == group_num and group_num >= 1
+
+            result.append(
+                ({role: int(group_size)}, int(group_num), unit_resource[role])
+            )
+
+        return WorkloadGroupDesc(result, capacity, unit)
 
     @property
-    def group_type(self) -> WorkloadGroupType:
-        return self._group_type
-
-    @property
-    def allocation(self) -> Dict[RLRoleType, int]:
-        return self._allocation
+    def groups(
+        self,
+    ) -> List[Tuple[Dict[RLRoleType, int], int, Union[int, float]]]:
+        return self._groups
 
     @property
     def capacity(self):
-        if self._capacity <= 0:
-            return sum(self._allocation.values())
         return self._capacity
 
     @property
     def unit(self) -> ResourceType:
         return self._unit
 
-    def is_capacity_limit(self):
-        return self._capacity > 0
+    def validate(self) -> bool:
+        role_set = set()
 
-    def get_all_roles(self) -> List[RLRoleType]:
-        return list(self._allocation.keys())
+        for group in self.groups:
+            for role in list(group[0].keys()):
+                if role in role_set:
+                    # duplicate role definition
+                    return False
+                role_set.add(role)
 
-    def has_role(self, role: RLRoleType):
-        return role in self.get_all_roles()
-
-    def get_group_name(self) -> str:
-        suffix = "_"
-        for index, role in enumerate(self.get_all_roles()):
-            suffix += role.name
-            if index < len(self.get_all_roles()) - 1:
-                suffix += "_"
-        return self.group_type.name + suffix
+        return True
 
 
 class RLContext(PickleSerializable):
@@ -209,7 +261,7 @@ class RLContext(PickleSerializable):
         config: DictConfig,
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
-        workload_groups: Dict[WorkloadGroupType, List[WorkloadGroupDesc]],
+        workload_group: WorkloadGroupDesc,
     ):
         """
         Description of reinforcement learning's computing architecture.
@@ -221,7 +273,7 @@ class RLContext(PickleSerializable):
             workloads: A dictionary of workloads, including: actor_workload,
                 rollout_workload, ref_workload, reward_workload,
                 critic_workload.
-            workload_groups: The group definition when scheduling the
+            workload_group: The group definition when scheduling the
                 different role workloads.
         """
 
@@ -229,14 +281,14 @@ class RLContext(PickleSerializable):
         self._config: DictConfig = config
         self._trainer = trainer
         self._workloads = workloads
-        self._workload_groups = workload_groups
+        self._workload_group = workload_group
 
     def __repr__(self):
         return (
             f"RLContext(algorithm_type:{self.algorithm_type}, "
             f"config:{self.config}, "
             f"trainer:{self.trainer}, "
-            f"group:{self.workload_groups}, "
+            f"group:{self.workload_group}, "
             f"actor:{self.actor_workload}, "
             f"rollout:{self.rollout_workload}, "
             f"reference:{self.ref_workload}, "
@@ -257,10 +309,10 @@ class RLContext(PickleSerializable):
         return self._trainer
 
     @property
-    def workload_groups(
+    def workload_group(
         self,
-    ) -> Dict[WorkloadGroupType, List[WorkloadGroupDesc]]:
-        return self._workload_groups
+    ) -> WorkloadGroupDesc:
+        return self._workload_group
 
     @property
     def workloads(self) -> Dict[RLRoleType, WorkloadDesc]:
@@ -311,6 +363,11 @@ class RLContext(PickleSerializable):
             trainer_desc = TrainerDesc(
                 (trainer_conf.get("module"), trainer_conf.get("class")),
                 trainer_conf.get("type"),
+                trainer_conf.get("node_number"),
+                trainer_conf.get(
+                    "device_type",
+                    RLTrainerConstant.DEVICE_TYPE_DEFAULT,
+                ),
                 trainer_conf.get(
                     "device_per_node",
                     RLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
@@ -337,35 +394,38 @@ class RLContext(PickleSerializable):
                         ),
                         workload_desc_dict.get("num"),
                         workload_desc_dict.get("resource"),
+                        trainer_desc.device_type,
                     )
                     workload_dict[role_type] = workload_desc
 
             # workload group
-            workload_group_dict = {}
-            workload_group_conf: DictConfig = conf.get("workload_group", None)
-            if workload_group_conf:
-                for group_type_str, groups in workload_group_conf.items():
-                    try:
-                        group_type = WorkloadGroupType[group_type_str.upper()]
-                        workload_group_dict[group_type] = []
-                        for group_dict in groups:
-                            workload_group_dict[group_type].append(
-                                WorkloadGroupDesc.from_dict(
-                                    group_type, group_dict
-                                )
-                            )
-                    except KeyError:
-                        logger.warning(
-                            f"Invalid workload group type: {group_type_str}."
-                        )
-                        continue
+            workload_group_conf: ListConfig = conf.get("workload_group", None)
+            num_for_roles = {}
+            resource_for_roles = {}
+            for role, workload_desc in workload_dict.items():
+                if trainer_desc.device_type == ResourceType.GPU:
+                    key_resource = workload_desc.instance_resource.gpu
+                else:
+                    key_resource = workload_desc.instance_resource.cpu
+                if key_resource == 0:
+                    key_resource = 1
+                resource_for_roles[role] = key_resource
+                num_for_roles[role] = workload_desc.instance_number
+
+            workload_group = WorkloadGroupDesc.build(
+                workload_group_conf,
+                num_for_roles,
+                resource_for_roles,
+                trainer_desc.device_per_node,
+                trainer_desc.device_type,
+            )
 
             return RLContext(
                 algorithm_type,
                 config,
                 trainer_desc,
                 workload_dict,
-                workload_group_dict,
+                workload_group,
             )
         except Exception as e:
             logger.error(
@@ -402,12 +462,19 @@ class RLContext(PickleSerializable):
                     return False
 
                 # device per node
+                if self.trainer.node_number <= 0:
+                    logger.error("Node number is invalid.")
+                    return False
+
+                # device per node
                 if self.trainer.device_per_node <= 0:
                     logger.error("Device per node is invalid.")
                     return False
 
                 # torch master prot
-                if self.trainer.torch_master_port <= 0:
+                if len(self.trainer.torch_master_port) >= 5 and (
+                    any(port < 1000 for port in self.trainer.torch_master_port)
+                ):
                     logger.error("Torch master port is invalid.")
                     return False
 
@@ -447,43 +514,16 @@ class RLContext(PickleSerializable):
                     return False
 
             # ====== workload group validation ======
-            role_group_definition_num: Dict[RLRoleType, int] = {}
-            for group_type, groups in self.workload_groups.items():
-                for group_desc in groups:
-                    # collect role definition
-                    for role in group_desc.get_all_roles():
-                        if role in role_group_definition_num:
-                            role_group_definition_num[role] = (
-                                role_group_definition_num[role] + 1
-                            )
-                        else:
-                            role_group_definition_num[role] = 1
-
-                    # verify whether the number of instances matches the
-                    # number of groups
-                    factor = 0
-                    for role, num in group_desc.allocation.items():
-                        if factor == 0:
-                            factor = self.workloads[role].instance_number / num
-                        else:
-                            if (
-                                factor
-                                != self.workloads[role].instance_number / num
-                            ):
-                                logger.error(
-                                    "Workload group validation failed: the "
-                                    "number of instances does not match the "
-                                    "number definition in group."
-                                )
-                                return False
-
-            # is same role in different group
-            if any(value > 1 for value in role_group_definition_num.values()):
-                logger.error(
-                    "Workload group validation failed: exist repeated role "
-                    "definition in different group."
-                )
+            if not self.workload_group.validate():
+                logger.error("Workload group validation failed.")
                 return False
+
+            # resource must = 1 if role is not colocated with others
+            # TODO
+
+            # instance resource consistency
+            # TODO
+
         except Exception as e:
             logger.error(f"Unexpected error when validate rl context: {e}")
             return False
@@ -491,4 +531,4 @@ class RLContext(PickleSerializable):
         return True
 
     def has_workload_group(self) -> bool:
-        return bool(self.workload_groups)
+        return bool(self.workload_group)
