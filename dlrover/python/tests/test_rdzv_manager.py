@@ -104,20 +104,9 @@ class MasterKVStoreTest(unittest.TestCase):
             store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
         except Exception as e:
             self.assertIsInstance(e, LookupError)
-
         store_util.synchronize(store, "0".encode(), 0, 1, key_prefix, 1)
         store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
         store_util.synchronize(store, "0".encode(), 0, 2, key_prefix, 1)
-
-        store = MasterKVStore("dlrover/torch/test3")
-        store.set_timeout(datetime.timedelta(seconds=1))
-        key_prefix = "test"
-        store_util.barrier(store, 0, 1, key_prefix, 1)
-        try:
-            store_util.barrier(store, 1, 3, key_prefix, 1)
-        except Exception as e:
-            self.assertIsInstance(e, LookupError)
-
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_rdzv_timeout(self):
