@@ -1084,7 +1084,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
 
                 try:
-                    self._exit_barrier()
+                    if version_less_than_240():
+                        self._dlrover_exit_barrier()
+                    else:
+                        self._exit_barrier()
                     logger.info("Barrier exited.")
 
                     self._wait_async_saver()
@@ -1355,7 +1358,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
-    def _exit_barrier(self):
+    def _dlrover_exit_barrier(self):
         logger.info(
             "Local worker group finished (%s). "
             "Waiting %s seconds for other agents to finish",
