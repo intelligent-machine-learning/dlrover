@@ -16,6 +16,7 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import dlrover.python.util.store_util as store_util
 from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
@@ -66,6 +67,8 @@ class MasterKVStoreTest(unittest.TestCase):
         kv_store.set(key1, "1".encode())
         kv_store.set(key2, "2".encode())
         kv_store.wait([key1, key2])
+        self.assertEqual("1".encode(), kv_store.get(key1))
+        self.assertEqual("2".encode(), kv_store.get(key2))
 
         kv_store.set_timeout(datetime.timedelta(seconds=1))
         try:
@@ -75,6 +78,43 @@ class MasterKVStoreTest(unittest.TestCase):
 
         try:
             kv_store.get(key3)
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
+    def test_kv_store_util(self):
+        store = MasterKVStore("dlrover/torch/test1")
+        store.set_timeout(datetime.timedelta(seconds=1))
+        key_prefix = "test"
+        rank = 0
+        store.set(f"{key_prefix}{rank}", f"{rank}".encode())
+        store_util.wait_all(store, 0, key_prefix, 1)
+        rank = 1
+        store.set(f"{key_prefix}{rank}", f"{rank}".encode())
+        try:
+            store_util.wait_all(store, 0, key_prefix, 2)
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+        store_util.wait_all(store, 1, key_prefix, 2)
+        store_util.wait_all(store, 0, key_prefix, 2)
+
+        store = MasterKVStore("dlrover/torch/test2")
+        store.set_timeout(datetime.timedelta(seconds=1))
+        key_prefix = "test"
+        try:
+            store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
+        store_util.synchronize(store, "0".encode(), 0, 1, key_prefix, 1)
+        store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
+        store_util.synchronize(store, "0".encode(), 0, 2, key_prefix, 1)
+
+        store = MasterKVStore("dlrover/torch/test3")
+        store.set_timeout(datetime.timedelta(seconds=1))
+        key_prefix = "test"
+        store_util.barrier(store, 0, 1, key_prefix, 1)
+        try:
+            store_util.barrier(store, 1, 3, key_prefix, 1)
         except Exception as e:
             self.assertIsInstance(e, LookupError)
 

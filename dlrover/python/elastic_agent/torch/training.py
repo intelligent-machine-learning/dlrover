@@ -71,6 +71,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+import dlrover.python.util.store_util as store_util
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
@@ -128,6 +129,7 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
     pass
 
 __all__ = ["launch_agent"]
+_DLROVER_TERMINAL_STATE_SYNC_ID = "torchelastic/agent/terminal_state"
 
 
 def _set_paral_config():
@@ -1352,6 +1354,35 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 elif resp.newport > 0:
                     start_port = resp.newport
                     port = 0
+
+    def _exit_barrier(self):
+        logger.info(
+            "Local worker group finished (%s). "
+            "Waiting %s seconds for other agents to finish",
+            self._worker_group.state,
+            self._exit_barrier_timeout,
+        )
+        start = time.time()
+        try:
+            store_util.barrier(
+                self._store,
+                self._worker_group.group_rank,
+                self._worker_group.group_world_size,
+                key_prefix=_DLROVER_TERMINAL_STATE_SYNC_ID,
+                barrier_timeout=self._exit_barrier_timeout,
+            )
+            logger.info(
+                "Done waiting for other agents. Elapsed: %s seconds",
+                time.time() - start,
+            )
+        except SignalException as e:
+            logger.warning("Got termination signal: %s", e.sigval)
+            raise
+        except Exception:
+            logger.exception(
+                "Error waiting on exit barrier. Elapsed: %s seconds",
+                time.time() - start,
+            )
 
 
 def launch_agent(
