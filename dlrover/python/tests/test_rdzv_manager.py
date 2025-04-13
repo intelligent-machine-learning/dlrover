@@ -108,6 +108,7 @@ class MasterKVStoreTest(unittest.TestCase):
         store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
         store_util.synchronize(store, "0".encode(), 0, 2, key_prefix, 1)
 
+
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_rdzv_timeout(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
