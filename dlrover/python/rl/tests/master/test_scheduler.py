@@ -53,10 +53,10 @@ class SimpleSchedulerTest(BaseMasterTest):
         for vertex in graph.get_all_vertices():
             self.assertIsNotNone(vertex.actor_handle)
 
-        self.assertIsNotNone(ray.get_actor("ACTOR-0"))
+        self.assertIsNotNone(ray.get_actor("ACTOR_1-0_1-0"))
         scheduler.cleanup()
         with self.assertRaises(ValueError):
-            ray.get_actor("ACTOR-0")
+            ray.get_actor("ACTOR_1-0_1-0")
 
         for vertex in graph.get_all_vertices():
             self.assertIsNone(vertex.actor_handle)
@@ -168,12 +168,12 @@ class GroupOrderedSchedulerTest(unittest.TestCase):
         for vertex in self.graph.get_all_vertices():
             self.assertIsNotNone(vertex.actor_handle)
 
-        self.assertIsNotNone(ray.get_actor("ACTOR-0"))
-        self.assertIsNotNone(ray.get_actor("ROLLOUT-7"))
+        self.assertIsNotNone(ray.get_actor("ACTOR_4-0_4-0"))
+        self.assertIsNotNone(ray.get_actor("ROLLOUT_4-3_4-3"))
 
         self.scheduler.cleanup()
         with self.assertRaises(ValueError):
-            ray.get_actor("ACTOR-0")
+            ray.get_actor("ACTOR_4-0_4-0")
 
         for vertex in self.graph.get_all_vertices():
             self.assertIsNone(vertex.actor_handle)
