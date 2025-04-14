@@ -66,10 +66,10 @@ class CommonUtilTest(unittest.TestCase):
 
         dlrover_pickle.loads(pickled)
 
-        dlrover_pickle.whitelist.clear()
+        _module = dlrover_pickle.whitelist.pop()
         with self.assertRaises(pickle.UnpicklingError):
             dlrover_pickle.loads(pickled)
-
+        dlrover_pickle.whitelist.append(_module)
 
 if __name__ == "__main__":
     unittest.main()
