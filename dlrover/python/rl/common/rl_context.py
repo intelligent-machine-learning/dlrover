@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import traceback
 from typing import Dict, List, Tuple, Union
 
 from omegaconf import DictConfig, ListConfig
@@ -525,7 +526,10 @@ class RLContext(PickleSerializable):
             # TODO
 
         except Exception as e:
-            logger.error(f"Unexpected error when validate rl context: {e}")
+            logger.error(
+                f"Unexpected error when validate rl context: {e}, "
+                f"{traceback.format_exc()}"
+            )
             return False
 
         return True

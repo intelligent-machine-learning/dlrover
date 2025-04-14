@@ -30,8 +30,20 @@ from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
-def get_vertex_name(role: RLRoleType, world_size, rank, local_world_size, local_rank):
-    return role.value + "_" + str(world_size) + "-" + str(rank) + "_" + str(local_world_size) + "-" + str(local_rank)
+def get_vertex_name(
+    role: RLRoleType, world_size, rank, local_world_size, local_rank
+):
+    return (
+        role.value
+        + "_"
+        + str(world_size)
+        + "-"
+        + str(rank)
+        + "_"
+        + str(local_world_size)
+        + "-"
+        + str(local_rank)
+    )
 
 
 class PlacementGroupInfo(PickleSerializable):
@@ -72,7 +84,9 @@ class RLExecutionVertex(PickleSerializable):
     ):
         # static info
         self.__role = role
-        self.__name = get_vertex_name(role, world_size, rank, local_world_size, local_rank)
+        self.__name = get_vertex_name(
+            role, world_size, rank, local_world_size, local_rank
+        )
         self.__module_name = module_name
         self.__class_name = class_name
         self.__resource = resource
@@ -368,8 +382,6 @@ class RLExecutionGraph(PickleSerializable):
         for group_desc_tuple in self.get_workload_group().groups:
             # for each group
             group_dict = group_desc_tuple[0]
-            single_group_size = sum(group_dict.values())
-            local_world_size = single_group_size
 
             # create vertex for each group
             for role, role_group_size in group_dict.items():
@@ -385,8 +397,8 @@ class RLExecutionGraph(PickleSerializable):
                         workload_desc.instance_resource,
                         rank=i,
                         world_size=workload_desc.instance_number,
-                        local_rank=i % local_world_size,
-                        local_world_size=local_world_size,
+                        local_rank=i % role_group_size,
+                        local_world_size=role_group_size,
                     )
 
                     vertices.append(vertex)

@@ -108,6 +108,9 @@ class Scheduler(ABC):
                 RLWorkloadEnv.WORLD_SIZE: str(vertex.world_size),
                 RLWorkloadEnv.LOCAL_RANK: str(vertex.local_rank),
                 RLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
+                # this env is mandatory so we can specify device by local_rank
+                # on ray(otherwise ray will assign a specified device)
+                "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES": "true",
             }
         }
 

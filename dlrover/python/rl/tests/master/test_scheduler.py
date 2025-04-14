@@ -168,12 +168,12 @@ class GroupOrderedSchedulerTest(unittest.TestCase):
         for vertex in self.graph.get_all_vertices():
             self.assertIsNotNone(vertex.actor_handle)
 
-        self.assertIsNotNone(ray.get_actor("ACTOR_4-0_4-0"))
-        self.assertIsNotNone(ray.get_actor("ROLLOUT_4-3_4-3"))
+        self.assertIsNotNone(ray.get_actor("ACTOR_4-0_2-0"))
+        self.assertIsNotNone(ray.get_actor("ROLLOUT_4-3_2-1"))
 
         self.scheduler.cleanup()
         with self.assertRaises(ValueError):
-            ray.get_actor("ACTOR_4-0_4-0")
+            ray.get_actor("ACTOR_4-0_2-0")
 
         for vertex in self.graph.get_all_vertices():
             self.assertIsNone(vertex.actor_handle)
