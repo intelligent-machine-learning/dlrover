@@ -196,6 +196,12 @@ class MasterClientTest(unittest.TestCase):
         self.assertTrue(isinstance(action, EventAction))
 
 
+class MasterClientBuildTest(unittest.TestCase):
+    def test_build_failure(self):
+        master_client = build_master_client("test", 1)
+        self.assertIsNone(master_client)
+
+
 class MasterHttpClientTest(unittest.TestCase):
     def setUp(self) -> None:
         os.environ[
