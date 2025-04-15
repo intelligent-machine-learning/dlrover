@@ -1366,7 +1366,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._exit_barrier_timeout,
         )
         start = time.time()
-        self._store.set_timeout(900)
         try:
             store_util.barrier(
                 self._store,
@@ -1445,6 +1444,7 @@ def launch_agent(
         log_dir=config.log_dir,
         training_log_file=config.training_log_file,
         failure_node_errors=config.failure_node_errors,
+        exit_barrier_timeout=900,
     )
 
     shutdown_rdzv = True
