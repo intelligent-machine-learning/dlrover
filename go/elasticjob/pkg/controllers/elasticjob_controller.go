@@ -31,12 +31,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
-	master "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/controllers/master"
+	apiv1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/pkg/common/api/v1"
 )
 
 const (
@@ -49,6 +49,7 @@ type ElasticJobReconciler struct {
 	Scheme      *runtime.Scheme
 	Recorder    record.EventRecorder
 	Log         logr.Logger
+	CachedJobs  map[string]*elasticv1alpha1.ElasticJob
 	masterImage string
 }
 
@@ -59,6 +60,7 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 		Scheme:      mgr.GetScheme(),
 		Recorder:    mgr.GetEventRecorderFor("elasticjob-controller"),
 		Log:         ctrl.Log.WithName("controllers").WithName("ElasticJob"),
+		CachedJobs:  make(map[string]*elasticv1alpha1.ElasticJob),
 		masterImage: masterImage,
 	}
 	return r
@@ -67,9 +69,6 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/finalizers,verbs=update
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=pods,verbs=create;get;watch;list;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=create;get;watch;list;update;patch;delete
 
@@ -84,110 +83,99 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-
 	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
-	// Fetch the elastic Training job
-	job := &elasticv1alpha1.ElasticJob{}
-	if err := r.Get(context.TODO(), req.NamespacedName, job); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
+	if _, ok := r.CachedJobs[req.Name]; !ok {
+		// Fetch the elastic Training job
+		job, err := r.fetchElasticJob(req.NamespacedName)
+		if job == nil {
+			if errors.IsNotFound(err) {
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{}, err
+		}
+		if job.DeletionTimestamp != nil {
+			rlog.Info("Reconcile cancelled, the job has been deleted")
 			return ctrl.Result{}, nil
 		}
-		// Error reading the object - requeue the request.
-		return ctrl.Result{}, err
+		r.Scheme.Default(job)
+		r.CachedJobs[req.Name] = job
 	}
-	if job.DeletionTimestamp != nil {
-		rlog.Info("Reconcile cancelled, the job has been deleted")
-		return ctrl.Result{}, nil
-	}
-	r.Scheme.Default(job)
+	job := r.CachedJobs[req.Name]
 	return r.reconcileJobs(job)
 }
 
+func (r *ElasticJobReconciler) fetchElasticJob(
+	namespacedName types.NamespacedName) (*elasticv1alpha1.ElasticJob, error) {
+	job := &elasticv1alpha1.ElasticJob{}
+	if err := r.Get(context.Background(), namespacedName, job); err != nil {
+		return nil, err
+	}
+	logger.Infof("Fetch the job %s from the cluster.", job.Name)
+	return job, nil
+}
+
 func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (ctrl.Result, error) {
-	logger.Infof("jobName: %s, phase %s", job.Name, job.Status.Phase)
 
 	defer func() { updateElasticJobStatus(r.Client, job) }()
 
+	now := metav1.Now()
+	job.Status.LastReconcileTime = &now
+
 	switch job.Status.Phase {
-	case "", commonv1.JobCreated:
-		r.initializeJob(job)
+	case "":
+		common.InitializeJobStatuses(&job.Status, JobMasterReplicaType)
+		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
+		common.UpdateJobStatus(&job.Status, apiv1.JobCreated, common.JobCreatedReason, msg)
+		// A job yaml is applied.
 		err := r.createEasticJobMaster(job)
 		if err != nil {
 			logger.Warningf("Fail to create the elastic job master")
 			return ctrl.Result{RequeueAfter: defaultPollInterval}, err
 		}
-		r.syncJobStateByReplicas(job)
-	case commonv1.JobPending:
-		r.syncJobStateByReplicas(job)
-	case commonv1.JobRunning:
-		r.handleFaultPods(job)
-		r.syncJobStateByReplicas(job)
-	case commonv1.JobScaling:
-		scalePlan, err := r.getJobScalePlan(job)
-		if err != nil {
-			logger.Errorf("Job %s: Fail to get scaleplan: %s", job.Name, err)
+		if job.Status.StartTime == nil {
+			now := metav1.Now()
+			job.Status.StartTime = &now
 		}
-		if scalePlan.Status.Phase != commonv1.JobPending {
-			logger.Infof("Job %s: Skip a %s scaleplan %s.", job.Name, scalePlan.Status.Phase, scalePlan.Name)
+	case apiv1.JobCreated:
+		if _, ok := job.Status.ReplicaStatuses[JobMasterReplicaType]; !ok {
+			// The job master is not created now.
 			return ctrl.Result{}, nil
 		}
-		r.updateScalePlanScaling(scalePlan)
-		if scalePlan != nil {
-			err := r.executeScaling(job, scalePlan)
+	case apiv1.JobPending, apiv1.JobRunning:
+		masterStatus := job.Status.ReplicaStatuses[JobMasterReplicaType]
+		aliveMasterCount := masterStatus.Initial + masterStatus.Pending + masterStatus.Active
+		if aliveMasterCount == 0 {
+			err := r.createEasticJobMaster(job)
 			if err != nil {
-				logger.Errorf("Job %s: Fail to execute scaleplan %s: %s", job.Name, scalePlan.Name, err)
+				logger.Warningf("Fail to create the master of elasticjob %s", job.Name)
+				return ctrl.Result{RequeueAfter: defaultPollInterval}, err
 			}
 		}
-		r.syncJobStateByReplicas(job)
-	case commonv1.JobSucceeded:
+	case apiv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
-		r.syncJobStateByReplicas(job)
-		r.stopRunningPods(job)
-	case commonv1.JobFailed:
+		delete(r.CachedJobs, job.Name)
+	case apiv1.JobFailed:
 		logger.Infof("Job %s failed", job.Name)
-		r.syncJobStateByReplicas(job)
-		r.stopRunningPods(job)
+		delete(r.CachedJobs, job.Name)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
-	if job.Status.Conditions == nil {
-		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeJobMaster)
-		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		common.UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
-	}
-	if job.Status.StartTime == nil {
-		now := metav1.Now()
-		job.Status.StartTime = &now
-	}
-}
-
-func (r *ElasticJobReconciler) syncJobStateByReplicas(job *elasticv1alpha1.ElasticJob) {
-	for _, manager := range common.ReplicaManagers {
-		manager.SyncJobState(r.Client, job)
-	}
-}
-
-func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) {
-	for _, manager := range common.ReplicaManagers {
-		manager.StopRunningPods(r.Client, job)
-	}
-}
-
 func (r *ElasticJobReconciler) createEasticJobMaster(job *elasticv1alpha1.ElasticJob) error {
-	master.NewMasterTemplateToJob(job, r.masterImage)
-	masterManager := common.ReplicaManagers[master.ReplicaTypeJobMaster]
-	err := masterManager.ReconcilePods(r.Client, job, nil)
+	SetDefaultMasterTemplateToJob(job, r.masterImage)
+	masterIndex := int32(0)
+	if status, ok := job.Status.ReplicaStatuses[JobMasterReplicaType]; ok {
+		masterIndex = status.Initial + status.Pending + status.Active + status.Failed
+	}
+
+	err := ReconcileJobMasterPod(r.Client, job, masterIndex)
 	if err != nil {
 		r.Recorder.Eventf(
 			job,
 			corev1.EventTypeWarning,
-			string(commonv1.JobFailed),
+			string(apiv1.JobFailed),
 			"master pod created failed: %v",
 			err,
 		)
@@ -196,92 +184,159 @@ func (r *ElasticJobReconciler) createEasticJobMaster(job *elasticv1alpha1.Elasti
 	return err
 }
 
-func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.ScalePlan, error) {
-	scalePlan := &elasticv1alpha1.ScalePlan{}
-	nsn := types.NamespacedName{}
-	nsn.Namespace = job.GetNamespace()
-	nsn.Name = job.Status.ScalePlan
-	err := r.Get(context.Background(), nsn, scalePlan)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			logger.Warnf("ScalePlan %s not found: namespace: %v", nsn.Name, nsn.Namespace)
-			return nil, nil
-		}
-		return nil, err
+// ProcessPodCreateEvent updates job status by a Pod creation event.
+func (r *ElasticJobReconciler) ProcessPodCreateEvent(createEvent *event.CreateEvent) {
+	pod := createEvent.Object.(*corev1.Pod)
+	ownerJob := r.getPodOwnerElasticJob(pod)
+	if ownerJob == nil {
+		return
 	}
-	return scalePlan, err
+	incrementReplicaStatus(pod, ownerJob)
 }
 
-func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error {
-	for replicaType, replicaManager := range common.ReplicaManagers {
-		if replicaType == master.ReplicaTypeJobMaster {
-			continue
+// ProcessPodUpdateEvent updates job status by an Pod updation event
+func (r *ElasticJobReconciler) ProcessPodUpdateEvent(updateEvent *event.UpdateEvent) {
+	oldPod := updateEvent.ObjectOld.(*corev1.Pod)
+	newPod := updateEvent.ObjectNew.(*corev1.Pod)
+	ownerJob := r.getPodOwnerElasticJob(newPod)
+	if ownerJob != nil {
+		incrementReplicaStatus(newPod, ownerJob)
+		decreaseReplicaStatus(oldPod, ownerJob)
+		if newPod.Labels[common.LabelReplicaTypeKey] == string(JobMasterReplicaType) {
+			updateJobStatusPhase(newPod, ownerJob)
 		}
-		err := replicaManager.ReconcilePods(r.Client, job, scalePlan)
-		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				"Failed",
-				"Reconcile replica %s created failed: %v",
-				replicaType,
-				err,
-			)
-			return err
-		}
-	}
-	err := r.updateScalePlanSucceeded(scalePlan)
-	return err
-}
-
-func (r *ElasticJobReconciler) updateScalePlanSucceeded(scalePlan *elasticv1alpha1.ScalePlan) error {
-	now := metav1.Now()
-	scalePlan.Status.Phase = commonv1.JobSucceeded
-	scalePlan.Status.FinishTime = &now
-	err := updateScalePlanStatus(r.Client, scalePlan)
-	return err
-}
-
-func (r *ElasticJobReconciler) updateScalePlanScaling(scalePlan *elasticv1alpha1.ScalePlan) error {
-	scalePlan.Status.Phase = commonv1.JobScaling
-	err := updateScalePlanStatus(r.Client, scalePlan)
-	return err
-}
-
-func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
-	for replicaType, manager := range common.ReplicaManagers {
-		if replicaType == master.ReplicaTypeJobMaster {
-			master.NewMasterTemplateToJob(job, r.masterImage)
-		}
-		manager.HandleFaultPods(r.Client, job)
 	}
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&elasticv1alpha1.ElasticJob{}).
-		Owns(&corev1.Pod{}).
-		Complete(r)
+// ProcessPodDeleteEvent updates job status by a Pod delete event.
+func (r *ElasticJobReconciler) ProcessPodDeleteEvent(deleteEvent *event.DeleteEvent) {
+	pod := deleteEvent.Object.(*corev1.Pod)
+	ownerJob := r.getPodOwnerElasticJob(pod)
+	if ownerJob == nil {
+		return
+	}
+	if replicaTypeStr, ok := pod.Labels[common.LabelReplicaTypeKey]; ok {
+		replicaType := apiv1.ReplicaType(replicaTypeStr)
+		if ownerJob.Status.JobStatus.ReplicaStatuses == nil {
+			ownerJob.Status.JobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)
+		}
+		if _, ok := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]; !ok {
+			ownerJob.Status.JobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
+		}
+		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
+		if pod.Status.Phase == corev1.PodPending {
+			replicaStatus.Pending--
+			replicaStatus.Failed++
+		} else if pod.Status.Phase == corev1.PodRunning {
+			replicaStatus.Active--
+			replicaStatus.Failed++
+		}
+	}
+
+	if pod.Labels[common.LabelReplicaTypeKey] == string(JobMasterReplicaType) {
+		updateJobStatusPhase(pod, ownerJob)
+	}
+}
+
+func incrementReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJob) {
+	if replicaTypeStr, ok := pod.Labels[common.LabelReplicaTypeKey]; ok {
+		replicaType := apiv1.ReplicaType(replicaTypeStr)
+		if ownerJob.Status.JobStatus.ReplicaStatuses == nil {
+			ownerJob.Status.JobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)
+		}
+		if _, ok := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]; !ok {
+			ownerJob.Status.JobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
+		}
+		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
+		if pod.Status.Phase == corev1.PodPending {
+			replicaStatus.Pending++
+		} else if pod.Status.Phase == corev1.PodRunning {
+			replicaStatus.Active++
+		} else if pod.Status.Phase == corev1.PodFailed {
+			replicaStatus.Failed++
+		} else if pod.Status.Phase == corev1.PodSucceeded {
+			replicaStatus.Succeeded++
+		}
+	}
+}
+
+func decreaseReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJob) {
+	if replicaTypeStr, ok := pod.Labels[common.LabelReplicaTypeKey]; ok {
+		replicaType := apiv1.ReplicaType(replicaTypeStr)
+		if ownerJob.Status.JobStatus.ReplicaStatuses == nil {
+			ownerJob.Status.JobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)
+		}
+		if _, ok := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]; !ok {
+			ownerJob.Status.JobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
+		}
+		replicaStatus := ownerJob.Status.JobStatus.ReplicaStatuses[replicaType]
+		if pod.Status.Phase == corev1.PodPending {
+			replicaStatus.Pending--
+		} else if pod.Status.Phase == corev1.PodRunning {
+			replicaStatus.Active--
+		} else if pod.Status.Phase == corev1.PodFailed {
+			replicaStatus.Failed--
+		} else if pod.Status.Phase == corev1.PodSucceeded {
+			replicaStatus.Succeeded--
+		}
+	}
+}
+
+func updateJobStatusPhase(masterPod *corev1.Pod, job *elasticv1alpha1.ElasticJob) {
+	failedCount := job.Status.ReplicaStatuses[JobMasterReplicaType].Failed
+	restartCount := int32(job.Spec.ReplicaSpecs[JobMasterReplicaType].RestartCount)
+	if failedCount > restartCount {
+		msg := fmt.Sprintf("The job master failover count %d is beyond the restart count %d.",
+			failedCount, restartCount)
+		common.UpdateJobStatus(&job.Status, apiv1.JobFailed, common.JobFailedReason, msg)
+		return
+	}
+
+	if masterPod.Status.Phase == corev1.PodPending && len(job.Status.ReplicaStatuses) == 1 {
+		// The job status is pending if there is only the pending master pod.
+		job.Status.Phase = apiv1.JobPending
+	} else if masterPod.Status.Phase == corev1.PodFailed {
+		exitCode := masterPod.Status.ContainerStatuses[0].State.Terminated.ExitCode
+		if exitCode == 1 {
+			// Set the job failed if the master failed with exitcode=1 or the failed count is bigger than
+			// the restart count. The exitcode=1 means that the job master raised an exception.
+			msg := fmt.Sprintf("The job master %s failed with exitcode=1.", masterPod.Name)
+			common.UpdateJobStatus(&job.Status, apiv1.JobFailed, common.JobFailedReason, msg)
+		} else {
+			// The controller will relaunch the master pod, so the job status is still running.
+			msg := "The job master is failover."
+			common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRestartingReason, msg)
+		}
+	} else if masterPod.Status.Phase == corev1.PodSucceeded {
+		msg := "The job master is succeeded."
+		common.UpdateJobStatus(&job.Status, apiv1.JobSucceeded, common.JobSucceededReason, msg)
+	} else {
+		msg := "The job master is running."
+		common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
+	}
+}
+
+func (r *ElasticJobReconciler) getPodOwnerElasticJob(pod *corev1.Pod) *elasticv1alpha1.ElasticJob {
+	ownerRef := pod.OwnerReferences[0]
+	if ownerRef.Kind != "ElasticJob" {
+		return nil
+	}
+	jobName := ownerRef.Name
+	if _, exist := r.CachedJobs[jobName]; !exist {
+		return nil
+	}
+	return r.CachedJobs[jobName]
 }
 
 func updateElasticJobStatus(client client.Client, job *elasticv1alpha1.ElasticJob) error {
-	latestJob := &elasticv1alpha1.ElasticJob{}
-	err := client.Get(context.TODO(), types.NamespacedName{
-		Name:      job.Name,
-		Namespace: job.Namespace,
-	}, latestJob)
-	if err == nil {
-		if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
-			latestJob.Status = job.Status
-			job = latestJob
-		}
-	}
-	err = client.Status().Update(context.TODO(), job)
+	updateJob := job.DeepCopy()
+	err := client.Status().Update(context.TODO(), updateJob)
 	if err != nil {
 		logger.Warningf("Failed to update %s : %s, error: %v",
 			job.GetObjectKind().GroupVersionKind(),
 			job.GetName(), err)
 	}
+	// Update will modify the job status.
+	job.ResourceVersion = updateJob.ResourceVersion
 	return err
 }

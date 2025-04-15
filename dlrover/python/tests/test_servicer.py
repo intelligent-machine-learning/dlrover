@@ -23,6 +23,7 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.comm import BaseRequest, GPUStats
 from dlrover.python.common.constants import (
+    JobStage,
     NodeEventType,
     NodeStatus,
     NodeType,
@@ -31,7 +32,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from dlrover.python.master.diagnosis.diagnosis_manager import DiagnosisManager
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -158,6 +159,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
 
         self.job_manager = create_job_manager(params, perf_monitor)
         self.job_context = get_job_context()
+        self.job_context.update_job_stage(JobStage.JOB_INIT)
 
         self.job_manager._init_nodes()
         self.job_manager._init_job_auto_scaler()
@@ -180,7 +182,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             job_manager=self.job_manager,
             perf_monitor=perf_monitor,
             rdzv_managers=rdzv_managers,
-            diagnosis_manager=DiagnosisManager(),
+            diagnosis_manager=DiagnosisMaster(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
@@ -606,7 +608,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             job_manager=self.job_manager,
             perf_monitor=perf_monitor,
             rdzv_managers={},
-            diagnosis_manager=DiagnosisManager(),
+            diagnosis_manager=DiagnosisMaster(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )

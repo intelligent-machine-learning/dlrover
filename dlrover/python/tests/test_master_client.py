@@ -123,6 +123,11 @@ class MasterClientTest(unittest.TestCase):
         )
         self.assertTrue(res.success, True)
 
+        res = self._master_client.report_node_event(
+            NodeEventType.SUCCEEDED_EXITED, "SUCCEEDED_EXITED"
+        )
+        self.assertTrue(res.success, True)
+
         ts = int(time.time())
         self._master_client.report_global_step(100, ts)
 
@@ -189,6 +194,12 @@ class MasterClientTest(unittest.TestCase):
         self._master_client._get = mock.MagicMock(return_value=response_dto)
         action = self._master_client.report_heart_beat(now)
         self.assertTrue(isinstance(action, EventAction))
+
+
+class MasterClientBuildTest(unittest.TestCase):
+    def test_build_failure(self):
+        master_client = build_master_client("test", 1)
+        self.assertIsNone(master_client)
 
 
 class MasterHttpClientTest(unittest.TestCase):

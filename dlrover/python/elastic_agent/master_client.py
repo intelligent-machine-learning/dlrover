@@ -350,7 +350,7 @@ class MasterClient(Singleton, ABC):
             return result.waiting_num
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
-            return -1
+            return 0
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
@@ -619,5 +619,5 @@ def build_master_client(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:
-            logger.info("The master is not available now.")
+            logger.warning("The master is not available.")
     return master_client
