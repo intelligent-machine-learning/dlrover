@@ -1366,6 +1366,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._exit_barrier_timeout,
         )
         start = time.time()
+        self._store.set_timeout(900)
         try:
             store_util.barrier(
                 self._store,
