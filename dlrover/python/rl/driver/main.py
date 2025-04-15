@@ -39,11 +39,16 @@ def submit(args=None):
     # create master actor
     name = "DLRoverRLMaster-" + parsed_args.job_name
     logger.info(f"Create RLMaster for job executing: {parsed_args.job_name}.")
+
+    runtime_env = {"env_vars": {}}
+    runtime_env["env_vars"].update(rl_context.env)
+
     master_actor = DLRoverRLMaster.options(
         name=name,
         lifetime="detached",
         num_cpus=parsed_args.master_cpu,
         memory=parsed_args.master_mem,
+        runtime_env=runtime_env,
     ).remote(job_config.serialize(), rl_context.serialize())
 
     ray.get(master_actor.ping.remote())

@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import time
 
 import ray
@@ -65,6 +66,18 @@ class TestActor(BaseWorkload):
     @trainer_invocation()
     def init(self):
         logger.info("TestActor init called")
+        if "e1" in os.environ:
+            e1_value = os.environ["e1"]
+            logger.info(f"e1: {e1_value}")
+
+        if "e2" in os.environ:
+            e2_value = os.environ["e2"]
+            logger.info(f"e2: {e2_value}")
+
+        if "e3" in os.environ:
+            e3_value = os.environ["e3"]
+            logger.info(f"e3: {e3_value}")
+
         time.sleep(0.1)
 
     @trainer_invocation(is_async=True, timeout=5)

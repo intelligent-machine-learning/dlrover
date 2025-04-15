@@ -100,7 +100,8 @@ class Scheduler(ABC):
         return start
 
     def __get_runtime_env(self, vertex: RLExecutionVertex):
-        return {
+        # runtime env
+        runtime_env = {
             "env_vars": {
                 RLWorkloadEnv.NAME: vertex.name,
                 RLWorkloadEnv.ROLE: vertex.role.name,
@@ -110,9 +111,17 @@ class Scheduler(ABC):
                 RLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
                 # this env is mandatory so we can specify device by local_rank
                 # on ray(otherwise ray will assign a specified device)
-                "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES": "true",
+                RLWorkloadEnv.RAY_NOSET_CUDA: "true",
             }
         }
+
+        runtime_env["env_vars"].update(self.graph.rl_context.env)
+        runtime_env["env_vars"].update(
+            self.graph.rl_context.workloads[vertex.role].instance_env
+        )
+        logger.debug(f"Create workload actor with runtime-env: {runtime_env}")
+
+        return runtime_env
 
     def __create_actor_by_vertex(
         self, master_handle, vertex: RLExecutionVertex, config

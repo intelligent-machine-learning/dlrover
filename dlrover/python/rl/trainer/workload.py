@@ -13,6 +13,7 @@
 import functools
 import os
 import time
+import types
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
@@ -28,18 +29,48 @@ from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
 
-def trainer_invocation(ret_ref=False, is_async=False, timeout=10):
+def trainer_invocation(
+    blocking=True,
+    is_async=False,
+    timeout=10,
+    target="ALL",
+    auto_shard=True,
+    pre_func=None,
+    post_func=None,
+):
     """
     Decorator for timeout controlled function using.
 
     Args:
-        ret_ref (bool, optional): Whether return the remote object ref
-            directly. Default is False.
+        blocking (bool, optional): Whether block until the remote result
+            return. Default is True.
         is_async (bool, optional): Whether invoke by ray.wait(),
             when 'get_ref=' is False. Default is False.
         timeout (int, optional): The timeout(seconds) set for ray.wait(),
             when 'get_ref=' is False. Default is 10(seconds).
+        target (str, optional): The remote invocation target.
+            Support:
+                ALL: All the remote actors should invoke.
+                RANK0: Only the 1st actor should invoke.
+            Default is 'ALL'.
+        auto_shard (bool, optional): Whether enable sharding invocation when
+            the length of the input parameter matches the number of target
+            workloads. Default is True.
+            i.e.
+            split the n pieces of data, distribute them to n workloads,
+            and have each workload process one part.
+        pre_func (function, optional): The function will be invoked before the
+            remote function.
+        post_func (function, optional): The function will be invoked after the
+            remote function.
     """
+
+    assert timeout > 0
+    assert target in ["ALL", "RANK0"]
+    if pre_func:
+        assert isinstance(pre_func, types.FunctionType)
+    if post_func:
+        assert isinstance(post_func, types.FunctionType)
 
     def decorator(func):
         @functools.wraps(func)
@@ -47,9 +78,13 @@ def trainer_invocation(ret_ref=False, is_async=False, timeout=10):
             return func(*args, **kwargs)
 
         wrapped._trainer_invocation = True
-        wrapped._trainer_invocation_ret_ref = ret_ref
+        wrapped._trainer_invocation_blocking = blocking
         wrapped._trainer_invocation_async = is_async
         wrapped._trainer_invocation_async_timeout = timeout
+        wrapped._trainer_invocation_target = target
+        wrapped._trainer_invocation_auto_shard = auto_shard
+        wrapped._trainer_invocation_pre_func = pre_func
+        wrapped._trainer_invocation_post_func = post_func
         return wrapped
 
     return decorator

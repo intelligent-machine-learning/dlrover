@@ -45,6 +45,8 @@ class RLWorkloadEnv(object):
     MASTER_ADDR = "MASTER_ADDR"
     MASTER_PORT = "MASTER_PORT"
 
+    RAY_NOSET_CUDA = "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
+
 
 class RLTrainerConstant(object):
     DEVICE_TYPE_DEFAULT = "GPU"

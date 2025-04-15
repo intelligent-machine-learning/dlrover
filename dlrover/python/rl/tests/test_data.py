@@ -220,6 +220,7 @@ class TestData(object):
     UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
+        "env": {"e1": "v1", "e2": "v2"},
         "trainer": {
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
@@ -233,6 +234,7 @@ class TestData(object):
                 "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
+                "env": {"e2": "v22", "e3": "v3"},
             },
             "rollout": {
                 "num": 2,

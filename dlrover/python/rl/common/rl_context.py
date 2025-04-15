@@ -103,7 +103,7 @@ class TrainerDesc(object):
 
 class WorkloadDesc(object):
     def __init__(
-        self, module_class, num, resource, resource_type: ResourceType
+        self, module_class, num, resource, resource_type: ResourceType, env
     ):
         """
         Description of a workload.
@@ -112,6 +112,7 @@ class WorkloadDesc(object):
             module_class: The module and class of the workload.
             num: The number of the workload instance.
             resource: The resource of the workload instance.
+            env: The env dict of the workload instance.
         """
         self._module_class: Tuple[str, str] = module_class
         self._num: int = num
@@ -124,12 +125,14 @@ class WorkloadDesc(object):
                 adjusted_resource = Resource.default_gpu()
 
         self._resource: Resource = adjusted_resource
+        self._env: Dict[str, str] = env
 
     def __repr__(self):
         return (
             f"Workload(class={self._module_class}, "
             f"num={self._num}, "
-            f"resource={self._resource})"
+            f"resource={self._resource}, "
+            f"env={self._env})"
         )
 
     @property
@@ -147,6 +150,10 @@ class WorkloadDesc(object):
     @property
     def instance_resource(self):
         return self._resource
+
+    @property
+    def instance_env(self):
+        return self._env
 
 
 class WorkloadGroupDesc(object):
@@ -263,6 +270,7 @@ class RLContext(PickleSerializable):
         trainer: TrainerDesc,
         workloads: Dict[RLRoleType, WorkloadDesc],
         workload_group: WorkloadGroupDesc,
+        env,
     ):
         """
         Description of reinforcement learning's computing architecture.
@@ -276,6 +284,7 @@ class RLContext(PickleSerializable):
                 critic_workload.
             workload_group: The group definition when scheduling the
                 different role workloads.
+            env (dict, optional): The global env.
         """
 
         self._algorithm_type: RLAlgorithmType = algorithm_type
@@ -283,11 +292,13 @@ class RLContext(PickleSerializable):
         self._trainer = trainer
         self._workloads = workloads
         self._workload_group = workload_group
+        self._env = env
 
     def __repr__(self):
         return (
             f"RLContext(algorithm_type:{self.algorithm_type}, "
             f"config:{self.config}, "
+            f"env:{self.env}, "
             f"trainer:{self.trainer}, "
             f"group:{self.workload_group}, "
             f"actor:{self.actor_workload}, "
@@ -304,6 +315,10 @@ class RLContext(PickleSerializable):
     @property
     def config(self):
         return self._config
+
+    @property
+    def env(self):
+        return self._env
 
     @property
     def trainer(self):
@@ -358,6 +373,7 @@ class RLContext(PickleSerializable):
         try:
             algorithm_type = RLAlgorithmType[conf.get("algorithm_type")]
             config = conf.get("config")
+            env = conf.get("env", {})
 
             # trainer
             trainer_conf = conf.get("trainer")
@@ -396,6 +412,7 @@ class RLContext(PickleSerializable):
                         workload_desc_dict.get("num"),
                         workload_desc_dict.get("resource"),
                         trainer_desc.device_type,
+                        workload_desc_dict.get("env", {}),
                     )
                     workload_dict[role_type] = workload_desc
 
@@ -427,6 +444,7 @@ class RLContext(PickleSerializable):
                 trainer_desc,
                 workload_dict,
                 workload_group,
+                env,
             )
         except Exception as e:
             logger.error(
