@@ -298,46 +298,48 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._rendezvous(agent._worker_group)
         agent._dlrover_exit_barrier()
 
-        store_util.barrier = mock.MagicMock(
-            side_effect=[SignalException("test", signal.SIGTERM)],
-        )
-        agent = ElasticTrainingAgent(
-            node_rank=0,
-            config=self.config,
-            entrypoint="python",
-            spec=self.spec,
-            start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
-            exit_barrier_timeout=1,
-        )
-        self.rdzv_handler._client._node_id = 1
-        self.rdzv_handler._client.join_rendezvous(
-            1, 8, self.rdzv_handler._name
-        )
-        agent._client._node_id = 0
-        agent._rendezvous(agent._worker_group)
-        with self.assertRaises(SignalException):
-            agent._dlrover_exit_barrier()
+        with patch(
+            "dlrover.python.util.store_util.barrier",
+            side_effect=[SignalException("test", signal.SIGTERM)]
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="python",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+                exit_barrier_timeout=1,
+            )
+            self.rdzv_handler._client._node_id = 1
+            self.rdzv_handler._client.join_rendezvous(
+                1, 8, self.rdzv_handler._name
+            )
+            agent._client._node_id = 0
+            agent._rendezvous(agent._worker_group)
+            with self.assertRaises(SignalException):
+                agent._dlrover_exit_barrier()
 
-        store_util.barrier = mock.MagicMock(
-            side_effect=[Exception("test")],
-        )
-        agent = ElasticTrainingAgent(
-            node_rank=0,
-            config=self.config,
-            entrypoint="python",
-            spec=self.spec,
-            start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
-            exit_barrier_timeout=1,
-        )
-        self.rdzv_handler._client._node_id = 1
-        self.rdzv_handler._client.join_rendezvous(
-            1, 8, self.rdzv_handler._name
-        )
-        agent._client._node_id = 0
-        agent._rendezvous(agent._worker_group)
-        agent._dlrover_exit_barrier()
+        with patch(
+            "dlrover.python.util.store_util.barrier",
+            side_effect=[Exception("test")]
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="python",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+                exit_barrier_timeout=1,
+            )
+            self.rdzv_handler._client._node_id = 1
+            self.rdzv_handler._client.join_rendezvous(
+                1, 8, self.rdzv_handler._name
+            )
+            agent._client._node_id = 0
+            agent._rendezvous(agent._worker_group)
+            agent._dlrover_exit_barrier()
 
     def test_get_local_ip(self):
         local_ip = _get_local_ip()
