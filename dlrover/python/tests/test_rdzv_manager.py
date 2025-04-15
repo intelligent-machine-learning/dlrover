@@ -85,28 +85,24 @@ class MasterKVStoreTest(unittest.TestCase):
         store = MasterKVStore("dlrover/torch/test1")
         store.set_timeout(datetime.timedelta(seconds=1))
         key_prefix = "test"
-        rank = 0
-        store.set(f"{key_prefix}{rank}", f"{rank}".encode())
-        store_util.wait_all(store, 0, key_prefix, 1)
-        rank = 1
-        store.set(f"{key_prefix}{rank}", f"{rank}".encode())
+
         try:
-            store_util.wait_all(store, 0, key_prefix, 2)
+            store_util.barrier(store, 2, key_prefix, 1)
         except Exception as e:
             self.assertIsInstance(e, LookupError)
-        store_util.wait_all(store, 1, key_prefix, 2)
-        store_util.wait_all(store, 0, key_prefix, 2)
+        store_util.barrier(store, 2, key_prefix, 1)
 
         store = MasterKVStore("dlrover/torch/test2")
         store.set_timeout(datetime.timedelta(seconds=1))
         key_prefix = "test"
+
+        key = store_util._barrier_nonblocking(store, 2, key_prefix)
         try:
-            store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
+            store.get(key)
         except Exception as e:
             self.assertIsInstance(e, LookupError)
-        store_util.synchronize(store, "0".encode(), 0, 1, key_prefix, 1)
-        store_util.synchronize(store, "1".encode(), 1, 2, key_prefix, 1)
-        store_util.synchronize(store, "0".encode(), 0, 2, key_prefix, 1)
+        key = store_util._barrier_nonblocking(store, 2, key_prefix)
+        self.assertEqual("<val_ignored>", store.get(key))
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):

@@ -13,48 +13,43 @@
 
 from datetime import timedelta
 
-from dlrover.python.common.log import default_logger as logger
+_NUM_MEMBERS = "/num_members"
+_LAST_MEMBER_CHECKIN = "/last_member"
 
 
-def wait_all(store, rank: int, prefix: str, size: int):
-    keys = []
-    for idx in range(size):
-        key = f"{prefix}{idx}"
-        keys.append(key)
-    logger.info(f"Rank{rank} starts waiting for all keys")
-    store.wait(keys)
-    logger.info(f"Rank{rank} starts set {prefix}{rank}.FIN")
-    store.set(f"{prefix}{rank}.FIN", b"FIN")
-    if rank == 0:
-        # Rank0 runs the TCPStore daemon, as a result it needs to exit last.
-        # Otherwise, the barrier may timeout if rank0 process finished the work
-        # before other processes finished `wait_all` method
-        logger.info(f"Rank{rank} starts waiting for FIN flag")
-        for node_rank in range(size):
-            store.get(f"{prefix}{node_rank}.FIN")
-            logger.info(f"Rank{rank} gets {prefix}{node_rank}.FIN")
+def _barrier_nonblocking(store, world_size: int, key_prefix: str) -> str:
+    """
+    Does all the non-blocking operations for a barrier and returns
+    the final key that can be waited on.
+    """
+    num_members_key = key_prefix + _NUM_MEMBERS
+    last_member_key = key_prefix + _LAST_MEMBER_CHECKIN
 
+    idx = store.add(num_members_key, 1)
+    if idx == world_size:
+        store.set(last_member_key, "<val_ignored>")
 
-def synchronize(
-    store,
-    data: bytes,
-    rank: int,
-    world_size: int,
-    key_prefix: str,
-    barrier_timeout: float = 300,
-):
-    store.set_timeout(timedelta(seconds=barrier_timeout))
-    store.set(f"{key_prefix}{rank}", data)
-    logger.info(f"Rank{rank} starts synchronization with size {world_size}")
-    wait_all(store, rank, key_prefix, world_size)
+    return last_member_key
 
 
 def barrier(
-    store,
-    rank: int,
-    world_size: int,
-    key_prefix: str,
-    barrier_timeout: float = 300,
+    store, world_size: int, key_prefix: str, barrier_timeout: float = 300
 ) -> None:
-    data = f"{rank}".encode()
-    synchronize(store, data, rank, world_size, key_prefix, barrier_timeout)
+    """
+    A global lock between agents. This will pause all workers until at least
+    ``world_size`` workers respond.
+
+    This uses a fast incrementing index to assign waiting ranks and a success
+    flag set by the last worker.
+
+    Time complexity: O(1) per worker, O(N) globally.
+
+    Note: Since the data is not removed from the store, the barrier can be used
+        once per unique ``key_prefix``.
+    """
+
+    store.set_timeout(timedelta(seconds=barrier_timeout))
+    last_member_key = _barrier_nonblocking(
+        store=store, world_size=world_size, key_prefix=key_prefix
+    )
+    store.get(last_member_key)

@@ -1369,7 +1369,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         try:
             store_util.barrier(
                 self._store,
-                self._worker_group.group_rank,
                 self._worker_group.group_world_size,
                 key_prefix=_DLROVER_TERMINAL_STATE_SYNC_ID,
                 barrier_timeout=self._exit_barrier_timeout,
