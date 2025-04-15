@@ -10,8 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from unittest.mock import MagicMock
 
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.enums import SchedulingStrategyType
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.master.scheduler import (
@@ -22,10 +24,18 @@ from dlrover.python.rl.tests.master.base import BaseMasterTest
 
 
 class JobManagerTest(BaseMasterTest):
+    def setUp(self):
+        super(JobManagerTest, self).setUp()
+        os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
+
+    def tearDown(self):
+        os.environ.clear()
+        super(JobManagerTest, self).tearDown()
+
     def test_basic(self):
         job_manager = JobManager()
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), SimpleScheduler)
+            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)
@@ -45,7 +55,7 @@ class JobManagerTest(BaseMasterTest):
             return_value=SchedulingStrategyType.GROUP
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), SimpleScheduler)
+            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._job_ctx.rl_context.has_workload_group = MagicMock(

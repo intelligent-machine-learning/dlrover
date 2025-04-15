@@ -11,16 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from typing import Dict, List, Tuple
 
-from dlrover.python.common.resource import Resource
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
-from dlrover.python.rl.master.graph import (
-    PlacementGroupAllocation,
-    RLExecutionGraph,
-)
+from dlrover.python.rl.master.graph import RLExecutionGraph
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData
@@ -46,18 +41,14 @@ class ExecutionGraphTest(BaseMasterTest):
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
         self.assertEqual(len(actor_vertices), 1)
         self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
-        self.assertEqual(
-            actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
-        )
+        self.assertEqual(actor_vertices[0].name, "ACTOR_1-0_1-0")
         self.assertEqual(actor_vertices[0].get_cls(), TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
         self.assertEqual(actor_vertices[0].world_size, 1)
 
         rollout_vertex_0 = graph.get_vertex(RLRoleType.ROLLOUT, 0)
         self.assertEqual(rollout_vertex_0.role, RLRoleType.ROLLOUT)
-        self.assertEqual(
-            rollout_vertex_0.name, RLRoleType.ROLLOUT.value + "-" + str(0)
-        )
+        self.assertEqual(rollout_vertex_0.name, "ROLLOUT_1-0_1-0")
         self.assertEqual(rollout_vertex_0.get_cls(), TestRollout)
         self.assertEqual(rollout_vertex_0.rank, 0)
         self.assertEqual(rollout_vertex_0.world_size, 1)
@@ -90,64 +81,23 @@ class ExecutionGraphTest(BaseMasterTest):
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
         self.assertEqual(len(actor_vertices), 2)
         self.assertEqual(actor_vertices[0].role, RLRoleType.ACTOR)
-        self.assertEqual(
-            actor_vertices[0].name, RLRoleType.ACTOR.value + "-" + str(0)
-        )
+        self.assertEqual(actor_vertices[0].name, "ACTOR_2-0_1-0")
         self.assertEqual(actor_vertices[0].get_cls(), TestActor)
         self.assertEqual(actor_vertices[0].rank, 0)
-        self.assertEqual(actor_vertices[0].world_size, 4)
+        self.assertEqual(actor_vertices[0].world_size, 2)
         self.assertEqual(actor_vertices[0].local_rank, 0)
-        self.assertEqual(actor_vertices[0].local_world_size, 2)
+        self.assertEqual(actor_vertices[0].local_world_size, 1)
         self.assertEqual(actor_vertices[1].rank, 1)
-        self.assertEqual(actor_vertices[1].world_size, 4)
-        self.assertEqual(actor_vertices[1].local_rank, 1)
-        self.assertEqual(actor_vertices[1].local_world_size, 2)
+        self.assertEqual(actor_vertices[1].world_size, 2)
+        self.assertEqual(actor_vertices[1].local_rank, 0)
+        self.assertEqual(actor_vertices[1].local_world_size, 1)
 
         rollout_vertices = graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
-        self.assertEqual(rollout_vertices[0].rank, 2)
-        self.assertEqual(rollout_vertices[0].world_size, 4)
+        self.assertEqual(rollout_vertices[0].rank, 0)
+        self.assertEqual(rollout_vertices[0].world_size, 2)
         self.assertEqual(rollout_vertices[0].local_rank, 0)
-        self.assertEqual(rollout_vertices[0].local_world_size, 2)
-        self.assertEqual(rollout_vertices[1].rank, 3)
-        self.assertEqual(rollout_vertices[1].world_size, 4)
-        self.assertEqual(rollout_vertices[1].local_rank, 1)
-        self.assertEqual(rollout_vertices[1].local_world_size, 2)
-
-    def test_pg_allocation(self):
-        resource0 = Resource(gpu=1)
-        resource1 = Resource(gpu=2)
-        bundles: Dict[RLRoleType, List[Tuple[int, Resource]]] = {
-            RLRoleType.ACTOR: [(0, resource0), (1, resource0)],
-            RLRoleType.ROLLOUT: [(2, resource1)],
-        }
-        pg_allocation = PlacementGroupAllocation("test", 0, "PACK", bundles)
-
-        self.assertIsNotNone(pg_allocation)
-        self.assertIsNone(pg_allocation._instance)
-        self.assertEqual(
-            pg_allocation._get_bundle_resource(),
-            [{"GPU": 1}, {"GPU": 1}, {"GPU": 2}],
-        )
-        self.assertEqual(pg_allocation.get_bundle_size(), 3)
-        self.assertEqual(
-            pg_allocation.get_bundle_index_by_vertex_name("a1"), -1
-        )
-        self.assertFalse(pg_allocation.is_full())
-
-        self.assertEqual(
-            pg_allocation.allocate_by_role(RLRoleType.ROLLOUT, "r0"), 2
-        )
-        self.assertEqual(
-            pg_allocation.allocate_by_role(RLRoleType.ROLLOUT, "r1"), -1
-        )
-        self.assertFalse(pg_allocation.is_full())
-        self.assertEqual(
-            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a0"), 0
-        )
-        self.assertEqual(
-            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a1"), 1
-        )
-        self.assertEqual(
-            pg_allocation.allocate_by_role(RLRoleType.ACTOR, "a3"), -1
-        )
-        self.assertTrue(pg_allocation.is_full())
+        self.assertEqual(rollout_vertices[0].local_world_size, 1)
+        self.assertEqual(rollout_vertices[1].rank, 1)
+        self.assertEqual(rollout_vertices[1].world_size, 2)
+        self.assertEqual(rollout_vertices[1].local_rank, 0)
+        self.assertEqual(rollout_vertices[1].local_world_size, 1)

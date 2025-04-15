@@ -49,8 +49,9 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(rl_context.trainer.module_name, "test_trainer")
         self.assertIsNone(rl_context.critic_workload)
         self.assertIsNotNone(rl_context.actor_workload)
-        self.assertEqual(rl_context.actor_workload.instance_number, 2)
-        self.assertEqual(rl_context.actor_workload.instance_resource.gpu, 1)
+        self.assertEqual(rl_context.actor_workload.instance_number, 1)
+        self.assertEqual(rl_context.actor_workload.instance_resource.gpu, 0)
+        self.assertEqual(rl_context.actor_workload.instance_resource.cpu, 1)
         self.assertEqual(rl_context.actor_workload.module_name, "test_actor")
         self.assertEqual(rl_context.actor_workload.class_name, "TestActor")
         self.assertTrue(rl_context.__str__())
@@ -127,6 +128,8 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(desc.groups[1][1], 1)
         self.assertEqual(desc.groups[2][0].get(RLRoleType.CRITIC), 4)
         self.assertEqual(desc.groups[2][1], 1)
+        self.assertFalse(desc.has_device_colocate())
+        self.assertEqual(len(desc.split_groups_in_dict()[1]), 3)
         self.assertTrue(desc.validate())
 
         # some grouped
@@ -213,17 +216,18 @@ class RLContextTest(unittest.TestCase):
             RLRoleType.CRITIC: 3,
             RLRoleType.REFERENCE: 4,
         }
-        desc = WorkloadGroupDesc.build(
-            groups, roles, resource, 4, ResourceType.GPU
-        )
-        self.assertFalse(desc.validate())
+        with self.assertRaises(AssertionError):
+            desc = WorkloadGroupDesc.build(
+                groups, roles, resource, 4, ResourceType.GPU
+            )
+            self.assertFalse(desc.validate())
 
     def test_workload_group_resolve_and_validate(self):
         args = [
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF}",
         ]
         rl_context = RLContext.build_from_args(parse_job_args(args))
 

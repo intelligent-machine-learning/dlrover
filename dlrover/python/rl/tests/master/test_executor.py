@@ -20,6 +20,6 @@ from dlrover.python.rl.tests.master.base import BaseMasterTest
 class ExecutorTest(BaseMasterTest):
     def test_execute(self):
         graph = RLExecutionGraph(self._job_context.rl_context)
-        executor = Executor(graph, None)
+        executor = Executor(graph)
         executor.create_workloads = MagicMock(return_value=None)
         executor.execute()

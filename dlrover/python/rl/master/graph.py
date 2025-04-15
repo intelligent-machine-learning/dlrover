@@ -12,7 +12,7 @@
 # limitations under the License.
 import time
 from itertools import chain
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 import ray
 from ray.actor import ActorHandle
@@ -250,15 +250,11 @@ class PlacementGroupAllocation(PickleSerializable):
         group_name,
         group_index,
         strategy,
-        bundles: Union[
-            List[Dict[str, float]],
-            Dict[RLRoleType, List[Tuple[int, Resource]]],
-        ],
+        bundles: List[Dict[str, float]],
     ):
         self._group_name = group_name
         self._group_index = group_index
         self._strategy = strategy
-        # key: role type, value: [bundle index, bundle resource]
         self._bundles = bundles
 
         # key: vertex name, value: bundle index
@@ -266,71 +262,38 @@ class PlacementGroupAllocation(PickleSerializable):
         self._instance: Optional[PlacementGroup] = None
 
     @property
+    def name(self):
+        return self._group_name
+
+    @property
     def pg_instance(self):
         return self._instance
 
-    def _get_bundle_resource(self) -> List[Dict[str, float]]:
-        if isinstance(self._bundles, Dict):
-            sorted_resources: List[Resource] = [
-                resource
-                for _, resource in sorted(
-                    (
-                        tup
-                        for value_list in self._bundles.values()
-                        for tup in value_list
-                    ),
-                    key=lambda x: x[0],
-                )
-            ]
-            return [
-                resource.to_dict(
-                    cpu_flag="CPU", gpu_flag="GPU", mem_flag="", disk_flag=""
-                )
-                for resource in sorted_resources
-            ]
-        else:
-            return self._bundles
+    def get_bundle_resource(self) -> List[Dict[str, float]]:
+        return self._bundles
 
     def get_bundle_index_by_vertex_name(self, vertex_name) -> int:
         if vertex_name in self._allocation:
             return self._allocation[vertex_name]
         return -1
 
-    # only for dict bundle type
     def get_bundle_size(self) -> int:
-        if isinstance(self._bundles, Dict):
-            return sum(
-                len(resource_list) for resource_list in self._bundles.values()
-            )
-        return -1
+        return len(self._bundles)
 
     def is_bundle_allocated(self, bundle_index):
         return bundle_index in self._allocation.values()
-
-    def allocate_by_role(self, role: RLRoleType, vertex_name: str) -> int:
-        if self.is_full():
-            return -1
-
-        if isinstance(self._bundles, Dict):
-            for resource_tuple in self._bundles[role]:
-                bundle_index = resource_tuple[0]
-                if self.is_bundle_allocated(bundle_index):
-                    continue
-                return self.allocate(vertex_name, bundle_index)
-
-        return -1
 
     def allocate(self, vertex_name: str, bundle_index: int) -> int:
         self._allocation[vertex_name] = bundle_index
         return bundle_index
 
     def is_full(self):
-        return len(self._allocation) == self.get_bundle_size()
+        return len(self._allocation) >= self.get_bundle_size()
 
     def create_placement_group(self, timeout=10):
         if not self._instance:
             pg = placement_group(
-                self._get_bundle_resource(),
+                self.get_bundle_resource(),
                 strategy=self._strategy,
                 lifetime="detached",
             )
@@ -355,7 +318,7 @@ class RLExecutionGraph(PickleSerializable):
         ] = {}
         self.__execution_edges: List[RLExecutionEdge] = []  # not used for now
 
-        self.__placement_groups: Dict[str, List[PlacementGroupAllocation]] = {}
+        self.__placement_groups: Dict[str, PlacementGroupAllocation] = {}
 
         # mapping field(for easy using)
         self._name_vertex_mapping: Dict[str, RLExecutionVertex] = {}
@@ -428,8 +391,8 @@ class RLExecutionGraph(PickleSerializable):
     def get_vertices_by_role_type(
         self, role_type: RLRoleType
     ) -> List[RLExecutionVertex]:
-        if role_type in self.__execution_vertices:
-            return self.__execution_vertices[role_type]
+        if role_type in self.execution_vertices:
+            return self.execution_vertices[role_type]
         return []
 
     def get_vertex(self, role_type: RLRoleType, rank) -> RLExecutionVertex:
@@ -477,23 +440,20 @@ class RLExecutionGraph(PickleSerializable):
         self._name_actor_mapping[vertex.name] = actor_handle
 
     def add_placement_group(self, pg_name, pg):
-        if pg_name in self.__placement_groups:
-            self.__placement_groups[pg_name].append(pg)
-        else:
-            self.__placement_groups[pg_name] = [pg]
+        self.__placement_groups[pg_name] = pg
 
-    def get_placement_group(self):
+    def get_placement_group(self, name=None):
+        if name:
+            return self.__placement_groups[name]
         return self.__placement_groups
 
     def create_placement_group(self):
-        for pg_allocations in self.__placement_groups.values():
-            for pg_allocation in pg_allocations:
-                pg_allocation.create_placement_group()
+        for pg_allocation in self.__placement_groups.values():
+            pg_allocation.create_placement_group()
 
     def remove_placement_group(self):
-        for pg_allocations in self.__placement_groups.values():
-            for pg_allocation in pg_allocations:
-                pg_allocation.remove_placement_group()
+        for pg_allocation in self.__placement_groups.values():
+            pg_allocation.remove_placement_group()
 
     def cleanup_placement_group_allocation(self):
         self.__placement_groups = {}

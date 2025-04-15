@@ -61,7 +61,8 @@ class FailoverCoordinator(object):
         # update restart info
         if failure.is_workload_failure():
             self._job_context.add_restart_info(
-                "WORKLOAD", RestartInfo(restart_time=failure.failure_time)
+                failure.workload_role,
+                RestartInfo(restart_time=failure.failure_time),
             )
         elif failure.is_trainer_failure():
             self._job_context.add_trainer_restart_info(

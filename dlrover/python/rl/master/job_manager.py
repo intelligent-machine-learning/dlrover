@@ -160,7 +160,7 @@ class JobManager(object):
 
         end = time.time() * 1000 - start
         logger.info(
-            f"Finish setup all workloads({len(ready)})," f" cost: {end:.2f}ms"
+            f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
         )
 
     def execute(self):

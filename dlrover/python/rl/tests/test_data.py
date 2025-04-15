@@ -21,18 +21,18 @@ class TestData(object):
             "type": "USER_DEFINED",
             "module": "test_trainer",
             "class": "TestTrainer",
-            "node_number": 1,
+            "node_number": 4,
             "device_type": "CPU",
             "device_per_node": 1,
         },
         "workload": {
-            "actor": {"num": 2, "module": "test_actor", "class": "TestActor"},
+            "actor": {"num": 1, "module": "test_actor", "class": "TestActor"},
             "rollout": {
                 "num": 1,
                 "module": "test_rollout",
                 "class": "TestRollout",
             },
-            "reference": {"num": 2, "module": "test_ref", "class": "TestRef"},
+            "reference": {"num": 1, "module": "test_ref", "class": "TestRef"},
             "reward": {
                 "num": 1,
                 "module": "test_reward",
@@ -101,7 +101,7 @@ class TestData(object):
                 "class": "TestActor",
             },
             "rollout": {
-                "num": 1,
+                "num": 2,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestRollout",
             },
@@ -288,7 +288,7 @@ class TestData(object):
         },
     }
 
-    UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF = {
+    UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
@@ -317,6 +317,42 @@ class TestData(object):
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestRollout",
                 "resource": {"cpu": 0.5},
+            },
+            "reward": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReward",
+            },
+        },
+    }
+
+    UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF = {
+        "algorithm_type": "GRPO",
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveTrainer",
+            "node_number": 4,
+            "device_type": "CPU",
+            "device_per_node": 2,
+        },
+        "workload_group": [{"actor": 1, "rollout": 1}],
+        "workload": {
+            "actor": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestActor",
+            },
+            "reference": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestReference",
+            },
+            "rollout": {
+                "num": 2,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestRollout",
             },
             "reward": {
                 "num": 2,

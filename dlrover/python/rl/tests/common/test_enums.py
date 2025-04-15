@@ -34,7 +34,7 @@ class EnumsTest(unittest.TestCase):
         )
         self.assertEqual(
             TrainerType["OPENRLHF_PPO_DEEPSPEED"].arc_type,
-            ModelParallelismArcType.DEEPSPEED.value,
+            ModelParallelismArcType.DEEPSPEED.name,
         )
 
         with self.assertRaises(KeyError):

@@ -10,19 +10,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import unittest
 
 import ray
 
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.driver.main import main
 from dlrover.python.rl.tests.test_data import TestData
 
 
 class DriverTest(unittest.TestCase):
     def setUp(self):
+        os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
         ray.init()
 
     def tearDown(self):
+        os.environ.clear()
         ray.shutdown()
 
     def test_driver(self):

@@ -32,6 +32,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
 
         desc = FailureDesc(
             workload_name="test",
+            workload_role="ACTOR",
             failure_time=int(time.time()),
             failure_level=2,
             reason="unknown",
@@ -42,7 +43,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
         job_manager.stop_job.assert_called_once()
 
         desc = FailureDesc(
-            workload_name="test",
+            failure_obj="MASTER",
             failure_time=int(time.time()),
             failure_level=0,
             reason="unknown",

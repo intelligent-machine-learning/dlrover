@@ -174,7 +174,7 @@ class WorkloadGroupDesc(object):
         self._groups: List[
             Tuple[Dict[RLRoleType, int], int, Union[int, float]]
         ] = groups
-        self._capacity = capacity
+        self._capacity: int = capacity
         self._unit: ResourceType = unit
 
     def __repr__(self):
@@ -249,15 +249,67 @@ class WorkloadGroupDesc(object):
     def unit(self) -> ResourceType:
         return self._unit
 
+    def split_groups_in_dict(
+        self,
+    ) -> Tuple[
+        Dict[str, Tuple[Dict[RLRoleType, int], int, Union[int, float]]],
+        Dict[str, Tuple[Dict[RLRoleType, int], int, Union[int, float]]],
+    ]:
+        device_colocate_group: Dict[
+            str, Tuple[Dict[RLRoleType, int], int, Union[int, float]]
+        ] = {}
+        other_group: Dict[
+            str, Tuple[Dict[RLRoleType, int], int, Union[int, float]]
+        ] = {}
+        for group in self._groups:
+            if group[2] < 1:
+                name = "COLOCATE_" + str(len(device_colocate_group))
+                device_colocate_group[name] = group
+            else:
+                name = "COMMON_" + str(len(other_group))
+                other_group[name] = group
+
+        return device_colocate_group, other_group
+
+    def has_device_colocate(self):
+        for group in self._groups:
+            if group[2] < 1:
+                return True
+        return False
+
+    def cal_total_resource(self):
+        sum_resource = 0
+        for group in self._groups:
+            group_size = sum(group[0].values())
+            group_num = group[1]
+            group_resource_unit = group[2]
+            sum_resource += group_size * group_resource_unit * group_num
+
+        return sum_resource
+
     def validate(self) -> bool:
         role_set = set()
 
         for group in self.groups:
-            for role in list(group[0].keys()):
+            group_desc = group[0]
+            group_resource_unit = group[2]
+
+            # check duplicate role definition
+            for role in list(group_desc.keys()):
                 if role in role_set:
-                    # duplicate role definition
                     return False
                 role_set.add(role)
+
+            if group_resource_unit < 1:
+                # the role number in group must be equal
+                if not len(set(group_desc.values())) == 1:
+                    return False
+
+            # check instance num <-> resource consistency
+            if self.capacity != int(
+                sum(group_desc.values()) * group_resource_unit
+            ):
+                return False
 
         return True
 
@@ -448,7 +500,8 @@ class RLContext(PickleSerializable):
             )
         except Exception as e:
             logger.error(
-                f"Got invalid arguments while building RLContext: str{e}"
+                f"Got invalid arguments while building RLContext: {e}",
+                f"{traceback.format_exc()}",
             )
             raise InvalidRLConfiguration()
 
@@ -537,11 +590,18 @@ class RLContext(PickleSerializable):
                 logger.error("Workload group validation failed.")
                 return False
 
-            # resource must = 1 if role is not colocated with others
-            # TODO
-
             # instance resource consistency
-            # TODO
+            total_resource = (
+                self.trainer.device_per_node * self.trainer.node_number
+            )
+
+            if total_resource < int(self.workload_group.cal_total_resource()):
+                logger.error(
+                    "Workload group validation failed: instance "
+                    "number and resource demands > the "
+                    "node number and resource."
+                )
+                return False
 
         except Exception as e:
             logger.error(

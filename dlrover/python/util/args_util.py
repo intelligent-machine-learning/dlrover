@@ -18,7 +18,7 @@ def pos_int(arg):
     res = int(arg)
     if res <= 0:
         raise argparse.ArgumentTypeError(
-            "Positive integer argument required, " f"but got {res}"
+            f"Positive integer argument required, but got {res}"
         )
     return res
 

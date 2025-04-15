@@ -10,15 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import unittest
 from unittest.mock import MagicMock
 
 import ray
 
-from dlrover.python.common.enums import ResourceType
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.enums import RLRoleType
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.job_context import get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.graph import RLExecutionGraph
@@ -49,7 +49,7 @@ class SimpleSchedulerTest(BaseMasterTest):
 
         scheduler.schedule()
 
-        self.assertEqual(len(graph.get_all_actor_handles()), 6)
+        self.assertEqual(len(graph.get_all_actor_handles()), 4)
         for vertex in graph.get_all_vertices():
             self.assertIsNotNone(vertex.actor_handle)
 
@@ -65,13 +65,13 @@ class SimpleSchedulerTest(BaseMasterTest):
             self.assertEqual(vertex.create_time, 0)
 
 
-class GroupOrderedSchedulerMockTest(unittest.TestCase):
+class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
     def setUp(self):
         args = [
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
         job_config = JobConfig.build_from_args(parsed_args)
@@ -83,57 +83,51 @@ class GroupOrderedSchedulerMockTest(unittest.TestCase):
         self.graph = RLExecutionGraph(self._job_context.rl_context)
         self.scheduler = GroupOrderedScheduler(self.graph)
 
-    def test_prepare_allocations(self):
+        os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
+        ray.init(num_cpus=8)
+
+    def tearDown(self):
+        os.environ.clear()
+        ray.shutdown()
+
+    def test_schedule(self):
+        self.assertEqual(len(self.scheduler.graph.get_placement_group()), 0)
+        self.scheduler.get_master_actor_handle = MagicMock(return_value=None)
+
+        for vertex in self.graph.get_all_vertices():
+            self.assertIsNone(vertex.actor_handle)
+
+        self.scheduler.schedule()
+
         self.assertEqual(
-            self.graph.rl_context.trainer.device_type.name,
-            ResourceType.CPU.name,
+            len(self.graph.get_all_actor_handles()), 2 + 2 + 2 + 2
         )
+        for vertex in self.graph.get_all_vertices():
+            self.assertIsNotNone(vertex.actor_handle)
 
-        self.scheduler._prepare_placement_group()
+        self.assertIsNotNone(ray.get_actor("ACTOR_2-0_1-0"))
+        self.assertIsNotNone(ray.get_actor("ROLLOUT_2-1_1-0"))
 
-        self.assertEqual(len(self.scheduler.graph.get_placement_group()), 1)
+        self.scheduler.cleanup()
+        with self.assertRaises(ValueError):
+            ray.get_actor("ACTOR_2-0_1-0")
 
-        pg_allocations = self.scheduler.graph.get_placement_group()[
-            GroupOrderedScheduler.SINGLE_PG_NAME
-        ]
-        self.assertIsNotNone(pg_allocations)
-        self.assertEqual(len(pg_allocations), 1)
+        for vertex in self.graph.get_all_vertices():
+            self.assertIsNone(vertex.actor_handle)
+            self.assertIsNone(vertex.pg)
+            self.assertIsNone(vertex.pg_bundle_index)
+            self.assertEqual(vertex.create_time, 0)
 
-        pg_allocation = pg_allocations[0]
-        self.assertEqual(len(pg_allocation._bundles), 4)
-        self.assertEqual(
-            pg_allocation._bundles[0].get("CPU"),
-            self._job_context.rl_context.trainer.device_per_node,
-        )
-        self.assertEqual(pg_allocation._strategy, "STRICT_SPREAD")
-
-        self.scheduler._allocate_placement_group()
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR)
-        self.assertEqual(vertices[0].pg_bundle_index, 0)
-        self.assertEqual(vertices[1].pg_bundle_index, 0)
-        self.assertEqual(vertices[2].pg_bundle_index, 1)
-        self.assertEqual(vertices[3].pg_bundle_index, 1)
-
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
-        self.assertEqual(vertices[0].pg_bundle_index, 0)
-        self.assertEqual(vertices[1].pg_bundle_index, 0)
-        self.assertEqual(vertices[2].pg_bundle_index, 1)
-        self.assertEqual(vertices[3].pg_bundle_index, 1)
-
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
-        self.assertEqual(vertices[0].pg_bundle_index, 2)
-
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD)
-        self.assertEqual(vertices[0].pg_bundle_index, 3)
+        self.assertFalse(bool(self.graph.get_placement_group()))
 
 
-class GroupOrderedSchedulerTest(unittest.TestCase):
+class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
     def setUp(self):
         args = [
             "--job_name",
             "test",
             "--rl_config",
-            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_HOST_GROUPED_RL_CONF}",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
         job_config = JobConfig.build_from_args(parsed_args)
@@ -145,7 +139,7 @@ class GroupOrderedSchedulerTest(unittest.TestCase):
         self.graph = RLExecutionGraph(self._job_context.rl_context)
         self.scheduler = GroupOrderedScheduler(self.graph)
 
-        ray.init(num_cpus=9)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         ray.shutdown()
@@ -153,9 +147,6 @@ class GroupOrderedSchedulerTest(unittest.TestCase):
     def test_schedule(self):
         self.assertEqual(len(self.scheduler.graph.get_placement_group()), 0)
         self.scheduler.get_master_actor_handle = MagicMock(return_value=None)
-        self.scheduler._get_placement_strategy = MagicMock(
-            return_value="SPREAD"
-        )
 
         for vertex in self.graph.get_all_vertices():
             self.assertIsNone(vertex.actor_handle)
