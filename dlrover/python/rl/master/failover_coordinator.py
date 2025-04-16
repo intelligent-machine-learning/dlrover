@@ -13,7 +13,7 @@
 import time
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.rl.common.constant import RLJobExitReason
+from dlrover.python.rl.common.constant import RLJobExitReason, RLMasterConstant
 from dlrover.python.rl.common.enums import FailoverLevel
 from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import RestartInfo, get_job_context
@@ -121,6 +121,14 @@ class FailoverCoordinator(object):
         start = int(time.time())
 
         self._job_manager.stop_job()
+
+        wait_interval = RLMasterConstant.GLOBAL_FAILOVER_INTERVAL
+        for i in range(wait_interval):
+            logger.info(
+                f"Global failover will restart job in {wait_interval - i}s"
+            )
+            time.sleep(1)
+
         self._job_manager.start_job()
         self._save_context()
         logger.info(
@@ -143,4 +151,4 @@ class FailoverCoordinator(object):
 
     def _abort_job(self):
         logger.info("Abort job for failover can no longer proceed.")
-        self._exit_job_callback(RLJobExitReason.ERROR)
+        self._exit_job_callback(reason=RLJobExitReason.FAILOVER_OUT_OF_LIMIT)

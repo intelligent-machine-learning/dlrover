@@ -49,16 +49,11 @@ class TestInteractiveTrainer(BaseTrainer):
 class TestInteractiveErrorTrainer(BaseTrainer):
     def init(self):
         self.RG_ACTOR.init()
-        self.RG_ROLLOUT.init()
-        self.RG_REFERENCE.init()
         time.sleep(0.1)
 
     def fit(self):
         self.RG_ACTOR.compute(1)
-        self.RG_ROLLOUT.generate(2)
         raise RuntimeError("Failover testing...")
-        self.RG_REFERENCE.compute(3)
-        time.sleep(1)
 
 
 @ray.remote

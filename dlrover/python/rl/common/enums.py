@@ -27,6 +27,7 @@ class TrainerType(Enum):
 class RLAlgorithmType(Enum):
     GRPO = "GRPO"
     PPO = "PPO"
+    UD = "USER_DEFINED"
 
 
 class ModelParallelismArcType(Enum):

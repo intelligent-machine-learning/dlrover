@@ -16,6 +16,7 @@ import time
 import ray
 
 from dlrover.python.rl.common.args import parse_job_args
+from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.main import DLRoverRLMaster
@@ -81,7 +82,9 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
             f"{TestData.UD_SIMPLE_TEST_WITH_ERROR_TRAINER_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
+        job_config = JobConfig.build_from_args(parsed_args)
         rl_context = RLContext.build_from_args(parsed_args)
+        self._job_context._job_config = job_config
         self._job_context._rl_context = rl_context
         ray.init()
 
@@ -89,7 +92,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         super().tearDown()
         ray.shutdown()
 
-    @timeout(60)
+    @timeout(30)
     def test_trainer_abnoraml(self):
         master_name = "test"
 

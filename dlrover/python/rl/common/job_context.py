@@ -114,6 +114,7 @@ class JobContext(Singleton, PickleSerializable):
 
     def add_restart_info(self, restart_type: str, restart_info: RestartInfo):
         self._restart_info[restart_type].append(restart_info)
+        logger.info(f"Current job restart info: {self._restart_info}")
 
     def get_job_restart_info(self):
         return self.get_restart_info("JOB")

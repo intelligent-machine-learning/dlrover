@@ -250,7 +250,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_TEST_WITH_ERROR_TRAINER_RL_CONF = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -262,28 +261,9 @@ class TestData(object):
         },
         "workload": {
             "actor": {
-                "num": 2,
+                "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
-                "resource": {"cpu": 0.1},
-            },
-            "rollout": {
-                "num": 1,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestRollout",
-                "resource": {"cpu": 0.1},
-            },
-            "reference": {
-                "num": 2,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestReference",
-                "resource": {"cpu": 0.1},
-            },
-            "reward": {
-                "num": 1,
-                "module": "dlrover.python.rl.tests.test_class",
-                "class": "TestReward",
-                "resource": {"cpu": 0.1},
             },
         },
     }

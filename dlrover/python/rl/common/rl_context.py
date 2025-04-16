@@ -423,7 +423,9 @@ class RLContext(PickleSerializable):
             raise InvalidRLConfiguration()
 
         try:
-            algorithm_type = RLAlgorithmType[conf.get("algorithm_type")]
+            algorithm_type = RLAlgorithmType[
+                conf.get("algorithm_type", RLAlgorithmType.UD.name)
+            ]
             config = conf.get("config")
             env = conf.get("env", {})
 
