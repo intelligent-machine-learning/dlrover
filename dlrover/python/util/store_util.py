@@ -28,9 +28,9 @@ def _barrier_nonblocking(store, world_size: int, key_prefix: str) -> str:
     last_member_key = key_prefix + _LAST_MEMBER_CHECKIN
 
     idx = store.add(num_members_key, 1)
-    logger.info(f"add {num_members_key}: {idx} {world_size}")
+    logger.info(f"Add {num_members_key}: {idx} {world_size}")
     if idx == world_size:
-        logger.info(f"set {last_member_key}: {idx} {world_size}")
+        logger.info(f"Set {last_member_key}: {idx} {world_size}")
         store.set(last_member_key, "<val_ignored>")
 
     return last_member_key
@@ -57,6 +57,4 @@ def barrier(
         store=store, world_size=world_size, key_prefix=key_prefix
     )
     value = store.get(last_member_key)
-    logger.info(f"{last_member_key}: {value}")
-    if value == b"":
-        logger.error(f"{last_member_key} emtpy, barrier exit failed")
+    logger.info(f"Get {last_member_key}: {value}")

@@ -31,6 +31,7 @@ from dlrover.python.common.constants import (
     CustomMetricKeys,
     JobConstant,
     JobStage,
+    KeyValueOps,
     NodeEventType,
     NodeType,
     RendezvousName,
@@ -154,7 +155,12 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.CommWorldRequest):
             message = self._get_comm_world(req_message)
         elif isinstance(req_message, comm.KeyValuePair):
-            message = self._kv_store_get(req_message)
+            if req_message.op == KeyValueOps.ADD:
+                message = self._kv_store_add(req_message)
+            else:
+                message = self._kv_store_get(req_message)
+        elif isinstance(req_message, comm.KeyValuePairs):
+            message = self._kv_store_multi_get(req_message)
         elif isinstance(req_message, comm.PsNodesRequest):
             message = self._query_ps_nodes()
         elif isinstance(req_message, comm.TrainingStatusRequest):
@@ -339,6 +345,24 @@ class MasterServicer(ABC):
     def _kv_store_get(self, request: comm.KeyValuePair):
         value = self._kv_store.get(request.key)
         res = comm.KeyValuePair(request.key, value)
+        return res
+
+    def _kv_store_add(self, request: comm.KeyValuePair):
+        value = self._kv_store.add(request.key, request.value)
+        res = comm.KeyValuePair(request.key, value)
+        return res
+
+    def _kv_store_multi_get(self, request: comm.KeyValuePairs):
+        kvs: Dict[str, bytes] = {}
+        for key in request.kvs.keys():
+            value = self._kv_store.get(key)
+            if value == b"":
+                kvs = {}
+                break
+            else:
+                kvs[key] = value
+
+        res = comm.KeyValuePairs(kvs)
         return res
 
     def _get_paral_config(self):

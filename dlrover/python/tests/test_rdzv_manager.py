@@ -24,6 +24,9 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
 from dlrover.python.master.elastic_training.net_topology import (
     NodeTopologyMeta,
 )
@@ -42,22 +45,59 @@ class MasterKVStoreTest(unittest.TestCase):
     def tearDown(self):
         self._master.stop()
 
+    def test_kv_store_service(self):
+        kv_store = KVStoreService()
+        kv_store.set("key0", 1)
+        self.assertEqual(kv_store.get("key0"), 1)
+        self.assertEqual(kv_store.get("key1"), b"")
+        kv_store.add("key1", 2)
+        self.assertEqual(kv_store.get("key1"), 2)
+        kv_store.add("key1", 3)
+        self.assertEqual(kv_store.get("key1"), 5)
+        kv_store.clear()
+        self.assertEqual(kv_store.get("key0"), b"")
+        self.assertEqual(kv_store.get("key1"), b"")
+
     def test_kv_store_api(self):
         kv_store = MasterKVStore("dlrover/torch/test")
+        kv_store.set_timeout(datetime.timedelta(seconds=0.5))
+
         key = "key0"
+        kv_store.set(key, 1)
+        self.assertEqual(kv_store.get(key), 1)
+
         kv_store.set(key, "1".encode())
         value = kv_store.get(key)
+        self.assertEqual(value.decode(), "1")
+        self.assertEqual(value, b"1")
         self.assertEqual(int(value), 1)
-        kv_store.add(key, 2)
+
+        kv_store.set(key, "abc".encode())
         value = kv_store.get(key)
-        self.assertEqual(int(value), 3)
+        self.assertEqual(value, b"abc")
+        self.assertEqual(value.decode(), "abc")
+
+        key = "key1"
+        kv_store.add(key, 2)
+        self.assertEqual(kv_store.get(key), 2)
+        kv_store.add(key, 3)
+        self.assertEqual(kv_store.get(key), 5)
+
         kv_store.wait([key])
-        try:
+        with self.assertRaises(LookupError):
             kv_store.wait(
                 ["aa"], override_timeout=datetime.timedelta(seconds=0.01)
             )
-        except Exception as e:
-            self.assertIsInstance(e, LookupError)
+
+        self.assertEqual(kv_store.check([key]), True)
+        self.assertEqual(kv_store.check("foo"), False)
+
+        kv_store.add("key2", 100)
+        kv_store.add("key3", 200)
+        self.assertEqual(kv_store.multi_get(["key2", "key3"]), [100, 200])
+
+        with self.assertRaises(LookupError):
+            kv_store.multi_get(["key2", "key3", "key4"])
 
     def test_kv_store_timeout(self):
         kv_store = MasterKVStore("dlrover/torch/test")
@@ -81,7 +121,7 @@ class MasterKVStoreTest(unittest.TestCase):
         except Exception as e:
             self.assertIsInstance(e, LookupError)
 
-    def test_kv_store_util(self):
+    def test_store_util(self):
         store = MasterKVStore("dlrover/torch/test1")
         store.set_timeout(datetime.timedelta(seconds=1))
         key_prefix = "test"

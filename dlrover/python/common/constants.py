@@ -478,3 +478,11 @@ class JobStage(object):
     JOB_RUNNING = "running"
     JOB_STOPPING = "stopping"
     JOB_STOPPED = "stopped"
+
+
+class KeyValueOps(object):
+    ADD = "add"
+    APPEND = "append"
+    GET = "get"
+    SET = "set"
+    DELETE = "delete"

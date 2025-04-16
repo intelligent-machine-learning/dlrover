@@ -26,6 +26,7 @@ from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CommunicationType,
     JobConstant,
+    KeyValueOps,
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
@@ -93,13 +94,28 @@ class MasterClient(Singleton, ABC):
 
     def kv_store_set(self, key, value):
         message = comm.KeyValuePair(key, value)
+        message.op = KeyValueOps.SET
         response = self._report(message)
         return response.success
 
     def kv_store_get(self, key):
         request = comm.KeyValuePair(key)
+        request.op = KeyValueOps.GET
         result: comm.KeyValuePair = self._get(request)
         return result.value
+
+    def kv_store_add(self, key, value):
+        request = comm.KeyValuePair(key, value)
+        request.op = KeyValueOps.ADD
+        result: comm.KeyValuePair = self._get(request)
+        return result.value
+
+    def kv_store_multi_get(self, keys):
+        kvs = {key: b"" for key in keys}
+        request = comm.KeyValuePairs(kvs)
+        request.op = KeyValueOps.GET
+        result: comm.KeyValuePairs = self._get(request)
+        return result.kvs
 
     def get_task(self, dataset_name):
         """Get a task from master.
