@@ -11,13 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
-import pickle
 import socket
 from dataclasses import dataclass, field
 from typing import Dict, List
 
 import grpc
 
+import dlrover.python.util.dlrover_pickle as pickle
 from dlrover.python.common.constants import GRPC
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
