@@ -77,6 +77,9 @@ class MasterKVStoreTest(unittest.TestCase):
         self.assertEqual(value, b"abc")
         self.assertEqual(value.decode(), "abc")
 
+        with self.assertRaises(LookupError):
+            kv_store.get("dummy")
+
         key = "key1"
         kv_store.add(key, 2)
         self.assertEqual(kv_store.get(key), 2)

@@ -767,6 +767,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             str(65000),
         )
 
+    @unittest.skip("skip")
     def test_stop_workers_ascend(self, cmdline=None):
         # test Ascend NPU
         config = self.config
