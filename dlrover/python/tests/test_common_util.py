@@ -11,10 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 import socket
 import unittest
 
 import dlrover.python.util.common_util as cu
+import dlrover.python.util.dlrover_pickle as dlrover_pickle
+from dlrover.python.common.comm import KeyValuePair
 
 
 class CommonUtilTest(unittest.TestCase):
@@ -53,6 +56,20 @@ class CommonUtilTest(unittest.TestCase):
         s.bind(("", 64003))
         port = cu.find_free_port_for_hccl()
         self.assertEqual(port, 64004)
+
+    def test_dlrover_pickle(self):
+        msg = KeyValuePair("foo", "bar".encode())
+        pickled = pickle.dumps(msg)
+
+        with self.assertRaises(TypeError):
+            dlrover_pickle.loads("test message")
+
+        dlrover_pickle.loads(pickled)
+
+        _module = dlrover_pickle.whitelist.pop()
+        with self.assertRaises(pickle.UnpicklingError):
+            dlrover_pickle.loads(pickled)
+        dlrover_pickle.whitelist.append(_module)
 
 
 if __name__ == "__main__":
