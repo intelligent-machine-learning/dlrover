@@ -268,6 +268,25 @@ class TestData(object):
         },
     }
 
+    UD_SIMPLE_TEST_WITH_ERROR_ACTOR_RL_CONF = {
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "USER_DEFINED",
+            "module": "dlrover.python.rl.tests.test_class",
+            "class": "TestInteractiveActorErrorTrainer",
+            "node_number": 1,
+            "device_type": "CPU",
+            "device_per_node": 1,
+        },
+        "workload": {
+            "actor": {
+                "num": 1,
+                "module": "dlrover.python.rl.tests.test_class",
+                "class": "TestErrorActor",
+            },
+        },
+    }
+
     UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF = {
         "algorithm_type": "GRPO",
         "config": {"c1": "v1"},

@@ -20,15 +20,9 @@ class RLMasterConstant(object):
     SETUP_TIMEOUT_PER_ACTOR_SECS = 1
     RUN_WAIT_INTERVAL = 10
     EXIT_WAIT_INTERVAL = 10
-    GLOBAL_FAILOVER_INTERVAL = 10
+    GLOBAL_FAILOVER_INTERVAL = 5
     WORKLOAD_MAX_RESTART = 30
     PG_STRATEGY_ENV = "PG_STRATEGY"
-
-
-class RLJobStatus(object):
-    INIT = "INIT"
-    RUNNING = "RUNNING"
-    FINISHED = "FINISHED"
 
 
 class RLJobExitReason(object):

@@ -131,6 +131,7 @@ class Scheduler(ABC):
                 num_cpus=vertex.resource.cpu,
                 memory=vertex.resource.memory,
                 num_gpus=vertex.resource.gpu,
+                max_restarts=-1,
                 runtime_env=self.__get_runtime_env(vertex),
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=vertex.pg,

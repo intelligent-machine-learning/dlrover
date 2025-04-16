@@ -14,7 +14,7 @@ import time
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.constant import RLJobExitReason, RLMasterConstant
-from dlrover.python.rl.common.enums import FailoverLevel
+from dlrover.python.rl.common.enums import FailoverLevel, JobStage
 from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import RestartInfo, get_job_context
 from dlrover.python.rl.master.job_manager import JobManager
@@ -36,6 +36,12 @@ class FailoverCoordinator(object):
     def context(self):
         return self._job_context
 
+    def _set_failover_stage(self):
+        self._job_context.set_in_failover_stage()
+
+    def _reset_failover_stage(self):
+        self._job_context.set_job_stage(JobStage.RUNNING)
+
     def handle_failure(self, failure: FailureDesc):
         logger.info(f"Handle failure: {failure}")
         level = self._get_failover_level(failure)
@@ -51,6 +57,9 @@ class FailoverCoordinator(object):
             )
             self._abort_job()
             return
+
+        self._set_failover_stage()
+
         if level == FailoverLevel.PARTIAL:
             self._do_partial_failover(failure)
         elif level == FailoverLevel.IGNORE:
@@ -72,6 +81,8 @@ class FailoverCoordinator(object):
             self._job_context.add_master_restart_info(
                 RestartInfo(restart_time=failure.failure_time)
             )
+
+        self._reset_failover_stage()
 
     def _is_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
         if failure.is_workload_failure():
@@ -151,4 +162,8 @@ class FailoverCoordinator(object):
 
     def _abort_job(self):
         logger.info("Abort job for failover can no longer proceed.")
-        self._exit_job_callback(reason=RLJobExitReason.FAILOVER_OUT_OF_LIMIT)
+        self._exit_job_callback(
+            stage=JobStage.ERROR,
+            forced=True,
+            reason=RLJobExitReason.FAILOVER_OUT_OF_LIMIT,
+        )

@@ -41,6 +41,10 @@ class JobManager(object):
         self._executor = Executor(self._execution_graph)
 
     @property
+    def context(self):
+        return self._job_ctx
+
+    @property
     def graph(self):
         return self._execution_graph
 
@@ -173,7 +177,10 @@ class JobManager(object):
         self._scheduler.cleanup()
 
     def is_job_finished(self):
-        return self._executor.is_trainer_finished()
+        return (
+            self._executor.is_trainer_finished()
+            and not self.context.is_in_failover()
+        )
 
     def is_trainer_error(self):
         return self._executor.is_trainer_error()

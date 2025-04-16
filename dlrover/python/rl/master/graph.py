@@ -81,6 +81,8 @@ class RLExecutionVertex(PickleSerializable):
         world_size: int,
         local_rank: int,
         local_world_size: int,
+        sub_stage: int = 0,
+        sub_stage_index: int = 0,
     ):
         # static info
         self.__role = role
@@ -94,6 +96,8 @@ class RLExecutionVertex(PickleSerializable):
         self.__world_size = world_size
         self.__local_rank = local_rank
         self.__local_world_size = local_world_size
+        self.__sub_stage = sub_stage
+        self.__sub_stage_index = sub_stage_index
 
         # runtime info
         self._pg_info = PlacementGroupInfo()
@@ -139,6 +143,14 @@ class RLExecutionVertex(PickleSerializable):
     @property
     def local_world_size(self):
         return self.__local_world_size
+
+    @property
+    def sub_stage(self):
+        return self.__sub_stage
+
+    @property
+    def sub_stage_index(self):
+        return self.__sub_stage_index
 
     @property
     def pg(self):

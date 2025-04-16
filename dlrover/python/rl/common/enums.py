@@ -62,7 +62,9 @@ class SchedulingStrategyType(Enum):
 class JobStage(Enum):
     INIT = "INIT"
     RUNNING = "RUNNING"
+    FAILOVER = "FAILOVER"
     FINISHED = "FINISHED"
+    ERROR = "ERROR"
 
 
 class FailoverLevel(Enum):

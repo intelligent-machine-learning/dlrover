@@ -49,6 +49,7 @@ def submit(args=None):
         num_cpus=parsed_args.master_cpu,
         memory=parsed_args.master_mem,
         runtime_env=runtime_env,
+        max_restarts=-1,
     ).remote(job_config.serialize(), rl_context.serialize())
 
     ray.get(master_actor.ping.remote())

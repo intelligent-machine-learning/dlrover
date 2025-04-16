@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import threading
 import time
 
 import ray
@@ -56,6 +57,16 @@ class TestInteractiveErrorTrainer(BaseTrainer):
         raise RuntimeError("Failover testing...")
 
 
+class TestInteractiveActorErrorTrainer(BaseTrainer):
+    def init(self):
+        self.RG_ACTOR.init()
+        # the actor will restart at this point
+        time.sleep(3)
+
+    def fit(self):
+        time.sleep(10)
+
+
 @ray.remote
 class TestActor(BaseWorkload):
     @trainer_invocation()
@@ -78,6 +89,24 @@ class TestActor(BaseWorkload):
     @trainer_invocation(is_async=True, timeout=5)
     def compute(self, value=0):
         logger.info(f"TestActor compute called: {value}")
+
+
+@ray.remote
+class TestErrorActor(BaseWorkload):
+    @trainer_invocation()
+    def init(self):
+        logger.info("TestErrorActor init called")
+        thread = threading.Thread(target=self.raise_error, daemon=True)
+        thread.start()
+        logger.info("TestErrorActor init done")
+
+    def raise_error(self):
+        time.sleep(0.5)
+        os._exit(1)
+
+    @trainer_invocation(is_async=True, timeout=5)
+    def compute(self, value=0):
+        logger.info(f"TestErrorActor compute called: {value}")
 
 
 @ray.remote

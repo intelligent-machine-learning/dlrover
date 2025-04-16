@@ -12,16 +12,14 @@
 # limitations under the License.
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Tuple
 
 import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.config import JobConfig
-from dlrover.python.rl.common.constant import (
-    RLJobExitReason,
-    RLJobStatus,
-    RLMasterConstant,
-)
+from dlrover.python.rl.common.constant import RLJobExitReason, RLMasterConstant
+from dlrover.python.rl.common.enums import JobStage
 from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import JobContext, get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
@@ -51,7 +49,6 @@ class DLRoverRLMaster(object):
         )
 
         self._create_time = int(time.time())
-        self._status = RLJobStatus.INIT
         self._executor = ThreadPoolExecutor(max_workers=4)
 
         logger.info(
@@ -76,8 +73,14 @@ class DLRoverRLMaster(object):
     def job_manager(self):
         return self._job_manager
 
-    def is_started(self) -> bool:
-        return self._status == RLJobStatus.RUNNING
+    def _update_job_stage(self, stage):
+        self._job_context.set_job_stage(stage)
+
+    def get_job_stage(self):
+        return self.context.get_job_stage()
+
+    def is_job_started(self) -> bool:
+        return self.get_job_stage() != JobStage.INIT
 
     def _get_job_context_state_key(self):
         key = (
@@ -109,9 +112,6 @@ class DLRoverRLMaster(object):
         # TODO: impl
         self._save_context_to_checkpoint()
 
-    def _update_job_status(self, status):
-        self._status = status
-
     def _gen_master_failure(self):
         if self.context.is_trainer_recoverable():
             failure_level = 1
@@ -126,7 +126,7 @@ class DLRoverRLMaster(object):
         )
 
     def run(self):
-        self._update_job_status(RLJobStatus.RUNNING)
+        self._update_job_stage(JobStage.RUNNING)
 
         try:
             # load context from backend
@@ -151,8 +151,20 @@ class DLRoverRLMaster(object):
     def _wait_and_exit(self):
         while True:
             trainer_error = self._job_manager.get_trainer_error()
+
+            if self.get_job_stage() == JobStage.ERROR:
+                logger.info("Exit loop for job in error stage.")
+                break
+
             if self._job_manager.is_job_finished():
-                self.exit_job(reason=RLJobExitReason.FINISHED)
+                if self.get_job_stage() == JobStage.RUNNING:
+                    self.exit_job(reason=RLJobExitReason.FINISHED)
+                else:
+                    logger.info(
+                        "Job manager is finished but job stage not "
+                        f"running: {self.get_job_stage()}, "
+                        "keep waiting..."
+                    )
             elif trainer_error is not None:
                 logger.warning("Trainer got error, do trainer failover.")
                 self._handle_failure(
@@ -163,25 +175,41 @@ class DLRoverRLMaster(object):
                     )
                 )
             time.sleep(RLMasterConstant.RUN_WAIT_INTERVAL)
-            logger.info("RLMaster still running...")
+            logger.debug("RLMaster still running...")
 
-    def exit_job(self, need_cleanup=True, reason=""):
+    def _should_continue_exiting(self) -> Tuple[bool, str]:
+        # check failure handling
+        if self.context.is_in_failover():
+            return False, "job in failover"
+
+        return True, ""
+
+    def exit_job(self, stage=None, need_cleanup=True, forced=False, reason=""):
         logger.info(
             f"RLMaster exit job with cleanup: {need_cleanup}, "
             f"reason: {reason}."
         )
-        self._update_job_status(RLJobStatus.FINISHED)
+        if not stage:
+            self._update_job_stage(JobStage.FINISHED)
+        else:
+            self._update_job_stage(stage)
+
+        interval = RLMasterConstant.EXIT_WAIT_INTERVAL
+        for i in range(interval):
+            logger.info(f"RLMaster will cleanup and exit in {interval - i}s.")
+            should_continue, reason = self._should_continue_exiting()
+            if not forced and not should_continue:
+                logger.info(f"RLMaster exiting is interrupted by: {reason}.")
+                return
+            time.sleep(1)
 
         if need_cleanup:
+            logger.info("RLMaster do cleanup for exiting.")
             if self._job_manager:
                 self._job_manager.stop_job()
 
         self._cleanup_context_checkpoint()
 
-        interval = RLMasterConstant.EXIT_WAIT_INTERVAL
-        for i in range(interval):
-            logger.info(f"RLMaster will exit in {interval - i}s.")
-            time.sleep(1)
         logger.info("RLMaster exit now.")
         ray.actor.exit_actor()
 
@@ -195,7 +223,7 @@ class DLRoverRLMaster(object):
         return True
 
     def get_job_status(self):
-        return self._status
+        return self.get_job_stage().name
 
     def report(self, runtime_info: RuntimeInfo):
         if not runtime_info:

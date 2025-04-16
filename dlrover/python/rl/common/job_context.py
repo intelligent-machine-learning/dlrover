@@ -135,6 +135,19 @@ class JobContext(Singleton, PickleSerializable):
     def get_restart_info(self, restart_type: str):
         return self._restart_info[restart_type]
 
+    def is_in_failover(self) -> bool:
+        return self._job_stage == JobStage.FAILOVER
+
+    def set_in_failover_stage(self):
+        self.set_job_stage(JobStage.FAILOVER)
+
+    def set_job_stage(self, job_stage: JobStage):
+        self._job_stage = job_stage
+        logger.info(f"Job stage updated: {job_stage}")
+
+    def get_job_stage(self) -> JobStage:
+        return self._job_stage
+
 
 def get_job_context() -> JobContext:
     job_context = JobContext.singleton_instance()
