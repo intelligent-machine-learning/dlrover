@@ -18,7 +18,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
 )
-from dlrover.python.common.node import Node
+from dlrover.python.common.node import Node, NodeEvent
 
 
 class NodeTest(unittest.TestCase):
@@ -27,12 +27,17 @@ class NodeTest(unittest.TestCase):
 
     def test_is_unrecoverable_failure(self):
         node = Node("worker", 0)
+        self.assertEqual(node.get_unrecoverable_failure_msg(), "unknown")
+        node.critical = True
+        self.assertTrue("critical" in node.get_unrecoverable_failure_msg())
+
+        node = Node("worker", 0)
         node.max_relaunch_count = 3
         node.relaunch_count = 3
         node.config_resource.gpu_num = 1
         is_unrecoverable = node.is_unrecoverable_failure()
         self.assertEqual(is_unrecoverable, True)
-        self.assertEqual("exhausted" in node.unrecoverable_failure_msg, True)
+        self.assertTrue("exhausted" in node.get_unrecoverable_failure_msg())
 
         node = Node("worker", 0)
         node.max_relaunch_count = 3
@@ -40,7 +45,7 @@ class NodeTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.FATAL_ERROR
         is_unrecoverable = node.is_unrecoverable_failure()
         self.assertEqual(is_unrecoverable, True)
-        self.assertEqual("fatal" in node.unrecoverable_failure_msg, True)
+        self.assertTrue("fatal" in node.get_unrecoverable_failure_msg())
 
         node = Node("worker", 0)
         node.max_relaunch_count = 3
@@ -49,7 +54,7 @@ class NodeTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.OOM
         is_unrecoverable = node.is_unrecoverable_failure()
         self.assertEqual(is_unrecoverable, True)
-        self.assertEqual("oom" in node.unrecoverable_failure_msg, True)
+        self.assertTrue("oom" in node.get_unrecoverable_failure_msg())
 
         node.update_reported_status(NodeEventType.NODE_CHECK_SUCCEEDED)
         self.assertFalse(node.is_succeeded_and_exited())
@@ -74,7 +79,7 @@ class NodeTest(unittest.TestCase):
         self.assertFalse(node.is_failed_and_exited())
         self.assertTrue(node.is_exited_reported())
 
-        node.reported_status = NodeEventType.FAILED_EXITED
+        node.reported_status = (NodeEventType.FAILED_EXITED, 0)
         self.assertFalse(node.is_succeeded_and_exited())
         self.assertTrue(node.is_failed_and_exited())
         self.assertTrue(node.is_exited_reported())
@@ -85,4 +90,14 @@ class NodeTest(unittest.TestCase):
 
         node = node.get_relaunch_node_info(123)
         self.assertEqual(node.id, 123)
-        self.assertFalse(node.reported_status)
+        self.assertFalse(node.reported_status[0])
+
+    def test_node_event(self):
+        node = Node("worker", 0)
+        event = NodeEvent(NodeEventType.NODE_CHECK_FAILED, node)
+        self.assertTrue(event.is_node_check_event())
+        self.assertFalse(event.is_pre_check_event())
+
+        event = NodeEvent(NodeEventType.WAIT_PRE_CHECK, node)
+        self.assertFalse(event.is_node_check_event())
+        self.assertTrue(event.is_pre_check_event())

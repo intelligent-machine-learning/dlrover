@@ -101,8 +101,6 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
     MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
     WAIT_PRE_CHECK = "WAIT_PRE_CHECK"
-    PRE_CHECK_PASSED = "PRE_CHECK_PASSED"
-    PRE_CHECK_FAILED = "PRE_CHECK_FAILED"
 
 
 class PendingTimeoutStrategyType(object):
@@ -473,3 +471,10 @@ class PreCheckStatus(object):
     FAIL = "FAIL"
     PASS = "PASS"
     DISABLED = "DISABLED"
+
+
+class JobStage(object):
+    JOB_INIT = "init"
+    JOB_RUNNING = "running"
+    JOB_STOPPING = "stopping"
+    JOB_STOPPED = "stopped"

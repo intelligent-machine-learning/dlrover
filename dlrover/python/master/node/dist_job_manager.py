@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     EventReportConstants,
     JobExitReason,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
@@ -35,7 +36,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.node import Node, NodeEvent, NodeGroupResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -51,6 +52,7 @@ from dlrover.python.master.node.job_auto_scaler import (
     JobAutoScaler,
     new_job_auto_scaler,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
@@ -74,7 +76,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
+from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.master.watcher.factory import (
     new_node_watcher,
     new_scale_plan_watcher,
@@ -86,6 +88,7 @@ from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 _master_evt = DLRoverMasterEvent().singleton_instance()
+job_ctx = get_job_context()
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -873,7 +876,14 @@ class DistributedJobManager(JobManager):
         )
         msg = ""
         if should_relaunch:
-            if (
+            if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+                should_relaunch = False
+                msg = "Disable relaunch when job is stopping"
+                logger.warning(
+                    f"Disable {node.name}/{node.id} relaunch "
+                    f"when job is stopping."
+                )
+            elif (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
                 and not _dlrover_context.relaunch_always
             ):
@@ -885,20 +895,22 @@ class DistributedJobManager(JobManager):
                     should_relaunch = False
                     logger.warning(
                         "The all-reduce type job will not try to recover node "
-                        "error with oom issue."
+                        f"error with oom issue, node: {node.name}."
                     )
                 elif mem >= NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         f"The memory of node {mem} is beyond the limit "
-                        f"{NodeResourceLimit.MAX_MEMORY} MB."
+                        f"{NodeResourceLimit.MAX_MEMORY} MB, "
+                        f"node: {node.name}."
                     )
                     msg = f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
                     logger.warning(
                         f"The relaunched count {node.relaunch_count} is "
-                        f"beyond the maximum {node.max_relaunch_count}."
+                        f"beyond the maximum {node.max_relaunch_count} "
+                        f"for node: {node.name}."
                     )
                     msg = (
                         f"Relaunched {node.relaunch_count} "
@@ -912,7 +924,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(
                         "The relaunch count "
                         f"{node.relaunch_count}/{node.max_relaunch_count} "
-                        "has been exhausted."
+                        f"has been exhausted for node: {node.name}."
                     )
                     should_relaunch = False
                     msg = (
@@ -1290,8 +1302,10 @@ class DistributedJobManager(JobManager):
                     f"status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
-
                 self._job_context.update_job_node(target_node)
+
+            if event_type is NodeEventType.SUCCEEDED_EXITED:
+                self._job_context.update_job_stage(JobStage.JOB_STOPPING)
 
     def get_node_required_info(self):
         return self._nodes_required

@@ -12,8 +12,13 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import MagicMock
 
-from dlrover.python.common.event.reporter import get_event_reporter
+from dlrover.python.common.event.reporter import (
+    EventReporter,
+    get_event_reporter,
+)
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
     NodeTopologyMeta,
@@ -24,6 +29,8 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 
+context = Context.singleton_instance()
+
 
 class EventReporterTest(unittest.TestCase):
     def setUp(self):
@@ -33,9 +40,25 @@ class EventReporterTest(unittest.TestCase):
         self.job_evt = self.master_evt.train_job(
             job_name=self.args.job_name, args=vars(self.args)
         )
+        self.origin_report = self.reporter.report
 
-    def test_inner_report(self):
+    def tearDown(self):
+        context.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "EventReporter",
+        )
+        self.reporter.report = self.origin_report
+
+    def test_basic(self):
+        self.reporter.initialize()
+        self.assertTrue(self.reporter.is_initialized())
         self.reporter.report("1", "2", "3", "", {})
+
+        context.reporter_cls = (
+            "dlrover.python.common.event.reporter",
+            "WrongReporter",
+        )
+        self.assertTrue(isinstance(get_event_reporter(), EventReporter))
 
     def test_master_report(self):
         self.reporter.report_master_start(self.args)
@@ -66,6 +89,7 @@ class EventReporterTest(unittest.TestCase):
         rdzv_params = RendezvousParameters(0, 0)
         self.reporter.report_rdzv_node_join(
             node_meta,
+            rdzv_evt,
             "test",
             0,
             rdzv_params,
@@ -78,3 +102,7 @@ class EventReporterTest(unittest.TestCase):
         self.reporter.report_rdzv_complete(
             rdzv_evt, "test", 0, rdzv_params, node_ids=[], elapsed_time=1
         )
+
+    def test_exception_ignored(self):
+        self.reporter.report = MagicMock(side_effect=Exception("test"))
+        self.reporter.report_master_start(self.args)

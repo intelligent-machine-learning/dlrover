@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,23 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from abc import ABCMeta, abstractmethod
-from typing import List
-
-from dlrover.python.common.node import Node
-
-
-class NodeWatcher(metaclass=ABCMeta):
-    def __init__(self, job_uuid):
-        self._job_uuid = job_uuid
-
-    @abstractmethod
-    def watch(self):
-        """Wath events of nodes and returns a generator"""
-        pass
-
-    @abstractmethod
-    def list(self) -> List[Node]:
-        """List all nodes of the job"""
-        pass

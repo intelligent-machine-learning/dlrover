@@ -87,3 +87,29 @@ def retry(retry_times=10, retry_interval=5, raise_exception=True):
         return wrapped
 
     return decorator
+
+
+def ignore_exceptions():
+    """Decorator for function with exception ignoring using."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                class_name = func.__class__.__name__
+                func_name = func.__name__
+                tb = traceback.format_exception(
+                    type(e), e, e.__traceback__, limit=3
+                )
+                logger.warning(
+                    f"Invocation with {class_name}.{func_name} "
+                    f"with failure {e}, ",
+                    f"with traceback {tb}",
+                )
+            return None
+
+        return wrapped
+
+    return decorator

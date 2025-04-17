@@ -54,9 +54,8 @@ class NodeEventCallback(metaclass=abc.ABCMeta):
                 func(self, *args, **kwargs)
             except Exception as e:
                 logger.warning(
-                    "Fail to call {}.{} ".format(
-                        self.__class__.__name__, func.__name__
-                    ),
+                    f"Fail to call {self.__class__.__name__}"
+                    f".{func.__name__}",
                     e,
                 )
 
@@ -208,10 +207,8 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "Critical node (type={}, id={}) is failed "
-                    "and {}.".format(
-                        node.type, node.id, node.unrecoverable_failure_msg
-                    )
+                    f"Critical node(type={node.type}, id={node.id}) is failed "
+                    f"and reason is {node.get_unrecoverable_failure_msg()}."
                 ),
             )
 
@@ -283,7 +280,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 node.type,
                 node.id,
                 error_data=NodeExitReason.HARDWARE_ERROR,
-                level=TrainingExceptionLevel.NODE_ERROR,
+                level=TrainingExceptionLevel.ERROR,
             )
         self._remove_node_from_rdzv(node)
 
@@ -322,10 +319,8 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "Critical node (type={}, id={}) is failed "
-                    "and {}".format(
-                        node.type, node.id, node.unrecoverable_failure_msg
-                    )
+                    f"Critical node(type={node.type}, id={node.id}) is failed "
+                    f"and reason is {node.get_unrecoverable_failure_msg()}"
                 ),
             )
         elif self._job_context.get_failed_node_cnt() >= max_failure_num:

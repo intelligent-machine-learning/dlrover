@@ -29,7 +29,7 @@ the diagnosis and handling of corresponding exception scenarios.
 ## Design
 
 The proactive diagnostic framework is mainly composed of the following roles:
-- [Diagnosis Manger](#Diagnosis-Manger)
+- [Diagnosis Master](#Diagnosis-Master)
 - [Diagnosis Agent](#Diagnosis-Agent)
 
 These components are distributed across the Master and Worker Nodes, 
@@ -39,8 +39,8 @@ working together to achieve the main functionality of proactive diagnostics.
 
 Below is a more detailed introduction to the relevant concepts.
 
-### Diagnosis Manger
-The diagnosis-manager is implemented and runs in the Master node, with the main 
+### Diagnosis Master
+The diagnosis-master is implemented and runs in the Master node, with the main 
 responsibilities of driving pre-execution checks and runtime diagnostic logic(
 across all the workers).
 
@@ -51,7 +51,7 @@ determines the necessary actions to be executed. The specific diagnostic process
 is shown in the following diagram, which is implemented through a simple inference chain. 
 The final actions can be either an event output or a specific fault-tolerance operation.
 
-<img src="../figures/diagnosis_manager_arc.png" alt="Diagnosis Manager">
+<img src="../figures/diagnosis_manager_arc.jpg" alt="Diagnosis Manager">
 
 Then it will interact with other core roles of the master, such as the 
 job-manager, to assist in the lifecycle management of training.

@@ -28,6 +28,7 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.elastic_run import (
     _check_dlrover_master_available,
@@ -199,13 +200,17 @@ class ElasticRunTest(unittest.TestCase):
         self.assertFalse(config.network_check)
 
     def test_wait_pre_check(self):
+        test_config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
         client = MasterClient.singleton_instance()
 
         # pre-check success
         client.get_pre_check_result = MagicMock(
             return_value=PreCheckStatus.PASS
         )
-        wait_pre_check()
+        client.report_pre_check_status = MagicMock(return_value=True)
+        wait_pre_check(test_config)
 
         # pre-check fail
         client.get_pre_check_result = MagicMock(
@@ -224,5 +229,16 @@ class ElasticRunTest(unittest.TestCase):
 
         start = time.time()
         threading.Thread(target=set_pre_check_success).start()
-        wait_pre_check()
+        wait_pre_check(test_config)
         self.assertTrue(time.time() - start > 0.5)
+
+    @patch(
+        "dlrover.trainer.torch.elastic_run.MasterClient.singleton_instance",
+        return_value=None,
+    )
+    def test_wait_pre_check_with_none_client(self, mock_client):
+        with self.assertRaises(RuntimeError):
+            wait_pre_check(
+                ElasticLaunchConfig(min_nodes=1, max_nodes=1, nproc_per_node=1)
+            )
+            mock_client.assert_called_once()

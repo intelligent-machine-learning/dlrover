@@ -26,12 +26,25 @@ from dlrover.python.master.elastic_training.net_topology import (
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.training_event.emitter import DurationSpan
+from dlrover.python.util.function_util import ignore_exceptions
 
 _master_evt = DLRoverMasterEvent().singleton_instance()
 
 
 class EventReporter(Singleton):
+    def initialize(self, *args, **kwargs):
+        """Subclassed can override this method to initialize the reporter."""
+        pass
+
+    def is_initialized(self):
+        """
+        Subclassed can override this method to knnow whether
+        the reporter is initialized.
+        """
+        return True
+
     @classmethod
+    @ignore_exceptions()
     def report(
         cls,
         event_type: str,
@@ -59,6 +72,7 @@ class EventReporter(Singleton):
 
     # ================ Master Start ================
 
+    @ignore_exceptions()
     def report_master_start(self, args: JobArgs):
         _master_evt.start(args=vars(args))
 
@@ -70,6 +84,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_master_end(self, args: JobArgs, exit_code: int):
         _master_evt.exit(exit_code=exit_code)
 
@@ -81,6 +96,7 @@ class EventReporter(Singleton):
             {"exit reason": f"{exit_code}"},
         )
 
+    @ignore_exceptions()
     def report_job_start(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.begin()
 
@@ -92,6 +108,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_job_success(self, job_evt: DurationSpan, args: JobArgs):
         job_evt.success()
 
@@ -103,6 +120,7 @@ class EventReporter(Singleton):
             {},
         )
 
+    @ignore_exceptions()
     def report_job_fail(
         self, job_evt: DurationSpan, args: JobArgs, error: str
     ):
@@ -120,6 +138,7 @@ class EventReporter(Singleton):
 
     # ================ JobManager Start ================
 
+    @ignore_exceptions()
     def report_node_status_change(
         self, node: Node, old_status: str, new_status: str
     ):
@@ -149,10 +168,14 @@ class EventReporter(Singleton):
             },
         )
 
-    def report_process_relaunch(self, node: Node):
+    @ignore_exceptions()
+    def report_process_relaunch(self, node: Node, err_msg=None):
         """Report process relaunching."""
 
-        # TODO: evt for process relaunching
+        _master_evt.process_restart(
+            pod_name=f"{node.name}",
+            errmsg=f"{err_msg}" if err_msg else "",
+        )
 
         self.report(
             event_type=EventReportConstants.TYPE_WARN,
@@ -164,12 +187,16 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_node_relaunch(self, node: Node, new_node: Node):
         """Report node relaunching."""
 
         _master_evt.worker_relaunch(
-            pod_name=node.name,
-            relaunch_pod_name=new_node.name,
+            pod_name=f"{node.name}",
+            relaunch_pod_name=f"{new_node.name}",
+            rank=f"{node.rank_index}",
+            relaunch_count=f"{node.relaunch_count}",
+            max_relaunch_count=f"{node.max_relaunch_count}",
         )
 
         self.report(
@@ -183,6 +210,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_node_no_heartbeat(self, node: Node, timeout: int):
         """Report node if heartbeat timeout."""
 
@@ -203,9 +231,11 @@ class EventReporter(Singleton):
 
     # ================ RDZV Start ================
 
+    @ignore_exceptions()
     def report_rdzv_node_join(
         self,
         node_meta: NodeTopologyMeta,
+        rdzv_evt: DurationSpan,
         rdzv_type,
         rdzv_round,
         rdzv_params,
@@ -215,13 +245,14 @@ class EventReporter(Singleton):
 
         waiting_nodes = kwargs.get("waiting_nodes", {})
         node_elapsed_time = kwargs.get("node_elapsed_time", -1)
+        rdzv_evt.begin()
         _master_evt.node_join(
             node_id=str(node_meta.node_id),
             node_rank=str(node_meta.node_rank),
             node_ip=str(node_meta.node_ip),
             rdzv_round=str(rdzv_round),
             rdzv_type=rdzv_type,
-            waiting_nodes=waiting_nodes.keys(),
+            waiting_nodes=f"{[waiting_nodes.keys()]}",
         )
         self.report(
             EventReportConstants.TYPE_INFO,
@@ -237,6 +268,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_rdzv_complete(
         self,
         rdzv_evt: DurationSpan,
@@ -269,6 +301,7 @@ class EventReporter(Singleton):
             },
         )
 
+    @ignore_exceptions()
     def report_rdzv_timeout(
         self,
         rdzv_evt: DurationSpan,
@@ -304,6 +337,34 @@ class EventReporter(Singleton):
 
     # ================ RDZV End ================
 
+    def report_network_check_completed(
+        self,
+        evt: DurationSpan,
+        event_type,
+        instance,
+        action,
+        node_status,
+        node_check_times,
+        node_groups,
+    ):
+        """Report network check completed"""
+        evt.success(
+            node_status=node_status,
+            node_check_times=node_check_times,
+            node_groups=node_groups,
+        )
+
+        self.report(
+            event_type=event_type,
+            instance=instance,
+            action=action,
+            msg=node_check_times,
+            labels={
+                "status": node_status,
+                "elapsed_time": node_check_times,
+            },
+        )
+
 
 context = Context.singleton_instance()
 
@@ -314,10 +375,16 @@ def get_event_reporter(*args, **kwargs) -> EventReporter:
     module_name = reporter_cls[0]
     class_name = reporter_cls[1]
     module = importlib.import_module(module_name)
+
     if hasattr(module, class_name):
         cls = getattr(module, class_name)
         logger.debug(f"Got event reporter: {cls}")
-        return cls.singleton_instance(*args, **kwargs)
+        instance = cls.singleton_instance()
     else:
         logger.debug("Got event reporter: EventReporter")
-        return EventReporter.singleton_instance(*args, **kwargs)
+        instance = EventReporter.singleton_instance()
+
+    if not instance.is_initialized():
+        instance.initialize(*args, **kwargs)
+
+    return instance

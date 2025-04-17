@@ -220,15 +220,6 @@ class MasterClient(Singleton, ABC):
             action = action_cls.from_json(response.action.action_content)
         return action
 
-    def get_cluster_version(self, version_type, task_type, task_id):
-        request = comm.ClusterVersionRequest(
-            task_type=task_type,
-            task_id=task_id,
-            version_type=version_type,
-        )
-        result: comm.ClusterVersion = self._get(request)
-        return result.version
-
     def update_node_addr(self, task_type, task_id, node_addr):
         message = comm.NodeAddress(type=task_type, id=task_id, addr=node_addr)
         res = self._report(message)
@@ -238,7 +229,7 @@ class MasterClient(Singleton, ABC):
         self,
         event_type,
         event_msg="",
-        event_time=0,
+        event_time=int(time.time()),
         event_elapsed_time=0,
         node_rank=-1,
     ):
@@ -282,10 +273,13 @@ class MasterClient(Singleton, ABC):
             node_rank=node_rank,
         )
 
-    def report_pre_check_status(self, status, config_json=""):
+    def report_pre_check_status(self, status, config_json="{}"):
         return self.report_node_event(
             event_type=status,
             event_msg=config_json,
+            event_time=int(time.time()),
+            event_elapsed_time=0,
+            node_rank=env_utils.get_node_rank(),
         )
 
     def report_failed_exited(self):
@@ -293,6 +287,15 @@ class MasterClient(Singleton, ABC):
 
     def report_succeeded_exited(self):
         return self.report_node_event(NodeEventType.SUCCEEDED_EXITED)
+
+    def get_cluster_version(self, version_type, task_type, task_id):
+        request = comm.ClusterVersionRequest(
+            task_type=task_type,
+            task_id=task_id,
+            version_type=version_type,
+        )
+        result: comm.ClusterVersion = self._get(request)
+        return result.version
 
     def update_cluster_version(
         self, version_type, version, task_type, task_id
@@ -347,7 +350,7 @@ class MasterClient(Singleton, ABC):
             return result.waiting_num
         except Exception:
             logger.warning("Fail to query the number of waiting nodes.")
-            return -1
+            return 0
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
@@ -616,5 +619,5 @@ def build_master_client(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:
-            logger.info("The master is not available now.")
+            logger.warning("The master is not available.")
     return master_client

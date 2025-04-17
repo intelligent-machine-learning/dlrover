@@ -88,22 +88,19 @@ def get_env_key(key):
 
 
 def is_dlrover_event_enabled():
-    key = get_env_key("enable")
-    if key in os.environ and parse_bool(os.environ[key]) is True:
-        return True
-    else:
-        return False
+    config = Config.singleton_instance()
+    return True if config.enable is True else False
 
 
 @dataclass
 class Config(Singleton):
 
     event_exporter: str = DEFAULT_EVENT_EXPORTER
-    async_exporter: bool = True
+    async_exporter: bool = False
     queue_size: int = 1024
     file_dir: str = DEFAULT_FILE_DIR
     text_formatter: str = DEFAULT_TEXT_FORMATTER
-    hook_error: bool = True
+    hook_error: bool = False
 
     rank: str = "empty"
     pid: str = "empty"
