@@ -43,13 +43,14 @@ class DiagnosisConstant(object):
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
     MAX_ACTION_QUEUE_SIZE = 1000
 
+    MIN_DIAGNOSIS_INTERVAL = 15
+
 
 class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
     PRE_CHECK_FAILED = "Pre-check failed"
     NODE_FAILED = "node_failed"
-    RESOURCE_COLLECT = "resource_collect"
-    METRICS_COLLECT = "metrics_collect"
+    RESOURCE_COLLECT_ERROR = "resource_collect_error"
 
 
 class DiagnosisDataType(object):

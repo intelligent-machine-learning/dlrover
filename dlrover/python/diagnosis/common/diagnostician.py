@@ -63,6 +63,7 @@ class Diagnostician:
         # explore the solution to resolve the problem
         return EventAction()
 
+    # @timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
     def diagnose(self, **kwargs) -> DiagnosisAction:
         # define the diagnosis procedure
         try:

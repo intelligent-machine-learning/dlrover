@@ -39,3 +39,21 @@ class DataCollector(metaclass=ABCMeta):
         """Whether the collector is enabled."""
 
         return True
+
+    def store_data(self, data: object):
+        pass
+
+
+class SimpleDataCollector(DataCollector):
+    """
+    An simple implementation of data collector
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def is_enabled(self) -> bool:
+        return True
+
+    def collect_data(self) -> object:
+        return "data"

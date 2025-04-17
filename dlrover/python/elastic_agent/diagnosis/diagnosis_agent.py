@@ -35,14 +35,17 @@ from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
 )
+from dlrover.python.diagnosis.datacollector.resource_collector import (
+    ResourceCollector,
+)
+from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
+    XpuTimerMetricsCollector,
+)
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.metrics_collect_diagnostician import (  # noqa: E501
-    MetricsCollectDiagnostician,
-)
-from dlrover.python.diagnosis.diagnostician.resource_collect_diagnostician import (  # noqa: E501
-    ResourceCollectDiagnostician,
+from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
+    ResourceCollectErrorDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -74,21 +77,18 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
         )
         self.register_diagnostician(
-            DiagnosisErrorConstant.METRICS_COLLECT,
-            MetricsCollectDiagnostician(),
-        )
-        self.register_diagnostician(
-            DiagnosisErrorConstant.RESOURCE_COLLECT,
-            ResourceCollectDiagnostician(),
+            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR,
+            ResourceCollectErrorDiagnostician(),
         )
 
         # register periodical diagnosis
         self.register_periodical_diagnosis(
-            DiagnosisErrorConstant.RESOURCE_COLLECT, 30
+            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR, 30
         )
-        self.register_periodical_diagnosis(
-            DiagnosisErrorConstant.METRICS_COLLECT, 60
-        )
+
+        # register periodical data collector
+        self.register_periodical_data_collector(XpuTimerMetricsCollector(), 60)
+        self.register_periodical_data_collector(ResourceCollector(), 30)
 
         self._report_thread = None
         self._node_rank = node_rank
@@ -120,6 +120,7 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
     def start(self):
         self.start_diagnosis()
+        self.start_data_collection()
 
         self._stopped = False
 

@@ -25,10 +25,9 @@ from dlrover.python.diagnosis.common.diagnostician import (
     DiagnosisObservation,
     Diagnostician,
 )
-from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
 
-class ResourceCollectDiagnostician(Diagnostician):
+class ResourceCollectErrorDiagnostician(Diagnostician):
     """
     ResourceCollectDiagnostician is to collect and report resource
     to the master and handle the errors during collection
@@ -36,18 +35,14 @@ class ResourceCollectDiagnostician(Diagnostician):
 
     def __init__(self):
         super().__init__()
-        self._monitor = ResourceMonitor().singleton_instance()
 
     def observe(self, **kwargs) -> DiagnosisObservation:
-        error_logs = ""
-        try:
-            self._monitor.report_resource()
-        except Exception as e:
-            error_logs = f"{e}"
+        error_log_arg = kwargs.get("error_log")
+        error_log = str(error_log_arg)
 
-        if DiagnosisErrorConstant.GPU_LOST in error_logs:
+        if DiagnosisErrorConstant.GPU_LOST in error_log:
             ob = DiagnosisObservation(DiagnosisErrorConstant.GPU_LOST)
-            ob.extra_infos[DictKey.LOGS] = error_logs
+            ob.extra_infos[DictKey.LOGS] = error_log
             return ob
         else:
             return DiagnosisObservation()
