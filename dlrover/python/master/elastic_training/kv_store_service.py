@@ -28,5 +28,18 @@ class KVStoreService(object):
         with self._lock:
             return self._store.get(key, b"")
 
+    def add(self, key, value):
+        with self._lock:
+            try:
+                if key not in self._store:
+                    self._store[key] = value
+                    return value
+                else:
+                    v0 = self._store.get(key)
+                    self._store[key] = v0 + value
+                    return self._store.get(key)
+            except Exception:
+                return value
+
     def clear(self):
         self._store.clear()
