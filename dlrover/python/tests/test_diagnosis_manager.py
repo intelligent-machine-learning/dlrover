@@ -36,10 +36,10 @@ from dlrover.python.util.function_util import TimeoutException
 
 class DiagnosisManagerTest(unittest.TestCase):
     def setUp(self):
-        pass
+        self._agent_context = get_agent_context()
 
     def tearDown(self):
-        pass
+        self._agent_context.clear_action_queue()
 
     def test_diagnosis_mgr(self):
         context = get_agent_context()
