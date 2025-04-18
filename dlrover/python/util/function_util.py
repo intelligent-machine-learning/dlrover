@@ -15,6 +15,7 @@ import functools
 import signal
 import time
 import traceback
+from concurrent import futures
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -49,6 +50,31 @@ def timeout(secs=-1, callback_func=None):
             finally:
                 signal.alarm(0)
             return result
+
+        return wrapped
+
+    return decorator
+
+
+def timeout_concurrent(secs=-1, callback_func=None):
+    if callback_func is None:
+        if secs <= 0:
+            timeout_secs_value = TIMEOUT_MAX
+        else:
+            timeout_secs_value = secs
+    else:
+        timeout_secs_value = callback_func()
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            with futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    result = future.result(timeout=timeout_secs_value)
+                except futures.TimeoutError:
+                    raise TimeoutException("Function call timed out")
+                return result
 
         return wrapped
 

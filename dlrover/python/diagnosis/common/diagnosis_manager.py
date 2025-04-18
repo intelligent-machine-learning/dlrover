@@ -16,7 +16,10 @@ import time
 from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisErrorConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -30,7 +33,6 @@ from dlrover.python.util.function_util import TimeoutException
 
 
 class DiagnosisManager:
-    MIN_DIAGNOSIS_INTERVAL = 30
     MIN_DATA_COLLECT_INTERVAL = 30
 
     def __init__(self, context):
@@ -52,8 +54,8 @@ class DiagnosisManager:
             if name not in self._diagnosticians:
                 logger.error(f"The {name} is not registered")
                 return
-            if time_interval < DiagnosisManager.MIN_DIAGNOSIS_INTERVAL:
-                time_interval = DiagnosisManager.MIN_DIAGNOSIS_INTERVAL
+            if time_interval < DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL:
+                time_interval = DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL
 
             self._periodical_diagnosis[name] = time_interval
 

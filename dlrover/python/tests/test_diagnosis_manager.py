@@ -17,7 +17,10 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisConstant,
+    DiagnosisErrorConstant,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -75,11 +78,11 @@ class DiagnosisManagerTest(unittest.TestCase):
         self.assertTrue(len(mgr._periodical_diagnosis) == 0)
 
         mgr.register_periodical_diagnosis(
-            name, DiagnosisManager.MIN_DIAGNOSIS_INTERVAL - 5
+            name, DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
         )
         self.assertEqual(
             mgr._periodical_diagnosis[name],
-            DiagnosisManager.MIN_DIAGNOSIS_INTERVAL,
+            DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL,
         )
 
         # test start diagnosis
