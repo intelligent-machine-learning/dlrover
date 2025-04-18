@@ -12,13 +12,16 @@
 # limitations under the License.
 
 from abc import ABCMeta
+from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
     NoAction,
 )
+from dlrover.python.util.function_util import timeout_concurrent
 
 
 class DiagnosisObservation(metaclass=ABCMeta):
@@ -30,6 +33,7 @@ class DiagnosisObservation(metaclass=ABCMeta):
     def __init__(self, observation: str = ""):
         # The simple description info for the problem.
         self._observation: str = observation
+        self.extra_infos: Dict[str, str] = {}
 
     @property
     def observation(self):
@@ -61,6 +65,7 @@ class Diagnostician:
         # explore the solution to resolve the problem
         return EventAction()
 
+    @timeout_concurrent(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
     def diagnose(self, **kwargs) -> DiagnosisAction:
         # define the diagnosis procedure
         try:

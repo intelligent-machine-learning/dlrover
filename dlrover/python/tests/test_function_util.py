@@ -88,3 +88,40 @@ class FunctionUtilTest(unittest.TestCase):
 
         self.assertEqual(test0(1), 1)
         self.assertIsNone(test0(0))
+
+    def test_timeout_concurrent_decorator(self):
+        @fu.timeout_concurrent(1 * 1)
+        def test(seconds):
+            import time
+
+            time.sleep(seconds)
+            return
+
+        try:
+            test(2)
+            self.fail()
+        except fu.TimeoutException:
+            pass
+
+        def get_timeout():
+            return 1
+
+        @fu.timeout_concurrent(callback_func=get_timeout)
+        def test(seconds):
+            import time
+
+            time.sleep(seconds)
+            return "data"
+
+        try:
+            test(2)
+            self.fail()
+        except fu.TimeoutException:
+            pass
+
+        try:
+            result = test(0.5)
+        except fu.TimeoutException:
+            self.fail()
+
+        self.assertEqual(result, "data")

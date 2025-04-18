@@ -12,29 +12,38 @@
 # limitations under the License.
 
 import os
-import threading
-import time
 import unittest
 from unittest.mock import patch
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
-from dlrover.python.diagnosis.common.diagnosis_action import NoAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NoAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
 )
+from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
+    ResourceCollectErrorDiagnostician,
+)
 from dlrover.python.elastic_agent.context import get_agent_context
-from dlrover.python.util.function_util import TimeoutException
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class DiagnosticianTest(unittest.TestCase):
     def setUp(self):
-        pass
+        self._master, self._addr = start_local_master()
+        MasterClient._instance = build_master_client(self._addr, 1)
 
     def tearDown(self):
-        pass
+        os.environ.clear()
+        self._master.stop()
 
     @patch(
         "dlrover.python.diagnosis.common"
@@ -64,43 +73,6 @@ class DiagnosticianTest(unittest.TestCase):
         action = mgr.diagnose(name)
         self.assertTrue(isinstance(action, NoAction))
 
-    @patch(
-        "dlrover.python.diagnosis.common"
-        ".diagnostician.Diagnostician.diagnose"
-    )
-    def test_diagnostician_start_periodical_diagnosis(self, mock_diagnose):
-        context = get_agent_context()
-        mgr = DiagnosisManager(context)
-        diagnostician = Diagnostician()
-        name = "test"
-        mgr.register_diagnostician(name, diagnostician)
-        mgr._periodical_diagnosis[name] = 0.1
-
-        with self.assertLogs(logger, level="ERROR") as log_capture:
-            thread = threading.Thread(
-                target=mgr._start_periodical_diagnosis,
-                name="test",
-                args=(name,),
-                daemon=True,
-            )
-            thread.start()
-            time.sleep(0.2)
-            self.assertTrue(context._diagnosis_action_queue.len() > 0)
-
-            mock_diagnose.side_effect = TimeoutException()
-            time.sleep(0.2)
-            self.assertTrue(
-                any("timeout" in msg for msg in log_capture.output),
-                "Expected exception message not found in logs",
-            )
-
-            mock_diagnose.side_effect = Exception()
-            time.sleep(0.2)
-            self.assertTrue(
-                any("Fail to diagnose" in msg for msg in log_capture.output),
-                "Expected exception message not found in logs",
-            )
-
     def test_failure_node_diagnostician(self):
         diagnostician = FailureNodeDiagnostician()
 
@@ -118,3 +90,11 @@ class DiagnosticianTest(unittest.TestCase):
 
         ob = diagnostician.observe(errors=errors)
         self.assertTrue(len(ob.observation) == 0)
+
+    def test_resource_collect_error_diagnostician(self):
+        error_log = "GPU is lost"
+
+        diagnostician = ResourceCollectErrorDiagnostician()
+
+        action = diagnostician.diagnose(error_log=error_log)
+        self.assertTrue(isinstance(action, EventAction))

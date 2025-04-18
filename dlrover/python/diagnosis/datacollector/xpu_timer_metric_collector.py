@@ -15,8 +15,13 @@ import requests
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import EnvConfigKey
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisDataType,
+    EnvConfigKey,
+)
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.util.common_util import is_port_in_use
 
 
@@ -33,6 +38,7 @@ class XpuTimerMetricsCollector(DataCollector):
             )
         else:
             self._metric_endpoint = None
+        self._client = MasterClient.singleton_instance()
 
     def collect_data(self) -> str:
         if not self.is_enabled():
@@ -67,3 +73,17 @@ class XpuTimerMetricsCollector(DataCollector):
         return self._metric_endpoint is not None and is_port_in_use(
             self._metric_port
         )
+
+    def store_data(self, data: object):
+        if not isinstance(data, str):
+            logger.warning("The data is not of type string")
+            return
+
+        agent_xpu_metric = WorkerTrainingMetric(
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+            data_content=data,
+            node_id=env_utils.get_node_id(),
+            node_type=env_utils.get_node_type(),
+            node_rank=env_utils.get_node_rank(),
+        )
+        self._client.report_diagnosis_agent_metrics(agent_xpu_metric)
