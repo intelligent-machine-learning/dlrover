@@ -165,7 +165,6 @@ class WorkloadGroupDesc(object):
             groups: The number of the workload instance in group.
                 Format: [({${role}:${group_size}}, ${group_num},
                 ${resource_unit}), (${role}, ${group_num}, ${resource_unit})].
-                'resource_unit' can only be 1 or 0.5.
             capacity (int, optional): The resource capacity for each group.
                 Default is 0(no limit).
             unit (ResourceType, optional): The resource unit if capacity is
@@ -306,7 +305,7 @@ class WorkloadGroupDesc(object):
                     return False
 
             # check instance num <-> resource consistency
-            if self.capacity != int(
+            if self.capacity < int(
                 sum(group_desc.values()) * group_resource_unit
             ):
                 return False

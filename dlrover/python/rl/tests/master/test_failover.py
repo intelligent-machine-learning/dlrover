@@ -14,7 +14,7 @@ import time
 from unittest.mock import MagicMock
 
 from dlrover.python.rl.common.failure import FailureDesc
-from dlrover.python.rl.master.failover_coordinator import FailoverCoordinator
+from dlrover.python.rl.master.failover import FailoverCoordinator
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 

@@ -86,7 +86,7 @@ class SingleBundlePerNodePlacementTest(unittest.TestCase):
         self.assertEqual(vertices[0].pg_bundle_index, 3)
 
 
-class SingleGroupPerNodePlacementTest(unittest.TestCase):
+class SingleGroupPerNodePlacementTest0(unittest.TestCase):
     def setUp(self):
         args = [
             "--job_name",
@@ -183,3 +183,120 @@ class SingleGroupPerNodePlacementTest(unittest.TestCase):
         vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD)
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
+
+
+class SingleGroupPerNodePlacementTest1(unittest.TestCase):
+    def setUp(self):
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF_1}",
+        ]
+        parsed_args = parse_job_args(args)
+        job_config = JobConfig.build_from_args(parsed_args)
+        rl_context = RLContext.build_from_args(parsed_args)
+        self.assertTrue(rl_context.validate())
+
+        self._job_context = get_job_context()
+        self._job_context.init(job_config, rl_context)
+
+        self.graph = RLExecutionGraph(self._job_context.rl_context)
+        self.scheduler = GroupOrderedScheduler(self.graph)
+        self.placement = self.scheduler.placement
+
+    def test_prepare_allocations(self):
+        self.assertEqual(
+            self.graph.rl_context.trainer.device_type.name,
+            ResourceType.CPU.name,
+        )
+
+        self.placement.prepare_placement_group()
+
+        self.assertEqual(
+            len(self.scheduler.graph.get_placement_group()),
+            self.graph.rl_context.trainer.node_number,
+        )
+
+        for pg_allocation in list(
+            self.scheduler.graph.get_placement_group().values()
+        ):
+            self.assertEqual(
+                len(pg_allocation._bundles),
+                self.graph.rl_context.trainer.device_per_node,
+            )
+            self.assertEqual(
+                pg_allocation._bundles[0].get("CPU"),
+                1,
+            )
+            self.assertEqual(pg_allocation._strategy, "STRICT_PACK")
+
+        self.placement.allocate_placement_group()
+
+        for pg_allocation in list(
+            self.scheduler.graph.get_placement_group().values()
+        ):
+            self.assertTrue(
+                len(pg_allocation._allocation)
+                >= self.graph.rl_context.trainer.device_per_node
+            )
+            self.assertTrue(pg_allocation.is_full())
+            if pg_allocation.name == "SINGLE_GROUP_PER_NODE_0":
+                self.assertTrue(
+                    "ACTOR_4-0_4-0" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ACTOR_4-1_4-1" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ACTOR_4-2_4-2" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ACTOR_4-3_4-3" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ROLLOUT_4-0_4-0" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ROLLOUT_4-1_4-1" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ROLLOUT_4-2_4-2" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "ROLLOUT_4-3_4-3" in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "REFERENCE_4-0_4-0"
+                    in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "REFERENCE_4-1_4-1"
+                    in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "REFERENCE_4-2_4-2"
+                    in list(pg_allocation._allocation.keys())
+                )
+                self.assertTrue(
+                    "REFERENCE_4-3_4-3"
+                    in list(pg_allocation._allocation.keys())
+                )
+
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        self.assertEqual(vertices[0].pg_bundle_index, 0)
+        self.assertEqual(vertices[1].pg_bundle_index, 1)
+        self.assertEqual(vertices[2].pg_bundle_index, 2)
+        self.assertEqual(vertices[3].pg_bundle_index, 3)
+
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        self.assertEqual(vertices[0].pg_bundle_index, 0)
+        self.assertEqual(vertices[1].pg_bundle_index, 1)
+        self.assertEqual(vertices[2].pg_bundle_index, 2)
+        self.assertEqual(vertices[3].pg_bundle_index, 3)
+
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
+        self.assertEqual(vertices[0].pg_bundle_index, 0)
+        self.assertEqual(vertices[1].pg_bundle_index, 1)
+        self.assertEqual(vertices[2].pg_bundle_index, 2)
+        self.assertEqual(vertices[3].pg_bundle_index, 3)

@@ -23,7 +23,7 @@ from dlrover.python.rl.common.enums import JobStage
 from dlrover.python.rl.common.failure import FailureDesc
 from dlrover.python.rl.common.job_context import JobContext, get_job_context
 from dlrover.python.rl.common.rl_context import RLContext
-from dlrover.python.rl.master.failover_coordinator import FailoverCoordinator
+from dlrover.python.rl.master.failover import FailoverCoordinator
 from dlrover.python.rl.master.job_manager import JobManager
 from dlrover.python.rl.master.state_backend import MasterStateBackendFactory
 from dlrover.python.rl.remote.call_obj import RuntimeInfo
