@@ -474,6 +474,11 @@ class PreCheckStatus(object):
 
 
 class DictKey(object):
+    """
+    Presents the keys in dictionary
+    """
+
+    # the key of logs
     LOGS = "logs"
 
 
