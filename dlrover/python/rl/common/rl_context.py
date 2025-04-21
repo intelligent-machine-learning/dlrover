@@ -424,7 +424,7 @@ class RLContext(PickleSerializable):
 
         try:
             algorithm_type = RLAlgorithmType[
-                conf.get("algorithm_type", RLAlgorithmType.UD.name)
+                conf.get("algorithm_type", RLAlgorithmType.USER_DEFINED.name)
             ]
             config = conf.get("config")
             env = conf.get("env", {})

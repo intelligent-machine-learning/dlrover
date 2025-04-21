@@ -12,8 +12,10 @@
 # limitations under the License.
 import os
 import time
+import unittest
 
 import ray
+from rl.api.api import RLJobBuilder
 
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
@@ -23,6 +25,44 @@ from dlrover.python.rl.master.main import DLRoverRLMaster
 from dlrover.python.rl.tests.master.base import BaseMasterTest
 from dlrover.python.rl.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
+
+
+class ApiFullTest(unittest.TestCase):
+    def setUp(self):
+        os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
+        ray.init()
+
+    def tearDown(self):
+        super().tearDown()
+        ray.shutdown()
+
+    @timeout(20)
+    def test(self):
+        rl_job = (
+            RLJobBuilder()
+            .node_num(3)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0"})
+            .trainer(
+                "dlrover.python.rl.tests.test_class", "TestInteractiveTrainer"
+            )
+            .actor("dlrover.python.rl.tests.test_class", "TestActor")
+            .total(2)
+            .per_node(1)
+            .env({"e1": "v1"})
+            .rollout("dlrover.python.rl.tests.test_class", "TestRollout")
+            .total(2)
+            .per_node(1)
+            .reference("dlrover.python.rl.tests.test_class", "TestReference")
+            .total(2)
+            .per_node(1)
+            .build()
+        )
+
+        rl_job.submit("test", master_cpu=1, master_memory=128)
+        time.sleep(5)
 
 
 class RLMasterNormalTest(BaseMasterTest):
