@@ -12,7 +12,7 @@ this article primarily aims to provide solutions based on DLRover for
 large-scale reinforcement learning scenarios, thereby further extending 
 coverage of deep learning scenarios. 
 
-Notice: 'reinforcement learning' will be abbreviated as 'RL in the following 
+Notice: 'reinforcement learning' will be abbreviated as 'RL' in the following 
 text.  
 
 ## The Difference
