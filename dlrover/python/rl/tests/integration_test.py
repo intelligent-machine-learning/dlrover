@@ -15,8 +15,8 @@ import time
 import unittest
 
 import ray
-from rl.api.api import RLJobBuilder
 
+from dlrover.python.rl.api.api import RLJobBuilder
 from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.config import JobConfig
 from dlrover.python.rl.common.constant import RLMasterConstant

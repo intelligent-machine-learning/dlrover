@@ -13,10 +13,10 @@
 from typing import Dict, List, Set, Tuple, Union
 
 from omegaconf import DictConfig
-from rl.driver.main import main
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
+from dlrover.python.rl.driver.main import main
 
 
 class RLRoleConfig(object):
