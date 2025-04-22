@@ -42,7 +42,7 @@ class ApiTest(unittest.TestCase):
             .total(4)
             .per_node(2)
             .env({"e2": "v2"})
-            .with_colocation("Actor", "rollout")
+            .with_collocation("Actor", "rollout")
             .build()
         )
 
@@ -63,9 +63,9 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(rl_job.rollout.total, 4)
         self.assertEqual(rl_job.rollout.per_node, 2)
         self.assertEqual(rl_job.rollout.env, {"e2": "v2"})
-        self.assertEqual(len(rl_job.colocations), 1)
-        self.assertTrue("actor" in rl_job.colocations[0])
-        self.assertTrue("rollout" in rl_job.colocations[0])
+        self.assertEqual(len(rl_job.collocations), 1)
+        self.assertTrue("actor" in rl_job.collocations[0])
+        self.assertTrue("rollout" in rl_job.collocations[0])
 
         rl_config = rl_job._to_rl_config()
         self.assertTrue(len(rl_config) > 1)
@@ -74,7 +74,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(rl_config["workload_group"]), 1)
 
     def test_to_rl_config(self):
-        # colocation: 4: 4+4
+        # collocation: 4: 4+4
         rl_job = (
             RLJobBuilder()
             .node_num(2)
@@ -90,7 +90,7 @@ class ApiTest(unittest.TestCase):
             .total(4)
             .per_node(4)
             .env({"e2": "v2"})
-            .with_colocation("Actor", "rollout")
+            .with_collocation("Actor", "rollout")
             .build()
         )
         rl_config = rl_job._to_rl_config()
@@ -106,7 +106,7 @@ class ApiTest(unittest.TestCase):
             rl_config["workload"]["rollout"]["resource"]["GPU"], 0.5
         )
 
-        # colocation: 4: 4+4+4
+        # collocation: 4: 4+4+4
         rl_job = (
             RLJobBuilder()
             .node_num(2)
@@ -125,7 +125,7 @@ class ApiTest(unittest.TestCase):
             .reference("m3", "c3")
             .total(4)
             .per_node(4)
-            .with_colocation("actor", "rollout", "reference")
+            .with_collocation("actor", "rollout", "reference")
             .build()
         )
         rl_config = rl_job._to_rl_config()
@@ -146,7 +146,7 @@ class ApiTest(unittest.TestCase):
             rl_config["workload"]["reference"]["resource"]["GPU"], 0.33
         )
 
-        # colocation: 4: 4+4 2+2
+        # collocation: 4: 4+4 2+2
         rl_job = (
             RLJobBuilder()
             .node_num(2)
@@ -168,8 +168,8 @@ class ApiTest(unittest.TestCase):
             .reward("m4", "c4")
             .total(4)
             .per_node(2)
-            .with_colocation("actor", "rollout")
-            .with_colocation("reward", "reference")
+            .with_collocation("actor", "rollout")
+            .with_collocation("reward", "reference")
             .build()
         )
         rl_config = rl_job._to_rl_config()

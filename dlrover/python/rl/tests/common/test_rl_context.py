@@ -128,7 +128,7 @@ class RLContextTest(unittest.TestCase):
         self.assertEqual(desc.groups[1][1], 1)
         self.assertEqual(desc.groups[2][0].get(RLRoleType.CRITIC), 4)
         self.assertEqual(desc.groups[2][1], 1)
-        self.assertFalse(desc.has_device_colocate())
+        self.assertFalse(desc.has_device_collocate())
         self.assertEqual(len(desc.split_groups_in_dict()[1]), 3)
         self.assertTrue(desc.validate())
 

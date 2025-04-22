@@ -270,7 +270,7 @@ class WorkloadGroupDesc(object):
 
         return device_colocate_group, other_group
 
-    def has_device_colocate(self):
+    def has_device_collocate(self):
         for group in self._groups:
             if group[2] < 1:
                 return True

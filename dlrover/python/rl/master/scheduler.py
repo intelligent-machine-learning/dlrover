@@ -206,7 +206,7 @@ class GroupOrderedScheduler(Scheduler):
         self._placement = self._get_placement()
 
     def _get_placement(self):
-        if self.graph.rl_context.workload_group.has_device_colocate():
+        if self.graph.rl_context.workload_group.has_device_collocate():
             logger.info(
                 "Use 'SingleGroupPerNodePlacement' for workload group "
                 "has device colocate."

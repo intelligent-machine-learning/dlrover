@@ -64,7 +64,7 @@ class RLJob(object):
         config,
         env,
         components,
-        colocations,
+        collocations,
     ):
         self._node_num = node_num
         self._device_per_node = device_per_node
@@ -72,7 +72,7 @@ class RLJob(object):
         self._config = config
         self._env = env
         self._components: Dict[str, Union[None, RLRoleConfig]] = components
-        self._colocations: List[Set[str]] = colocations
+        self._collocations: List[Set[str]] = collocations
 
     @property
     def node_num(self):
@@ -95,8 +95,8 @@ class RLJob(object):
         return self._env
 
     @property
-    def colocations(self):
-        return self._colocations
+    def collocations(self):
+        return self._collocations
 
     @property
     def trainer(self):
@@ -123,15 +123,15 @@ class RLJob(object):
         return self._components["critic"]
 
     def __cal_role_resource(self, role):
-        # if role in colocations
-        for colocation in self.colocations:
-            if role in colocation:
-                colocation_process_num = 0
-                for role in colocation:
-                    colocation_process_num += self._components[role].per_node
+        # if role in collocations
+        for collocation in self.collocations:
+            if role in collocation:
+                collocation_process_num = 0
+                for role in collocation:
+                    collocation_process_num += self._components[role].per_node
                 return {
                     self.device_type: round(
-                        self.device_per_node / colocation_process_num, 2
+                        self.device_per_node / collocation_process_num, 2
                     )
                 }
 
@@ -176,9 +176,9 @@ class RLJob(object):
 
         # workload group
         workload_group_list = []
-        for colocation in self.colocations:
+        for collocation in self.collocations:
             workload_group = {}
-            for role in colocation:
+            for role in collocation:
                 workload_group[role] = self._components[role].per_node
 
             workload_group_list.append(workload_group)
@@ -248,7 +248,7 @@ class RLJobBuilder(object):
             "reward": None,
             "critic": None,
         }
-        self._colocations: List[Set[str]] = []
+        self._collocations: List[Set[str]] = []
 
     def build(self):
         """
@@ -271,7 +271,7 @@ class RLJobBuilder(object):
             config=self._config,
             env=self._env,
             components=self._components,
-            colocations=self._colocations,
+            collocations=self._collocations,
         )
 
     def _validate(self) -> bool:
@@ -328,16 +328,16 @@ class RLJobBuilder(object):
                     logger.error(f"{role}'s 'env' must be dict type.")
                     return False
 
-        # for role colocations
-        if self._colocations:
-            colocations_set = set()
-            for colocation in self._colocations:
+        # for role collocations
+        if self._collocations:
+            collocations_set = set()
+            for collocation in self._collocations:
                 process_num_sum = 0
-                for role in colocation:
+                for role in collocation:
                     role_config = self._components[role]
                     if role_config is None:
                         logger.error(
-                            "Colocation cannot be defined without "
+                            "Collocation cannot be defined without "
                             f"role definition: {role}."
                         )
                         return False
@@ -349,12 +349,12 @@ class RLJobBuilder(object):
                             f"are {RLJobBuilder.ROLES}."
                         )
                         return False
-                    if role not in colocations_set:
-                        colocations_set.add(role)
+                    if role not in collocations_set:
+                        collocations_set.add(role)
                     else:
                         logger.error(
                             "The same role can only be defined once "
-                            "in 'colocation'."
+                            "in 'collocation'."
                         )
                         return False
 
@@ -367,9 +367,9 @@ class RLJobBuilder(object):
                     and process_num_sum != 5 * self._device_per_node
                 ):
                     logger.error(
-                        "The colocation is invalid due to the device "
+                        "The collocation is invalid due to the device "
                         "per node not satisfied the per_node "
-                        "number of role for colocation."
+                        "number of role for collocation."
                     )
                     return False
 
@@ -524,26 +524,26 @@ class RLJobBuilder(object):
 
         return self._config_role("critic", module_name, class_name)
 
-    def with_colocation(self, *roles):
+    def with_collocation(self, *roles):
         """
-        Set a colocation strategy, requiring that the total number of
-        colocated roles on each node(per_node) must have an even relationship
+        Set a collocation strategy, requiring that the total number of
+        collocated roles on each node(per_node) must have an even relationship
         with the number of devices on each machine(device_per_node).
 
         Multiple role names is required.
         For example, to colocate "actor" and "rollout", it can be expressed as
-        `.with_colocation("actor", "rollout")`.
+        `.with_collocation("actor", "rollout")`.
 
         Supported roles include: actor, rollout, reference, reward, and critic,
         with support for both uppercase and lowercase. The same role can only
-        be included in one colocation.
+        be included in one collocation.
 
         Args:
             roles (str): Multi role names.
         """
 
         roles = [role.lower() for role in roles]
-        self._colocations.append(set(roles))
+        self._collocations.append(set(roles))
         return self
 
     def total(self, num=1):

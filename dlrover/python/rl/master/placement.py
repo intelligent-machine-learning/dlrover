@@ -218,15 +218,15 @@ class SingleGroupPerNodePlacement(Placement):
 
     def allocate_placement_group(self):
         (
-            colocate_group,
+            collocation_group,
             common_group,
         ) = self.graph.rl_context.workload_group.split_groups_in_dict()
-        assert len(colocate_group) >= 1
+        assert len(collocation_group) >= 1
 
         pgs = self._get_all_pgs()
 
-        # for colocate group 1st
-        for name, group_tuple in colocate_group.items():
+        # for collocation group 1st
+        for name, group_tuple in collocation_group.items():
             pgs = [x for x in pgs if not x.is_full()]
             group_desc = group_tuple[0]
 

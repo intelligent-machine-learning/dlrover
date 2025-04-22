@@ -125,6 +125,24 @@ performance and stability. For detailed implementation, future reference can
 be made to the project: **FlashTuner**.  
 
 
+### Affinity Scheduling
+RL as a typical heterogeneous computing scenario, involves both training and 
+inference. Under varying resource configurations and model architectures, the 
+deployment strategies for training and inference workloads have to meet 
+high-performance computing requirements. For example, common approaches 
+include the **collocation way** (sharing the same device) and the 
+**separation way** (using different devices). Moreover, some roles may be 
+further divided internally, such as the "PD Separation Deployment" strategy on 
+the inference side. Consequently, workload placement and GPU resource 
+assignment require finer-grained management.
+
+To support the aforementioned flexible combinations, DLRover offers the 
+following three affinity (or anti-affinity) scheduling strategy and each of 
+them can be combined with each other:  
+
+<img src="../figures/dlrover_rl_collocation.png" alt="Collocation">
+
+
 ### SubDag Based Scheduling
 For general RL scenarios, the scheduling of all workloads is conducted as a 
 whole, meaning that both training and inference are scheduled uniformly based 
