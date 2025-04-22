@@ -88,7 +88,10 @@ implementations. This implementation typically has the following
 characteristics: low generalizability, high coupling, rapid iteration cycles, 
 and high implementation and debugging costs.
 
-<img src="../figures/rl/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload">
+
+<div style="text-align: center;">
+    <img src="../figures/rl/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload" width="400">
+</div>
 
 To address the need for reusability and extensibility across both internal and 
 external implementations while reducing refactoring costs, the MultiController 
@@ -113,7 +116,9 @@ For example, if an anomaly occurs, the relationship topology allows us to
 identify the affected upstream and downstream components immediately, enabling 
 more effective fault-tolerant operations.  
 
-<img src="../figures/rl/dlrover_rl_dcg.png" alt="DCG">
+<div style="text-align: center;">
+    <img src="../figures/rl/dlrover_rl_dcg.png" alt="DCG" width="400">
+</div>
 
 However, because the current computation in RL is strongly coupled with the 
 algorithm and model architecture, we are not yet able to provide an abstract, 
@@ -196,7 +201,10 @@ failure issue
 
 The diagram below illustrates 'Global Failover', which is the implementation 
 process at the basic failover level: 
-<img src="../figures/dlrover_rl_failover_basic.png" alt="Basic Failover">
+
+<div style="text-align: center;">
+    <img src="../figures/rl/dlrover_rl_failover_basic.png" alt="Basic Failover" width="500">
+</div>
 
 
 #### Advanced Level Failover
