@@ -34,7 +34,7 @@ an example):
 - Data plane interactions between different SPMD groups are also incorporated 
 into management by the Trainer Controller.    
 
-<img src="../figures/dlrover_rl_arc_diff.png" alt="Diff for RL">
+<img src="../figures/rl/dlrover_rl_arc_diff.png" alt="Diff for RL">
 
 
 ## Design
@@ -43,7 +43,7 @@ into management by the Trainer Controller.
 The diagram below represents the overall architecture of DLRover's solution in 
 RL scenarios, where DLRover is positioned at the center.  
 
-<img src="../figures/dlrover_rl_arc.png" alt="ARC">
+<img src="../figures/rl/dlrover_rl_arc.png" alt="ARC" width="22604">
 
 Based on the diagram above, there are several core design points to explain:
 
@@ -88,7 +88,7 @@ implementations. This implementation typically has the following
 characteristics: low generalizability, high coupling, rapid iteration cycles, 
 and high implementation and debugging costs.
 
-<img src="../figures/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload">
+<img src="../figures/rl/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload">
 
 To address the need for reusability and extensibility across both internal and 
 external implementations while reducing refactoring costs, the MultiController 
@@ -113,7 +113,7 @@ For example, if an anomaly occurs, the relationship topology allows us to
 identify the affected upstream and downstream components immediately, enabling 
 more effective fault-tolerant operations.  
 
-<img src="../figures/dlrover_rl_dcg.png" alt="DCG">
+<img src="../figures/rl/dlrover_rl_dcg.png" alt="DCG">
 
 However, because the current computation in RL is strongly coupled with the 
 algorithm and model architecture, we are not yet able to provide an abstract, 
@@ -143,7 +143,7 @@ To support the aforementioned flexible combinations, DLRover offers the
 following three affinity (or anti-affinity) scheduling strategy and each of 
 them can be combined with each other:  
 
-<img src="../figures/dlrover_rl_collocation.png" alt="Collocation">
+<img src="../figures/rl/dlrover_rl_collocation.png" alt="Collocation">
 
 
 ### SubDag Based Scheduling
@@ -162,7 +162,7 @@ layer below.
 - An optimized execution graph representation based on sub-dag: as shown in 
 the "Optimized Execution" layer below.    
 
-<img src="../figures/dlrover_rl_sub_dag.png" alt="Sub DAG Based">
+<img src="../figures/rl/dlrover_rl_sub_dag.png" alt="Sub DAG Based">
 
 
 ### Fault Tolerance
