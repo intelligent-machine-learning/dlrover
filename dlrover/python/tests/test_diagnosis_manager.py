@@ -14,7 +14,7 @@
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
@@ -105,6 +105,47 @@ class DiagnosisManagerTest(unittest.TestCase):
         thread_names = [t.name for t in threading.enumerate()]
         self.assertIn(thread_name, thread_names, f"Not found {thread_name}")
 
+    def test_diagnosis_mgr_exception(self):
+        context = get_agent_context()
+        mgr = DiagnosisManager(context)
+
+        name = "test"
+        diagnostician = Diagnostician()
+        mgr.register_diagnostician(name, diagnostician)
+
+        with self.assertLogs(logger, level="ERROR") as log_capture:
+            # test observe exception
+            diagnostician.observe = MagicMock(side_effect=TimeoutException())
+            mgr.observe(name)
+            err_msg = f"{diagnostician.__class__.__name__}.observe is timeout"
+            self.assertTrue(
+                any(err_msg in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
+
+            diagnostician.observe = MagicMock(side_effect=Exception())
+            ob = mgr.observe(name)
+            self.assertTrue(
+                any("Fail to observe" in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
+
+            # test resolve exception
+            diagnostician.resolve = MagicMock(side_effect=TimeoutException())
+            mgr.resolve(name, ob)
+            err_msg = f"{diagnostician.__class__.__name__}.resolve is timeout"
+            self.assertTrue(
+                any(err_msg in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
+
+            diagnostician.resolve = MagicMock(side_effect=Exception())
+            mgr.resolve(name, ob)
+            self.assertTrue(
+                any("Fail to resolve" in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
+
     @patch(
         "dlrover.python.diagnosis.common"
         ".diagnostician.Diagnostician.diagnose"
@@ -127,13 +168,6 @@ class DiagnosisManagerTest(unittest.TestCase):
             thread.start()
             time.sleep(0.2)
             self.assertTrue(context._diagnosis_action_queue.len() > 0)
-
-            mock_diagnose.side_effect = TimeoutException()
-            time.sleep(0.2)
-            self.assertTrue(
-                any("timeout" in msg for msg in log_capture.output),
-                "Expected exception message not found in logs",
-            )
 
             mock_diagnose.side_effect = Exception()
             time.sleep(0.2)

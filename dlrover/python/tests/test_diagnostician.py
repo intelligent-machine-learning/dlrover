@@ -13,14 +13,14 @@
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
 )
-from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
     FailureNodeDiagnostician,
@@ -28,12 +28,12 @@ from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
 from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
     ResourceCollectErrorDiagnostician,
 )
-from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.util.function_util import TimeoutException
 
 
 class DiagnosticianTest(unittest.TestCase):
@@ -45,33 +45,29 @@ class DiagnosticianTest(unittest.TestCase):
         os.environ.clear()
         self._master.stop()
 
-    @patch(
-        "dlrover.python.diagnosis.common"
-        ".diagnostician.Diagnostician.observe"
-    )
-    @patch(
-        "dlrover.python.diagnosis.common"
-        ".diagnostician.Diagnostician.resolve"
-    )
-    def test_diagnostician_exception(self, mock_resolve, mock_observe):
-        mock_observe.side_effect = Exception("observe_error")
-        mock_resolve.side_effect = Exception("resolve_error")
-
-        context = get_agent_context()
-        mgr = DiagnosisManager(context)
-
-        name = "test"
+    def test_diagnostician(self):
         diagnostician = Diagnostician()
-        mgr.register_diagnostician(name, diagnostician)
 
-        ob = mgr.observe(name)
-        self.assertTrue(len(ob.observation) == 0)
+        ob = diagnostician.observe()
+        self.assertEqual(ob.observation, "unknown")
 
-        action = mgr.resolve(name, ob)
+        action = diagnostician.resolve(ob)
+        self.assertTrue(isinstance(action, EventAction))
+
+        action = diagnostician.diagnose()
+        self.assertTrue(isinstance(action, EventAction))
+
+        diagnostician.resolve = MagicMock(side_effect=Exception())
+        action = diagnostician.diagnose()
         self.assertTrue(isinstance(action, NoAction))
 
-        action = mgr.diagnose(name)
-        self.assertTrue(isinstance(action, NoAction))
+        with self.assertLogs(logger, level="ERROR") as log_capture:
+            diagnostician.observe = MagicMock(side_effect=TimeoutException())
+            diagnostician.diagnose()
+            self.assertTrue(
+                any("timeout" in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
 
     def test_failure_node_diagnostician(self):
         diagnostician = FailureNodeDiagnostician()

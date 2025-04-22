@@ -14,12 +14,6 @@
 from abc import ABCMeta, abstractmethod
 
 
-class CollectorType:
-    CUDALOG = "cuda_log"
-    TRAININGLOG = "training_log"
-    CHIPMETRICS = "chip_metrics"
-
-
 class DataCollector(metaclass=ABCMeta):
     """
     DataCollector collects certain type of data and report to master.

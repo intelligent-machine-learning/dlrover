@@ -21,7 +21,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
 )
-from dlrover.python.util.function_util import timeout_concurrent
+from dlrover.python.util.function_util import TimeoutException, thread_timeout
 
 
 class DiagnosisObservation(metaclass=ABCMeta):
@@ -55,22 +55,28 @@ class Diagnostician:
     def __init__(self):
         pass
 
+    @thread_timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
     def observe(self, **kwargs) -> DiagnosisObservation:
         # observe if particular problem happened
         return DiagnosisObservation("unknown")
 
+    @thread_timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
     ) -> DiagnosisAction:
         # explore the solution to resolve the problem
         return EventAction()
 
-    @timeout_concurrent(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
     def diagnose(self, **kwargs) -> DiagnosisAction:
         # define the diagnosis procedure
         try:
             ob = self.observe(**kwargs)
             return self.resolve(ob, **kwargs)
+        except TimeoutException:
+            logger.error(
+                f"The diagnosis of {self.__class__.__name__} is timeout."
+            )
+            return NoAction()
         except Exception as e:
             logger.error(f"Fail to diagnose the problem: {e}")
             return NoAction()

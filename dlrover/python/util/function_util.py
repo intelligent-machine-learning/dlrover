@@ -56,7 +56,13 @@ def timeout(secs=-1, callback_func=None):
     return decorator
 
 
-def timeout_concurrent(secs=-1, callback_func=None):
+def thread_timeout(secs=-1, callback_func=None):
+    """
+    Decorator for timeout that limits the execution
+    time of functions executed in main and non-main threads
+    :param secs: timeout seconds
+    :param callback_func: the function that set the timeout
+    """
     if callback_func is None:
         if secs <= 0:
             timeout_secs_value = TIMEOUT_MAX

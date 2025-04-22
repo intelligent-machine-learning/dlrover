@@ -90,7 +90,7 @@ class FunctionUtilTest(unittest.TestCase):
         self.assertIsNone(test0(0))
 
     def test_timeout_concurrent_decorator(self):
-        @fu.timeout_concurrent(1 * 1)
+        @fu.thread_timeout(1 * 1)
         def test(seconds):
             import time
 
@@ -106,7 +106,7 @@ class FunctionUtilTest(unittest.TestCase):
         def get_timeout():
             return 1
 
-        @fu.timeout_concurrent(callback_func=get_timeout)
+        @fu.thread_timeout(callback_func=get_timeout)
         def test(seconds):
             import time
 

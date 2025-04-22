@@ -17,7 +17,7 @@ from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
 class ResourceCollector(DataCollector):
     """
-    GPUResourceCollector collects the data of GPU resources.
+    ResourceCollector collects the resource data.
     """
 
     def __init__(self):

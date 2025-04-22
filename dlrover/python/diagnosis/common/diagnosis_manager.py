@@ -144,8 +144,6 @@ class DiagnosisManager:
                 action = diagnostician.diagnose()
                 if not isinstance(action, NoAction):
                     self._context.enqueue_diagnosis_action(action)
-            except TimeoutException:
-                logger.error(f"The diagnosis of {name} is timeout.")
             except Exception as e:
                 logger.error(f"Fail to diagnose {name}: {e}")
 
@@ -177,6 +175,11 @@ class DiagnosisManager:
 
         try:
             return diagnostician.observe(**kwargs)
+        except TimeoutException:
+            logger.error(
+                f"{diagnostician.__class__.__name__}.observe is timeout"
+            )
+            return DiagnosisObservation()
         except Exception as e:
             logger.error(f"Fail to observe {name}: {e}")
             return DiagnosisObservation()
@@ -191,6 +194,11 @@ class DiagnosisManager:
 
         try:
             return diagnostician.resolve(problem, **kwargs)
+        except TimeoutException:
+            logger.error(
+                f"{diagnostician.__class__.__name__}.resolve is timeout"
+            )
+            return NoAction()
         except Exception as e:
-            logger.error(f"Fail to observe {name}: {e}")
+            logger.error(f"Fail to resolve {name}: {e}")
             return NoAction()
