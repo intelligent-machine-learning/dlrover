@@ -10,18 +10,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import time
+import unittest
+from unittest.mock import MagicMock
+
+import ray
 
 from dlrover.python.rl.common.args import parse_job_args
+from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
 from dlrover.python.rl.master.graph import RLExecutionGraph
-from dlrover.python.rl.tests.master.base import BaseMasterTest
+from dlrover.python.rl.master.scheduler import GroupOrderedScheduler
 from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData
 
 
-class ExecutionGraphTest(BaseMasterTest):
+class ExecutionGraphTest(unittest.TestCase):
+    def setUp(self):
+        if self._testMethodName == "test_serialization":
+            os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
+            ray.init()
+
+    def tearDown(self):
+        os.environ.clear()
+        if ray.is_initialized():
+            ray.shutdown()
+
     def test_basic(self):
         args = [
             "--job_name",
@@ -101,3 +117,85 @@ class ExecutionGraphTest(BaseMasterTest):
         self.assertEqual(rollout_vertices[1].world_size, 2)
         self.assertEqual(rollout_vertices[1].local_rank, 0)
         self.assertEqual(rollout_vertices[1].local_world_size, 1)
+
+    def test_serialization(self):
+        args = [
+            "--job_name",
+            "test",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+
+        graph = RLExecutionGraph(rl_context)
+        scheduler = GroupOrderedScheduler(graph)
+
+        # add pg info
+        scheduler.get_master_actor_handle = MagicMock(return_value=None)
+        scheduler.schedule()
+        for vertex in graph.get_all_vertices():
+            self.assertIsNotNone(vertex.pg)
+            self.assertIsNotNone(vertex.pg_bundle_index)
+
+        # add runtime info
+        create_time = int(time.time())
+        hostname = "test.com"
+        host_ip = "127.0.0.1"
+        for vertex in graph.get_all_vertices():
+            vertex.update_runtime_info(
+                create_time=create_time,
+                hostname=hostname,
+                host_ip=host_ip,
+            )
+
+        # serialize and deserialize
+        graph_bytes = graph.serialize()
+        graph_recover = RLExecutionGraph.deserialize(graph_bytes)
+
+        self.assertIsNotNone(graph_recover)
+        self.assertEqual(
+            len(graph.name_vertex_mapping),
+            len(graph_recover.name_vertex_mapping),
+        )
+        self.assertEqual(graph.rl_config, graph_recover.rl_config)
+        self.assertEqual(
+            len(graph.get_placement_group()),
+            len(graph_recover.get_placement_group()),
+        )
+        for vertex in graph.get_all_vertices():
+            name = vertex.name
+            self.assertEqual(vertex.role, graph.name_vertex_mapping[name].role)
+            self.assertEqual(vertex.rank, graph.name_vertex_mapping[name].rank)
+            self.assertEqual(
+                vertex.world_size, graph.name_vertex_mapping[name].world_size
+            )
+            self.assertEqual(
+                vertex.local_world_size,
+                graph.name_vertex_mapping[name].local_world_size,
+            )
+            self.assertEqual(
+                vertex.local_rank, graph.name_vertex_mapping[name].local_rank
+            )
+            self.assertEqual(
+                vertex.module_name, graph.name_vertex_mapping[name].module_name
+            )
+            self.assertEqual(
+                vertex.class_name, graph.name_vertex_mapping[name].class_name
+            )
+            self.assertEqual(
+                vertex.resource, graph.name_vertex_mapping[name].resource
+            )
+            self.assertEqual(
+                vertex.create_time, graph.name_vertex_mapping[name].create_time
+            )
+            self.assertEqual(
+                vertex.hostname, graph.name_vertex_mapping[name].hostname
+            )
+            self.assertEqual(
+                vertex.host_ip, graph.name_vertex_mapping[name].host_ip
+            )
+            self.assertEqual(vertex.pg, graph.name_vertex_mapping[name].pg)
+            self.assertEqual(
+                vertex.pg_bundle_index,
+                graph.name_vertex_mapping[name].pg_bundle_index,
+            )
