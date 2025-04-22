@@ -10,7 +10,10 @@ deep learning (supervised learning, unsupervised learning, and reinforcement
 learning), to date, reinforcement learning remains unsupported. Therefore, 
 this article primarily aims to provide solutions based on DLRover for 
 large-scale reinforcement learning scenarios, thereby further extending 
-coverage of deep learning scenarios.  
+coverage of deep learning scenarios. 
+
+Notice: 'reinforcement learning' will be abbreviated as 'RL in the following 
+text.  
 
 ## The Difference
 
@@ -265,3 +268,9 @@ In the future, the DLRover project will also integrate implementations with
 some commonly used open-source frameworks, offering default integration 
 implementations and user entry points on the DLRover side, enabling users to 
 utilize it directly out of the box.  
+
+
+## Conclusion
+This article provides only a preliminary introduction to some of the core 
+designs of the RL scenario. More detailed designs and implementation specifics 
+for certain parts will be covered in dedicated documents in the future.  
