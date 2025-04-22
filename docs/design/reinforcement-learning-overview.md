@@ -1,0 +1,203 @@
+# Reinforcement Learning in DLRover(Experimental)
+
+## Background
+
+Refer to the [overview](./dlrover-overview.md), DLRover has already been 
+introduced, with its definition being: "An Automatic Distributed Deep Learning 
+System." In our previous discussions and practices, we primarily focused on the 
+PRE_TRAIN and SFT scenarios (single SPMD). Among the three major scenarios of 
+deep learning (supervised learning, unsupervised learning, and reinforcement 
+learning), to date, reinforcement learning remains unsupported. Therefore, 
+this article primarily aims to provide solutions based on DLRover for 
+large-scale reinforcement learning scenarios, thereby further extending 
+coverage of deep learning scenarios.  
+
+## The Difference
+
+In a single sentence: it has evolved from a single computation group to a 
+multi-role computation graph.
+
+The upper part of the diagram mainly illustrates the implementation of DLRover 
+in the current supervised/unsupervised learning scenarios: DLRover primarily 
+takes on the management tasks of the control plane, managing a group of SPMD 
+(training workers). DLRover does not handle any management of the data 
+interaction between training processes.
+
+The lower part of the diagram focuses on the design approach of DLRover for 
+reinforcement learning scenarios (taking the relatively complex PPO setup as 
+an example):  
+- Evolved from managing a single SPMD group to managing multiple groups.  
+- The control plane is further refined into a Master and Trainer Controller.  
+- Data plane interactions between different SPMD groups are also incorporated 
+into management by the Trainer Controller.    
+
+<img src="../figures/dlrover_rl_arc_diff.png" alt="Diff for RL">
+
+
+## Design
+### Architecture
+The diagram below represents the overall architecture of DLRover's solution in 
+RL scenarios, where DLRover is positioned at the center.  
+
+<img src="../figures/dlrover_rl_arc.png" alt="ARC">
+
+Based on the diagram above, there are several core design points to explain:
+
+1. **DLRover's Role**: DLRover itself is not an algorithm framework (as 
+mentioned earlier). Therefore, its role in the entire RL architecture remains 
+primarily focused on the control plane management. Thus, it can be seen as 
+further refining and improving the hybrid control mode(single controller + 
+multi-controller).  
+
+2. **Pluggable RL Workload**: To support various algorithms and models while 
+meeting the controllable requirements of the control plane, DLRover provides 
+an independent abstract definition for RL implementation. Further details can 
+be found [below](#pluggable-rl-workload).
+
+3. **Ray as the Distributed Backend**:  
+   - Since RL scenarios involve multiple roles (e.g., Actor/Rw/Ref/Critic), 
+   asynchronous computation control between roles is key to improving performance.  
+   - For different production scenarios and resource specifications, affinity 
+   or anti-affinity scheduling for different types of roles is crucial for RL 
+   workflow orchestration. Ray easily enables these implementations through 
+   APIs such as placement groups.  
+   - By leveraging Ray's built-in actor fault tolerance combined with DLRover's
+   current practices in stability management, the overall process reliability 
+   can be enhanced in a more cost-effective and flexible manner.    
+
+### Pluggable RL Workload
+Currently, due to the hybrid control model(single controller + multi-controller), 
+the algorithm implementation and engineering implementation for different RL 
+scenarios are strongly coupled. Specifically, for each RL algorithm, denoted 
+as N, and each model framework, denoted as M, there are at least N * M Workload 
+implementations. This implementation typically has the following 
+characteristics: low generalizability, high coupling, rapid iteration cycles, 
+and high implementation and debugging costs.
+
+<img src="../figures/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload">
+
+To address the need for reusability and extensibility across both internal and 
+external implementations while reducing refactoring costs, the MultiController 
+component (i.e., the Trainer and Worker) is abstracted and separated. Users can 
+implement any algorithm or framework based on a combination of `BaseTrainer` 
+and `BaseWorkload`, thereby enabling seamless integration into the workflow.  
+
+By the way: For the implementation of a specific algorithm and model, can 
+refer to the project: **flash_tuner**.  
+
+
+### Computational Graph
+In order to better manage the internal computational process of RL, we use a 
+DCG (Directed Cyclic Graph) to represent the entire computational graph. 
+Vertices represent various instances of RL roles, while edges represent the 
+interaction relationships between these instances. Through the relationship 
+between vertices and edges, DLRover, as the control-plane manager, can gain a 
+clearer understanding of the interaction logic between all working roles, 
+allowing for greater potential to improve overall stability and performance 
+effectively. 
+For example, if an anomaly occurs, the relationship topology allows us to 
+identify the affected upstream and downstream components immediately, enabling 
+more effective fault-tolerant operations.  
+
+<img src="../figures/dlrover_rl_dcg.png" alt="DCG">
+
+However, because the current computation in RL is strongly coupled with the 
+algorithm and model architecture, we are not yet able to provide an abstract, 
+fully generalized representation of the computational graph independent of the 
+algorithm and framework. As a result, many higher-level optimizations in 
+performance or stability are still tied to the specific implementation of the 
+algorithm to some extent. Therefore, on the algorithm framework side, in order 
+to meet the demands of large-scale production, it is necessary not only to 
+implement the basic RL workflow but also to leverage the aforementioned 
+capabilities exposed by **DLRover** for further development, enhancing its 
+performance and stability. For detailed implementation, future reference can 
+be made to the project: **flash_tuner**.  
+
+
+### SubDag Based Scheduling
+For general RL scenarios, the scheduling of all workloads is conducted as a 
+whole, meaning that both training and inference are scheduled uniformly based 
+on roles. However, to accommodate larger scales and different types of models, 
+there are undoubtedly optimization strategies based on model parallelism. 
+Therefore, in terms of scheduling, **DLRover** will represent the actual 
+computational graph's topology in finer granularity, namely at the 
+sub-dag(Directed Cyclic Graph)level. By utilizing the optimized sub-dag and 
+considering the current cluster resources, **DLRover** implements more 
+fine-grained scheduling, as illustrated in the diagram below:
+
+- A general execution graph representation: as shown in the "Preview Execution" 
+layer below.  
+- An optimized execution graph representation based on sub-dag: as shown in 
+the "Optimized Execution" layer below.    
+
+<img src="../figures/dlrover_rl_sub_dag.png" alt="Sub DAG Based">
+
+
+### Fault Tolerance
+#### Persisted Runtime Context
+
+
+#### Basic Level Failover
+A basic failover implementation essentially build two actions: 
+fault detection and job restarting into an automated process.
+
+
+
+#### Advanced Level Failover
+
+
+### API
+Considering that DLRover itself is independent of specific algorithm frameworks, 
+an abstraction layer has been introduced at the user access level to meet the 
+integration requirements of different frameworks. DLRover exposes the RL 
+computational graph through an API similar to a computation graph (refer to the 
+explanation above). At the same time, it retains entry points for runtime 
+training parameter configurations (which are internally parsed and passed 
+through), thereby maximizing compatibility with the use of various 
+configuration parameters across different frameworks.
+
+A simple example is shown as follows:  
+```python
+from dlrover.python.rl.api.api import RLJobBuilder
+
+rl_job = (
+            RLJobBuilder()
+            # how many nodes for training
+            .node_num(3)
+            # how many devices per node
+            .device_per_node(2)
+            # the full configurations for training with dict or omega-config format
+            .config({"c1": "v1"}) 
+            # the global envs for training with dict format
+            .global_env({"e0": "v0"})  
+            # trainer's module and class
+            # can be automatically populated when a default framework integration implementation is available
+            .trainer(
+                "dlrover.python.rl.tests.test_class", "TestInteractiveTrainer"
+            )
+            # actor's module and class
+            # can be automatically populated when a default framework integration implementation is available
+            .actor("dlrover.python.rl.tests.test_class", "TestActor")
+                # total number of the actor
+                .total(2)
+                # number of the actor per node
+                .per_node(1)
+                # envs for actor
+                .env({"e1": "v1"})
+            # rollout's module and class
+            # can be automatically populated when a default framework integration implementation is available
+            .rollout("dlrover.python.rl.tests.test_class", "TestRollout").total(2).per_node(1)
+            # reference's module and class
+            # can be automatically populated when a default framework integration implementation is available
+            .reference("dlrover.python.rl.tests.test_class", "TestReference").total(2).per_node(1)
+            .build()
+        )
+
+# submit the job for running
+rl_job.submit("test")
+```
+
+In the future, the DLRover project will also integrate implementations with 
+some commonly used open-source frameworks, offering default integration 
+implementations and user entry points on the DLRover side, enabling users to 
+utilize it directly out of the box.  
