@@ -35,6 +35,7 @@ into management by the Trainer Controller.
 
 
 ## Design
+
 ### Architecture
 The diagram below represents the overall architecture of DLRover's solution in 
 RL scenarios, where DLRover is positioned at the center.  
@@ -47,7 +48,16 @@ Based on the diagram above, there are several core design points to explain:
 mentioned earlier). Therefore, its role in the entire RL architecture remains 
 primarily focused on the control plane management. Thus, it can be seen as 
 further refining and improving the hybrid control mode(single controller + 
-multi-controller).  
+multi-controller). 
+   - API and Driver: resolve input parameter and drive the rl job
+   - Master: the main daemon process as an ray actor
+     - JobManager: job lifecycle management   
+       - scheduler: actor and placement group management
+       - executor: to invoke with 'trainer' 
+     - DiagnosisManager: runtime job diagnosis for stability
+     - FailoverCoordinator: handle failure and do failover
+     - JobContext: the job runtime context
+   - Trainer and Workload's basic abstraction
 
 2. **Pluggable RL Workload**: To support various algorithms and models while 
 meeting the controllable requirements of the control plane, DLRover provides 
@@ -64,6 +74,7 @@ be found [below](#pluggable-rl-workload).
    - By leveraging Ray's built-in actor fault tolerance combined with DLRover's
    current practices in stability management, the overall process reliability 
    can be enhanced in a more cost-effective and flexible manner.    
+
 
 ### Pluggable RL Workload
 Currently, due to the hybrid control model(single controller + multi-controller), 
@@ -83,7 +94,7 @@ implement any algorithm or framework based on a combination of `BaseTrainer`
 and `BaseWorkload`, thereby enabling seamless integration into the workflow.  
 
 By the way: For the implementation of a specific algorithm and model, can 
-refer to the project: **flash_tuner**.  
+refer to the project: **FlashTuner**.  
 
 
 ### Computational Graph
@@ -111,7 +122,7 @@ to meet the demands of large-scale production, it is necessary not only to
 implement the basic RL workflow but also to leverage the aforementioned 
 capabilities exposed by **DLRover** for further development, enhancing its 
 performance and stability. For detailed implementation, future reference can 
-be made to the project: **flash_tuner**.  
+be made to the project: **FlashTuner**.  
 
 
 ### SubDag Based Scheduling
@@ -134,24 +145,57 @@ the "Optimized Execution" layer below.
 
 
 ### Fault Tolerance
+
 #### Persisted Runtime Context
+Before discussing fault tolerance, a necessary prerequisite must be 
+established: a persistable runtime context. This context stores all essential 
+and critical information required during job execution, such as the physical 
+execution graph, runtime worker key information records, training key 
+information records, and core job states, among others. All core control plane 
+operations of the DLRover Master are centered around this runtime context, 
+including the fault tolerance operations that will be introduced shortly.
+
+Additionally, this context must be persistable and recoverable. The DLRover 
+Master operates as a resident process throughout the lifecycle of the 
+computation process, but it is also susceptible to unexpected issues. If the 
+Master encounters an exception and restarts, it needs to recover the 
+corresponding context from the persistence system to continue safeguarding the 
+entire RL computation process.  
 
 
 #### Basic Level Failover
 A basic failover implementation essentially build two actions: 
 fault detection and job restarting into an automated process.
 
+- Any worker who implements 'BaseWorkload' will proactively report the latest 
+runtime information. 
+- Master will receive runtime info report and determine whether it has a 
+failure issue
+- Failover Coordinator will handle the specified failure in different strategy
+
+The diagram below illustrates 'Global Failover', which is the implementation 
+process at the basic failover level: 
+<img src="../figures/dlrover_rl_failover_basic.png" alt="Basic Failover">
 
 
 #### Advanced Level Failover
+An advanced failover implementation essentially reduces the scope of failure 
+impact from global to local, thereby minimizing the effects of failures and 
+improving stability. However, since this part of the implementation will be 
+coupled with the multi-controller layer, it requires extending the abstract 
+interfaces provided by DLRover in conjunction with the algorithm framework. 
+Therefore, a specific design and implementation of this will be further 
+demonstrated later in conjunction with the **FlashTuner** project. 
+
+TODO(another doc to share this)
 
 
 ### API
 Considering that DLRover itself is independent of specific algorithm frameworks, 
 an abstraction layer has been introduced at the user access level to meet the 
 integration requirements of different frameworks. DLRover exposes the RL 
-computational graph through an API similar to a computation graph (refer to the 
-explanation above). At the same time, it retains entry points for runtime 
+computational graph through an API similar to a computation graph(refer to the 
+explanation above) style. At the same time, it retains entry points for runtime 
 training parameter configurations (which are internally parsed and passed 
 through), thereby maximizing compatibility with the use of various 
 configuration parameters across different frameworks.
@@ -182,14 +226,16 @@ rl_job = (
                 .total(2)
                 # number of the actor per node
                 .per_node(1)
-                # envs for actor
+                # envs for actor, higher priority than 'global_env'
                 .env({"e1": "v1"})
             # rollout's module and class
             # can be automatically populated when a default framework integration implementation is available
-            .rollout("dlrover.python.rl.tests.test_class", "TestRollout").total(2).per_node(1)
+            .rollout("dlrover.python.rl.tests.test_class", "TestRollout")
+                .total(2).per_node(1)
             # reference's module and class
             # can be automatically populated when a default framework integration implementation is available
-            .reference("dlrover.python.rl.tests.test_class", "TestReference").total(2).per_node(1)
+            .reference("dlrover.python.rl.tests.test_class", "TestReference")
+                .total(2).per_node(1)
             .build()
         )
 
