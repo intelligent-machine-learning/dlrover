@@ -37,7 +37,7 @@ class ApiFullTest(unittest.TestCase):
         ray.shutdown()
 
     @timeout(20)
-    def test(self):
+    def test0(self):
         rl_job = (
             RLJobBuilder()
             .node_num(3)
@@ -58,6 +58,35 @@ class ApiFullTest(unittest.TestCase):
             .reference("dlrover.python.rl.tests.test_class", "TestReference")
             .total(2)
             .per_node(1)
+            .build()
+        )
+
+        rl_job.submit("test", master_cpu=1, master_memory=128)
+        time.sleep(5)
+
+    @timeout(20)
+    def test1(self):
+        rl_job = (
+            RLJobBuilder()
+            .node_num(1)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0"})
+            .trainer(
+                "dlrover.python.rl.tests.test_class", "TestInteractiveTrainer"
+            )
+            .actor("dlrover.python.rl.tests.test_class", "TestActor")
+            .total(2)
+            .per_node(2)
+            .env({"e1": "v1"})
+            .rollout("dlrover.python.rl.tests.test_class", "TestRollout")
+            .total(2)
+            .per_node(2)
+            .reference("dlrover.python.rl.tests.test_class", "TestReference")
+            .total(2)
+            .per_node(2)
+            .with_collocation("actor", "rollout", "reference")
             .build()
         )
 
