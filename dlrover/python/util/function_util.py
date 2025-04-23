@@ -56,7 +56,7 @@ def timeout(secs=-1, callback_func=None):
     return decorator
 
 
-def thread_timeout(secs=-1, callback_func=None):
+def threading_timeout(secs=-1, callback_func=None):
     """
     Decorator for timeout that limits the execution
     time of functions executed in main and non-main threads
