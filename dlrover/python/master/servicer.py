@@ -300,6 +300,11 @@ class MasterServicer(ABC):
                 RendezvousName.ELASTIC_TRAINING
             ]
             training_manager.clear_waiting_nodes()
+
+        # Pause hang diagnosis during rendezvous
+        if node_rank == 0:
+            self._diagnosis_manager.pause_observing()
+
         res = comm.RendezvousState(round=round)
         return res
 
@@ -334,6 +339,9 @@ class MasterServicer(ABC):
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
             self._job_metric_collector.collect_custom_data(metrics)
+            # Finish elastic training rendezvous so we continue diagnosis
+            self._diagnosis_manager.continue_observing()
+
         return res
 
     def _kv_store_get(self, request: comm.KeyValuePair):
@@ -579,12 +587,10 @@ class MasterServicer(ABC):
         return True
 
     def _handle_reported_atorch_event(self, message: comm.AtorchEvent):
-        if comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_STEP:
+        if message.name == TrainEventName.TRAIN_EVT_STEP:
             _event_context.train_steps.add_step_event(message)
-        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_PREDICT_STEP:
-            _event_context.predict_steps.add_step_event(message)
-        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
-            _event_context.train_steps.add_ckpt_event(message)
+        elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True
 
