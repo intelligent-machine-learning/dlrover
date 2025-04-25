@@ -10,22 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-class InvalidJobConfiguration(Exception):
-    def __init__(self):
-        super(InvalidJobConfiguration, self).__init__(
-            "The job configuration is invalid."
-        )
-
-
-class InvalidRLConfiguration(Exception):
-    def __init__(self):
-        super(InvalidRLConfiguration, self).__init__(
-            "The rl configuration is invalid."
-        )
-
-
-class ResourceError(Exception):
-    def __init__(self):
-        super(ResourceError, self).__init__("The resource is not satisfied.")
+#
+# This package includes code from [https://github.com/OpenRLHF/OpenRLHF]
+# licensed under the Apache License 2.0. See [https://github.com/OpenRLHF/
+# OpenRLHF] for details.

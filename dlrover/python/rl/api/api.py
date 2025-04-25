@@ -1,4 +1,4 @@
-# Copyright 2025 The EasyDL Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -544,6 +544,21 @@ class RLJobBuilder(object):
 
         roles = [role.lower() for role in roles]
         self._collocations.append(set(roles))
+        return self
+
+    def with_collocation_all(self):
+        """
+        Set a collocation strategy for all roles.
+
+        Notice: can be used after role definition only
+        """
+
+        roles = set()
+        for role, role_config in self._components.items():
+            if role == "trainer" or not role_config:
+                continue
+            roles.add(role)
+        self._collocations.append(roles)
         return self
 
     def total(self, num=1):
