@@ -102,6 +102,16 @@ class MasterKVStoreTest(unittest.TestCase):
         with self.assertRaises(LookupError):
             kv_store.multi_get(["key2", "key3", "key4"])
 
+        kv_store.multi_set(["foo", "bar"], ["foo1", "bar1"])
+        self.assertEqual(
+            kv_store.multi_get(["foo", "bar"]), ["foo1", "bar1"]
+        )
+        self.assertEqual(kv_store.get("foo"), "foo1")
+        self.assertEqual(kv_store.get("bar"), "bar1")
+
+        with self.assertRaises(IndexError):
+            kv_store.multi_set(["foo", "bar"], ["foo1"])
+
     def test_kv_store_timeout(self):
         kv_store = MasterKVStore("dlrover/torch/test")
         key1 = "alpha"

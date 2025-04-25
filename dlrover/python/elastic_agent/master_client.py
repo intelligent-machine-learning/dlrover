@@ -117,6 +117,29 @@ class MasterClient(Singleton, ABC):
         result: comm.KeyValuePairs = self._get(request)
         return result.kvs
 
+    def kv_store_multi_set(self, keys, values):
+        try:
+            kvs = {}
+            for i in range(len(keys)):
+                key = keys[i]
+                value = values[i]
+                kvs[key] = value
+            message = comm.KeyValuePairs(kvs)
+            message.op = KeyValueOps.SET
+            response = self._report(message)
+            return response.success
+        except IndexError:
+            logger.error(
+                f"IndexError in kv_store_multi_set: "
+                f"{keys}, {values} are inconsistent"
+            )
+            raise
+        except Exception:
+            logger.error(
+                f"Unexpected error in kv_store_multi_set: " f"{keys}, {values}"
+            )
+            raise
+
     def get_task(self, dataset_name):
         """Get a task from master.
 

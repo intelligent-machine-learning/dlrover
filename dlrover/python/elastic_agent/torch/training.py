@@ -325,7 +325,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
-        self._store = MasterKVStore(self._name, timedelta(seconds=60))
+        self._store = MasterKVStore(self._name, timedelta(seconds=300))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         node_unit = int(rdzv_params.get("node_unit", "1"))
         self._client.report_rdzv_params(
@@ -1360,10 +1360,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _dlrover_exit_barrier(self):
         logger.info(
-            "Local worker group finished (%s). "
-            "Waiting %s seconds for other agents to finish",
-            self._worker_group.state,
-            self._exit_barrier_timeout,
+            f"Local worker group finished {self._worker_group.state}. "
+            f"Waiting {self._exit_barrier_timeout} seconds "
+            f"for other agents to finish"
         )
         start = time.time()
         try:
@@ -1374,16 +1373,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 barrier_timeout=self._exit_barrier_timeout,
             )
             logger.info(
-                "Done waiting for other agents. Elapsed: %s seconds",
-                time.time() - start,
+                f"Done waiting for other agents. Elapsed: "
+                f"{time.time() - start} seconds"
             )
         except SignalException as e:
-            logger.warning("Got termination signal: %s", e.sigval)
+            logger.warning(f"Got termination signal: {e.sigval}")
             raise
         except Exception:
-            logger.exception(
-                "Error waiting on exit barrier. Elapsed: %s seconds",
-                time.time() - start,
+            logger.error(
+                f"Error waiting on exit barrier. Elapsed: "
+                f"{time.time() - start} seconds"
             )
 
 

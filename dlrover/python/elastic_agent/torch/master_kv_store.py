@@ -52,6 +52,14 @@ class MasterKVStore(Store):
         key = self.prefix + key
         self.client.kv_store_set(key, value)
 
+    def multi_set(self, keys, values):
+        """
+        Write many key/value pairs into ``MasterKVStore``.
+        Both key and value may be either Python ``str`` or ``bytes``.
+        """
+        new_keys = [self.prefix + key for key in keys]
+        self.client.kv_store_multi_set(new_keys, values)
+
     def get(self, key) -> bytes:
         """
         Get a value by key, possibly doing a blocking wait.
@@ -74,9 +82,7 @@ class MasterKVStore(Store):
 
         value = kvs[key]
         if value == b"":
-            raise LookupError(
-                f"Key {key} not found in the store of job master"
-            )
+            raise ValueError(f"Key {key} is emtpy in the store of job master")
 
         return value
 
@@ -84,19 +90,21 @@ class MasterKVStore(Store):
         new_keys = [self.prefix + key for key in keys]
         kvs = self._try_wait_get(new_keys)
         if not kvs:
-            raise LookupError(f"Not all {new_keys} in the store of job master")
+            raise LookupError(
+                f"Keys {new_keys} not found in the store of job master"
+            )
 
         values = []
         try:
-            for key in keys:
-                value = kvs[self.prefix + key]
+            for key in new_keys:
+                value = kvs[key]
                 if value == b"":
-                    raise LookupError(
-                        f"Not all {new_keys} in the store of job master"
+                    raise ValueError(
+                        f"Key {key} is empty in the store of job master"
                     )
                 values.append(value)
         except Exception:
-            raise LookupError(f"Not all {new_keys} in the store of job master")
+            raise KeyError(f"Not all {new_keys} in the store of job master")
 
         return values
 

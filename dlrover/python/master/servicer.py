@@ -425,6 +425,8 @@ class MasterServicer(ABC):
             success = self._ready_for_ps_relaunch()
         elif isinstance(message, comm.KeyValuePair):
             success = self._kv_store_set(message)
+        elif isinstance(message, comm.KeyValuePairs):
+            success = self._kv_store_multi_set(message)
         elif isinstance(message, comm.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
         elif isinstance(message, comm.NodeCheckpointState):
@@ -671,6 +673,11 @@ class MasterServicer(ABC):
 
     def _kv_store_set(self, message: comm.KeyValuePair):
         self._kv_store.set(message.key, message.value)
+        return True
+
+    def _kv_store_multi_set(self, message: comm.KeyValuePairs):
+        for k, v in message.kvs.items():
+            self._kv_store.set(k, v)
         return True
 
     def _report_paral_config(
