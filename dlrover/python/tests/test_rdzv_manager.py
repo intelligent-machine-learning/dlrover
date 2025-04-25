@@ -103,9 +103,7 @@ class MasterKVStoreTest(unittest.TestCase):
             kv_store.multi_get(["key2", "key3", "key4"])
 
         kv_store.multi_set(["foo", "bar"], ["foo1", "bar1"])
-        self.assertEqual(
-            kv_store.multi_get(["foo", "bar"]), ["foo1", "bar1"]
-        )
+        self.assertEqual(kv_store.multi_get(["foo", "bar"]), ["foo1", "bar1"])
         self.assertEqual(kv_store.get("foo"), "foo1")
         self.assertEqual(kv_store.get("bar"), "bar1")
 
