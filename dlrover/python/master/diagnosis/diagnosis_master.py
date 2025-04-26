@@ -27,10 +27,6 @@ from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
-from dlrover.python.common.metric.monitor import (
-    GpuMetricMonitor,
-    NpuMetricMonitor,
-)
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
@@ -271,6 +267,9 @@ class DiagnosisMaster(DiagnosisManager):
             f"Training pre-check complete, cost:{time.time() - start:.2f}s."
         )
 
+    def new_metric_monitor(self, monitor):
+        self._metric_monitor = monitor
+
     def start_metric_collect(self):
         """
         create a XpuMetricMonitor instance based on worker XPU type
@@ -278,30 +277,7 @@ class DiagnosisMaster(DiagnosisManager):
         store the data into global JobMetricContext
 
         """
-
         logger.info(f"start {self._job_args.xpu_type} metric collector...")
-
-        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
-            self._metric_monitor = NpuMetricMonitor(
-                job_name=self._job_args.job_name,
-                metrics=[
-                    NpuMetricEnum.NPU_UTIL,
-                ],
-            )
-        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
-            self._metric_monitor = GpuMetricMonitor(
-                job_name=self._job_args.job_name,
-                metrics=[
-                    GpuMetricEnum.GPU_UTIL,
-                    GpuMetricEnum.GPU_TENSOR_UTIL,
-                ],
-            )
-        else:
-            logger.info(
-                f"No need to collect metrics in {self._job_args.xpu_type}"
-            )
-            return DiagnosisResult.DIAG_INVALID_PARAM
-
         if self._metric_monitor:
             self._metric_monitor.start()
 
