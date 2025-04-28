@@ -13,7 +13,7 @@
 
 import datetime
 import time
-from typing import Dict, Optional
+from typing import Optional
 
 from torch.distributed import Store
 
@@ -52,6 +52,14 @@ class MasterKVStore(Store):
         key = self.prefix + key
         self.client.kv_store_set(key, value)
 
+    def multi_set(self, keys, values):
+        """
+        Write many key/value pairs into ``MasterKVStore``.
+        Both key and value may be either Python ``str`` or ``bytes``.
+        """
+        new_keys = [self.prefix + key for key in keys]
+        self.client.kv_store_multi_set(new_keys, values)
+
     def get(self, key) -> bytes:
         """
         Get a value by key, possibly doing a blocking wait.
@@ -68,15 +76,37 @@ class MasterKVStore(Store):
         key = self.prefix + key
         kvs = self._try_wait_get([key])
         if not kvs:
-            return b""
-        value = kvs[key]
-
-        if value == b"":
             raise LookupError(
                 f"Key {key} not found in the store of job master"
             )
 
+        value = kvs[key]
+        if value == b"":
+            raise ValueError(f"Key {key} is emtpy in the store of job master")
+
         return value
+
+    def multi_get(self, keys):
+        new_keys = [self.prefix + key for key in keys]
+        kvs = self._try_wait_get(new_keys)
+        if not kvs:
+            raise LookupError(
+                f"Keys {new_keys} not found in the store of job master"
+            )
+
+        values = []
+        try:
+            for key in new_keys:
+                value = kvs[key]
+                if value == b"":
+                    raise ValueError(
+                        f"Key {key} is empty in the store of job master"
+                    )
+                values.append(value)
+        except Exception:
+            raise KeyError(f"Not all {new_keys} in the store of job master")
+
+        return values
 
     def add(self, key, num: int) -> int:
         """
@@ -88,15 +118,7 @@ class MasterKVStore(Store):
              the new (incremented) value
         """
         key = self.prefix + key
-        value = self.client.kv_store_get(key)
-        if value:
-            value = int(value) + num
-        else:
-            value = num
-
-        value_bits = str(value).encode()
-        self.client.kv_store_set(key, value_bits)
-        return value
+        return self.client.kv_store_add(key, num)
 
     def wait(
         self, keys, override_timeout: Optional[datetime.timedelta] = None
@@ -109,7 +131,7 @@ class MasterKVStore(Store):
         """
         keys = [self.prefix + key for key in keys]
         kvs = self._try_wait_get(keys, override_timeout)
-        if kvs is None:
+        if not kvs:
             raise LookupError(
                 "Timeout while waiting for keys in KVStore of master"
             )
@@ -133,15 +155,9 @@ class MasterKVStore(Store):
         timeout = override_timeout if override_timeout else self.timeout
         deadline = time.time() + timeout.total_seconds()
 
-        kvs: Dict[str, str] = {}
         while True:
-            for key in keys:
-                if key not in kvs:
-                    value = self.client.kv_store_get(key)
-                    if value != b"":
-                        kvs[key] = value
-
-            if len(kvs) == len(keys):
+            kvs = self.client.kv_store_multi_get(keys)
+            if kvs:
                 return kvs
 
             watch_timeout = deadline - time.time()
