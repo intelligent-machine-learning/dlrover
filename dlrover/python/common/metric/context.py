@@ -17,7 +17,7 @@ from typing import Dict
 
 from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.metric.metric import XpuMetric, XpuNodeMetric
+from dlrover.python.common.metric.metric import XpuNodeMetric
 from dlrover.python.common.singleton import Singleton
 
 _dlrover_context = Context.singleton_instance()
@@ -38,7 +38,6 @@ class JobMetricContext(Singleton):
         self._xpu_job_metrics: OrderedDict[
             int, Dict[str, XpuNodeMetric]
         ] = OrderedDict()
-        self._xpu_avg_metrics: OrderedDict[int, XpuMetric] = OrderedDict()
         self.max_metric_records = DefaultValues.MAX_METRIC_REC
         self._lock = threading.Lock()
 
@@ -57,10 +56,12 @@ class JobMetricContext(Singleton):
         with self._lock:
             try:
                 od = OrderedDict()
-                for tm in list(self._xpu_avg_metrics.keys())[::-1]:
+                for tm in list(self._xpu_job_metrics.keys())[::-1]:
+                    total = 0
+                    for v in self._xpu_job_metrics[tm].values():
+                        total += v.get_avg_metric(metric)
                     od[tm] = round(
-                        self._xpu_avg_metrics[tm].get_metric(metric),
-                        2,
+                        total / len(self._xpu_job_metrics[tm].values()), 2
                     )
                     depth = depth - 1
                     if depth <= 0:
@@ -69,45 +70,6 @@ class JobMetricContext(Singleton):
             except Exception as e:
                 logger.error(f"bt_avg_metrics {metric} error: {e}")
                 return None
-
-    def add_avg_metrics(self, timestamp: int, metrics: XpuMetric) -> None:
-        with self._lock:
-            keys = list(self._xpu_avg_metrics.keys())
-            if len(keys) > 0 and timestamp <= keys[-1]:
-                # timestamp should be sorted
-                return
-            elif len(keys) >= self.max_metric_records:
-                # remove first item
-                self._xpu_avg_metrics.popitem(last=False)
-            self._xpu_avg_metrics[timestamp] = metrics
-
-    def clear_avg_metrics(self) -> None:
-        with self._lock:
-            self._xpu_avg_metrics.clear()
-
-    def avg_metrics_size(self):
-        with self._lock:
-            return len(self._xpu_avg_metrics)
-
-    def get_latest_avg_metrics(self):
-        with self._lock:
-            keys = list(self._xpu_avg_metrics.keys())
-            if len(keys) == 0:
-                return None
-            key = keys[-1]
-            return key, self._xpu_avg_metrics[key]
-
-    def get_earliest_avg_metrics(self):
-        with self._lock:
-            keys = list(self._xpu_avg_metrics.keys())
-            if len(keys) == 0:
-                return None
-            key = keys[0]
-            return key, self._xpu_avg_metrics[key]
-
-    def get_avg_metrics(self):
-        with self._lock:
-            return self._xpu_avg_metrics.copy()
 
     def backtrace_node_metrics(self, metric, depth):
         """
