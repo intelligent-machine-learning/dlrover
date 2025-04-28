@@ -439,6 +439,13 @@ class RunningNodes(Message):
 class KeyValuePair(Message):
     key: str = ""
     value: bytes = b""
+    op: str = ""
+
+
+@dataclass
+class KeyValuePairs(Message):
+    kvs: Dict[str, bytes] = field(default_factory=dict)
+    op: str = ""
 
 
 @dataclass

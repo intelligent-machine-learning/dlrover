@@ -71,6 +71,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+import dlrover.python.util.store_util as store_util
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
@@ -128,6 +129,7 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
     pass
 
 __all__ = ["launch_agent"]
+_DLROVER_TERMINAL_STATE_SYNC_ID = "torchelastic/agent/terminal_state"
 
 
 def _set_paral_config():
@@ -323,7 +325,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
-        self._store = MasterKVStore(self._name, timedelta(seconds=60))
+        self._store = MasterKVStore(self._name, timedelta(seconds=300))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         node_unit = int(rdzv_params.get("node_unit", "1"))
         self._client.report_rdzv_params(
@@ -1082,7 +1084,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
 
                 try:
-                    self._exit_barrier()
+                    if version_less_than_240():
+                        self._dlrover_exit_barrier()
+                    else:
+                        self._exit_barrier()
                     logger.info("Barrier exited.")
 
                     self._wait_async_saver()
@@ -1353,6 +1358,33 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
+    def _dlrover_exit_barrier(self):
+        logger.info(
+            f"Local worker group finished {self._worker_group.state}. "
+            f"Waiting {self._exit_barrier_timeout} seconds "
+            f"for other agents to finish"
+        )
+        start = time.time()
+        try:
+            store_util.barrier(
+                self._store,
+                self._worker_group.group_world_size,
+                key_prefix=_DLROVER_TERMINAL_STATE_SYNC_ID,
+                barrier_timeout=self._exit_barrier_timeout,
+            )
+            logger.info(
+                f"Done waiting for other agents. Elapsed: "
+                f"{time.time() - start} seconds"
+            )
+        except SignalException as e:
+            logger.warning(f"Got termination signal: {e.sigval}")
+            raise
+        except Exception:
+            logger.error(
+                f"Error waiting on exit barrier. Elapsed: "
+                f"{time.time() - start} seconds"
+            )
+
 
 def launch_agent(
     config: ElasticLaunchConfig,
@@ -1411,6 +1443,7 @@ def launch_agent(
         log_dir=config.log_dir,
         training_log_file=config.training_log_file,
         failure_node_errors=config.failure_node_errors,
+        exit_barrier_timeout=900,
     )
 
     shutdown_rdzv = True
