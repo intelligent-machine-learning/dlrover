@@ -952,15 +952,6 @@ class GpuMetricMonitorTest(unittest.TestCase):
 
             self.assertEqual(
                 list(
-                    _metric_context.backtrace_avg_metrics(
-                        GpuMetricEnum.GPU_TENSOR_UTIL,
-                        _metric_context.max_metric_records,
-                    ).values()
-                ),
-                [30.5],
-            )
-            self.assertEqual(
-                list(
                     _metric_context.backtrace_node_metrics(
                         GpuMetricEnum.GPU_TENSOR_UTIL,
                         _metric_context.max_metric_records,
@@ -985,15 +976,6 @@ class GpuMetricMonitorTest(unittest.TestCase):
                 ],
             )
 
-            self.assertEqual(
-                list(
-                    _metric_context.backtrace_avg_metrics(
-                        GpuMetricEnum.GPU_UTIL,
-                        _metric_context.max_metric_records,
-                    ).values()
-                ),
-                [99.5],
-            )
             self.assertEqual(
                 list(
                     _metric_context.backtrace_node_metrics(
@@ -1057,15 +1039,6 @@ class NpuMetricMonitorTest(unittest.TestCase):
             self.assertEqual(_metric_context.size(), 1)
             self.assertEqual(
                 list(
-                    _metric_context.backtrace_avg_metrics(
-                        NpuMetricEnum.NPU_UTIL,
-                        _metric_context.max_metric_records,
-                    ).values()
-                ),
-                [99.5],
-            )
-            self.assertEqual(
-                list(
                     _metric_context.backtrace_node_metrics(
                         NpuMetricEnum.NPU_UTIL,
                         _metric_context.max_metric_records,
@@ -1092,3 +1065,50 @@ class NpuMetricMonitorTest(unittest.TestCase):
 
             _metric_context.clear_node_metrics()
             self.assertEqual(_metric_context.size(), 0)
+
+
+class MetricContextTest(unittest.TestCase):
+    def setUp(self):
+        _metric_context.clear_avg_metrics()
+        _metric_context.clear_node_metrics()
+
+    def tearDown(self):
+        _metric_context.clear_avg_metrics()
+        _metric_context.clear_node_metrics()
+
+    def test_avg_metric(self):
+        m1 = GpuMetric()
+        m1.set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+        m1.set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 30.5)
+        m2 = GpuMetric()
+        m2.set_metric(GpuMetricEnum.GPU_UTIL, 97.5)
+        m2.set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 28.5)
+        tm = int(time.time())
+        _metric_context.add_avg_metrics(tm, m1)
+        self.assertEqual(_metric_context.avg_metrics_size(), 1)
+        _metric_context.add_avg_metrics(tm + 10, m2)
+        self.assertEqual(_metric_context.avg_metrics_size(), 2)
+        _metric_context.add_avg_metrics(tm - 10, m1)
+        self.assertEqual(_metric_context.avg_metrics_size(), 2)
+
+        self.assertEqual(
+            _metric_context.get_earliest_avg_metrics()[0],
+            tm,
+        )
+        self.assertEqual(
+            _metric_context.get_latest_avg_metrics()[0],
+            tm + 10,
+        )
+
+        dummy = _metric_context.get_avg_metrics()
+        self.assertEqual(len(dummy), 2)
+
+        dummy = _metric_context.backtrace_avg_metrics(
+            GpuMetricEnum.GPU_UTIL, 2
+        )
+        self.assertEqual(list(dummy.keys()), [tm + 10, tm])
+        self.assertEqual(dummy[tm], 99.5)
+        self.assertEqual(dummy[tm + 10], 97.5)
+
+        _metric_context.clear_avg_metrics()
+        self.assertEqual(_metric_context.avg_metrics_size(), 0)
