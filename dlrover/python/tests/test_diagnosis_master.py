@@ -187,13 +187,8 @@ class DiagnosisMasterTest(unittest.TestCase):
         job_metrics["worker-3"] = copy.deepcopy(metric)
         job_metrics["worker-4"] = copy.deepcopy(metric)
 
-        avg_metric = GpuMetric()
-        avg_metric.set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
-        avg_metric.set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 0.307)
-
         ts = int(datetime.now().timestamp())
         _metric_context.add_node_metrics(ts, job_metrics)
-        _metric_context.add_avg_metrics(ts, avg_metric)
         self.assertEqual(
             mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_WAITING
         )
@@ -201,7 +196,6 @@ class DiagnosisMasterTest(unittest.TestCase):
         for _ in range(10):
             ts = ts + 60
             _metric_context.add_node_metrics(ts, job_metrics)
-            _metric_context.add_avg_metrics(ts, avg_metric)
         self.assertEqual(
             mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HEALTHY
         )
@@ -222,14 +216,9 @@ class DiagnosisMasterTest(unittest.TestCase):
         job_metrics["worker-3"] = copy.deepcopy(metric)
         job_metrics["worker-4"] = copy.deepcopy(metric)
 
-        avg_metric = GpuMetric()
-        avg_metric.set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
-        avg_metric.set_metric(GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002)
-
         for _ in range(30):
             ts = ts + 60
             _metric_context.add_node_metrics(ts, job_metrics)
-            _metric_context.add_avg_metrics(ts, avg_metric)
         self.assertEqual(
             mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
         )
