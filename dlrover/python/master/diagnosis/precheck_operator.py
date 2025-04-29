@@ -113,10 +113,22 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 pending_workers.append(node)
 
         if pending_workers:
-            first_pending_wk = min(
-                pending_workers,
-                key=lambda x: x.create_time,
-            )  # type: ignore
+            # find none create time element 1st
+            first_pending_wk = next(
+                (
+                    pending_worker
+                    for pending_worker in pending_workers
+                    if not pending_worker.create_time
+                ),
+                None,
+            )
+            # then the min create time element if no none creat time element
+            if not first_pending_wk:
+                first_pending_wk = min(
+                    pending_workers,
+                    key=lambda x: x.create_time,
+                )  # type: ignore
+
             if (
                 first_pending_wk
                 and first_pending_wk.create_time
@@ -131,6 +143,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     f": {pending_workers}, "
                 )
                 return True, first_pending_wk
+            logger.debug(f"Exist pending worker: {first_pending_wk.name}")
             return True, None
         else:
             logger.info("No pending workers.")
