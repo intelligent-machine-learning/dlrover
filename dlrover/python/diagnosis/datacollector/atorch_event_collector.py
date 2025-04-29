@@ -18,6 +18,7 @@ import time
 from ast import literal_eval
 from datetime import datetime
 
+from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -27,7 +28,6 @@ from dlrover.python.training_event.event import (
     EventTargetName,
     EventTypeName,
 )
-from dlrover.python.training_event.predefined.trainer import TrainerEventName
 
 
 class AtorchNotFoundException(Exception):
@@ -55,6 +55,7 @@ class AtorchEventCollector(Singleton):
         self._retry_timeout = retry_timeout
         self._ranks = local_world_size
         self._threads = []
+        self._first_step = None
 
     def parse_line(self, line):
         match = re.findall(self._prefix_pattern, line)
@@ -77,9 +78,8 @@ class AtorchEventCollector(Singleton):
         # TrainerEventName
         event_name = str(match[4])
         if event_name not in (
-            TrainerEventName.TRAIN_STEP.value,
-            TrainerEventName.PREDICT_STEP.value,
-            TrainerEventName.SAVE.value,
+            TrainEventName.TRAIN_EVT_STEP,
+            TrainEventName.TRAIN_EVT_FLASH_CKPT,
         ):
             raise AtorchNotFoundException()
 
@@ -126,13 +126,31 @@ class AtorchEventCollector(Singleton):
                 except (AtorchNotFoundException, AtorchInvalidException):
                     continue
                 except (ValueError, KeyError, SyntaxError) as e:
-                    logger.error(f"Parse {line} error: {e}")
+                    logger.warning(f"Parse {line} error: {e}")
                     continue
                 except Exception as e:
-                    logger.error(f"Parse {line} unexpected error: {e}")
+                    logger.warning(f"Parse {line} unexpected error: {e}")
                     continue
 
-                self._report_event(ts, target, event_name, event_type, step)
+                if (
+                    not self._first_step
+                    and target == EventTargetName.TRAINER
+                    and event_name == TrainEventName.TRAIN_EVT_STEP
+                    and event_type == EventTypeName.BEGIN
+                ):
+                    logger.info(
+                        f"Collect first step since last rendezvous: {step}"
+                    )
+                    self._first_step = step
+
+                if self._first_step and step != self._first_step:
+                    logger.info(
+                        f"Report event: {ts} {target} {event_name} "
+                        f"{event_type} {step}"
+                    )
+                    self._report_event(
+                        ts, target, event_name, event_type, step
+                    )
 
     def collect_events(self, rank: int):
         filepath = os.path.join(self._filepath, f"events_{rank}.log")

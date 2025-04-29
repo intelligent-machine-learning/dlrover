@@ -24,7 +24,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
-from dlrover.python.common.global_context import Context, DefaultValues
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.diagnosis.common.constants import (
@@ -74,6 +74,7 @@ class DiagnosisMaster(DiagnosisManager):
 
     def __init__(self, job_args: JobArgs = None):
         self._is_observing_started = False
+        self._is_observing_paused = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
@@ -291,6 +292,20 @@ class DiagnosisMaster(DiagnosisManager):
         if self._metric_monitor:
             self._metric_monitor.join()
 
+    def pause_observing(self):
+        logger.info("Pause observing training...")
+        _event_context.train_steps.clear_step_events()
+        _metric_context.clear_node_metrics()
+
+        self._is_observing_paused = True
+
+    def continue_observing(self):
+        logger.info("Continue observing training...")
+        _event_context.train_steps.clear_step_events()
+        _metric_context.clear_node_metrics()
+
+        self._is_observing_paused = False
+
     def start_observing(self):
         logger.info("Start to observing training...")
         self._is_observing_started = True
@@ -383,23 +398,26 @@ class DiagnosisMaster(DiagnosisManager):
         return DiagnosisResult.DIAG_HANG, start_ts, end_ts
 
     def _diagnose_metrics(self):
-        logger.info("_diagnose_metrics thread is running...")
+        hang_downtime = _dlrover_context.hang_downtime
+
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _metric_diagnose thread due to "
+                    f"Stop _metric_diagnose thread: "
                     f"{self._is_observing_started}"
                 )
                 break
 
-            if (
-                _dlrover_context.hang_downtime
-                < DefaultValues.MIN_HANG_DOWNTIME
-            ):
-                hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
-            else:
-                hang_downtime = _dlrover_context.hang_downtime
+            if self._is_observing_paused:
+                logger.info(
+                    f"Pause _metric_diagnose thread: "
+                    f"{self._is_observing_paused}"
+                )
+                time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
+                continue
+
             result, start, end = self.check_tensor_drop_zero(hang_downtime)
+            step_hang = _event_context.check_job_step_hang()
             if result is DiagnosisResult.DIAG_HANG:
                 start_dt = datetime.fromtimestamp(start).strftime(
                     "%Y-%m-%d %H:%M:%S"
@@ -413,12 +431,17 @@ class DiagnosisMaster(DiagnosisManager):
                 )
 
                 if _dlrover_context.hang_detection == 2:
-                    self._job_context.enqueue_diagnosis_action(
-                        NodeAction(
-                            action_type=DiagnosisActionType.RESTART_WORKER,
-                            instance=DiagnosisConstant.ANY_INSTANCE,
+                    if step_hang is True:
+                        logger.info("Restart worker-0 all processes")
+                        _event_context.train_steps.clear_step_events()
+                        self._job_context.enqueue_diagnosis_action(
+                            NodeAction(
+                                node_id=0,
+                                node_type="worker",
+                                action_type=DiagnosisActionType.RESTART_WORKER,
+                                instance=DiagnosisConstant.ANY_INSTANCE,
+                            )
                         )
-                    )
 
             time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
 

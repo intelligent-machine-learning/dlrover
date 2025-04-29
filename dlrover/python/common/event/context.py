@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import threading
+import time
 from collections import OrderedDict
 from datetime import datetime
 
@@ -20,10 +21,12 @@ from dlrover.python.common.event.train_event import (
     AtorchStepEvent,
     TrainEventState,
 )
-from dlrover.python.common.global_context import DefaultValues
+from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event.event import EventTypeName
+
+_dlrover_context = Context.singleton_instance()
 
 
 class StepEvents(object):
@@ -46,7 +49,7 @@ class StepEvents(object):
 
     def pop_step_event(self):
         with self._lock:
-            self._step_events.popitem(last=False)
+            return self._step_events.popitem(last=False)
 
     def size(self):
         with self._lock:
@@ -68,89 +71,149 @@ class StepEvents(object):
             key = keys[0]
             return self._step_events[key]
 
+    def last_steps_avg_time(self, last_steps):
+        """
+
+        Args:
+            last_steps:
+
+        Returns:
+
+        """
+        with self._lock:
+            keys = list(self._step_events.keys())
+            if len(keys) < last_steps:
+                return None
+
+            total_step_time = 0
+            steps = 0
+            for key in reversed(keys):
+                if self._step_events[key].step_time:
+                    total_step_time += self._step_events[key].step_time
+                    steps += 1
+                    if steps >= last_steps:
+                        break
+
+            return float(total_step_time / steps)
+
     def add_step_event(self, event: AtorchEvent):
         with self._lock:
             keys = list(self._step_events.keys())
             if event.timestamp is None or event.step is None:
-                logger.error(f"invalid event: {event}")
+                logger.warning(f"invalid event: {event}")
                 return
             elif len(keys) >= self._max_events:
                 self._step_events.popitem(last=False)
 
-            if event.type is EventTypeName.BEGIN:
+            if event.type == EventTypeName.BEGIN:
                 if len(keys) > 0:
                     last_event = self._step_events[keys[-1]]
                     if (
                         event.step != last_event.step
-                        or event.timestamp < last_event.end_timestamp
                         or last_event.event_state
                         != TrainEventState.TRAIN_EVT_END
                     ):
-                        logger.error(f"invalid step: {last_event}, {event}")
+                        logger.warning(f"invalid step: {last_event}, {event}")
+                        return
+
+                    if event.timestamp < last_event.end_timestamp:
+                        logger.warning(
+                            f"invalid step time: {last_event}, {event}"
+                        )
                         return
 
                 step_event = AtorchStepEvent(
                     event.name, TrainEventState.TRAIN_EVT_BEGIN, event.step
                 )
                 step_event.begin_timestamp = event.timestamp
+                step_event.localtime = int(time.time())
                 self._step_events[event.timestamp] = step_event
 
-            elif event.type is EventTypeName.END:
+            elif event.type == EventTypeName.END:
                 if not len(keys):
-                    logger.error(f"invalid step without BEGIN: {event}")
+                    logger.warning(f"invalid step without BEGIN: {event}")
                     return
                 last_key = keys[-1]
                 step_event = self._step_events[last_key]
                 if (
                     step_event.step + 1 != event.step
-                    or step_event.begin_timestamp > event.timestamp
                     or step_event.event_state
                     != TrainEventState.TRAIN_EVT_BEGIN
                 ):
-                    logger.error(f"invalid step: {step_event}, {event}")
+                    logger.warning(f"invalid step: {step_event}, {event}")
+                    return
+                if step_event.begin_timestamp > event.timestamp:
+                    logger.warning(
+                        f"invalid step timestamp: {step_event}, {event}"
+                    )
                     return
 
                 step_event.end_timestamp = event.timestamp
+                step_event.step_time = (
+                    step_event.end_timestamp - step_event.begin_timestamp
+                )
                 step_event.step = event.step
                 step_event.event_state = TrainEventState.TRAIN_EVT_END
-                step_event.localtime = int(datetime.now().timestamp())
+                step_event.localtime = int(time.time())
                 self._step_events[last_key] = step_event
-
-            elif event.type is EventTypeName.INSTANT:
-                step_event = AtorchStepEvent(
-                    event.name, TrainEventState.TRAIN_EVT_ONCE, event.step
-                )
-                step_event.begin_timestamp = event.timestamp
-                step_event.end_timestamp = event.timestamp
-                self._step_events[event.timestamp] = step_event
 
     def add_ckpt_event(self, event: AtorchEvent):
         with self._lock:
             keys = list(self._step_events.keys())
-            if not len(keys):
-                logger.error("empty step events")
+            if event.timestamp is None or event.step is None:
+                logger.warning(f"invalid event: {event}")
                 return
-            elif event.timestamp is None or event.step is None:
-                logger.error(f"invalid event: {event}")
-                return
+            elif len(keys) >= self._max_events:
+                self._step_events.popitem(last=False)
 
-            last_key = keys[-1]
-            last_step = self._step_events[last_key]
-            if last_step.end_timestamp is None:
-                logger.error(f"invalid last step: {last_step}")
-                return
-            if (
-                event.step != last_step.step
-                or event.timestamp < last_step.end_timestamp
-            ):
-                logger.error(f"invalid last step: {last_step}, {event}")
-                return
+            if event.type == EventTypeName.BEGIN:
+                if len(keys) > 0:
+                    last_event = self._step_events[keys[-1]]
+                    if last_event.event_state != TrainEventState.TRAIN_EVT_END:
+                        logger.warning(
+                            f"invalid ckpt step: {last_event}, {event}"
+                        )
+                        return
+                    if event.timestamp < last_event.end_timestamp:
+                        logger.warning(
+                            f"invalid ckpt step time: {last_event}, {event}"
+                        )
+                        return
 
-            if event.type is EventTypeName.BEGIN:
-                last_step.start_ckpt(event.timestamp)
-            elif event.type is EventTypeName.END:
-                last_step.finish_ckpt(event.timestamp)
-                last_step.localtime = int(datetime.now().timestamp())
+                step_event = AtorchStepEvent(
+                    event.name, TrainEventState.TRAIN_EVT_BEGIN, event.step
+                )
+                step_event.begin_timestamp = event.timestamp
+                step_event.localtime = int(time.time())
+                self._step_events[event.timestamp] = step_event
+
+            elif event.type == EventTypeName.END:
+                if not len(keys):
+                    logger.warning(f"invalid ckpt step without BEGIN: {event}")
+                    return
+                last_key = keys[-1]
+                step_event = self._step_events[last_key]
+                if (
+                    step_event.step != event.step
+                    or step_event.event_state
+                    != TrainEventState.TRAIN_EVT_BEGIN
+                ):
+                    logger.warning(f"invalid ckpt step: {step_event}, {event}")
+                    return
+                if step_event.begin_timestamp > event.timestamp:
+                    logger.warning(
+                        f"invalid ckpt step time: {step_event}, {event}"
+                    )
+                    return
+
+                step_event.end_timestamp = event.timestamp
+                step_event.step_time = (
+                    step_event.end_timestamp - step_event.begin_timestamp
+                )
+                step_event.step = event.step
+                step_event.event_state = TrainEventState.TRAIN_EVT_END
+                step_event.localtime = int(time.time())
+                self._step_events[last_key] = step_event
 
 
 class JobEventContext(Singleton):
@@ -161,46 +224,58 @@ class JobEventContext(Singleton):
     def __init__(self):
         self.train_steps: StepEvents = StepEvents()
         self.predict_steps: StepEvents = StepEvents()
-        self.hang_threshold = DefaultValues.MAX_HANG_THRESHOLD
+        self.ckpt_steps: StepEvents = StepEvents()
+        self.hang_threshold = DefaultValues.HANG_DOWNTIME
+        self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD
 
     def check_job_step_hang(self):
-        """
-        If no step events happened after hang_threshold, job may hang
-        """
+        # recalc hang threshold
+        avg_step_time = self.train_steps.last_steps_avg_time(
+            last_steps=DefaultValues.MAX_AVG_STEPS
+        )
+        if avg_step_time is None:
+            self.hang_threshold = _dlrover_context.hang_downtime * 60
+        else:
+            self.hang_threshold = 10 * avg_step_time
+
         now = int(datetime.now().timestamp())
 
         # check if step is still active
         step = self.train_steps.get_last_step_event()
         if step is None:
+            logger.warning("Skip step hang detection since no step collected")
             return False
-        else:
+        elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
             if now - step.localtime < self.hang_threshold:
-                return False
-
-        # if ckpt is active, job may not be hang
-        if step.ckpt_start:
-            if not step.ckpt_finish:
-                return False
-            elif now - step.localtime < self.hang_threshold:
-                return False
-
-        # check if trainer is doing evaluation or prediction
-        predict_step = self.predict_steps.get_last_step_event()
-        if predict_step is None:
-            logger.info(f"Detect hang on {now}: last step {step}")
-            return True
-        else:
-            if now - predict_step.localtime < self.hang_threshold:
+                logger.debug(
+                    f"No hang detected: {now} {self.hang_threshold} {step}"
+                )
                 return False
             else:
-                logger.info(
-                    f"Detect hang on {now}: last step {step}"
-                    f"last predict step {predict_step.localtime}"
+                logger.warning(
+                    f"Detect hang: {now} {self.hang_threshold} {step}"
                 )
                 return True
+        else:
+            logger.debug(f"No new step: {now} {self.hang_threshold} {step}")
+            return False
 
-    def check_job_step_slow(self):
-        return False
+    def check_ckpt_hang(self):
+        now = int(datetime.now().timestamp())
+
+        step = self.ckpt_steps.get_last_step_event()
+        if step is None:
+            return False
+        elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
+            if now - step.localtime < self.ckpt_threshold:
+                return False
+            else:
+                logger.warning(
+                    f"Detect ckpt hang: {now} {self.ckpt_threshold} {step}"
+                )
+                return True
+        else:
+            return False
 
 
 def get_job_event_context() -> JobEventContext:
