@@ -126,10 +126,10 @@ class AtorchEventCollector(Singleton):
                 except (AtorchNotFoundException, AtorchInvalidException):
                     continue
                 except (ValueError, KeyError, SyntaxError) as e:
-                    logger.error(f"Parse {line} error: {e}")
+                    logger.warning(f"Parse {line} error: {e}")
                     continue
                 except Exception as e:
-                    logger.error(f"Parse {line} unexpected error: {e}")
+                    logger.warning(f"Parse {line} unexpected error: {e}")
                     continue
 
                 if (

@@ -427,15 +427,15 @@ class DiagnosisMaster(DiagnosisManager):
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _metric_diagnose thread due to "
-                    f"started: {self._is_observing_started}"
+                    f"Stop _metric_diagnose thread: "
+                    f"{self._is_observing_started}"
                 )
                 break
 
             if self._is_observing_paused:
                 logger.info(
-                    f"Pause _metric_diagnose thread due to "
-                    f"paused: {self._is_observing_paused}"
+                    f"Pause _metric_diagnose thread: "
+                    f"{self._is_observing_paused}"
                 )
                 time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
                 continue
