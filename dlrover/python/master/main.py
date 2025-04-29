@@ -20,7 +20,7 @@ from dlrover.python.common.constants import (
     PlatformType,
 )
 from dlrover.python.common.event.reporter import get_event_reporter
-from dlrover.python.common.global_context import Context
+from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.scheduler.factory import new_job_args
@@ -53,6 +53,11 @@ def run(args):
     )
     _dlrover_context.hang_detection = args.hang_detection
     _dlrover_context.hang_downtime = args.hang_downtime
+    if _dlrover_context.hang_downtime < DefaultValues.MIN_HANG_DOWNTIME:
+        _dlrover_context.hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
+    elif _dlrover_context.hang_downtime > DefaultValues.HANG_DOWNTIME:
+        _dlrover_context.hang_downtime = DefaultValues.HANG_DOWNTIME
+
     _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
     _dlrover_context.pending_timeout = args.pending_timeout
     _dlrover_context.master_service_type = args.service_type

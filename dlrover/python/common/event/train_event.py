@@ -19,17 +19,17 @@ from dlrover.python.training_event.predefined.trainer import TrainerEventName
 
 class TrainEventName(object):
     # instant event
-    TRAIN_EVT_START = TrainerEventName.TRAIN_START
-    TRAIN_EVT_INIT_END = TrainerEventName.TRAIN_INIT_END
+    TRAIN_EVT_START = TrainerEventName.TRAIN_START.value
+    TRAIN_EVT_INIT_END = TrainerEventName.TRAIN_INIT_END.value
 
     # duration event
-    TRAIN_EVT_TRAIN = TrainerEventName.TRAIN
-    TRAIN_EVT_EVALUATE = TrainerEventName.EVALUATE
-    TRAIN_EVT_PREDICT = TrainerEventName.PREDICT
-    TRAIN_EVT_STEP = TrainerEventName.TRAIN_STEP
-    TRAIN_EVT_PREDICT_STEP = TrainerEventName.PREDICT_STEP
-    TRAIN_EVT_FLASH_CKPT = TrainerEventName.SAVE
-    TRAIN_EVT_PERSIST_CKPT = TrainerEventName.TRAIN_PERSIST_CKPT
+    TRAIN_EVT_TRAIN = TrainerEventName.TRAIN.value
+    TRAIN_EVT_EVALUATE = TrainerEventName.EVALUATE.value
+    TRAIN_EVT_PREDICT = TrainerEventName.PREDICT.value
+    TRAIN_EVT_STEP = TrainerEventName.TRAIN_STEP.value
+    TRAIN_EVT_PREDICT_STEP = TrainerEventName.PREDICT_STEP.value
+    TRAIN_EVT_FLASH_CKPT = TrainerEventName.SAVE.value
+    TRAIN_EVT_PERSIST_CKPT = TrainerEventName.TRAIN_PERSIST_CKPT.value
 
 
 class TrainEventState(object):
@@ -57,8 +57,8 @@ class TrainEvent(metaclass=ABCMeta):
     def __init__(self, evt_name, evt_state):
         self.event_name = evt_name
         self.event_state = evt_state
-        self.begin_timestamp = None
-        self.end_timestamp = None
+        self.begin_timestamp = 0
+        self.end_timestamp = 0
         self.localtime = int(datetime.now().timestamp())
 
     def begin(self, timestamp: int):
@@ -78,8 +78,6 @@ class AtorchTrainEvent(TrainEvent):
         super().__init__(evt_name, evt_state)
         self.event_name = evt_name
         self.event_state = evt_state
-        self.begin_timestamp = None
-        self.end_timestamp = None
 
 
 class AtorchEvaluateEvent(TrainEvent):
@@ -91,8 +89,6 @@ class AtorchEvaluateEvent(TrainEvent):
         super().__init__(evt_name, evt_state)
         self.event_name = evt_name
         self.event_state = evt_state
-        self.begin_timestamp = None
-        self.end_timestamp = None
 
 
 class AtorchPredictEvent(TrainEvent):
@@ -104,8 +100,6 @@ class AtorchPredictEvent(TrainEvent):
         super().__init__(evt_name, evt_state)
         self.event_name = evt_name
         self.event_state = evt_state
-        self.begin_timestamp = None
-        self.end_timestamp = None
 
 
 class AtorchStepEvent(TrainEvent):
@@ -114,17 +108,7 @@ class AtorchStepEvent(TrainEvent):
         self.event_state = evt_state
         self.event_name = evt_name
         self.step = step
-        self.begin_timestamp = None
-        self.end_timestamp = None
-        self.ckpt_start = None
-        self.ckpt_finish = None
-
-    def start_ckpt(self, timestamp: int):
-        self.ckpt_start = timestamp
-
-    def finish_ckpt(self, timestamp: int):
-        if timestamp >= self.ckpt_start:
-            self.ckpt_finish = timestamp
+        self.step_time = 0
 
     def __repr__(self):
         attributes = [f"{k}={v!r}" for k, v in vars(self).items()]

@@ -345,6 +345,7 @@ class DistributedJobMaster(JobMaster):
             if self.job_manager:
                 self.job_manager.stop()
             if self.diagnosis_manager:
+                self.diagnosis_manager.stop_metric_collect()
                 self.diagnosis_manager.stop_observing()
             self.stop()
 
