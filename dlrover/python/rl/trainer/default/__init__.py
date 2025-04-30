@@ -10,3 +10,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# This package includes code from other opensource projects.
+
+"""
+The code in this directory primarily provides examples for adapting to
+different open-source frameworks. All implementations can be run directly,
+but they are not recommended for production use. Additionally, due to the
+large amount of code, it has not been placed in the `/examples` directory.
+
+Regardless of the algorithm framework being targeted, the key modification
+points are:
+1. Inherit the trainer and worker (workload) classes from dlrover's abstract
+classes.
+2. Retain the logic for all algorithm implementations while removing other
+control layer implementations.
+3. Modify and adapt the entry-point implementation according to the API
+approach for compatibility.
+"""

@@ -97,25 +97,39 @@ class Scheduler(ABC):
         return start
 
     def __get_runtime_env(self, vertex: RLExecutionVertex):
+        env_key = "env_vars"
+
         # runtime env
         runtime_env = {
-            "env_vars": {
+            env_key: {
                 RLWorkloadEnv.NAME: vertex.name,
                 RLWorkloadEnv.ROLE: vertex.role.name,
                 RLWorkloadEnv.RANK: str(vertex.rank),
                 RLWorkloadEnv.WORLD_SIZE: str(vertex.world_size),
                 RLWorkloadEnv.LOCAL_RANK: str(vertex.local_rank),
                 RLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
-                # this env is mandatory so we can specify device by local_rank
-                # on ray(otherwise ray will assign a specified device)
-                RLWorkloadEnv.RAY_NOSET_CUDA: "true",
             }
         }
 
-        runtime_env["env_vars"].update(self.graph.rl_context.env)
-        runtime_env["env_vars"].update(
+        runtime_env[env_key].update(self.graph.rl_context.env)
+        runtime_env[env_key].update(
             self.graph.rl_context.workloads[vertex.role].instance_env
         )
+
+        if not set(
+            RLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS.items()
+        ).issubset(set(runtime_env[env_key].items())):
+            # this env is used for disable 'ray set visible device' so we can
+            # specify device by local_rank on ray(otherwise ray will assign a
+            # specified device)
+            runtime_env[env_key].update(
+                RLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS
+            )
+        else:
+            # remove 'false' value setting for using 'ray set visible device'
+            for key in RLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS:
+                runtime_env[env_key].pop(key, None)
+
         logger.debug(f"Create workload actor with runtime-env: {runtime_env}")
 
         return runtime_env

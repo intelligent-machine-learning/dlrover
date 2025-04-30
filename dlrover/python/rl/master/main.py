@@ -145,8 +145,8 @@ class DLRoverRLMaster(object):
 
             self._executor.submit(self._wait_and_exit)
         except Exception as e:
-            logger.info("Got unexpected exception while running.", e)
-            self.exit_job()
+            logger.error("Got unexpected fatal error on starting.", e)
+            self.exit_job(forced=True, reason=RLJobExitReason.ERROR)
 
     def _wait_and_exit(self):
         while True:

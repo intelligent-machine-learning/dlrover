@@ -191,3 +191,31 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(
             rl_config["workload"]["reward"]["resource"]["GPU"], 0.5
         )
+
+    def test_enable_ray_auto_visible_device(self):
+        rl_job = (
+            RLJobBuilder()
+            .node_num(2)
+            .device_per_node(4)
+            .config({"k1": "v1"})
+            .global_env({"e0": "v0"})
+            .trainer("m0", "c0")
+            .actor("m1", "c1")
+            .total(4)
+            .per_node(4)
+            .env({"e1": "v1"})
+            .rollout("m2", "c2")
+            .total(4)
+            .enable_ray_auto_visible_device()
+            .env({"e2": "v2"})
+            .per_node(4)
+            .with_collocation("Actor", "rollout")
+            .build()
+        )
+        rl_config = rl_job._to_rl_config()
+        self.assertEqual(
+            rl_config["workload"]["rollout"]["env"][
+                "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
+            ],
+            "false",
+        )

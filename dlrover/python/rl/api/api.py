@@ -15,6 +15,7 @@ from typing import Dict, List, Set, Tuple, Union
 from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.rl.common.constant import RLWorkloadEnv
 from dlrover.python.rl.common.exception import InvalidRLConfiguration
 from dlrover.python.rl.driver.main import main
 
@@ -169,6 +170,7 @@ class RLJob(object):
                     "class": role_config.module_class[1],
                     "num": role_config.total,
                     "resource": self.__cal_role_resource(role),
+                    "env": role_config.env,
                 }
                 workload_dict[role] = role_dict
 
@@ -435,7 +437,7 @@ class RLJobBuilder(object):
 
         if env is None:
             env = {}
-        self._env = env
+        self._env.update(env)
         return self
 
     class _RoleConfigurator:
@@ -595,7 +597,17 @@ class RLJobBuilder(object):
 
         if env is None:
             env = {}
-        self._role_configurator.role_config._env = env
+        self._role_configurator.role_config._env.update(env)
+        return self
+
+    def enable_ray_auto_visible_device(self):
+        """
+        Enable to let ray set visible device automatically.
+        """
+
+        self._role_configurator.role_config._env.update(
+            RLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS
+        )
         return self
 
     def sub_stage(self, sub_stage=None):

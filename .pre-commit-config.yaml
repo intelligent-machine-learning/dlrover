@@ -14,13 +14,13 @@ repos:
     rev: v2.2.3
     hooks:
       - id: flake8
-        exclude: dlrover/proto/
+        exclude: dlrover/proto/|dlrover/python/rl/trainer/default/
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v0.812
     hooks:
       - id: mypy
         args: [--ignore-missing-imports, --follow-imports=skip]
-        exclude: dlrover/proto/
+        exclude: dlrover/proto/|dlrover/python/rl/trainer/default/
   - repo: local
     hooks:
       - id: clang-format

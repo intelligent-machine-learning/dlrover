@@ -204,25 +204,29 @@ class BaseTrainer(ABC):
 
     Args:
         actor_handles: All the actor handles in dict format by role type.
-        actor_classes: The class type in dict format by role type.
+        actor_metas: The class meta in dict format by role type.
+            Format:
+                key - role
+                value - tuple with: class-type, device
+
         config: The configuration used for training.
     """
 
     def __init__(
         self,
         actor_handles: Dict[RLRoleType, List[ActorHandle]],
-        actor_classes: Dict[RLRoleType, type],
+        actor_metas: Dict[RLRoleType, Tuple[type, float]],
         config: DictConfig,
     ):
         self._actor_handles = actor_handles
-        self._actor_classes = actor_classes
+        self._actor_metas = actor_metas
         self._config = config
 
         self.__role_group_proxy: Dict[str, RoleGroupProxy] = {}
         self.__init_role_group_proxy()
         logger.info(
             f"Trainer initiated with workloads: {self._get_workloads_size()}, "
-            f"role actor classes: {self._actor_classes}, "
+            f"role actor metas: {self._actor_metas}, "
             f"config: {config}"
         )
 
@@ -235,7 +239,7 @@ class BaseTrainer(ABC):
     def __init_role_group_proxy(self):
         for role, handles in self._actor_handles.items():
             workload_group_name = "RG_" + role.name
-            cls = self._actor_classes[role]
+            cls = self._actor_metas[role][0]
 
             # get methods by class
             invocation_methods = {}
@@ -286,9 +290,19 @@ class BaseTrainer(ABC):
         return self.get_actor_handles(RLRoleType.ACTOR)
 
     @property
+    def actor_resource(self):
+        """Get resource used(occupied) for ACTOR."""
+        return self.get_actor_resource(RLRoleType.ACTOR)
+
+    @property
     def references(self) -> List[ActorHandle]:
         """Get all references' actor handle."""
         return self.get_actor_handles(RLRoleType.REFERENCE)
+
+    @property
+    def reference_resource(self):
+        """Get resource used(occupied) for REFERENCE."""
+        return self.get_actor_resource(RLRoleType.REFERENCE)
 
     @property
     def rollouts(self) -> List[ActorHandle]:
@@ -296,9 +310,19 @@ class BaseTrainer(ABC):
         return self.get_actor_handles(RLRoleType.ROLLOUT)
 
     @property
+    def rollout_resource(self):
+        """Get resource used(occupied) for ROLLOUT."""
+        return self.get_actor_resource(RLRoleType.ROLLOUT)
+
+    @property
     def rewards(self) -> List[ActorHandle]:
         """Get all rewards' actor handle."""
         return self.get_actor_handles(RLRoleType.REWARD)
+
+    @property
+    def reward_resource(self):
+        """Get resource used(occupied) for REWARD."""
+        return self.get_actor_resource(RLRoleType.REWARD)
 
     @property
     def critics(self) -> List[ActorHandle]:
@@ -306,8 +330,19 @@ class BaseTrainer(ABC):
         return self.get_actor_handles(RLRoleType.CRITIC)
 
     @property
+    def critic_resource(self):
+        """Get resource used(occupied) for CRITIC."""
+        return self.get_actor_resource(RLRoleType.CRITIC)
+
+    @property
     def config(self) -> DictConfig:
         return self._config
+
+    def get_actor_resource(self, role_type: RLRoleType):
+        """Return the actor resource by role type."""
+        if role_type in self._actor_metas:
+            return self._actor_metas[role_type][1]
+        return 1
 
     def get_actor_handles(self, role_type: RLRoleType) -> List[ActorHandle]:
         """Return the actor handles by role type."""

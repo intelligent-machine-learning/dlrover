@@ -36,10 +36,10 @@ class Executor(object):
     def init_trainer(self):
         trainer_cls = self.graph.get_trainer_cls()
         actor_handles = self.graph.get_actor_handles()
-        actor_cls = self.graph.get_actor_cls()
+        actor_metas = self.graph.get_actor_metas()
         config = self.graph.rl_config
 
-        self.__trainer = trainer_cls(actor_handles, actor_cls, config)
+        self.__trainer = trainer_cls(actor_handles, actor_metas, config)
         self.__trainer_error = None
         if self.__trainer.is_recoverable():
             get_job_context().set_trainer_recoverable()

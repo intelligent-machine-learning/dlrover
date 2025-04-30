@@ -12,7 +12,7 @@
 # limitations under the License.
 import time
 from itertools import chain
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import ray
 from ray.actor import ActorHandle
@@ -193,6 +193,12 @@ class RLExecutionVertex(PickleSerializable):
         if self._actor_handle:
             return self._actor_handle.actor_id.hex()
         return ""
+
+    def get_core_resource_num(self):
+        if self.resource.gpu > 0:
+            return self.resource.gpu
+
+        return self.resource.cpu
 
     def is_pg_allocated(self) -> bool:
         return self._pg_info.pg_instance is not None
@@ -419,9 +425,12 @@ class RLExecutionGraph(PickleSerializable):
             for role, vertices in self.__execution_vertices.items()
         }
 
-    def get_actor_cls(self) -> Dict[RLRoleType, type]:
+    def get_actor_metas(self) -> Dict[RLRoleType, Tuple[type, float]]:
+        """
+        meta: class, key_resource
+        """
         return {
-            role: vertices[0].get_cls()
+            role: (vertices[0].get_cls(), vertices[0].get_core_resource_num())
             for role, vertices in self.__execution_vertices.items()
         }
 
