@@ -89,7 +89,7 @@ class MasterKVStoreTest(unittest.TestCase):
         kv_store.wait([key])
         with self.assertRaises(LookupError):
             kv_store.wait(
-                ["aa"], override_timeout=datetime.timedelta(seconds=0.01)
+                ["aa"], override_timeout=datetime.timedelta(seconds=0.5)
             )
 
         self.assertEqual(kv_store.check([key]), True)
