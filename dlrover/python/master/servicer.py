@@ -353,11 +353,13 @@ class MasterServicer(ABC):
     def _kv_store_get(self, request: comm.KeyValuePair):
         value = self._kv_store.get(request.key)
         res = comm.KeyValuePair(request.key, value)
+        logger.debug(f"_kv_store_get: {request} {res}")
         return res
 
     def _kv_store_add(self, request: comm.KeyValuePair):
         value = self._kv_store.add(request.key, request.value)
         res = comm.KeyValuePair(request.key, value)
+        logger.debug(f"_kv_store_add: {request} {res}")
         return res
 
     def _kv_store_multi_get(self, request: comm.KeyValuePairs):
@@ -371,6 +373,7 @@ class MasterServicer(ABC):
                 kvs[key] = value
 
         res = comm.KeyValuePairs(kvs)
+        logger.debug(f"_kv_store_multi_get: {request} {res}")
         return res
 
     def _get_paral_config(self):
@@ -679,11 +682,13 @@ class MasterServicer(ABC):
 
     def _kv_store_set(self, message: comm.KeyValuePair):
         self._kv_store.set(message.key, message.value)
+        logger.debug(f"_kv_store_set: {message}")
         return True
 
     def _kv_store_multi_set(self, message: comm.KeyValuePairs):
         for k, v in message.kvs.items():
             self._kv_store.set(k, v)
+        logger.debug(f"_kv_store_multi_set: {message}")
         return True
 
     def _report_paral_config(

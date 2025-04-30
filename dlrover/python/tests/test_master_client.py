@@ -184,6 +184,29 @@ class MasterClientTest(unittest.TestCase):
         if config:
             self.assertIsInstance(config, comm.ParallelConfig)
 
+    def test_kv_store(self):
+        self._master_client.kv_store_set("alpha", b"0")
+        self.assertEqual(self._master_client.kv_store_get("alpha"), b"0")
+        self._master_client.kv_store_add("beta", 1)
+        self.assertEqual(self._master_client.kv_store_get("beta"), 1)
+        self._master_client.kv_store_add("beta", 10)
+        self.assertEqual(self._master_client.kv_store_get("beta"), 11)
+
+        self.assertDictEqual(
+            self._master_client.kv_store_multi_get(["alpha", "beta"]),
+            {"alpha": b"0", "beta": 11},
+        )
+        self.assertDictEqual(
+            self._master_client.kv_store_multi_get(["omega"]), {}
+        )
+        self._master_client.kv_store_multi_set(
+            ["alpha", "beta", "gamma"], [b"0", b"100", b"200"]
+        )
+        self.assertDictEqual(
+            self._master_client.kv_store_multi_get(["alpha", "beta", "gamma"]),
+            {"alpha": b"0", "beta": b"100", "gamma": b"200"},
+        )
+
     def test_num_nodes_waiting(self):
         rdzv_name = RendezvousName.ELASTIC_TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
