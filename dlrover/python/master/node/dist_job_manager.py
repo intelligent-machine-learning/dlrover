@@ -868,7 +868,9 @@ class DistributedJobManager(JobManager):
                 for callback in self._node_event_callbacks
             ]
 
-    def _should_relaunch(self, node: Node, status_change_flow: NodeStateFlow):
+    def _should_relaunch(
+        self, node: Node, status_change_flow: NodeStateFlow
+    ) -> object:
         should_relaunch = (
             status_change_flow.should_relaunch
             and self._enable_relaunch_node
@@ -876,6 +878,10 @@ class DistributedJobManager(JobManager):
         )
         msg = ""
         if should_relaunch:
+            logger.info(
+                f"Recheck should_relaunch with {node} {node.config_resource}: "
+                f"{job_ctx.get_job_stage()} {self.is_all_reduce_type_job()}"
+            )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
@@ -1306,6 +1312,10 @@ class DistributedJobManager(JobManager):
 
             if event_type is NodeEventType.SUCCEEDED_EXITED:
                 self._job_context.update_job_stage(JobStage.JOB_STOPPING)
+                logger.info(
+                    f"Update job stage to {self._job_context.get_job_stage()} "
+                    f"due to event {event_type}."
+                )
 
     def get_node_required_info(self):
         return self._nodes_required
