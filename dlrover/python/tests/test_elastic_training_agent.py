@@ -91,6 +91,7 @@ from dlrover.python.elastic_agent.torch.training import (
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.trainer.torch.utils import version_less_than_230
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -129,6 +130,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -137,10 +142,9 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            *logs_dict
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
@@ -493,6 +497,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -501,10 +509,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            **logs_dict
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
@@ -1028,6 +1035,10 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -1036,10 +1047,9 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            **logs_dict
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
