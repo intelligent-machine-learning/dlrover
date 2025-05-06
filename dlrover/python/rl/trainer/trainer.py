@@ -292,7 +292,7 @@ class BaseTrainer(ABC):
     @property
     def actor_resource(self):
         """Get resource used(occupied) for ACTOR."""
-        return self.get_actor_resource(RLRoleType.ACTOR)
+        return self.get_workload_resource(RLRoleType.ACTOR)
 
     @property
     def references(self) -> List[ActorHandle]:
@@ -302,7 +302,7 @@ class BaseTrainer(ABC):
     @property
     def reference_resource(self):
         """Get resource used(occupied) for REFERENCE."""
-        return self.get_actor_resource(RLRoleType.REFERENCE)
+        return self.get_workload_resource(RLRoleType.REFERENCE)
 
     @property
     def rollouts(self) -> List[ActorHandle]:
@@ -312,7 +312,7 @@ class BaseTrainer(ABC):
     @property
     def rollout_resource(self):
         """Get resource used(occupied) for ROLLOUT."""
-        return self.get_actor_resource(RLRoleType.ROLLOUT)
+        return self.get_workload_resource(RLRoleType.ROLLOUT)
 
     @property
     def rewards(self) -> List[ActorHandle]:
@@ -322,7 +322,7 @@ class BaseTrainer(ABC):
     @property
     def reward_resource(self):
         """Get resource used(occupied) for REWARD."""
-        return self.get_actor_resource(RLRoleType.REWARD)
+        return self.get_workload_resource(RLRoleType.REWARD)
 
     @property
     def critics(self) -> List[ActorHandle]:
@@ -332,14 +332,14 @@ class BaseTrainer(ABC):
     @property
     def critic_resource(self):
         """Get resource used(occupied) for CRITIC."""
-        return self.get_actor_resource(RLRoleType.CRITIC)
+        return self.get_workload_resource(RLRoleType.CRITIC)
 
     @property
     def config(self) -> DictConfig:
         return self._config
 
-    def get_actor_resource(self, role_type: RLRoleType):
-        """Return the actor resource by role type."""
+    def get_workload_resource(self, role_type: RLRoleType):
+        """Return the workload's resource by role type."""
         if role_type in self._actor_metas:
             return self._actor_metas[role_type][1]
         return 1
