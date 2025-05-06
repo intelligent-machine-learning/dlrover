@@ -80,12 +80,19 @@ class Scheduler(ABC):
             self.graph.cleanup_placement_group_allocation()
             logger.info("Placement group is removed and allocation is reset.")
 
-    def _create_actor_by_graph(self, with_pg=False):
+    def _create_actor_by_graph(self):
         start = time.time() * 1000
         master_handle = self.get_master_actor_handle()
         config = self.graph.rl_config
 
         vertices = self.graph.get_all_vertices()
+
+        try:
+            import tqdm
+            vertices = tqdm.tqdm(vertices, leave=False)
+        except ModuleNotFoundError:
+            pass
+
         for vertex in vertices:
             if vertex:
                 actor_handle = self.__create_actor_by_vertex(
@@ -250,7 +257,7 @@ class GroupOrderedScheduler(Scheduler):
         self.placement.allocate_placement_group()
 
         # do creation
-        start = self._create_actor_by_graph(with_pg=True)
+        start = self._create_actor_by_graph()
 
         # check creation
         self._check_actor_creation(start)

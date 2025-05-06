@@ -15,9 +15,11 @@
 
 """
 The code in this directory primarily provides examples for adapting to
-different open-source frameworks. All implementations can be run directly,
-but they are not recommended for production use. Additionally, due to the
-large amount of code, it has not been placed in the `/examples` directory.
+different open-source frameworks.
+
+To be noticed:
+All implementations below is based on a history version of each framework and
+not guarantee compatibility with the latest code.
 
 Regardless of the algorithm framework being targeted, the key modification
 points are:
