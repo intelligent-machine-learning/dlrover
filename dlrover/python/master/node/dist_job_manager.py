@@ -1310,7 +1310,7 @@ class DistributedJobManager(JobManager):
                 target_node.update_reported_status(event_type)
                 self._job_context.update_job_node(target_node)
 
-            if event_type is NodeEventType.SUCCEEDED_EXITED:
+            if event_type == NodeEventType.SUCCEEDED_EXITED:
                 self._job_context.update_job_stage(JobStage.JOB_STOPPING)
                 logger.info(
                     f"Update job stage to {self._job_context.get_job_stage()} "
