@@ -144,7 +144,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             monitor_interval=self.config.monitor_interval,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
-            *logs_dict
+            **logs_dict
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
