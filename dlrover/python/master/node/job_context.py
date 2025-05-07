@@ -46,7 +46,7 @@ class JobContext(Singleton):
         self._pre_check_status: str = PreCheckStatus.CHECKING
 
         self._locker = threading.Lock()
-        self._job_stage = JobStage.JOB_INIT
+        self._job_stage: str = JobStage.JOB_INIT
 
     def get_job_stage(self):
         with self._locker:
