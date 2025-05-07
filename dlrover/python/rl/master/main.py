@@ -31,6 +31,12 @@ from dlrover.python.rl.remote.call_obj import RuntimeInfo
 
 @ray.remote
 class DLRoverRLMaster(object):
+    """
+    DLRoverMaster is the core of the control plane management for the entire
+    RL training. It is responsible for all related control plane management
+    operations.
+    """
+
     def __init__(self, job_config_serialized, rl_context_serialized):
         # init job context
         self._job_config = JobConfig.deserialize(job_config_serialized)

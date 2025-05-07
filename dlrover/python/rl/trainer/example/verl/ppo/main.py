@@ -15,8 +15,9 @@
 # licensed under the Apache License 2.0. See [https://github.com/volcengine/
 # verl] for details.
 
-import hydra
 import time
+
+import hydra
 import ray
 from verl.trainer.ppo.ray_trainer import AdvantageEstimator
 
@@ -27,12 +28,20 @@ from dlrover.python.rl.api.api import RLJobBuilder
 def main(config):
     if not ray.is_initialized():
         # this is for local ray cluster
-        ray.init(runtime_env={"env_vars": {"TOKENIZERS_PARALLELISM": "true",
-                                           "NCCL_DEBUG": "WARN",
-                                           "VLLM_LOGGING_LEVEL": "WARN"}})
+        ray.init(
+            runtime_env={
+                "env_vars": {
+                    "TOKENIZERS_PARALLELISM": "true",
+                    "NCCL_DEBUG": "WARN",
+                    "VLLM_LOGGING_LEVEL": "WARN",
+                }
+            }
+        )
 
     from pprint import pprint
+
     from omegaconf import OmegaConf
+
     pprint(OmegaConf.to_container(config, resolve=True))
     OmegaConf.resolve(config)
 
@@ -55,27 +64,38 @@ def main(config):
     total_node = config["trainer"]["nnodes"]
     device_per_node = config["trainer"]["n_gpus_per_node"]
 
-    module = "dlrover.python.rl.trainer.default.verl.ppo.ppo_trainer"
-
-    rl_job_builder = (RLJobBuilder()
-                      .node_num(total_node)
-                      .device_per_node(device_per_node)
-                      .config(config)
-                      .trainer(module, "PPOTrainer")
-                      .actor(module, "ActorRolloutRefWorker")
-                      .total(total_node * device_per_node)
-                      .per_node(device_per_node)
-                      )
+    rl_job_builder = (
+        RLJobBuilder()
+        .node_num(total_node)
+        .device_per_node(device_per_node)
+        .config(config)
+        .trainer(
+            "dlrover.python.rl.trainer.default.verl.ppo.ppo_trainer",
+            "PPOTrainer",
+        )
+        .actor(module, "ActorRolloutRefWorker")
+        .total(total_node * device_per_node)
+        .per_node(device_per_node)
+    )
 
     if has_ref:
-        (rl_job_builder.reference(module, "ActorRolloutRefWorker")
-         .total(total_node * device_per_node).per_node(device_per_node))
+        (
+            rl_job_builder.reference(module, "ActorRolloutRefWorker")
+            .total(total_node * device_per_node)
+            .per_node(device_per_node)
+        )
     if has_rew:
-        (rl_job_builder.reward(module, "RewardCritic")
-         .total(total_node * device_per_node).per_node(device_per_node))
+        (
+            rl_job_builder.reward(module, "RewardCritic")
+            .total(total_node * device_per_node)
+            .per_node(device_per_node)
+        )
     if has_critic:
-        (rl_job_builder.critic(module, "RewardCritic")
-         .total(total_node * device_per_node).per_node(device_per_node))
+        (
+            rl_job_builder.critic(module, "RewardCritic")
+            .total(total_node * device_per_node)
+            .per_node(device_per_node)
+        )
 
     # set colocation
     rl_job_builder.with_collocation_all()
@@ -85,5 +105,5 @@ def main(config):
     rl_job.submit(job_name=job_name)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

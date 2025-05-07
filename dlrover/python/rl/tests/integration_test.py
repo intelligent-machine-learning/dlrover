@@ -15,6 +15,7 @@ import time
 import unittest
 
 import ray
+from ray.exceptions import ActorDiedError
 
 from dlrover.python.rl.api.api import RLJobBuilder
 from dlrover.python.rl.common.args import parse_job_args
@@ -62,7 +63,6 @@ class ApiFullTest(unittest.TestCase):
         )
 
         rl_job.submit("test", master_cpu=1, master_memory=128)
-        time.sleep(5)
 
     @timeout(20)
     def test1(self):
@@ -91,7 +91,6 @@ class ApiFullTest(unittest.TestCase):
         )
 
         rl_job.submit("test", master_cpu=1, master_memory=128)
-        time.sleep(5)
 
 
 class RLMasterNormalTest(BaseMasterTest):
@@ -132,9 +131,12 @@ class RLMasterNormalTest(BaseMasterTest):
 
         # wait master done
         while True:
-            result = ray.get(master_actor.get_job_status.remote())
+            try:
+                result = ray.get(master_actor.get_job_status.remote())
+            except ActorDiedError:
+                break
             if result != "FINISHED":
-                time.sleep(3)
+                time.sleep(1)
             else:
                 break
 
@@ -162,7 +164,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         ray.shutdown()
 
     @timeout(30)
-    def test_trainer_abnoraml(self):
+    def test_trainer_abnormal(self):
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(
@@ -178,8 +180,60 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
 
         # wait master done
         while True:
-            result = ray.get(master_actor.get_job_status.remote())
+            try:
+                result = ray.get(master_actor.get_job_status.remote())
+            except ActorDiedError:
+                break
             if result != "FINISHED":
-                time.sleep(3)
+                time.sleep(1)
+            else:
+                break
+
+
+class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
+    def setUp(self):
+        super().setUp()
+        args = [
+            "--job_name",
+            "test",
+            "--job_max_restart",
+            "1",
+            "--rl_config",
+            f"{TestData.UD_SIMPLE_TEST_WITH_ERROR_TRAINER_ACTOR_RL_CONF}",
+        ]
+        parsed_args = parse_job_args(args)
+        job_config = JobConfig.build_from_args(parsed_args)
+        rl_context = RLContext.build_from_args(parsed_args)
+        self._job_context._job_config = job_config
+        self._job_context._rl_context = rl_context
+        ray.init()
+
+    def tearDown(self):
+        super().tearDown()
+        ray.shutdown()
+
+    @timeout(30)
+    def test_trainer_workload_abnormal(self):
+        master_name = "test"
+
+        master_actor = DLRoverRLMaster.options(
+            name=master_name, lifetime="detached"
+        ).remote(
+            self._job_context.job_config.serialize(),
+            self._job_context.rl_context.serialize(),
+        )
+
+        ray.get(master_actor.ping.remote())
+        master_actor.run.remote()
+        time.sleep(5)
+
+        # wait master done
+        while True:
+            try:
+                result = ray.get(master_actor.get_job_status.remote())
+            except ActorDiedError:
+                break
+            if result != "FINISHED":
+                time.sleep(1)
             else:
                 break

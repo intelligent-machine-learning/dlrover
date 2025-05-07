@@ -87,12 +87,6 @@ class Scheduler(ABC):
 
         vertices = self.graph.get_all_vertices()
 
-        try:
-            import tqdm
-            vertices = tqdm.tqdm(vertices, leave=False)
-        except ModuleNotFoundError:
-            pass
-
         for vertex in vertices:
             if vertex:
                 actor_handle = self.__create_actor_by_vertex(

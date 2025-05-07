@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 import time
 
 from dlrover.python.common.log import default_logger as logger
@@ -32,9 +33,14 @@ class FailoverCoordinator(object):
 
         self._job_context = get_job_context()
 
+        self._lock = threading.Lock()
+
     @property
     def context(self):
         return self._job_context
+
+    def _is_failover_stage(self):
+        self._job_context.is_in_failover()
 
     def _set_failover_stage(self):
         self._job_context.set_in_failover_stage()
@@ -43,46 +49,54 @@ class FailoverCoordinator(object):
         self._job_context.set_job_stage(JobStage.RUNNING)
 
     def handle_failure(self, failure: FailureDesc):
-        logger.info(f"Handle failure: {failure}")
-        level = self._get_failover_level(failure)
-        role = failure.workload_role
-        if self._is_failure_exceeded_limit(failure):
-            logger.error(
-                f"Failure exceed limit, master limit: "
-                f"{len(self.context.get_master_restart_info())}/"
-                f"{self.context.job_config.master_max_restart}, "
-                f"workload({role}) limit: "
-                f"{len(self.context.get_workload_restart_info(role))}/"
-                f"{self.context.job_config.get_workload_max_restart(role)}"
-            )
-            self._abort_job()
-            return
+        with self._lock:
+            if self._is_failover_stage():
+                logger.info(
+                    f"Ignore failure: {failure} for already in "
+                    "failover stage."
+                )
+                return
 
-        self._set_failover_stage()
+            logger.info(f"Handle failure: {failure}")
+            level = self._get_failover_level(failure)
+            role = failure.workload_role
+            if self._is_failure_exceeded_limit(failure):
+                logger.error(
+                    f"Failure exceed limit, master limit: "
+                    f"{len(self.context.get_master_restart_info())}/"
+                    f"{self.context.job_config.master_max_restart}, "
+                    f"workload({role}) limit: "
+                    f"{len(self.context.get_workload_restart_info(role))}/"
+                    f"{self.context.job_config.get_workload_max_restart(role)}"
+                )
+                self._abort_job()
+                return
 
-        if level == FailoverLevel.PARTIAL:
-            self._do_partial_failover(failure)
-        elif level == FailoverLevel.IGNORE:
-            self._ignore_failover(failure)
-        else:
-            self._do_global_failover(failure)
+            self._set_failover_stage()
 
-        # update restart info
-        if failure.is_workload_failure():
-            self._job_context.add_restart_info(
-                failure.workload_role,
-                RestartInfo(restart_time=failure.failure_time),
-            )
-        elif failure.is_trainer_failure():
-            self._job_context.add_trainer_restart_info(
-                RestartInfo(restart_time=failure.failure_time)
-            )
-        else:
-            self._job_context.add_master_restart_info(
-                RestartInfo(restart_time=failure.failure_time)
-            )
+            if level == FailoverLevel.PARTIAL:
+                self._do_partial_failover(failure)
+            elif level == FailoverLevel.IGNORE:
+                self._ignore_failover(failure)
+            else:
+                self._do_global_failover(failure)
 
-        self._reset_failover_stage()
+            # update restart info
+            if failure.is_workload_failure():
+                self._job_context.add_restart_info(
+                    failure.workload_role,
+                    RestartInfo(restart_time=failure.failure_time),
+                )
+            elif failure.is_trainer_failure():
+                self._job_context.add_trainer_restart_info(
+                    RestartInfo(restart_time=failure.failure_time)
+                )
+            else:
+                self._job_context.add_master_restart_info(
+                    RestartInfo(restart_time=failure.failure_time)
+                )
+
+            self._reset_failover_stage()
 
     def _is_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
         if failure.is_workload_failure():

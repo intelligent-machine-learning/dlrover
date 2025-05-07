@@ -107,6 +107,7 @@ class TestErrorActor(BaseWorkload):
     @trainer_invocation(is_async=True, timeout=5)
     def compute(self, value=0):
         logger.info(f"TestErrorActor compute called: {value}")
+        self.raise_error()
 
 
 @ray.remote

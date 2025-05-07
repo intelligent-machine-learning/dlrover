@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: mypy
         args: [--ignore-missing-imports, --follow-imports=skip]
-        exclude: dlrover/proto/|dlrover/python/rl/trainer/default/
+        exclude: dlrover/proto/|dlrover/python/rl/trainer/example/
   - repo: local
     hooks:
       - id: clang-format

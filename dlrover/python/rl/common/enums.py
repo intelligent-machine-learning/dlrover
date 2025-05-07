@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import List
 
 
 class TrainerType(Enum):
@@ -65,6 +66,12 @@ class JobStage(Enum):
     FAILOVER = "FAILOVER"
     FINISHED = "FINISHED"
     ERROR = "ERROR"
+
+    @classmethod
+    def is_ending_stage(cls, stage) -> bool:
+        if isinstance(stage, str):
+            stage = JobStage[stage.upper()]
+        return stage in (JobStage.FINISHED, JobStage.ERROR)
 
 
 class FailoverLevel(Enum):
