@@ -58,6 +58,8 @@ from dlrover.python.util.queue.queue import RayEventQueue
 ray_event_queue = RayEventQueue.singleton_instance()
 TEST_SERVER_PORT = 8000
 
+job_ctx = get_job_context()
+
 
 class MasterServicerBasicTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -491,12 +493,22 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.servicer._join_rendezvous(request)
         res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
         self.assertEqual(res.waiting_num, 1)
+
         request = comm.JoinRendezvousRequest(
             0, 8, RendezvousName.NETWORK_CHECK
         )
         self.servicer._join_rendezvous(request)
         res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
         self.assertEqual(res.waiting_num, 0)
+
+        request = comm.JoinRendezvousRequest(
+            0, 8, RendezvousName.NETWORK_CHECK
+        )
+        job_ctx.update_job_stage(JobStage.JOB_STOPPING)
+        self.servicer._join_rendezvous(request)
+        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        self.assertEqual(res.waiting_num, -1)
+        job_ctx.update_job_stage(JobStage.JOB_INIT)
 
     def test_report_heartbeat(self):
         request = elastic_training_pb2.Message()
