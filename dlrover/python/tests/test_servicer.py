@@ -562,6 +562,10 @@ class MasterServicerFunctionalTest(unittest.TestCase):
 
         request.event_type = NodeEventType.SUCCEEDED_EXITED
         request.message = ""
+        self.assertEqual(
+            self.job_manager._job_context.get_job_stage(),
+            JobStage.JOB_INIT
+        )
         self.assertTrue(self.servicer._deal_with_reported_node_event(request))
         self.assertTrue(
             self.job_manager._job_context.job_node(
@@ -572,6 +576,10 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             self.job_manager._job_context.job_node(
                 task_type, task_id
             ).is_node_check_failed()
+        )
+        self.assertEqual(
+            self.job_manager._job_context.get_job_stage(),
+            JobStage.JOB_STOPPING
         )
 
         task_id = 2
