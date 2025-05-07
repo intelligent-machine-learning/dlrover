@@ -14,7 +14,3 @@
 # This package includes code from [https://github.com/volcengine/verl]
 # licensed under the Apache License 2.0. See [https://github.com/volcengine/
 # verl] for details.
-
-"""
-Based on PPO + Megatron + VLLM.
-"""

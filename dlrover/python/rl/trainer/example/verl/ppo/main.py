@@ -1,4 +1,4 @@
-# Copyright 2025 The EasyDL Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -73,26 +73,25 @@ def main(config):
             "dlrover.python.rl.trainer.default.verl.ppo.ppo_trainer",
             "PPOTrainer",
         )
-        .actor(module, "ActorRolloutRefWorker")
+        .actor("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "ActorRolloutRefWorker")
         .total(total_node * device_per_node)
         .per_node(device_per_node)
     )
-
     if has_ref:
         (
-            rl_job_builder.reference(module, "ActorRolloutRefWorker")
+            rl_job_builder.reference("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "ActorRolloutRefWorker")
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )
     if has_rew:
         (
-            rl_job_builder.reward(module, "RewardCritic")
+            rl_job_builder.reward("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "RewardModelWorker")
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )
     if has_critic:
         (
-            rl_job_builder.critic(module, "RewardCritic")
+            rl_job_builder.critic("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "CriticWorker")
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )

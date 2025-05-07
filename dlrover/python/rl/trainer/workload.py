@@ -206,6 +206,21 @@ class BaseWorkload(ABC):
     def is_critic_role(self):
         return self._role.name == RLRoleType.CRITIC.name
 
+    def get_device_collocation(self):
+        return env_utils.get_env(RLWorkloadEnv.DEVICE_COLLOCATION_GROUP)
+
+    def has_device_collocation(self):
+        if self.get_device_collocation() and self.role.name in self.get_device_collocation():
+            return True
+        return False
+
+    def is_actor_or_rollout_device_collocation(self):
+        if ((self.is_actor_role() or self.is_rollout_role()) and
+                RLRoleType.ACTOR.name in self.get_device_collocation() and
+                RLRoleType.ROLLOUT.name in self.get_device_collocation()):
+            return True
+        return False
+
     """Remote call functions start"""
 
     def _report_master(self):

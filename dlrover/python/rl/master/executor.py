@@ -49,7 +49,8 @@ class Executor(object):
 
         logger.info(
             "Start trainer execution, "
-            f"trainer: {({self.__trainer.__class__.__name__})}"
+            f"trainer: {({self.__trainer.__class__.__module__})}"
+            f"::{({self.__trainer.__class__.__name__})}"
         )
 
         with ThreadPoolExecutor(max_workers=1) as executor:

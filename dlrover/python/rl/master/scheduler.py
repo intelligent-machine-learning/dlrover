@@ -112,11 +112,25 @@ class Scheduler(ABC):
             }
         }
 
+        # setup global env
         runtime_env[env_key].update(self.graph.rl_context.env)
+
+        # setup role env
         runtime_env[env_key].update(
             self.graph.rl_context.workloads[vertex.role].instance_env
         )
 
+        # setup device collocation env
+        if vertex.get_core_resource_num() < 1:
+            group_env_value = ""
+            for group_tuple in self.graph.rl_context.workload_group.groups:
+                group_roles = list(group_tuple[0].keys())
+                if vertex.role in group_roles:
+                    group_env_value = ",".join(r.name for r in group_roles)
+                    break
+            runtime_env[env_key][RLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = group_env_value
+
+        # setup ray cuda visible env
         if not set(
             RLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS.items()
         ).issubset(set(runtime_env[env_key].items())):

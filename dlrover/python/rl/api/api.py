@@ -192,6 +192,7 @@ class RLJob(object):
     def submit(
         self,
         job_name,
+        blocking=True,
         master_cpu=4,
         master_memory=8192,
         job_max_restart=10,
@@ -202,6 +203,8 @@ class RLJob(object):
 
         Args:
             job_name (str): The name of the job.
+            blocking (bool, optional): Whether to block until the job is
+                complete. Defaults is True.
             master_cpu (int, optional): The number of CPU cores to use.
                 Defaults to 4.
             master_memory (int, optional): The number of memory cores to use.
@@ -229,7 +232,7 @@ class RLJob(object):
             args.append(f"--{key}")
             args.append(value)
 
-        main(args)
+        main(args, blocking)
 
 
 class RLJobBuilder(object):
