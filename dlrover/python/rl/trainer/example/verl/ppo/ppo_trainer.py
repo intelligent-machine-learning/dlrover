@@ -44,6 +44,12 @@ from verl.trainer.ppo.metric_utils import (
     process_validation_metrics,
     reduce_metrics,
 )
+from verl.trainer.ppo.ray_trainer import (
+    AdvantageEstimator,
+    apply_kl_penalty,
+    compute_advantage,
+    compute_response_mask,
+)
 from verl.trainer.ppo.reward import compute_reward, compute_reward_async
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path
 from verl.utils.seqlen_balancing import (
@@ -51,8 +57,6 @@ from verl.utils.seqlen_balancing import (
     log_seqlen_unbalance,
 )
 from verl.utils.tracking import ValidationGenerationsLogger
-from verl.trainer.ppo.ray_trainer import (AdvantageEstimator, apply_kl_penalty,
-                                          compute_response_mask, compute_advantage)
 
 from dlrover.python.rl.trainer.trainer import BaseTrainer
 

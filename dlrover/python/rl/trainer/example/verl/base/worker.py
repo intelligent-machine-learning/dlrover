@@ -23,6 +23,7 @@ from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
 from dlrover.python.rl.trainer.workload import BaseWorkload, trainer_invocation
+
 from .decorator import Dispatch, Execute, register
 
 
@@ -50,7 +51,9 @@ class WorkerHelper:
 
                 return ray._private.services.get_node_ip_address()
             else:
-                raise NotImplementedError("WG_BACKEND now just support ray mode.")
+                raise NotImplementedError(
+                    "WG_BACKEND now just support ray mode."
+                )
 
         host_ipv4 = os.getenv("MY_HOST_IP", None)
         host_ipv6 = os.getenv("MY_HOST_IPV6", None)
@@ -87,7 +90,10 @@ class WorkerMeta:
         self._store = store
 
     def to_dict(self):
-        return {f"_{key.lower()}": self._store.get(f"_{key.lower()}", None) for key in WorkerMeta.keys}
+        return {
+            f"_{key.lower()}": self._store.get(f"_{key.lower()}", None)
+            for key in WorkerMeta.keys
+        }
 
 
 # we assume that in each WorkerGroup, there is a Master Worker
@@ -96,9 +102,7 @@ class Worker(WorkerHelper, BaseWorkload):
 
     fused_worker_attr_name = "fused_worker_dict"
 
-    def __init__(self,
-                 master_handle: ActorHandle,
-                 config: DictConfig):
+    def __init__(self, master_handle: ActorHandle, config: DictConfig):
         super().__init__(master_handle, config)
 
         self.cuda_visible_devices = None
@@ -131,7 +135,9 @@ class Worker(WorkerHelper, BaseWorkload):
     def get_cuda_visible_devices(self):
         import os
 
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "not set")
+        cuda_visible_devices = os.environ.get(
+            "CUDA_VISIBLE_DEVICES", "not set"
+        )
         return cuda_visible_devices
 
     @trainer_invocation(dispatch_mode=Dispatch.DP_COMPUTE_PROTO_WITH_FUNC)
@@ -139,14 +145,15 @@ class Worker(WorkerHelper, BaseWorkload):
         ret_proto = func(self, *args, **kwargs)
         return ret_proto
 
-    @register(dispatch_mode=Dispatch.ALL_TO_ALL, execute_mode=Execute.RANK_ZERO)
+    @register(
+        dispatch_mode=Dispatch.ALL_TO_ALL, execute_mode=Execute.RANK_ZERO
+    )
     def execute_func_rank_zero(self, func, *args, **kwargs):
         result = func(*args, **kwargs)
         return result
 
 
 class MegatronWorker(Worker):
-
     @property
     def tp_size(self):
         return self.get_megatron_global_info().tp_size
@@ -170,7 +177,9 @@ class MegatronWorker(Worker):
         dp_size = mpu.get_data_parallel_world_size()
         pp_size = mpu.get_pipeline_model_parallel_world_size()
         cp_size = mpu.get_context_parallel_world_size()
-        info = DistGlobalInfo(tp_size=tp_size, dp_size=dp_size, pp_size=pp_size, cp_size=cp_size)
+        info = DistGlobalInfo(
+            tp_size=tp_size, dp_size=dp_size, pp_size=pp_size, cp_size=cp_size
+        )
         return info
 
     def get_megatron_rank_info(self):
@@ -180,12 +189,15 @@ class MegatronWorker(Worker):
         dp_rank = mpu.get_data_parallel_rank()
         pp_rank = mpu.get_pipeline_model_parallel_rank()
         cp_rank = mpu.get_context_parallel_rank()
-        info = DistRankInfo(tp_rank=tp_rank, dp_rank=dp_rank, pp_rank=pp_rank, cp_rank=cp_rank)
+        info = DistRankInfo(
+            tp_rank=tp_rank, dp_rank=dp_rank, pp_rank=pp_rank, cp_rank=cp_rank
+        )
         return info
 
-    def _init_hf_config_and_tf_config(self, model_path, dtype, override_model_config):
+    def _init_hf_config_and_tf_config(
+        self, model_path, dtype, override_model_config
+    ):
         from transformers import AutoConfig
-
         from verl.models.mcore import hf_to_mcore_config
         from verl.utils import hf_tokenizer
         from verl.utils.fs import copy_to_local
@@ -205,8 +217,12 @@ class MegatronWorker(Worker):
             "pad_token_id": self.tokenizer.pad_token_id,
         }
         override_config_kwargs.update(override_model_config)
-        self.share_embeddings_and_output_weights = getattr(hf_config, "tie_word_embeddings", False)
-        update_model_config(hf_config, override_config_kwargs=override_config_kwargs)
+        self.share_embeddings_and_output_weights = getattr(
+            hf_config, "tie_word_embeddings", False
+        )
+        update_model_config(
+            hf_config, override_config_kwargs=override_config_kwargs
+        )
         self.architectures = getattr(hf_config, "architectures", None)
         if self.rank == 0:
             print(f"Model config after override: {hf_config}")
@@ -215,10 +231,24 @@ class MegatronWorker(Worker):
         def add_optimization_config_to_tf_config(tf_config, verl_model_config):
             # add optimization config to tf_config, e.g. checkpointing
             if verl_model_config.get("enable_gradient_checkpointing", False):
-                gradient_checkpointing_cfg = dict(verl_model_config.get("gradient_checkpointing_kwargs", dict()))
-                tf_config.recompute_method = gradient_checkpointing_cfg.get("activations_checkpoint_method", "full")
-                tf_config.recompute_granularity = gradient_checkpointing_cfg.get("activations_checkpoint_granularity", "full")
-                tf_config.recompute_num_layers = gradient_checkpointing_cfg.get("activations_checkpoint_num_layers", -1)
+                gradient_checkpointing_cfg = dict(
+                    verl_model_config.get(
+                        "gradient_checkpointing_kwargs", dict()
+                    )
+                )
+                tf_config.recompute_method = gradient_checkpointing_cfg.get(
+                    "activations_checkpoint_method", "full"
+                )
+                tf_config.recompute_granularity = (
+                    gradient_checkpointing_cfg.get(
+                        "activations_checkpoint_granularity", "full"
+                    )
+                )
+                tf_config.recompute_num_layers = (
+                    gradient_checkpointing_cfg.get(
+                        "activations_checkpoint_num_layers", -1
+                    )
+                )
 
         add_optimization_config_to_tf_config(tf_config, self.config.model)
 

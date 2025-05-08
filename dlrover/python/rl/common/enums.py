@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import List
 
 
 class TrainerType(Enum):

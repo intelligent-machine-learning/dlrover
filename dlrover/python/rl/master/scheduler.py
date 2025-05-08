@@ -128,7 +128,9 @@ class Scheduler(ABC):
                 if vertex.role in group_roles:
                     group_env_value = ",".join(r.name for r in group_roles)
                     break
-            runtime_env[env_key][RLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = group_env_value
+            runtime_env[env_key][
+                RLWorkloadEnv.DEVICE_COLLOCATION_GROUP
+            ] = group_env_value
 
         # setup ray cuda visible env
         if not set(

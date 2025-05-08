@@ -73,25 +73,37 @@ def main(config):
             "dlrover.python.rl.trainer.default.verl.ppo.ppo_trainer",
             "PPOTrainer",
         )
-        .actor("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "ActorRolloutRefWorker")
+        .actor(
+            "dlrover.python.rl.trainer.default.verl.base.megatron_workers",
+            "ActorRolloutRefWorker",
+        )
         .total(total_node * device_per_node)
         .per_node(device_per_node)
     )
     if has_ref:
         (
-            rl_job_builder.reference("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "ActorRolloutRefWorker")
+            rl_job_builder.reference(
+                "dlrover.python.rl.trainer.default.verl.base.megatron_workers",
+                "ActorRolloutRefWorker",
+            )
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )
     if has_rew:
         (
-            rl_job_builder.reward("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "RewardModelWorker")
+            rl_job_builder.reward(
+                "dlrover.python.rl.trainer.default.verl.base.megatron_workers",
+                "RewardModelWorker",
+            )
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )
     if has_critic:
         (
-            rl_job_builder.critic("dlrover.python.rl.trainer.default.verl.base.megatron_workers", "CriticWorker")
+            rl_job_builder.critic(
+                "dlrover.python.rl.trainer.default.verl.base.megatron_workers",
+                "CriticWorker",
+            )
             .total(total_node * device_per_node)
             .per_node(device_per_node)
         )
