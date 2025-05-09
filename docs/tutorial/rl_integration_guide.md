@@ -7,7 +7,7 @@ iteration and achieve loose coupling with the "algorithm" implementation,
 DLRover decouples the control plane from the RL implementation and abstracts 
 the algorithm implementation. This abstraction allows adaptation to various RL 
 implementations across different algorithm and model architectures. 
-For more details, refer to the: [design document](../design/reinforcement-learning-overview.md#pluggable-rl-workload). 
+For more details, refer to the: [Design doc](../design/reinforcement-learning-overview.md#pluggable-rl-workload). 
 
 ## Instruction
 ### Process Instruction
@@ -15,7 +15,7 @@ For more details, refer to the: [design document](../design/reinforcement-learni
 
 Extend the abstraction class 'BaseWorkload' provided by DLRover to implement 
 different roles in reinforcement learning according to the 
-following: [SDK documentation](#baseworkload).
+following: [SDK doc](#baseworkload).
 
 DLRover provides 5 roles for rl using:
 - ACTOR: Makes decisions by selecting actions based on the policy.
@@ -59,7 +59,7 @@ class UserActorModel(BaseWorkload):
 #### Step 2: Implement the Trainer
 
 Extend the abstraction class 'BaseTrainer' provided by DLRover according to 
-the following: [SDK documentation](#basetrainer).
+the following: [SDK doc](#basetrainer).
 
 > Notice: The following code is for demonstration purposes only. Except for 
 > the required abstract classes that must be inherited, everything else is 
@@ -96,6 +96,28 @@ class UserTrainer(BaseTrainer):
 Notice: 
 1. Do not perform initialization work in `__init__`; only definitions.  
 2. Perform all initialization work in the `init` method.    
+
+
+#### Step 3: Use API for Submit
+
+Use the common [API](#Job Submitting API) to submit a ray 
+job to run the RL training defined by user: 
+
+```python
+from dlrover.python.rl.api.api import RLJobBuilder
+
+
+rl_job = (
+    RLJobBuilder()
+    .node_num(1)
+    .device_per_node(4)
+    .config({"k1": "v1"})
+    .trainer("xxx", "xxx")
+    ...
+    .build())
+
+rl_job.submit()
+```
 
 
 ### SDK Instruction
@@ -249,6 +271,9 @@ dlrover.python.rl.trainer.trainer::BaseTrainer
         ```python
         self.RG_ROLLOUT.generate(parameter_0, parameter_1)
         ```
+
+#### Job Submitting API
+
 
 
 ## Example

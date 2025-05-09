@@ -12,7 +12,7 @@
 # limitations under the License.
 import time
 from itertools import chain
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 import ray
 from ray.actor import ActorHandle
@@ -70,7 +70,48 @@ class PlacementGroupInfo(PickleSerializable):
         self._bundle_index = bundle_index
 
 
+class FunctionInfo(object):
+    """
+    To express each function.
+    """
+
+    def __init__(self, name, input_func, inputs=None, outputs=None):
+        # unique id
+        self._name: str = name
+
+        # input and outputs(by 'DataTransfer')
+        # function impl to get inputs from 'DataTransfer'
+        self._input_func = input_func
+        self._inputs: List[Tuple[str, Type]] = inputs
+        self._outputs: List[Tuple[str, Type]] = outputs
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+
+class VertexInvocationMeta(object):
+    """
+    To express the function hold by the vertex.
+    """
+
+    def __init__(self, funcs):
+        self._funcs: Dict[str, FunctionInfo] = funcs
+
+    def get_func(self, name):
+        return self._funcs[name]
+
+
 class RLExecutionVertex(PickleSerializable):
+    """
+    Vertex expression for computational graph.
+
+    role: Role of the vertex.
+    module_name: Module name of the vertex's class.
+    class_name: Class name of the vertex's class.
+    resource: Resource the vertex required.
+    """
+
     def __init__(
         self,
         role: RLRoleType,
@@ -83,6 +124,7 @@ class RLExecutionVertex(PickleSerializable):
         local_world_size: int,
         sub_stage: int = 0,
         sub_stage_index: int = 0,
+        invocation_meta: VertexInvocationMeta = None,
     ):
         # static info
         self.__role = role
@@ -98,6 +140,7 @@ class RLExecutionVertex(PickleSerializable):
         self.__local_world_size = local_world_size
         self.__sub_stage = sub_stage
         self.__sub_stage_index = sub_stage_index
+        self.__invocation_meta = invocation_meta
 
         # runtime info
         self._pg_info = PlacementGroupInfo()
@@ -151,6 +194,10 @@ class RLExecutionVertex(PickleSerializable):
     @property
     def sub_stage_index(self):
         return self.__sub_stage_index
+
+    @property
+    def invocation_meta(self):
+        return self.__invocation_meta
 
     @property
     def pg(self):
@@ -257,9 +304,45 @@ class RLExecutionVertex(PickleSerializable):
 
 
 class RLExecutionEdge(PickleSerializable):
-    """TODO: design and impl"""
+    """
+    Edge expression for computational graph.
 
-    pass
+    index: The id of the edge in order.
+    from_role: Role of the caller.
+    to_role: Role of the callee.
+    invocation_name: Remote function name of the invocation.
+    async_group: Edges defined within the group can be invoked asynchronously
+        at the same time.
+    """
+
+    def __init__(
+        self, index, from_role, to_role, invocation_name, async_group=None
+    ):
+        self._index = index
+        self._from_role: Union[None, RLRoleType] = from_role
+        self._to_role: RLRoleType = to_role
+        self._invocation_name: str = invocation_name
+        self._async_group = async_group
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def from_role(self):
+        return self._from_role
+
+    @property
+    def to_role(self):
+        return self._to_role
+
+    @property
+    def invocation_name(self):
+        return self._invocation_name
+
+    @property
+    def async_group(self):
+        return self._async_group
 
 
 class PlacementGroupAllocation(PickleSerializable):
@@ -334,7 +417,9 @@ class RLExecutionGraph(PickleSerializable):
         self.__execution_vertices: Dict[
             RLRoleType, List[RLExecutionVertex]
         ] = {}
-        self.__execution_edges: List[RLExecutionEdge] = []  # not used for now
+        # TODO: implement edge building for a fully computational graph
+        # format: [[edge0], [edge1, edge2], [edge3]]
+        self.__execution_edges: List[List[RLExecutionEdge]] = []
 
         self.__placement_groups: Dict[str, PlacementGroupAllocation] = {}
 
@@ -392,7 +477,7 @@ class RLExecutionGraph(PickleSerializable):
         return self.__execution_vertices
 
     @property
-    def execution_edges(self) -> List[RLExecutionEdge]:
+    def execution_edges(self) -> List[List[RLExecutionEdge]]:
         return self.__execution_edges
 
     @property

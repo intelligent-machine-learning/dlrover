@@ -97,21 +97,61 @@ To address the need for reusability and extensibility across both internal and
 external implementations while reducing refactoring costs, the MultiController 
 component (i.e., the Trainer and Worker) is abstracted and separated. Users can 
 implement any algorithm or framework based on a combination of `BaseTrainer` 
-and `BaseWorkload`, thereby enabling seamless integration into the workflow.  
-
-By the way: For the implementation of a specific algorithm and model, can 
-refer to the project: **FlashTuner**.  
+and `BaseWorkload`, thereby enabling seamless integration into the workflow.
 
 
 ### Computational Graph
-In order to better manage the internal computational process of RL, we use a 
-DCG (Directed Cyclic Graph) to represent the entire computational graph. 
-Vertices represent various instances of RL roles, while edges represent the 
-interaction relationships between these instances. Through the relationship 
-between vertices and edges, DLRover, as the control-plane manager, can gain a 
-clearer understanding of the interaction logic between all working roles, 
-allowing for greater potential to improve overall stability and performance 
-effectively. 
+Before diving into the computational graph of Reinforcement Learning (RL), 
+let’s first revisit the development of distributed computing. In the earliest 
+stage, computation was single-node, where a single machine could handle all 
+calculations and implementations. This is illustrated as follows: 
+ 
+<div style="text-align: center;">
+    <img src="../figures/rl/single_cal.png" alt="single_cal" width="200">
+</div>
+
+With the growth of data scale, single-machine computation could no longer meet 
+the demands, which led to the birth of distributed computing. However, since 
+the data is split while the result format still needs to remain consistent 
+with the original form, implementing distributed computing is not as simple as 
+directly splitting single-node computations across multiple nodes. It instead 
+involves splitting the data, performing computation, and merging the results 
+(referencing the concept of Map-Reduce). This resulted in the basic 
+computational structure as shown below:
+
+<div style="text-align: center;">
+    <img src="../figures/rl/dist_cal.png" alt="dist_cal" width="400">
+</div>
+
+Building upon this foundation, we have seen many widely
+recognized computation engines, from early Hadoop to later Spark and Flink 
+(data + stream parallelism). With the arrival of the AI era, distributed 
+computing has undergone further evolution, expanding the dimensions of 
+parallel computation even further, although we won’t delve into those details 
+here. 
+
+Let's return to the topic of RL. In order to better manage the internal 
+computational process of RL, we use a DCG (Directed Cyclic Graph) to represent 
+the entire computational graph. Vertices represent various instances of RL 
+roles, while edges represent the interaction relationships between these 
+instances. 
+
+The computational graph here has several key differences compared to the 
+distributed computing described earlier:  
+1) It is a cyclic self-contained graph.  
+2) Each node is no longer the implementation of a single operator but a 
+   collection of multiple operators.  
+3) The collaboration between operators is not necessarily fully 
+   upstream-downstream synchronous but rather asynchronous.    
+
+<div style="text-align: center;">
+    <img src="../figures/rl/rl_dist_cal.png" alt="rl_dist_cal" width="400">
+</div>
+
+Through the relationship between vertices and edges, DLRover, as the 
+control-plane manager, can gain a clearer understanding of the interaction 
+logic between all working roles, allowing for greater potential to improve 
+overall stability and performance effectively. 
 For example, if an anomaly occurs, the relationship topology allows us to 
 identify the affected upstream and downstream components immediately, enabling 
 more effective fault-tolerant operations.  
@@ -121,16 +161,40 @@ more effective fault-tolerant operations.
 </div>
 
 However, because the current computation in RL is strongly coupled with the 
-algorithm and model architecture, we are not yet able to provide an abstract, 
-fully generalized representation of the computational graph independent of the 
-algorithm and framework. As a result, many higher-level optimizations in 
+algorithm and model architecture, we are still studying on how to provide an 
+abstract, fully generalized representation of the computational graph 
+independent of the algorithm and framework. 
+
+> The current implementation of computation does not fully rely on the 
+> computational graph and is still achieved through manually written trainer 
+> logic. Please refer to the relevant code for details.
+
+As a result, many higher-level optimizations in 
 performance or stability are still tied to the specific implementation of the 
 algorithm to some extent. Therefore, on the algorithm framework side, in order 
 to meet the demands of large-scale production, it is necessary not only to 
 implement the basic RL workflow but also to leverage the aforementioned 
 capabilities exposed by **DLRover** for further development, enhancing its 
-performance and stability. For detailed implementation, future reference can 
-be made to the project: **FlashTuner**.  
+performance and stability. 
+
+
+### SubDag Based Scheduling(Concept)
+For general RL scenarios, the scheduling of all workloads is conducted as a 
+whole, meaning that both training and inference are scheduled uniformly based 
+on roles. However, to accommodate larger scales and different types of models, 
+there are undoubtedly optimization strategies based on model parallelism. 
+Therefore, in terms of scheduling, **DLRover** will represent the actual 
+computational graph's topology in finer granularity, namely at the 
+sub-dag(Directed Cyclic Graph)level. By utilizing the optimized sub-dag and 
+considering the current cluster resources, **DLRover** implements more 
+fine-grained scheduling, as illustrated in the diagram below:
+
+- A general execution graph representation: as shown in the "Preview Execution" 
+layer below.  
+- An optimized execution graph representation based on sub-dag: as shown in 
+the "Optimized Execution" layer below.    
+
+<img src="../figures/rl/dlrover_rl_sub_dag.png" alt="Sub DAG Based">
 
 
 ### Affinity Scheduling
@@ -149,25 +213,6 @@ following three affinity (or anti-affinity) scheduling strategy and each of
 them can be combined with each other:  
 
 <img src="../figures/rl/dlrover_rl_collocation.png" alt="Collocation">
-
-
-### SubDag Based Scheduling
-For general RL scenarios, the scheduling of all workloads is conducted as a 
-whole, meaning that both training and inference are scheduled uniformly based 
-on roles. However, to accommodate larger scales and different types of models, 
-there are undoubtedly optimization strategies based on model parallelism. 
-Therefore, in terms of scheduling, **DLRover** will represent the actual 
-computational graph's topology in finer granularity, namely at the 
-sub-dag(Directed Cyclic Graph)level. By utilizing the optimized sub-dag and 
-considering the current cluster resources, **DLRover** implements more 
-fine-grained scheduling, as illustrated in the diagram below:
-
-- A general execution graph representation: as shown in the "Preview Execution" 
-layer below.  
-- An optimized execution graph representation based on sub-dag: as shown in 
-the "Optimized Execution" layer below.    
-
-<img src="../figures/rl/dlrover_rl_sub_dag.png" alt="Sub DAG Based">
 
 
 ### Fault Tolerance
@@ -207,14 +252,12 @@ process at the basic failover level:
 </div>
 
 
-#### Advanced Level Failover
+#### Advanced Level Failover(Concept)
 An advanced failover implementation essentially reduces the scope of failure 
 impact from global to local, thereby minimizing the effects of failures and 
 improving stability. However, since this part of the implementation will be 
 coupled with the multi-controller layer, it requires extending the abstract 
-interfaces provided by DLRover in conjunction with the algorithm framework. 
-Therefore, a specific design and implementation of this will be further 
-demonstrated later in conjunction with the **FlashTuner** project. 
+interfaces provided by DLRover in conjunction with the algorithm framework.
 
 TODO(another doc to share this)
 
