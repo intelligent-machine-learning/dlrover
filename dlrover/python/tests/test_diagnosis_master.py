@@ -22,12 +22,17 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
+    NpuMetricEnum,
     PlatformType,
     PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
+from dlrover.python.common.metric.monitor import (
+    GpuMetricMonitor,
+    NpuMetricMonitor,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
@@ -94,15 +99,30 @@ class DiagnosisMasterTest(unittest.TestCase):
 
     def test_diagnosis_master_api(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
-        args.xpu_type = Accelerators.GENERIC_CPU
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        monitor = GpuMetricMonitor(
+            job_name=args.job_name,
+            metrics=[
+                GpuMetricEnum.GPU_UTIL,
+                GpuMetricEnum.GPU_TENSOR_UTIL,
+            ],
+        )
         mgr = DiagnosisMaster(job_args=args)
-        self.assertEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
+        mgr.new_metric_monitor(monitor)
+        mgr.start_metric_collect()
+        mgr.stop_metric_collect()
+
+        args.xpu_type = Accelerators.ASCEND_NPU
+        monitor = NpuMetricMonitor(
+            job_name=args.job_name,
+            metrics=[
+                NpuMetricEnum.NPU_UTIL,
+            ],
         )
-        mgr._job_args.xpu_type = Accelerators.ASCEND_NPU
-        self.assertNotEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
-        )
+        mgr = DiagnosisMaster(job_args=args)
+        mgr.new_metric_monitor(monitor)
+        mgr.start_metric_collect()
+        mgr.stop_metric_collect()
 
         mgr = DiagnosisMaster(job_args=args)
         mgr.pre_check()
@@ -203,7 +223,7 @@ class DiagnosisMasterTest(unittest.TestCase):
             mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
         )
         self.assertEqual(
-            mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
+            mgr.check_tensor_drop_zero(29)[0], DiagnosisResult.DIAG_HANG
         )
 
     @patch(

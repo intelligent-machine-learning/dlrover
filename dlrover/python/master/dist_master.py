@@ -292,6 +292,9 @@ class DistributedJobMaster(JobMaster):
         try:
             while True:
                 if self._job_ctx.is_request_stopped():
+                    logger.info(
+                        f"Job is stopped: {self._job_ctx.get_job_stage()}"
+                    )
                     break
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
@@ -345,6 +348,7 @@ class DistributedJobMaster(JobMaster):
             if self.job_manager:
                 self.job_manager.stop()
             if self.diagnosis_manager:
+                self.diagnosis_manager.stop_metric_collect()
                 self.diagnosis_manager.stop_observing()
             self.stop()
 

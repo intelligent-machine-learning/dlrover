@@ -26,6 +26,7 @@ from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CommunicationType,
     JobConstant,
+    KeyValueOps,
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
@@ -93,13 +94,56 @@ class MasterClient(Singleton, ABC):
 
     def kv_store_set(self, key, value):
         message = comm.KeyValuePair(key, value)
+        message.op = KeyValueOps.SET
         response = self._report(message)
+        logger.debug(f"kv_store_set: {message} {response}")
         return response.success
 
     def kv_store_get(self, key):
         request = comm.KeyValuePair(key)
+        request.op = KeyValueOps.GET
         result: comm.KeyValuePair = self._get(request)
+        logger.debug(f"kv_store_get: {request} {result}")
         return result.value
+
+    def kv_store_add(self, key, value):
+        request = comm.KeyValuePair(key, value)
+        request.op = KeyValueOps.ADD
+        result: comm.KeyValuePair = self._get(request)
+        logger.debug(f"kv_store_add: {request} {result}")
+        return result.value
+
+    def kv_store_multi_get(self, keys):
+        kvs = {key: b"" for key in keys}
+        request = comm.KeyValuePairs(kvs)
+        request.op = KeyValueOps.GET
+        result: comm.KeyValuePairs = self._get(request)
+        logger.debug(f"kv_store_multi_get: {request} {result}")
+        return result.kvs
+
+    def kv_store_multi_set(self, keys, values):
+        try:
+            kvs = {}
+            for i in range(len(keys)):
+                key = keys[i]
+                value = values[i]
+                kvs[key] = value
+            message = comm.KeyValuePairs(kvs)
+            message.op = KeyValueOps.SET
+            response = self._report(message)
+            logger.debug(f"kv_store_multi_set: {message} {response}")
+            return response.success
+        except IndexError:
+            logger.warning(
+                f"IndexError in kv_store_multi_set: "
+                f"{keys}, {values} are inconsistent"
+            )
+            raise
+        except Exception:
+            logger.warning(
+                f"Unexpected error in kv_store_multi_set: " f"{keys}, {values}"
+            )
+            raise
 
     def get_task(self, dataset_name):
         """Get a task from master.

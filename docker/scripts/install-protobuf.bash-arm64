@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+wget -q https://github.com/protocolbuffers/protobuf/releases/download/v30.0/protoc-30.0-linux-aarch_64.zip
+unzip -qq protoc-30.0-linux-aarch_64.zip -d /usr/local
+rm protoc-30.0-linux-aarch_64.zip

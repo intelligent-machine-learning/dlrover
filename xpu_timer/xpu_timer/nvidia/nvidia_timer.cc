@@ -423,7 +423,7 @@ std::string NcclCommWrapper::getNcclVersion() {
       ::xpu_timer::util::config::GlobalConfig::dlopen_path["NCCL"];
   std::string nccl_version_cmd =
       "strings " + nccl_lib_path +
-      R"(| grep -E "version.*cuda" | awk -F"[ +]" '{print $1 "_" $3}')";
+      R"(| grep -E "version.*cuda" | grep -v VERSION_STRING | awk -F"[ +]" '{print $1 "_" $3}')";
   bp::environment env = boost::this_process::environment();
   env.erase("LD_PRELOAD");
   bp::ipstream out_stream;
