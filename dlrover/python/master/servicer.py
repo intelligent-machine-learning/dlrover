@@ -329,7 +329,7 @@ class MasterServicer(ABC):
         """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
         if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
-            logger.info(
+            logger.debug(
                 f"Job is stopping, set waiting_num {waiting_num} to -1"
             )
             waiting_num = -1
