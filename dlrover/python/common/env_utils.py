@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import socket
 
 import psutil
 
@@ -125,3 +126,15 @@ def is_worker_process(pid):
         return True
     else:
         return False
+
+
+def get_hostname_and_ip():
+    """Get the hostname and IP address."""
+
+    hostname = socket.gethostname()
+    try:
+        ip_address = socket.gethostbyname(hostname)
+    except socket.error:
+        ip_address = "Unknown"
+
+    return hostname, ip_address
