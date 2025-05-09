@@ -286,6 +286,10 @@ class WorkerManager(TrainingNodeManager):
                 worker.exit_reason == NodeExitReason.FATAL_ERROR
                 or worker.status == NodeStatus.SUCCEEDED
             ):
+                logger.debug(
+                    f"Worker {worker} has exited: "
+                    f"{worker.exit_reason} {worker.status}"
+                )
                 return True
         return False
 
@@ -297,6 +301,7 @@ class WorkerManager(TrainingNodeManager):
                 worker.exit_reason == NodeExitReason.KILLED
                 and worker.relaunch_count < worker.max_relaunch_count
             ):
+                logger.debug(f"Worker {worker} is restarting")
                 return True
         return False
 
