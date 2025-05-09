@@ -354,6 +354,9 @@ class Node(object):
         now = int(datetime.now().timestamp())
         self.reported_status = (status, now)
 
+    def get_reported_status(self):
+        return self.reported_status[0]
+
     def is_exited_reported(self):
         return (
             self.reported_status[0] == NodeEventType.SUCCEEDED_EXITED
