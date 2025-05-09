@@ -18,6 +18,7 @@ from typing import Dict, List, Tuple
 from dlrover.python.common.constants import (
     DistributionStrategy,
     JobConstant,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -285,6 +286,11 @@ class WorkerManager(TrainingNodeManager):
             if (
                 worker.exit_reason == NodeExitReason.FATAL_ERROR
                 or worker.status == NodeStatus.SUCCEEDED
+                or (
+                    worker.status == NodeStatus.DELETED
+                    and worker.reported_status[0]
+                    == NodeEventType.SUCCEEDED_EXITED
+                )
             ):
                 logger.debug(
                     f"Worker {worker} has exited: "
