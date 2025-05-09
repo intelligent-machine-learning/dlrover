@@ -69,6 +69,9 @@ class NodeTest(unittest.TestCase):
         node.update_reported_status(NodeEventType.SUCCEEDED_EXITED)
         self.assertTrue(node.is_succeeded_and_exited())
         self.assertTrue(node.is_exited_reported())
+        self.assertEqual(
+            node.get_reported_status(), NodeEventType.SUCCEEDED_EXITED
+        )
 
         node.update_reported_status(NodeEventType.NODE_CHECK_FAILED)
         self.assertTrue(node.is_succeeded_and_exited())

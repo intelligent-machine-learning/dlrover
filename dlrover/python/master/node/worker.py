@@ -280,7 +280,12 @@ class WorkerManager(TrainingNodeManager):
         return plan
 
     def has_exited_worker(self):
-        """Check whether there is exited worker except evicted workers."""
+        """Check whether there is exited worker except evicted workers.
+
+        If the worker has reported SUCCEEDED_EXITED, but been deleted
+        by dlrover finally, the status will be DELETED instead of SUCCEEDED
+        In such cases the worker should also be regard as exited worker
+        """
         nodes = self._get_nodes()
         for worker in nodes.values():
             if (
@@ -288,7 +293,7 @@ class WorkerManager(TrainingNodeManager):
                 or worker.status == NodeStatus.SUCCEEDED
                 or (
                     worker.status == NodeStatus.DELETED
-                    and worker.reported_status[0]
+                    and worker.get_reported_status()
                     == NodeEventType.SUCCEEDED_EXITED
                 )
             ):
