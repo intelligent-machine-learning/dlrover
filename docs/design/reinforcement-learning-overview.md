@@ -89,7 +89,7 @@ characteristics: low generalizability, high coupling, rapid iteration cycles,
 and high implementation and debugging costs.
 
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/dlrover_rl_workload_pluggable.png" alt="Pluggable RL Workload" width="400">
 </div>
 
@@ -106,7 +106,7 @@ let’s first revisit the development of distributed computing. In the earliest
 stage, computation was single-node, where a single machine could handle all 
 calculations and implementations. This is illustrated as follows: 
  
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/single_cal.png" alt="single_cal" width="200">
 </div>
 
@@ -119,7 +119,7 @@ involves splitting the data, performing computation, and merging the results
 (referencing the concept of Map-Reduce). This resulted in the basic 
 computational structure as shown below:
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/dist_cal.png" alt="dist_cal" width="400">
 </div>
 
@@ -144,7 +144,7 @@ distributed computing described earlier:
 3) The collaboration between operators is not necessarily fully 
    upstream-downstream synchronous but rather asynchronous.    
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/rl_dist_cal.png" alt="rl_dist_cal" width="400">
 </div>
 
@@ -156,7 +156,7 @@ For example, if an anomaly occurs, the relationship topology allows us to
 identify the affected upstream and downstream components immediately, enabling 
 more effective fault-tolerant operations.  
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/dlrover_rl_dcg.png" alt="DCG" width="400">
 </div>
 
@@ -247,7 +247,7 @@ failure issue
 The diagram below illustrates 'Global Failover', which is the implementation 
 process at the basic failover level: 
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../figures/rl/dlrover_rl_failover_basic.png" alt="Basic Failover" width="500">
 </div>
 
