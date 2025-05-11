@@ -159,6 +159,8 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
     def stop(self):
         self._stopped = True
+        if is_dlrover_event_enabled():
+            self._atorch_collector.stop_collectors()
 
     def _get_observe_problems(self) -> List[Inference]:
         observe_problems: List[Inference] = []
