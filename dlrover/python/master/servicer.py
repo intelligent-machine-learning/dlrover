@@ -620,8 +620,10 @@ class MasterServicer(ABC):
 
     def _handle_reported_atorch_event(self, message: comm.AtorchEvent):
         if message.name == TrainEventName.TRAIN_EVT_STEP:
+            logger.debug(f"Add step event: {message}")
             _event_context.train_steps.add_step_event(message)
         elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            logger.debug(f"Add ckpt event: {message}")
             _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True
