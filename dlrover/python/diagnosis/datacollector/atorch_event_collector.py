@@ -29,6 +29,8 @@ from dlrover.python.training_event.event import (
     EventTypeName,
 )
 
+evt_config = Config.singleton_instance()
+
 
 class AtorchNotFoundException(Exception):
     pass
@@ -45,7 +47,10 @@ class AtorchEventCollector(Singleton):
     """
 
     def __init__(
-        self, filepath=Config.file_dir, local_world_size=1, retry_timeout=30
+        self,
+        filepath=evt_config.file_dir,
+        local_world_size=1,
+        retry_timeout=30,
     ):
         super().__init__()
         self._prefix_pattern = r"\s*\[(.*?)\]\s*"

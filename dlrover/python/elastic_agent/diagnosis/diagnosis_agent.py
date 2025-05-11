@@ -61,12 +61,7 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.training_event.config import (
-    Config,
-    is_dlrover_event_enabled,
-)
-
-evt_config = Config.singleton_instance()
+from dlrover.python.training_event.config import is_dlrover_event_enabled
 
 
 class DiagnosisAgent(Singleton, DiagnosisManager):
