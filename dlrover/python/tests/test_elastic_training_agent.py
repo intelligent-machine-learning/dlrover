@@ -131,7 +131,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.rdzv_handler.join_timeout = 5
 
         if version_less_than_230():
-            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
         else:
             logs_dict = {}
         self.spec = WorkerSpec(
@@ -144,7 +147,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             monitor_interval=self.config.monitor_interval,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
-            **logs_dict
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
@@ -498,7 +501,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.rdzv_handler.join_timeout = 5
 
         if version_less_than_230():
-            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
         else:
             logs_dict = {}
         self.spec = WorkerSpec(
@@ -511,7 +517,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor_interval=self.config.monitor_interval,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
-            **logs_dict
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
@@ -1036,7 +1042,10 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.rdzv_handler.join_timeout = 5
 
         if version_less_than_230():
-            logs_dict = {"redirects": self.config.redirects, "tee": self.config.tee}
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
         else:
             logs_dict = {}
         self.spec = WorkerSpec(
@@ -1049,7 +1058,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             monitor_interval=self.config.monitor_interval,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
-            **logs_dict
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 

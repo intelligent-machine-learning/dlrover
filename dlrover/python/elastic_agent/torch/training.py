@@ -791,7 +791,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             total_sum += role_infos[idx].local_world_size
         return (
             total_sum,
-            list(range(prefix_sum, prefix_sum + role_infos[role_idx].local_world_size)),
+            list(
+                range(
+                    prefix_sum,
+                    prefix_sum + role_infos[role_idx].local_world_size,
+                )
+            ),
         )
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
