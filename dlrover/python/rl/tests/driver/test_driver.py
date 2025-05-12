@@ -30,6 +30,9 @@ class DriverTest(unittest.TestCase):
         ray.shutdown()
 
     def test_driver(self):
+        if os.cpu_count() < 2:
+            return
+
         args = [
             "--job_name",
             "test",

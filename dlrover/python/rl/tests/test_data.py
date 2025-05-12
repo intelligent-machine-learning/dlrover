@@ -151,30 +151,37 @@ class TestData(object):
             "type": "USER_DEFINED",
             "module": "dlrover.python.rl.tests.test_class",
             "class": "TestTrainer",
-            "node_number": 4,
+            "node_number": 1,
             "device_type": "CPU",
             "device_per_node": 1,
         },
+        "workload_group": [
+            {"actor": 1, "rollout": 1, "reference": 1, "reward": 1}
+        ],
         "workload": {
             "actor": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestActor",
+                "resource": {"cpu": 0.25},
             },
             "rollout": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestRollout",
+                "resource": {"cpu": 0.25},
             },
             "reference": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReference",
+                "resource": {"cpu": 0.25},
             },
             "reward": {
                 "num": 1,
                 "module": "dlrover.python.rl.tests.test_class",
                 "class": "TestReward",
+                "resource": {"cpu": 0.25},
             },
         },
     }

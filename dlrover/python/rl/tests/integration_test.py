@@ -39,6 +39,9 @@ class ApiFullTest(unittest.TestCase):
 
     @timeout(20)
     def test0(self):
+        if os.cpu_count() < 6:
+            return
+
         rl_job = (
             RLJobBuilder()
             .node_num(3)
@@ -66,6 +69,9 @@ class ApiFullTest(unittest.TestCase):
 
     @timeout(20)
     def test1(self):
+        if os.cpu_count() < 2:
+            return
+
         rl_job = (
             RLJobBuilder()
             .node_num(1)
@@ -115,6 +121,9 @@ class RLMasterNormalTest(BaseMasterTest):
 
     @timeout(20)
     def test(self):
+        if os.cpu_count() < 6:
+            return
+
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(
@@ -165,6 +174,9 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
 
     @timeout(30)
     def test_trainer_abnormal(self):
+        if os.cpu_count() < 2:
+            return
+
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(
@@ -214,6 +226,9 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
 
     @timeout(30)
     def test_trainer_workload_abnormal(self):
+        if os.cpu_count() < 2:
+            return
+
         master_name = "test"
 
         master_actor = DLRoverRLMaster.options(
