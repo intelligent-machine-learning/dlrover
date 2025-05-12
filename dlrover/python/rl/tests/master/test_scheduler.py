@@ -33,7 +33,7 @@ from dlrover.python.rl.tests.test_data import TestData
 class SimpleSchedulerTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         super().tearDown()
@@ -84,7 +84,7 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
         self.scheduler = GroupOrderedScheduler(self.graph)
 
         os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         os.environ.clear()
@@ -139,7 +139,7 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
         self.graph = RLExecutionGraph(self._job_context.rl_context)
         self.scheduler = GroupOrderedScheduler(self.graph)
 
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         os.environ.clear()

@@ -24,7 +24,7 @@ class TrainerTest(unittest.TestCase):
     def test_construct(self):
         trainer = TestInteractiveTrainer(
             {RLRoleType.ACTOR: [None, None]},
-            {RLRoleType.ACTOR: TestActor},
+            {RLRoleType.ACTOR: (TestActor, 1)},
             None,
         )
         self.assertIsNotNone(trainer)
@@ -34,3 +34,5 @@ class TrainerTest(unittest.TestCase):
 
         self.assertEqual(len(trainer.actors), 2)
         self.assertEqual(len(trainer.rollouts), 0)
+        self.assertEqual(len(trainer.get_role_groups()), 2)
+        self.assertFalse(trainer.is_recoverable())

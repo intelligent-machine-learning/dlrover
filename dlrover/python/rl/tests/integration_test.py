@@ -15,7 +15,11 @@ import time
 import unittest
 
 import ray
-from ray.exceptions import ActorDiedError
+
+try:
+    from ray.exceptions import ActorDiedError as ade
+except ImportError:
+    from builtins import RuntimeError as ade
 
 from dlrover.python.rl.api.api import RLJobBuilder
 from dlrover.python.rl.common.args import parse_job_args
@@ -31,7 +35,7 @@ from dlrover.python.util.function_util import timeout
 class ApiFullTest(unittest.TestCase):
     def setUp(self):
         os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         ray.shutdown()
@@ -112,7 +116,7 @@ class RLMasterNormalTest(BaseMasterTest):
         self._job_context._rl_context = rl_context
 
         os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         super().tearDown()
@@ -141,7 +145,7 @@ class RLMasterNormalTest(BaseMasterTest):
         while True:
             try:
                 result = ray.get(master_actor.get_job_status.remote())
-            except ActorDiedError:
+            except ade:
                 break
             if result != "FINISHED":
                 time.sleep(1)
@@ -165,7 +169,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._rl_context = rl_context
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         super().tearDown()
@@ -193,7 +197,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         while True:
             try:
                 result = ray.get(master_actor.get_job_status.remote())
-            except ActorDiedError:
+            except ade:
                 break
             if result != "FINISHED":
                 time.sleep(1)
@@ -217,7 +221,7 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._rl_context = rl_context
-        ray.init(num_cpus=8)
+        ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         super().tearDown()
@@ -245,7 +249,7 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
         while True:
             try:
                 result = ray.get(master_actor.get_job_status.remote())
-            except ActorDiedError:
+            except ade:
                 break
             if result != "FINISHED":
                 time.sleep(1)

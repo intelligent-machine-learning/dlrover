@@ -14,7 +14,11 @@
 import time
 
 import ray
-from ray.exceptions import ActorDiedError
+
+try:
+    from ray.exceptions import ActorDiedError as ade
+except ImportError:
+    from builtins import RuntimeError as ade
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.rl.common.args import parse_job_args
@@ -82,7 +86,7 @@ def submit(args=None, blocking=True):
                     logger.info(f"RLMaster exited with: {result}")
                     break
                 master_exit_start = 0
-            except ActorDiedError:
+            except ade:
                 if master_exit_start == 0:
                     master_exit_start = time.time()
 
