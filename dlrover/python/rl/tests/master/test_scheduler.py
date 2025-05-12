@@ -33,7 +33,7 @@ from dlrover.python.rl.tests.test_data import TestData
 class SimpleSchedulerTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
-        ray.init()
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         super().tearDown()
@@ -142,6 +142,7 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
         ray.init(num_cpus=8)
 
     def tearDown(self):
+        os.environ.clear()
         ray.shutdown()
 
     def test_schedule(self):
