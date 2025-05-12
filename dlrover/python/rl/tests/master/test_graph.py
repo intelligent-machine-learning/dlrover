@@ -31,7 +31,7 @@ class ExecutionGraphTest(unittest.TestCase):
     def setUp(self):
         if self._testMethodName == "test_serialization":
             os.environ[RLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-            ray.init(ignore_reinit_error=True)
+            ray.init(num_cpus=8, ignore_reinit_error=True)
 
     def tearDown(self):
         os.environ.clear()

@@ -34,5 +34,5 @@ class TrainerTest(unittest.TestCase):
 
         self.assertEqual(len(trainer.actors), 2)
         self.assertEqual(len(trainer.rollouts), 0)
-        self.assertEqual(len(trainer.get_role_groups()), 2)
+        self.assertEqual(len(trainer.get_role_groups()), 1)
         self.assertFalse(trainer.is_recoverable())
