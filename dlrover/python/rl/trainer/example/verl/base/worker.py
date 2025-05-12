@@ -154,22 +154,23 @@ class Worker(WorkerHelper, BaseWorkload):
 
 
 class MegatronWorker(Worker):
-    @property
+    @trainer_invocation(target="RANK0")
     def tp_size(self):
         return self.get_megatron_global_info().tp_size
 
-    @property
+    @trainer_invocation(target="RANK0")
     def dp_size(self):
         return self.get_megatron_global_info().dp_size
 
-    @property
+    @trainer_invocation(target="RANK0")
     def pp_size(self):
         return self.get_megatron_global_info().pp_size
 
-    @property
+    @trainer_invocation(target="RANK0")
     def cp_size(self):
         return self.get_megatron_global_info().cp_size
 
+    @trainer_invocation(target="RANK0")
     def get_megatron_global_info(self):
         from megatron.core import parallel_state as mpu
 

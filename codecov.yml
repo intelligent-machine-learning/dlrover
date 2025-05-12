@@ -7,7 +7,9 @@ coverage:
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
     - "dlrover/proto"
-    - "dlrover/python/rl/trainer/example"
+    - "dlrover/python/rl/trainer/example"  # example codes
+    - "dlrover/python/rl/tests/test_class.py"  # test data for testing
+    - "dlrover/python/rl/tests/test_data.py"  # test data for testing
   status:
     changes: false
     default_rules:

@@ -90,6 +90,34 @@ class TestActor(BaseWorkload):
     def compute(self, value=0):
         logger.info(f"TestActor compute called: {value}")
 
+    @trainer_invocation()
+    def test0(self):
+        pass
+
+    @trainer_invocation(blocking=False)
+    def test1(self):
+        pass
+
+    @trainer_invocation(is_async=True, timeout=5)
+    def test2(self):
+        pass
+
+    @trainer_invocation(target="RANK0")
+    def test3(self):
+        pass
+
+    def pre_func(self):
+        pass
+
+    def post_func(self):
+        pass
+
+    @trainer_invocation(
+        is_async=True, timeout=5, pre_func=pre_func, post_func=post_func
+    )
+    def test4(self):
+        pass
+
 
 @ray.remote
 class TestErrorActor(BaseWorkload):

@@ -25,7 +25,7 @@ class TrainerTest(unittest.TestCase):
         trainer = TestInteractiveTrainer(
             {RLRoleType.ACTOR: [None, None]},
             {RLRoleType.ACTOR: (TestActor, 1)},
-            None,
+            {"k1": "v1"},
         )
         self.assertIsNotNone(trainer)
         self.assertEqual(len(trainer.get_role_groups()), 1)
@@ -36,3 +36,28 @@ class TrainerTest(unittest.TestCase):
         self.assertEqual(len(trainer.rollouts), 0)
         self.assertEqual(len(trainer.get_role_groups()), 1)
         self.assertFalse(trainer.is_recoverable())
+        self.assertEqual(len(trainer.actor_handles), 1)
+        self.assertEqual(len(trainer.actor_handles[RLRoleType.ACTOR]), 2)
+        self.assertEqual(len(trainer.actors), 2)
+        self.assertEqual(len(trainer.rollouts), 0)
+        self.assertEqual(len(trainer.rewards), 0)
+        self.assertEqual(len(trainer.references), 0)
+        self.assertEqual(len(trainer.critics), 0)
+        self.assertEqual(trainer.actor_resource, 1)
+        self.assertEqual(trainer.rollout_resource, 1)
+        self.assertEqual(trainer.reference_resource, 1)
+        self.assertEqual(trainer.reward_resource, 1)
+        self.assertEqual(trainer.critic_resource, 1)
+        self.assertEqual(len(trainer.config), 1)
+
+    def test_role_group_proxy(self):
+        role_group = RoleGroupProxy(RLRoleType.ACTOR, 2, TestActor, {}, [None])
+        self.assertEqual(role_group.role, RLRoleType.ACTOR)
+        self.assertEqual(role_group.world_size, 2)
+        self.assertTrue(role_group._can_shard_invocation())
+        with self.assertRaises(AttributeError):
+            role_group.test0()
+            role_group.test1()
+            role_group.test2()
+            role_group.test3()
+            role_group.test4()
