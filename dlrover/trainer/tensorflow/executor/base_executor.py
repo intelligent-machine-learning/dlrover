@@ -128,7 +128,7 @@ class BaseExecutor:
                 self.server = server_lib.Server(
                     {"localhost": [self.address]}, protocol="grpc"
                 )
-                self.server.start_job()
+                self.server.start()
             else:
                 self.server = server_lib.Server.create_local_server()
                 # grpc address 'grpc://localhost:37229'
