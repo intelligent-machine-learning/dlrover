@@ -72,7 +72,7 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
         checkpoint = ds_manager.checkpoint()
         self.assertListEqual(checkpoint.todo[0], [100, 200])
         ds_manager.restore_checkpoint(checkpoint)
-        self.assertEqual(ds_manager.todo[0].shard.start_job, 0)
+        self.assertEqual(ds_manager.todo[0].shard.start, 0)
         self.assertEqual(ds_manager.todo[0].shard.end, 100)
         self.assertEqual(ds_manager.todo[0].shard.record_indices, None)
 
@@ -94,7 +94,7 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
         checkpoint = ds_manager.checkpoint()
         self.assertEqual(len(checkpoint.todo[0][-1]), 100)
         ds_manager.restore_checkpoint(checkpoint)
-        self.assertEqual(ds_manager.todo[0].shard.start_job, 0)
+        self.assertEqual(ds_manager.todo[0].shard.start, 0)
         self.assertEqual(ds_manager.todo[0].shard.end, 100)
         self.assertEqual(len(ds_manager.todo[0].shard.record_indices), 100)
 

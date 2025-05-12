@@ -109,7 +109,7 @@ class MasterClientTest(unittest.TestCase):
         self._master_client.report_shard_checkpoint(checkpoint)
         dataset = self._master.task_manager.get_dataset(ds_name)
         task = dataset.todo[0]
-        self.assertEqual(task.shard.start_job, 1280)
+        self.assertEqual(task.shard.start, 1280)
         self.assertEqual(task.shard.end, 1600)
 
     def test_get_cluster_version(self):

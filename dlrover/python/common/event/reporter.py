@@ -74,7 +74,7 @@ class EventReporter(Singleton):
 
     @ignore_exceptions()
     def report_master_start(self, args: JobArgs):
-        _master_evt.start_job(args=vars(args))
+        _master_evt.start(args=vars(args))
 
         self.report(
             EventReportConstants.TYPE_INFO,

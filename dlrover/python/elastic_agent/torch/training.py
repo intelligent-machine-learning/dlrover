@@ -541,7 +541,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._client = MasterClient.singleton_instance()
         if config.auto_tunning:
             self._paral_config_tuner = ParalConfigTuner.singleton_instance()
-            self._paral_config_tuner.start_job()
+            self._paral_config_tuner.start()
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
@@ -1421,7 +1421,7 @@ def launch_agent(
         f"  accelerator      : {config.accelerator}\n"
     )
 
-    _agent_evt.start_job(args=vars(config))
+    _agent_evt.start(args=vars(config))
 
     _set_paral_config()
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)

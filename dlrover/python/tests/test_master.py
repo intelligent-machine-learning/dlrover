@@ -197,7 +197,7 @@ class LocalJobMasterTest(unittest.TestCase):
         )
         succeed, task = self.master_client.get_task("test-ds")
         self.assertTrue(succeed)
-        self.assertEqual(task.shard.start_job, 0)
+        self.assertEqual(task.shard.start, 0)
         self.assertEqual(task.shard.end, 640)
         succeed = self.master_client.report_task_result("test-ds", 0, "")
         self.assertTrue(succeed)

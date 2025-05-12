@@ -165,7 +165,7 @@ class BatchDatasetManager(DatasetManger):
         doing_shards = []
         for task_id in self.doing:
             task = self.doing[task_id].task
-            shard = [task.shard.start_job, task.shard.end]
+            shard = [task.shard.start, task.shard.end]
             if task.shard.record_indices:
                 shard.append(task.shard.record_indices)
             doing_shards.append(shard)
