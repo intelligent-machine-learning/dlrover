@@ -43,6 +43,7 @@ pip install -q accelerate==0.29.2
 pip install -q transformers==4.37.2
 pip install -q peft==0.10.0
 pip install -q omegaconf
+pip install -q tensordict
 
 end_time=$(date +%s)
 cost_time=$((end_time-start_time))
