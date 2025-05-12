@@ -200,7 +200,7 @@ class MasterServicer(ABC):
             res.task_id = task.task_id
             res.type = task.task_type
             res.shard.name = task.shard.name
-            res.shard.start = task.shard.start_job
+            res.shard.start = task.shard.start
             res.shard.end = task.shard.end
             if task.shard.record_indices:
                 res.shard.indices = task.shard.record_indices

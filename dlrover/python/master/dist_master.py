@@ -192,7 +192,7 @@ class DistributedJobMaster(JobMaster):
     def prepare(self):
         # start the master server
         logger.info(f"Starting master {get_service_type()} server")
-        self._master_server.start_job()
+        self._master_server.start()
         logger.info(f"Master {get_service_type()} server started")
 
         # Composite the components

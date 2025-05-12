@@ -145,7 +145,7 @@ distributed computing described earlier:
    upstream-downstream synchronous but rather asynchronous.    
 
 <div align="center">
-    <img src="../figures/rl/rl_dist_cal.png" alt="rl_dist_cal" width="400">
+    <img src="../figures/rl/rl_dist_cal.png" alt="rl_dist_cal" width="500">
 </div>
 
 Through the relationship between vertices and edges, DLRover, as the 
