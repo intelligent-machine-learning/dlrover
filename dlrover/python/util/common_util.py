@@ -193,7 +193,7 @@ def get_methods_by_class(clz: type, with_protect=False):
 
     result = []
     for name, method in inspect.getmembers(clz):
-        if not inspect.ismethod(method):
+        if not inspect.isfunction(method):
             continue
         if not with_protect and name.startswith("_"):
             continue

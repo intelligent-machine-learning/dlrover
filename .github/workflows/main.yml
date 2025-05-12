@@ -38,6 +38,21 @@ jobs:
         with:
           token: 3b0503fb-7c5e-4486-9ddf-2903deb77067
           slug: intelligent-machine-learning/dlrover
+  dlrover-python-rl-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      # This step checks out a copy of your repository.
+      - name: checkout branch
+        uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - name: RUN pytest
+        uses: ./.github/actions/dlrover-python-rl-test
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: 3b0503fb-7c5e-4486-9ddf-2903deb77067
+          slug: intelligent-machine-learning/dlrover
   go-master-test:
     runs-on: ubuntu-latest
     steps:
