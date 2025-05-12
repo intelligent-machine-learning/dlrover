@@ -1,0 +1,12 @@
+---
+name: dlrover-python-rl-test
+description: run pytest to execute python test cases of dlrover python rl
+runs:
+  using: 'docker'
+  image: "easydl/dlrover:ci"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "bash scripts/ci_install.sh && \
+python -m pytest --durations=10 dlrover/python/rl/tests \
+--cov-report xml --cov=dlrover "
