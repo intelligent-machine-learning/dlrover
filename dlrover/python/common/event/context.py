@@ -128,6 +128,9 @@ class StepEvents(object):
                 step_event.begin_timestamp = event.timestamp
                 step_event.localtime = int(time.time())
                 self._step_events[event.timestamp] = step_event
+                logger.debug(
+                    f"Add BEGIN event with {event.timestamp}, {step_event}"
+                )
 
             elif event.type == EventTypeName.END:
                 if not len(keys):
@@ -156,6 +159,9 @@ class StepEvents(object):
                 step_event.event_state = TrainEventState.TRAIN_EVT_END
                 step_event.localtime = int(time.time())
                 self._step_events[last_key] = step_event
+                logger.debug(
+                    f"Add END event with {event.timestamp}, {step_event}"
+                )
 
     def add_ckpt_event(self, event: AtorchEvent):
         with self._lock:
