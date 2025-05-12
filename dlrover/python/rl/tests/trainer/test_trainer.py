@@ -20,8 +20,8 @@ from dlrover.python.rl.tests.test_class import (
 from dlrover.python.rl.trainer.trainer import RoleGroupProxy
 
 
-class TrainerTest(unittest.TestCase):
-    def test_construct(self):
+class BaseTrainerTest(unittest.TestCase):
+    def test_basic(self):
         trainer = TestInteractiveTrainer(
             {RLRoleType.ACTOR: [None, None]},
             {RLRoleType.ACTOR: (TestActor, 1)},

@@ -218,12 +218,15 @@ class BaseWorkload(ABC):
         return False
 
     def is_actor_or_rollout_device_collocation(self):
-        if (
-            (self.is_actor_role() or self.is_rollout_role())
-            and RLRoleType.ACTOR.name in self.get_device_collocation()
-            and RLRoleType.ROLLOUT.name in self.get_device_collocation()
-        ):
-            return True
+        try:
+            if (
+                (self.is_actor_role() or self.is_rollout_role())
+                and RLRoleType.ACTOR.name in self.get_device_collocation()
+                and RLRoleType.ROLLOUT.name in self.get_device_collocation()
+            ):
+                return True
+        except TypeError:
+            return False
         return False
 
     """Remote call functions start"""
@@ -237,6 +240,7 @@ class BaseWorkload(ABC):
             ray.get(self._master_handle.report.remote(info))
         except Exception as e:
             logger.error(f"Report master got unexpected error: {e}")
+            raise e
 
     def ping(self):
         """
