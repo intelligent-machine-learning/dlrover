@@ -4,11 +4,13 @@ coverage:
   range: 60..90
   round: down
   ignore:
+    - "dlrover/python/tests"  # test codes
+    - "dlrover/python/rl/tests"  # test codes
+    - "dlrover/trainer/tests"  # test codes
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
-    - "dlrover/proto"
+    - "dlrover/proto"  # protobuf auto generated
     - "dlrover/python/rl/trainer/example"  # example codes
-    - "dlrover/python/rl/tests"  # test codes
     - "dlrover/python/rl/master/main.py"  # ray.remote class can not be covered
   status:
     changes: false
