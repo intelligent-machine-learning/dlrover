@@ -4,7 +4,6 @@ coverage:
   range: 60..90
   round: down
   ignore:
-    - "dlrover/python/tests"  # test codes
     - "dlrover/python/rl/tests"  # test codes
     - "dlrover/trainer/tests"  # test codes
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"

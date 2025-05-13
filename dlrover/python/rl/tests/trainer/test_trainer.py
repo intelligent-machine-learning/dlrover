@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest import mock
 
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.tests.test_class import (
     TestActor,
     TestInteractiveTrainer,
+    TestRollout,
 )
 from dlrover.python.rl.trainer.trainer import RoleGroupProxy
 
@@ -57,7 +59,32 @@ class BaseTrainerTest(unittest.TestCase):
         self.assertTrue(role_group._can_shard_invocation())
         with self.assertRaises(AttributeError):
             role_group.test0()
+        with self.assertRaises(AttributeError):
             role_group.test1()
+        with self.assertRaises(AttributeError):
             role_group.test2()
+        with self.assertRaises(AttributeError):
             role_group.test3()
+        with self.assertRaises(AttributeError):
             role_group.test4()
+
+        trainer = TestInteractiveTrainer(
+            {RLRoleType.ACTOR: [], RLRoleType.ROLLOUT: []},
+            {
+                RLRoleType.ACTOR: (TestActor, 1),
+                RLRoleType.ROLLOUT: (TestRollout, 1),
+            },
+            {},
+        )
+        self.assertIsNotNone(trainer)
+
+        trainer.RG_ACTOR._actor_handles = mock.MagicMock(
+            return_value=[mock.Mock()]
+        )
+        trainer.RG_ACTOR.test0()
+        trainer.RG_ACTOR.test1()
+        trainer.RG_ACTOR.test2()
+        with self.assertRaises(Exception):
+            trainer.RG_ACTOR.test3()
+        with self.assertRaises(Exception):
+            trainer.RG_ACTOR.test4()

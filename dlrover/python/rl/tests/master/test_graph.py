@@ -21,7 +21,12 @@ from dlrover.python.rl.common.args import parse_job_args
 from dlrover.python.rl.common.constant import RLMasterConstant
 from dlrover.python.rl.common.enums import RLRoleType
 from dlrover.python.rl.common.rl_context import RLContext
-from dlrover.python.rl.master.graph import RLExecutionGraph
+from dlrover.python.rl.master.graph import (
+    FunctionInfo,
+    RLExecutionEdge,
+    RLExecutionGraph,
+    VertexInvocationMeta,
+)
 from dlrover.python.rl.master.scheduler import GroupOrderedScheduler
 from dlrover.python.rl.tests.test_class import TestActor, TestRollout
 from dlrover.python.rl.tests.test_data import TestData
@@ -53,6 +58,8 @@ class ExecutionGraphTest(unittest.TestCase):
         self.assertEqual(len(graph.get_all_vertices()), 1 + 1 + 1 + 1)
         self.assertEqual(len(graph.name_vertex_mapping), 1 + 1 + 1 + 1)
         self.assertEqual(len(graph.name_actor_mapping), 0)
+        # not used for now
+        self.assertEqual(len(graph.execution_edges), 0)
 
         actor_vertices = graph.get_vertices_by_role_type(RLRoleType.ACTOR)
         self.assertEqual(len(actor_vertices), 1)
@@ -68,6 +75,8 @@ class ExecutionGraphTest(unittest.TestCase):
         self.assertEqual(rollout_vertex_0.get_cls(), TestRollout)
         self.assertEqual(rollout_vertex_0.rank, 0)
         self.assertEqual(rollout_vertex_0.world_size, 1)
+
+        self.assertIsNotNone(graph.get_unit_resource_by_role(RLRoleType.ACTOR))
 
         now = int(time.time())
         rollout_vertex_0.update_runtime_info(
@@ -199,3 +208,28 @@ class ExecutionGraphTest(unittest.TestCase):
                 vertex.pg_bundle_index,
                 graph.name_vertex_mapping[name].pg_bundle_index,
             )
+
+    def test_vertex_invocation_meta(self):
+        def test_input():
+            pass
+
+        function_info = FunctionInfo("test", test_input)
+        self.assertIsNotNone(function_info)
+        self.assertEqual(function_info.name, "test")
+
+        vertex_invocation_meta = VertexInvocationMeta(
+            {function_info.name: function_info}
+        )
+        self.assertIsNotNone(vertex_invocation_meta)
+        self.assertEqual(
+            vertex_invocation_meta.get_func("test"), function_info
+        )
+
+    def test_edge_basic(self):
+        edge = RLExecutionEdge(0, RLRoleType.ACTOR, RLRoleType.ROLLOUT, "test")
+        self.assertIsNotNone(edge)
+        self.assertEqual(edge.index, 0)
+        self.assertEqual(edge.from_role, RLRoleType.ACTOR)
+        self.assertEqual(edge.to_role, RLRoleType.ROLLOUT)
+        self.assertEqual(edge.invocation_name, "test")
+        self.assertIsNone(edge.async_group)

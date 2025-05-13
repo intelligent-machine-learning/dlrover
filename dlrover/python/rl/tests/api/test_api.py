@@ -88,20 +88,49 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(len(rl_config["workload_group"]), 1)
 
     def test_validation(self):
+        # without node num
         with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().build()
+
+        # without device per node
+        with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().node_num(1).build()
+
+        # invalid device type
+        with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().node_num(1).device_per_node(1).device_type(
                 "mem"
             ).build()
+
+        # without config
+        with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().node_num(1).device_per_node(1).build()
+
+        # without trainer
+        with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).build()
+
+        # without actor
+        with self.assertRaises(InvalidRLConfiguration):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).trainer("m0", "c0").build()
 
+        # invalid collocation
+        with self.assertRaises(InvalidRLConfiguration):
+            RLJobBuilder().node_num(1).device_per_node(1).config(
+                {"k1": "v1"}
+            ).trainer("m0", "c0").actor("m1", "c1").rollout("m2", "c2").reward(
+                "m3", "c3"
+            ).with_collocation(
+                "actor", "rollout"
+            ).with_collocation(
+                "rollout", "reward"
+            ).build()
+
+        # a minimum valid
         RLJobBuilder().node_num(1).device_per_node(1).config(
             {"k1": "v1"}
         ).trainer("m0", "c0").actor("m1", "c1").build()
