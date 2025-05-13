@@ -418,6 +418,7 @@ class DiagnosisMaster(DiagnosisManager):
 
             result, start, end = self.check_tensor_drop_zero(hang_downtime)
             step_hang = _event_context.check_job_step_hang()
+
             if result is DiagnosisResult.DIAG_HANG:
                 start_dt = datetime.fromtimestamp(start).strftime(
                     "%Y-%m-%d %H:%M:%S"
@@ -427,7 +428,7 @@ class DiagnosisMaster(DiagnosisManager):
                 )
                 logger.warning(
                     f"Detect job hang by tensor drop zero: "
-                    f"{start_dt}-{end_dt}"
+                    f"{start_dt}-{end_dt}, step hang is {step_hang}"
                 )
 
                 if _dlrover_context.hang_detection == 2:
