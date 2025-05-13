@@ -244,6 +244,11 @@ class JobEventContext(Singleton):
         else:
             self.hang_threshold = 10 * avg_step_time
 
+            if self.hang_threshold > DefaultValues.HANG_DOWNTIME * 60:
+                self.hang_threshold = DefaultValues.HANG_DOWNTIME * 60
+            elif self.hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
+                self.hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
+
         now = int(datetime.now().timestamp())
 
         # check if step is still active
