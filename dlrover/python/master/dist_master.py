@@ -314,7 +314,9 @@ class DistributedJobMaster(JobMaster):
                         self._exit_code = 1
                         self._exit_reason = JobExitReason.UNKNOWN_ERROR
                     elif (
-                        self.task_manager and not self.task_manager.finished()
+                        self.task_manager
+                        and not self.task_manager.finished()
+                        and not self.task_manager.is_dataset_initialized()
                     ):
                         logger.warning(
                             "All workers exited but there also are "
