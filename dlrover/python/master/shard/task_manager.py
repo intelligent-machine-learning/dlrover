@@ -155,11 +155,16 @@ class TaskManager(object):
             return all(dataset_hang)
         return False
 
-    def finished(self):
-        """Return if all tasks are done"""
+    def is_dataset_initialized(self):
         if not self._datasets:
             logger.info("No datasets have been initialized.")
-            return True
+            return False
+        return True
+
+    def finished(self):
+        """Return if all tasks are done"""
+        if not self.is_dataset_initialized():
+            return False
 
         # Place the values into a list to avoid the error
         # OrderedDict mutated during iteration.
