@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     ElasticJobApi,
     ElasticJobLabel,
     ExitCode,
+    JobConstant,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
@@ -282,7 +283,8 @@ class PodWatcher(NodeWatcher):
                     status, ts = target_node.reported_status
                     if (
                         status == NodeEventType.SUCCEEDED_EXITED
-                        and now - ts > 600
+                        and now - ts
+                        > JobConstant.SUCCEEDED_POD_TERMINATING_TIMEOUT
                     ):
                         logger.info(
                             f"Delete target pod {pod_name} due to "

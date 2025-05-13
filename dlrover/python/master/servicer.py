@@ -329,6 +329,9 @@ class MasterServicer(ABC):
         """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
         if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            logger.debug(
+                f"Job is stopping, set waiting_num {waiting_num} to -1"
+            )
             waiting_num = -1
         res = comm.RendezvousState(waiting_num=waiting_num)
         return res
@@ -617,8 +620,10 @@ class MasterServicer(ABC):
 
     def _handle_reported_atorch_event(self, message: comm.AtorchEvent):
         if message.name == TrainEventName.TRAIN_EVT_STEP:
+            logger.debug(f"Add step event: {message}")
             _event_context.train_steps.add_step_event(message)
         elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            logger.debug(f"Add ckpt event: {message}")
             _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True

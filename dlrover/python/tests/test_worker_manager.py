@@ -18,6 +18,7 @@ from unittest import mock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -196,6 +197,13 @@ class WorkerManagerTest(unittest.TestCase):
         self.job_context.update_job_node(
             self.job_context.get_mutable_worker_nodes()[0]
         )
+        exited = worker_manager.has_exited_worker()
+        self.assertTrue(exited)
+
+        worker = self.job_context.get_mutable_worker_nodes()[0]
+        worker.status = NodeStatus.DELETED
+        worker.reported_status = (NodeEventType.SUCCEEDED_EXITED, 0)
+        self.job_context.update_job_node(worker)
         exited = worker_manager.has_exited_worker()
         self.assertTrue(exited)
 
