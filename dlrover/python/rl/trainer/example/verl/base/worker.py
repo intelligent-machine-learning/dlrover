@@ -183,6 +183,7 @@ class MegatronWorker(Worker):
         )
         return info
 
+    @trainer_invocation()
     def get_megatron_rank_info(self):
         from megatron.core import parallel_state as mpu
 

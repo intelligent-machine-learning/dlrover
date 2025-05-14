@@ -7,7 +7,7 @@ iteration and achieve loose coupling with the "algorithm" implementation,
 DLRover decouples the control plane from the RL implementation and abstracts 
 the algorithm implementation. This abstraction allows adaptation to various RL 
 implementations across different algorithm and model architectures. 
-For more details, refer to the: [Design doc](../design/reinforcement-learning-overview.md#pluggable-rl-workload). 
+For more details, refer to the: [Design doc](../design/unified-mpmd-control-proposal#pluggable-rl-workload). 
 
 ## Instruction
 ### Process Instruction
