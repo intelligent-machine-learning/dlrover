@@ -206,6 +206,7 @@ class NodeAction(DiagnosisAction):
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             action_type,
@@ -252,6 +253,7 @@ class JobAbortionAction(DiagnosisAction):
         self,
         reason: str = "",
         msg: str = "",
+        **kwargs,
     ):
         super().__init__(
             DiagnosisActionType.JOB_ABORT,
