@@ -209,8 +209,9 @@ graph. Users only need to implement their own algorithm logic based on the
 fixed abstraction and express the computational process in a generalized way. 
 This can actually be summarized into two core steps: 
 
-1. Implementing operators.  
-2. Expressing the process (the flow between operators).   
+1. Implementing workloads with training logic code(including one or more 
+   operators(function)).  
+2. Expressing the process (the flow between vertex).   
 
 <div align="center">
     <img src="../figures/unified/pluggable_workload.png" alt="Pluggable Workload" width="400">
