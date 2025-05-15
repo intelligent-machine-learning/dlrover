@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import os
 import time
 import unittest
@@ -201,6 +201,28 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         res = self.servicer.get(request, None)
         ret: comm.RunningNodes = comm.deserialize_message(res.data)
         self.assertEqual(len(ret.nodes), 3)
+
+    def test_job_nodes(self):
+        nodes = self.job_context.job_nodes_by_type(NodeType.WORKER)
+        node0 = nodes[0]
+        self.assertEqual(node0.rank_index, 0)
+        self.assertEqual(
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 0
+        )
+        self.assertEqual(
+            self.job_context.job_node_by_rank(NodeType.WORKER, 3), None
+        )
+        node3 = copy.deepcopy(node0)
+        node3.id = 3
+        self.assertEqual(
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 0
+        )
+        node0.status = NodeStatus.DELETED
+        self.job_context.update_job_node(node0)
+        self.job_context.update_job_node(node3)
+        self.assertEqual(
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 3
+        )
 
     def test_dataset_service(self):
         request = comm.DatasetShardParams()
