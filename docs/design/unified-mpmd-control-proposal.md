@@ -13,15 +13,14 @@ scenario as a guide, and further extend to DLRover's solution for more general
 and complex AI computation topologies. This general solution is expected to 
 support and cover all deep learning scenarios in the future.
 
-Notice: 'reinforcement learning' will be abbreviated as 'RL' in the following 
-text.  
 
 ## What's the Difference
 
 To give users' a better understanding of the following discussion, we will 
 first introduce how RL training computation differs from the training
-computation in the existing implementations (Pre-Train and SFT).In a single 
-sentence: 
+computation in the existing implementations (Pre-Train and SFT).
+
+In short: 
 > it has evolved from a single computation group to a 
 > multi-role computation graph.
 > 
@@ -46,8 +45,8 @@ into management by the Trainer Controller.
 
 ## Objective
 Through the comparison above, we can easily see that computation in RL 
-scenarios is significantly more complex. But does an even more complex 
-scenario implementation exist? We believe it will in the future. 
+scenario is significantly more complex. But does an even more complex 
+scenario implementation exist? 
 
 Therefore, here we introduce the core topic of this article:  
 > We aim to create a fully generalized automated system capable of representing 
@@ -106,14 +105,17 @@ primarily focused on the control plane management.
      - DiagnosisManager: runtime positive job diagnosis for stability
      - FailoverCoordinator: handle failure and do failover
      - JobContext: the job runtime context
-   - Workload's basic abstraction
 
-2. **Pluggable Workload**: To support various algorithms and models while 
+2. **Computation Graph**: To drive the data plane, we need a computation graph 
+that can fully represent the entire computation logic. Further details can be 
+found [below](#computation-graph).
+
+3. **Pluggable Workload**: To support various algorithms and models while 
 meeting the controllable requirements of the control plane, DLRover provides 
 an independent abstract definition for user implementation. Further details can 
 be found [below](#pluggable-workload).
 
-3. **Ray as the Distributed Backend**:  
+4. **Ray as the Distributed Backend**:  
    - Since complex AI computation involve multiple roles (e.g., Actor/Rw/Ref/Critic in RL), 
    asynchronous computation control between roles is key to improving performance.  
    - For different production scenarios and resource specifications, affinity 
