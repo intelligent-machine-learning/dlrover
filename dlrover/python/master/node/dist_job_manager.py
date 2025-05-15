@@ -597,15 +597,16 @@ class DistributedJobManager(JobManager):
 
         logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
+        exist_ranks: Dict[str, List[int]] = {}
         job_nodes = self.get_job_nodes()
-        for node_type in job_nodes.keys():
-            exist_nodes[node_type] = []
 
         if nodes:
             for node in nodes:
                 node_type = node.type
                 node_id = node.id
-                exist_nodes[node_type].append(node_id)
+                node_rank = node.rank_index
+                exist_nodes.setdefault(node_type, []).append(node_id)
+                exist_ranks.setdefault(node_type, []).append(node_rank)
 
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
@@ -638,6 +639,22 @@ class DistributedJobManager(JobManager):
                 ):
                     logger.info(
                         f"Node {node_type} {node.id} is deleted "
+                        "without the event"
+                    )
+                    new_node = copy.deepcopy(node)
+                    new_node.is_released = True
+                    new_node.status = NodeStatus.DELETED
+                    event = NodeEvent(NodeEventType.DELETED, new_node)
+                    self._process_event_safely(event)
+                elif (
+                    node.status == NodeStatus.INITIAL
+                    and not node.is_released
+                    and node.id not in exist_nodes[node_type]
+                    and node.rank_index in exist_ranks[node_type]
+                ):
+                    logger.info(
+                        f"Node {node_type} {node.id} with "
+                        f"rank {node.rank_index} is relaunched by new node "
                         "without the event"
                     )
                     new_node = copy.deepcopy(node)
