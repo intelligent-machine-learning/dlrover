@@ -599,14 +599,17 @@ class DistributedJobManager(JobManager):
         exist_nodes: Dict[str, List[int]] = {}
         exist_ranks: Dict[str, List[int]] = {}
         job_nodes = self.get_job_nodes()
+        for node_type in job_nodes.keys():
+            exist_nodes[node_type] = []
+            exist_ranks[node_type] = []
 
         if nodes:
             for node in nodes:
                 node_type = node.type
                 node_id = node.id
                 node_rank = node.rank_index
-                exist_nodes.setdefault(node_type, []).append(node_id)
-                exist_ranks.setdefault(node_type, []).append(node_rank)
+                exist_nodes[node_type].append(node_id)
+                exist_ranks[node_type].append(node_rank)
 
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
