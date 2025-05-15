@@ -19,6 +19,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     EventReportConstants,
     GpuMetricEnum,
+    NodeType,
     NpuMetricEnum,
     PreCheckStatus,
 )
@@ -433,16 +434,26 @@ class DiagnosisMaster(DiagnosisManager):
 
                 if _dlrover_context.hang_detection == 2:
                     if step_hang is True:
-                        logger.info("Restart worker-0 all processes")
-                        _event_context.train_steps.clear_step_events()
-                        self._job_context.enqueue_diagnosis_action(
-                            NodeAction(
-                                node_id=0,
-                                node_type="worker",
-                                action_type=DiagnosisActionType.RESTART_WORKER,
-                                instance=DiagnosisConstant.ANY_INSTANCE,
-                            )
+                        node = self._job_context.job_node_by_rank(
+                            NodeType.WORKER, 0
                         )
+                        if not node:
+                            logger.warning("Failed to get rank 0 worker")
+                        else:
+                            logger.info(
+                                f"Restart worker-{node.id} all processes"
+                            )
+                            _event_context.train_steps.clear_step_events()
+                            self._job_context.enqueue_diagnosis_action(
+                                NodeAction(
+                                    node_id=node.id,
+                                    node_type=NodeType.WORKER,
+                                    action_type=(
+                                        DiagnosisActionType.RESTART_WORKER
+                                    ),
+                                    instance=DiagnosisConstant.ANY_INSTANCE,
+                                )
+                            )
 
             time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
 
