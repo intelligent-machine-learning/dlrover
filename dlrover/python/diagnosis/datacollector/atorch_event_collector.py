@@ -150,7 +150,7 @@ class AtorchEventCollector(Singleton):
                     continue
 
                 if (
-                    not self._first_step
+                    self._first_step is None
                     and target == EventTargetName.TRAINER
                     and event_name == TrainEventName.TRAIN_EVT_STEP
                     and event_type == EventTypeName.BEGIN
@@ -160,7 +160,7 @@ class AtorchEventCollector(Singleton):
                     )
                     self._first_step = step
 
-                if self._first_step and step != self._first_step:
+                if self._first_step is not None and step != self._first_step:
                     logger.info(
                         f"Report event: {ts} {target} {event_name} "
                         f"{event_type} {step}"

@@ -139,12 +139,13 @@ class StepEvents(object):
                 last_key = keys[-1]
                 step_event = self._step_events[last_key]
                 if (
-                    step_event.step + 1 != event.step
+                    step_event.step >= event.step
                     or step_event.event_state
                     != TrainEventState.TRAIN_EVT_BEGIN
                 ):
                     logger.warning(f"invalid step: {step_event}, {event}")
                     return
+
                 if step_event.begin_timestamp > event.timestamp:
                     logger.warning(
                         f"invalid step timestamp: {step_event}, {event}"

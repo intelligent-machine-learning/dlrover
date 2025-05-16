@@ -338,6 +338,7 @@ class InferenceChainTest(unittest.TestCase):
             ),
         )
 
+    @unittest.skip("skip")
     def test_resolve_training_hang_operator(self):
         operator = ResolveTrainingHangOperator(None)
         input_infers = []

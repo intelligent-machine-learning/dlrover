@@ -45,6 +45,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
+from dlrover.python.diagnosis.common.diagnosis_action import NoAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
@@ -770,6 +771,11 @@ class MasterServicer(ABC):
         action = self._job_manager.collect_node_heart_beat(
             node_type, node_id, message.timestamp
         )
+        if action and not isinstance(action, NoAction):
+            logger.info(
+                f"Master return action {action.__class__.__name__}: "
+                f"{action.to_json()}"
+            )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,
             action.to_json(),
