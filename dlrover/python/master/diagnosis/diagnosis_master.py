@@ -294,14 +294,14 @@ class DiagnosisMaster(DiagnosisManager):
             self._metric_monitor.join()
 
     def pause_observing(self):
-        if self._is_observing_paused is False:
+        if not self._is_observing_paused:
             logger.info("Pause observing training...")
             _event_context.train_steps.clear_step_events()
             _metric_context.clear_node_metrics()
             self._is_observing_paused = True
 
     def continue_observing(self):
-        if self._is_observing_paused is True:
+        if self._is_observing_paused:
             logger.info("Continue observing training...")
             _event_context.train_steps.clear_step_events()
             _metric_context.clear_node_metrics()
@@ -437,19 +437,19 @@ class DiagnosisMaster(DiagnosisManager):
 
                 if _dlrover_context.hang_detection == 2:
                     if step_hang is True:
-                        node_id = self._job_context.job_node_by_rank(
+                        node = self._job_context.job_node_by_rank(
                             NodeType.WORKER, 0
                         )
-                        if node_id is None:
+                        if node is None:
                             logger.warning("Failed to get rank 0 worker")
                         else:
                             logger.info(
-                                f"Restart worker-{node_id} all processes"
+                                f"Restart worker-{node.id} all processes"
                             )
                             _event_context.train_steps.clear_step_events()
                             self._job_context.enqueue_diagnosis_action(
                                 NodeAction(
-                                    node_id=node_id,
+                                    node_id=node.id,
                                     node_type=NodeType.WORKER,
                                     action_type=(
                                         DiagnosisActionType.RESTART_WORKER

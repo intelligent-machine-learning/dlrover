@@ -179,7 +179,7 @@ class JobContext(Singleton):
 
         for node in self._job_nodes[node_type].values():
             if node.rank_index == rank and node.status == NodeStatus.RUNNING:
-                return node.id
+                return node
 
         return None
 

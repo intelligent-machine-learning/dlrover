@@ -207,7 +207,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         node0 = nodes[0]
         self.assertEqual(node0.rank_index, 0)
         self.assertEqual(
-            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 0
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0).id, 0
         )
         self.assertEqual(
             self.job_context.job_node_by_rank(NodeType.WORKER, 3), None
@@ -215,13 +215,13 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         node3 = copy.deepcopy(node0)
         node3.id = 3
         self.assertEqual(
-            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 0
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0).id, 0
         )
         node0.status = NodeStatus.DELETED
         self.job_context.update_job_node(node0)
         self.job_context.update_job_node(node3)
         self.assertEqual(
-            self.job_context.job_node_by_rank(NodeType.WORKER, 0), 3
+            self.job_context.job_node_by_rank(NodeType.WORKER, 0).id, 3
         )
 
     def test_dataset_service(self):
