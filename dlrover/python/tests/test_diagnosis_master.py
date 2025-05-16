@@ -12,9 +12,9 @@
 # limitations under the License.
 
 import copy
+import threading
 import time
 import unittest
-import threading
 from datetime import datetime
 from typing import List
 from unittest import mock
@@ -23,6 +23,8 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
+    NodeStatus,
+    NodeType,
     NpuMetricEnum,
     PlatformType,
     PreCheckStatus,
@@ -37,6 +39,7 @@ from dlrover.python.common.metric.monitor import (
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
+    DiagnosisConstant,
     DiagnosisDataType,
     DiagnosisResult,
 )
@@ -228,15 +231,10 @@ class DiagnosisMasterTest(unittest.TestCase):
         )
 
     @patch(
-        "dlrover.python.master.diagnosis.diagnosis_master.DiagnosisMaster"
-        ".check_tensor_drop_zero",
-    )
-    @patch(
         "dlrover.python.common.event.context.JobEventContext"
         ".check_job_step_hang",
     )
-    def test_diagnose_metrics(self, mock_check_tensor_drop_zero, mock_check_job_step_hang):
-        mock_check_tensor_drop_zero.return_value = (DiagnosisResult.DIAG_HANG, 100, 200)
+    def test_diagnose_metrics(self, mock_check_job_step_hang):
         mock_check_job_step_hang.return_value = True
 
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
@@ -244,18 +242,76 @@ class DiagnosisMasterTest(unittest.TestCase):
         mgr = DiagnosisMaster(job_args=args)
         _metric_context.clear_node_metrics()
 
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        ts = int(datetime.now().timestamp())
+        for _ in range(30):
+            ts = ts + 60
+            _metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
+        )
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(29)[0], DiagnosisResult.DIAG_HANG
+        )
+
+        _dlrover_context.hang_downtime = 10
+        _dlrover_context.hang_detection = 2
         mgr._is_observing_started = True
         mgr._is_observing_paused = False
 
-        diag_metric = threading.Thread(
-            target=mgr._diagnose_metrics,
-            name="test_diagnose_metrics",
+        def stop_diagnose_metric():
+            time.sleep(1)
+            mgr._is_observing_started = False
+
+        thread = threading.Thread(
+            target=stop_diagnose_metric,
             daemon=True,
         )
-        diag_metric.start()
-        time.sleep(1)
-        mgr._is_observing_started = False
-        time.sleep(1)
+        thread.start()
+        mgr._diagnose_metrics(interval=1)
+
+        mgr._is_observing_started = True
+        mgr._is_observing_paused = False
+        node = Node(
+            node_type=NodeType.WORKER,
+            node_id=3,
+            rank_index=0,
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+        )
+        mgr._job_context.update_job_node(node)
+
+        thread = threading.Thread(
+            target=stop_diagnose_metric,
+            daemon=True,
+        )
+        thread.start()
+        mgr._diagnose_metrics(interval=1)
+
+        action = mgr._job_context.next_action(DiagnosisConstant.ANY_INSTANCE)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
+        self.assertEqual(action.instance, DiagnosisConstant.ANY_INSTANCE)
+        self.assertEqual(action.node_id, 3)
+
+        action = mgr._job_context.next_action(DiagnosisConstant.LOCAL_INSTANCE)
+        self.assertEqual(action.action_type, DiagnosisActionType.NONE)
 
     @patch(
         "dlrover.python.master.diagnosis.diagnosis_master"

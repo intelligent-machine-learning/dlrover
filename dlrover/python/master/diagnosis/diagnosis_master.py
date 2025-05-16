@@ -398,7 +398,9 @@ class DiagnosisMaster(DiagnosisManager):
 
         return DiagnosisResult.DIAG_HANG, start_ts, end_ts
 
-    def _diagnose_metrics(self):
+    def _diagnose_metrics(
+        self, interval=DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS
+    ):
         hang_downtime = _dlrover_context.hang_downtime
 
         while True:
@@ -434,19 +436,19 @@ class DiagnosisMaster(DiagnosisManager):
 
                 if _dlrover_context.hang_detection == 2:
                     if step_hang is True:
-                        node = self._job_context.job_node_by_rank(
+                        node_id = self._job_context.job_node_by_rank(
                             NodeType.WORKER, 0
                         )
-                        if not node:
+                        if node_id is None:
                             logger.warning("Failed to get rank 0 worker")
                         else:
                             logger.info(
-                                f"Restart worker-{node.id} all processes"
+                                f"Restart worker-{node_id} all processes"
                             )
                             _event_context.train_steps.clear_step_events()
                             self._job_context.enqueue_diagnosis_action(
                                 NodeAction(
-                                    node_id=node.id,
+                                    node_id=node_id,
                                     node_type=NodeType.WORKER,
                                     action_type=(
                                         DiagnosisActionType.RESTART_WORKER
@@ -455,7 +457,7 @@ class DiagnosisMaster(DiagnosisManager):
                                 )
                             )
 
-            time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
+            time.sleep(interval)
 
     def _diagnose(self):
         logger.info("_diagnose thread is running...")
