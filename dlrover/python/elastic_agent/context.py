@@ -16,6 +16,7 @@ from typing import Optional
 from torch.distributed.elastic.agent.server.api import WorkerSpec
 
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     DiagnosisActionQueue,
@@ -65,8 +66,10 @@ class AgentContext(Singleton):
             return
         self._diagnosis_action_queue.add_action(action)
 
-    def next_diagnosis_action(self) -> DiagnosisAction:
-        return self._diagnosis_action_queue.next_action()
+    def next_diagnosis_action(
+        self, instance=DiagnosisConstant.LOCAL_INSTANCE
+    ) -> DiagnosisAction:
+        return self._diagnosis_action_queue.next_action(instance)
 
 
 def get_agent_context() -> AgentContext:

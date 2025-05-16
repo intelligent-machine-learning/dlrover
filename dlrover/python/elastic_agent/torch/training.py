@@ -1178,14 +1178,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
             action.__class__ = NodeAction
             if action.action_type == DiagnosisActionType.RESTART_WORKER:
                 logger.info(
-                    f"exec diagnosis action: "
+                    f"Process diagnosis action: "
                     f"{action.action_type} {action.instance}"
                 )
-                self._remaining_failovers -= 1
+                if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
+                    self._remaining_failovers -= 1
+                    logger.info(
+                        f"Decrement remaining FO to "
+                        f"{self._remaining_failovers}"
+                    )
                 self._restart_workers(self._worker_group)
             elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
                 logger.info(
-                    f"exec diagnosis action: "
+                    f"Process diagnosis action: "
                     f"{action.action_type} {action.instance}"
                 )
                 self._stop_workers(self._worker_group)
@@ -1195,7 +1200,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             labels = action.event_labels
             if labels is None:
                 labels = {}
-            self._client.report(
+            self._client.report_event(
                 event_type=action.event_type,
                 instance=action.event_instance,
                 action=action.event_action,
@@ -1204,24 +1209,29 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
 
     def _check_and_process_diagnosis_action(self):
-        action = self._agent_context.next_diagnosis_action()
-        if isinstance(action, NoAction):
-            return
-        self._process_diagnosis_action(action)
-        # avoid to execute the same event action too frequently
-        if isinstance(action, EventAction) and not action.is_expired():
-            time_diff = timestamp_diff_in_seconds(
-                action.timestamp, datetime.now().timestamp()
-            )
-            expired_time_period = action.expired_time_period - time_diff
-            if expired_time_period < 0:
-                expired_time_period = 0
-            action.update_timestamp(
-                timestamp=datetime.now().timestamp(),
-                expired_time_period=expired_time_period,
-                executable_time_period=expired_time_period + 60,
-            )
-            self._agent_context.enqueue_diagnosis_action(action)
+        for instance in [
+            DiagnosisConstant.LOCAL_INSTANCE,
+            DiagnosisConstant.ANY_INSTANCE,
+        ]:
+            action = self._agent_context.next_diagnosis_action(instance)
+            if isinstance(action, NoAction):
+                continue
+            logger.info(f"Start processing diagnosis action: {action}")
+            self._process_diagnosis_action(action)
+            # avoid to execute the same event action too frequently
+            if isinstance(action, EventAction) and not action.is_expired():
+                time_diff = timestamp_diff_in_seconds(
+                    action.timestamp, datetime.now().timestamp()
+                )
+                expired_time_period = action.expired_time_period - time_diff
+                if expired_time_period < 0:
+                    expired_time_period = 0
+                action.update_timestamp(
+                    timestamp=datetime.now().timestamp(),
+                    expired_time_period=expired_time_period,
+                    executable_time_period=expired_time_period + 60,
+                )
+                self._agent_context.enqueue_diagnosis_action(action)
 
     def _wait_async_saver(self):
         """
