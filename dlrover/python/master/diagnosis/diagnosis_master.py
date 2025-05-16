@@ -294,18 +294,19 @@ class DiagnosisMaster(DiagnosisManager):
             self._metric_monitor.join()
 
     def pause_observing(self):
-        logger.info("Pause observing training...")
-        _event_context.train_steps.clear_step_events()
-        _metric_context.clear_node_metrics()
-
-        self._is_observing_paused = True
+        if self._is_observing_paused is False:
+            logger.info("Pause observing training...")
+            _event_context.train_steps.clear_step_events()
+            _metric_context.clear_node_metrics()
+            self._is_observing_paused = True
 
     def continue_observing(self):
-        logger.info("Continue observing training...")
-        _event_context.train_steps.clear_step_events()
-        _metric_context.clear_node_metrics()
+        if self._is_observing_paused is True:
+            logger.info("Continue observing training...")
+            _event_context.train_steps.clear_step_events()
+            _metric_context.clear_node_metrics()
 
-        self._is_observing_paused = False
+            self._is_observing_paused = False
 
     def start_observing(self):
         logger.info("Start to observing training...")
