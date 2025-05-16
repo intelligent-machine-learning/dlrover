@@ -1,0 +1,697 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from typing import Dict, List, Set, Tuple, Union
+
+from omegaconf import DictConfig
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.enums import DLType
+from dlrover.python.unified.common.exception import InvalidDLConfiguration
+from dlrover.python.unified.driver.main import main
+
+
+class DLRoleConfig(object):
+    def __init__(self, name, module_name, class_name, **kwargs):
+        self._name = name
+        self._module_name = module_name
+        self._class_name = class_name
+        self._kwargs = kwargs
+
+        self._num = 1
+        self._per_node = 1
+        self._env = {}
+        self._sub_stage = []
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def module_class(self) -> Tuple[str, str]:
+        return self._module_name, self._class_name
+
+    @property
+    def total(self) -> int:
+        return self._num
+
+    @property
+    def per_node(self) -> int:
+        return self._per_node
+
+    @property
+    def env(self) -> dict:
+        return self._env
+
+    @property
+    def sub_stage(self) -> list:
+        return self._sub_stage
+
+    @property
+    def others(self):
+        return self._kwargs
+
+
+class DLJob(object):
+    def __init__(
+        self,
+        dl_type,
+        node_num,
+        device_per_node,
+        device_type,
+        config,
+        env,
+        components,
+        collocations,
+    ):
+        self._dl_type = dl_type
+        self._node_num = node_num
+        self._device_per_node = device_per_node
+        self._device_type = device_type
+        self._config = config
+        self._env = env
+        self._components: Dict[str, Union[None, DLRoleConfig]] = components
+        self._collocations: List[Set[str]] = collocations
+
+    @property
+    def dl_type(self):
+        return self._dl_type
+
+    @property
+    def node_num(self):
+        return self._node_num
+
+    @property
+    def device_per_node(self):
+        return self._device_per_node
+
+    @property
+    def device_type(self):
+        return self._device_type
+
+    @property
+    def config(self):
+        return self._config
+
+    @property
+    def env(self):
+        return self._env
+
+    @property
+    def collocations(self):
+        return self._collocations
+
+    @property
+    def trainer(self):
+        return self._components["trainer"]
+
+    def get_workload(self, role):
+        return self._components[role]
+
+    def __cal_role_resource(self, role):
+        # if role in collocations
+        for collocation in self.collocations:
+            if role in collocation:
+                collocation_process_num = 0
+                for role in collocation:
+                    collocation_process_num += self._components[role].per_node
+                return {
+                    self.device_type: round(
+                        self.device_per_node / collocation_process_num, 2
+                    )
+                }
+
+        # default
+        return {self.device_type: 1}
+
+    def _to_dl_config(self):
+        config_result = {}
+
+        # general
+        config_result["config"] = self.config
+        config_result["env"] = self.env
+
+        # trainer
+        trainer_dict = {
+            "type": self.trainer.others["trainer_type"],
+            "module": self.trainer.module_class[0],
+            "class": self.trainer.module_class[1],
+            "node_number": self.node_num,
+            "device_per_node": self.device_per_node,
+            "device_type": self.device_type,
+        }
+        config_result["trainer"] = trainer_dict
+
+        # workload
+        workload_dict = {}
+
+        for role, role_config in self._components.items():
+            if role == "trainer":
+                continue
+            if role_config:
+                role_dict = {
+                    "module": role_config.module_class[0],
+                    "class": role_config.module_class[1],
+                    "num": role_config.total,
+                    "resource": self.__cal_role_resource(role),
+                    "env": role_config.env,
+                }
+                workload_dict[role] = role_dict
+
+        config_result["workload"] = workload_dict
+
+        # workload group
+        workload_group_list = []
+        for collocation in self.collocations:
+            workload_group = {}
+            for role in collocation:
+                workload_group[role] = self._components[role].per_node
+
+            workload_group_list.append(workload_group)
+
+        config_result["workload_group"] = workload_group_list
+
+        return config_result
+
+    def submit(
+        self,
+        job_name,
+        blocking=True,
+        master_cpu=4,
+        master_memory=8192,
+        job_max_restart=10,
+        **kwargs,
+    ):
+        """
+        Submit the current dl job.
+
+        Args:
+            job_name (str): The name of the job.
+            blocking (bool, optional): Whether to block until the job is
+                complete. Defaults is True.
+            master_cpu (int, optional): The number of CPU cores to use.
+                Defaults to 4.
+            master_memory (int, optional): The number of memory cores to use.
+                Unit: mb. Defaults to 8192.
+            job_max_restart (int, optional): The maximum number of restarts.
+                Defaults to 10.
+
+            Other arguments please refer to:
+                'dlrover.python.unified.common.args'
+        """
+
+        args = [
+            "--job_name",
+            job_name,
+            "--master_cpu",
+            f"{master_cpu}",
+            "--master_mem",
+            f"{master_memory}",
+            "--job_max_restart",
+            f"{job_max_restart}",
+            "--dl_type",
+            f"{self.dl_type}",
+            "--dl_config",
+            f"{self._to_dl_config()}",
+        ]
+
+        for key, value in kwargs.items():
+            args.append(f"--{key}")
+            args.append(value)
+
+        main(args, blocking)
+
+
+class DLJobBuilder(object):
+    def __init__(self):
+        self._dl_type = ""
+        self._node_num = 0
+        self._device_per_node = 0
+        self._device_type = "GPU"
+        self._config = {}
+        self._env = {}
+        self._components: Dict[str, Union[None, DLRoleConfig]] = {
+            "trainer": None,
+        }
+        self._collocations: List[Set[str]] = []
+
+    def build(self):
+        """
+        Build DLJob by builder's configuration.
+
+        Returns:
+            DLJob: Unified deep learning object.
+
+        Raises:
+            InvalidDLConfiguration: If validation on configration failed.
+        """
+
+        if not self.validate():
+            raise InvalidDLConfiguration()
+
+        return DLJob(
+            dl_type=self._dl_type,
+            node_num=self._node_num,
+            device_per_node=self._device_per_node,
+            device_type=self._device_type,
+            config=self._config,
+            env=self._env,
+            components=self._components,
+            collocations=self._collocations,
+        )
+
+    def validate(self) -> bool:
+        if not self._dl_type:
+            logger.error("'dl_type' must be set.")
+            return False
+
+        if self._node_num < 1:
+            logger.error("'node_num' must be greater than 0.")
+            return False
+
+        if self._device_per_node < 1:
+            logger.error("'device_per_node' must be greater than 0.")
+            return False
+
+        if self._device_type != "CPU" and self._device_type != "GPU":
+            logger.error("'device_type' must be 'CPU' or 'GPU'.")
+            return False
+
+        if not self._config or (
+            not isinstance(self._config, dict)
+            and not isinstance(self._config, DictConfig)
+        ):
+            logger.error("'config' must be dict type and cannot be empty.")
+            return False
+
+        if not isinstance(self._env, dict):
+            logger.error("'env' must be dict type.")
+            return False
+
+        # for role components
+        for role, component in self._components.items():
+            if role == "trainer":
+                if not component:
+                    logger.error("'trainer' must be configured.")
+                    return False
+
+            if component:
+                if not component._module_name or not component._class_name:
+                    logger.error(
+                        f"{role}'s 'module_name' and 'class_name' "
+                        "cannot be empty."
+                    )
+                    return False
+                if component._num < 1:
+                    logger.error(f"{role}'s 'num' must be greater than 0.")
+                    return False
+                if component._per_node < 1:
+                    logger.error(
+                        f"{role}'s 'per_node' must be greater than 0."
+                    )
+                    return False
+                if not isinstance(component._env, dict):
+                    logger.error(f"{role}'s 'env' must be dict type.")
+                    return False
+
+        # for role collocations
+        if self._collocations:
+            collocations_set = set()
+            for collocation in self._collocations:
+                process_num_sum = 0
+                for role in collocation:
+                    role_config = self._components[role]
+                    if role_config is None:
+                        logger.error(
+                            "Collocation cannot be defined without "
+                            f"role definition: {role}."
+                        )
+                        return False
+                    process_num_sum += role_config.per_node
+
+                    if role not in collocations_set:
+                        collocations_set.add(role)
+                    else:
+                        logger.error(
+                            "The same role can only be defined once "
+                            "in 'collocation'."
+                        )
+                        return False
+
+                # maximum of 5 roles are supported for single device affinity
+                if (
+                    process_num_sum != self._device_per_node
+                    and process_num_sum != 2 * self._device_per_node
+                    and process_num_sum != 3 * self._device_per_node
+                    and process_num_sum != 4 * self._device_per_node
+                    and process_num_sum != 5 * self._device_per_node
+                ):
+                    logger.error(
+                        "The collocation is invalid due to the device "
+                        "per node not satisfied the per_node "
+                        "number of role for collocation."
+                    )
+                    return False
+
+        return True
+
+    def update_component(self, role_type, role_config):
+        self._components[role_type] = role_config
+
+    def SFT_type(self):
+        """
+        Set the deep learning type as SFT.
+        """
+
+        return self.dl_type()
+
+    def PRE_type(self):
+        """
+        Set the deep learning type as PreTrain.
+        """
+
+        return self.dl_type("PRE")
+
+    def RL_type(self):
+        """
+        Set the deep learning type as RL.
+        """
+
+        return self.dl_type("RL")
+
+    def MULTIMODAL_type(self):
+        """
+        Set the deep learning type as MULTIMODAL.
+        """
+
+        return self.dl_type("MULTIMODAL")
+
+    def dl_type(self, dl_type="SFT"):
+        """
+        Set the deep learning type.
+
+        Args:
+            dl_type (str): The type of deep learning. Default is SFT.
+                Supported: SFT, PRE, RL, MULTIMODAL
+        """
+
+        self._dl_type = dl_type
+        return self
+
+    def node_num(self, num=1):
+        """
+        Set the total number of nodes.
+
+        Args:
+            num (int): The number of nodes. Default is 1.
+        """
+
+        self._node_num = num
+        return self
+
+    def device_per_node(self, num=8):
+        """
+        Set the device number per node.
+
+        Args:
+            num (int): The device number of single node. Default is 8.
+        """
+
+        self._device_per_node = num
+        return self
+
+    def device_type(self, device_type="GPU"):
+        """
+        Set the device type.
+
+        Args:
+            device_type (str, optional): The device type, support: 'CPU' or
+                'GPU'. Default is 'GPU'.
+        """
+
+        self._device_type = device_type
+        return self
+
+    def config(self, config=None):
+        """
+        Set the training configuration.
+
+        Args:
+            config (dict): The full configuration of training in dict format.
+        """
+
+        if config is None:
+            config = {}
+        self._config = config
+        return self
+
+    def global_env(self, env=None):
+        """
+        Set the global training envs.
+
+        Args:
+            env (dict, optional): The global envs of training.
+        """
+
+        if env is None:
+            env = {}
+        self._env.update(env)
+        return self
+
+    class _RoleConfigurator:
+        def __init__(self, builder, role_type: str, role_config: DLRoleConfig):
+            self.builder = builder
+            self.role_type = role_type
+            self.role_config = role_config
+
+        def __exit__(self, *args):
+            self.builder.update_component(self.role_type, self.role_config)
+            return self.builder
+
+    def _config_role(self, role_name, module_name, class_name, **kwargs):
+        role_config = DLRoleConfig(
+            role_name, module_name, class_name, **kwargs
+        )
+        self._components[role_name] = role_config
+        self._role_configurator = self._RoleConfigurator(
+            self, role_name, role_config
+        )
+        return self
+
+    def workload(self, role_name, module_name, class_name):
+        """
+        Setup workload.
+
+        Args:
+            role_name (str): The role name of workload.
+            module_name (str): The module name of workload.
+            class_name (str): The class name of workload.
+        """
+
+        return self._config_role(role_name, module_name, class_name)
+
+    def trainer(self, module_name, class_name):
+        """
+        Setup trainer.
+
+        Args:
+            module_name (str): The module name of trainer.
+            class_name (str): The class name of trainer.
+        """
+
+        return self._config_role(
+            "trainer", module_name, class_name, trainer_type="USER_DEFINED"
+        )
+
+    def with_collocation(self, *roles):
+        """
+        Set a collocation strategy, requiring that the total number of
+        collocated roles on each node(per_node) must have an even relationship
+        with the number of devices on each machine(device_per_node).
+
+        Multiple role names is required.
+        For example, to colocate "actor" and "rollout", it can be expressed as
+        `.with_collocation("actor", "rollout")`.
+
+        Supported roles include: actor, rollout, reference, reward, and critic,
+        with support for both uppercase and lowercase. The same role can only
+        be included in one collocation.
+
+        Args:
+            roles (str): Multi role names.
+        """
+
+        roles = [role.lower() for role in roles]
+        self._collocations.append(set(roles))
+        return self
+
+    def with_collocation_all(self):
+        """
+        Set a collocation strategy for all roles.
+
+        Notice: can be used after role definition only
+        """
+
+        roles = set()
+        for role, role_config in self._components.items():
+            if role == "trainer" or not role_config:
+                continue
+            roles.add(role)
+        self._collocations.append(roles)
+        return self
+
+    def total(self, num=1):
+        """
+        Set the total number of current role.
+
+        Args:
+            num (int): The number of current role. Default is 1.
+        """
+
+        self._role_configurator.role_config._num = num
+        return self
+
+    def per_node(self, num=1):
+        """
+        How many current role per node.
+
+        Args:
+            num (int): The number of current role per node.
+                Default is 1.
+        """
+
+        self._role_configurator.role_config._per_node = num
+        return self
+
+    def env(self, env=None):
+        """
+        The envs for current role.
+
+        Args:
+            env (dict, optional): The envs of current role.
+                Default is {}.
+        """
+
+        if env is None:
+            env = {}
+        self._role_configurator.role_config._env.update(env)
+        return self
+
+    def enable_ray_auto_visible_device(self):
+        """
+        Enable to let ray set visible device automatically.
+        """
+
+        self._role_configurator.role_config._env.update(
+            DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS
+        )
+        return self
+
+    def sub_stage(self, sub_stage=None):
+        """
+        The sub-stage definition for current role.
+
+        Args:
+            sub_stage (list, optional): The sub-stage definition of current
+            role. Default is [].
+        """
+
+        if sub_stage is None:
+            sub_stage = []
+        self._role_configurator.role_config._sub_stage = sub_stage
+        return self
+
+
+class RLJobBuilder(DLJobBuilder):
+    """
+    Extension job builder for Reinforcement Learning (RL).
+    """
+
+    ROLES = ["actor", "reference", "reward", "critic", "rollout"]
+
+    def __init__(self):
+        super(RLJobBuilder, self).__init__()
+        self._dl_type = DLType.RL.name
+
+    def actor(self, module_name, class_name):
+        """
+        Setup actor.
+
+        Args:
+            module_name (str): The module name of actor.
+            class_name (str): The class name of actor.
+        """
+
+        return self.workload("actor", module_name, class_name)
+
+    def rollout(self, module_name, class_name):
+        """
+        Setup rollout.
+
+        Args:
+            module_name (str): The module name of rollout.
+            class_name (str): The class name of rollout.
+        """
+
+        return self.workload("rollout", module_name, class_name)
+
+    def reference(self, module_name, class_name):
+        """
+        Setup reference.
+
+        Args:
+            module_name (str): The module name of reference.
+            class_name (str): The class name of reference.
+        """
+
+        return self.workload("reference", module_name, class_name)
+
+    def reward(self, module_name, class_name):
+        """
+        Setup reward.
+
+        Args:
+            module_name (str): The module name of reward.
+            class_name (str): The class name of reward.
+        """
+
+        return self.workload("reward", module_name, class_name)
+
+    def critic(self, module_name, class_name):
+        """
+        Setup critic.
+
+        Args:
+            module_name (str): The module name of actor.
+            class_name (str): The class name of actor.
+        """
+
+        return self.workload("critic", module_name, class_name)
+
+    def validate(self) -> bool:
+        if not super(RLJobBuilder, self).validate():
+            return False
+
+        if "actor" not in list(self._components.keys()):
+            logger.error("'actor' must be configured.")
+            return False
+
+        for role, component in self._components.items():
+            if role != "trainer" and role not in RLJobBuilder.ROLES:
+                logger.error(
+                    f"{role} is invalid for rl, supported roles "
+                    f"are {RLJobBuilder.ROLES}."
+                )
+                return False
+
+        return True
