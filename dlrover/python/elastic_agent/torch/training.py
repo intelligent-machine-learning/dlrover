@@ -1200,7 +1200,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             labels = action.event_labels
             if labels is None:
                 labels = {}
-            self._client.report(
+            self._client.report_event(
                 event_type=action.event_type,
                 instance=action.event_instance,
                 action=action.event_action,

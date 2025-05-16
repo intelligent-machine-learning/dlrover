@@ -146,11 +146,12 @@ class EventAction(DiagnosisAction):
         timestamp=0,
         expired_time_period=0,
         executable_time_period=0,
+        instance=DiagnosisConstant.MASTER_INSTANCE,
         **kwargs,
     ):
         super().__init__(
             action_type=DiagnosisActionType.EVENT,
-            instance=DiagnosisConstant.MASTER_INSTANCE,
+            instance=instance,
             timestamp=timestamp,
             expired_time_period=expired_time_period,
             executable_time_period=executable_time_period,

@@ -938,7 +938,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             expired_time_period=600,
         )
         context.enqueue_diagnosis_action(action)
-
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.MASTER_INSTANCE
+                ]
+            ),
+            1,
+        )
         time.sleep(1)
         agent._check_and_process_diagnosis_action()
         self.assertEqual(
@@ -1009,7 +1016,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             node_type="worker",
             action_type=DiagnosisActionType.RELAUNCH_WORKER,
             instance=DiagnosisConstant.LOCAL_INSTANCE,
-            expired_time_period=1,
         )
         context.enqueue_diagnosis_action(action)
         self.assertEqual(
@@ -1029,6 +1035,29 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 ]
             ),
             0,
+        )
+
+        action = EventAction(
+            expired_time_period=600, instance=DiagnosisConstant.ANY_INSTANCE
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            1,
+        )
+        time.sleep(1)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            1,
         )
 
     @patch(
