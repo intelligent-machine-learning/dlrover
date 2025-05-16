@@ -29,4 +29,6 @@ class ExceptionTest(unittest.TestCase):
         with self.assertRaises(InvalidDLConfiguration) as e:
             raise InvalidDLConfiguration()
 
-        self.assertEqual(str(e.exception), "The rl configuration is invalid.")
+        self.assertEqual(
+            str(e.exception), "The deep learning configuration is invalid."
+        )

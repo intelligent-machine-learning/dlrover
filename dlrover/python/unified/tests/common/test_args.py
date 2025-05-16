@@ -64,7 +64,7 @@ class ArgsTest(unittest.TestCase):
             _parse_omega_config(123)
 
     def test_parsing(self):
-        args = ["--job_name", "test", "--rl_config", "{}"]
+        args = ["--job_name", "test", "--dl_type", "SFT", "--dl_config", "{}"]
         parsed_args = parse_job_args(args)
         self.assertEqual(parsed_args.job_name, "test")
         self.assertEqual(parsed_args.master_cpu, 2)
@@ -96,7 +96,9 @@ class ArgsTest(unittest.TestCase):
             "11",
             "--workload_max_restart",
             "{'actor': 10}",
-            "--rl_config",
+            "--dl_type",
+            "SFT",
+            "--dl_config",
             "{}",
         ]
         parsed_args = parse_job_args(args)
@@ -122,7 +124,9 @@ class ArgsTest(unittest.TestCase):
             "hdfs",
             "--master_state_backend_config",
             '{"path": "test_path"}',
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             '{"algorithm_type":"GRPO","config":{"c1":"v1"},"trainer":{"type":'
             '"USER_DEFINED","module":"dlrover.python.rl.tests.test_class",'
             '"class":"TestInteractiveTrainer"},"workload":{"actor":{"num":2,'

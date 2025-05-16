@@ -19,6 +19,7 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.trainer.rl_trainer import BaseRLTrainer
 from dlrover.python.unified.trainer.trainer import BaseTrainer
 from dlrover.python.unified.trainer.workload import (
     BaseWorkload,
@@ -36,7 +37,7 @@ class TestTrainer(BaseTrainer):
         time.sleep(0.1)
 
 
-class TestInteractiveTrainer(BaseTrainer):
+class TestInteractiveTrainer(BaseRLTrainer):
     def init(self):
         self.RG_ACTOR.init()
         self.RG_ROLLOUT.init()
@@ -50,7 +51,7 @@ class TestInteractiveTrainer(BaseTrainer):
         time.sleep(1)
 
 
-class TestInteractiveErrorTrainer(BaseTrainer):
+class TestInteractiveErrorTrainer(BaseRLTrainer):
     def init(self):
         self.RG_ACTOR.init()
         time.sleep(0.1)
@@ -60,7 +61,7 @@ class TestInteractiveErrorTrainer(BaseTrainer):
         raise RuntimeError("Failover testing...")
 
 
-class TestInteractiveActorErrorTrainer(BaseTrainer):
+class TestInteractiveActorErrorTrainer(BaseRLTrainer):
     def init(self):
         self.RG_ACTOR.init()
         # the actor will restart at this point

@@ -18,19 +18,19 @@ from dlrover.python.unified.trainer.workload import BaseWorkload
 
 class BaseRLWorkload(BaseWorkload, ABC):
     def is_actor_role(self):
-        return self._role.name == RLRoleType.ACTOR.name
+        return self._role == RLRoleType.ACTOR.name
 
     def is_rollout_role(self):
-        return self._role.name == RLRoleType.ROLLOUT.name
+        return self._role == RLRoleType.ROLLOUT.name
 
     def is_reward_role(self):
-        return self._role.name == RLRoleType.REWARD.name
+        return self._role == RLRoleType.REWARD.name
 
     def is_ref_role(self):
-        return self._role.name == RLRoleType.REFERENCE.name
+        return self._role == RLRoleType.REFERENCE.name
 
     def is_critic_role(self):
-        return self._role.name == RLRoleType.CRITIC.name
+        return self._role == RLRoleType.CRITIC.name
 
     def is_actor_or_rollout_device_collocation(self):
         try:

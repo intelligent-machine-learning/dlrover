@@ -27,7 +27,9 @@ class JobConfigTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
-            "--rl_config",
+            "--dl_type",
+            "PRE",
+            "--dl_config",
             "{}",
         ]
         job_config = JobConfig.build_from_args(parse_job_args(args))
@@ -45,7 +47,9 @@ class JobConfigTest(unittest.TestCase):
             "hdfs",
             "--master_state_backend_config",
             "{'k1': 'v1'}",
-            "--rl_config",
+            "--dl_type",
+            "SFT",
+            "--dl_config",
             "{}",
         ]
         job_config = JobConfig.build_from_args(parse_job_args(args))
@@ -68,7 +72,9 @@ class JobConfigTest(unittest.TestCase):
             "hdfs",
             "--master_state_backend_config",
             "{'k1': 'v1'}",
-            "--rl_config",
+            "--dl_type",
+            "MULTIMODAL",
+            "--dl_config",
             "{}",
         ]
         job_config = JobConfig.build_from_args(parse_job_args(args))

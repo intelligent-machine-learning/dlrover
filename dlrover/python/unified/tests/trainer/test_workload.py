@@ -14,7 +14,7 @@ import os
 import unittest
 
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.trainer.workload import BaseWorkload
+from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
 
 
 class BaseWorkloadTest(unittest.TestCase):
@@ -31,10 +31,10 @@ class BaseWorkloadTest(unittest.TestCase):
         os.environ["MASTER_ADDR"] = "127.0.0.1"
         os.environ["MASTER_PORT"] = "29500"
 
-        workload = BaseWorkload(None, {"k1": "v1"})
+        workload = BaseRLWorkload(None, {"k1": "v1"})
         self.assertIsNotNone(workload)
         self.assertEqual(workload.name, "test")
-        self.assertEqual(workload.role, RLRoleType.ACTOR)
+        self.assertEqual(workload.role, RLRoleType.ACTOR.name)
         self.assertEqual(workload.rank, 0)
         self.assertEqual(workload.local_rank, 0)
         self.assertEqual(workload.world_size, 2)

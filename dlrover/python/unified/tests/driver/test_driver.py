@@ -40,7 +40,9 @@ class DriverTest(unittest.TestCase):
             "1",
             "--master_memory",
             "100",
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
         ]
 

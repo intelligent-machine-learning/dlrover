@@ -25,8 +25,8 @@ from dlrover.python.unified.trainer.trainer import RoleGroupProxy
 class BaseTrainerTest(unittest.TestCase):
     def test_basic(self):
         trainer = TestInteractiveTrainer(
-            {RLRoleType.ACTOR: [None, None]},
-            {RLRoleType.ACTOR: (TestActor, 1)},
+            {RLRoleType.ACTOR.name: [None, None]},
+            {RLRoleType.ACTOR.name: (TestActor, 1)},
             {"k1": "v1"},
         )
         self.assertIsNotNone(trainer)
@@ -39,7 +39,7 @@ class BaseTrainerTest(unittest.TestCase):
         self.assertEqual(len(trainer.get_role_groups()), 1)
         self.assertFalse(trainer.is_recoverable())
         self.assertEqual(len(trainer.actor_handles), 1)
-        self.assertEqual(len(trainer.actor_handles[RLRoleType.ACTOR]), 2)
+        self.assertEqual(len(trainer.actor_handles[RLRoleType.ACTOR.name]), 2)
         self.assertEqual(len(trainer.actors), 2)
         self.assertEqual(len(trainer.rollouts), 0)
         self.assertEqual(len(trainer.rewards), 0)
@@ -53,8 +53,10 @@ class BaseTrainerTest(unittest.TestCase):
         self.assertEqual(len(trainer.config), 1)
 
     def test_role_group_proxy(self):
-        role_group = RoleGroupProxy(RLRoleType.ACTOR, 2, TestActor, {}, [None])
-        self.assertEqual(role_group.role, RLRoleType.ACTOR)
+        role_group = RoleGroupProxy(
+            RLRoleType.ACTOR.name, 2, TestActor, {}, [None]
+        )
+        self.assertEqual(role_group.role, RLRoleType.ACTOR.name)
         self.assertEqual(role_group.world_size, 2)
         self.assertTrue(role_group._can_shard_invocation())
         with self.assertRaises(AttributeError):
@@ -69,10 +71,10 @@ class BaseTrainerTest(unittest.TestCase):
             role_group.test4()
 
         trainer = TestInteractiveTrainer(
-            {RLRoleType.ACTOR: [], RLRoleType.ROLLOUT: []},
+            {RLRoleType.ACTOR.name: [], RLRoleType.ROLLOUT.name: []},
             {
-                RLRoleType.ACTOR: (TestActor, 1),
-                RLRoleType.ROLLOUT: (TestRollout, 1),
+                RLRoleType.ACTOR.name: (TestActor, 1),
+                RLRoleType.ROLLOUT.name: (TestRollout, 1),
             },
             {},
         )

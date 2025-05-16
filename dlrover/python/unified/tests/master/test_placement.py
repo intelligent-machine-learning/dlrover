@@ -33,7 +33,9 @@ class SingleBundlePerNodePlacementTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
@@ -93,7 +95,9 @@ class SingleGroupPerNodePlacementTest0(unittest.TestCase):
         args = [
             "--job_name",
             "test",
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF}",
         ]
         parsed_args = parse_job_args(args)
@@ -192,7 +196,9 @@ class SingleGroupPerNodePlacementTest1(unittest.TestCase):
         args = [
             "--job_name",
             "test",
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF_1}",
         ]
         parsed_args = parse_job_args(args)

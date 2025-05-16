@@ -16,13 +16,13 @@ import ray
 
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
-from dlrover.python.unified.common.dl_context import DLContext
+from dlrover.python.unified.common.dl_context import RLContext
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.main import DLRoverDLMaster
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class RLMasterTest(unittest.TestCase):
+class DLMasterTest(unittest.TestCase):
     def setUp(self):
         ray.init(num_cpus=1, ignore_reinit_error=True)
 
@@ -33,10 +33,12 @@ class RLMasterTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
-            "--rl_config",
+            "--dl_type",
+            "RL",
+            "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
         ]
-        rl_context = DLContext.build_from_args(parse_job_args(args))
+        rl_context = RLContext.build_from_args(parse_job_args(args))
         job_config = JobConfig.build_from_args(parse_job_args(args))
 
         master = DLRoverDLMaster.remote(
