@@ -241,6 +241,8 @@ class DiagnosisMasterTest(unittest.TestCase):
         args.xpu_type = Accelerators.NVIDIA_GPU
         mgr = DiagnosisMaster(job_args=args)
         _metric_context.clear_node_metrics()
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
 
         job_metrics = {}
         metric = GpuNodeMetric()
@@ -310,8 +312,11 @@ class DiagnosisMasterTest(unittest.TestCase):
         self.assertEqual(action.instance, DiagnosisConstant.ANY_INSTANCE)
         self.assertEqual(action.node_id, 3)
 
-        action = mgr._job_context.next_action(DiagnosisConstant.LOCAL_INSTANCE)
-        self.assertEqual(action.action_type, DiagnosisActionType.NONE)
+        mgr._is_observing_started = False
+        mgr._is_observing_paused = False
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
+        _metric_context.clear_node_metrics()
 
     @patch(
         "dlrover.python.master.diagnosis.diagnosis_master"

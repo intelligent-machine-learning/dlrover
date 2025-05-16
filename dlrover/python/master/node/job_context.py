@@ -76,6 +76,9 @@ class JobContext(Singleton):
     ):
         return self._action_queue.next_action(instance=instance)
 
+    def clear_actions(self):
+        self._action_queue.clear()
+
     def get_mutable_ps_nodes(self):
         return self.get_mutable_job_nodes(NodeType.PS)
 
