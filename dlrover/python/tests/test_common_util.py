@@ -71,6 +71,52 @@ class CommonUtilTest(unittest.TestCase):
             dlrover_pickle.loads(pickled)
         dlrover_pickle.whitelist.append(_module)
 
+    def test_get_class_by_module_and_class_name(self):
+        self.assertIsNotNone(
+            cu.get_class_by_module_and_class_name(
+                self.__module__, self.__class__.__name__
+            )
+        )
+
+    def test_get_methods_by_class(self):
+        class TestCls(object):
+            def __m0(self):
+                pass
+
+            def _m1(self):
+                pass
+
+            def m2(self):
+                pass
+
+            def m3(self):
+                pass
+
+            @property
+            def m4(self):
+                pass
+
+        self.assertEqual(len(cu.get_methods_by_class(TestCls)), 2)
+        self.assertEqual(cu.get_methods_by_class(TestCls)[0][0], "m2")
+        self.assertEqual(cu.get_methods_by_class(TestCls)[1][0], "m3")
+
+        self.assertEqual(
+            len(cu.get_methods_by_class(TestCls, with_protect=True)), 4
+        )
+        self.assertEqual(
+            cu.get_methods_by_class(TestCls, with_protect=True)[0][0],
+            "_TestCls__m0",
+        )
+        self.assertEqual(
+            cu.get_methods_by_class(TestCls, with_protect=True)[1][0], "_m1"
+        )
+        self.assertEqual(
+            cu.get_methods_by_class(TestCls, with_protect=True)[2][0], "m2"
+        )
+        self.assertEqual(
+            cu.get_methods_by_class(TestCls, with_protect=True)[3][0], "m3"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
