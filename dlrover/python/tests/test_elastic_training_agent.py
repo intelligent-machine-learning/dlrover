@@ -1004,6 +1004,33 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.assertEqual(agent._remaining_failovers, 2)
 
+        action = NodeAction(
+            node_id=1,
+            node_type="worker",
+            action_type=DiagnosisActionType.RELAUNCH_WORKER,
+            instance=DiagnosisConstant.LOCAL_INSTANCE,
+            expired_time_period=1,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            1,
+        )
+        time.sleep(2)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            0,
+        )
+
     @patch(
         "dlrover.python.elastic_agent.master_client"
         ".MasterClient.report_failed_exited"
