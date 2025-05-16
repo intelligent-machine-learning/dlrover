@@ -10,7 +10,8 @@ coverage:
     - "dlrover/trainer/torch/node_check/utils.py"
     - "dlrover/proto"  # protobuf auto generated
     - "dlrover/python/unified/trainer/example"  # example codes
-    - "dlrover/python/unified/master/main.py"  # ray.remote class can not be covered
+    # ray.remote class can not be covered
+    - "dlrover/python/unified/master/main.py"
   status:
     changes: false
     default_rules:

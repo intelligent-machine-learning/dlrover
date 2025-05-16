@@ -1,6 +1,6 @@
 ---
-name: dlrover-python-rl-test
-description: run pytest to execute python test cases of dlrover python rl
+name: dlrover-python-unified-test
+description: run pytest to execute python test cases of dlrover python unified
 runs:
   using: 'docker'
   image: "easydl/dlrover:ci_py310"
