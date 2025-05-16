@@ -14,6 +14,7 @@
 import copy
 import time
 import unittest
+import threading
 from datetime import datetime
 from typing import List
 from unittest import mock
@@ -225,6 +226,36 @@ class DiagnosisMasterTest(unittest.TestCase):
         self.assertEqual(
             mgr.check_tensor_drop_zero(29)[0], DiagnosisResult.DIAG_HANG
         )
+
+    @patch(
+        "dlrover.python.master.diagnosis.diagnosis_master.DiagnosisMaster"
+        ".check_tensor_drop_zero",
+    )
+    @patch(
+        "dlrover.python.common.event.context.JobEventContext"
+        ".check_job_step_hang",
+    )
+    def test_diagnose_metrics(self, mock_check_tensor_drop_zero, mock_check_job_step_hang):
+        mock_check_tensor_drop_zero.return_value = (DiagnosisResult.DIAG_HANG, 100, 200)
+        mock_check_job_step_hang.return_value = True
+
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        mgr = DiagnosisMaster(job_args=args)
+        _metric_context.clear_node_metrics()
+
+        mgr._is_observing_started = True
+        mgr._is_observing_paused = False
+
+        diag_metric = threading.Thread(
+            target=mgr._diagnose_metrics,
+            name="test_diagnose_metrics",
+            daemon=True,
+        )
+        diag_metric.start()
+        time.sleep(1)
+        mgr._is_observing_started = False
+        time.sleep(1)
 
     @patch(
         "dlrover.python.master.diagnosis.diagnosis_master"
