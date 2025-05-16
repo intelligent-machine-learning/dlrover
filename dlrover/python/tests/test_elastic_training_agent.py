@@ -60,8 +60,14 @@ from dlrover.python.common.metric.metric import (
     NpuNodeMetric,
 )
 from dlrover.python.common.storage import PosixDiskStorage
-from dlrover.python.diagnosis.common.constants import DiagnosisConstant
-from dlrover.python.diagnosis.common.diagnosis_action import EventAction
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NodeAction,
+)
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -922,15 +928,18 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
+        agent._stop_workers = mock.MagicMock(return_value=True)
+        agent._restart_workers = mock.MagicMock(return_value=True)
 
         context = get_agent_context()
+
         action = EventAction(
             event_action="action",
             expired_time_period=600,
         )
         context.enqueue_diagnosis_action(action)
 
-        time.sleep(3)
+        time.sleep(1)
         agent._check_and_process_diagnosis_action()
         self.assertEqual(
             len(
@@ -940,6 +949,60 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             ),
             1,
         )
+
+        action = NodeAction(
+            node_id=0,
+            node_type="worker",
+            action_type=DiagnosisActionType.RESTART_WORKER,
+            instance=DiagnosisConstant.ANY_INSTANCE,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            0,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+
+        action = NodeAction(
+            node_id=0,
+            node_type="worker",
+            action_type=DiagnosisActionType.RESTART_WORKER,
+            instance=DiagnosisConstant.LOCAL_INSTANCE,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            0,
+        )
+        self.assertEqual(agent._remaining_failovers, 2)
 
     @patch(
         "dlrover.python.elastic_agent.master_client"

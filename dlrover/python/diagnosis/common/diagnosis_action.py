@@ -343,19 +343,28 @@ class DiagnosisActionQueue:
             ):
                 return NoAction()
 
+            logger.debug(f"Dump {instance} actions before: {self._actions}")
             actions = self._actions[instance]
+
             waiting_actions: Deque[DiagnosisAction] = deque()
             while len(actions) > 0:
                 action = actions.popleft()
                 if action.is_expired():
-                    logger.info(f"Skip expired diagnosis action: {action}.")
+                    logger.info(
+                        f"Skip expired diagnosis action({instance}): {action}"
+                    )
                 elif action.is_executable():
                     while len(waiting_actions) > 0:
                         waiting_action = waiting_actions.pop()
                         actions.appendleft(waiting_action)
+                    logger.info(
+                        f"Get diagnosis action({instance}): {action}, "
+                        f"Remain: {actions}/{len(actions)}"
+                    )
                     return action
                 else:
                     waiting_actions.append(action)
 
             self._actions[instance] = waiting_actions
+            logger.debug(f"Dump {instance} actions after: {self._actions}")
             return NoAction()
