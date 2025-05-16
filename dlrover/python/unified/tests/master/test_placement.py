@@ -75,18 +75,22 @@ class SingleBundlePerNodePlacementTest(unittest.TestCase):
         self.assertEqual(pg_allocation._strategy, "SPREAD")
 
         self.placement.allocate_placement_group()
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR.name)
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.ROLLOUT.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.REFERENCE.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 2)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD)
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD.name)
         self.assertEqual(vertices[0].pg_bundle_index, 3)
 
 
@@ -170,23 +174,27 @@ class SingleGroupPerNodePlacementTest0(unittest.TestCase):
                     in list(pg_allocation._allocation.keys())
                 )
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR.name)
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
         self.assertEqual(vertices[2].pg_bundle_index, 0)
         self.assertEqual(vertices[3].pg_bundle_index, 1)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.ROLLOUT.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
         self.assertEqual(vertices[2].pg_bundle_index, 0)
         self.assertEqual(vertices[3].pg_bundle_index, 1)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.REFERENCE.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD)
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REWARD.name)
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
 
@@ -291,19 +299,23 @@ class SingleGroupPerNodePlacementTest1(unittest.TestCase):
                     in list(pg_allocation._allocation.keys())
                 )
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR)
+        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ACTOR.name)
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
         self.assertEqual(vertices[2].pg_bundle_index, 2)
         self.assertEqual(vertices[3].pg_bundle_index, 3)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.ROLLOUT)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.ROLLOUT.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
         self.assertEqual(vertices[2].pg_bundle_index, 2)
         self.assertEqual(vertices[3].pg_bundle_index, 3)
 
-        vertices = self.graph.get_vertices_by_role_type(RLRoleType.REFERENCE)
+        vertices = self.graph.get_vertices_by_role_type(
+            RLRoleType.REFERENCE.name
+        )
         self.assertEqual(vertices[0].pg_bundle_index, 0)
         self.assertEqual(vertices[1].pg_bundle_index, 1)
         self.assertEqual(vertices[2].pg_bundle_index, 2)
