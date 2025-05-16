@@ -47,6 +47,8 @@ class ExecutionGraphTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
         ]
@@ -93,6 +95,8 @@ class ExecutionGraphTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_RL_CONF_1}",
         ]
@@ -135,6 +139,8 @@ class ExecutionGraphTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF}",
         ]

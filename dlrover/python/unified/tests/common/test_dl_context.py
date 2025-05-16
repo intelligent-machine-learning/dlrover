@@ -35,6 +35,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
         ]
@@ -61,6 +63,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF}",
         ]
@@ -71,6 +75,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_DPO_MOCK_RL_CONF}",
         ]
@@ -81,6 +87,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_INVALID_RESOURCE_RL_CONF_0}",
         ]
@@ -91,6 +99,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
         ]
@@ -225,6 +235,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF}",
         ]
@@ -239,6 +251,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_0}",
         ]
@@ -248,6 +262,8 @@ class DLContextTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_1}",
         ]

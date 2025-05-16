@@ -70,6 +70,8 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF}",
         ]
@@ -126,6 +128,8 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
         args = [
             "--job_name",
             "test",
+            "--dl_type",
+            "RL",
             "--dl_config",
             f"{TestData.UD_SIMPLE_TEST_WITH_INTERACTIVE_GROUPED_RL_CONF}",
         ]
