@@ -214,7 +214,7 @@ This can actually be summarized into two core steps:
 2. Expressing the process (the flow between vertex).   
 
 <div align="center">
-    <img src="../figures/unified/pluggable_workload.png" alt="Pluggable Workload" width="400">
+    <img src="../figures/unified/pluggable_workload.png" alt="Pluggable Workload" width="500">
 </div>
 
 
@@ -312,7 +312,7 @@ computing units. This is also the primary core scenario currently supported
 by DLRover:  
 
 <div align="center">
-    <img src="../figures/unified/sft_dag.png" alt="Pre-Train/SFT" width="300">
+    <img src="../figures/unified/sft_dag.png" alt="Pre-Train/SFT" width="400">
 </div>
 
 
@@ -323,7 +323,7 @@ undergoes data preprocessing (e.g., sample processing, feature extraction, etc.)
 and is then fed into the training workloads:  
 
 <div align="center">
-    <img src="../figures/unified/odl_dag.png" alt="Online Learning" width="400">
+    <img src="../figures/unified/odl_dag.png" alt="Online Learning" width="500">
 </div>
 
 
@@ -333,7 +333,7 @@ In addition to data preprocessing, the training process is also divided into
 multiple computational parts:
 
 <div align="center">
-    <img src="../figures/unified/multimodal_dag.png" alt="Multimodal" width="400">
+    <img src="../figures/unified/multimodal_dag.png" alt="Multimodal" width="500">
 </div>
 
 
@@ -343,7 +343,7 @@ on the specific algorithms. Here, taking PPO as an example, an illustrative
 computation graph is provided:  
 
 <div align="center">
-    <img src="../figures/unified/rl_ppo_dag.png" alt="PPO_DAG" width="400">
+    <img src="../figures/unified/rl_ppo_dag.png" alt="PPO_DAG" width="500">
 </div>
 
 However, because the current computation in RL is strongly coupled with the 
