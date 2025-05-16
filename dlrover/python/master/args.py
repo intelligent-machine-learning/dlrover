@@ -88,7 +88,7 @@ def _build_master_args_parser():
     )
     parser.add_argument(
         "--hang_downtime",
-        default=30,
+        default=5,
         type=pos_int,
         help="Training downtime to detect job hang, unit is minute",
     )

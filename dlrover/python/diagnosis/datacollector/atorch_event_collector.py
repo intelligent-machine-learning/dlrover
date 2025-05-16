@@ -129,7 +129,6 @@ class AtorchEventCollector(Singleton):
 
                 line = f.readline()
                 if not line:
-                    logger.debug(f"Empty readline on {filepath}")
                     time.sleep(1)
                     continue
 
