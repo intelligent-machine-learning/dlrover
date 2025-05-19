@@ -16,30 +16,59 @@ from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.enums import DLType
+from dlrover.python.unified.common.enums import DLType, DLStreamType, \
+    TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.driver.main import main
 
 
 class DLRoleConfig(object):
-    def __init__(self, name, module_name, class_name, **kwargs):
-        self._name = name
+
+    def __init__(self, role_name, module_name, class_name, **kwargs):
+        self._role_name = role_name
         self._module_name = module_name
         self._class_name = class_name
         self._kwargs = kwargs
+
+    @property
+    def role_name(self):
+        return self._role_name
+
+    @property
+    def module_class(self) -> Tuple[str, str]:
+        return self._module_name, self._class_name
+
+    @property
+    def others(self):
+        return self._kwargs
+
+
+class DLTrainerConfig(DLRoleConfig):
+    """
+    Configuration for trainer in task stream.
+    """
+
+    def __init__(self, trainer_type, module_name, class_name, **kwargs):
+        super().__init__("trainer", module_name, class_name, **kwargs)
+        self._trainer_type: TrainerType = trainer_type
+
+    @property
+    def trainer_type(self):
+        return self._trainer_type
+
+
+class DLWorkloadConfig(DLRoleConfig):
+    """
+    Configuration for all different types' workload.
+    """
+
+    def __init__(self, role_name, module_name, class_name, **kwargs):
+        super().__init__(role_name, module_name, class_name, **kwargs)
 
         self._num = 1
         self._per_node = 1
         self._env = {}
         self._sub_stage = []
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def module_class(self) -> Tuple[str, str]:
-        return self._module_name, self._class_name
 
     @property
     def total(self) -> int:
@@ -57,15 +86,12 @@ class DLRoleConfig(object):
     def sub_stage(self) -> list:
         return self._sub_stage
 
-    @property
-    def others(self):
-        return self._kwargs
-
 
 class DLJob(object):
     def __init__(
         self,
         dl_type,
+        stream_type,
         node_num,
         device_per_node,
         device_type,
@@ -75,17 +101,22 @@ class DLJob(object):
         collocations,
     ):
         self._dl_type = dl_type
+        self._stream_type = stream_type
         self._node_num = node_num
         self._device_per_node = device_per_node
         self._device_type = device_type
         self._config = config
         self._env = env
-        self._components: Dict[str, Union[None, DLRoleConfig]] = components
+        self._components: Dict[str, Union[None, DLWorkloadConfig]] = components
         self._collocations: List[Set[str]] = collocations
 
     @property
     def dl_type(self):
         return self._dl_type
+
+    @property
+    def stream_type(self):
+        return self._stream_type
 
     @property
     def node_num(self):
@@ -143,7 +174,7 @@ class DLJob(object):
 
         # trainer
         trainer_dict = {
-            "type": self.trainer.others["trainer_type"],
+            "type": self.trainer.trainer_type.name,
             "module": self.trainer.module_class[0],
             "class": self.trainer.module_class[1],
             "node_number": self.node_num,
@@ -240,10 +271,9 @@ class DLJobBuilder(object):
         self._device_type = "GPU"
         self._config = {}
         self._env = {}
-        self._components: Dict[str, Union[None, DLRoleConfig]] = {
-            "trainer": None,
-        }
+        self._components: Dict[str, Union[None, DLTrainerConfig, DLWorkloadConfig]] = {}
         self._collocations: List[Set[str]] = []
+        self._stream_type = DLStreamType.TASK_STREAM
 
     def build(self):
         """
@@ -261,6 +291,7 @@ class DLJobBuilder(object):
 
         return DLJob(
             dl_type=self._dl_type,
+            stream_type=self._stream_type,
             node_num=self._node_num,
             device_per_node=self._device_per_node,
             device_type=self._device_type,
@@ -299,6 +330,11 @@ class DLJobBuilder(object):
             return False
 
         # for role components
+        if self._stream_type == DLStreamType.TASK_STREAM:
+            if "trainer" not in list(self._components.keys()):
+                logger.error("'trainer' must be set for task stream.")
+                return False
+
         for role, component in self._components.items():
             if role == "trainer":
                 if not component:
@@ -312,17 +348,21 @@ class DLJobBuilder(object):
                         "cannot be empty."
                     )
                     return False
-                if component._num < 1:
-                    logger.error(f"{role}'s 'num' must be greater than 0.")
-                    return False
-                if component._per_node < 1:
-                    logger.error(
-                        f"{role}'s 'per_node' must be greater than 0."
-                    )
-                    return False
-                if not isinstance(component._env, dict):
-                    logger.error(f"{role}'s 'env' must be dict type.")
-                    return False
+
+                if isinstance(component, DLTrainerConfig):  # for trainer
+                    pass
+                else:  # for workload
+                    if component._num < 1:
+                        logger.error(f"{role}'s 'num' must be greater than 0.")
+                        return False
+                    if component._per_node < 1:
+                        logger.error(
+                            f"{role}'s 'per_node' must be greater than 0."
+                        )
+                        return False
+                    if not isinstance(component._env, dict):
+                        logger.error(f"{role}'s 'env' must be dict type.")
+                        return False
 
         # for role collocations
         if self._collocations:
@@ -408,6 +448,22 @@ class DLJobBuilder(object):
         self._dl_type = dl_type
         return self
 
+    def task_stream(self):
+        """
+        Set as task stream.
+        """
+
+        self._stream_type = DLStreamType.TASK_STREAM
+        return self
+
+    def data_stream(self):
+        """
+        Set as data stream.
+        """
+
+        self._stream_type = DLStreamType.DATA_STREAM
+        return self
+
     def node_num(self, num=1):
         """
         Set the total number of nodes.
@@ -469,7 +525,7 @@ class DLJobBuilder(object):
         return self
 
     class _RoleConfigurator:
-        def __init__(self, builder, role_type: str, role_config: DLRoleConfig):
+        def __init__(self, builder, role_type: str, role_config: DLWorkloadConfig):
             self.builder = builder
             self.role_type = role_type
             self.role_config = role_config
@@ -478,8 +534,15 @@ class DLJobBuilder(object):
             self.builder.update_component(self.role_type, self.role_config)
             return self.builder
 
-    def _config_role(self, role_name, module_name, class_name, **kwargs):
-        role_config = DLRoleConfig(
+    def _config_trainer_role(self, module_name, class_name, **kwargs):
+        trainer_config = DLTrainerConfig(
+            TrainerType.USER_DEFINED, module_name, class_name, **kwargs
+        )
+        self._components["trainer"] = trainer_config
+        return self
+
+    def _config_workload_role(self, role_name, module_name, class_name, **kwargs):
+        role_config = DLWorkloadConfig(
             role_name, module_name, class_name, **kwargs
         )
         self._components[role_name] = role_config
@@ -498,19 +561,21 @@ class DLJobBuilder(object):
             class_name (str): The class name of workload.
         """
 
-        return self._config_role(role_name, module_name, class_name)
+        return self._config_workload_role(role_name, module_name, class_name)
 
     def trainer(self, module_name, class_name):
         """
-        Setup trainer.
+        Setup trainer for user-defined task stream.
 
         Args:
             module_name (str): The module name of trainer.
             class_name (str): The class name of trainer.
         """
 
-        return self._config_role(
-            "trainer", module_name, class_name, trainer_type="USER_DEFINED"
+        assert self._stream_type == DLStreamType.TASK_STREAM
+
+        return self._config_trainer_role(
+            module_name, class_name
         )
 
     def with_collocation(self, *roles):

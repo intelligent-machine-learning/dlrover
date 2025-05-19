@@ -15,6 +15,7 @@ import unittest
 from omegaconf import OmegaConf
 
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
+from dlrover.python.unified.common.enums import TrainerType, DLStreamType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
 
@@ -59,13 +60,14 @@ class ApiTest(unittest.TestCase):
         self.assertIsNotNone(rl_job)
         self.assertTrue(isinstance(rl_job, DLJob))
         self.assertEqual(rl_job.dl_type, "RL")
+        self.assertEqual(rl_job.stream_type, DLStreamType.TASK_STREAM)
         self.assertEqual(rl_job.node_num, 2)
         self.assertEqual(rl_job.device_per_node, 4)
         self.assertEqual(rl_job.device_type, "GPU")
         self.assertEqual(rl_job.config, {"k1": "v1"})
         self.assertEqual(rl_job.env, {"e0": "v0"})
         self.assertEqual(rl_job.trainer.module_class, ("m0", "c0"))
-        self.assertEqual(rl_job.trainer.total, 1)
+        self.assertEqual(rl_job.trainer.trainer_type, TrainerType.USER_DEFINED)
         self.assertEqual(
             rl_job.get_workload("actor").module_class, ("m1", "c1")
         )

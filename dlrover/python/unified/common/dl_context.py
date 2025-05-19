@@ -48,7 +48,7 @@ class TrainerDesc(object):
             device_per_node (int, optional): How many gpu(cpu) per node.
                 Default is 8.
             torch_master_port (int, optional): The port used for torch
-                rendzvous(for env 'MASTER_PORT'), must > 1000.
+                rendezvous(for env 'MASTER_PORT'), must > 1000.
                 Default is [21111, 22222, 23333, 24444, 25555].
         """
         self._module_class: Tuple[str, str] = module_class
@@ -407,23 +407,19 @@ class DLContext(PickleSerializable):
             # workload
             workload_dict = {}
             wl_conf: DictConfig = conf.get("workload")
-            if trainer_desc.trainer_type == TrainerType.OPENRLHF_PPO_DEEPSPEED:
-                # TODO: default workload specify
-                pass
-            else:
-                for role_str, workload_desc_dict in wl_conf.items():
-                    role_type = role_str.upper()
-                    workload_desc = WorkloadDesc(
-                        (
-                            workload_desc_dict.get("module"),
-                            workload_desc_dict.get("class"),
-                        ),
-                        workload_desc_dict.get("num"),
-                        workload_desc_dict.get("resource"),
-                        trainer_desc.device_type,
-                        workload_desc_dict.get("env", {}),
-                    )
-                    workload_dict[role_type] = workload_desc
+            for role_str, workload_desc_dict in wl_conf.items():
+                role_type = role_str.upper()
+                workload_desc = WorkloadDesc(
+                    (
+                        workload_desc_dict.get("module"),
+                        workload_desc_dict.get("class"),
+                    ),
+                    workload_desc_dict.get("num"),
+                    workload_desc_dict.get("resource"),
+                    trainer_desc.device_type,
+                    workload_desc_dict.get("env", {}),
+                )
+                workload_dict[role_type] = workload_desc
 
             # workload group
             workload_group_conf: ListConfig = conf.get("workload_group", None)

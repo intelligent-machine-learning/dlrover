@@ -13,10 +13,10 @@
 from abc import ABC
 
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.trainer.workload import BaseWorkload
+from dlrover.python.unified.trainer.workload import BaseTaskProcessingWorkload
 
 
-class BaseRLWorkload(BaseWorkload, ABC):
+class BaseRLWorkload(BaseTaskProcessingWorkload, ABC):
     def is_actor_role(self):
         return self._role == RLRoleType.ACTOR.name
 

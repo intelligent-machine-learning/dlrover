@@ -21,14 +21,14 @@ class DLType(Enum):
     RL = "RL"
 
 
-class TrainerType(Enum):
-    USER_DEFINED = ("USER_DEFINED", None, None)
-    OPENRLHF_PPO_DEEPSPEED = ("OPENRLHF_PPO_DEEPSPEED", "PPO", "DEEPSPEED")
+class DLStreamType(Enum):
+    TASK_STREAM = "TASK_STREAM"
+    DATA_STREAM = "DATA_STREAM"
 
-    def __init__(self, value, algorithm_type, arc_type):
-        self._value = value
-        self.algorithmType = algorithm_type
-        self.arc_type = arc_type
+
+class TrainerType(Enum):
+    USER_DEFINED = "USER_DEFINED"
+    GENERATED = "GENERATED"
 
 
 class RLAlgorithmType(Enum):

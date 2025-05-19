@@ -246,3 +246,19 @@ class BaseWorkload(ABC):
         return True
 
     """Remote call functions end"""
+
+
+class BaseTaskProcessingWorkload(BaseWorkload, ABC):
+    """
+    Basic workload abstraction for task stream.
+    """
+
+    pass
+
+
+class BaseDataProcessingWorkload(BaseWorkload, ABC):
+    """
+    Basic workload abstraction for data stream.
+    """
+
+    pass
