@@ -24,7 +24,7 @@ from dlrover.python.unified.common.job_context import (
     RestartInfo,
     get_job_context,
 )
-from dlrover.python.unified.master.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.job_manager import JobManager
 
 
 class FailoverCoordinator(object):

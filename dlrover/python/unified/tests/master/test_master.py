@@ -16,9 +16,10 @@ import ray
 
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
-from dlrover.python.unified.common.dl_context import RLContext
+from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import JobStage
-from dlrover.python.unified.master.main import DLRoverDLMaster
+from dlrover.python.unified.master.mpmd.master import MPMDMaster
+from dlrover.python.unified.master.spmd.master import SPMDMaster
 from dlrover.python.unified.tests.test_data import TestData
 
 
@@ -41,8 +42,26 @@ class DLMasterTest(unittest.TestCase):
         rl_context = RLContext.build_from_args(parse_job_args(args))
         job_config = JobConfig.build_from_args(parse_job_args(args))
 
-        master = DLRoverDLMaster.remote(
+        master = MPMDMaster.remote(
             job_config.serialize(), rl_context.serialize()
+        )
+        self.assertIsNotNone(master)
+        self.assertEqual(ray.get(master.get_job_stage.remote()), JobStage.INIT)
+        self.assertFalse(ray.get(master.is_job_started.remote()))
+
+        args = [
+            "--job_name",
+            "test",
+            "--dl_type",
+            "SFT",
+            "--dl_config",
+            f"{TestData.UD_SIMPLE_TEST_SFT_CONF_0}",
+        ]
+        dl_context = DLContext.build_from_args(parse_job_args(args))
+        job_config = JobConfig.build_from_args(parse_job_args(args))
+
+        master = SPMDMaster.remote(
+            job_config.serialize(), dl_context.serialize()
         )
         self.assertIsNotNone(master)
         self.assertEqual(ray.get(master.get_job_stage.remote()), JobStage.INIT)

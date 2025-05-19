@@ -15,7 +15,6 @@
 class TestData(object):
 
     UD_SIMPLE_MOCK_RL_CONF = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -42,7 +41,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_0 = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -81,7 +79,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_1 = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -109,7 +106,6 @@ class TestData(object):
     }
 
     UD_INVALID_RESOURCE_RL_CONF_0 = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -144,8 +140,27 @@ class TestData(object):
         },
     }
 
+    UD_SIMPLE_TEST_SFT_CONF_0 = {
+        "config": {"c1": "v1"},
+        "trainer": {
+            "type": "SPMD_TORCHRUN",
+            "module": "dlrover.python.unified.tests.test_class",
+            "class": "TestTrainer",
+            "node_number": 1,
+            "device_type": "CPU",
+            "device_per_node": 1,
+        },
+        "workload": {
+            "sft": {
+                "num": 4,
+                "module": "dlrover.python.unified.tests.test_class",
+                "class": "TestActor",
+                "resource": {"cpu": 0.25},
+            }
+        },
+    }
+
     UD_SIMPLE_TEST_RL_CONF_0 = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -187,7 +202,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_TEST_RL_CONF_1 = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -225,7 +239,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_TEST_WITH_INTERACTIVE_RL_CONF = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "env": {"e1": "v1", "e2": "v2"},
         "trainer": {
@@ -384,7 +397,6 @@ class TestData(object):
     }
 
     UD_SIMPLE_TEST_NONE_COLOCATE_HOST_GROUPED_RL_CONF = {
-        "algorithm_type": "GRPO",
         "config": {"c1": "v1"},
         "trainer": {
             "type": "USER_DEFINED",
@@ -420,7 +432,6 @@ class TestData(object):
     }
 
     UD_DPO_MOCK_RL_CONF = {
-        "algorithm_type": "DPO",
         "config": {"c1": "v1"},
         "trainer": {
             "module": "test_trainer",

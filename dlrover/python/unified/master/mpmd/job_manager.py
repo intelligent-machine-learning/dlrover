@@ -21,8 +21,8 @@ from dlrover.python.unified.common.constant import (
 )
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.job_context import get_job_context
-from dlrover.python.unified.master.executor import Executor
 from dlrover.python.unified.master.graph import DLExecutionGraph
+from dlrover.python.unified.master.mpmd.executor import Executor
 from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,

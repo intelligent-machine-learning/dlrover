@@ -16,14 +16,16 @@ from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.enums import DLType, DLStreamType, \
-    TrainerType
+from dlrover.python.unified.common.enums import (
+    DLStreamType,
+    DLType,
+    TrainerType,
+)
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.driver.main import main
 
 
 class DLRoleConfig(object):
-
     def __init__(self, role_name, module_name, class_name, **kwargs):
         self._role_name = role_name
         self._module_name = module_name
@@ -271,7 +273,9 @@ class DLJobBuilder(object):
         self._device_type = "GPU"
         self._config = {}
         self._env = {}
-        self._components: Dict[str, Union[None, DLTrainerConfig, DLWorkloadConfig]] = {}
+        self._components: Dict[
+            str, Union[None, DLTrainerConfig, DLWorkloadConfig]
+        ] = {}
         self._collocations: List[Set[str]] = []
         self._stream_type = DLStreamType.TASK_STREAM
 
@@ -364,7 +368,7 @@ class DLJobBuilder(object):
                         logger.error(f"{role}'s 'env' must be dict type.")
                         return False
 
-        # for role collocations
+        # for workload collocations
         if self._collocations:
             collocations_set = set()
             for collocation in self._collocations:
@@ -377,6 +381,12 @@ class DLJobBuilder(object):
                             f"role definition: {role}."
                         )
                         return False
+                    elif isinstance(role_config, DLTrainerConfig):
+                        logger.error(
+                            "Trainer cannot be defined with collocation."
+                        )
+                        return False
+
                     process_num_sum += role_config.per_node
 
                     if role not in collocations_set:
@@ -525,7 +535,9 @@ class DLJobBuilder(object):
         return self
 
     class _RoleConfigurator:
-        def __init__(self, builder, role_type: str, role_config: DLWorkloadConfig):
+        def __init__(
+            self, builder, role_type: str, role_config: DLWorkloadConfig
+        ):
             self.builder = builder
             self.role_type = role_type
             self.role_config = role_config
@@ -541,7 +553,9 @@ class DLJobBuilder(object):
         self._components["trainer"] = trainer_config
         return self
 
-    def _config_workload_role(self, role_name, module_name, class_name, **kwargs):
+    def _config_workload_role(
+        self, role_name, module_name, class_name, **kwargs
+    ):
         role_config = DLWorkloadConfig(
             role_name, module_name, class_name, **kwargs
         )
@@ -574,9 +588,7 @@ class DLJobBuilder(object):
 
         assert self._stream_type == DLStreamType.TASK_STREAM
 
-        return self._config_trainer_role(
-            module_name, class_name
-        )
+        return self._config_trainer_role(module_name, class_name)
 
     def with_collocation(self, *roles):
         """

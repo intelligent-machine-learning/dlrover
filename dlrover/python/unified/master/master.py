@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple
 
@@ -29,47 +30,48 @@ from dlrover.python.unified.common.job_context import (
     JobContext,
     get_job_context,
 )
-from dlrover.python.unified.master.failover import FailoverCoordinator
-from dlrover.python.unified.master.job_manager import JobManager
 from dlrover.python.unified.master.state_backend import (
     MasterStateBackendFactory,
 )
 from dlrover.python.unified.remote.call_obj import RuntimeInfo
 
 
-@ray.remote
-class DLRoverDLMaster(object):
+class BaseMaster(ABC):
     """
-    DLRoverMaster is the core of the control plane management for the entire
+    DLRover Master is the core of the control plane management for the entire
     DL training. It is responsible for all related control plane management
     operations.
     """
 
-    def __init__(self, job_config_serialized, rl_context_serialized):
+    def __init__(self, job_config_serialized, dl_context_serialized):
         # init job context
         self._job_config = JobConfig.deserialize(job_config_serialized)
-        self._rl_context = DLContext.deserialize(rl_context_serialized)
+        self._dl_context = DLContext.deserialize(dl_context_serialized)
         self._job_context = get_job_context()
-        self._job_context.init(self._job_config, self._rl_context)
+        self._job_context.init(self._job_config, self._dl_context)
 
         # init state backend
         self._state_backend = MasterStateBackendFactory.get_state_backend()
         self._state_backend.init()
 
-        # init core components
-        self._job_manager = JobManager()
-        self._failover_coordinator = FailoverCoordinator(
-            self._job_manager, self._save_context_to_checkpoint, self.exit_job
-        )
-
         self._create_time = int(time.time())
         self._executor = ThreadPoolExecutor(max_workers=4)
 
+        self._job_manager = None
+
         logger.info(
-            "DLRover DMaster initiated with "
+            f"DLRover Master: {{({self.__class__.__name__})}} initiated with "
             f"job-config: {self._job_config}, "
-            f"dl-context: {self._rl_context}."
+            f"dl-context: {self._dl_context}."
         )
+
+    @abstractmethod
+    def init(self):
+        """To initialize the master core components."""
+
+    @abstractmethod
+    def _handle_failure(self, failure: FailureDesc):
+        """To handle failure."""
 
     @property
     def context(self):
@@ -226,9 +228,6 @@ class DLRoverDLMaster(object):
 
         logger.info("DLMaster exit now.")
         ray.actor.exit_actor()
-
-    def _handle_failure(self, failure: FailureDesc):
-        self._failover_coordinator.handle_failure(failure)
 
     """Remote call functions start"""
 

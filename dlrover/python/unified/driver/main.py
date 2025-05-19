@@ -15,6 +15,9 @@ import time
 
 import ray
 
+from dlrover.python.unified.master.mpmd.master import MPMDMaster
+from dlrover.python.unified.master.spmd.master import SPMDMaster
+
 try:
     from ray.exceptions import ActorDiedError as ade
 except ImportError:
@@ -26,7 +29,6 @@ from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import DLType, JobStage
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
-from dlrover.python.unified.master.main import DLRoverDLMaster
 
 MASTER_CONNECT_INTERVAL = 30
 MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
@@ -38,6 +40,16 @@ def gen_dl_context(args) -> DLContext:
         return RLContext.build_from_args(args)
     else:
         return DLContext.build_from_args(args)
+
+
+def get_master_cls(args):
+    train_type = args.dl_type
+    if train_type in [DLType.RL, DLType.MULTIMODAL]:
+        return MPMDMaster
+    elif train_type in [DLType.SFT, DLType.PRE]:
+        return SPMDMaster
+    else:
+        raise InvalidDLConfiguration()
 
 
 def submit(args=None, blocking=True):
@@ -56,20 +68,24 @@ def submit(args=None, blocking=True):
     logger.info(f"DL context: {dl_context}.")
 
     # create master actor
-    name = "DLRoverDLMaster-" + parsed_args.job_name
+    name = "DLMaster-" + parsed_args.job_name
     logger.info(f"Create DLMaster for job executing: {parsed_args.job_name}.")
 
     runtime_env = {"env_vars": {}}
     runtime_env["env_vars"].update(dl_context.env)
 
-    master_actor = DLRoverDLMaster.options(
-        name=name,
-        lifetime="detached",
-        num_cpus=parsed_args.master_cpu,
-        memory=parsed_args.master_mem,
-        runtime_env=runtime_env,
-        max_restarts=-1,
-    ).remote(job_config.serialize(), dl_context.serialize())
+    master_actor = (
+        get_master_cls(parsed_args)
+        .options(
+            name=name,
+            lifetime="detached",
+            num_cpus=parsed_args.master_cpu,
+            memory=parsed_args.master_mem,
+            runtime_env=runtime_env,
+            max_restarts=-1,
+        )
+        .remote(job_config.serialize(), dl_context.serialize())
+    )
 
     ray.get(master_actor.ping.remote())
     logger.info("DLMaster created.")

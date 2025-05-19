@@ -15,8 +15,6 @@ import unittest
 
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
-    ModelParallelismArcType,
-    RLAlgorithmType,
     TrainerType,
 )
 
@@ -24,36 +22,11 @@ from dlrover.python.unified.common.enums import (
 class EnumsTest(unittest.TestCase):
     def test_trainer_type(self):
         self.assertTrue(TrainerType["USER_DEFINED"])
-        self.assertIsNone(TrainerType["USER_DEFINED"].algorithmType)
-        self.assertIsNone(TrainerType["USER_DEFINED"].arc_type)
-
-        self.assertTrue(TrainerType["OPENRLHF_PPO_DEEPSPEED"])
-        self.assertEqual(
-            TrainerType["OPENRLHF_PPO_DEEPSPEED"].algorithmType,
-            RLAlgorithmType.PPO.value,
-        )
-        self.assertEqual(
-            TrainerType["OPENRLHF_PPO_DEEPSPEED"].arc_type,
-            ModelParallelismArcType.DEEPSPEED.name,
-        )
+        self.assertTrue(TrainerType["GENERATED"])
+        self.assertTrue(TrainerType["SPMD_TORCHRUN"])
 
         with self.assertRaises(KeyError):
-            self.assertTrue(RLAlgorithmType["TEST"])
-
-    def test_rl_algorithm_type(self):
-        self.assertTrue(RLAlgorithmType["GRPO"])
-        self.assertTrue(RLAlgorithmType["PPO"])
-
-        with self.assertRaises(KeyError):
-            self.assertTrue(RLAlgorithmType["DPO"])
-
-    def test_trainer_arc_type(self):
-        self.assertTrue(ModelParallelismArcType["MEGATRON"])
-        self.assertTrue(ModelParallelismArcType["FSDP"])
-        self.assertTrue(ModelParallelismArcType["DEEPSPEED"])
-
-        with self.assertRaises(KeyError):
-            self.assertTrue(RLAlgorithmType["DCP"])
+            self.assertTrue(TrainerType["TEST"])
 
     def test_master_state_backend(self):
         self.assertTrue(MasterStateBackendType["RAY_INTERNAL"])

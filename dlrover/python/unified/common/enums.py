@@ -29,22 +29,7 @@ class DLStreamType(Enum):
 class TrainerType(Enum):
     USER_DEFINED = "USER_DEFINED"
     GENERATED = "GENERATED"
-
-
-class RLAlgorithmType(Enum):
-    GRPO = "GRPO"
-    PPO = "PPO"
-    USER_DEFINED = "USER_DEFINED"
-
-
-class ModelParallelismArcType(Enum):
-    MEGATRON = ("MEGATRON", "3D")
-    FSDP = ("FSDP", "Z3")
-    DEEPSPEED = ("DEEPSPEED", "Z3")
-
-    def __init__(self, value, arc_type):
-        self._value = value
-        self.arc_type = arc_type
+    SPMD_TORCHRUN = "SPMD_TORCHRUN"
 
 
 class RLRoleType(Enum):

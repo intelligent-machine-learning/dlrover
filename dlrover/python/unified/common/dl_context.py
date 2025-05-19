@@ -345,11 +345,7 @@ class DLContext(PickleSerializable):
             f"env:{self.env}, "
             f"trainer:{self.trainer}, "
             f"group:{self.workload_group}, "
-            f"actor:{self.actor_workload}, "
-            f"rollout:{self.rollout_workload}, "
-            f"reference:{self.ref_workload}, "
-            f"reward:{self.reward_workload}, "
-            f"critic:{self.critic_workload})"
+            f"workload:{self.workloads})"
         )
 
     @property

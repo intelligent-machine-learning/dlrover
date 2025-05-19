@@ -15,7 +15,7 @@ import unittest
 from omegaconf import OmegaConf
 
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
-from dlrover.python.unified.common.enums import TrainerType, DLStreamType
+from dlrover.python.unified.common.enums import DLStreamType, TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
 
