@@ -31,7 +31,7 @@ def has_expired(timestamp: int, time_period: int) -> bool:
     """
     dt = datetime.fromtimestamp(timestamp)
     expired_dt = dt + timedelta(seconds=time_period)
-    return expired_dt < datetime.now()
+    return expired_dt <= datetime.now()
 
 
 def timestamp_diff_in_seconds(timestamp1: float, timestamp2: float) -> float:

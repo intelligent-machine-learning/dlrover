@@ -1302,6 +1302,7 @@ class DistributedJobManager(JobManager):
                     instance=DiagnosisConstant.ANY_INSTANCE
                 )
             else:
+                logger.debug(f"Collect action from {node_id}: {action}")
                 return action
 
     def update_node_required_info_callback(self):
