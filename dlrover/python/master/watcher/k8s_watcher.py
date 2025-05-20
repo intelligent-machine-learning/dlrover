@@ -147,7 +147,7 @@ def _convert_pod_event_to_node_event(event):
     )
     node.create_time = metadata.creation_timestamp
 
-    if NodeStatus.is_terminated_status(status):
+    if NodeStatus.is_terminal_status(status):
         node.set_exit_reason(_get_pod_exit_reason(pod))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
@@ -272,7 +272,7 @@ class PodWatcher(NodeWatcher):
                 relaunch_count=relaunch_count,
             )
 
-            if NodeStatus.is_terminated_status(status):
+            if NodeStatus.is_terminal_status(status):
                 node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
 

@@ -87,7 +87,7 @@ class NodeStatus(object):
     UNKNOWN = "Unknown"
 
     @classmethod
-    def is_terminated_status(cls, status):
+    def is_terminal_status(cls, status):
         if status in [
             NodeStatus.FAILED,
             NodeStatus.DELETED,
