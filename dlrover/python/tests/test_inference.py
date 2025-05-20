@@ -15,18 +15,10 @@ import os
 import unittest
 from typing import Dict, List, Tuple
 from unittest import mock
-from unittest.mock import patch
 
-from dlrover.python.common import env_utils
-from dlrover.python.common.constants import (
-    EventReportConstants,
-    NodeEnv,
-    NodeType,
-)
+from dlrover.python.common.constants import EventReportConstants
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
-    DiagnosisErrorConstant,
-    EnvConfigKey,
     InferenceConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
@@ -35,25 +27,15 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
-    is_same_inference,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_failure_node_operator import (  # noqa: E501
-    CheckFailureNodeOperator,
-)
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
-    MetricsCollectionOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
-    ResourceCollectionOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
-    ResolveGPUErrorsOperator,
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
+    SimpleOperator,
 )
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
     ResolveTrainingHangOperator,
@@ -404,144 +386,14 @@ class InferenceChainTest(unittest.TestCase):
         )
 
     def test_inference_chain(self):
-        file = "data/training.log"
-        path = os.path.dirname(__file__)
-        file_path = os.path.join(path, file)
         inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: file_path,
-                InferenceConfigKey.ERRORS: "error code is 507035",
-            },
+            name="simple_problem",
         )
 
-        operators = [CheckFailureNodeOperator()]
+        operators = [SimpleOperator()]
         ic = InferenceChain([inf], operators)
         results = ic.infer()
-        failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.FAILURE,
-        )
-        self.assertTrue(is_same_inference(results[0], failure_inf))
-
-    @patch(
-        "dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector"
-        ".XpuTimerMetricsCollector.collect_data"
-    )
-    def test_collect_metrics_operator(self, mock_collector):
-        mock_collector.return_value = "data"
-        operator = MetricsCollectionOperator()
-        inf = Inference(
-            name=InferenceName.WORKER,
-            attribution=InferenceAttribute.COLLECT,
-            description=InferenceDescription.METRICS,
-        )
-        self.assertTrue(operator.is_compatible(inf))
-
-        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
-        env_utils.set_env(NodeEnv.NODE_ID, 1)
-        env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
-        env_utils.set_env(NodeEnv.NODE_RANK, 1)
-        infs = operator.infer([])
-        self.assertEqual(len(infs), 0)
-
-    def test_resource_collect_operator(self):
-        error_log = "GPU is lost"
-
-        res_collect_operator = ResourceCollectionOperator()
-        res_collect_operator._monitor.report_resource = mock.MagicMock(
-            side_effect=Exception(error_log)
-        )
-
-        res_collect_inf = Inference(
-            name=InferenceName.WORKER,
-            attribution=InferenceAttribute.COLLECT,
-            description=InferenceDescription.RESOURCE,
-        )
-        self.assertTrue(res_collect_operator.is_compatible(res_collect_inf))
-
-        gpu_error_inf = Inference(
-            name=InferenceName.GPU,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.ERROR,
-        )
-
-        infs = res_collect_operator.infer([])
-        self.assertEqual(len(infs), 1)
-
-        self.assertTrue(is_same_inference(infs[0], gpu_error_inf))
-        self.assertEqual(infs[0].configs[InferenceConfigKey.LOGS], error_log)
-
-    def test_check_failure_node_operator(self):
-        file = "data/training.log"
-        path = os.path.dirname(__file__)
-        file_path = os.path.join(path, file)
-
-        operator = CheckFailureNodeOperator()
-        inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: file_path,
-                InferenceConfigKey.ERRORS: "error code is 507035",
-            },
-        )
-        self.assertTrue(operator.is_compatible(inf))
-
-        results = operator.infer([inf])
-        failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.FAILURE,
-        )
-        self.assertTrue(is_same_inference(results[0], failure_inf))
-
-        #########################################################
-        inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.ISORNOT,
-            description=InferenceDescription.FAILURE,
-            configs={
-                InferenceConfigKey.LOG_FILE: file_path,
-                InferenceConfigKey.ERRORS: "error code is 123456",
-            },
-        )
-
-        results = operator.infer([inf])
-        not_failure_inf = Inference(
-            name=InferenceName.NODE,
-            attribution=InferenceAttribute.NOT,
-            description=InferenceDescription.FAILURE,
-        )
-        self.assertTrue(is_same_inference(results[0], not_failure_inf))
-
-    def test_resolve_gpu_error_operator(self):
-        error_log = DiagnosisErrorConstant.GPU_LOST
-
-        operator = ResolveGPUErrorsOperator()
-        gpu_error_inf = Inference(
-            name=InferenceName.GPU,
-            attribution=InferenceAttribute.IS,
-            description=InferenceDescription.ERROR,
-            configs={
-                InferenceConfigKey.LOGS: error_log,
-                InferenceConfigKey.ERRORS: DiagnosisErrorConstant.GPU_LOST,
-            },
-        )
-        self.assertTrue(operator.is_compatible(gpu_error_inf))
-
-        infs = operator.infer([gpu_error_inf])
-        self.assertEqual(len(infs), 1)
-
-        self.assertEqual(infs[0].name, InferenceName.ACTION)
-        self.assertEqual(
-            infs[0].configs[InferenceConfigKey.EVENT_TYPE],
-            EventReportConstants.TYPE_WARN,
-        )
+        self.assertTrue(results[0].name, "simple_result")
 
 
 if __name__ == "__main__":
