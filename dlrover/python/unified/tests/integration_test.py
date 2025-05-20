@@ -16,6 +16,8 @@ import unittest
 
 import ray
 
+from dlrover.python.unified.master.mpmd.master import MPMDMaster
+
 try:
     from ray.exceptions import ActorDiedError as ade
 except ImportError:
@@ -26,7 +28,6 @@ from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.dl_context import RLContext
-from dlrover.python.unified.master.master import BaseMaster
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 from dlrover.python.unified.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
@@ -137,7 +138,7 @@ class RLMasterNormalTest(BaseMasterTest):
 
         master_name = "test"
 
-        master_actor = BaseMaster.options(
+        master_actor = MPMDMaster.options(
             name=master_name,
             lifetime="detached",
         ).remote(
@@ -192,7 +193,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
 
         master_name = "test"
 
-        master_actor = BaseMaster.options(
+        master_actor = MPMDMaster.options(
             name=master_name, lifetime="detached"
         ).remote(
             self._job_context.job_config.serialize(),
@@ -246,7 +247,7 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
 
         master_name = "test"
 
-        master_actor = BaseMaster.options(
+        master_actor = MPMDMaster.options(
             name=master_name, lifetime="detached"
         ).remote(
             self._job_context.job_config.serialize(),

@@ -47,4 +47,4 @@ class DriverTest(unittest.TestCase):
         ]
 
         main(args)
-        self.assertIsNotNone(ray.get_actor("DLRoverDLMaster-test"))
+        self.assertIsNotNone(ray.get_actor("DLMaster-test"))
