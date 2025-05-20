@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest import mock
 from unittest.mock import patch
 
 from dlrover.python.common.enums import ResourceType
@@ -268,4 +269,38 @@ class DLContextTest(unittest.TestCase):
             f"{TestData.UD_SIMPLE_HOST_INVALID_GROUPED_RL_CONF_1}",
         ]
         rl_context = DLContext.build_from_args(parse_job_args(args))
+        self.assertFalse(rl_context.validate())
+
+    def test_validation(self):
+        args = [
+            "--job_name",
+            "test",
+            "--dl_type",
+            "RL",
+            "--dl_config",
+            f"{TestData.UD_SIMPLE_MOCK_RL_CONF}",
+        ]
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        rl_context._trainer = None
+        self.assertFalse(rl_context.validate())
+
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        rl_context._node_number = 0
+        self.assertFalse(rl_context.validate())
+
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        rl_context._device_per_node = 0
+        self.assertFalse(rl_context.validate())
+
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        rl_context._trainer._torch_master_port = [1, 2, 3, 4, 5, 6, 7]
+        self.assertFalse(rl_context.validate())
+
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+        rl_context._trainer._module_name = "test"
+        self.assertFalse(rl_context.validate())
+
+        rl_context = RLContext.build_from_args(parse_job_args(args))
+
+        rl_context.workload_group.cal_total_resource = mock.MagicMock(1)
         self.assertFalse(rl_context.validate())

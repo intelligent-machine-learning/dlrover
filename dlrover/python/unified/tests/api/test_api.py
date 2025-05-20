@@ -15,7 +15,11 @@ import unittest
 from omegaconf import OmegaConf
 
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
-from dlrover.python.unified.common.enums import DLStreamType, TrainerType
+from dlrover.python.unified.common.enums import (
+    DLStreamType,
+    DLType,
+    TrainerType,
+)
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
 
@@ -71,6 +75,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(
             rl_job.get_workload("actor").module_class, ("m1", "c1")
         )
+        self.assertEqual(rl_job._components["actor"].role_name, "actor")
         self.assertEqual(rl_job.get_workload("actor").total, 4)
         self.assertEqual(rl_job.get_workload("actor").per_node, 2)
         self.assertEqual(rl_job.get_workload("actor").env, {"e1": "v1"})
@@ -99,6 +104,43 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(rl_config["trainer"]["class"], "c0")
         self.assertEqual(len(rl_config["workload"]), 5)
         self.assertEqual(len(rl_config["workload_group"]), 1)
+
+    def test_dl_type(self):
+        dl_job = (
+            DLJobBuilder()
+            .as_data_stream()
+            .SFT_type()
+            .node_num(2)
+            .device_per_node(4)
+            .config({"k1": "v1"})
+            .build()
+        )
+
+        self.assertEqual(dl_job.dl_type, DLType.SFT.name)
+
+        dl_job = (
+            DLJobBuilder()
+            .as_data_stream()
+            .PRE_type()
+            .node_num(2)
+            .device_per_node(4)
+            .config({"k1": "v1"})
+            .build()
+        )
+
+        self.assertEqual(dl_job.dl_type, DLType.PRE.name)
+
+        dl_job = (
+            DLJobBuilder()
+            .as_data_stream()
+            .MULTIMODAL_type()
+            .node_num(2)
+            .device_per_node(4)
+            .config({"k1": "v1"})
+            .build()
+        )
+
+        self.assertEqual(dl_job.dl_type, DLType.MULTIMODAL.name)
 
     def test_validation(self):
         # without dl type
@@ -134,6 +176,12 @@ class ApiTest(unittest.TestCase):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).trainer("m0", "c0").build()
+
+        # invalid trainer
+        with self.assertRaises(InvalidDLConfiguration):
+            RLJobBuilder().node_num(1).device_per_node(1).config(
+                {"k1": "v1"}
+            ).trainer("", "").build()
 
         # invalid collocation
         with self.assertRaises(InvalidDLConfiguration):

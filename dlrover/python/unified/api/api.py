@@ -329,10 +329,6 @@ class DLJobBuilder(object):
             logger.error("'config' must be dict type and cannot be empty.")
             return False
 
-        if not isinstance(self._env, dict):
-            logger.error("'env' must be dict type.")
-            return False
-
         # for role components
         if self._stream_type == DLStreamType.TASK_STREAM:
             if "trainer" not in list(self._components.keys()):
@@ -340,10 +336,9 @@ class DLJobBuilder(object):
                 return False
 
         for role, component in self._components.items():
-            if role == "trainer":
-                if not component:
-                    logger.error("'trainer' must be configured.")
-                    return False
+            if not component:
+                logger.error(f"'{role}' must be configured.")
+                return False
 
             if component:
                 if not component._module_name or not component._class_name:
@@ -458,7 +453,7 @@ class DLJobBuilder(object):
         self._dl_type = dl_type
         return self
 
-    def task_stream(self):
+    def as_task_stream(self):
         """
         Set as task stream.
         """
@@ -466,7 +461,7 @@ class DLJobBuilder(object):
         self._stream_type = DLStreamType.TASK_STREAM
         return self
 
-    def data_stream(self):
+    def as_data_stream(self):
         """
         Set as data stream.
         """
