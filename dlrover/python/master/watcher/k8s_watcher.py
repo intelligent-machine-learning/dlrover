@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -75,32 +75,35 @@ def _get_pod_exit_reason(pod):
             ExitCode.CORE_DUMP_ERROR_CODE,
         ):
             return NodeExitReason.FATAL_ERROR
+        elif exit_code in (
+            ExitCode.GPU_DRIVER_ERROR,
+            ExitCode.GPU_POD_RESIDUE,
+            ExitCode.GPU_INFOROM_CORRUPTED,
+        ):
+            logger.info(
+                "Possible error found in GPU. Will relaunch this node."
+            )
+            return NodeExitReason.HARDWARE_ERROR
+        elif exit_code == 0:
+            return NodeExitReason.Succeeded
         else:
-            if exit_code in (
-                ExitCode.GPU_DRIVER_ERROR,
-                ExitCode.GPU_POD_RESIDUE,
-                ExitCode.GPU_INFOROM_CORRUPTED,
-            ):
-                logger.info(
-                    "Possible error found in GPU. Kill this node and launch a"
-                    " new one."
-                )
-                return NodeExitReason.HARDWARE_ERROR
             return NodeExitReason.UNKNOWN_ERROR
+
+    return ""
 
 
 def _convert_pod_event_to_node_event(event):
-    evt_obj = event.get("object")
+    pod = event.get("object")
     evt_type = event.get("type")
-    if not evt_obj or not evt_type:
+    if not pod or not evt_type:
         logger.error("Event doesn't have object or type: %s" % event)
         return None
 
-    if evt_obj.kind != "Pod":
+    if pod.kind != "Pod":
         # We only care about pod related events
         return None
 
-    metadata: client.V1ObjectMeta = evt_obj.metadata
+    metadata: client.V1ObjectMeta = pod.metadata
 
     # Skip events of dlrover mater Pod
     pod_type = metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
@@ -110,10 +113,10 @@ def _convert_pod_event_to_node_event(event):
     rank = int(metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
     pod_id = int(metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
     pod_name = metadata.name
-    host_name = evt_obj.spec.node_name
-    host_ip = evt_obj.status.host_ip
+    host_name = pod.spec.node_name
+    host_ip = pod.status.host_ip
 
-    status = evt_obj.status.phase
+    status = pod.status.phase
     if metadata.deletion_timestamp:
         status = NodeStatus.DELETED
 
@@ -122,11 +125,11 @@ def _convert_pod_event_to_node_event(event):
         f"node: {host_name}, ip: {host_ip}, status: {status}."
     )
 
-    restart = _verify_restarting_training(evt_obj)
+    restart = _verify_restarting_training(pod)
     if restart:
-        logger.info(f"{evt_obj.metadata.name} need to restart.")
+        logger.info(f"{pod.metadata.name} need to restart.")
 
-    resource = _parse_container_resource(evt_obj.spec.containers[0])
+    resource = _parse_container_resource(pod.spec.containers[0])
 
     relaunch_count = int(metadata.labels[ElasticJobLabel.RELAUNCH_COUNT])
     node = Node(
@@ -135,7 +138,7 @@ def _convert_pod_event_to_node_event(event):
         name=pod_name,
         rank_index=rank,
         status=status,
-        start_time=_get_start_timestamp(evt_obj.status),
+        start_time=_get_start_timestamp(pod.status),
         config_resource=resource,
         host_name=host_name,
         host_ip=host_ip,
@@ -143,7 +146,9 @@ def _convert_pod_event_to_node_event(event):
         relaunch_count=relaunch_count,
     )
     node.create_time = metadata.creation_timestamp
-    node.set_exit_reason(_get_pod_exit_reason(evt_obj))
+
+    if NodeStatus.is_terminated_status(status):
+        node.set_exit_reason(_get_pod_exit_reason(pod))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
 
@@ -266,7 +271,9 @@ class PodWatcher(NodeWatcher):
                 restart_training=restart_training,
                 relaunch_count=relaunch_count,
             )
-            node.set_exit_reason(_get_pod_exit_reason(pod))
+
+            if NodeStatus.is_terminated_status(status):
+                node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
 
             # delete pod if pod already succeeded(no need for failed pod,
