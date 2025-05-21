@@ -49,7 +49,6 @@ type ElasticJobReconciler struct {
 	Scheme      *runtime.Scheme
 	Recorder    record.EventRecorder
 	Log         logr.Logger
-	CachedJobs  map[string]*elasticv1alpha1.ElasticJob
 	masterImage string
 }
 
@@ -60,7 +59,6 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 		Scheme:      mgr.GetScheme(),
 		Recorder:    mgr.GetEventRecorderFor("elasticjob-controller"),
 		Log:         ctrl.Log.WithName("controllers").WithName("ElasticJob"),
-		CachedJobs:  make(map[string]*elasticv1alpha1.ElasticJob),
 		masterImage: masterImage,
 	}
 	return r
@@ -84,23 +82,19 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
-	if _, ok := r.CachedJobs[req.Name]; !ok {
-		// Fetch the elastic Training job
-		job, err := r.fetchElasticJob(req.NamespacedName)
-		if job == nil {
-			if errors.IsNotFound(err) {
-				return ctrl.Result{}, nil
-			}
-			return ctrl.Result{}, err
-		}
-		if job.DeletionTimestamp != nil {
-			rlog.Info("Reconcile cancelled, the job has been deleted")
+	// Fetch the elastic Training job
+	job, err := r.fetchElasticJob(req.NamespacedName)
+	if job == nil {
+		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
-		r.Scheme.Default(job)
-		r.CachedJobs[req.Name] = job
+		return ctrl.Result{}, err
 	}
-	job := r.CachedJobs[req.Name]
+	if job.DeletionTimestamp != nil {
+		rlog.Info("Reconcile cancelled, the job has been deleted")
+		return ctrl.Result{}, nil
+	}
+	r.Scheme.Default(job)
 	return r.reconcileJobs(job)
 }
 
@@ -153,10 +147,8 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		}
 	case apiv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
-		delete(r.CachedJobs, job.Name)
 	case apiv1.JobFailed:
 		logger.Infof("Job %s failed", job.Name)
-		delete(r.CachedJobs, job.Name)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
@@ -321,11 +313,17 @@ func (r *ElasticJobReconciler) getPodOwnerElasticJob(pod *corev1.Pod) *elasticv1
 	if ownerRef.Kind != "ElasticJob" {
 		return nil
 	}
-	jobName := ownerRef.Name
-	if _, exist := r.CachedJobs[jobName]; !exist {
+
+	job, err := r.fetchElasticJob(types.NamespacedName{Namespace: pod.Namespace, Name: ownerRef.Name})
+	if err != nil {
+		logger.Warningf("Failed to get %s : %s, error: %v",
+			ownerRef.Kind, ownerRef.Name, err)
+	}
+	if job == nil {
 		return nil
 	}
-	return r.CachedJobs[jobName]
+
+	return job
 }
 
 func updateElasticJobStatus(client client.Client, job *elasticv1alpha1.ElasticJob) error {
