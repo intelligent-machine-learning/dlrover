@@ -50,6 +50,7 @@ type ElasticJobReconciler struct {
 	Scheme      *runtime.Scheme
 	Recorder    record.EventRecorder
 	Log         logr.Logger
+	CachedJobs  map[string]*elasticv1alpha1.ElasticJob
 	masterImage string
 }
 
@@ -60,6 +61,7 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 		Scheme:      mgr.GetScheme(),
 		Recorder:    mgr.GetEventRecorderFor("elasticjob-controller"),
 		Log:         ctrl.Log.WithName("controllers").WithName("ElasticJob"),
+		CachedJobs:  make(map[string]*elasticv1alpha1.ElasticJob),
 		masterImage: masterImage,
 	}
 	return r
@@ -83,7 +85,7 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
-	// Fetch the elastic Training job
+
 	job, err := r.fetchElasticJob(req.NamespacedName)
 	if job == nil {
 		if errors.IsNotFound(err) {
@@ -95,7 +97,11 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		rlog.Info("Reconcile cancelled, the job has been deleted")
 		return ctrl.Result{}, nil
 	}
-	r.Scheme.Default(job)
+
+	if _, ok := r.CachedJobs[req.Name]; ok {
+		job.Status = r.CachedJobs[req.Name].Status
+	}
+	r.CachedJobs[req.Name] = job
 	return r.reconcileJobs(job)
 }
 
@@ -148,8 +154,10 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		}
 	case apiv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
+		delete(r.CachedJobs, job.Name)
 	case apiv1.JobFailed:
 		logger.Infof("Job %s failed", job.Name)
+		delete(r.CachedJobs, job.Name)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
@@ -277,7 +285,11 @@ func decreaseReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJob
 
 func updateJobStatusPhase(masterPod *corev1.Pod, job *elasticv1alpha1.ElasticJob) {
 	failedCount := job.Status.ReplicaStatuses[JobMasterReplicaType].Failed
-	restartCount := int32(job.Spec.ReplicaSpecs[JobMasterReplicaType].RestartCount)
+
+	restartCount := int32(0)
+	if job.Spec.ReplicaSpecs[JobMasterReplicaType] != nil {
+		restartCount = int32(job.Spec.ReplicaSpecs[JobMasterReplicaType].RestartCount)
+	}
 	if failedCount > restartCount {
 		msg := fmt.Sprintf("The job master failover count %d is beyond the restart count %d.",
 			failedCount, restartCount)
@@ -314,17 +326,11 @@ func (r *ElasticJobReconciler) getPodOwnerElasticJob(pod *corev1.Pod) *elasticv1
 	if ownerRef.Kind != "ElasticJob" {
 		return nil
 	}
-
-	job, err := r.fetchElasticJob(types.NamespacedName{Namespace: pod.Namespace, Name: ownerRef.Name})
-	if err != nil {
-		logger.Warningf("Failed to get %s : %s, error: %v",
-			ownerRef.Kind, ownerRef.Name, err)
-	}
-	if job == nil {
+	jobName := ownerRef.Name
+	if _, exist := r.CachedJobs[jobName]; !exist {
 		return nil
 	}
-
-	return job
+	return r.CachedJobs[jobName]
 }
 
 func updateElasticJobStatus(c client.Client, job *elasticv1alpha1.ElasticJob) error {
