@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/util/retry"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -326,9 +327,21 @@ func (r *ElasticJobReconciler) getPodOwnerElasticJob(pod *corev1.Pod) *elasticv1
 	return job
 }
 
-func updateElasticJobStatus(client client.Client, job *elasticv1alpha1.ElasticJob) error {
+func updateElasticJobStatus(c client.Client, job *elasticv1alpha1.ElasticJob) error {
 	updateJob := job.DeepCopy()
-	err := client.Status().Update(context.TODO(), updateJob)
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		currentJob := &elasticv1alpha1.ElasticJob{}
+		if err := c.Get(context.TODO(), types.NamespacedName{
+			Namespace: updateJob.Namespace,
+			Name:      updateJob.Name,
+		}, currentJob); err != nil {
+			return err
+		}
+
+		currentJob.Status = updateJob.Status
+		return c.Status().Update(context.TODO(), currentJob)
+	})
 	if err != nil {
 		logger.Warningf("Failed to update %s : %s, error: %v",
 			job.GetObjectKind().GroupVersionKind(),
