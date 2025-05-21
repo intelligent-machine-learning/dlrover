@@ -231,6 +231,15 @@ class JobContext(Singleton):
     def is_request_stopped(self):
         return self._job_stage == JobStage.JOB_STOPPED
 
+    def request_suspend(self):
+        self._job_stage = JobStage.JOB_SUSPENDED
+
+    def request_unsuspend(self):
+        self._job_stage = JobStage.JOB_RUNNING
+
+    def is_suspended(self):
+        return self._job_stage == JobStage.JOB_SUSPENDED
+
 
 def get_job_context() -> JobContext:
     job_context = JobContext.singleton_instance()

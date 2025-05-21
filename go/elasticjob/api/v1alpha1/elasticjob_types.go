@@ -57,6 +57,13 @@ type ElasticJobSpec struct {
 
 	// Envs specifies environment variables for Pods of the job.
 	Envs map[string]*corev1.EnvVar `json:"envs,omitempty"`
+
+	// Suspend specifies whether the master should create Pods or not.
+	// If a Job is created with suspend set to true, no Pods are created by
+	// the master
+	// Defaults to false.
+	// +optional
+	Suspend *bool `json:"suspend,omitempty"`
 }
 
 // ReplicaSpec specifies the number and resources of replica.

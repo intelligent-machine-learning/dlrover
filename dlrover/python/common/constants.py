@@ -479,6 +479,7 @@ class JobStage(object):
     JOB_RUNNING = "running"
     JOB_STOPPING = "stopping"
     JOB_STOPPED = "stopped"
+    JOB_SUSPENDED = "suspended"
 
 
 class KeyValueOps(object):

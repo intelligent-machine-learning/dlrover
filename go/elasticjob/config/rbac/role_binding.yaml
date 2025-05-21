@@ -10,3 +10,6 @@ subjects:
 - kind: ServiceAccount
   name: controller-manager
   namespace: system
+- kind: ServiceAccount
+  name: default
+  namespace: dlrover
