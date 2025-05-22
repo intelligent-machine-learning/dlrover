@@ -99,7 +99,7 @@ def train_generator(shard_service):
         shard = shard_service.fetch_shard()
         if not shard:
             break
-        for i in range(shard.start, shard.end):
+        for i in range(shard.start_job, shard.end):
             label = CATEGORY_CODE[rows[i][-1]]
             yield rows[i][0:-1], [label]
             time.sleep(0.01)
