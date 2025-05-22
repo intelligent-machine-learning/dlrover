@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -86,6 +86,17 @@ class NodeStatus(object):
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
 
+    @classmethod
+    def is_terminal_status(cls, status):
+        if status in [
+            NodeStatus.FAILED,
+            NodeStatus.DELETED,
+            NodeStatus.FINISHED,
+            NodeStatus.SUCCEEDED,
+        ]:
+            return True
+        return False
+
 
 class NodeEventType(object):
     """Notice: the type here is equal to the pod event type by k8s"""
@@ -141,6 +152,7 @@ class NpuMetricEnum(object):
 
 
 class NodeExitReason(object):
+    Succeeded = "Succeeded"
     KILLED = "Deleted"
     OOM = "OOMKilled"
     FATAL_ERROR = "Error"
