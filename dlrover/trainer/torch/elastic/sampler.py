@@ -70,8 +70,6 @@ class ElasticDistributedSampler(DistributedSampler):
 
     def __iter__(self) -> Iterator[T_co]:
         indices = []  # type: ignore
-        if self.epoch not in self._epoch_checkpoint:
-            self._init_num_samples()
         if self.shuffle:
             # deterministically shuffle based on epoch and seed
             g = torch.Generator()
@@ -80,9 +78,14 @@ class ElasticDistributedSampler(DistributedSampler):
         else:
             indices = list(range(len(self.dataset)))
 
+        if self.epoch not in self._epoch_checkpoint:
+            self._init_num_samples()
+        completed_num = self._epoch_checkpoint.get(self.epoch, 0)
+        indices = indices[completed_num:]
+        total_size = self.num_samples * self.num_replicas
         if not self.drop_last:
             # add extra samples to make it evenly divisible
-            padding_size = self.total_size - len(indices)
+            padding_size = total_size - len(indices)
             if padding_size <= len(indices):
                 indices += indices[:padding_size]
             else:
@@ -91,15 +94,9 @@ class ElasticDistributedSampler(DistributedSampler):
                 ]
         else:
             # remove tail of data to make it evenly divisible.
-            indices = indices[: self.total_size]
-        assert len(indices) == self.total_size
+            indices = indices[:total_size]
+        assert len(indices) == total_size
 
-        # subsample
-        # ensure each rank receives the same amount of data when importing the
-        # checkpoint to continue training for the rest of the current epoch
-        if self.epoch in self._epoch_checkpoint:
-            remaining_sampler = self.num_samples * self.num_replicas
-            indices = indices[-remaining_sampler:]
         # fmt: off
         indices = indices[self.rank:self.total_size:self.num_replicas]
         # fmt: on
@@ -117,7 +114,6 @@ class ElasticDistributedSampler(DistributedSampler):
             )
         else:
             self.num_samples = math.ceil(len(self.dataset) / self.num_replicas)
-        self.total_size = self.num_samples * self.num_replicas
 
     def state_dict(self, iter_step, micro_batch_size):
         """Checkpoint the index of the last completed sample.
@@ -153,21 +149,6 @@ class ElasticDistributedSampler(DistributedSampler):
             )
         else:
             self.num_samples = math.ceil(remaining_samples / self.num_replicas)
-        self.total_size = self.num_samples * self.num_replicas + completed_num
-        # eliminate the impact caused by completed_num potentially
-        # not being divisible by num_replicas
-        if self.drop_last and self.total_size % self.num_replicas != 0:
-            self.total_size = (
-                math.ceil(
-                    (self.total_size - self.num_replicas) / self.num_replicas
-                )
-                * self.num_replicas
-            )
-        else:
-            self.total_size = (
-                math.ceil(self.total_size / self.num_replicas)
-                * self.num_replicas
-            )
         logger.info(
             "Load epoch = %s, completed num = %s, num_samples = %s",
             self.epoch,

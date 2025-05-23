@@ -58,7 +58,7 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         )
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
-        self.assertEqual(val, 66)
+        self.assertEqual(val, 64)
 
         for i in sampler:
             pass
@@ -75,7 +75,7 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         )
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
-        self.assertEqual(val, 63)
+        self.assertEqual(val, 64)
 
     def test_checkpoint_with_scaling(self):
         dataset = SimpleDataset(len=60000)
@@ -83,9 +83,10 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         batch_size = 8
         step = 0
         checkpoint_step = 4
+        num_replicas = 8
         sampler = ElasticDistributedSampler(
             dataset=dataset,
-            num_replicas=8,
+            num_replicas=num_replicas,
             rank=0,
             shuffle=False,
         )
@@ -93,7 +94,10 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
 
         # 2 Save the checkpoint
         sampler_state = None
+        val = 0
         for i, v in enumerate(sampler):
+            self.assertEqual(val, v)
+            val += num_replicas
             if i % batch_size == 0:
                 step = i / batch_size
             if step == checkpoint_step:
@@ -105,17 +109,22 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
 
         # 3 Resume with 6 replicas from checkpoint, and epoch is 0
         sampler.set_epoch(0)
+        num_replicas = 6
         sampler = ElasticDistributedSampler(
             dataset=dataset,
-            num_replicas=6,
+            num_replicas=num_replicas,
             rank=0,
             shuffle=False,
         )
         sampler.load_state_dict(sampler_state)
+        val = 8 * batch_size * checkpoint_step
         for i in sampler:
-            pass
+            self.assertEqual(val, i)
+            val += num_replicas
 
         # 4 Continue, but epoch is 1
         sampler.set_epoch(1)
+        val = 0
         for i in sampler:
-            pass
+            self.assertEqual(val, i)
+            val += num_replicas
