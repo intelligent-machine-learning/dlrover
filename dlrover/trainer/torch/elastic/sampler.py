@@ -70,6 +70,8 @@ class ElasticDistributedSampler(DistributedSampler):
 
     def __iter__(self) -> Iterator[T_co]:
         indices = []  # type: ignore
+        if self.epoch not in self._epoch_checkpoint:
+            self._init_num_samples()
         if self.shuffle:
             # deterministically shuffle based on epoch and seed
             g = torch.Generator()
@@ -101,8 +103,6 @@ class ElasticDistributedSampler(DistributedSampler):
         # fmt: off
         indices = indices[self.rank:self.total_size:self.num_replicas]
         # fmt: on
-        if self.epoch not in self._epoch_checkpoint:
-            self._init_num_samples()
         assert len(indices) == self.num_samples
 
         return iter(indices)
@@ -117,6 +117,7 @@ class ElasticDistributedSampler(DistributedSampler):
             )
         else:
             self.num_samples = math.ceil(len(self.dataset) / self.num_replicas)
+        self.total_size = self.num_samples * self.num_replicas
 
     def state_dict(self, iter_step, micro_batch_size):
         """Checkpoint the index of the last completed sample.
