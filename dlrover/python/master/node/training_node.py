@@ -345,6 +345,7 @@ class TrainingNodeManager(object):
     def all_nodes_exited(self):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
         if len(nodes) == 0:
+            logger.debug(f"All {self._node_type} nodes exited")
             return True
         counter = self._get_node_counter()
 
@@ -378,6 +379,11 @@ class TrainingNodeManager(object):
                     ]:
                         pending_high_workers.append(worker_id)
 
+            logger.debug(
+                f"Check all {self._node_type} nodes exited: "
+                f"{running_workers} {pending_high_workers} "
+                f"{pending_low_workers} {high_worker_num}"
+            )
             if (
                 running_workers
                 or pending_high_workers

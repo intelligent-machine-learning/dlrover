@@ -597,15 +597,19 @@ class DistributedJobManager(JobManager):
 
         logger.debug(f"Got list nodes: {nodes}")
         exist_nodes: Dict[str, List[int]] = {}
+        exist_ranks: Dict[str, List[int]] = {}
         job_nodes = self.get_job_nodes()
         for node_type in job_nodes.keys():
             exist_nodes[node_type] = []
+            exist_ranks[node_type] = []
 
         if nodes:
             for node in nodes:
                 node_type = node.type
                 node_id = node.id
+                node_rank = node.rank_index
                 exist_nodes[node_type].append(node_id)
+                exist_ranks[node_type].append(node_rank)
 
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
@@ -638,6 +642,22 @@ class DistributedJobManager(JobManager):
                 ):
                     logger.info(
                         f"Node {node_type} {node.id} is deleted "
+                        "without the event"
+                    )
+                    new_node = copy.deepcopy(node)
+                    new_node.is_released = True
+                    new_node.status = NodeStatus.DELETED
+                    event = NodeEvent(NodeEventType.DELETED, new_node)
+                    self._process_event_safely(event)
+                elif (
+                    node.status == NodeStatus.INITIAL
+                    and not node.is_released
+                    and node.id not in exist_nodes[node_type]
+                    and node.rank_index in exist_ranks[node_type]
+                ):
+                    logger.info(
+                        f"Node {node_type} {node.id} with "
+                        f"rank {node.rank_index} is relaunched by new node "
                         "without the event"
                     )
                     new_node = copy.deepcopy(node)
@@ -868,7 +888,9 @@ class DistributedJobManager(JobManager):
                 for callback in self._node_event_callbacks
             ]
 
-    def _should_relaunch(self, node: Node, status_change_flow: NodeStateFlow):
+    def _should_relaunch(
+        self, node: Node, status_change_flow: NodeStateFlow
+    ) -> object:
         should_relaunch = (
             status_change_flow.should_relaunch
             and self._enable_relaunch_node
@@ -876,6 +898,10 @@ class DistributedJobManager(JobManager):
         )
         msg = ""
         if should_relaunch:
+            logger.info(
+                f"Recheck should_relaunch with {node} {node.config_resource}: "
+                f"{job_ctx.get_job_stage()} {self.is_all_reduce_type_job()}"
+            )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
@@ -1276,6 +1302,7 @@ class DistributedJobManager(JobManager):
                     instance=DiagnosisConstant.ANY_INSTANCE
                 )
             else:
+                logger.debug(f"Collect action from {node_id}: {action}")
                 return action
 
     def update_node_required_info_callback(self):
@@ -1304,8 +1331,12 @@ class DistributedJobManager(JobManager):
                 target_node.update_reported_status(event_type)
                 self._job_context.update_job_node(target_node)
 
-            if event_type is NodeEventType.SUCCEEDED_EXITED:
+            if event_type == NodeEventType.SUCCEEDED_EXITED:
                 self._job_context.update_job_stage(JobStage.JOB_STOPPING)
+                logger.info(
+                    f"Update job stage to {self._job_context.get_job_stage()} "
+                    f"due to event {event_type}."
+                )
 
     def get_node_required_info(self):
         return self._nodes_required

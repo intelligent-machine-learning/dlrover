@@ -17,6 +17,7 @@ from dlrover.python.common.constants import (
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
+    NodeStatus,
 )
 from dlrover.python.common.node import Node, NodeEvent
 
@@ -69,6 +70,9 @@ class NodeTest(unittest.TestCase):
         node.update_reported_status(NodeEventType.SUCCEEDED_EXITED)
         self.assertTrue(node.is_succeeded_and_exited())
         self.assertTrue(node.is_exited_reported())
+        self.assertEqual(
+            node.get_reported_status(), NodeEventType.SUCCEEDED_EXITED
+        )
 
         node.update_reported_status(NodeEventType.NODE_CHECK_FAILED)
         self.assertTrue(node.is_succeeded_and_exited())
@@ -101,3 +105,9 @@ class NodeTest(unittest.TestCase):
         event = NodeEvent(NodeEventType.WAIT_PRE_CHECK, node)
         self.assertFalse(event.is_node_check_event())
         self.assertTrue(event.is_pre_check_event())
+
+    def test_node_status(self):
+        self.assertFalse(NodeStatus.is_terminal_status(NodeStatus.INITIAL))
+        self.assertFalse(NodeStatus.is_terminal_status(NodeStatus.RUNNING))
+        self.assertTrue(NodeStatus.is_terminal_status(NodeStatus.DELETED))
+        self.assertTrue(NodeStatus.is_terminal_status(NodeStatus.FAILED))

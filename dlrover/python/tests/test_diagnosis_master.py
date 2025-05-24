@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import threading
 import time
 import unittest
 from datetime import datetime
@@ -22,15 +23,23 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.common.constants import (
     Accelerators,
     GpuMetricEnum,
+    NodeStatus,
+    NodeType,
+    NpuMetricEnum,
     PlatformType,
     PreCheckStatus,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.common.metric.metric import GpuMetric, GpuNodeMetric
+from dlrover.python.common.metric.monitor import (
+    GpuMetricMonitor,
+    NpuMetricMonitor,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
+    DiagnosisConstant,
     DiagnosisDataType,
     DiagnosisResult,
 )
@@ -94,15 +103,30 @@ class DiagnosisMasterTest(unittest.TestCase):
 
     def test_diagnosis_master_api(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
-        args.xpu_type = Accelerators.GENERIC_CPU
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        monitor = GpuMetricMonitor(
+            job_name=args.job_name,
+            metrics=[
+                GpuMetricEnum.GPU_UTIL,
+                GpuMetricEnum.GPU_TENSOR_UTIL,
+            ],
+        )
         mgr = DiagnosisMaster(job_args=args)
-        self.assertEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
+        mgr.new_metric_monitor(monitor)
+        mgr.start_metric_collect()
+        mgr.stop_metric_collect()
+
+        args.xpu_type = Accelerators.ASCEND_NPU
+        monitor = NpuMetricMonitor(
+            job_name=args.job_name,
+            metrics=[
+                NpuMetricEnum.NPU_UTIL,
+            ],
         )
-        mgr._job_args.xpu_type = Accelerators.ASCEND_NPU
-        self.assertNotEqual(
-            mgr.start_metric_collect(), DiagnosisResult.DIAG_INVALID_PARAM
-        )
+        mgr = DiagnosisMaster(job_args=args)
+        mgr.new_metric_monitor(monitor)
+        mgr.start_metric_collect()
+        mgr.stop_metric_collect()
 
         mgr = DiagnosisMaster(job_args=args)
         mgr.pre_check()
@@ -203,8 +227,96 @@ class DiagnosisMasterTest(unittest.TestCase):
             mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
         )
         self.assertEqual(
-            mgr.check_tensor_drop_zero(30)[0], DiagnosisResult.DIAG_HANG
+            mgr.check_tensor_drop_zero(29)[0], DiagnosisResult.DIAG_HANG
         )
+
+    @patch(
+        "dlrover.python.common.event.context.JobEventContext"
+        ".check_job_step_hang",
+    )
+    def test_diagnose_metrics(self, mock_check_job_step_hang):
+        mock_check_job_step_hang.return_value = True
+
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        mgr = DiagnosisMaster(job_args=args)
+        _metric_context.clear_node_metrics()
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
+
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        ts = int(datetime.now().timestamp())
+        for _ in range(30):
+            ts = ts + 60
+            _metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(10)[0], DiagnosisResult.DIAG_HANG
+        )
+        self.assertEqual(
+            mgr.check_tensor_drop_zero(29)[0], DiagnosisResult.DIAG_HANG
+        )
+
+        _dlrover_context.hang_downtime = 10
+        _dlrover_context.hang_detection = 2
+        mgr._is_observing_started = True
+        mgr._is_observing_paused = False
+
+        def stop_diagnose_metric():
+            time.sleep(1)
+            mgr._is_observing_started = False
+
+        thread = threading.Thread(
+            target=stop_diagnose_metric,
+            daemon=True,
+        )
+        thread.start()
+        mgr._diagnose_metrics(interval=1)
+
+        mgr._is_observing_started = True
+        mgr._is_observing_paused = False
+        node = Node(
+            node_type=NodeType.WORKER,
+            node_id=3,
+            rank_index=0,
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+        )
+        mgr._job_context.update_job_node(node)
+
+        thread = threading.Thread(
+            target=stop_diagnose_metric,
+            daemon=True,
+        )
+        thread.start()
+        mgr._diagnose_metrics(interval=1)
+
+        action = mgr._job_context.next_action(DiagnosisConstant.ANY_INSTANCE)
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
+        self.assertEqual(action.instance, DiagnosisConstant.ANY_INSTANCE)
+        self.assertEqual(action.node_id, 3)
+
+        mgr._is_observing_started = False
+        mgr._is_observing_paused = False
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
+        _metric_context.clear_node_metrics()
 
     @patch(
         "dlrover.python.master.diagnosis.diagnosis_master"

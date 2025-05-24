@@ -17,6 +17,7 @@ import time
 import unittest
 from datetime import datetime
 from unittest import mock
+from unittest.mock import patch
 
 from dlrover.python.common.comm import AtorchEvent
 from dlrover.python.common.event.context import JobEventContext, StepEvents
@@ -24,6 +25,7 @@ from dlrover.python.common.event.train_event import (
     TrainEventName,
     TrainEventState,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
     AtorchInvalidException,
@@ -34,6 +36,7 @@ from dlrover.python.training_event.event import EventTargetName, EventTypeName
 from dlrover.python.training_event.predefined.trainer import TrainerEventName
 
 _event_context = JobEventContext.singleton_instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class AgentEventTest(unittest.TestCase):
@@ -212,6 +215,62 @@ class TrainingEventTest(unittest.TestCase):
             )
             collector.parse_line(line)
 
+    def test_atorch_parse_log(self):
+        events = StepEvents()
+        ckpts = StepEvents()
+
+        def mock_report_event(self, ts, target, event_name, event_type, step):
+            evt = AtorchEvent(
+                timestamp=ts,
+                step=step,
+                target=target,
+                name=event_name,
+                type=event_type,
+            )
+            if event_name == TrainEventName.TRAIN_EVT_STEP:
+                events.add_step_event(evt)
+            elif event_name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+                ckpts.add_ckpt_event(evt)
+
+        with patch.object(
+            AtorchEventCollector, "_report_event", mock_report_event
+        ):
+            collector = AtorchEventCollector(
+                filepath="dlrover/python/tests/data/training_events",
+                local_world_size=1,
+                retry_timeout=1,
+            )
+            collector.start_collectors()
+            time.sleep(1)
+            collector.stop_collectors()
+
+            _, step = events.pop_step_event()
+            self.assertEqual(step.step, 177020)
+            self.assertEqual(step.step_time, 21)
+            self.assertEqual(step.event_name, TrainEventName.TRAIN_EVT_STEP)
+            self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
+            _, step = events.pop_step_event()
+            self.assertEqual(step.step, 177021)
+            self.assertEqual(step.step_time, 16)
+            self.assertEqual(step.event_name, TrainEventName.TRAIN_EVT_STEP)
+            self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
+
+            _, step = ckpts.pop_step_event()
+            self.assertEqual(step.step, 177215)
+            self.assertEqual(step.step_time, 92)
+            self.assertEqual(
+                step.event_name, TrainEventName.TRAIN_EVT_FLASH_CKPT
+            )
+            self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
+
+            _, step = ckpts.pop_step_event()
+            self.assertEqual(step.step, 177413)
+            self.assertEqual(step.step_time, 91)
+            self.assertEqual(
+                step.event_name, TrainEventName.TRAIN_EVT_FLASH_CKPT
+            )
+            self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
+
     def test_atorch_collect_events(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             collector = AtorchEventCollector(
@@ -226,14 +285,23 @@ class TrainingEventTest(unittest.TestCase):
             filepath = os.path.join(tmpdir, "events_0.log")
             line = (
                 "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
-                '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004}'
+                '[#step] [BEGIN] {"global_step": 29, "epoch": 0.004}'
             )
             line2 = (
                 "[2025-01-22T19:02:30.422454] [2044] [323] [AtorchTrainerV2] "
                 '[#step] [END] {"global_step": 30, "epoch": 0.004}'
             )
+            line3 = (
+                "[2025-01-22T19:03:30.422454] [2044] [323] [AtorchTrainerV2] "
+                '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004}'
+            )
+            line4 = (
+                "[2025-01-22T19:03:45.422454] [2044] [323] [AtorchTrainerV2] "
+                '[#step] [END] {"global_step": 31, "epoch": 0.004}'
+            )
             with open(filepath, "w+") as f:
                 f.write(line + "\n")
+                f.write(line2 + "\n")
 
             with mock.patch(
                 "dlrover.python.diagnosis.datacollector."
@@ -249,6 +317,8 @@ class TrainingEventTest(unittest.TestCase):
             with open(filepath, "w+") as f:
                 f.write(line + "\n")
                 f.write(line2 + "\n")
+                f.write(line3 + "\n")
+                f.write(line4 + "\n")
             with mock.patch(
                 "dlrover.python.diagnosis.datacollector."
                 "atorch_event_collector.AtorchEventCollector._report_event",
@@ -309,23 +379,6 @@ class TrainingEventTest(unittest.TestCase):
         test_events.add_step_event(evt0)
         self.assertEqual(test_events.size(), 0)
 
-        evt0 = AtorchEvent(
-            timestamp=now,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_PREDICT_STEP,
-            type=EventTypeName.INSTANT,
-            step=1,
-        )
-        test_events.add_step_event(evt0)
-        self.assertEqual(test_events.size(), 1)
-        test_events.clear_step_events()
-        self.assertEqual(test_events.size(), 0)
-        test_events.add_step_event(evt0)
-        self.assertEqual(test_events.size(), 1)
-        test_events.pop_step_event()
-        self.assertEqual(test_events.size(), 0)
-
-        now = int(datetime.now().timestamp())
         evt1 = AtorchEvent(
             timestamp=now,
             target=EventTargetName.TRAINER,
@@ -336,22 +389,10 @@ class TrainingEventTest(unittest.TestCase):
         test_events.add_step_event(evt1)
         self.assertEqual(test_events.size(), 1)
 
-        evt2 = AtorchEvent(
-            timestamp=now + 1,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_STEP,
-            type=EventTypeName.END,
-            step=1,
-        )
-        test_events.add_step_event(evt2)
-        self.assertEqual(test_events.size(), 1)
-
         last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.begin_timestamp, None)
-        self.assertEqual(last_step.end_timestamp, None)
-        self.assertEqual(
-            last_step.event_state, TrainEventState.TRAIN_EVT_BEGIN
-        )
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, 0)
+        self.assertEqual(last_step.step, 1)
 
         evt2 = AtorchEvent(
             timestamp=now + 1,
@@ -364,28 +405,17 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(test_events.size(), 1)
 
         last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.begin_timestamp, None)
-        self.assertNotEqual(last_step.end_timestamp, None)
-        self.assertEqual(last_step.event_state, TrainEventState.TRAIN_EVT_END)
-        first_step = test_events.get_first_step_event()
-        self.assertEqual(first_step.step, last_step.step)
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, now + 1)
+        self.assertEqual(last_step.step, 2)
+        self.assertEqual(last_step.step_time, 1)
 
         evt3 = AtorchEvent(
             timestamp=now + 10,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_STEP,
             type=EventTypeName.END,
-            step=1,
-        )
-        test_events.add_step_event(evt3)
-        self.assertEqual(test_events.size(), 1)
-
-        evt3 = AtorchEvent(
-            timestamp=now + 10,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_STEP,
-            type=EventTypeName.BEGIN,
-            step=1,
+            step=2,
         )
         test_events.add_step_event(evt3)
         self.assertEqual(test_events.size(), 1)
@@ -400,8 +430,24 @@ class TrainingEventTest(unittest.TestCase):
         test_events.add_step_event(evt3)
         self.assertEqual(test_events.size(), 2)
 
-        evt4 = AtorchEvent(
+        evt3 = AtorchEvent(
             timestamp=now + 10,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_step_event(evt3)
+        self.assertEqual(test_events.size(), 2)
+
+        last_step = test_events.get_last_step_event()
+        self.assertEqual(last_step.begin_timestamp, now + 10)
+        self.assertEqual(last_step.end_timestamp, 0)
+        self.assertEqual(last_step.step, 2)
+        self.assertEqual(last_step.step_time, 0)
+
+        evt4 = AtorchEvent(
+            timestamp=now + 20,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_STEP,
             type=EventTypeName.END,
@@ -411,9 +457,12 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(test_events.size(), 2)
 
         last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.begin_timestamp, None)
-        self.assertNotEqual(last_step.end_timestamp, None)
+        self.assertEqual(last_step.begin_timestamp, now + 10)
+        self.assertEqual(last_step.end_timestamp, now + 20)
         self.assertEqual(last_step.event_state, TrainEventState.TRAIN_EVT_END)
+        self.assertEqual(last_step.step_time, 10)
+        self.assertEqual(last_step.step, 3)
+
         first_step = test_events.get_first_step_event()
         self.assertNotEqual(first_step.step, last_step.step)
 
@@ -422,7 +471,7 @@ class TrainingEventTest(unittest.TestCase):
         now = int(datetime.now().timestamp())
 
         ckpt1 = AtorchEvent(
-            timestamp=now,
+            timestamp=None,
             target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
@@ -431,87 +480,124 @@ class TrainingEventTest(unittest.TestCase):
         test_events.add_ckpt_event(ckpt1)
         self.assertEqual(test_events.size(), 0)
 
-        evt1 = AtorchEvent(
-            timestamp=now,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_STEP,
-            type=EventTypeName.BEGIN,
-            step=1,
-        )
-        test_events.add_step_event(evt1)
-        self.assertEqual(test_events.size(), 1)
-
         ckpt1 = AtorchEvent(
-            timestamp=None,
+            timestamp=now,
             target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
             step=None,
         )
         test_events.add_ckpt_event(ckpt1)
-        last_step = test_events.get_last_step_event()
-        self.assertEqual(last_step.ckpt_start, None)
+        self.assertEqual(test_events.size(), 0)
 
         ckpt1 = AtorchEvent(
-            timestamp=now + 10,
-            target=EventTargetName.SAVER,
+            timestamp=now,
+            target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
             step=1,
         )
         test_events.add_ckpt_event(ckpt1)
+        self.assertEqual(test_events.size(), 1)
         last_step = test_events.get_last_step_event()
-        self.assertEqual(last_step.ckpt_start, None)
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, 0)
+        self.assertEqual(
+            last_step.event_state, TrainEventState.TRAIN_EVT_BEGIN
+        )
 
-        evt2 = AtorchEvent(
+        ckpt1 = AtorchEvent(
             timestamp=now + 1,
             target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_STEP,
-            type=EventTypeName.END,
-            step=2,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=1,
         )
-        test_events.add_step_event(evt2)
+        test_events.add_ckpt_event(ckpt1)
         self.assertEqual(test_events.size(), 1)
 
         ckpt1 = AtorchEvent(
-            timestamp=now + 10,
-            target=EventTargetName.SAVER,
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
-            type=EventTypeName.BEGIN,
+            type=EventTypeName.END,
             step=2,
         )
         test_events.add_ckpt_event(ckpt1)
-        last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.ckpt_start, None)
-        self.assertEqual(last_step.ckpt_finish, None)
+        self.assertEqual(test_events.size(), 1)
 
         ckpt2 = AtorchEvent(
-            timestamp=now + 10,
-            target=EventTargetName.SAVER,
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.END,
-            step=3,
+            step=1,
         )
         test_events.add_ckpt_event(ckpt2)
+        self.assertEqual(test_events.size(), 1)
         last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.ckpt_start, None)
-        self.assertEqual(last_step.ckpt_finish, None)
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, now + 1)
+        self.assertEqual(last_step.step_time, 1)
 
-        ckpt2 = AtorchEvent(
-            timestamp=now + 10,
-            target=EventTargetName.SAVER,
-            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
-            type=EventTypeName.END,
-            step=2,
+    def test_hang_threshold(self):
+        now = int(datetime.now().timestamp())
+        timeslice1 = [now, now + 10, now + 20, now + 30, now + 40]
+        timeslice2 = [now + 1, now + 12, now + 23, now + 34, now + 45]
+
+        _event_context.train_steps.clear_step_events()
+        for i in range(5):
+            evt1 = AtorchEvent(
+                timestamp=timeslice1[i],
+                target=EventTargetName.TRAINER,
+                name=TrainEventName.TRAIN_EVT_STEP,
+                type=EventTypeName.BEGIN,
+                step=i,
+            )
+            _event_context.train_steps.add_step_event(evt1)
+            evt2 = AtorchEvent(
+                timestamp=timeslice2[i],
+                target=EventTargetName.TRAINER,
+                name=TrainEventName.TRAIN_EVT_STEP,
+                type=EventTypeName.END,
+                step=i + 1,
+            )
+            _event_context.train_steps.add_step_event(evt2)
+
+        self.assertEqual(_event_context.train_steps.size(), 5)
+        self.assertEqual(
+            _event_context.train_steps.last_steps_avg_time(last_steps=5), 3.0
         )
-        test_events.add_ckpt_event(ckpt2)
-        last_step = test_events.get_last_step_event()
-        self.assertNotEqual(last_step.ckpt_start, None)
-        self.assertNotEqual(last_step.ckpt_finish, None)
 
     def test_job_step_hang(self):
-        _event_context.hang_threshold = 1
+        _dlrover_context.hang_downtime = 0.02
+
+        _event_context.train_steps.clear_step_events()
         self.assertEqual(_event_context.check_job_step_hang(), False)
+
+        with patch(
+            "dlrover.python.common.event.context."
+            "StepEvents.last_steps_avg_time"
+        ) as mock_method:
+            mock_method.return_value = 20
+            self.assertEqual(_event_context.check_job_step_hang(), False)
+            self.assertEqual(_event_context.hang_threshold, 200)
+
+        with patch(
+            "dlrover.python.common.event.context."
+            "StepEvents.last_steps_avg_time"
+        ) as mock_method:
+            mock_method.return_value = 500
+            self.assertEqual(_event_context.check_job_step_hang(), False)
+            self.assertEqual(_event_context.hang_threshold, 600)
+
+        with patch(
+            "dlrover.python.common.event.context."
+            "StepEvents.last_steps_avg_time"
+        ) as mock_method:
+            mock_method.return_value = 10
+            self.assertEqual(_event_context.check_job_step_hang(), False)
+            self.assertEqual(_event_context.hang_threshold, 120)
 
         now = int(datetime.now().timestamp())
         evt1 = AtorchEvent(
@@ -533,46 +619,46 @@ class TrainingEventTest(unittest.TestCase):
         _event_context.train_steps.add_step_event(evt2)
 
         self.assertEqual(_event_context.check_job_step_hang(), False)
-        time.sleep(1.2)
+
+        evt3 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        _event_context.train_steps.add_step_event(evt3)
+        self.assertEqual(_event_context.check_job_step_hang(), False)
+        time.sleep(2)
         self.assertEqual(_event_context.check_job_step_hang(), True)
 
+    def test_ckpt_hang(self):
+        _event_context.ckpt_threshold = 1
+
+        _event_context.ckpt_steps.clear_step_events()
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
+
+        now = int(datetime.now().timestamp())
         ckpt1 = AtorchEvent(
             timestamp=now,
-            target=EventTargetName.SAVER,
+            target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
             step=2,
         )
-        _event_context.train_steps.add_ckpt_event(ckpt1)
-        self.assertEqual(_event_context.check_job_step_hang(), False)
+        _event_context.ckpt_steps.add_ckpt_event(ckpt1)
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
         time.sleep(1.2)
-
-        print("ckpt")
-        print(_event_context.train_steps.get_last_step_event())
-
-        self.assertEqual(_event_context.check_job_step_hang(), False)
+        self.assertEqual(_event_context.check_ckpt_hang(), True)
 
         ckpt2 = AtorchEvent(
             timestamp=now,
-            target=EventTargetName.SAVER,
+            target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.END,
             step=2,
         )
         _event_context.train_steps.add_ckpt_event(ckpt2)
-
         self.assertEqual(_event_context.check_job_step_hang(), False)
         time.sleep(1.2)
-        self.assertEqual(_event_context.check_job_step_hang(), True)
-
-        evt3 = AtorchEvent(
-            timestamp=now,
-            target=EventTargetName.TRAINER,
-            name=TrainEventName.TRAIN_EVT_PREDICT_STEP,
-            type=EventTypeName.INSTANT,
-            step=1,
-        )
-        _event_context.predict_steps.add_step_event(evt3)
         self.assertEqual(_event_context.check_job_step_hang(), False)
-        time.sleep(1.2)
-        self.assertEqual(_event_context.check_job_step_hang(), True)
