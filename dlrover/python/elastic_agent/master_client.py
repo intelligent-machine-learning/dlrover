@@ -647,6 +647,10 @@ class RayMasterClient(MasterClient):
 
         return request
 
+    def get_elastic_run_config(self) -> Dict[str, str]:
+        # no need to get config from master
+        return {}
+
 
 def build_master_client(
     master_addr=None, timeout=JobConstant.MASTER_CLIENT_DEFAULT_TIMEOUT
