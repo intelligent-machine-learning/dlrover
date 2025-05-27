@@ -60,7 +60,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(job_config.job_max_restart, 10)
         self.assertEqual(job_config.master_max_restart, 10)
         self.assertEqual(
-            job_config.get_workload_max_restart(RLRoleType.ACTOR),
+            job_config.get_workload_max_restart(RLRoleType.ACTOR.name),
             DLMasterConstant.WORKLOAD_MAX_RESTART,
         )
 

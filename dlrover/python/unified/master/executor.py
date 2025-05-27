@@ -10,18 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import MagicMock
-
-from dlrover.python.unified.master.graph import DLExecutionGraph
-from dlrover.python.unified.master.mpmd.executor import MPMDTrainerExecutor
-from dlrover.python.unified.tests.master.base import BaseMasterTest
+from abc import ABC, abstractmethod
 
 
-class ExecutorTest(BaseMasterTest):
-    def test_execute(self):
-        graph = DLExecutionGraph(self._job_context.dl_context)
-        executor = MPMDTrainerExecutor(graph)
-        self.assertIsNotNone(executor.graph)
+class Executor(ABC):
+    def __init__(self, execution_graph):
+        self._execution_graph = execution_graph
 
-        executor.create_workloads = MagicMock(return_value=None)
-        executor.execute()
+    @property
+    def graph(self):
+        return self._execution_graph
+
+    @abstractmethod
+    def execute(self):
+        """
+        Executes according to the execution graph.
+        """

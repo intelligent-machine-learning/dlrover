@@ -1,7 +1,7 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Copyright 2025 The DLRover Authors. All rights reserved.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -17,21 +17,18 @@ from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.job_context import get_job_context
+from dlrover.python.unified.master.executor import Executor
 from dlrover.python.unified.master.graph import DLExecutionGraph
 from dlrover.python.unified.trainer.trainer import BaseTrainer
 
 
-class Executor(object):
+class MPMDTrainerExecutor(Executor):
     def __init__(self, execution_graph: DLExecutionGraph):
-        self._graph = execution_graph
+        super().__init__(execution_graph)
 
         self.__trainer: Union[BaseTrainer, None] = None
         self.__trainer_result: Union[Future, None] = None
         self.__trainer_error = None
-
-    @property
-    def graph(self):
-        return self._graph
 
     def init_trainer(self):
         trainer_cls = self.graph.get_trainer_cls()

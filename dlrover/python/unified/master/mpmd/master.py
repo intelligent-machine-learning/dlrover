@@ -16,7 +16,7 @@ import ray
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.master import BaseMaster
 from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
-from dlrover.python.unified.master.mpmd.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 
 
 @ray.remote
@@ -37,7 +37,7 @@ class MPMDMaster(BaseMaster):
         return self._failover_coordinator
 
     def init(self):
-        self._job_manager = JobManager()
+        self._job_manager = MPMDJobManager()
         self._failover_coordinator = FailoverCoordinator(
             self._job_manager, self._save_context_to_checkpoint, self.exit_job
         )

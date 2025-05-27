@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.enums import SchedulingStrategyType
-from dlrover.python.unified.master.mpmd.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,
@@ -33,9 +33,9 @@ class JobManagerTest(BaseMasterTest):
         super(JobManagerTest, self).tearDown()
 
     def test_basic(self):
-        job_manager = JobManager()
+        job_manager = MPMDJobManager()
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
+            isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._executor.execute = MagicMock(return_value=None)
@@ -43,31 +43,31 @@ class JobManagerTest(BaseMasterTest):
         job_manager.stop_job()
 
     def test_get_scheduler(self):
-        job_manager = JobManager()
+        job_manager = MPMDJobManager()
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.SIMPLE
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), SimpleScheduler)
+            isinstance(job_manager.get_scheduler(), SimpleScheduler)
         )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.GROUP
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
+            isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._job_ctx.dl_context.has_workload_group = MagicMock(
             return_value=True
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
+            isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
 
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.AUTO
         )
         self.assertTrue(
-            isinstance(job_manager._get_scheduler(), GroupOrderedScheduler)
+            isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )

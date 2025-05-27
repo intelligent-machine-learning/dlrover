@@ -10,13 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Union
+from typing import Dict
 
 from dlrover.python.common.serialize import PickleSerializable
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
-    RLRoleType,
     SchedulingStrategyType,
 )
 
@@ -111,6 +110,7 @@ class JobConfig(PickleSerializable):
 
     def get_workload_max_restart(self, role: str):
         role = role.upper()
+
         if role in self._workload_max_restart:
             return max(self._workload_max_restart[role], self.job_max_restart)
         return DLMasterConstant.WORKLOAD_MAX_RESTART

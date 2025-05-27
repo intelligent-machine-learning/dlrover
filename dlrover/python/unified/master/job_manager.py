@@ -1,7 +1,7 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Copyright 2025 The DLRover Authors. All rights reserved.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from abc import ABC, abstractmethod
 
 import ray
 
@@ -22,14 +23,13 @@ from dlrover.python.unified.common.constant import (
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.graph import DLExecutionGraph
-from dlrover.python.unified.master.mpmd.executor import Executor
 from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,
 )
 
 
-class JobManager(object):
+class JobManager(ABC):
     """
     Core job life cycle management.
     """
@@ -40,8 +40,8 @@ class JobManager(object):
         self._execution_graph = DLExecutionGraph(self._job_ctx.dl_context)
         self._job_ctx.set_execution_graph(self._execution_graph)
 
-        self._scheduler = self._get_scheduler()
-        self._executor = Executor(self._execution_graph)
+        self._scheduler = self.get_scheduler()
+        self._executor = self.get_executor()
 
     @property
     def context(self):
@@ -51,10 +51,14 @@ class JobManager(object):
     def graph(self):
         return self._execution_graph
 
+    @abstractmethod
+    def get_executor(self):
+        pass
+
     def _get_scheduling_type_from_context(self):
         return self._job_ctx.job_config.scheduling_strategy_type
 
-    def _get_scheduler(self):
+    def get_scheduler(self):
         strategy_type = self._get_scheduling_type_from_context()
         if strategy_type == SchedulingStrategyType.SIMPLE:
             logger.info("Use simple strategy for scheduling by specification.")
