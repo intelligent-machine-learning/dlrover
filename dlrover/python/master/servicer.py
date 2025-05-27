@@ -815,6 +815,44 @@ class HttpMasterServicer(MasterServicer):
         return task_type
 
 
+class RayMasterServicer(MasterServicer):
+    """Master service with ray implementation."""
+
+    def __init__(
+        self,
+        task_manager,
+        job_manager,
+        perf_monitor: PerfMonitor,
+        rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisMaster,
+        job_metric_collector=None,
+        elastic_ps_service=None,
+        sync_service=None,
+    ):
+        super().__init__(
+            task_manager,
+            job_manager,
+            perf_monitor,
+            rdzv_managers,
+            diagnosis_manager,
+            job_metric_collector,
+            elastic_ps_service,
+            sync_service,
+        )
+
+    def agent_report(self, request):
+        return self.report(request, None)
+
+    def agent_get(self, request):
+        return self.get(request, None)
+
+    def get_response(self, method):
+        return BaseResponse()
+
+    def get_task_type(self, task_type):
+        return task_type
+
+
 class GrpcMasterServicer(
     MasterServicer, elastic_training_pb2_grpc.MasterServicer
 ):
@@ -940,7 +978,7 @@ def create_master_service(
             master_servicer, server
         )
         server.add_insecure_port("[::]:{}".format(port))
-    else:
+    elif service_type == CommunicationType.COMM_SERVICE_HTTP:
         master_servicer = HttpMasterServicer(
             task_manager=task_manager,
             job_manager=job_manager,
@@ -971,5 +1009,16 @@ def create_master_service(
                     dict(master_servicer=master_servicer),
                 ),
             ],
+        )
+    else:
+        server = RayMasterServicer(
+            task_manager=task_manager,
+            job_manager=job_manager,
+            perf_monitor=perf_monitor,
+            rdzv_managers=rdzv_managers,
+            diagnosis_manager=diagnosis_manager,
+            job_metric_collector=job_metric_collector,
+            elastic_ps_service=elastic_ps_service,
+            sync_service=sync_service,
         )
     return server

@@ -31,7 +31,7 @@ class JobConfig(PickleSerializable):
         job_max_restart: int,
         master_max_restart: int,
         trainer_max_restart: int,
-        workload_max_restart: Dict[RLRoleType, int],
+        workload_max_restart: Dict[str, int],
     ):
         """
         Configuration(non-business part) of the job.
@@ -49,7 +49,7 @@ class JobConfig(PickleSerializable):
                 number of master restarts. Default is 10.
             trainer_max_restart (int, optional): The maximum limit on the
                 number of trainer restarts. Default is 10.
-            workload_max_restart (Dict[RLRoleType, int], optional): The
+            workload_max_restart (Dict[str, int], optional): The
                 maximum limit on the number of workload actor restarts.
                 Default is 30.
         """
@@ -109,10 +109,8 @@ class JobConfig(PickleSerializable):
     def workload_max_restart(self):
         return self._workload_max_restart
 
-    def get_workload_max_restart(self, role: Union[str, RLRoleType]):
-        if isinstance(role, str):
-            role = RLRoleType[role.upper()]
-
+    def get_workload_max_restart(self, role: str):
+        role = role.upper()
         if role in self._workload_max_restart:
             return max(self._workload_max_restart[role], self.job_max_restart)
         return DLMasterConstant.WORKLOAD_MAX_RESTART

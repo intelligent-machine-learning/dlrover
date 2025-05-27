@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
+from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import JsonSerializable
 
 
@@ -122,6 +123,10 @@ class NodeResource(JsonSerializable):
                 gpu_type = key
                 gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
+
+    @classmethod
+    def resource_to_node_resource(cls, resource: Resource):
+        return NodeResource(resource.cpu, resource.memory, resource.gpu_type, resource.gpu_num)
 
 
 class NodeGroupResource(JsonSerializable):

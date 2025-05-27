@@ -122,6 +122,7 @@ class DLExecutionVertex(PickleSerializable):
         sub_stage: int = 0,
         sub_stage_index: int = 0,
         invocation_meta: VertexInvocationMeta = None,
+        **kwargs,
     ):
         # static info
         self.__role = role
@@ -138,6 +139,7 @@ class DLExecutionVertex(PickleSerializable):
         self.__sub_stage = sub_stage
         self.__sub_stage_index = sub_stage_index
         self.__invocation_meta = invocation_meta
+        self.__kwargs = kwargs
 
         # runtime info
         self._pg_info = PlacementGroupInfo()
@@ -227,6 +229,11 @@ class DLExecutionVertex(PickleSerializable):
     @property
     def restart_count(self):
         return self._restart_count
+
+    def get_extra_args(self, key, default_value=None):
+        if key in self.__kwargs:
+            return self.__kwargs[key]
+        return default_value
 
     def get_cls(self):
         return get_class_by_module_and_class_name(

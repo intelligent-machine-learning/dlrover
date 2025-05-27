@@ -13,11 +13,11 @@
 
 from typing import List
 
-from dlrover.python.common.constants import NodeType
+from dlrover.python.common.constants import NodeType, NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
-from dlrover.python.scheduler.ray import RayClient
+from ray.util.state import list_actors
 from dlrover.python.util.queue.queue import RayEventQueue
 
 
@@ -44,26 +44,28 @@ def parse_type(name):
     return node_type
 
 
-def parse_index(name):
-    """
-    PsActor_1 split("_")[-1]
-    TFSinkFunction-4|20 split("|").split("-")[-1]
-    """
-    node_type = parse_type(name)
-    node_index = None
-    if node_type == NodeType.PS:
-        node_index = int(name.split("_")[-1])
-    elif node_type == NodeType.EVALUATOR:
-        node_index = 1
-    elif node_type == NodeType.WORKER:
-        node_index = int(name.split("|")[0].split("-")[-1])
-    return node_index
+def parse_from_actor_name(name):
+    split_name = name.split("_")
+    if len(split_name) == 3:  # role_${size}_${index}
+        return split_name[0], split_name[1], split_name[2], None, None
+    else:  # role_${size}_${index}_${local_size}_${local_index}
+        return split_name[0], split_name[1], split_name[2], split_name[3], split_name[4]
 
 
-def parse_type_id_from_actor_name(name):
-    node_type = parse_type(name)
-    node_index = parse_index(name)
-    return node_type, node_index
+def parse_from_actor_state(state):
+    """
+    Ref:
+    https://docs.ray.io/en/latest/ray-observability/reference/doc/
+    ray.util.state.common.ActorState.html#ray.util.state.common.ActorState
+    """
+
+    if state in ["DEPENDENCIES_UNREADY", "PENDING_CREATION"]:
+        return NodeStatus.PENDING
+    elif state in ["ALIVE", "RESTARTING"]:
+        return NodeStatus.RUNNING
+    elif state in ["DEAD"]:
+        return NodeStatus.DELETED
+    return NodeStatus.UNKNOWN
 
 
 class RayScalePlanWatcher:
@@ -80,10 +82,9 @@ class RayScalePlanWatcher:
 class ActorWatcher(NodeWatcher):
     """ActorWatcher monitors all actors of a ray Job."""
 
-    def __init__(self, job_name, namespace):
-        self._job_name = job_name
+    def __init__(self, job_uuid, namespace):
+        super().__init__(job_uuid)
         self._namespace = namespace
-        self._ray_client = RayClient.singleton_instance(job_name, namespace)
         self.event_queue = RayEventQueue.singleton_instance()
 
     def watch(self):
@@ -93,17 +94,24 @@ class ActorWatcher(NodeWatcher):
             logger.info(i)
             yield event
 
-    def list(self) -> List[Node]:
+    def list(self, actor_class=None) -> List[Node]:
+        if not actor_class:
+            filters = [("class_name", "=", actor_class)]
+        else:
+            filters = None
+
         nodes: List[Node] = []
-        for name, status in self._ray_client.list_actor():
-            actor_type, actor_index = parse_type_id_from_actor_name(name)
+
+        actor_states = list_actors(filters=filters, limit=1000)
+        for actor_state in actor_states:
+            actor_name = actor_state.name
+            actor_type, actor_size, actor_index, _, _ = parse_from_actor_name(actor_name)
             node = Node(
                 node_type=actor_type,
                 node_id=actor_index,
-                name=actor_index,
+                name=actor_name,
                 rank_index=actor_index,
-                status=status,
-                start_time=None,
+                status=parse_from_actor_state(actor_state.state),
             )
             nodes.append(node)
         return []

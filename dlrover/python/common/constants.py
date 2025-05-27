@@ -31,6 +31,7 @@ class PlatformType(object):
 class CommunicationType(object):
     COMM_SERVICE_GRPC = "grpc"
     COMM_SERVICE_HTTP = "http"
+    COMM_SERVICE_RAY = "ray"
 
 
 class ElasticJobApi(object):

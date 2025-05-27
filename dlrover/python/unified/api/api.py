@@ -572,6 +572,18 @@ class DLJobBuilder(object):
 
         return self._config_workload_role(role_name, module_name, class_name)
 
+    def dlrover_run(self, run_cmd):
+        """
+        Setup elastic agent workload(use elastic agent for spmd training,
+            same with 'torchrun' case).
+
+        Args:
+            run_cmd (str): The training command.
+                e.g. 'dlrover-run --xxx train.py'
+        """
+
+        return self._config_workload_role("dlrover-run", "dlrover.python.unified.trainer.elastic_workload", "ElasticWorkload", run_cmd=run_cmd)
+
     def trainer(self, module_name, class_name):
         """
         Setup trainer for user-defined task stream.

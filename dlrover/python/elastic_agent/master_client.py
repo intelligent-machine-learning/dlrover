@@ -18,6 +18,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
+import ray
 import requests
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
@@ -622,6 +623,31 @@ class HttpMasterClient(MasterClient):
         return request
 
 
+class RayMasterClient(MasterClient):
+    def __init__(self, master_addr, node_id, node_type, timeout=5):
+        super(RayMasterClient, self).__init__(
+            master_addr, node_id, node_type, timeout
+        )
+
+    @retry()
+    def _report(self, message: comm.Message):
+        response = ray.get(self._master_addr.agent_report.remote(self._gen_request(message).to_json()))
+        return comm.deserialize_message(response)
+
+    @retry()
+    def _get(self, message: comm.Message):
+        response = ray.get(self._master_addr.agent_get.remote(self._gen_request(message).to_json()))
+        return comm.deserialize_message(response)
+
+    def _gen_request(self, message: comm.Message):
+        request = BaseRequest()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+
+        return request
+
+
 def build_master_client(
     master_addr=None, timeout=JobConstant.MASTER_CLIENT_DEFAULT_TIMEOUT
 ):
@@ -658,8 +684,12 @@ def build_master_client(
                 master_client = GrpcMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
-            else:
+            elif master_service_type == CommunicationType.COMM_SERVICE_HTTP:
                 master_client = HttpMasterClient(
+                    master_addr, node_id, node_type, timeout
+                )
+            else:
+                master_client = RayMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:

@@ -19,6 +19,7 @@ class DLType(Enum):
     SFT = "SFT"
     MULTIMODAL = "MULTIMODAL"
     RL = "RL"
+    HYBRID = "HYBRID"
 
 
 class DLStreamType(Enum):
@@ -30,6 +31,10 @@ class TrainerType(Enum):
     USER_DEFINED = "USER_DEFINED"
     GENERATED = "GENERATED"
     SPMD_TORCHRUN = "SPMD_TORCHRUN"
+
+
+class InternalRoleType(Enum):
+    ELASTIC = "ELASTIC"
 
 
 class RLRoleType(Enum):

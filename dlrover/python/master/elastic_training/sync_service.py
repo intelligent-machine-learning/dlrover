@@ -25,7 +25,7 @@ _WAIT_SYNC_TINEOUT = 3600
 
 class SyncService(object):
     def __init__(self, job_manager):
-        self._job_manager: DistributedJobManager = job_manager
+        self._job_manager = job_manager
         self._sync_objs_target: Dict[str, List[Tuple[str, int]]] = {}
         self._finished_barriers: Set[str] = set()
         self._lock = threading.Lock()

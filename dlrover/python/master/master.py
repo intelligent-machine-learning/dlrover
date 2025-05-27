@@ -22,7 +22,7 @@ def get_service_type():
     return _dlrover_context.master_service_type
 
 
-class JobMaster(metaclass=ABCMeta):
+class ElasticMaster(metaclass=ABCMeta):
     @abstractmethod
     def prepare(self):
         pass

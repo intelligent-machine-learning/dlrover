@@ -38,7 +38,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.master import JobMaster, get_service_type
+from dlrover.python.master.master import ElasticMaster, get_service_type
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
@@ -94,10 +94,10 @@ def _create_master_service_on_k8s(namespace, job_name, job_uuid, target_port):
     return succeed
 
 
-class DistributedJobMaster(JobMaster):
-    """The master of a distrbiuted job which has multiple nodes. The master
+class DistributedJobMaster(ElasticMaster):
+    """The master of a distributed job which has multiple nodes. The master
     - launches nodes (e.g. the Pod on kubernetes).
-    - builds the rendezvous of training ndoes.
+    - builds the rendezvous of training nodes.
     - monitors the node status and launch a new node to recover a failed node.
     - collects the training metrics including throughput and the workload
         of each node.
@@ -108,7 +108,7 @@ class DistributedJobMaster(JobMaster):
     JobManager: manages the nodes of a job. the job manager can launch nodes,
         monitor nodes and scale up/down nodes.
     RendezvousManager: build the rendezvous of training nodes.
-    TaskManager: assignes the data shard tasks to workers and recover the data
+    TaskManager: assigns the data shard tasks to workers and recover the data
         shard task of a failed worker.
     MetricCollector: collects the training metrics of a training job.
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
