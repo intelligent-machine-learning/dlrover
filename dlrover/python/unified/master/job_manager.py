@@ -51,6 +51,10 @@ class JobManager(ABC):
     def graph(self):
         return self._execution_graph
 
+    @property
+    def job_name(self):
+        return self.context.job_config.job_name
+
     @abstractmethod
     def get_executor(self):
         pass

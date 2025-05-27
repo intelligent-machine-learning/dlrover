@@ -10,3 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dlrover.python.unified.master.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.executor import MPMDTrainerExecutor
+
+
+class MPMDJobManager(JobManager):
+    def get_executor(self):
+        return MPMDTrainerExecutor(self._execution_graph)

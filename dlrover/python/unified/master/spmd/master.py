@@ -89,6 +89,7 @@ class SPMDMaster(BaseMaster):
         pass
 
     """Remote call functions start"""
+
     def agent_report(self, request):
         return self._master_service_handler.agent_report(request)
 
