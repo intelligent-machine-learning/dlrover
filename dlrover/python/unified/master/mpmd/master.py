@@ -16,9 +16,7 @@ import ray
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.master import BaseMaster
 from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
-from dlrover.python.unified.master.mpmd.job_manager import (
-    MPMDJobManager,
-)
+from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 
 
 @ray.remote

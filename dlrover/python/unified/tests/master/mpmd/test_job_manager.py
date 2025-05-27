@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.enums import SchedulingStrategyType
-from dlrover.python.unified.master.mpmd.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,
@@ -33,7 +33,7 @@ class JobManagerTest(BaseMasterTest):
         super(JobManagerTest, self).tearDown()
 
     def test_basic(self):
-        job_manager = JobManager()
+        job_manager = MPMDJobManager()
         self.assertTrue(
             isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
@@ -43,7 +43,7 @@ class JobManagerTest(BaseMasterTest):
         job_manager.stop_job()
 
     def test_get_scheduler(self):
-        job_manager = JobManager()
+        job_manager = MPMDJobManager()
         job_manager._get_scheduling_type_from_context = MagicMock(
             return_value=SchedulingStrategyType.SIMPLE
         )

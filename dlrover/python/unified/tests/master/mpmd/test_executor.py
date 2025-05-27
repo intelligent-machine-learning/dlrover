@@ -21,5 +21,7 @@ class ExecutorTest(BaseMasterTest):
     def test_execute(self):
         graph = DLExecutionGraph(self._job_context.dl_context)
         executor = MPMDTrainerExecutor(graph)
+        self.assertIsNotNone(executor.graph)
+
         executor.create_workloads = MagicMock(return_value=None)
         executor.execute()

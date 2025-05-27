@@ -15,13 +15,13 @@ from unittest.mock import MagicMock
 
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
-from dlrover.python.unified.master.mpmd.job_manager import JobManager
+from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 
 
 class FailoverCoordinatorTest(BaseMasterTest):
     def test_handle_failure(self):
-        job_manager = JobManager()
+        job_manager = MPMDJobManager()
         job_manager.start_job = MagicMock(return_value=None)
         job_manager.stop_job = MagicMock(return_value=None)
 
