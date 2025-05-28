@@ -14,10 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        build_info: [
-          { dockerfile: "./docker/master/master_py38.dockerfile", image_name: "release_dlrover_master_py38" },
-          { dockerfile: "./docker/master/master_py310.dockerfile", image_name: "release_dlrover_master_py310" },
-        ]
+        build_info:
+          - dockerfile: "./docker/master/master_py38.dockerfile"
+            image_name: "release_dlrover_master_py38"
+          - dockerfile: "./docker/master/master_py310.dockerfile"
+            image_name: "release_dlrover_master_py310"
     permissions:
       contents: read
       packages: write
@@ -37,7 +38,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }}
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/
+            ${{ matrix.build_info.image_name }}
 
       - name: Build and Push Image
         uses: docker/build-push-action@v4

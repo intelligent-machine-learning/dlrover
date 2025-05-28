@@ -12,11 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        build_info: [
-          { dockerfile: "./docker/ci_py38.dockerfile", image_name: "dlrover_dev_py38", platform: "linux/amd64" },
-          { dockerfile: "./docker/ci_py38.dockerfile.arm64", image_name: "dlrover_dev_py38_arm64", platform: "linux/arm64" },
-          { dockerfile: "./docker/ci_py310.dockerfile", image_name: "dlrover_dev_py310", platform: "linux/amd64" },
-        ]
+        build_info:
+          - dockerfile: "./docker/ci_py38.dockerfile"
+            image_name: "dlrover_dev_py38"
+            platform: "linux/amd64"
+          - dockerfile: "./docker/ci_py38.dockerfile.arm64"
+            image_name: "dlrover_dev_py38_arm64"
+            platform: "linux/arm64"
+          - dockerfile: "./docker/ci_py310.dockerfile"
+            image_name: "dlrover_dev_py310"
+            platform: "linux/amd64"
     permissions:
       contents: read
       packages: write
@@ -44,7 +49,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }}
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/
+            ${{ matrix.build_info.image_name }}
 
       - name: Build and Push Image
         uses: docker/build-push-action@v4
