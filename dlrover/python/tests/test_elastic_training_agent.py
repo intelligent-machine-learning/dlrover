@@ -150,10 +150,13 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
+        self._agent_context = get_agent_context()
+
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
         os.environ.clear()
+        self._agent_context.clear_action_queue()
 
     def test_node_unit(self):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))

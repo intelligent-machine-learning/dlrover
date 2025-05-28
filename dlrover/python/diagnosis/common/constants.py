@@ -35,8 +35,7 @@ class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
     METRIC_COLLECT_INTERVAL_SECS = 60
     CHECK_TENSOR_DEFAULT_RECORDS = 30
-    # the minimum diagnosis interval is 5 seconds
-    AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 5
+
     AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 15
     MASTER_INSTANCE = -1
     ANY_INSTANCE = -2
@@ -44,12 +43,14 @@ class DiagnosisConstant(object):
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
     MAX_ACTION_QUEUE_SIZE = 1000
 
+    MIN_DIAGNOSIS_INTERVAL = 15
+
 
 class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
     PRE_CHECK_FAILED = "Pre-check failed"
-
     NODE_FAILED = "node_failed"
+    RESOURCE_COLLECT_ERROR = "resource_collect_error"
 
 
 class DiagnosisDataType(object):
