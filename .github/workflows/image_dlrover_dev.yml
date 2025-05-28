@@ -12,39 +12,37 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dockerfile: [
-          "./docker/ci_py38.dockerfile",
-          "./docker/ci_py310.dockerfile",
-        ]
-        image_name: [
-          "dlrover/dev_py38",
-          "dlrover/dev_py310",
+        build_info: [
+          { dockerfile: "./docker/ci_py38.dockerfile", image_name: "dlrover/dev_py38" },
+          { dockerfile: "./docker/ci_py310.dockerfile", image_name: "dlrover/dev_py310" },
         ]
     permissions:
       contents: read
       packages: write
-      attestations: write
       id-token: write
     steps:
       - name: checkout branch
         uses: actions/checkout@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ matrix.image_name }}
+          images: ${{ matrix.build_info.image_name }}
+
       - name: Build and Push Image
         uses: docker/build-push-action@v4
         with:
           context: ./
-          file: ${{ matrix.dockerfile }}
+          file: ${{ matrix.build_info.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ matrix.image_name }}:latest
+          tags: ${{ matrix.build_info.image_name }}:latest
           labels: ${{ steps.meta.outputs.labels }}
