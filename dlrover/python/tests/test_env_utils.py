@@ -53,3 +53,8 @@ class EnvUtilsTest(unittest.TestCase):
         os.environ["LOCAL_WORLD_SIZE"] = "8"
         size = env_utils.get_local_world_size()
         self.assertEqual(size, 8)
+
+    def test_get_hostname_and_ip(self):
+        hostname, ipaddress = env_utils.get_hostname_and_ip()
+        self.assertTrue(hostname)
+        self.assertTrue(ipaddress)
