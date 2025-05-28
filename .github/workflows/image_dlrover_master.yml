@@ -3,8 +3,9 @@ name: build and publish dlrover release master image
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['release']
+  release:
+    types:
+      - published
 
 env:
   REGISTRY: ghcr.io
