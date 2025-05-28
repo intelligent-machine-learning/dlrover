@@ -49,9 +49,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: >
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/
-            ${{ matrix.build_info.image_name }}
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}\
+            /${{ matrix.build_info.image_name }}
 
       - name: Build and Push Image
         uses: docker/build-push-action@v4
