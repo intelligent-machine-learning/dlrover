@@ -13,8 +13,9 @@ jobs:
     strategy:
       matrix:
         build_info: [
-          { dockerfile: "./docker/ci_py38.dockerfile", image_name: "dlrover/dev_py38" },
-          { dockerfile: "./docker/ci_py310.dockerfile", image_name: "dlrover/dev_py310" },
+          { dockerfile: "./docker/ci_py38.dockerfile", image_name: "dlrover/dev_py38", platform: "linux/amd64" },
+          { dockerfile: "./docker/ci_py38.dockerfile.arm64", image_name: "dlrover/dev_py38_arm64", platform: "linux/arm64" },
+          { dockerfile: "./docker/ci_py310.dockerfile", image_name: "dlrover/dev_py310", platform: "linux/amd64" },
         ]
     permissions:
       contents: read
@@ -42,7 +43,7 @@ jobs:
         with:
           context: ./
           file: ${{ matrix.build_info.dockerfile }}
-          platforms: linux/amd64
+          platforms: ${{ matrix.build_info.platform }}
           push: true
           tags: ${{ matrix.build_info.image_name }}:latest
           labels: ${{ steps.meta.outputs.labels }}
