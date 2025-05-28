@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import json
+import pickle
 from dataclasses import dataclass, field
 from typing import Dict
 
@@ -33,6 +34,15 @@ class JsonSerializable(object):
             sort_keys=True,
             indent=indent,
         )
+
+
+class PickleSerializable(object):
+    def serialize(self):
+        return pickle.dumps(self)
+
+    @classmethod
+    def deserialize(cls, data):
+        return pickle.loads(data)
 
 
 @dataclass

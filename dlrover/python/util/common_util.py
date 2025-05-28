@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import importlib.metadata
+import inspect
 import random
 import re
 import socket
@@ -140,3 +141,62 @@ def find_free_port_for_hccl(
                 cur_start = 0
                 break
     return cur_start
+
+
+def print_args(args, exclude_args=[], groups=None):
+    """
+    Args:
+        args: parsing results returned from `parser.parse_args`
+        exclude_args: the arguments which won't be printed.
+        groups: It is a list of a list. It controls which options should be
+        printed together. For example, we expect all model specifications such
+        as `optimizer`, `loss` are better printed together.
+        groups = [["optimizer", "loss"]]
+    """
+
+    def _get_attr(instance, attribute):
+        try:
+            return getattr(instance, attribute)
+        except AttributeError:
+            return None
+
+    dedup = set()
+    if groups:
+        for group in groups:
+            for element in group:
+                dedup.add(element)
+                logger.info("%s = %s", element, _get_attr(args, element))
+    other_options = [
+        (key, value)
+        for (key, value) in args.__dict__.items()
+        if key not in dedup and key not in exclude_args
+    ]
+    for key, value in other_options:
+        logger.info("%s = %s", key, value)
+
+
+def get_class_by_module_and_class_name(module_name, class_name):
+    """
+    Get class object by the given module name and a class name.
+    """
+
+    module = importlib.import_module(module_name)
+    if hasattr(module, class_name):
+        return getattr(module, class_name)
+    return None
+
+
+def get_methods_by_class(clz: type, with_protect=False):
+    """
+    Get all (method_name, method) in list format by a give class.
+    """
+
+    result = []
+    for name, method in inspect.getmembers(clz):
+        if not inspect.ismethod(method) and not inspect.isfunction(method):
+            continue
+        if not with_protect and name.startswith("_"):
+            continue
+        result.append((name, method))
+
+    return result
