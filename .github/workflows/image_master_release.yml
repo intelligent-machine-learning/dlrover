@@ -23,7 +23,7 @@ jobs:
       packages: write
       id-token: write
     steps:
-      - name: checkout branch
+      - name: Checkout Branch
         uses: actions/checkout@v3
 
       - name: Login to GHCR
@@ -37,7 +37,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ matrix.build_info.image_name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }}
 
       - name: Build and Push Image
         uses: docker/build-push-action@v4
@@ -46,5 +46,5 @@ jobs:
           file: ${{ matrix.build_info.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
