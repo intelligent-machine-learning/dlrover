@@ -49,7 +49,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: |
+          images: >
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/
             ${{ matrix.build_info.image_name }}
 
