@@ -486,6 +486,15 @@ class PreCheckStatus(object):
     DISABLED = "DISABLED"
 
 
+class DictKey(object):
+    """
+    Presents the keys in dictionary
+    """
+
+    # the key of logs
+    LOGS = "logs"
+
+
 class JobStage(object):
     JOB_INIT = "init"
     JOB_RUNNING = "running"
