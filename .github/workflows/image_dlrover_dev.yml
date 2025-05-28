@@ -13,8 +13,8 @@ jobs:
     strategy:
       matrix:
         dockerfile: [
-          "docker/ci_py38.dockerfile",
-          "docker/ci_py310.dockerfile",
+          "./docker/ci_py38.dockerfile",
+          "./docker/ci_py310.dockerfile",
         ]
         image_name: [
           "dlrover/dev_py38",
@@ -40,9 +40,9 @@ jobs:
       - name: Build and Push Image
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ matrix.image_name }}:latest
           labels: ${{ steps.meta.outputs.labels }}
