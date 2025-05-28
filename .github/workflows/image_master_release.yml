@@ -2,6 +2,7 @@
 name: build and publish dlrover release master image
 
 on:
+  workflow_dispatch:
   push:
     branches: ['release']
 
@@ -45,5 +46,5 @@ jobs:
           file: ${{ matrix.build_info.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

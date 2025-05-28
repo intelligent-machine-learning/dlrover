@@ -45,5 +45,5 @@ jobs:
           file: ${{ matrix.build_info.dockerfile }}
           platforms: ${{ matrix.build_info.platform }}
           push: true
-          tags: ${{ matrix.build_info.image_name }}:latest
+          tags: ${{ env.REGISTRY }}/${{ matrix.build_info.image_name }}:latest
           labels: ${{ steps.meta.outputs.labels }}
