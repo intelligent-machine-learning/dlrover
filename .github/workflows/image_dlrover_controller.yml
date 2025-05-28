@@ -29,9 +29,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: >
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/
-            dlrover_controller
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dlrover_controller # yamllint disable-line
 
       - name: Build and Push Image
         uses: docker/build-push-action@v4
