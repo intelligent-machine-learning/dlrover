@@ -138,12 +138,30 @@ class PodWatcherTest(unittest.TestCase):
         )
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.OOM)
+
         state.terminated = client.V1ContainerStateTerminated(exit_code=137)
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.KILLED)
+
         state.terminated = client.V1ContainerStateTerminated(exit_code=1)
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.FATAL_ERROR)
+
+        state.terminated = client.V1ContainerStateTerminated(exit_code=201)
+        exit_reason = _get_pod_exit_reason(pod)
+        self.assertEqual(exit_reason, NodeExitReason.HARDWARE_ERROR)
+
+        state.terminated = client.V1ContainerStateTerminated(exit_code=202)
+        exit_reason = _get_pod_exit_reason(pod)
+        self.assertEqual(exit_reason, NodeExitReason.HARDWARE_ERROR)
+
+        state.terminated = client.V1ContainerStateTerminated(exit_code=0)
+        exit_reason = _get_pod_exit_reason(pod)
+        self.assertEqual(exit_reason, NodeExitReason.Succeeded)
+
+        state.terminated = client.V1ContainerStateTerminated(exit_code=999)
+        exit_reason = _get_pod_exit_reason(pod)
+        self.assertEqual(exit_reason, NodeExitReason.UNKNOWN_ERROR)
 
     def test_verify_restarting_training(self):
         labels = _mock_pod_labels()

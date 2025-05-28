@@ -49,12 +49,7 @@ from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.training_event.config import (
-    Config,
-    is_dlrover_event_enabled,
-)
-
-evt_config = Config.singleton_instance()
+from dlrover.python.training_event.config import is_dlrover_event_enabled
 
 
 class DiagnosisAgent(Singleton, DiagnosisManager):
@@ -136,6 +131,8 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
     def stop(self):
         self._stopped = True
+        if is_dlrover_event_enabled():
+            self._atorch_collector.stop_collectors()
 
     def diagnose_training_failure(self) -> DiagnosisAction:
         self._report_failure_to_master(

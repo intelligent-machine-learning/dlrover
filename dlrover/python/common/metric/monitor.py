@@ -308,6 +308,9 @@ class SimpleMetricMonitor(MetricMonitor):
                     ):
                         raise Exception("collect_job_metrics return None")
                 _metric_context.add_node_metrics(tm, job_metrics)
+                logger.debug(
+                    f"Add job metrics at timestamp {tm}: {job_metrics}"
+                )
                 time.sleep(interval)
 
             except Exception as e:

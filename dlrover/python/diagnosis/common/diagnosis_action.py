@@ -146,11 +146,12 @@ class EventAction(DiagnosisAction):
         timestamp=0,
         expired_time_period=0,
         executable_time_period=0,
+        instance=DiagnosisConstant.MASTER_INSTANCE,
         **kwargs,
     ):
         super().__init__(
             action_type=DiagnosisActionType.EVENT,
-            instance=DiagnosisConstant.MASTER_INSTANCE,
+            instance=instance,
             timestamp=timestamp,
             expired_time_period=expired_time_period,
             executable_time_period=executable_time_period,
@@ -206,6 +207,7 @@ class NodeAction(DiagnosisAction):
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
+        **kwargs,
     ):
         super().__init__(
             action_type,
@@ -252,6 +254,7 @@ class JobAbortionAction(DiagnosisAction):
         self,
         reason: str = "",
         msg: str = "",
+        **kwargs,
     ):
         super().__init__(
             DiagnosisActionType.JOB_ABORT,
@@ -341,19 +344,28 @@ class DiagnosisActionQueue:
             ):
                 return NoAction()
 
+            logger.debug(f"Dump {instance} actions before: {self._actions}")
             actions = self._actions[instance]
+
             waiting_actions: Deque[DiagnosisAction] = deque()
             while len(actions) > 0:
                 action = actions.popleft()
                 if action.is_expired():
-                    logger.info(f"Skip expired diagnosis action: {action}.")
+                    logger.info(
+                        f"Skip expired diagnosis action({instance}): {action}"
+                    )
                 elif action.is_executable():
                     while len(waiting_actions) > 0:
                         waiting_action = waiting_actions.pop()
                         actions.appendleft(waiting_action)
+                    logger.info(
+                        f"Get diagnosis action({instance}): {action}, "
+                        f"Remain: {actions}/{len(actions)}"
+                    )
                     return action
                 else:
                     waiting_actions.append(action)
 
             self._actions[instance] = waiting_actions
+            logger.debug(f"Dump {instance} actions after: {self._actions}")
             return NoAction()

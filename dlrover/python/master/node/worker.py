@@ -18,6 +18,7 @@ from typing import Dict, List, Tuple
 from dlrover.python.common.constants import (
     DistributionStrategy,
     JobConstant,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -279,13 +280,27 @@ class WorkerManager(TrainingNodeManager):
         return plan
 
     def has_exited_worker(self):
-        """Check whether there is exited worker except evicted workers."""
+        """Check whether there is exited worker except evicted workers.
+
+        If the worker has reported SUCCEEDED_EXITED, but been deleted
+        by dlrover finally, the status will be DELETED instead of SUCCEEDED
+        In such cases the worker should also be regard as exited worker
+        """
         nodes = self._get_nodes()
         for worker in nodes.values():
             if (
                 worker.exit_reason == NodeExitReason.FATAL_ERROR
                 or worker.status == NodeStatus.SUCCEEDED
+                or (
+                    worker.status == NodeStatus.DELETED
+                    and worker.get_reported_status()
+                    == NodeEventType.SUCCEEDED_EXITED
+                )
             ):
+                logger.debug(
+                    f"Worker {worker} has exited: "
+                    f"{worker.exit_reason} {worker.status}"
+                )
                 return True
         return False
 
@@ -297,6 +312,7 @@ class WorkerManager(TrainingNodeManager):
                 worker.exit_reason == NodeExitReason.KILLED
                 and worker.relaunch_count < worker.max_relaunch_count
             ):
+                logger.debug(f"Worker {worker} is restarting")
                 return True
         return False
 

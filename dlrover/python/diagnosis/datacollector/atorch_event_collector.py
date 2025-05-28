@@ -29,6 +29,8 @@ from dlrover.python.training_event.event import (
     EventTypeName,
 )
 
+evt_config = Config.singleton_instance()
+
 
 class AtorchNotFoundException(Exception):
     pass
@@ -45,7 +47,10 @@ class AtorchEventCollector(Singleton):
     """
 
     def __init__(
-        self, filepath=Config.file_dir, local_world_size=1, retry_timeout=30
+        self,
+        filepath=evt_config.file_dir,
+        local_world_size=1,
+        retry_timeout=30,
     ):
         super().__init__()
         self._prefix_pattern = r"\s*\[(.*?)\]\s*"
@@ -60,8 +65,12 @@ class AtorchEventCollector(Singleton):
     def parse_line(self, line):
         match = re.findall(self._prefix_pattern, line)
         if not match:
+            logger.debug(
+                f"No pattern {self._prefix_pattern} match in line {line}"
+            )
             raise AtorchNotFoundException()
         if len(match) != Event.max_event_prefix:
+            logger.debug(f"Incorrect prefix {match} in line {line}")
             raise AtorchInvalidException()
 
         dt = datetime.fromisoformat(match[0])
@@ -73,6 +82,7 @@ class AtorchEventCollector(Singleton):
             EventTargetName.TRAINER,
             EventTargetName.SAVER,
         ):
+            logger.debug(f"Invalid event target {event_target} in line {line}")
             raise AtorchNotFoundException()
 
         # TrainerEventName
@@ -81,6 +91,7 @@ class AtorchEventCollector(Singleton):
             TrainEventName.TRAIN_EVT_STEP,
             TrainEventName.TRAIN_EVT_FLASH_CKPT,
         ):
+            logger.debug(f"Invalid event name {event_name} in line {line}")
             raise AtorchNotFoundException()
 
         # EventTypeName
@@ -89,12 +100,14 @@ class AtorchEventCollector(Singleton):
             EventTypeName.BEGIN,
             EventTypeName.END,
         ]:
+            logger.debug(f"Invalid event type {event_type} in line {line}")
             raise AtorchNotFoundException()
 
         text = literal_eval(re.sub(self._prefix_pattern, "", line))
         if isinstance(text, dict):
             event_step = int(text["global_step"])
         else:
+            logger.debug(f"Invalid text format {text} in line {line}")
             raise ValueError
 
         return event_ts, event_target, event_name, event_type, event_step
@@ -106,7 +119,7 @@ class AtorchEventCollector(Singleton):
 
     def _monitor_file(self, filepath):
         with open(filepath, "r") as f:
-            logger.info(f"Collecting events on {filepath}")
+            logger.info(f"Monitoring events on {filepath}")
             f.seek(0, 0)
 
             while True:
@@ -123,6 +136,10 @@ class AtorchEventCollector(Singleton):
                     ts, target, event_name, event_type, step = self.parse_line(
                         line
                     )
+                    logger.debug(
+                        f"Parse line output: "
+                        f"{ts} {target} {event_name} {event_type} {step}"
+                    )
                 except (AtorchNotFoundException, AtorchInvalidException):
                     continue
                 except (ValueError, KeyError, SyntaxError) as e:
@@ -133,7 +150,7 @@ class AtorchEventCollector(Singleton):
                     continue
 
                 if (
-                    not self._first_step
+                    self._first_step is None
                     and target == EventTargetName.TRAINER
                     and event_name == TrainEventName.TRAIN_EVT_STEP
                     and event_type == EventTypeName.BEGIN
@@ -143,7 +160,7 @@ class AtorchEventCollector(Singleton):
                     )
                     self._first_step = step
 
-                if self._first_step and step != self._first_step:
+                if self._first_step is not None and step != self._first_step:
                     logger.info(
                         f"Report event: {ts} {target} {event_name} "
                         f"{event_type} {step}"
@@ -154,11 +171,13 @@ class AtorchEventCollector(Singleton):
 
     def collect_events(self, rank: int):
         filepath = os.path.join(self._filepath, f"events_{rank}.log")
+        logger.info(f"Collect events from file: {self._filepath}")
 
         while not self._stop_collector:
             try:
                 self._monitor_file(filepath)
             except FileNotFoundError:
+                logger.debug(f"Collect file not found: {filepath}")
                 time.sleep(self._retry_timeout)
                 continue
             except (PermissionError, IOError, OSError) as e:
@@ -180,6 +199,7 @@ class AtorchEventCollector(Singleton):
                 daemon=True,
             )
             thread.start()
+            logger.info(f"Starting atorch_collector_{rank} thread...")
             self._threads.append(thread)
 
     def stop_collectors(self):
