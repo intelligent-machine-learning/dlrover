@@ -28,6 +28,11 @@ jobs:
       - name: Checkout Branch
         uses: actions/checkout@v3
 
+      - name: Extract version from SETUP
+        run: |
+          VERSION=$(grep "version=" setup.py | sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -50,3 +55,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
