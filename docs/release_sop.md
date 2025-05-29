@@ -20,3 +20,4 @@
     twine upload -r pypi dist/dlrover-xxx-any.whl
     ```
 5. Publish the release [draft](https://github.com/intelligent-machine-learning/dlrover/releases).
+6. Trigger(automatically) the image release actions.

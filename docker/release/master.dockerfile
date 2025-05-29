@@ -1,5 +1,6 @@
 FROM easydl/dlrover:ci as builder
 
+ARG PYTHON_VERSION
 ARG VERSION
 ENV VERSION=${VERSION}
 
