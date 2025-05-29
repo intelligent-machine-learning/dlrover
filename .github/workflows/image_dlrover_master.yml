@@ -32,7 +32,7 @@ jobs:
 
       - name: Extract version from SETUP
         run: |
-          VERSION=$(grep "version=" setup.py | \ sed -E "${{ env.VER_REG }}")
+          VERSION=$(grep "version=" setup.py | sed -E "${{ env.VER_REG }}")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GHCR
