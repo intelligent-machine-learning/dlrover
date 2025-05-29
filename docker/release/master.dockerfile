@@ -7,7 +7,8 @@ WORKDIR /dlrover
 COPY ./ .
 RUN sh scripts/build_wheel.sh
 
-FROM python:3.8.14 as base
+ARG PYTHON_VERSION=3.8.14
+FROM python:${PYTHON_VERSION} as base
 
 ARG VERSION
 RUN pip install pyparsing -i https://pypi.org/simple

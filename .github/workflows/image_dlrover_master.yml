@@ -16,9 +16,9 @@ jobs:
     strategy:
       matrix:
         build_info:
-          - dockerfile: "./docker/release/master_py38.dockerfile"
+          - py_version: "3.8.14"
             image_name: "release_dlrover_master_py38"
-          - dockerfile: "./docker/release/master_py310.dockerfile"
+          - pv_version: "3.10.17"
             image_name: "release_dlrover_master_py310"
     permissions:
       contents: read
@@ -50,10 +50,17 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./
-          file: ${{ matrix.build_info.dockerfile }}
+          file: ./docker/release/master.dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ env.VERSION }}
+            PY_VERSION=${{ matrix.build_info.py_version }}
+
+      - name: Set Image Public
+        uses: dawidd6/github-action-manage-container@v2
+        with:
+          repository: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }}
+          visibility: public
