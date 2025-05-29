@@ -1,5 +1,6 @@
-FROM easydl/dlrover:ci as builder
+FROM easydl/dlrover:ci AS builder
 
+ARG PY_VERSION=3.8.14
 ARG VERSION
 ENV VERSION=${VERSION}
 
@@ -7,8 +8,7 @@ WORKDIR /dlrover
 COPY ./ .
 RUN sh scripts/build_wheel.sh
 
-ARG PY_VERSION=3.8.14
-FROM python:${PY_VERSION} as base
+FROM python:${PY_VERSION} AS base
 
 ARG VERSION
 RUN pip install pyparsing -i https://pypi.org/simple
