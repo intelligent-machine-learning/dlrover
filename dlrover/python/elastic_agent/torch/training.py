@@ -22,7 +22,6 @@ import tempfile
 import time
 import traceback
 import uuid
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
@@ -30,7 +29,6 @@ from datetime import datetime, timedelta
 from typing import (
     Any,
     Callable,
-    DefaultDict,
     Dict,
     List,
     Optional,
