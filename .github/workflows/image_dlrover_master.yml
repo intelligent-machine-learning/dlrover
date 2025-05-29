@@ -60,7 +60,9 @@ jobs:
             PY_VERSION=${{ matrix.build_info.py_version }}
 
       - name: Set Image Public
-        uses: dawidd6/github-action-manage-container@v2
-        with:
-          repository: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }}
-          visibility: public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/orgs/intelligent-machine-learning/packages/container/${{ matrix.build_info.image_name }}/visibility \
+            -d '{"visibility":"public"}'
