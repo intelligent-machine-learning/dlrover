@@ -63,9 +63,6 @@ class DefaultValues(object):
     SEC_TO_CHANGE_PS = 3600  # 1h
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
     HANG_CPU_USAGE_RATE = 0.05
-    HANG_DETECTION = 1
-    HANG_DOWNTIME = 5
-    MIN_HANG_DOWNTIME = 3
     GPU_NUM_PER_NODE = 8
     NPU_NUM_PER_NODE = 16
     MAX_METRIC_REC = 30
@@ -77,7 +74,11 @@ class DefaultValues(object):
             True,
         )
     ]
-    MAX_HANG_THRESHOLD = 300  # seconds
+    HANG_DETECTION = 1
+    HANG_DOWNTIME = 10  # max downtime, unit is minute
+    MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
+    MAX_CKPT_THRESHOLD = 900  # seconds
+    MAX_AVG_STEPS = 50
 
 
 class Context(Singleton):

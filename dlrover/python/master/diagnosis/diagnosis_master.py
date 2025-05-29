@@ -19,18 +19,15 @@ from dlrover.python.common.constants import (
     Accelerators,
     EventReportConstants,
     GpuMetricEnum,
+    NodeType,
     NpuMetricEnum,
     PreCheckStatus,
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
-from dlrover.python.common.global_context import Context, DefaultValues
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
-from dlrover.python.common.metric.monitor import (
-    GpuMetricMonitor,
-    NpuMetricMonitor,
-)
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
@@ -78,6 +75,7 @@ class DiagnosisMaster(DiagnosisManager):
 
     def __init__(self, job_args: JobArgs = None):
         self._is_observing_started = False
+        self._is_observing_paused = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
@@ -271,6 +269,9 @@ class DiagnosisMaster(DiagnosisManager):
             f"Training pre-check complete, cost:{time.time() - start:.2f}s."
         )
 
+    def new_metric_monitor(self, monitor):
+        self._metric_monitor = monitor
+
     def start_metric_collect(self):
         """
         create a XpuMetricMonitor instance based on worker XPU type
@@ -278,30 +279,7 @@ class DiagnosisMaster(DiagnosisManager):
         store the data into global JobMetricContext
 
         """
-
         logger.info(f"start {self._job_args.xpu_type} metric collector...")
-
-        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
-            self._metric_monitor = NpuMetricMonitor(
-                job_name=self._job_args.job_name,
-                metrics=[
-                    NpuMetricEnum.NPU_UTIL,
-                ],
-            )
-        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
-            self._metric_monitor = GpuMetricMonitor(
-                job_name=self._job_args.job_name,
-                metrics=[
-                    GpuMetricEnum.GPU_UTIL,
-                    GpuMetricEnum.GPU_TENSOR_UTIL,
-                ],
-            )
-        else:
-            logger.info(
-                f"No need to collect metrics in {self._job_args.xpu_type}"
-            )
-            return DiagnosisResult.DIAG_INVALID_PARAM
-
         if self._metric_monitor:
             self._metric_monitor.start()
 
@@ -314,6 +292,21 @@ class DiagnosisMaster(DiagnosisManager):
         logger.info("Join metric collector...")
         if self._metric_monitor:
             self._metric_monitor.join()
+
+    def pause_observing(self):
+        if not self._is_observing_paused:
+            logger.info("Pause observing training...")
+            _event_context.train_steps.clear_step_events()
+            _metric_context.clear_node_metrics()
+            self._is_observing_paused = True
+
+    def continue_observing(self):
+        if self._is_observing_paused:
+            logger.info("Continue observing training...")
+            _event_context.train_steps.clear_step_events()
+            _metric_context.clear_node_metrics()
+
+            self._is_observing_paused = False
 
     def start_observing(self):
         logger.info("Start to observing training...")
@@ -406,24 +399,30 @@ class DiagnosisMaster(DiagnosisManager):
 
         return DiagnosisResult.DIAG_HANG, start_ts, end_ts
 
-    def _diagnose_metrics(self):
-        logger.info("_diagnose_metrics thread is running...")
+    def _diagnose_metrics(
+        self, interval=DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS
+    ):
+        hang_downtime = _dlrover_context.hang_downtime
+
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _metric_diagnose thread due to "
+                    f"Stop _metric_diagnose thread: "
                     f"{self._is_observing_started}"
                 )
                 break
 
-            if (
-                _dlrover_context.hang_downtime
-                < DefaultValues.MIN_HANG_DOWNTIME
-            ):
-                hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
-            else:
-                hang_downtime = _dlrover_context.hang_downtime
+            if self._is_observing_paused:
+                logger.info(
+                    f"Pause _metric_diagnose thread: "
+                    f"{self._is_observing_paused}"
+                )
+                time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
+                continue
+
             result, start, end = self.check_tensor_drop_zero(hang_downtime)
+            step_hang = _event_context.check_job_step_hang()
+
             if result is DiagnosisResult.DIAG_HANG:
                 start_dt = datetime.fromtimestamp(start).strftime(
                     "%Y-%m-%d %H:%M:%S"
@@ -433,18 +432,33 @@ class DiagnosisMaster(DiagnosisManager):
                 )
                 logger.warning(
                     f"Detect job hang by tensor drop zero: "
-                    f"{start_dt}-{end_dt}"
+                    f"{start_dt}-{end_dt}, step hang is {step_hang}"
                 )
 
                 if _dlrover_context.hang_detection == 2:
-                    self._job_context.enqueue_diagnosis_action(
-                        NodeAction(
-                            action_type=DiagnosisActionType.RESTART_WORKER,
-                            instance=DiagnosisConstant.ANY_INSTANCE,
+                    if step_hang is True:
+                        node = self._job_context.job_node_by_rank(
+                            NodeType.WORKER, 0
                         )
-                    )
+                        if node is None:
+                            logger.warning("Failed to get rank 0 worker")
+                        else:
+                            logger.info(
+                                f"Restart worker-{node.id} all processes"
+                            )
+                            _event_context.train_steps.clear_step_events()
+                            self._job_context.enqueue_diagnosis_action(
+                                NodeAction(
+                                    node_id=node.id,
+                                    node_type=NodeType.WORKER,
+                                    action_type=(
+                                        DiagnosisActionType.RESTART_WORKER
+                                    ),
+                                    instance=DiagnosisConstant.ANY_INSTANCE,
+                                )
+                            )
 
-            time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
+            time.sleep(interval)
 
     def _diagnose(self):
         logger.info("_diagnose thread is running...")

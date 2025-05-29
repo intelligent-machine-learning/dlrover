@@ -45,6 +45,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
+from dlrover.python.diagnosis.common.diagnosis_action import NoAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
@@ -306,6 +307,11 @@ class MasterServicer(ABC):
                 RendezvousName.ELASTIC_TRAINING
             ]
             training_manager.clear_waiting_nodes()
+
+        # Pause hang diagnosis during rendezvous
+        if node_rank == 0:
+            self._diagnosis_manager.pause_observing()
+
         res = comm.RendezvousState(round=round)
         return res
 
@@ -324,6 +330,9 @@ class MasterServicer(ABC):
         """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
         if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            logger.debug(
+                f"Job is stopping, set waiting_num {waiting_num} to -1"
+            )
             waiting_num = -1
         res = comm.RendezvousState(waiting_num=waiting_num)
         return res
@@ -340,16 +349,21 @@ class MasterServicer(ABC):
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
             self._job_metric_collector.collect_custom_data(metrics)
+            # Finish elastic training rendezvous so we continue diagnosis
+            self._diagnosis_manager.continue_observing()
+
         return res
 
     def _kv_store_get(self, request: comm.KeyValuePair):
         value = self._kv_store.get(request.key)
         res = comm.KeyValuePair(request.key, value)
+        logger.debug(f"_kv_store_get: {request} {res}")
         return res
 
     def _kv_store_add(self, request: comm.KeyValuePair):
         value = self._kv_store.add(request.key, request.value)
         res = comm.KeyValuePair(request.key, value)
+        logger.debug(f"_kv_store_add: {request} {res}")
         return res
 
     def _kv_store_multi_get(self, request: comm.KeyValuePairs):
@@ -363,6 +377,7 @@ class MasterServicer(ABC):
                 kvs[key] = value
 
         res = comm.KeyValuePairs(kvs)
+        logger.debug(f"_kv_store_multi_get: {request} {res}")
         return res
 
     def _get_paral_config(self):
@@ -605,12 +620,12 @@ class MasterServicer(ABC):
         return True
 
     def _handle_reported_atorch_event(self, message: comm.AtorchEvent):
-        if comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_STEP:
+        if message.name == TrainEventName.TRAIN_EVT_STEP:
+            logger.debug(f"Add step event: {message}")
             _event_context.train_steps.add_step_event(message)
-        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_PREDICT_STEP:
-            _event_context.predict_steps.add_step_event(message)
-        elif comm.AtorchEvent.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
-            _event_context.train_steps.add_ckpt_event(message)
+        elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            logger.debug(f"Add ckpt event: {message}")
+            _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True
 
@@ -673,11 +688,13 @@ class MasterServicer(ABC):
 
     def _kv_store_set(self, message: comm.KeyValuePair):
         self._kv_store.set(message.key, message.value)
+        logger.debug(f"_kv_store_set: {message}")
         return True
 
     def _kv_store_multi_set(self, message: comm.KeyValuePairs):
         for k, v in message.kvs.items():
             self._kv_store.set(k, v)
+        logger.debug(f"_kv_store_multi_set: {message}")
         return True
 
     def _report_paral_config(
@@ -754,6 +771,11 @@ class MasterServicer(ABC):
         action = self._job_manager.collect_node_heart_beat(
             node_type, node_id, message.timestamp
         )
+        if action and not isinstance(action, NoAction):
+            logger.info(
+                f"Master return action {action.__class__.__name__}: "
+                f"{action.to_json()}"
+            )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,
             action.to_json(),

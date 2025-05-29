@@ -14,12 +14,6 @@
 from abc import ABCMeta, abstractmethod
 
 
-class CollectorType:
-    CUDALOG = "cuda_log"
-    TRAININGLOG = "training_log"
-    CHIPMETRICS = "chip_metrics"
-
-
 class DataCollector(metaclass=ABCMeta):
     """
     DataCollector collects certain type of data and report to master.
@@ -39,3 +33,21 @@ class DataCollector(metaclass=ABCMeta):
         """Whether the collector is enabled."""
 
         return True
+
+    def store_data(self, data: object):
+        pass
+
+
+class SimpleDataCollector(DataCollector):
+    """
+    An simple implementation of data collector
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def is_enabled(self) -> bool:
+        return True
+
+    def collect_data(self) -> object:
+        return "data"

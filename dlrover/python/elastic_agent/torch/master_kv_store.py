@@ -17,6 +17,7 @@ from typing import Optional
 
 from torch.distributed import Store
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
@@ -156,11 +157,20 @@ class MasterKVStore(Store):
         deadline = time.time() + timeout.total_seconds()
 
         while True:
-            kvs = self.client.kv_store_multi_get(keys)
-            if kvs:
-                return kvs
+            try:
+                kvs = self.client.kv_store_multi_get(keys)
+                if kvs:
+                    logger.debug(f"_try_wait_get {keys}: {kvs}")
+                    return kvs
+            except Exception as e:
+                logger.warning(
+                    f"_try_wait_get {keys} exception: {e}, try again!"
+                )
 
             watch_timeout = deadline - time.time()
             if watch_timeout <= 0:
+                logger.debug(
+                    f"_try_wait_get {keys} timeout: {timeout.total_seconds()}"
+                )
                 return None
             time.sleep(2)

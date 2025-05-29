@@ -160,7 +160,7 @@ class GpuNodeMetric(XpuNodeMetric):
 
     def __init__(self):
         super().__init__()
-        self.node_metrics: Dict[int, GpuMetric] = {}
+        self.node_metrics: Dict[str, GpuMetric] = {}
         self.avg_metrics = GpuMetric()
 
     def get_avg_metric(self, metric):
@@ -231,7 +231,7 @@ class NpuNodeMetric(XpuNodeMetric):
 
     def __init__(self):
         super().__init__()
-        self.node_metrics: Dict[int, NpuMetric] = {}
+        self.node_metrics: Dict[str, NpuMetric] = {}
         self.avg_metrics = NpuMetric()
 
     def get_avg_metric(self, metric):

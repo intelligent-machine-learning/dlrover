@@ -11,33 +11,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_resource_collection_operator import (  # noqa: E501
-    CheckResourceCollectionOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.metrics_collection_operator import (  # noqa: E501
-    MetricsCollectionOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.resource_collection_operator import (  # noqa: E501
-    ResourceCollectionOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_gpu_errors_operator import (  # noqa: E501
-    ResolveGPUErrorsOperator,
+from typing import List
+
+from dlrover.python.diagnosis.common.inference_chain import (
+    Inference,
+    InferenceOperator,
 )
 
 
-def get_training_failure_operators():
-    return []
+class SimpleOperator(InferenceOperator):
+    """
+    SimpleOperator is a simple implementation
+    of InferenceOperator
+    """
 
+    def __init__(self):
+        super().__init__(None)
 
-def get_worker_observe_operators():
-    return [
-        MetricsCollectionOperator(),
-        CheckResourceCollectionOperator(),
-        ResourceCollectionOperator(),
-    ]
+    def is_compatible(self, inference: Inference) -> bool:
+        if inference.name == "simple_problem":
+            return True
+        else:
+            return False
 
-
-def get_worker_resolve_operators():
-    return [
-        ResolveGPUErrorsOperator(),
-    ]
+    def infer(self, inferences: List[Inference]) -> List[Inference]:
+        return [
+            Inference(
+                name="simple_result",
+            )
+        ]
