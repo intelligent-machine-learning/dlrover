@@ -18,7 +18,7 @@ jobs:
         build_info:
           - py_version: "3.8.14"
             image_name: "release_dlrover_master_py38"
-          - pv_version: "3.10.17"
+          - py_version: "3.10.17"
             image_name: "release_dlrover_master_py310"
     permissions:
       contents: read
