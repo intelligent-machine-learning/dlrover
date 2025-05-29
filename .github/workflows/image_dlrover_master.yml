@@ -9,6 +9,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  SET_API: >
+    https://api.github.com/orgs/intelligent-machine-learning/packages/container
+  VERSION_SED: s/.*version=['\"]([^'\"]+)['\"].*/\1/
 
 jobs:
   build-and-push-image:
@@ -30,7 +33,7 @@ jobs:
 
       - name: Extract version from SETUP
         run: |
-          VERSION=$(grep "version=" setup.py | sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
+          VERSION=$(grep "version=" setup.py | sed -E "${{ VERSION_SED }}")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GHCR
@@ -64,5 +67,5 @@ jobs:
           curl -X PATCH \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/orgs/intelligent-machine-learning/packages/container/${{ matrix.build_info.image_name }}/visibility \
+            ${{ SET_API }}/${{ matrix.build_info.image_name }}/visibility \
             -d '{"visibility":"public"}'

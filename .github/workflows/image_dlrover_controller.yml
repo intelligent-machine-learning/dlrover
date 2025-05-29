@@ -9,6 +9,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  SET_API: >
+    https://api.github.com/orgs/intelligent-machine-learning/packages/container
 
 jobs:
   build-and-push-image:
@@ -49,5 +51,5 @@ jobs:
           curl -X PATCH \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/orgs/intelligent-machine-learning/packages/container/${{ matrix.build_info.image_name }}/visibility \
+            ${{ SET_API }}/${{ matrix.build_info.image_name }}/visibility \
             -d '{"visibility":"public"}'
