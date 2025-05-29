@@ -50,5 +50,5 @@ jobs:
           curl -X PATCH \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            ${{ SET_API }}/${{ matrix.build_info.image_name }}/visibility \
+            ${{ env.SET_API }}/${{ matrix.build_info.image_name }}/visibility \
             -d '{"visibility":"public"}'
