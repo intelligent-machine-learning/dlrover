@@ -11,7 +11,7 @@ env:
   REGISTRY: ghcr.io
   SET_API: >
     https://api.github.com/orgs/intelligent-machine-learning/packages/container
-  VERSION_SED: s/.*version=['\"]([^'\"]+)['\"].*/\1/
+  VERSION_SED: "s/.*version=['\"]([^'\"]+)['\"].*/\1/"
 
 jobs:
   build-and-push-image:
