@@ -10,6 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   SET_API: https://api.github.com/orgs/intelligent-machine-learning/packages/container # yamllint disable-line
+  VER_REG: s/.*version=['\"]([^'\"]+)['\"].*/\1/
 
 jobs:
   build-and-push-image:
@@ -31,8 +32,7 @@ jobs:
 
       - name: Extract version from SETUP
         run: |
-          VERSION=$(grep "version=" setup.py | \ 
-          sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
+          VERSION=$(grep "version=" setup.py | \ sed -E "${{ env.VER_REG }}")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GHCR
