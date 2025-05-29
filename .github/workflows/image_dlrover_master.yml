@@ -16,9 +16,9 @@ jobs:
     strategy:
       matrix:
         build_info:
-          - dockerfile: "./docker/master/master_py38.dockerfile"
+          - dockerfile: "./docker/release/master_py38.dockerfile"
             image_name: "release_dlrover_master_py38"
-          - dockerfile: "./docker/master/master_py310.dockerfile"
+          - dockerfile: "./docker/release/master_py310.dockerfile"
             image_name: "release_dlrover_master_py310"
     permissions:
       contents: read
