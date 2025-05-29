@@ -11,7 +11,7 @@ RUN apt-get -qq update && apt-get install -y iputils-ping vim gdb
 
 # must equal with
 #ENV VERSION="0.5.0.dev"
-RUN VERSION=$(grep -oP 'version="\K[^"]+' setup.py) && \
+RUN VERSION=$(grep "version=" setup.py | sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/") && \
     echo "Version found: ${VERSION}"
 
 COPY --from=builder /dlrover/dist/dlrover-${VERSION}-py3-none-any.whl /
