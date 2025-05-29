@@ -6,8 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  SET_API: >
-    https://api.github.com/orgs/intelligent-machine-learning/packages/container
+  SET_API: https://api.github.com/orgs/intelligent-machine-learning/packages/container # yamllint disable-line
 
 jobs:
   build-and-push-image:
