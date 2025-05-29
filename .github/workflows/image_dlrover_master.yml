@@ -11,7 +11,6 @@ env:
   REGISTRY: ghcr.io
   SET_API: >
     https://api.github.com/orgs/intelligent-machine-learning/packages/container
-  VERSION_SED: "s/.*version=['\"]([^'\"]+)['\"].*/\1/"
 
 jobs:
   build-and-push-image:
@@ -33,7 +32,8 @@ jobs:
 
       - name: Extract version from SETUP
         run: |
-          VERSION=$(grep "version=" setup.py | sed -E "${{ VERSION_SED }}")
+          VERSION=$(grep "version=" setup.py | \ 
+          sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GHCR
