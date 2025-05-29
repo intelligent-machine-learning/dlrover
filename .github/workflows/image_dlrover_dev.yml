@@ -13,15 +13,22 @@ jobs:
     strategy:
       matrix:
         build_info:
-          - dockerfile: "./docker/ci_py38.dockerfile"
+          - dockerfile: "./docker/ci.dockerfile"
             image_name: "dlrover_dev_py38"
             platform: "linux/amd64"
-          - dockerfile: "./docker/ci_py38.dockerfile.arm64"
+            py_version: "3.8.14"
+          - dockerfile: "./docker/ci_arm64.dockerfile"
             image_name: "dlrover_dev_py38_arm64"
             platform: "linux/arm64"
-          - dockerfile: "./docker/ci_py310.dockerfile"
+            py_version: "3.8.14"
+          - dockerfile: "./docker/ci.dockerfile"
             image_name: "dlrover_dev_py310"
             platform: "linux/amd64"
+            py_version: "3.10.17"
+          - dockerfile: "./docker/ci_arm64.dockerfile"
+            image_name: "dlrover_dev_py310_arm64"
+            platform: "linux/arm64"
+            py_version: "3.10.17"
     permissions:
       contents: read
       packages: write
@@ -60,3 +67,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PY_VERSION=${{ matrix.build_info.py_version }}
+
+      - name: Set Image Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/orgs/intelligent-machine-learning/packages/container/${{ matrix.build_info.image_name }}/visibility \
+            -d '{"visibility":"public"}'

@@ -1,4 +1,7 @@
-FROM python:3.10.17
+ARG PY_VERSION=3.8.14
+
+FROM --platform=arm64 python:${PY_VERSION}
+
 ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 
 # Allows for log messages by `print` in Python to be immediately dumped
@@ -27,15 +30,15 @@ RUN apt-get update && apt-get install -y \
 ARG GO_MIRROR_URL=https://dl.google.com/go
 ENV GOPATH /root/go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
-COPY docker/scripts/install-go.bash /
+COPY docker/scripts/install-go.bash-arm64 /install-go.bash
 RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 
 # Install protobuf and protoc
-COPY docker/scripts/install-protobuf.bash /
+COPY docker/scripts/install-protobuf.bash-arm64 /install-protobuf.bash
 RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install python deps
-RUN pip install pre-commit pytest ray[default] kubernetes grpcio-tools psutil \
+RUN pip install pre-commit pytest kubernetes grpcio-tools psutil \
     deprecated -i https://mirrors.aliyun.com/pypi/simple/
 
 # Configure envtest for integration tests of kubebuilder
