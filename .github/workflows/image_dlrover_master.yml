@@ -1,0 +1,52 @@
+---
+name: build and publish dlrover release master image
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_info:
+          - dockerfile: "./docker/master/master_py38.dockerfile"
+            image_name: "release_dlrover_master_py38"
+          - dockerfile: "./docker/master/master_py310.dockerfile"
+            image_name: "release_dlrover_master_py310"
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }} # yamllint disable-line
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          file: ${{ matrix.build_info.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
