@@ -915,7 +915,10 @@ class DistributedJobManager(JobManager):
                 and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
-                msg = "Disable relaunch"
+                msg = "Disable relaunch due to fatal error"
+            elif node.exit_reason == NodeExitReason.RELAUNCHED:
+                should_relaunch = False
+                msg = "Disable relaunch due to already relaunched"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if self.is_all_reduce_type_job():
@@ -958,9 +961,7 @@ class DistributedJobManager(JobManager):
                         f"{node.relaunch_count} "
                         f"exhausted {node.max_relaunch_count}"
                     )
-            elif node.exit_reason == NodeExitReason.RELAUNCHED:
-                logger.info(f"Node {node.name} has already relaunched.")
-                should_relaunch = False
+
         if should_relaunch:
             node.relaunch_count += 1
 
