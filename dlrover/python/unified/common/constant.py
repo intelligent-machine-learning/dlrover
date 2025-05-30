@@ -31,6 +31,15 @@ class DLJobExitReason(object):
     FAILOVER_OUT_OF_LIMIT = "FAILOVER_OUT_OF_LIMIT"
 
 
+class InternalDLConfig(object):
+    ELASTIC_RUN_CMD = "ELASTIC_RUN_CMD"  # the dlrover-run command
+
+
+class InternalDLWorkloadRole(object):
+    TRAINER_ROLE = "TRAINER"
+    ELASTIC_ROLE = "ELASTIC"
+
+
 class DLWorkloadEnv(object):
     NAME = "NAME"
     ROLE = "ROLE"

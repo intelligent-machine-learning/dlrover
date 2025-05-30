@@ -12,10 +12,15 @@
 # limitations under the License.
 from abc import ABC, abstractmethod
 
+from dlrover.python.unified.master.graph import DLExecutionGraph
+
 
 class Executor(ABC):
+
+    CALL_TIMEOUT_DEFAULT = 60
+
     def __init__(self, execution_graph):
-        self._execution_graph = execution_graph
+        self._execution_graph: DLExecutionGraph = execution_graph
 
     @property
     def graph(self):

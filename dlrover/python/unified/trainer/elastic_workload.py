@@ -13,6 +13,7 @@
 import ray
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.trainer.workload import BaseWorkload
 from dlrover.trainer.torch.elastic_run import main
 
@@ -20,7 +21,8 @@ from dlrover.trainer.torch.elastic_run import main
 @ray.remote
 class ElasticWorkload(BaseWorkload):
 
-    def start_elastic_agent(self, run_cmd):
+    def start(self):
+        run_cmd = self.config.get(InternalDLConfig.ELASTIC_RUN_CMD)
         logger.info(f"Run dlrover command in elastic workload: {run_cmd}")
 
         run_cmd_args = run_cmd.split("dlrover-run")[1].strip()

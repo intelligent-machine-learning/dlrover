@@ -15,6 +15,7 @@ import unittest
 from omegaconf import OmegaConf
 
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
+from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
@@ -362,6 +363,7 @@ class ApiTest(unittest.TestCase):
         )
 
     def test_spmd(self):
+        cmd = "dlrover-run --nnodes=2 --nproc_per_node=2 test.py"
         dl_job = (
             DLJobBuilder()
             .SFT_type()
@@ -370,7 +372,7 @@ class ApiTest(unittest.TestCase):
             .device_type("CPU")
             .config({"c1": "v1"})
             .global_env({"e0": "v0"})
-            .dlrover_run("dlrover-run --nnodes=2 --nproc_per_node=2 test.py")
+            .dlrover_run(cmd)
             .build()
         )
 
@@ -385,14 +387,18 @@ class ApiTest(unittest.TestCase):
             "DefaultTrainer",
         )
         self.assertEqual(
-            dl_config["workload"]["elastic"]["class"],
+            dl_config["config"][InternalDLConfig.ELASTIC_RUN_CMD],
+            cmd,
+        )
+        self.assertEqual(
+            dl_config["workload"]["ELASTIC"]["class"],
             "ElasticWorkload",
         )
         self.assertEqual(
-            dl_config["workload"]["elastic"]["num"],
+            dl_config["workload"]["ELASTIC"]["num"],
             2,
         )
         self.assertEqual(
-            dl_config["workload"]["elastic"]["resource"]["CPU"],
+            dl_config["workload"]["ELASTIC"]["resource"]["CPU"],
             2,
         )

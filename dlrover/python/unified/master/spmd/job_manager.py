@@ -34,6 +34,8 @@ from dlrover.python.master.node.job_context import get_job_context as get_elasti
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.master.job_manager import JobManager
+from dlrover.python.unified.master.spmd.executor import ElasticExecutor
+
 _MAX_POD_RELAUNCH_COUNT = 5
 
 
@@ -55,8 +57,7 @@ class ElasticJobManager(JobManager):
         return self._elastic_context
 
     def get_executor(self):
-        return self.
-
+        return ElasticExecutor(self.graph)
 
     def start_job(self):
         self._init_nodes()

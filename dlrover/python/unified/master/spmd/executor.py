@@ -15,7 +15,10 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
+import ray
+
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.constant import InternalDLWorkloadRole
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.executor import Executor
 from dlrover.python.unified.master.graph import DLExecutionGraph
@@ -23,10 +26,27 @@ from dlrover.python.unified.trainer.trainer import BaseTrainer
 
 
 class ElasticExecutor(Executor):
+
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
 
     def execute(self):
         logger.info("Start elastic execution")
 
-        self.graph.
+        elastic_vertices = self.graph.execution_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]
+
+        start_refs = [
+            vertex.actor_handle.start.remote(vertex.get_extra_args("run_cmd"))
+            for vertex in elastic_vertices
+        ]
+        ready, not_ready = ray.wait(
+            start_refs,
+            num_returns=len(start_refs),
+            timeout=Executor.CALL_TIMEOUT_DEFAULT,
+        )
+        if len(not_ready) > 0:
+            raise TimeoutError(
+                f"{len(not_ready)} elastic workload actor "
+                f"start timeout: {Executor.CALL_TIMEOUT_DEFAULT}s."
+            )
+
