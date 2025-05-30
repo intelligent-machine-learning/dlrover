@@ -10,30 +10,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
-import traceback
-from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Union
 
 import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
-from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.executor import Executor
 from dlrover.python.unified.master.graph import DLExecutionGraph
-from dlrover.python.unified.trainer.trainer import BaseTrainer
 
 
 class ElasticExecutor(Executor):
-
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
 
     def execute(self):
         logger.info("Start elastic execution")
 
-        elastic_vertices = self.graph.execution_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]
+        elastic_vertices = self.graph.execution_vertices[
+            InternalDLWorkloadRole.ELASTIC_ROLE
+        ]
 
         start_refs = [
             vertex.actor_handle.start.remote(vertex.get_extra_args("run_cmd"))
@@ -49,4 +44,3 @@ class ElasticExecutor(Executor):
                 f"{len(not_ready)} elastic workload actor "
                 f"start timeout: {Executor.CALL_TIMEOUT_DEFAULT}s."
             )
-

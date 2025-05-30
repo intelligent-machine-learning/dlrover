@@ -15,8 +15,11 @@ from typing import Dict, List, Set, Tuple, Union
 from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.constant import DLWorkloadEnv, \
-    InternalDLWorkloadRole, InternalDLConfig
+from dlrover.python.unified.common.constant import (
+    DLWorkloadEnv,
+    InternalDLConfig,
+    InternalDLWorkloadRole,
+)
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
@@ -52,7 +55,12 @@ class DLTrainerConfig(DLRoleConfig):
     """
 
     def __init__(self, trainer_type, module_name, class_name, **kwargs):
-        super().__init__(InternalDLWorkloadRole.TRAINER_ROLE, module_name, class_name, **kwargs)
+        super().__init__(
+            InternalDLWorkloadRole.TRAINER_ROLE,
+            module_name,
+            class_name,
+            **kwargs,
+        )
         self._trainer_type: TrainerType = trainer_type
 
     @property
@@ -311,7 +319,9 @@ class DLJobBuilder(object):
         )
 
     def has_elastic_training(self):
-        if InternalDLWorkloadRole.ELASTIC_ROLE in list(self._components.keys()):
+        if InternalDLWorkloadRole.ELASTIC_ROLE in list(
+            self._components.keys()
+        ):
             return True
         return False
 
@@ -349,7 +359,8 @@ class DLJobBuilder(object):
         # for role components
         if self._stream_type == DLStreamType.TASK_STREAM:
             if (
-                InternalDLWorkloadRole.TRAINER_ROLE not in list(self._components.keys())
+                InternalDLWorkloadRole.TRAINER_ROLE
+                not in list(self._components.keys())
                 and not self.has_elastic_training()
             ):
                 logger.error(
@@ -384,7 +395,9 @@ class DLJobBuilder(object):
                             "elastic training."
                         )
                         return False
-                elif component.role_name == InternalDLWorkloadRole.TRAINER_ROLE:
+                elif (
+                    component.role_name == InternalDLWorkloadRole.TRAINER_ROLE
+                ):
                     # for common trainer
                     pass
                 else:

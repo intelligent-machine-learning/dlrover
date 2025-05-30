@@ -20,7 +20,6 @@ from dlrover.trainer.torch.elastic_run import main
 
 @ray.remote
 class ElasticWorkload(BaseWorkload):
-
     def start(self):
         run_cmd = self.config.get(InternalDLConfig.ELASTIC_RUN_CMD)
         logger.info(f"Run dlrover command in elastic workload: {run_cmd}")

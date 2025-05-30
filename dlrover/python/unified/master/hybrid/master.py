@@ -14,7 +14,6 @@
 import ray
 
 from dlrover.python.unified.common.failure import FailureDesc
-from dlrover.python.unified.master.master import BaseMaster
 from dlrover.python.unified.master.spmd.master import SPMDMaster
 
 

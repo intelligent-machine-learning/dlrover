@@ -59,7 +59,8 @@ class SPMDMaster(BaseMaster):
         job_args = self._get_job_args_from_unified_context()
 
         self._rdzv_managers: Dict[str, RendezvousManager] = {
-            RendezvousName.ELASTIC_TRAINING: ElasticTrainingRendezvousManager(),
+            RendezvousName.ELASTIC_TRAINING:
+                ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self._perf_monitor = PerfMonitor()

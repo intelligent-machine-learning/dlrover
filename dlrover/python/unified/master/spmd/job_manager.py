@@ -30,7 +30,9 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
-from dlrover.python.master.node.job_context import get_job_context as get_elastic_context
+from dlrover.python.master.node.job_context import (
+    get_job_context as get_elastic_context,
+)
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.master.job_manager import JobManager
@@ -73,9 +75,7 @@ class ElasticJobManager(JobManager):
         job_nodes: Dict[str, Dict[int, Node]] = {}
         group_nodes: Dict[int, Node] = {}
 
-        for (
-            elastic_vertex
-        ) in self.context.execution_graph.execution_vertices[
+        for elastic_vertex in self.context.execution_graph.execution_vertices[
             InternalRoleType.ELASTIC.name
         ]:
             group_nodes[elastic_vertex.rank] = Node(
@@ -211,7 +211,7 @@ class ElasticJobManager(JobManager):
 
             if event_type == NodeEventType.SUCCEEDED_EXITED:
                 self.elastic_context.update_job_stage(JobStage.JOB_STOPPING)
-                logger.info(
-                    f"Update job stage to {self.elastic_context.get_job_stage()} "
-                    f"due to event {event_type}."
+                logger.info("Update job stage to "
+                            f"{self.elastic_context.get_job_stage()} "
+                            f"due to event {event_type}."
                 )

@@ -162,7 +162,9 @@ class BaseMaster(ABC):
             self._executor.submit(self._wait_and_exit)
         except Exception as e:
             logger.error("Got unexpected fatal error on starting.", e)
-            self.exit_job(stage=JobStage.ERROR, forced=True, reason=DLJobExitReason.ERROR)
+            self.exit_job(
+                stage=JobStage.ERROR, forced=True, reason=DLJobExitReason.ERROR
+            )
 
     def _wait_and_exit(self):
         while True:

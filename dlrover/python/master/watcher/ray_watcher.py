@@ -103,9 +103,9 @@ class ActorWatcher(NodeWatcher):
 
     def list(self, actor_class=None) -> List[Node]:
         if not actor_class:
-            filters = [("class_name", "=", actor_class)]
+            filters = [("class_name", "=", "ElasticWorkload")]
         else:
-            filters = None
+            filters = [("class_name", "=", actor_class)]
 
         nodes: List[Node] = []
 
