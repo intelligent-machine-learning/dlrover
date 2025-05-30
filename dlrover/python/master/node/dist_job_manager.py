@@ -663,6 +663,7 @@ class DistributedJobManager(JobManager):
                     new_node = copy.deepcopy(node)
                     new_node.is_released = True
                     new_node.status = NodeStatus.DELETED
+                    new_node.exit_reason = NodeExitReason.RELAUNCHED
                     event = NodeEvent(NodeEventType.DELETED, new_node)
                     self._process_event_safely(event)
 
@@ -900,7 +901,7 @@ class DistributedJobManager(JobManager):
         if should_relaunch:
             logger.info(
                 f"Recheck should_relaunch with {node} {node.config_resource}: "
-                f"{job_ctx.get_job_stage()} {self.is_all_reduce_type_job()}"
+                f"{job_ctx.get_job_stage()}"
             )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
@@ -957,6 +958,9 @@ class DistributedJobManager(JobManager):
                         f"{node.relaunch_count} "
                         f"exhausted {node.max_relaunch_count}"
                     )
+            elif node.exit_reason == NodeExitReason.RELAUNCHED:
+                logger.info(f"Node {node.name} has already relaunched.")
+                should_relaunch = False
         if should_relaunch:
             node.relaunch_count += 1
 
