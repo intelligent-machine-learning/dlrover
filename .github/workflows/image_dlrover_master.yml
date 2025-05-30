@@ -9,6 +9,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  SET_API: https://api.github.com/orgs/intelligent-machine-learning/packages/container # yamllint disable-line
+  VER_REG: s/.*version=['\"]([^'\"]+)['\"].*/\1/
 
 jobs:
   build-and-push-image:
@@ -16,9 +18,9 @@ jobs:
     strategy:
       matrix:
         build_info:
-          - dockerfile: "./docker/release/master_py38.dockerfile"
+          - py_version: "3.8.14"
             image_name: "release_dlrover_master_py38"
-          - dockerfile: "./docker/release/master_py310.dockerfile"
+          - py_version: "3.10.17"
             image_name: "release_dlrover_master_py310"
     permissions:
       contents: read
@@ -27,6 +29,11 @@ jobs:
     steps:
       - name: Checkout Branch
         uses: actions/checkout@v3
+
+      - name: Extract version from SETUP
+        run: |
+          VERSION=$(grep "version=" setup.py | sed -E "${{ env.VER_REG }}")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -45,8 +52,19 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./
-          file: ${{ matrix.build_info.dockerfile }}
+          file: ./docker/release/master.dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            PY_VERSION=${{ matrix.build_info.py_version }}
+
+      - name: Set Image Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            ${{ env.SET_API }}/${{ matrix.build_info.image_name }}/visibility \
+            -d '{"visibility":"public"}'
