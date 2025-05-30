@@ -10,18 +10,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import ray
+import time
+import traceback
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.trainer.workload import BaseWorkload
-from dlrover.trainer.torch.elastic_run import main
+from dlrover.python.unified.common.job_context import get_job_context
+from dlrover.python.unified.master.executor import Executor
+from dlrover.python.unified.master.graph import DLExecutionGraph
+from dlrover.python.unified.trainer.trainer import BaseTrainer
 
 
-@ray.remote
-class ElasticWorkload(BaseWorkload):
+class ElasticExecutor(Executor):
+    def __init__(self, execution_graph: DLExecutionGraph):
+        super().__init__(execution_graph)
 
-    def start_elastic_agent(self, run_cmd):
-        logger.info(f"Run dlrover command in elastic workload: {run_cmd}")
+    def execute(self):
+        logger.info("Start elastic execution")
 
-        run_cmd_args = run_cmd.split("dlrover-run")[1].strip()
-        main(run_cmd_args)
+        self.graph.

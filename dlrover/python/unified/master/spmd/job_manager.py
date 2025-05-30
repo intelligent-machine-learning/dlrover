@@ -30,13 +30,10 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
+from dlrover.python.master.node.job_context import get_job_context as get_elastic_context
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.master.job_manager import JobManager
-from dlrover.python.unified.master.spmd.job_context import (
-    get_elastic_job_context,
-)
-
 _MAX_POD_RELAUNCH_COUNT = 5
 
 
@@ -49,16 +46,17 @@ class ElasticJobManager(JobManager):
     def __init__(self):
         super(ElasticJobManager, self).__init__()
 
-        self._elastic_job_context = get_elastic_job_context()
+        self._elastic_context = get_elastic_context()
         self._node_watcher = new_node_watcher(PlatformType.RAY, self.job_name)
         self._lock = threading.Lock()
 
     @property
     def elastic_context(self):
-        return self._elastic_job_context
+        return self._elastic_context
 
     def get_executor(self):
-        pass
+        return self.
+
 
     def start_job(self):
         self._init_nodes()
@@ -76,7 +74,7 @@ class ElasticJobManager(JobManager):
 
         for (
             elastic_vertex
-        ) in self.elastic_context.graph.execution_vertices[
+        ) in self.context.execution_graph.execution_vertices[
             InternalRoleType.ELASTIC.name
         ]:
             group_nodes[elastic_vertex.rank] = Node(
@@ -98,9 +96,6 @@ class ElasticJobManager(JobManager):
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes status...")
         while True:
-            if self._stopped:
-                logger.info("Stop monitoring nodes.")
-                break
             try:
                 # update directly
                 list_nodes = self._node_watcher.list()

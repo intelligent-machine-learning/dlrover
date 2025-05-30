@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.unified.common.job_context import (
     get_job_context as get_unified_job_context,
 )
+from dlrover.python.master.node.job_context import get_job_context, JobContext
 
 
 class ElasticJobContext(JobContext):
@@ -22,6 +22,8 @@ class ElasticJobContext(JobContext):
     To adapt dlrover.python.master.node.job_context::JobContext from
     dlrover.python.unified.common.job_context::JobContext
     """
+
+    _instance = None
 
     def __init__(self):
         super(ElasticJobContext, self).__init__()
@@ -31,7 +33,11 @@ class ElasticJobContext(JobContext):
     def graph(self):
         return self._unified_job_ctx.execution_graph
 
+    @classmethod
+    def get_context(cls):
+        if cls._instance:
+            return cls._instance
 
-def get_elastic_job_context() -> ElasticJobContext:
-    job_context = ElasticJobContext.singleton_instance()
-    return job_context
+        job_context = get_job_context()
+
+        return job_context
