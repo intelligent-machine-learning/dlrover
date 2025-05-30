@@ -360,3 +360,39 @@ class ApiTest(unittest.TestCase):
             ],
             "false",
         )
+
+    def test_spmd(self):
+        dl_job = (
+            DLJobBuilder()
+            .SFT_type()
+            .node_num(3)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0"})
+            .dlrover_run("dlrover-run --nnodes=2 --nproc_per_node=2 test.py")
+            .build()
+        )
+
+        self.assertIsNotNone(dl_job)
+        dl_config = dl_job._to_dl_config()
+        self.assertEqual(
+            dl_config["trainer"]["type"],
+            "ELASTIC_TRAINING",
+        )
+        self.assertEqual(
+            dl_config["trainer"]["class"],
+            "DefaultTrainer",
+        )
+        self.assertEqual(
+            dl_config["workload"]["elastic"]["class"],
+            "ElasticWorkload",
+        )
+        self.assertEqual(
+            dl_config["workload"]["elastic"]["num"],
+            2,
+        )
+        self.assertEqual(
+            dl_config["workload"]["elastic"]["resource"]["CPU"],
+            2,
+        )

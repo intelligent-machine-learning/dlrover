@@ -13,11 +13,12 @@
 
 from typing import List
 
-from dlrover.python.common.constants import NodeType, NodeStatus
+from ray.util.state import list_actors
+
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
-from ray.util.state import list_actors
 from dlrover.python.util.queue.queue import RayEventQueue
 
 
@@ -49,7 +50,13 @@ def parse_from_actor_name(name):
     if len(split_name) == 3:  # role_${size}_${index}
         return split_name[0], split_name[1], split_name[2], None, None
     else:  # role_${size}_${index}_${local_size}_${local_index}
-        return split_name[0], split_name[1], split_name[2], split_name[3], split_name[4]
+        return (
+            split_name[0],
+            split_name[1],
+            split_name[2],
+            split_name[3],
+            split_name[4],
+        )
 
 
 def parse_from_actor_state(state):
@@ -105,7 +112,9 @@ class ActorWatcher(NodeWatcher):
         actor_states = list_actors(filters=filters, limit=1000)
         for actor_state in actor_states:
             actor_name = actor_state.name
-            actor_type, actor_size, actor_index, _, _ = parse_from_actor_name(actor_name)
+            actor_type, actor_size, actor_index, _, _ = parse_from_actor_name(
+                actor_name
+            )
             node = Node(
                 node_type=actor_type,
                 node_id=actor_index,

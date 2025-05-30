@@ -30,7 +30,7 @@ class DLStreamType(Enum):
 class TrainerType(Enum):
     USER_DEFINED = "USER_DEFINED"
     GENERATED = "GENERATED"
-    SPMD_TORCHRUN = "SPMD_TORCHRUN"
+    ELASTIC_TRAINING = "ELASTIC_TRAINING"
 
 
 class InternalRoleType(Enum):

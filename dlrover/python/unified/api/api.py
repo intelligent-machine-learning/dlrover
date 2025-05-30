@@ -24,6 +24,9 @@ from dlrover.python.unified.common.enums import (
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.driver.main import main
 
+TRAINER_ROLE = "trainer"
+ELASTIC_ROLE = "elastic"
+
 
 class DLRoleConfig(object):
     def __init__(self, role_name, module_name, class_name, **kwargs):
@@ -51,7 +54,7 @@ class DLTrainerConfig(DLRoleConfig):
     """
 
     def __init__(self, trainer_type, module_name, class_name, **kwargs):
-        super().__init__("trainer", module_name, class_name, **kwargs)
+        super().__init__(TRAINER_ROLE, module_name, class_name, **kwargs)
         self._trainer_type: TrainerType = trainer_type
 
     @property
@@ -164,8 +167,12 @@ class DLJob(object):
                     )
                 }
 
-        # default
-        return {self.device_type: 1}
+        if role == ELASTIC_ROLE:
+            # elastic agent takes all resource of a node
+            return {self.device_type: self.device_per_node}
+        else:
+            # default
+            return {self.device_type: 1}
 
     def _to_dl_config(self):
         config_result = {}
@@ -305,6 +312,18 @@ class DLJobBuilder(object):
             collocations=self._collocations,
         )
 
+    def has_elastic_training(self):
+        if ELASTIC_ROLE in list(self._components.keys()):
+            return True
+        return False
+
+    def _validate_dlrover_run_cmd(self, cmd) -> bool:
+        if not cmd:
+            return False
+        if not cmd.startswith("dlrover-run"):
+            return False
+        return True
+
     def validate(self) -> bool:
         if not self._dl_type:
             logger.error("'dl_type' must be set.")
@@ -331,8 +350,14 @@ class DLJobBuilder(object):
 
         # for role components
         if self._stream_type == DLStreamType.TASK_STREAM:
-            if "trainer" not in list(self._components.keys()):
-                logger.error("'trainer' must be set for task stream.")
+            if (
+                "trainer" not in list(self._components.keys())
+                and not self.has_elastic_training()
+            ):
+                logger.error(
+                    "'trainer' must be set for task stream if "
+                    "elastic training not involved."
+                )
                 return False
 
         for role, component in self._components.items():
@@ -350,7 +375,22 @@ class DLJobBuilder(object):
 
                 if isinstance(component, DLTrainerConfig):  # for trainer
                     pass
-                else:  # for workload
+
+                if component.role_name == ELASTIC_ROLE:
+                    # for elastic-training
+                    if not self._validate_dlrover_run_cmd(
+                        component.others.get("run_cmd")
+                    ):
+                        logger.error(
+                            "dlrover-run command is invalid for "
+                            "elastic training."
+                        )
+                        return False
+                elif component.role_name == TRAINER_ROLE:
+                    # for common trainer
+                    pass
+                else:
+                    # for general workload
                     if component._num < 1:
                         logger.error(f"{role}'s 'num' must be greater than 0.")
                         return False
@@ -358,9 +398,6 @@ class DLJobBuilder(object):
                         logger.error(
                             f"{role}'s 'per_node' must be greater than 0."
                         )
-                        return False
-                    if not isinstance(component._env, dict):
-                        logger.error(f"{role}'s 'env' must be dict type.")
                         return False
 
         # for workload collocations
@@ -541,11 +578,17 @@ class DLJobBuilder(object):
             self.builder.update_component(self.role_type, self.role_config)
             return self.builder
 
-    def _config_trainer_role(self, module_name, class_name, **kwargs):
+    def _config_trainer_role(
+        self,
+        module_name,
+        class_name,
+        trainer_type: TrainerType = TrainerType.USER_DEFINED,
+        **kwargs,
+    ):
         trainer_config = DLTrainerConfig(
-            TrainerType.USER_DEFINED, module_name, class_name, **kwargs
+            trainer_type, module_name, class_name, **kwargs
         )
-        self._components["trainer"] = trainer_config
+        self._components[TRAINER_ROLE] = trainer_config
         return self
 
     def _config_workload_role(
@@ -582,7 +625,42 @@ class DLJobBuilder(object):
                 e.g. 'dlrover-run --xxx train.py'
         """
 
-        return self._config_workload_role("dlrover-run", "dlrover.python.unified.trainer.elastic_workload", "ElasticWorkload", run_cmd=run_cmd)
+        # set a default trainer
+        self._default_trainer()
+
+        # set workload role
+        self._config_workload_role(
+            ELASTIC_ROLE,
+            "dlrover.python.unified.trainer.elastic_workload",
+            "ElasticWorkload",
+            run_cmd=run_cmd,
+        )
+
+        # resolve total(--nnodes) and per-node(--nproc_per_node) from command
+        for part in run_cmd.split():
+            if part.startswith("--nnodes="):
+                self._role_configurator.role_config._num = int(
+                    part.split("=")[1]
+                )
+            elif part.startswith("--nproc_per_node="):
+                self._role_configurator.role_config._per_node = int(
+                    part.split("=")[1]
+                )
+
+        assert self._role_configurator.role_config.total > 1
+        assert (
+            self._role_configurator.role_config.per_node
+            == self._device_per_node
+        )
+
+        return self
+
+    def _default_trainer(self):
+        return self._config_trainer_role(
+            "dlrover.python.unified.trainer.trainer",
+            "DefaultTrainer",
+            TrainerType.ELASTIC_TRAINING,
+        )
 
     def trainer(self, module_name, class_name):
         """

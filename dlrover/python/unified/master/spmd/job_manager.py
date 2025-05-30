@@ -15,19 +15,27 @@ import time
 from datetime import datetime
 from typing import Dict
 
-from dlrover.python.common.constants import NodeType, NodeStatus, \
-    NodeEventType, JobStage, PlatformType
+from dlrover.python.common.constants import (
+    JobStage,
+    NodeEventType,
+    NodeStatus,
+    NodeType,
+    PlatformType,
+)
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import NodeEvent, Node, NodeResource
+from dlrover.python.common.node import Node, NodeEvent, NodeResource
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
-from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction, \
-    NoAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    NoAction,
+)
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.master.job_manager import JobManager
-from dlrover.python.unified.master.spmd.job_context import \
-    get_elastic_job_context
+from dlrover.python.unified.master.spmd.job_context import (
+    get_elastic_job_context,
+)
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -42,9 +50,7 @@ class ElasticJobManager(JobManager):
         super(ElasticJobManager, self).__init__()
 
         self._elastic_job_context = get_elastic_job_context()
-        self._node_watcher = new_node_watcher(
-            PlatformType.RAY, self.job_name
-        )
+        self._node_watcher = new_node_watcher(PlatformType.RAY, self.job_name)
         self._lock = threading.Lock()
 
     @property
@@ -68,14 +74,22 @@ class ElasticJobManager(JobManager):
         job_nodes: Dict[str, Dict[int, Node]] = {}
         group_nodes: Dict[int, Node] = {}
 
-        for elastic_vertex in self._elastic_job_context.graph().execution_vertices[InternalRoleType.ELASTIC.name]:
+        for (
+            elastic_vertex
+        ) in self.elastic_context.graph.execution_vertices[
+            InternalRoleType.ELASTIC.name
+        ]:
             group_nodes[elastic_vertex.rank] = Node(
                 node_type=NodeType.WORKER,
                 node_id=elastic_vertex.rank,
                 rank_index=elastic_vertex.rank,
                 name=elastic_vertex.name,
-                config_resource=NodeResource.resource_to_node_resource(elastic_vertex.resource),
-                max_relaunch_count=elastic_vertex.get_extra_args("max_relaunch_count", 3),
+                config_resource=NodeResource.resource_to_node_resource(
+                    elastic_vertex.resource
+                ),
+                max_relaunch_count=elastic_vertex.get_extra_args(
+                    "max_relaunch_count", 3
+                ),
                 service_addr=elastic_vertex.actor_handle,
             )
         job_nodes[NodeType.WORKER] = group_nodes
@@ -93,7 +107,9 @@ class ElasticJobManager(JobManager):
                 for list_node in list_nodes:
                     node_id = list_node.id
                     with self._lock:
-                        current_node = self.elastic_context.job_node(NodeType.WORKER, node_id)
+                        current_node = self.elastic_context.job_node(
+                            NodeType.WORKER, node_id
+                        )
                         current_node.status = list_node.status
                         self.elastic_context.update_job_node(current_node)
 
@@ -141,7 +157,9 @@ class ElasticJobManager(JobManager):
     def get_running_nodes(self):
         nodes = []
         with self._lock:
-            worker_nodes = self.elastic_context.job_nodes_by_type(NodeType.WORKER)
+            worker_nodes = self.elastic_context.job_nodes_by_type(
+                NodeType.WORKER
+            )
             for node in worker_nodes.values():
                 if node.status == NodeStatus.RUNNING:
                     nodes.append(node)

@@ -23,7 +23,7 @@ try:
 except ImportError:
     from builtins import RuntimeError as ade
 
-from dlrover.python.unified.api.api import RLJobBuilder
+from dlrover.python.unified.api.api import DLJobBuilder, RLJobBuilder
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLMasterConstant
@@ -42,7 +42,26 @@ class ApiFullTest(unittest.TestCase):
         ray.shutdown()
 
     @timeout(20)
-    def test0(self):
+    def test_spmd(self):
+        if os.cpu_count() < 6:
+            return
+
+        dl_job = (
+            DLJobBuilder()
+            .SFT_type()
+            .node_num(3)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0"})
+            .dlrover_run("dlrover-run --nnodes=2 --nproc_per_node=2 test.py")
+            .build()
+        )
+
+        dl_job.submit("test", master_cpu=1, master_memory=128)
+
+    @timeout(20)
+    def test_rl_0(self):
         if os.cpu_count() < 6:
             return
 
@@ -75,7 +94,7 @@ class ApiFullTest(unittest.TestCase):
         rl_job.submit("test", master_cpu=1, master_memory=128)
 
     @timeout(20)
-    def test1(self):
+    def test_rl_1(self):
         if os.cpu_count() < 2:
             return
 

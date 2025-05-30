@@ -12,13 +12,9 @@
 # limitations under the License.
 
 import os
-import threading
-import time
 
 import ray
 
-from dlrover.python.common.constants import NodeStatus
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.stats.stats_backend import LocalFileStateBackend
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
@@ -26,10 +22,6 @@ from dlrover.python.scheduler.kubernetes import (
     convert_cpu_to_decimal,
     convert_memory_to_mb,
 )
-from dlrover.python.util.actor_util.parse_actor import (
-    parse_type_id_from_actor_name,
-)
-from dlrover.python.util.state.store_mananger import StoreManager
 
 
 def parse_bool(s: str):
@@ -46,23 +38,6 @@ class RayWorker:  # pragma: no cover
 
     def get_node_service_addr(self):
         return None
-
-
-class RayElasticJob(ElasticJob):
-    def __init__(self, job_name, namespace):
-        self._ray_client = RayClient.singleton_instance(namespace, job_name)
-        self._namespace = namespace
-        self._job_name = job_name
-
-    def get_node_name(self, type, id):
-        """Return actor name."""
-
-        return "pod-name"
-
-    def get_node_service_addr(self, type, id):
-        """"""
-
-        return ""
 
 
 class RayJobArgs(JobArgs):

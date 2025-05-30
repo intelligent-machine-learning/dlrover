@@ -10,13 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.python.unified.trainer.workload import BaseWorkload
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.trainer.workload import BaseWorkload
 from dlrover.trainer.torch.elastic_run import main
 
 
 class ElasticWorkload(BaseWorkload):
-
     def start_elastic_agent(self, run_cmd):
         logger.info(f"Run dlrover command in elastic workload: {run_cmd}")
 

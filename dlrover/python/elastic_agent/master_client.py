@@ -631,12 +631,20 @@ class RayMasterClient(MasterClient):
 
     @retry()
     def _report(self, message: comm.Message):
-        response = ray.get(self._master_addr.agent_report.remote(self._gen_request(message).to_json()))
+        response = ray.get(
+            self._master_addr.agent_report.remote(
+                self._gen_request(message).to_json()
+            )
+        )
         return comm.deserialize_message(response)
 
     @retry()
     def _get(self, message: comm.Message):
-        response = ray.get(self._master_addr.agent_get.remote(self._gen_request(message).to_json()))
+        response = ray.get(
+            self._master_addr.agent_get.remote(
+                self._gen_request(message).to_json()
+            )
+        )
         return comm.deserialize_message(response)
 
     def _gen_request(self, message: comm.Message):

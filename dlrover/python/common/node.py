@@ -126,7 +126,9 @@ class NodeResource(JsonSerializable):
 
     @classmethod
     def resource_to_node_resource(cls, resource: Resource):
-        return NodeResource(resource.cpu, resource.memory, resource.gpu_type, resource.gpu_num)
+        return NodeResource(
+            resource.cpu, resource.memory, resource.gpu_type, resource.gpu_num
+        )
 
 
 class NodeGroupResource(JsonSerializable):

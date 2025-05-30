@@ -330,3 +330,15 @@ class BaseTrainer(ABC):
         """
         Requires user implementation: the core training logic.
         """
+
+
+class DefaultTrainer(BaseTrainer):
+    """
+    Internal default trainer, such as: for elastic training case.
+    """
+
+    def init(self):
+        pass
+
+    def fit(self):
+        pass

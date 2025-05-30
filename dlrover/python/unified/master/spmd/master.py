@@ -14,11 +14,17 @@ from typing import Dict
 
 import ray
 
-from dlrover.python.common.constants import RendezvousName, PlatformType, \
-    DistributionStrategy, NodeType
-from dlrover.python.master.elastic_training.rdzv_manager import \
-    RendezvousManager, ElasticTrainingRendezvousManager, \
-    NetworkCheckRendezvousManager
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeType,
+    PlatformType,
+    RendezvousName,
+)
+from dlrover.python.master.elastic_training.rdzv_manager import (
+    ElasticTrainingRendezvousManager,
+    NetworkCheckRendezvousManager,
+    RendezvousManager,
+)
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.servicer import create_master_service
@@ -57,30 +63,36 @@ class SPMDMaster(BaseMaster):
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self._perf_monitor = PerfMonitor()
-        self._job_manager = ElasticJobManager(job_args, self._perf_monitor, None)
+        self._job_manager = ElasticJobManager()
         self._sync_service = SyncService(self._job_manager)
         self._master_service_handler = create_master_service(
             0,  # no need
-            None, # no need
+            None,  # no need
             self._job_manager,
             self._perf_monitor,
             self._rdzv_managers,
             self._diagnosis_manager,
-            None, # no need
-            None, # no need
+            None,  # no need
+            None,  # no need
             self._sync_service,
         )
 
     def _get_job_args_from_unified_context(self):
-        job_args = JobArgs(PlatformType.RAY, "default", self.context.job_config.job_name)
+        job_args = JobArgs(
+            PlatformType.RAY, "default", self.context.job_config.job_name
+        )
         job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
         job_args.job_uuid = job_args.job_name
 
         node_args: Dict[str, NodeArgs] = {
-            NodeType.WORKER: NodeArgs(None,  # no need
-                                      auto_scale=False,
-                                      restart_count=self.context.job_config.get_workload_max_restart(InternalRoleType.ELASTIC.name),
-                                      critical_nodes="")
+            NodeType.WORKER: NodeArgs(
+                None,  # no need
+                auto_scale=False,
+                restart_count=self.context.job_config.get_workload_max_restart(
+                    InternalRoleType.ELASTIC.name
+                ),
+                critical_nodes="",
+            )
         }
         job_args.node_args = node_args
         return job_args

@@ -12,7 +12,9 @@
 # limitations under the License.
 
 from dlrover.python.master.node.job_context import JobContext
-from dlrover.python.unified.common.job_context import get_job_context as get_unified_job_context
+from dlrover.python.unified.common.job_context import (
+    get_job_context as get_unified_job_context,
+)
 
 
 class ElasticJobContext(JobContext):
@@ -25,6 +27,7 @@ class ElasticJobContext(JobContext):
         super(ElasticJobContext, self).__init__()
         self._unified_job_ctx = get_unified_job_context()
 
+    @property
     def graph(self):
         return self._unified_job_ctx.execution_graph
 
