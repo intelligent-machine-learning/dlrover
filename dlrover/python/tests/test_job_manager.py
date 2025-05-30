@@ -343,6 +343,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.OOM
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
+        node.exit_reason = NodeExitReason.RELAUNCHED
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
         params.initilize()
