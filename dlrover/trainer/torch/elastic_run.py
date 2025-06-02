@@ -552,7 +552,9 @@ def run(args):
 
     is_standalone = args.standalone
     logger.info(f"Standalone mode: {is_standalone}")
-    use_dlrover_launch, master_handler = _check_to_use_dlrover_run(job_name, is_standalone)
+    use_dlrover_launch, master_handler = _check_to_use_dlrover_run(
+        job_name, is_standalone
+    )
 
     # for torchrun standalone mode
     if is_standalone and not use_dlrover_launch:
