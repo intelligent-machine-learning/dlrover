@@ -511,7 +511,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
                         "local dlrover master is unavailable."
                     )
                     # torch-run(standalone)
-                    return False
+                    return False, None
                 else:
                     # dlrover-run + local-master(standalone)
                     return True, master_handler
@@ -535,7 +535,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
             )
 
         # dlrover-run + dist-master(distributed)
-        return True
+        return True, None
 
 
 def run(args):
