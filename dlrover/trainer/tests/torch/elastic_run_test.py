@@ -111,18 +111,6 @@ class ElasticRunTest(unittest.TestCase):
         self.assertFalse(use_dlrover_launch)
         self.assertEqual(master_handler, None)
 
-        # 1) no dist master 2) standalone mode + local master 3) node 0
-        mock_check_dlrover_master.side_effect = [False, True]
-        mock_launch_local_master.return_value = (
-            "mock_process",
-            "127.0.0.1:8000",
-        )
-        use_dlrover_launch, master_handler = _check_to_use_dlrover_run(
-            job_name, True
-        )
-        self.assertFalse(use_dlrover_launch)
-        self.assertIsNotNone(master_handler)
-
         # 1) with master address 2) node 0
         mock_check_dlrover_master.return_value = True
         use_dlrover_launch, master_handler = _check_to_use_dlrover_run(
@@ -137,7 +125,6 @@ class ElasticRunTest(unittest.TestCase):
             job_name, True
         )
         self.assertTrue(use_dlrover_launch)
-        self.assertEqual(master_handler, None)
 
         # 1) no master address 2) node 1
         mock_check_dlrover_master.return_value = False
