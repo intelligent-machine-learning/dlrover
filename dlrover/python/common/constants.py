@@ -160,6 +160,7 @@ class NodeExitReason(object):
     HARDWARE_ERROR = "HardwareError"
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
+    RELAUNCHED = "Relaunched"
 
 
 class NodeExitDescription(object):
