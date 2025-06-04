@@ -18,7 +18,6 @@ from typing import Dict, List, Set, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.master.node.dist_job_manager import DistributedJobManager
 
 _WAIT_SYNC_TINEOUT = 3600
 
