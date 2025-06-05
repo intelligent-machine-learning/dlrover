@@ -968,7 +968,7 @@ class DistributedJobManager(JobManager):
         if not should_relaunch and len(msg) > 0:
             self._report_event(
                 EventReportConstants.TYPE_INFO,
-                node.name,
+                node.get_name(),
                 EventReportConstants.ACTION_NOT_RELAUNCH,
                 msg,
                 {},
