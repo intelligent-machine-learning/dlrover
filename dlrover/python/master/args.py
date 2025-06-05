@@ -12,116 +12,11 @@
 # limitations under the License.
 
 import argparse
-import ast
 
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
-
-
-def str2bool(value):
-    if isinstance(value, bool):
-        return value
-    if value.lower() in {"true", "yes", "t", "y", "1"}:
-        return True
-    elif value.lower() in {"false", "no", "n", "0"}:
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
-
-
-def parse_tuple_list(value):
-    """
-    Format: [(${value1}, ${value2}, ${value3}), ...]
-    Support tuple2 and tuple3.
-    """
-    if not value or value == "":
-        return []
-    try:
-        parsed = ast.literal_eval(value)
-        if isinstance(parsed, list) and all(
-            isinstance(t, tuple) and (len(t) == 2 or len(t) == 3)
-            for t in parsed
-        ):
-            return parsed
-        else:
-            raise ValueError
-    except (ValueError, SyntaxError):
-        raise argparse.ArgumentTypeError(
-            "Invalid format. Expected format: [(v1, v2), ...]"
-        )
-
-
-def parse_tuple_dict(value):
-    """
-    Format：{(${value1}, ${value2}): ${boolean}, ...}
-    Support tuple2.
-    """
-    if not value or value == "":
-        return {}
-    try:
-        result_dict = {}
-        parsed_dict = ast.literal_eval(value)
-
-        if isinstance(parsed_dict, dict):
-            for key, value in parsed_dict.items():
-                if not isinstance(key, tuple):
-                    raise ValueError("invalid format: key should be tuple")
-
-                if isinstance(value, bool):
-                    result_dict[key] = value
-                elif isinstance(value, str):
-                    result_dict[key] = str2bool(value)
-                else:
-                    raise ValueError(
-                        "invalid format: value should be boolean "
-                        "or boolean expression in str"
-                    )
-            return result_dict
-        else:
-            raise ValueError("invalid format: not dict")
-    except Exception:
-        raise argparse.ArgumentTypeError(
-            "Invalid format. Expected format: {(v1, v2): ${boolean}, ...}"
-        )
-
-
-def print_args(args, exclude_args=[], groups=None):
-    """
-    Args:
-        args: parsing results returned from `parser.parse_args`
-        exclude_args: the arguments which won't be printed.
-        groups: It is a list of a list. It controls which options should be
-        printed together. For example, we expect all model specifications such
-        as `optimizer`, `loss` are better printed together.
-        groups = [["optimizer", "loss"]]
-    """
-
-    def _get_attr(instance, attribute):
-        try:
-            return getattr(instance, attribute)
-        except AttributeError:
-            return None
-
-    dedup = set()
-    if groups:
-        for group in groups:
-            for element in group:
-                dedup.add(element)
-                logger.info("%s = %s", element, _get_attr(args, element))
-    other_options = [
-        (key, value)
-        for (key, value) in args.__dict__.items()
-        if key not in dedup and key not in exclude_args
-    ]
-    for key, value in other_options:
-        logger.info("%s = %s", key, value)
-
-
-def pos_int(arg):
-    res = int(arg)
-    if res <= 0:
-        raise ValueError("Positive integer argument required. Got %s" % res)
-    return res
+from dlrover.python.util.args_util import parse_tuple_list, pos_int
+from dlrover.python.util.common_util import print_args
 
 
 def _build_master_args_parser():

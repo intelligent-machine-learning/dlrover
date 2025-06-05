@@ -22,21 +22,11 @@ import tempfile
 import time
 import traceback
 import uuid
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import (
-    Any,
-    Callable,
-    DefaultDict,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import psutil
 import torch
@@ -774,6 +764,31 @@ class ElasticTrainingAgent(LocalElasticAgent):
             free_port = find_free_port_in_range(20000, 30000)
         return free_port
 
+    def _get_ranks(
+        self,
+        role_infos: List[_RoleInstanceInfo],
+        role_idx: int,
+        start_idx: int = 0,
+        end_idx: int = -1,
+    ) -> Tuple[int, List[int]]:
+        if end_idx == -1:
+            end_idx = len(role_infos)
+        prefix_sum = 0
+        total_sum = 0
+        for idx in range(start_idx, end_idx):
+            if role_idx > idx:
+                prefix_sum += role_infos[idx].local_world_size
+            total_sum += role_infos[idx].local_world_size
+        return (
+            total_sum,
+            list(
+                range(
+                    prefix_sum,
+                    prefix_sum + role_infos[role_idx].local_world_size,
+                )
+            ),
+        )
+
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
     @prof
@@ -809,112 +824,37 @@ class ElasticTrainingAgent(LocalElasticAgent):
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
 
-        if version_less_than_240():
-            my_role_info = role_infos[group_rank]
-            worker_world_size, worker_global_ranks = self._get_ranks(
-                role_infos, group_rank
+        my_role_info = role_infos[group_rank]
+        worker_world_size, worker_global_ranks = self._get_ranks(
+            role_infos, group_rank
+        )
+        role_infos = sorted(
+            role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
+        )
+        (
+            role_start_idx,
+            role_end_idx,
+        ) = _RoleInstanceInfo.find_role_boundaries(
+            role_infos, my_role_info.role
+        )
+        role_pos = next(
+            idx
+            for idx, role_info in enumerate(role_infos)
+            if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
+        )
+        role_world_size, role_ranks = self._get_ranks(
+            role_infos, role_pos, role_start_idx, role_end_idx + 1
+        )
+        workers = []
+        for ind in range(spec.local_world_size):
+            worker = Worker(
+                local_rank=ind,
+                global_rank=worker_global_ranks[ind],
+                role_rank=role_ranks[ind],
+                world_size=worker_world_size,
+                role_world_size=role_world_size,
             )
-            role_infos = sorted(
-                role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
-            )
-            (
-                role_start_idx,
-                role_end_idx,
-            ) = _RoleInstanceInfo.find_role_boundaries(
-                role_infos, my_role_info.role
-            )
-            role_pos = next(
-                idx
-                for idx, role_info in enumerate(role_infos)
-                if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
-            )
-            role_world_size, role_ranks = self._get_ranks(
-                role_infos, role_pos, role_start_idx, role_end_idx + 1
-            )
-            workers = []
-            for ind in range(spec.local_world_size):
-                worker = Worker(
-                    local_rank=ind,
-                    global_rank=worker_global_ranks[ind],
-                    role_rank=role_ranks[ind],
-                    world_size=worker_world_size,
-                    role_world_size=role_world_size,
-                )
-                workers.append(worker)
-        else:
-            group_world_size = len(world)
-
-            ROLE_INFO_PREFIX = "torchelastic/role_info/"
-            ASSIGNED_RANKS_PREFIX = "torchelastic/assigned_ranks/"
-
-            agent_role_info = _RoleInstanceInfo(
-                spec.role, group_rank, spec.local_world_size
-            )
-            self._store.set(
-                f"{ROLE_INFO_PREFIX}{group_rank}", agent_role_info.serialize()
-            )
-
-            if group_rank == 0:
-                role_infos_bytes = self._store.multi_get(
-                    [
-                        f"torchelastic/role_info/{i}"
-                        for i in range(group_world_size)
-                    ]
-                )
-                role_infos = [
-                    _RoleInstanceInfo.deserialize(info_bytes)
-                    for info_bytes in role_infos_bytes
-                ]
-
-                role_sizes: DefaultDict[str, int] = defaultdict(lambda: 0)
-                global_size = 0
-                for role_info in role_infos:
-                    role_sizes[role_info.role] += role_info.local_world_size
-                    global_size += role_info.local_world_size
-
-                base_global_rank = 0
-                role_ranks = defaultdict(lambda: 0)
-
-                keys = []
-                values = []
-                for i, role_info in enumerate(role_infos):
-                    keys.append(f"{ASSIGNED_RANKS_PREFIX}{i}")
-                    values.append(
-                        json.dumps(
-                            [
-                                base_global_rank,
-                                global_size,
-                                role_ranks[role_info.role],
-                                role_sizes[role_info.role],
-                            ]
-                        )
-                    )
-
-                    base_global_rank += role_info.local_world_size
-                    role_ranks[role_info.role] += role_info.local_world_size
-
-                self._store.multi_set(keys, values)
-
-            # get will block until the data is available in the store.
-            (
-                base_global_rank,
-                global_world_size,
-                base_role_rank,
-                role_world_size,
-            ) = json.loads(
-                self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}")
-            )
-
-            workers = []
-            for local_rank in range(spec.local_world_size):
-                worker = Worker(
-                    local_rank=local_rank,
-                    global_rank=base_global_rank + local_rank,
-                    role_rank=base_role_rank + local_rank,
-                    world_size=global_world_size,
-                    role_world_size=role_world_size,
-                )
-                workers.append(worker)
+            workers.append(worker)
         return workers
 
     def _initialize_workers(self, worker_group, max_errors=3):
@@ -1178,14 +1118,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
             action.__class__ = NodeAction
             if action.action_type == DiagnosisActionType.RESTART_WORKER:
                 logger.info(
-                    f"exec diagnosis action: "
+                    f"Process diagnosis action: "
                     f"{action.action_type} {action.instance}"
                 )
-                self._remaining_failovers -= 1
+                if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
+                    self._remaining_failovers -= 1
+                    logger.info(
+                        f"Decrement remaining FO to "
+                        f"{self._remaining_failovers}"
+                    )
                 self._restart_workers(self._worker_group)
             elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
                 logger.info(
-                    f"exec diagnosis action: "
+                    f"Process diagnosis action: "
                     f"{action.action_type} {action.instance}"
                 )
                 self._stop_workers(self._worker_group)
@@ -1195,7 +1140,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             labels = action.event_labels
             if labels is None:
                 labels = {}
-            self._client.report(
+            self._client.report_event(
                 event_type=action.event_type,
                 instance=action.event_instance,
                 action=action.event_action,
@@ -1204,24 +1149,29 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
 
     def _check_and_process_diagnosis_action(self):
-        action = self._agent_context.next_diagnosis_action()
-        if isinstance(action, NoAction):
-            return
-        self._process_diagnosis_action(action)
-        # avoid to execute the same event action too frequently
-        if isinstance(action, EventAction) and not action.is_expired():
-            time_diff = timestamp_diff_in_seconds(
-                action.timestamp, datetime.now().timestamp()
-            )
-            expired_time_period = action.expired_time_period - time_diff
-            if expired_time_period < 0:
-                expired_time_period = 0
-            action.update_timestamp(
-                timestamp=datetime.now().timestamp(),
-                expired_time_period=expired_time_period,
-                executable_time_period=expired_time_period + 60,
-            )
-            self._agent_context.enqueue_diagnosis_action(action)
+        for instance in [
+            DiagnosisConstant.LOCAL_INSTANCE,
+            DiagnosisConstant.ANY_INSTANCE,
+        ]:
+            action = self._agent_context.next_diagnosis_action(instance)
+            if isinstance(action, NoAction):
+                continue
+            logger.info(f"Start processing diagnosis action: {action}")
+            self._process_diagnosis_action(action)
+            # avoid to execute the same event action too frequently
+            if isinstance(action, EventAction) and not action.is_expired():
+                time_diff = timestamp_diff_in_seconds(
+                    action.timestamp, datetime.now().timestamp()
+                )
+                expired_time_period = action.expired_time_period - time_diff
+                if expired_time_period < 0:
+                    expired_time_period = 0
+                action.update_timestamp(
+                    timestamp=datetime.now().timestamp(),
+                    expired_time_period=expired_time_period,
+                    executable_time_period=expired_time_period + 60,
+                )
+                self._agent_context.enqueue_diagnosis_action(action)
 
     def _wait_async_saver(self):
         """

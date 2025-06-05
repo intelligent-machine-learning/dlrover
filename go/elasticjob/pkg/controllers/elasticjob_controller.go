@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/util/retry"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -85,23 +84,23 @@ func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobRe
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
-	if _, ok := r.CachedJobs[req.Name]; !ok {
-		// Fetch the elastic Training job
-		job, err := r.fetchElasticJob(req.NamespacedName)
-		if job == nil {
-			if errors.IsNotFound(err) {
-				return ctrl.Result{}, nil
-			}
-			return ctrl.Result{}, err
-		}
-		if job.DeletionTimestamp != nil {
-			rlog.Info("Reconcile cancelled, the job has been deleted")
+
+	job, err := r.fetchElasticJob(req.NamespacedName)
+	if job == nil {
+		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
-		r.Scheme.Default(job)
-		r.CachedJobs[req.Name] = job
+		return ctrl.Result{}, err
 	}
-	job := r.CachedJobs[req.Name]
+	if job.DeletionTimestamp != nil {
+		rlog.Info("Reconcile cancelled, the job has been deleted")
+		return ctrl.Result{}, nil
+	}
+
+	if _, ok := r.CachedJobs[req.Name]; ok {
+		job.Status = r.CachedJobs[req.Name].Status
+	}
+	r.CachedJobs[req.Name] = job
 	return r.reconcileJobs(job)
 }
 
@@ -297,7 +296,11 @@ func decreaseReplicaStatus(pod *corev1.Pod, ownerJob *elasticv1alpha1.ElasticJob
 
 func updateJobStatusPhase(masterPod *corev1.Pod, job *elasticv1alpha1.ElasticJob) {
 	failedCount := job.Status.ReplicaStatuses[JobMasterReplicaType].Failed
-	restartCount := int32(job.Spec.ReplicaSpecs[JobMasterReplicaType].RestartCount)
+
+	restartCount := int32(0)
+	if job.Spec.ReplicaSpecs[JobMasterReplicaType] != nil {
+		restartCount = int32(job.Spec.ReplicaSpecs[JobMasterReplicaType].RestartCount)
+	}
 	if failedCount > restartCount {
 		msg := fmt.Sprintf("The job master failover count %d is beyond the restart count %d.",
 			failedCount, restartCount)
@@ -350,15 +353,13 @@ func updateElasticJobStatus(c client.Client, job *elasticv1alpha1.ElasticJob) er
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		currentJob := &elasticv1alpha1.ElasticJob{}
 		if err := c.Get(context.TODO(), types.NamespacedName{
-			Namespace: job.Namespace,
-			Name:      job.Name,
+			Namespace: updateJob.Namespace,
+			Name:      updateJob.Name,
 		}, currentJob); err != nil {
 			return err
 		}
 
-		// 合并状态修改
 		currentJob.Status = updateJob.Status
-
 		return c.Status().Update(context.TODO(), currentJob)
 	})
 	if err != nil {
@@ -366,7 +367,6 @@ func updateElasticJobStatus(c client.Client, job *elasticv1alpha1.ElasticJob) er
 			job.GetObjectKind().GroupVersionKind(),
 			job.GetName(), err)
 	}
-
 	// Update will modify the job status.
 	job.ResourceVersion = updateJob.ResourceVersion
 	return err

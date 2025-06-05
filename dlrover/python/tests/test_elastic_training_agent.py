@@ -60,8 +60,14 @@ from dlrover.python.common.metric.metric import (
     NpuNodeMetric,
 )
 from dlrover.python.common.storage import PosixDiskStorage
-from dlrover.python.diagnosis.common.constants import DiagnosisConstant
-from dlrover.python.diagnosis.common.diagnosis_action import EventAction
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
+    NodeAction,
+)
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -91,6 +97,7 @@ from dlrover.python.elastic_agent.torch.training import (
     node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.trainer.torch.utils import version_less_than_230
 
 _metric_context = JobMetricContext.singleton_instance()
 _dlrover_context = Context.singleton_instance()
@@ -129,6 +136,13 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -137,17 +151,19 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
+
+        self._agent_context = get_agent_context()
 
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
         os.environ.clear()
+        self._agent_context.clear_action_queue()
 
     def test_node_unit(self):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
@@ -493,6 +509,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -501,10 +524,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 
@@ -922,20 +944,133 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
+        agent._stop_workers = mock.MagicMock(return_value=True)
+        agent._restart_workers = mock.MagicMock(return_value=True)
 
         context = get_agent_context()
+
         action = EventAction(
             event_action="action",
             expired_time_period=600,
         )
         context.enqueue_diagnosis_action(action)
-
-        time.sleep(3)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.MASTER_INSTANCE
+                ]
+            ),
+            1,
+        )
+        time.sleep(1)
         agent._check_and_process_diagnosis_action()
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
                     DiagnosisConstant.MASTER_INSTANCE
+                ]
+            ),
+            1,
+        )
+
+        action = NodeAction(
+            node_id=0,
+            node_type="worker",
+            action_type=DiagnosisActionType.RESTART_WORKER,
+            instance=DiagnosisConstant.ANY_INSTANCE,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            0,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+
+        action = NodeAction(
+            node_id=0,
+            node_type="worker",
+            action_type=DiagnosisActionType.RESTART_WORKER,
+            instance=DiagnosisConstant.LOCAL_INSTANCE,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(agent._remaining_failovers, 3)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            0,
+        )
+        self.assertEqual(agent._remaining_failovers, 2)
+
+        action = NodeAction(
+            node_id=1,
+            node_type="worker",
+            action_type=DiagnosisActionType.RELAUNCH_WORKER,
+            instance=DiagnosisConstant.LOCAL_INSTANCE,
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            1,
+        )
+        time.sleep(2)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.LOCAL_INSTANCE
+                ]
+            ),
+            0,
+        )
+
+        action = EventAction(
+            expired_time_period=600, instance=DiagnosisConstant.ANY_INSTANCE
+        )
+        context.enqueue_diagnosis_action(action)
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
+                ]
+            ),
+            1,
+        )
+        time.sleep(1)
+        agent._check_and_process_diagnosis_action()
+        self.assertEqual(
+            len(
+                context._diagnosis_action_queue._actions[
+                    DiagnosisConstant.ANY_INSTANCE
                 ]
             ),
             1,
@@ -1028,6 +1163,13 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         )
         self.rdzv_handler.join_timeout = 5
 
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
@@ -1036,10 +1178,9 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
+            **logs_dict,
         )
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 1
 

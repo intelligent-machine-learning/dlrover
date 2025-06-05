@@ -16,6 +16,7 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from typing import Dict
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
@@ -340,6 +341,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         node.config_resource.memory = 655
         manager.is_all_reduce_type_job = MagicMock(return_value=True)
         node.exit_reason = NodeExitReason.OOM
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+        node.exit_reason = NodeExitReason.RELAUNCHED
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
     def test_relaunch_under_deleted_event(self):
@@ -1015,6 +1019,51 @@ class DistributedJobManagerTest(unittest.TestCase):
         action = NodeAction(node_id=0, node_type="worker")
         manager._process_node_action(action)
         mock_process_event.assert_called_once()
+
+    @patch(
+        "dlrover.python.master.node.dist_job_manager.DistributedJobManager."
+        "_process_event_safely"
+    )
+    def test_master_restart_with_node_relaunched(self, mock_process_event):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+
+        # node0 -> node2 and node1 -> node3 before master restart
+        node0 = Node(
+            NodeType.WORKER, 0, rank_index=0, status=NodeStatus.INITIAL
+        )
+        node1 = Node(
+            NodeType.WORKER, 1, rank_index=1, status=NodeStatus.INITIAL
+        )
+        node2 = Node(
+            NodeType.WORKER, 2, rank_index=0, status=NodeStatus.RUNNING
+        )
+        node3 = Node(
+            NodeType.WORKER, 3, rank_index=1, status=NodeStatus.RUNNING
+        )
+
+        list_nodes = [node2, node3]
+        exist_nodes: Dict[str, Dict[int, Node]] = {
+            NodeType.WORKER: {0: node0, 1: node1}
+        }
+        manager.get_job_nodes = mock.MagicMock(return_value=exist_nodes)
+        manager._process_list_nodes(list_nodes)
+
+        # assert node0 and node1 got deleted event
+        self.assertEqual(mock_process_event.call_count, 4)
+
+        third_call_args, _ = mock_process_event.call_args_list[2]
+        third_event = third_call_args[0]
+        self.assertEqual(third_event.event_type, NodeEventType.DELETED)
+        self.assertEqual(third_event.node.id, 0)
+        self.assertEqual(third_event.node.rank_index, 0)
+
+        fourth_call_args, _ = mock_process_event.call_args_list[3]
+        forth_event = fourth_call_args[0]
+        self.assertEqual(forth_event.event_type, NodeEventType.DELETED)
+        self.assertEqual(forth_event.node.id, 1)
+        self.assertEqual(forth_event.node.rank_index, 1)
 
 
 class LocalJobManagerTest(unittest.TestCase):

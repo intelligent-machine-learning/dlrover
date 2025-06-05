@@ -18,11 +18,18 @@ from unittest.mock import patch
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
     EnvConfigKey,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
+from dlrover.python.diagnosis.datacollector.data_collector import (
+    SimpleDataCollector,
+)
+from dlrover.python.diagnosis.datacollector.resource_collector import (
+    ResourceCollector,
+)
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )
@@ -74,7 +81,17 @@ class TestDiagnosisDataCollector(unittest.TestCase):
         self.assertTrue(collector.is_enabled())
         sock.close()
 
-        self.assertEqual(collector.collect_data(), "")
+        data = collector.collect_data()
+        collector.store_data(data)
+        self.assertEqual(data, "")
+
+        with self.assertLogs(logger, level="WARNING") as log_capture:
+            int_data: int = 1
+            collector.store_data(int_data)
+            self.assertTrue(
+                any("not of type string" in msg for msg in log_capture.output),
+                "Expected exception message not found in logs",
+            )
 
         file = "data/xpu_timer/xpu_timer_metric_single"
         file_path = os.path.join(os.path.dirname(__file__), file)
@@ -104,3 +121,15 @@ class TestDiagnosisDataCollector(unittest.TestCase):
         self.assertEqual(agent_xpu_metric.node_type, NodeType.WORKER)
         self.assertEqual(agent_xpu_metric.node_rank, 1)
         self.assertTrue(agent_xpu_metric.timestamp > 0)
+
+    def test_simple_data_collector(self):
+        collector = SimpleDataCollector()
+
+        self.assertTrue(collector.is_enabled())
+        self.assertEqual(collector.collect_data(), "data")
+
+    def test_resource_collector(self):
+        collector = ResourceCollector()
+
+        self.assertTrue(collector.is_enabled())
+        self.assertTrue(not collector.collect_data())

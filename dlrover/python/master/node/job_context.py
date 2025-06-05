@@ -16,7 +16,12 @@ import threading
 import time
 from typing import Dict, Optional, Union
 
-from dlrover.python.common.constants import JobStage, NodeType, PreCheckStatus
+from dlrover.python.common.constants import (
+    JobStage,
+    NodeStatus,
+    NodeType,
+    PreCheckStatus,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
@@ -70,6 +75,9 @@ class JobContext(Singleton):
         instance=DiagnosisConstant.MASTER_INSTANCE,
     ):
         return self._action_queue.next_action(instance=instance)
+
+    def clear_actions(self):
+        self._action_queue.clear()
 
     def get_mutable_ps_nodes(self):
         return self.get_mutable_job_nodes(NodeType.PS)
@@ -152,6 +160,28 @@ class JobContext(Singleton):
         ):
             return None
         return self._job_nodes[node_type][node_id]
+
+    def job_node_by_rank(self, node_type: str, rank: int) -> Optional[Node]:
+        """Get node by type and rank
+
+        Args:
+            node_type: node type
+            rank: rank index
+
+        Returns:
+            Node or None if node does not exist
+
+        The caller should use self._locker to synchronize
+        """
+        node_type = self._preprocess(node_type)
+        if node_type not in self._job_nodes:
+            return None
+
+        for node in self._job_nodes[node_type].values():
+            if node.rank_index == rank and node.status == NodeStatus.RUNNING:
+                return node
+
+        return None
 
     def dup_job_node(self, node_type: str, node_id: int) -> Optional[Node]:
         """Get deepcopy of node by type and id

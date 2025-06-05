@@ -1,0 +1,12 @@
+---
+name: dlrover-python-unified-test
+description: run pytest to execute python test cases of dlrover python unified
+runs:
+  using: 'docker'
+  image: "easydl/dlrover:ci_py310"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "bash scripts/ci_install.sh && \
+python -m pytest --durations=10 dlrover/python/unified/tests \
+--cov-report xml --cov=dlrover "

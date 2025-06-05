@@ -1,4 +1,6 @@
-FROM python:3.8.14
+ARG PY_VERSION=3.8.14
+
+FROM python:${PY_VERSION}
 ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 
 # Allows for log messages by `print` in Python to be immediately dumped

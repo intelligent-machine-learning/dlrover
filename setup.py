@@ -27,17 +27,18 @@ install_requires = [
 
 
 extra_require = {
+    "master": ["tornado", "ray", "kubernetes", "omegaconf"],
     "k8s": ["kubernetes"],
     "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
-    "master": ["tornado"],
+    "rl": ["ray"],
 }
 
 
 setup(
     name="dlrover",
-    version="0.5.0rc0",
+    version="0.5.0.dev0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
