@@ -31,7 +31,7 @@ class ElasticExecutor(Executor):
         ]
 
         start_refs = [
-            vertex.actor_handle.start.remote(vertex.get_extra_args("run_cmd"))
+            vertex.actor_handle.start.remote()
             for vertex in elastic_vertices
         ]
         ready, not_ready = ray.wait(
