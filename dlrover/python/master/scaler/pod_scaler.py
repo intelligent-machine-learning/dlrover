@@ -447,15 +447,21 @@ class PodScaler(Scaler):
             return True
 
         succeed = False
-        if self._check_cluster_ready_for_pod(node_from_queue):
-            pod = self._create_pod(node_from_queue)
-            succeed = self._k8s_client.create_pod(pod)
-        if not succeed:
-            self._create_node_queue.appendleft(node_from_queue)
-        else:
-            # create svs for succeed pod
-            if not self._create_service_for_pod(node_from_queue):
+
+        try:
+            if self._check_cluster_ready_for_pod(node_from_queue):
+                pod = self._create_pod(node_from_queue)
+                succeed = self._k8s_client.create_pod(pod)
+            if not succeed:
                 self._create_node_queue.appendleft(node_from_queue)
+            else:
+                # create svs for succeed pod
+                if not self._create_service_for_pod(node_from_queue):
+                    self._create_node_queue.appendleft(node_from_queue)
+        except Exception as e:
+            logger.error(f"Failed to create pod by unexpected error: {e}")
+            succeed = False
+
         return succeed
 
     def _check_cluster_ready_for_pod(self, node: Node):
