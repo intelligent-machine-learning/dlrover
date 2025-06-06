@@ -57,7 +57,6 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -97,7 +96,7 @@ class MasterServicer(ABC):
         sync_service=None,
     ):
         self._task_manager: TaskManager = task_manager
-        self._job_manager: JobManager = job_manager
+        self._job_manager = job_manager
         self._perf_monitor = perf_monitor
         self._rdzv_managers = rdzv_managers
         self._diagnosis_manager = diagnosis_manager

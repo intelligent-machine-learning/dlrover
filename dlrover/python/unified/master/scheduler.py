@@ -247,13 +247,13 @@ class GroupOrderedScheduler(Scheduler):
         if self.graph.dl_context.workload_group.has_device_collocate():
             logger.info(
                 "Use 'SingleGroupPerNodePlacement' for workload group "
-                "has device colocate."
+                "has device collocation."
             )
             return SingleGroupPerNodePlacement(self.graph)
         else:
             logger.info(
                 "Use 'SingleBundlePerNodePlacement' for workload "
-                "group has no device colocate."
+                "group has no device collocation."
             )
             return SingleBundlePerNodePlacement(self.graph)
 
