@@ -17,7 +17,7 @@ We can start a DDP job by
 
 ```
 pip install dlrover[torch] -U
-dlrover-run --max_restarts=2 --nproc_per_node=2 fcp_demo.py
+dlrover-run --standalone --max_restarts=2 --nproc_per_node=2 fcp_demo.py
 ```
 """
 

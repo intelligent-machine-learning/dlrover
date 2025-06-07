@@ -15,7 +15,7 @@
 """
 The start command on a local node:
 
-dlrover-run --max_restarts=2 --nproc_per_node=2 \
+dlrover-run --standalone --max_restarts=2 --nproc_per_node=2 \
     ds_train.py --n_layer 36 --n_head 20 --n_embd 384 \
     --data_dir './' --ds_config ./ds_config.json \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
