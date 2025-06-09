@@ -459,7 +459,9 @@ class PodScaler(Scaler):
                 if not self._create_service_for_pod(node_from_queue):
                     self._create_node_queue.appendleft(node_from_queue)
         except Exception as e:
-            logger.error(f"Failed to create pod by unexpected error: {e}")
+            logger.error(
+                f"Failed to create pod by unexpected error: {e}", exc_info=True
+            )
             succeed = False
 
         return succeed
