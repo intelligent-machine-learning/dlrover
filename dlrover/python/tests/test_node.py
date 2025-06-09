@@ -111,3 +111,12 @@ class NodeTest(unittest.TestCase):
         self.assertFalse(NodeStatus.is_terminal_status(NodeStatus.RUNNING))
         self.assertTrue(NodeStatus.is_terminal_status(NodeStatus.DELETED))
         self.assertTrue(NodeStatus.is_terminal_status(NodeStatus.FAILED))
+
+    def test_get_name(self):
+        node = Node("worker", 5)
+        name = node.get_name()
+        self.assertEqual(name, "5")
+
+        node.name = "node"
+        name = node.get_name()
+        self.assertEqual(name, "node")
