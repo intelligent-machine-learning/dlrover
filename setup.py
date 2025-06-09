@@ -21,8 +21,6 @@ install_requires = [
     "deprecated",
     "requests",
     "packaging",
-    "protobuf",
-    "tornado",
 ]
 
 

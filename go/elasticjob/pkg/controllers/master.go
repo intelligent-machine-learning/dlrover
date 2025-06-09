@@ -144,9 +144,8 @@ func createDefaultMasterTemplate(job *elasticv1alpha1.ElasticJob, masterImage st
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "IfNotPresent",
-		//ImagePullPolicy: defaultImagePullPolicy,
-		Command: []string{"/bin/bash", "-c", command},
+		ImagePullPolicy: defaultImagePullPolicy,
+		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:              resource.MustParse(initMasterContainerCPU),

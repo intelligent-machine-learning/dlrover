@@ -1,19 +1,18 @@
-FROM reg.docker.alibaba-inc.com/antcnstack/dlrover:ci as builder
+ARG PY_VERSION=3.8.14
+ARG VERSION
+
+FROM easydl/dlrover:ci AS builder
 
 WORKDIR /dlrover
 COPY ./ .
-RUN pip config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
 RUN sh scripts/build_wheel.sh
 
-FROM reg.docker.alibaba-inc.com/antcnstack/python:3.8.14 as base
+FROM python:${PY_VERSION} AS base
 
-RUN pip config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+ARG VERSION
 
-RUN pip install pyparsing
-
+RUN pip install pyparsing -i https://pypi.org/simple
 RUN apt-get -qq update && apt-get install -y iputils-ping vim gdb
 
-ENV VERSION="0.5.0rc0"
 COPY --from=builder /dlrover/dist/dlrover-${VERSION}-py3-none-any.whl /
-RUN pip install /dlrover-${VERSION}-py3-none-any.whl[k8s,master] && rm -f /*.whl
-RUN unset VERSION
+RUN pip install /dlrover-${VERSION}-py3-none-any.whl[k8s,ray] --extra-index-url=https://pypi.org/simple && rm -f /*.whl

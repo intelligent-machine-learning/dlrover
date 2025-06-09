@@ -7,10 +7,9 @@ metadata:
 spec:
   distributionStrategy: AllreduceStrategy
   optimizeMode: single-job
-  suspend: true
   replicaSpecs:
     worker:
-      replicas: 2
+      replicas: 4
       template:
         spec:
           restartPolicy: Always
@@ -23,7 +22,7 @@ spec:
                 - /bin/bash
                 - -c
                 # NODE_NUM is set into env with the value as replicas.
-                - "dlrover-run --network-check --nnodes=1:$NODE_NUM \
+                - "dlrover-run --network-check --nnodes=3:$NODE_NUM \
                   --nproc_per_node=2 --max_restarts=3  \
                   examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
                   --training_data /data/mnist_png/training/ \
@@ -34,8 +33,8 @@ spec:
                   memory: 3Gi  # turn up when using GPU
                   # nvidia.com/gpu: 1 # optional
                 requests:
-                  cpu: "1"  # turn up when using GPU
-                  memory: 1Gi  # turn up when using GPU
+                  cpu: "2"  # turn up when using GPU
+                  memory: 3Gi  # turn up when using GPU
 #                  nvidia.com/gpu: 1  # optional
 #               volumeMounts:
 #                 - name: pvc-nas
