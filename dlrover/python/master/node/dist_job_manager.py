@@ -262,7 +262,9 @@ class DistributedJobManager(JobManager):
         # node-check all failed
         if (
             self.is_all_reduce_type_job()
-            and self._worker_manager.is_all_workers_node_check_failed()
+            and self._worker_manager.is_all_initial_workers_node_check_failed(
+                self.get_worker_num()
+            )
         ):
             msg = (
                 "Stop the training early because all worker nodes has "
