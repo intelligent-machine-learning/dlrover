@@ -203,13 +203,13 @@ kubectl apply -f go/elasticjob/config/manifests/bases/default-role.yaml
 **Build the master image with codes.**
 
 ```bash
-docker build -t easydl/dlrover-master:test -f docker/master.dockerfile .
+docker build -t easydl/dlrover-master:test -f go/master/Dockerfile .
 ```
 
 **Build the training image of PyTorch models.**
 
 ```bash
-docker build -t easydl/dlrover-train:test -f docker/pytorch/mnist.dockerfile .
+docker build -t easydl/dlrover-train:test -f examples/pytorch/mnist/mnist.dockerfile .
 ```
 
 ### 5. Submit an ElasticJob to test your images
