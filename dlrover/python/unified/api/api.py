@@ -14,6 +14,7 @@ from typing import Dict, List, Set, Tuple, Union
 
 from omegaconf import DictConfig
 
+from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
@@ -666,6 +667,11 @@ class DLJobBuilder(object):
 
         # set the cmd into config
         self._config[InternalDLConfig.ELASTIC_RUN_CMD] = run_cmd
+
+        # set default global env
+        self._env[
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
+        ] = CommunicationType.COMM_SERVICE_RAY
 
         return self
 

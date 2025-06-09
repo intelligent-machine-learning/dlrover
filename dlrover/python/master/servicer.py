@@ -749,6 +749,9 @@ class MasterServicer(ABC):
     def _get_pre_check_result(
         self, node_type, node_id, message: comm.PreCheckRequest
     ) -> comm.PreCheckResponse:
+        logger.info(
+            f"debug1: {id(get_job_context())}-{get_job_context().get_pre_check_status()}"
+        )
         return comm.PreCheckResponse(
             status=get_job_context().get_pre_check_status()
         )
@@ -840,10 +843,10 @@ class RayMasterServicer(MasterServicer):
         )
 
     def agent_report(self, request):
-        return self.report(request, None)
+        return self.report(BaseRequest.from_json(request), None)
 
     def agent_get(self, request):
-        return self.get(request, None)
+        return self.get(BaseRequest.from_json(request), None)
 
     def get_response(self, method):
         return BaseResponse()
@@ -948,6 +951,7 @@ def create_master_service(
     service_type = _dlrover_context.master_service_type
     logger.info(f"Creating master {service_type} service with port: {port}")
 
+    server = None
     if service_type == CommunicationType.COMM_SERVICE_GRPC:
         server = grpc_lib.server(
             futures.ThreadPoolExecutor(
@@ -1009,15 +1013,5 @@ def create_master_service(
                 ),
             ],
         )
-    else:
-        server = RayMasterServicer(
-            task_manager=task_manager,
-            job_manager=job_manager,
-            perf_monitor=perf_monitor,
-            rdzv_managers=rdzv_managers,
-            diagnosis_manager=diagnosis_manager,
-            job_metric_collector=job_metric_collector,
-            elastic_ps_service=elastic_ps_service,
-            sync_service=sync_service,
-        )
+
     return server

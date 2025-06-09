@@ -14,6 +14,7 @@ import unittest
 
 from omegaconf import OmegaConf
 
+from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
 from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.common.enums import (
@@ -389,6 +390,10 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(
             dl_config["config"][InternalDLConfig.ELASTIC_RUN_CMD],
             cmd,
+        )
+        self.assertEqual(
+            dl_config["env"][NodeEnv.DLROVER_MASTER_SERVICE_TYPE],
+            CommunicationType.COMM_SERVICE_RAY,
         )
         self.assertEqual(
             dl_config["workload"]["ELASTIC"]["class"],

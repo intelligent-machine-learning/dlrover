@@ -395,7 +395,7 @@ class PlacementGroupAllocation(PickleSerializable):
     def is_full(self):
         return len(self._allocation) >= self.get_bundle_size()
 
-    def create_placement_group(self, timeout=10):
+    def create_placement_group(self, timeout=30):
         if not self._instance:
             pg = placement_group(
                 self.get_bundle_resource(),

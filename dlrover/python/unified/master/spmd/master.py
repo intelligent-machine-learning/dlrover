@@ -15,11 +15,15 @@ from typing import Dict
 import ray
 
 from dlrover.python.common.constants import (
+    CommunicationType,
     DistributionStrategy,
     NodeType,
     PlatformType,
+    PreCheckStatus,
     RendezvousName,
 )
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
@@ -27,7 +31,8 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.servicer import create_master_service
+from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.master.servicer import RayMasterServicer
 from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
@@ -54,28 +59,32 @@ class SPMDMaster(BaseMaster):
         self._master_service_handler = None
 
         self.init()
+        logger.info(f"SPMD master initialized: {self.job_name}.")
 
     def init(self):
         job_args = self._get_job_args_from_unified_context()
 
+        # setup context
+        # TODO: replaced by pre-check procedure(skip for now)
+        get_job_context().set_pre_check_status(PreCheckStatus.DISABLED)
+
+        # init core component
         self._rdzv_managers: Dict[str, RendezvousManager] = {
-            RendezvousName.ELASTIC_TRAINING:
-                ElasticTrainingRendezvousManager(),
+            RendezvousName.ELASTIC_TRAINING: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self._perf_monitor = PerfMonitor()
         self._job_manager = ElasticJobManager()
         self._sync_service = SyncService(self._job_manager)
-        self._master_service_handler = create_master_service(
-            0,  # no need
-            None,  # no need
-            self._job_manager,
-            self._perf_monitor,
-            self._rdzv_managers,
-            self._diagnosis_manager,
-            None,  # no need
-            None,  # no need
-            self._sync_service,
+        self._master_service_handler = RayMasterServicer(
+            task_manager=None,  # no need
+            job_manager=self._job_manager,
+            perf_monitor=self._perf_monitor,
+            rdzv_managers=self._rdzv_managers,
+            diagnosis_manager=self._diagnosis_manager,
+            job_metric_collector=None,  # no need
+            elastic_ps_service=None,  # no need
+            sync_service=self._sync_service,
         )
 
     def _get_job_args_from_unified_context(self):
@@ -104,9 +113,11 @@ class SPMDMaster(BaseMaster):
     """Remote call functions start"""
 
     def agent_report(self, request):
+        logger.debug(f"Got agent report call: {request}")
         return self._master_service_handler.agent_report(request)
 
     def agent_get(self, request):
+        logger.debug(f"Got agent get call: {request}")
         return self._master_service_handler.agent_get(request)
 
     """Remote call functions end"""

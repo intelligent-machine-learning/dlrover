@@ -211,7 +211,8 @@ class ElasticJobManager(JobManager):
 
             if event_type == NodeEventType.SUCCEEDED_EXITED:
                 self.elastic_context.update_job_stage(JobStage.JOB_STOPPING)
-                logger.info("Update job stage to "
-                            f"{self.elastic_context.get_job_stage()} "
-                            f"due to event {event_type}."
+                logger.info(
+                    "Update job stage to "
+                    f"{self.elastic_context.get_job_stage()} "
+                    f"due to event {event_type}."
                 )

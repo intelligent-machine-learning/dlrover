@@ -327,7 +327,11 @@ def _launch_dlrover_local_master(master_addr, job_name):
 
 
 def _check_dlrover_master_available(addr, timeout=120):
-    """Verify that the master servicer is available."""
+    """Verify that the master servicer is available except ray mode."""
+    if env_utils.is_ray_mode():
+        logger.info("Skip dlrover master check for ray mode.")
+        return True
+
     if not addr:
         return False
 
@@ -479,7 +483,6 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
     So user should use 'torchrun' directly(without 'dlrover-run') to run
     distributed training if no dlrover available.
     """
-
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_rank = env_utils.get_node_rank()
 
@@ -567,8 +570,10 @@ def run(args):
             f"--rdzv-id={args.rdzv_id}\n"
             f"**************************************\n"
         )
-
     config, cmd, cmd_args = _elastic_config_from_args(args)
+    logger.info(
+        f"debug: config: {config}, cmd: {cmd}, cmd_args: {cmd_args}, args: {args}"
+    )
     config.run_id = job_name
     config.role = "dlrover-trainer"
     try:
@@ -584,7 +589,9 @@ def run(args):
 
 @record
 def main(args=None):
+    logger.info(f"debug0: args: {args}")
     args = parse_args(args)
+    logger.info(f"debug1: args: {args}")
     run(args)
 
 

@@ -18,7 +18,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
-import ray
 import requests
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
@@ -624,28 +623,38 @@ class HttpMasterClient(MasterClient):
 
 
 class RayMasterClient(MasterClient):
+    import ray
+
+    master_actor_handle = None
+
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         super(RayMasterClient, self).__init__(
-            master_addr, node_id, node_type, timeout
+            self.master_actor_handle, node_id, node_type, timeout
         )
+
+    @classmethod
+    def register_master_actor(cls, actor_handle):
+        cls.master_actor_handle = actor_handle
 
     @retry()
     def _report(self, message: comm.Message):
-        response = ray.get(
+        response = self.ray.get(
             self._master_addr.agent_report.remote(
                 self._gen_request(message).to_json()
-            )
+            ),
+            timeout=10,
         )
-        return comm.deserialize_message(response)
+        return comm.deserialize_message(response.data)
 
     @retry()
     def _get(self, message: comm.Message):
-        response = ray.get(
+        response = self.ray.get(
             self._master_addr.agent_get.remote(
                 self._gen_request(message).to_json()
-            )
+            ),
+            timeout=10,
         )
-        return comm.deserialize_message(response)
+        return comm.deserialize_message(response.data)
 
     def _gen_request(self, message: comm.Message):
         request = BaseRequest()
@@ -667,8 +676,8 @@ def build_master_client(
     Build a master client.
 
     Args:
-        master_addr (str): the address of the job master, the format
-            is "{IP}:{PORT}"
+        master_addr (Union[str, ActorHandle]): the address of the job master,
+            the format is "{IP}:{PORT}" if str type
         timeout (int): the timeout second of grpc requests.
     """
     if master_addr is None:
@@ -706,4 +715,8 @@ def build_master_client(
                 )
         except Exception:
             logger.warning("The master is not available.")
+    else:
+        master_client = RayMasterClient(
+            master_addr, node_id, node_type, timeout
+        )
     return master_client
