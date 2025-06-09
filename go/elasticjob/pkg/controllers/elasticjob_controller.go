@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/util/retry"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -167,7 +168,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		logger.Infof("Job %s suspended", job.Name)
 		if job.Spec.Suspend != nil && !*job.Spec.Suspend {
 			msg := fmt.Sprintf("ElasticJob %s is unspended.", job.Name)
-			common.UpdateJobStatus(&job.Status, apiv1.JobCreated, common.JobCreatedReason, msg)
+			common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
 		}
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
