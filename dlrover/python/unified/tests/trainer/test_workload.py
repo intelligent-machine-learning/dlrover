@@ -14,6 +14,7 @@ import os
 import unittest
 
 from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.trainer.elastic_workload import ElasticWorkload
 from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
 
 
@@ -57,3 +58,18 @@ class BaseWorkloadTest(unittest.TestCase):
 
         workload.setup({"k2": "v2"})
         self.assertEqual(os.environ["k2"], "v2")
+
+
+class ElasticWorkloadTest(unittest.TestCase):
+
+    def test_extract_args_from_cmd(self):
+        test_cmd = "dlrover-run --rdzv_conf join_timeout=600 --network_check --max-restarts=1 --nnodes=2 --nproc_per_node=4  train_script.py"
+        result = ElasticWorkload.extract_args_from_cmd(test_cmd)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), 10)
+        self.assertTrue("--rdzv_conf" in result)
+        self.assertTrue("join_timeout=600" in result)
+        self.assertTrue("--max-restarts" in result)
+        self.assertTrue("1" in result)
+        self.assertTrue("train_script.py" in result)
+        self.assertEqual(result[9], "train_script.py")

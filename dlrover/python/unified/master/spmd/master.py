@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
@@ -76,6 +77,8 @@ class SPMDMaster(BaseMaster):
         self._perf_monitor = PerfMonitor()
         self._job_manager = ElasticJobManager()
         self._sync_service = SyncService(self._job_manager)
+        self._diagnosis_manager = DiagnosisMaster(job_args)
+
         self._master_service_handler = RayMasterServicer(
             task_manager=None,  # no need
             job_manager=self._job_manager,
@@ -114,10 +117,14 @@ class SPMDMaster(BaseMaster):
 
     def agent_report(self, request):
         logger.debug(f"Got agent report call: {request}")
-        return self._master_service_handler.agent_report(request)
+        response = self._master_service_handler.agent_report(request)
+        logger.debug(f"Response agent report call: {response}")
+        return response
 
     def agent_get(self, request):
         logger.debug(f"Got agent get call: {request}")
-        return self._master_service_handler.agent_get(request)
+        response = self._master_service_handler.agent_get(request)
+        logger.debug(f"Response agent get call: {response}")
+        return response
 
     """Remote call functions end"""

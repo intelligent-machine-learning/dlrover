@@ -571,9 +571,6 @@ def run(args):
             f"**************************************\n"
         )
     config, cmd, cmd_args = _elastic_config_from_args(args)
-    logger.info(
-        f"debug: config: {config}, cmd: {cmd}, cmd_args: {cmd_args}, args: {args}"
-    )
     config.run_id = job_name
     config.role = "dlrover-trainer"
     try:
@@ -589,9 +586,7 @@ def run(args):
 
 @record
 def main(args=None):
-    logger.info(f"debug0: args: {args}")
     args = parse_args(args)
-    logger.info(f"debug1: args: {args}")
     run(args)
 
 

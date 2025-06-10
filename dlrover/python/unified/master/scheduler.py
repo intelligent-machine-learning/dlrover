@@ -109,6 +109,7 @@ class Scheduler(ABC):
         # runtime env
         runtime_env = {
             env_key: {
+                DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
                 DLWorkloadEnv.NAME: vertex.name,
                 DLWorkloadEnv.ROLE: vertex.role,
                 DLWorkloadEnv.RANK: str(vertex.rank),

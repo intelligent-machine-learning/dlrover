@@ -12,6 +12,7 @@
 # limitations under the License.
 import shlex
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 import ray
 
@@ -19,7 +20,10 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import RayMasterClient
-from dlrover.python.unified.common.constant import InternalDLConfig
+from dlrover.python.unified.common.constant import (
+    DLWorkloadEnv,
+    InternalDLConfig,
+)
 from dlrover.python.unified.trainer.workload import BaseWorkload
 from dlrover.trainer.torch.elastic_run import main
 
@@ -33,11 +37,30 @@ class ElasticWorkload(BaseWorkload):
 
     launch_future = None
 
+    @classmethod
+    def extract_args_from_cmd(cls, run_cmd: str) -> List[str]:
+        args_list = shlex.split(run_cmd)
+
+        parsed_args = []
+        for arg in args_list[1:]:
+            if "=" in arg and arg.startswith("--"):
+                key, value = arg.split("=", 1)
+                parsed_args.extend([key, value])
+            else:
+                parsed_args.append(arg)
+
+        return parsed_args
+
     def start(self):
         run_cmd = self.config.get(InternalDLConfig.ELASTIC_RUN_CMD)
+        env_utils.set_env(
+            NodeEnv.JOB_NAME, env_utils.get_env(DLWorkloadEnv.JOB)
+        )
+        # following envs for compatible
         env_utils.set_env(NodeEnv.NODE_ID, self.rank)
         env_utils.set_env(NodeEnv.NODE_RANK, self.rank)
         env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
+        env_utils.set_env(NodeEnv.POD_NAME, self.name)
 
         logger.info(
             f"Run dlrover command in elastic workload: {run_cmd} "
@@ -67,20 +90,3 @@ class ElasticWorkload(BaseWorkload):
             future.result()
         except Exception as e:
             raise e
-
-    import shlex
-
-    def extract_args_from_cmd(self, run_cmd: str) -> list[str]:
-        args_list = shlex.split(run_cmd)
-
-        parsed_args = []
-        for arg in args_list[1:]:
-            if "=" in arg and arg.startswith("--"):
-                key, value = arg.split("=", 1)
-                parsed_args.extend([key, value])
-            elif arg.startswith("--"):
-                parsed_args.append(arg)
-            else:
-                continue
-
-        return parsed_args

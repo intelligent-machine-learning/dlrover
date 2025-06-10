@@ -41,6 +41,7 @@ class InternalDLWorkloadRole(object):
 
 
 class DLWorkloadEnv(object):
+    JOB = "JOB"
     NAME = "NAME"
     ROLE = "ROLE"
     RANK = "RANK"

@@ -651,9 +651,12 @@ class DLJobBuilder(object):
         # resolve total(--nnodes) and per-node(--nproc_per_node) from command
         for part in run_cmd.split():
             if part.startswith("--nnodes="):
-                self._role_configurator.role_config._num = int(
-                    part.split("=")[1]
-                )
+                value = part.split("=")[1]
+                if ":" in value:
+                    _, max_value = value.split(":")
+                    self._role_configurator.role_config._num = int(max_value)
+                else:
+                    self._role_configurator.role_config._num = int(value)
             elif part.startswith("--nproc_per_node="):
                 self._role_configurator.role_config._per_node = int(
                     part.split("=")[1]

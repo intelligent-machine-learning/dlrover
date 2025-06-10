@@ -41,7 +41,7 @@ class ApiFullTest(unittest.TestCase):
     def tearDown(self):
         ray.shutdown()
 
-    @timeout(20)
+    @timeout(40)
     def test_spmd(self):
         if os.cpu_count() < 6:
             return
@@ -54,7 +54,9 @@ class ApiFullTest(unittest.TestCase):
             .device_type("CPU")
             .config({"c1": "v1"})
             .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
-            .dlrover_run("dlrover-run --nnodes=2:2 --nproc_per_node=2 test.py")
+            .dlrover_run(
+                "dlrover-run --nnodes=1:2 --nproc_per_node=2 --rdzv_conf join_timeout=600 --network_check --max-restarts=1 test.py"
+            )
             .build()
         )
 

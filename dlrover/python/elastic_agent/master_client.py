@@ -644,7 +644,7 @@ class RayMasterClient(MasterClient):
             ),
             timeout=10,
         )
-        return comm.deserialize_message(response.data)
+        return response
 
     @retry()
     def _get(self, message: comm.Message):

@@ -667,6 +667,7 @@ class MasterServicer(ABC):
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )
+        logger.info("debug rdzv return")
         return True
 
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
@@ -749,9 +750,6 @@ class MasterServicer(ABC):
     def _get_pre_check_result(
         self, node_type, node_id, message: comm.PreCheckRequest
     ) -> comm.PreCheckResponse:
-        logger.info(
-            f"debug1: {id(get_job_context())}-{get_job_context().get_pre_check_status()}"
-        )
         return comm.PreCheckResponse(
             status=get_job_context().get_pre_check_status()
         )

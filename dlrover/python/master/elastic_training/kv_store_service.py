@@ -13,6 +13,7 @@
 
 from threading import Lock
 from typing import Dict
+from dlrover.python.common.log import default_logger as logger
 
 
 class KVStoreService(object):
@@ -22,10 +23,12 @@ class KVStoreService(object):
 
     def set(self, key, value):
         with self._lock:
+            logger.debug(f"KVStoreService set {key} with {value}")
             self._store[key] = value
 
     def get(self, key):
         with self._lock:
+            logger.debug(f"KVStoreService get {key}")
             return self._store.get(key, b"")
 
     def add(self, key, value):
@@ -33,13 +36,16 @@ class KVStoreService(object):
             try:
                 if key not in self._store:
                     self._store[key] = value
+                    logger.debug(f"KVStoreService add {key} with {value}")
                     return value
                 else:
                     v0 = self._store.get(key)
                     self._store[key] = v0 + value
+                    logger.debug(f"KVStoreService add {key} with {value}")
                     return self._store.get(key)
             except Exception:
                 return value
 
     def clear(self):
+        logger.info("KVStoreService do clearing")
         self._store.clear()
