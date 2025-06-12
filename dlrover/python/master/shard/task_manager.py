@@ -155,9 +155,10 @@ class TaskManager(object):
             return all(dataset_hang)
         return False
 
-    def is_dataset_initialized(self):
+    def is_dataset_initialized(self, with_logging=False):
         if not self._datasets:
-            logger.info("No datasets have been initialized.")
+            if with_logging:
+                logger.info("No datasets have been initialized.")
             return False
         return True
 
