@@ -10,13 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from argparse import Namespace
 import os
 import socket
 import threading
 import time
 import unittest
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -37,6 +38,7 @@ from dlrover.trainer.torch.elastic_run import (
     _launch_dlrover_local_master,
     parse_args,
     wait_pre_check,
+    run,
 )
 
 MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
@@ -266,3 +268,107 @@ class ElasticRunTest(unittest.TestCase):
                 ElasticLaunchConfig(min_nodes=1, max_nodes=1, nproc_per_node=1)
             )
             mock_client.assert_called_once()
+
+
+class RunTest(unittest.TestCase):
+    def setUp(self):
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+        self._pre_check_interval_ori = JobConstant.PRE_CHECK_WAIT_SECS
+        JobConstant.PRE_CHECK_WAIT_SECS = 1
+
+    def tearDown(self):
+        self._master.stop()
+        os.environ.clear()
+        JobConstant.PRE_CHECK_WAIT_SECS = self._pre_check_interval_ori
+
+    @patch("dlrover.trainer.torch.elastic_run.ElasticLaunch")
+    @patch('dlrover.trainer.torch.elastic_run._elastic_config_from_args')
+    @patch("dlrover.trainer.torch.elastic_run._check_to_use_dlrover_run")
+    def test_run_standalone_without_dlrover(self, mock_check_dlrover, mock_elastic_config_from_args, mock_elastic_launch):
+        args = Namespace(standalone=True, other_arg="value")
+        
+        mock_check_dlrover.return_value = (False, None)
+
+        mock_config = MagicMock()
+        mock_cmd = MagicMock()
+        mock_cmd_args = []
+        mock_elastic_config_from_args.return_value = (mock_config, mock_cmd, mock_cmd_args)
+        
+        mock_instance = MagicMock()
+        mock_elastic_launch.return_value = mock_instance
+        
+        run(args)
+
+        mock_check_dlrover.assert_called_once_with(ANY, True)
+        
+        self.assertEqual(args.rdzv_backend, "c10d")
+        self.assertEqual(args.rdzv_endpoint, "localhost:29400")
+        self.assertTrue(hasattr(args, "rdzv_id"))
+        
+        mock_elastic_launch.assert_called_once_with(
+            config=mock_config,
+            entrypoint=mock_cmd,
+            use_dlrover_launch=False,
+        )
+        mock_elastic_launch.return_value.assert_called_once_with(*mock_cmd_args)
+
+    @patch("dlrover.trainer.torch.elastic_run.ElasticLaunch")
+    @patch('dlrover.trainer.torch.elastic_run._elastic_config_from_args')
+    @patch("dlrover.trainer.torch.elastic_run._check_to_use_dlrover_run")
+    def test_run_standalone_with_dlrover(self, mock_check_dlrover, mock_elastic_config_from_args, mock_elastic_launch):
+        args = Namespace(standalone=True, other_arg="value")
+        
+        master_handler = MagicMock()
+        mock_check_dlrover.return_value = (True, master_handler)
+
+        mock_config = MagicMock()
+        mock_cmd = MagicMock()
+        mock_cmd_args = []
+        mock_elastic_config_from_args.return_value = (mock_config, mock_cmd, mock_cmd_args)
+        
+        mock_instance = MagicMock()
+        mock_elastic_launch.return_value = mock_instance
+        
+        run(args)
+
+        mock_check_dlrover.assert_called_once_with(ANY, True)
+
+        self.assertFalse(hasattr(args, "rdzv_backend"))
+        
+        mock_elastic_launch.assert_called_once_with(
+            config=mock_config,
+            entrypoint=mock_cmd,
+            use_dlrover_launch=True,
+        )
+        mock_elastic_launch.return_value.assert_called_once_with(*mock_cmd_args)
+        master_handler.close.assert_called_once()
+
+    @patch("dlrover.trainer.torch.elastic_run.ElasticLaunch")
+    @patch('dlrover.trainer.torch.elastic_run._elastic_config_from_args')
+    @patch("dlrover.trainer.torch.elastic_run._check_to_use_dlrover_run")
+    def test_run_distributed_mode(self, mock_check_dlrover, mock_elastic_config_from_args, mock_elastic_launch):
+        args = Namespace(standalone=False, other_arg="value")
+        
+        mock_check_dlrover.return_value = (True, None)
+
+        mock_config = MagicMock()
+        mock_cmd = MagicMock()
+        mock_cmd_args = []
+        mock_elastic_config_from_args.return_value = (mock_config, mock_cmd, mock_cmd_args)
+        
+        mock_instance = MagicMock()
+        mock_elastic_launch.return_value = mock_instance
+        
+        run(args)
+
+        mock_check_dlrover.assert_called_once_with(ANY, False)
+
+        self.assertFalse(hasattr(args, "rdzv_backend"))
+        
+        mock_elastic_launch.assert_called_once_with(
+            config=mock_config,
+            entrypoint=mock_cmd,
+            use_dlrover_launch=True,
+        )
+        mock_elastic_launch.return_value.assert_called_once_with(*mock_cmd_args)
