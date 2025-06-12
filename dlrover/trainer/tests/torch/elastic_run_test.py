@@ -19,8 +19,6 @@ from argparse import Namespace
 from unittest import mock
 from unittest.mock import ANY, MagicMock, patch
 
-from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
-
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     JobConstant,
