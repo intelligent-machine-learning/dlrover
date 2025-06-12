@@ -10,14 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from argparse import Namespace
 import os
 import socket
 import threading
 import time
 import unittest
+from argparse import Namespace
 from unittest import mock
 from unittest.mock import ANY, MagicMock, patch
+
+from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -37,10 +39,9 @@ from dlrover.trainer.torch.elastic_run import (
     _elastic_config_from_args,
     _launch_dlrover_local_master,
     parse_args,
-    wait_pre_check,
     run,
+    wait_pre_check,
 )
-from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 
 MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
 
@@ -271,9 +272,14 @@ class ElasticRunTest(unittest.TestCase):
             mock_client.assert_called_once()
 
     @patch("dlrover.trainer.torch.elastic_run.ElasticLaunch")
-    @patch('dlrover.trainer.torch.elastic_run._elastic_config_from_args')
+    @patch("dlrover.trainer.torch.elastic_run._elastic_config_from_args")
     @patch("dlrover.trainer.torch.elastic_run._check_to_use_dlrover_run")
-    def test_run(self, mock_check_dlrover, mock_elastic_config_from_args, mock_elastic_launch):
+    def test_run(
+        self,
+        mock_check_dlrover,
+        mock_elastic_config_from_args,
+        mock_elastic_launch,
+    ):
         test_cases = [
             {
                 "name": "standalone_without_dlrover",
@@ -281,7 +287,7 @@ class ElasticRunTest(unittest.TestCase):
                 "check_dlrover_return": (False, None),
                 "use_dlrover_launch": False,
                 "verify_rdzv": True,
-                "master_handler": None
+                "master_handler": None,
             },
             {
                 "name": "standalone_with_dlrover",
@@ -295,8 +301,8 @@ class ElasticRunTest(unittest.TestCase):
                 "check_dlrover_return": (True, None),
                 "use_dlrover_launch": True,
                 "verify_rdzv": False,
-                "master_handler": None
-            }
+                "master_handler": None,
+            },
         ]
 
         for case in test_cases:
@@ -315,32 +321,42 @@ class ElasticRunTest(unittest.TestCase):
                         case["master_handler"].reset_mock()
 
                 mock_check_dlrover.return_value = case["check_dlrover_return"]
-                
+
                 mock_config = MagicMock()
                 mock_cmd = MagicMock()
                 mock_cmd_args = []
-                mock_elastic_config_from_args.return_value = (mock_config, mock_cmd, mock_cmd_args)
-                
+                mock_elastic_config_from_args.return_value = (
+                    mock_config,
+                    mock_cmd,
+                    mock_cmd_args,
+                )
+
                 mock_instance = MagicMock()
                 mock_elastic_launch.return_value = mock_instance
-                
+
                 run(case["args"])
-                     
-                mock_check_dlrover.assert_called_once_with(ANY, case["args"].standalone)
-                
+
+                mock_check_dlrover.assert_called_once_with(
+                    ANY, case["args"].standalone
+                )
+
                 if case["verify_rdzv"]:
                     self.assertEqual(case["args"].rdzv_backend, "c10d")
-                    self.assertEqual(case["args"].rdzv_endpoint, "localhost:29400")
+                    self.assertEqual(
+                        case["args"].rdzv_endpoint, "localhost:29400"
+                    )
                     self.assertTrue(hasattr(case["args"], "rdzv_id"))
                 else:
                     self.assertFalse(hasattr(case["args"], "rdzv_backend"))
-                
+
                 mock_elastic_launch.assert_called_once_with(
                     config=mock_config,
                     entrypoint=mock_cmd,
                     use_dlrover_launch=case["use_dlrover_launch"],
                 )
-                mock_elastic_launch.return_value.assert_called_once_with(*mock_cmd_args)
-                
+                mock_elastic_launch.return_value.assert_called_once_with(
+                    *mock_cmd_args
+                )
+
                 if case["name"] == "standalone_with_dlrover":
                     master_handler.close.assert_called_once()
