@@ -585,7 +585,7 @@ class WorkerManager(TrainingNodeManager):
         Check all initial workers are check-failed
         (exclude new created workers)"""
         nodes = [
-            node for _, node in self._get_nodes().items() if node.id < workers
+            node for _, node in self._get_nodes().items() if node.id < worker_num
         ]
         return len(nodes) > 0 and all(
             [node.is_node_check_failed() for node in nodes]
