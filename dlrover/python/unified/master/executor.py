@@ -31,3 +31,15 @@ class Executor(ABC):
         """
         Executes according to the execution graph.
         """
+
+    @abstractmethod
+    def is_finished(self):
+        """
+        Whether the execution is finished.
+        """
+
+    @abstractmethod
+    def get_error(self):
+        """
+        Returns the execution error as a string.
+        """

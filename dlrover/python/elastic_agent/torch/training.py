@@ -426,7 +426,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"{world_size}."
         )
         if (
-            self._name == RendezvousName.ELASTIC_TRAINING
+            self._name == RendezvousName.TRAINING
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
@@ -448,7 +448,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         """
         num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
 
-        if self._name == RendezvousName.ELASTIC_TRAINING:
+        if self._name == RendezvousName.TRAINING:
             if num > 0:
                 raise RendezvousOutSyncError(
                     "Some workers join the network-check rendezvous"
@@ -1437,7 +1437,7 @@ def launch_agent(
 
     spec = _create_worker_spec(
         node_rank=node_rank,
-        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        rdzv_name=RendezvousName.TRAINING,
         config=config,
         entrypoint=entrypoint,
         args=args,
@@ -1851,7 +1851,7 @@ def comm_perf_check(
         config,
         entrypoint,
         args,
-        RendezvousName.ELASTIC_TRAINING,
+        RendezvousName.TRAINING,
         check_round=1,
     )
 

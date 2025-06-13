@@ -21,6 +21,7 @@ from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
 )
 from dlrover.python.unified.common.enums import SchedulingStrategyType
+from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.graph import DLExecutionGraph
 from dlrover.python.unified.master.scheduler import (
@@ -52,12 +53,29 @@ class JobManager(ABC):
         return self._execution_graph
 
     @property
+    def executor(self):
+        return self._executor
+
+    @property
     def job_name(self):
         return self.context.job_config.job_name
 
     @abstractmethod
     def get_executor(self):
         pass
+
+    @abstractmethod
+    def gen_failure_by_error(self) -> FailureDesc:
+        """Return failure according to the current job error."""
+
+    def is_job_finished(self):
+        return (
+            self.executor.is_finished() and not self.context.is_in_failover()
+        )
+
+    def has_job_error(self):
+        """Should be implemented by subclasses."""
+        return False
 
     def _get_scheduling_type_from_context(self):
         return self._job_ctx.job_config.scheduling_strategy_type
@@ -179,28 +197,10 @@ class JobManager(ABC):
         )
 
     def execute(self):
-        self._executor.execute()
-
-    def _execute(self):
-        self._executor.execute()
-
-    async def _async_execute(self):
-        await self._executor.execute()
+        self.executor.execute()
 
     def destroy_workloads(self):
         """Sync operation."""
 
         logger.info("Start destroying all workloads...")
         self._scheduler.cleanup()
-
-    def is_job_finished(self):
-        return (
-            self._executor.is_trainer_finished()
-            and not self.context.is_in_failover()
-        )
-
-    def is_trainer_error(self):
-        return self._executor.is_trainer_error()
-
-    def get_trainer_error(self):
-        return self._executor.get_trainer_error()

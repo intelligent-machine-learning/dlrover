@@ -208,7 +208,7 @@ class MasterClientTest(unittest.TestCase):
         )
 
     def test_num_nodes_waiting(self):
-        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        rdzv_name = RendezvousName.TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
 
@@ -369,7 +369,7 @@ class MasterHttpClientTest(unittest.TestCase):
 
     def test_http_client(self):
         # get request
-        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        rdzv_name = RendezvousName.TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
 

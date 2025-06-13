@@ -35,6 +35,7 @@ from dlrover.python.master.node.job_context import (
 )
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
+from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
 from dlrover.python.unified.master.job_manager import JobManager
 
@@ -216,3 +217,10 @@ class ElasticJobManager(JobManager):
                     f"{self.elastic_context.get_job_stage()} "
                     f"due to event {event_type}."
                 )
+
+    def has_job_error(self):
+        return len(self.executor.get_error()) > 0
+
+    def gen_failure_by_error(self) -> FailureDesc:
+        # TODO
+        pass

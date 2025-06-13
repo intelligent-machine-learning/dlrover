@@ -302,9 +302,7 @@ class MasterServicer(ABC):
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
             # a worker join network-check rdzv.
-            training_manager = self._rdzv_managers[
-                RendezvousName.ELASTIC_TRAINING
-            ]
+            training_manager = self._rdzv_managers[RendezvousName.TRAINING]
             training_manager.clear_waiting_nodes()
 
         # Pause hang diagnosis during rendezvous
@@ -344,7 +342,7 @@ class MasterServicer(ABC):
         res.round = rdzv_round
         for rank, meta in nodes.items():
             res.world[rank] = meta.process_num
-        if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
+        if nodes and request.rdzv_name == RendezvousName.TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
             if self._job_metric_collector:
@@ -717,9 +715,9 @@ class MasterServicer(ABC):
     def _sync_checkpoint(
         self, node_type, node_id, message: comm.NodeCheckpointState
     ):
-        if RendezvousName.ELASTIC_TRAINING not in self._rdzv_managers:
+        if RendezvousName.TRAINING not in self._rdzv_managers:
             return False
-        rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
     def _report_node_diagnosis_data(self, message: comm.DiagnosisReportData):

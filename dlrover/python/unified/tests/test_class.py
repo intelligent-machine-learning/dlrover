@@ -227,3 +227,11 @@ class TestTorchActor(BaseWorkload):
     def close(self):
         logger.info("TestTorchActor close called")
         dist.destroy_process_group()
+
+
+@ray.remote
+class TestElasticWorkload(BaseWorkload):
+    def run(self):
+        time.sleep(1)
+        logger.info("TestElasticWorkload run called")
+        return

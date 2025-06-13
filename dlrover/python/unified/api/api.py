@@ -401,12 +401,12 @@ class DLJobBuilder(object):
                 ):
                     # for common trainer
                     pass
-                else:
+                elif isinstance(component, DLWorkloadConfig):
                     # for general workload
-                    if component._num < 1:
+                    if component.total < 1:
                         logger.error(f"{role}'s 'num' must be greater than 0.")
                         return False
-                    if component._per_node < 1:
+                    if component.per_node < 1:
                         logger.error(
                             f"{role}'s 'per_node' must be greater than 0."
                         )
@@ -627,7 +627,12 @@ class DLJobBuilder(object):
 
         return self._config_workload_role(role_name, module_name, class_name)
 
-    def dlrover_run(self, run_cmd):
+    def dlrover_run(
+        self,
+        run_cmd,
+        worker_module="dlrover.python.unified.trainer.elastic_workload",
+        worker_cls="ElasticWorkload",
+    ):
         """
         Setup elastic agent workload(use elastic agent for elastic training,
             same with 'torchrun' case).
@@ -643,8 +648,8 @@ class DLJobBuilder(object):
         # set workload role
         self._config_workload_role(
             InternalDLWorkloadRole.ELASTIC_ROLE,
-            "dlrover.python.unified.trainer.elastic_workload",
-            "ElasticWorkload",
+            worker_module,
+            worker_cls,
             run_cmd=run_cmd,
         )
 

@@ -69,10 +69,8 @@ class ElasticMaster(BaseMaster):
 
         # init core component
         self._rdzv_managers: Dict[str, RendezvousManager] = {
-            RendezvousName.ELASTIC_TRAINING:
-                ElasticTrainingRendezvousManager(),
-            RendezvousName.NETWORK_CHECK:
-                NetworkCheckRendezvousManager(),
+            RendezvousName.TRAINING: ElasticTrainingRendezvousManager(),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self._perf_monitor = PerfMonitor()
         self._job_manager = ElasticJobManager()

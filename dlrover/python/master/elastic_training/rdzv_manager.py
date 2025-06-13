@@ -424,7 +424,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
     def __init__(self):
         super().__init__()
-        self._name = RendezvousName.ELASTIC_TRAINING
+        self._name = RendezvousName.TRAINING
 
     def get_comm_world(
         self, node_rank

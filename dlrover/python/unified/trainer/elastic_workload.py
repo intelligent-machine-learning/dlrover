@@ -72,8 +72,7 @@ class ElasticWorkload(BaseWorkload):
 
             main(self.extract_args_from_cmd(run_cmd))
 
-            logger.info(f"Done elastic training, exit directly.")
-            ray.actor.exit_actor()
+            logger.info("Done elastic training.")
         except Exception as e:
             logger.error(
                 "Failed to run elastic agent for training by "

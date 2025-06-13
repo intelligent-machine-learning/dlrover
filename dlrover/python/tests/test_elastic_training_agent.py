@@ -128,7 +128,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         master_addr = "127.0.0.1"
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -495,7 +495,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             node_id,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -679,7 +679,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_create_worker_spec(self):
         spec = _create_worker_spec(
             node_rank=0,
-            rdzv_name=RendezvousName.ELASTIC_TRAINING,
+            rdzv_name=RendezvousName.TRAINING,
             config=self.config,
             entrypoint="echo",
             args=[],
@@ -1143,7 +1143,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             node_id,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -1314,7 +1314,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
             **self.config.rdzv_configs,
         )
         rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -1351,7 +1351,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         )
         rdzv_parameters.config["pend_timeout"] = 1
         rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,

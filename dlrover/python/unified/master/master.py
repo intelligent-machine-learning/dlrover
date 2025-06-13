@@ -60,7 +60,7 @@ class BaseMaster(ABC):
         self._job_manager = None
 
         logger.info(
-            f"DLRover Master: {{({self.__class__.__name__})}} initiated with "
+            f"DLRover Master: {({self.__class__.__name__})} initiated with "
             f"job-config: {self._job_config}, "
             f"dl-context: {self._dl_context}."
         )
@@ -168,8 +168,6 @@ class BaseMaster(ABC):
 
     def _wait_and_exit(self):
         while True:
-            trainer_error = self._job_manager.get_trainer_error()
-
             if self.get_job_stage() == JobStage.ERROR:
                 logger.info("Exit loop for job in error stage.")
                 break
@@ -183,15 +181,11 @@ class BaseMaster(ABC):
                         f"running: {self.get_job_stage()}, "
                         "keep waiting..."
                     )
-            elif trainer_error is not None:
-                logger.warning("Trainer got error, do trainer failover.")
-                self._handle_failure(
-                    FailureDesc(
-                        failure_obj="TRAINER",
-                        failure_time=trainer_error[0],
-                        failure_level=-1,
-                    )
-                )
+            # TODO: temp impl for now
+            elif self._job_manager.has_job_error():
+                logger.warning("Job got error, try failover...")
+                self._handle_failure(self._job_manager.gen_failure_by_error())
+
             time.sleep(DLMasterConstant.RUN_WAIT_INTERVAL)
             logger.debug("DLMaster still running...")
 

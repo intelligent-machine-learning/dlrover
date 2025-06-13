@@ -349,7 +349,7 @@ class k8sAPIExceptionReason(object):
 
 
 class RendezvousName(object):
-    ELASTIC_TRAINING = "elastic-training"
+    TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
 
 

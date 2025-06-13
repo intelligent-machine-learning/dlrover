@@ -12,6 +12,7 @@
 # limitations under the License.
 import asyncio
 import time
+from typing import Dict, Union
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
@@ -22,10 +23,20 @@ from dlrover.python.unified.master.graph import DLExecutionGraph
 class ElasticExecutor(Executor):
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
+        self._train_result: Dict[str, Union[bool, None]] = {
+            vertex.name: None
+            for vertex in self.graph.execution_vertices[
+                InternalDLWorkloadRole.ELASTIC_ROLE
+            ]
+        }
 
     def execute(self):
         loop = asyncio.get_event_loop()
         asyncio.run_coroutine_threadsafe(self._async_execute(), loop)
+
+    def _update_train_result(self, name, result):
+        self._train_result[name] = result
+        return name, result
 
     async def _async_execute(self):
         logger.info("Start elastic training execution...")
@@ -38,18 +49,18 @@ class ElasticExecutor(Executor):
             for vertex in elastic_vertices
         }
 
-        async def run_per_vertex(vertex_name, coro):
+        async def run_per_vertex(name, coro):
             try:
                 start = time.time()
                 await coro
                 logger.info(
-                    f"Node {vertex_name} elastic training completed in "
+                    f"Node {name} elastic training completed in "
                     f"{time.time() - start} seconds."
                 )
-                return vertex_name, True
+                return self._update_train_result(name, True)
             except Exception as e:
-                logger.error(f"{vertex_name} run elastic training failed: {e}")
-                return vertex_name, False
+                logger.error(f"{name} run elastic training failed: {e}")
+                return self._update_train_result(name, False)
 
         run_tasks = [
             run_per_vertex(name, coro) for name, coro in tasks.items()
@@ -57,7 +68,25 @@ class ElasticExecutor(Executor):
         for completed_task in asyncio.as_completed(run_tasks):
             vertex_name, result = await completed_task
             if result:
-                logger.info(f"Node {vertex_name} elastic training completed.")
+                logger.info(
+                    f"Node {vertex_name} elastic training completed: "
+                    f"{self._train_result}."
+                )
             else:
-                logger.warning(f"Node {vertex_name} elastic training failed.")
+                logger.warning(
+                    f"Node {vertex_name} elastic training failed: "
+                    f"{self._train_result}."
+                )
                 # TODO: trigger failover
+
+    def is_finished(self):
+        logger.debug(f"Current elastic training result: {self._train_result}")
+        return all(result for result in list(self._train_result.values()))
+
+    def get_error(self):
+        # return the failed vertices name
+        errors = []
+        for vertex_name, result in self._train_result.items():
+            if result is not None and not result:
+                errors.append(vertex_name)
+        return errors

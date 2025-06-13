@@ -30,7 +30,7 @@ from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import DLType, JobStage
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
-MASTER_CONNECT_INTERVAL = 30
+MASTER_CONNECT_INTERVAL = 10
 MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
 
 

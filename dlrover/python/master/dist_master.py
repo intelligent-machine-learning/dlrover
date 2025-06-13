@@ -143,7 +143,7 @@ class DistributedJobMaster(ElasticMaster):
             if args.enable_dynamic_sharding
             else None
         )
-        elastic_training = RendezvousName.ELASTIC_TRAINING
+        elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
