@@ -7205,6 +7205,13 @@ spec:
                   {"cpu": "100", "memory": "10240Mi"} means the number of maximum cpu cores
                   is 100 and the maximum of all Pods is 10Gi.
                 type: object
+              suspend:
+                description: |-
+                  Suspend specifies whether the master should create Pods or not.
+                  If a Job is created with suspend set to true, no Pods are created by
+                  the master
+                  Defaults to false.
+                type: boolean
             required:
             - replicaSpecs
             type: object

@@ -33,6 +33,8 @@ const (
 	JobRestartingReason = "JobRestarting"
 	// JobPendingReason is added in a job when it is pending.
 	JobPendingReason = "JobPending"
+	// JobSuspendedReason is added in a job when it is susepnded.
+	JobSuspendedReason = "JobSuspended"
 )
 
 // IsSucceeded checks if the job is succeeded
