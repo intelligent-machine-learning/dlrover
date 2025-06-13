@@ -580,7 +580,7 @@ class WorkerManager(TrainingNodeManager):
         nodes = self._get_nodes()
         return all([node.is_node_check_failed() for _, node in nodes.items()])
 
-    def is_all_initial_workers_node_check_failed(self, workers: int):
+    def is_all_initial_workers_node_check_failed(self, worker_num: int):
         """
         Check all initial workers are check-failed
         (exclude new created workers)"""
