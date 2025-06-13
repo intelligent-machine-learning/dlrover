@@ -357,4 +357,4 @@ class ElasticRunTest(unittest.TestCase):
                 )
 
                 if case["name"] == "standalone_with_dlrover":
-                    master_handler.close.assert_called_once() 
+                    master_handler.close.assert_called_once()
