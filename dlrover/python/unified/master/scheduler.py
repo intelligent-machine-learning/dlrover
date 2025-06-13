@@ -104,6 +104,7 @@ class Scheduler(ABC):
         return start
 
     def __get_runtime_env(self, vertex: DLExecutionVertex):
+        working_dir_key = "working_dir"
         env_key = "env_vars"
 
         # runtime env
@@ -153,6 +154,12 @@ class Scheduler(ABC):
             # remove 'false' value setting for using 'ray set visible device'
             for key in DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS:
                 runtime_env[env_key].pop(key, None)
+
+        # setup working dir
+        if DLWorkloadEnv.WORKING_DIR in runtime_env[env_key]:
+            runtime_env[working_dir_key] = runtime_env[env_key][
+                DLWorkloadEnv.WORKING_DIR
+            ]
 
         logger.debug(f"Create workload actor with runtime-env: {runtime_env}")
 

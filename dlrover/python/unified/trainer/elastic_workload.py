@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import shlex
-from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import ray
@@ -35,8 +34,6 @@ class ElasticWorkload(BaseWorkload):
     'workload' roles.
     """
 
-    launch_future = None
-
     @classmethod
     def extract_args_from_cmd(cls, run_cmd: str) -> List[str]:
         args_list = shlex.split(run_cmd)
@@ -51,7 +48,7 @@ class ElasticWorkload(BaseWorkload):
 
         return parsed_args
 
-    def start(self):
+    def run(self):
         run_cmd = self.config.get(InternalDLConfig.ELASTIC_RUN_CMD)
         env_utils.set_env(
             NodeEnv.JOB_NAME, env_utils.get_env(DLWorkloadEnv.JOB)
@@ -66,27 +63,21 @@ class ElasticWorkload(BaseWorkload):
             f"Run dlrover command in elastic workload: {run_cmd} "
             f"with node-id(rank): {self.rank}"
         )
-        launch_future = ThreadPoolExecutor(max_workers=1).submit(
-            self._async_launch_agent, run_cmd
-        )
-        launch_future.add_done_callback(self._handle_launch_future)
+        self._run_agent(run_cmd)
 
-    def _async_launch_agent(self, run_cmd):
+    def _run_agent(self, run_cmd):
         try:
             # set master handle's actor id as master address
             RayMasterClient.register_master_actor(self.master_handle)
 
             main(self.extract_args_from_cmd(run_cmd))
+
+            logger.info(f"Done elastic training, exit directly.")
+            ray.actor.exit_actor()
         except Exception as e:
             logger.error(
-                "Failed to launch elastic agent for training by "
+                "Failed to run elastic agent for training by "
                 f"unexpected error: {e}",
                 exc_info=True,
             )
-            raise RuntimeError("Agent launch failed")
-
-    def _handle_launch_future(self, future):
-        try:
-            future.result()
-        except Exception as e:
-            raise e
+            raise RuntimeError("Agent run failed")

@@ -15,14 +15,12 @@ from typing import Dict
 import ray
 
 from dlrover.python.common.constants import (
-    CommunicationType,
     DistributionStrategy,
     NodeType,
     PlatformType,
     PreCheckStatus,
     RendezvousName,
 )
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -37,15 +35,15 @@ from dlrover.python.master.servicer import RayMasterServicer
 from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
+from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
 from dlrover.python.unified.master.master import BaseMaster
-from dlrover.python.unified.master.spmd.job_manager import ElasticJobManager
 
 
 @ray.remote
-class SPMDMaster(BaseMaster):
+class ElasticMaster(BaseMaster):
     """
-    SPMD master is a control implementation designed for training scenarios
-    involving single compute roles: using torch elastic.
+    Elastic master is a control implementation designed for training scenarios
+    involving single compute roles: using torch elastic training.
     """
 
     def __init__(self, job_config_serialized, dl_context_serialized):
@@ -60,7 +58,7 @@ class SPMDMaster(BaseMaster):
         self._master_service_handler = None
 
         self.init()
-        logger.info(f"SPMD master initialized: {self.job_name}.")
+        logger.info(f"Elastic master initialized: {self.job_name}.")
 
     def init(self):
         job_args = self._get_job_args_from_unified_context()
@@ -71,8 +69,10 @@ class SPMDMaster(BaseMaster):
 
         # init core component
         self._rdzv_managers: Dict[str, RendezvousManager] = {
-            RendezvousName.ELASTIC_TRAINING: ElasticTrainingRendezvousManager(),
-            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
+            RendezvousName.ELASTIC_TRAINING:
+                ElasticTrainingRendezvousManager(),
+            RendezvousName.NETWORK_CHECK:
+                NetworkCheckRendezvousManager(),
         }
         self._perf_monitor = PerfMonitor()
         self._job_manager = ElasticJobManager()
@@ -114,6 +114,14 @@ class SPMDMaster(BaseMaster):
         pass
 
     """Remote call functions start"""
+
+    async def async_agent_report(self, request):
+        response = await self.agent_report(request)
+        return response
+
+    async def async_get_report(self, request):
+        response = await self.agent_get(request)
+        return response
 
     def agent_report(self, request):
         logger.debug(f"Got agent report call: {request}")

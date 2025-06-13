@@ -15,8 +15,8 @@ import time
 
 import ray
 
+from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.master.spmd.master import SPMDMaster
 
 try:
     from ray.exceptions import ActorDiedError as ade
@@ -47,7 +47,7 @@ def get_master_cls(args):
     if train_type in [DLType.RL, DLType.MULTIMODAL]:
         return MPMDMaster
     elif train_type in [DLType.SFT, DLType.PRE]:
-        return SPMDMaster
+        return ElasticMaster
     else:
         raise InvalidDLConfiguration()
 

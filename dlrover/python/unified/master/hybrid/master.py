@@ -14,11 +14,11 @@
 import ray
 
 from dlrover.python.unified.common.failure import FailureDesc
-from dlrover.python.unified.master.spmd.master import SPMDMaster
+from dlrover.python.unified.master.elastic.master import ElasticMaster
 
 
 @ray.remote
-class HybridMaster(SPMDMaster):
+class HybridMaster(ElasticMaster):
     """
     Hybrid master is a control implementation designed for SPMD training
     hybrid with other user defined workloads.

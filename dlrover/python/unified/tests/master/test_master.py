@@ -18,8 +18,8 @@ from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import JobStage
+from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.master.spmd.master import SPMDMaster
 from dlrover.python.unified.tests.test_data import TestData
 
 
@@ -60,7 +60,7 @@ class DLMasterTest(unittest.TestCase):
         dl_context = DLContext.build_from_args(parse_job_args(args))
         job_config = JobConfig.build_from_args(parse_job_args(args))
 
-        master = SPMDMaster.remote(
+        master = ElasticMaster.remote(
             job_config.serialize(), dl_context.serialize()
         )
         self.assertIsNotNone(master)

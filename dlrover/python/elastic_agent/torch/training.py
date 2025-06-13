@@ -631,13 +631,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         worker_group.store = store
         worker_group.group_rank = group_rank
         worker_group.group_world_size = group_world_size
-        logger.info(
-            f"debug0: group_rank: {group_rank}-{self._node_rank}-{group_world_size}")
         if group_rank == 0:
             spec.master_port = self._get_free_port()
-
             if hasattr(spec, "local_addr"):
-                logger.info(f"debug0: _set_master_addr_port: {spec.master_addr}-{spec.master_port}")
                 self._set_master_addr_port(
                     store,
                     spec.master_addr,
@@ -645,8 +641,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     spec.local_addr,
                 )
             else:
-                logger.info(
-                    f"debug1: _set_master_addr_port: {spec.master_addr}-{spec.master_port}")
                 # Compatible with torch 1.x
                 self._set_master_addr_port(
                     store,

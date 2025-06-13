@@ -629,7 +629,7 @@ class DLJobBuilder(object):
 
     def dlrover_run(self, run_cmd):
         """
-        Setup elastic agent workload(use elastic agent for spmd training,
+        Setup elastic agent workload(use elastic agent for elastic training,
             same with 'torchrun' case).
 
         Args:

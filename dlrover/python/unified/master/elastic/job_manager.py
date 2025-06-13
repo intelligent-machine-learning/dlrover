@@ -35,8 +35,8 @@ from dlrover.python.master.node.job_context import (
 )
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
+from dlrover.python.unified.master.elastic.executor import ElasticExecutor
 from dlrover.python.unified.master.job_manager import JobManager
-from dlrover.python.unified.master.spmd.executor import ElasticExecutor
 
 _MAX_POD_RELAUNCH_COUNT = 5
 

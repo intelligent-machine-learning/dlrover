@@ -181,6 +181,12 @@ class JobManager(ABC):
     def execute(self):
         self._executor.execute()
 
+    def _execute(self):
+        self._executor.execute()
+
+    async def _async_execute(self):
+        await self._executor.execute()
+
     def destroy_workloads(self):
         """Sync operation."""
 

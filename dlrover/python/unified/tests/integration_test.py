@@ -42,7 +42,7 @@ class ApiFullTest(unittest.TestCase):
         ray.shutdown()
 
     @timeout(40)
-    def test_spmd(self):
+    def test_elastic_training(self):
         if os.cpu_count() < 6:
             return
 

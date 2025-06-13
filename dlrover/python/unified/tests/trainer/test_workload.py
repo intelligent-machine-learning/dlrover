@@ -61,7 +61,6 @@ class BaseWorkloadTest(unittest.TestCase):
 
 
 class ElasticWorkloadTest(unittest.TestCase):
-
     def test_extract_args_from_cmd(self):
         test_cmd = "dlrover-run --rdzv_conf join_timeout=600 --network_check --max-restarts=1 --nnodes=2 --nproc_per_node=4  train_script.py"
         result = ElasticWorkload.extract_args_from_cmd(test_cmd)

@@ -347,7 +347,8 @@ class MasterServicer(ABC):
         if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
-            self._job_metric_collector.collect_custom_data(metrics)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(metrics)
             # Finish elastic training rendezvous so we continue diagnosis
             self._diagnosis_manager.continue_observing()
 
@@ -683,7 +684,8 @@ class MasterServicer(ABC):
                 CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
                 CustomMetricKeys.ERROR_CONTENT: message.error_data,
             }
-            self._job_metric_collector.collect_custom_data(custom_data)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(custom_data)
         return True
 
     def _kv_store_set(self, message: comm.KeyValuePair):
