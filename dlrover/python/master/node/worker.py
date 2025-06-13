@@ -583,7 +583,7 @@ class WorkerManager(TrainingNodeManager):
     def is_all_initial_workers_node_check_failed(self, worker_num: int):
         """
         Check all initial workers are check-failed
-        (exclude new created workers)"""
+        (exclude new relaunched workers)"""
         nodes = [
             node
             for _, node in self._get_nodes().items()
