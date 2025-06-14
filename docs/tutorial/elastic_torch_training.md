@@ -4,7 +4,7 @@ The document describes how to develop PyTorch models and train the model
 using DLRover. Users only need to make some simple changes
 of native PyTorch training codes to support checkpionting dataloader.
 We have provided the
-[CNN example](../../examples/pytorch/mnist_cnn.py) to show how to
+[CNN example](../../examples/pytorch/mnist/cnn_train.py) to show how to
 train a CNN model with the MNIST dataset.
 
 ## Develop a Torch Model with DLRover
