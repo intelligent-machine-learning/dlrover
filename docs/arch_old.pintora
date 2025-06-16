@@ -1,0 +1,86 @@
+sequenceDiagram
+  title: DLRover
+  autonumber
+  participant [<actor> User]
+  participant Driver
+  participant Master
+  participant JobManager
+  participant Actors
+  participant [<database> JobContext]
+
+  %% dlrover/python/unified/driver/main.py
+  User->>Driver: submit
+  activate Driver
+    activate Master
+    %% when import
+    StateBackend->>JobContext: Get
+    Scheduler->>JobContext: Get
+
+    %% dlrover/python/unified/master/master.py
+    Driver->>Master: Init(job_config,dl_context)
+      Master->>JobContext: Init(job_config,dl_context)
+      Master->>StateBackend: Init
+      %% dlrover/python/unified/master/elastic/master.py
+      Master->>JobManager: Init
+        JobManager->>JobContext: Read
+        JobManager->>JobManager: Init/Build ExecutionGraph(dl_context)
+        JobManager->>JobContext: Set execution_graph
+      Master->>SyncService: Init(JobManager)
+        activate SyncService
+      Master->>DiagnosisMaster: Init
+
+  Driver->>Master: Ping&Wait
+  Driver->>Master: Run
+    Master->>JobContext: SetJobStage(RUNNING)
+    Master->>StateBackend: LoadContext
+    alt JobContext is empty
+      Master->>StateBackend: SaveContext
+      Master->>JobManager: StartJob
+        %% dlrover/python/unified/master/elastic/job_manager.py
+        JobManager->>JobManager: _InitNodes
+          JobManager->>JobManager: execution_graph.GetVertexes
+          JobManager->>JobContext: update job nodes
+        JobManager->>Scheduler: Schedule
+          Scheduler->>Actors: Init
+          activate Actors
+            Actors->>Actors: new Thread(report RuntimeInfo)
+          Scheduler->>Actors: Ping&Wait
+        JobManager->>JobManager: SetupWorkLoads
+          JobManager->>Actors: GetRuntimeInfo[Rank==0]
+          JobManager->>Actors: Setup
+        JobManager->>ElasticExecutor: Start Execute
+          activate ElasticExecutor
+          ElasticExecutor->>Actors: Run
+          @note over Actors: MAIN PROCESS\nElastic Run\n[LongTime]
+          %% longtime, see below
+        JobManager->>NodeMonitor: Start
+          activate NodeMonitor
+          loop every 5 seconds
+            NodeMonitor->>NodeMonitor: Rag.ListActors\n[class_name=ElasticWorkload]
+            NodeMonitor->>JobContext: UpdateJobNode[status]
+          end
+    else JobContext is not empty
+      @note right of Master: BUG: Not Update Singleton JobContext
+      Master->>Master: HandleFailure(MasterFailure)
+      @note right of Master: TODO
+    end
+
+    Master->>Master: new Thread(master.wait_and_exit)
+  Driver->>User: OK Submitted
+  deactivate Driver
+
+  == After Actors Finished ==
+  @note over Actors: END
+  Actors->>ElasticExecutor: END Run
+  deactivate Actors
+
+  ElasticExecutor->>JobManager: is_finished()==True
+  deactivate ElasticExecutor
+
+  JobManager->>Master: is_job_finished()==True
+  deactivate Master
+
+  %% daemon threads
+  %%deactivate ElasticExecutor
+  deactivate NodeMonitor
+  deactivate SyncService
