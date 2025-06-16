@@ -13,6 +13,7 @@
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict
 
 import ray
 from ray.actor import ActorHandle
@@ -23,6 +24,7 @@ from dlrover.python.unified.common.constant import (
     DLMasterConstant,
     DLWorkloadEnv,
 )
+from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.graph import (
     DLExecutionGraph,
@@ -42,11 +44,7 @@ class Scheduler(ABC):
     """
 
     def __init__(self, execution_graph: DLExecutionGraph):
-        self._graph = execution_graph
-
-    @property
-    def graph(self):
-        return self._graph
+        self.graph = execution_graph
 
     @abstractmethod
     def schedule(self):
@@ -54,12 +52,11 @@ class Scheduler(ABC):
 
     @classmethod
     def get_master_actor_handle(cls):
-        if ray.is_initialized():
-            try:
-                return ray.get_runtime_context().current_actor
-            except RuntimeError:
-                logger.error("Failed to get master actor handle.")
-        return None
+        assert ray.is_initialized(), "Ray is not initialized."
+        try:
+            return ray.get_runtime_context().current_actor
+        except RuntimeError:
+            logger.error("Failed to get master actor handle.")
 
     def cleanup(self):
         # remove actors
@@ -107,26 +104,20 @@ class Scheduler(ABC):
         working_dir_key = "working_dir"
         env_key = "env_vars"
 
-        # runtime env
-        runtime_env = {
-            env_key: {
-                DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
-                DLWorkloadEnv.NAME: vertex.name,
-                DLWorkloadEnv.ROLE: vertex.role,
-                DLWorkloadEnv.RANK: str(vertex.rank),
-                DLWorkloadEnv.WORLD_SIZE: str(vertex.world_size),
-                DLWorkloadEnv.LOCAL_RANK: str(vertex.local_rank),
-                DLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
-            }
+        envs = {
+            DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
+            DLWorkloadEnv.NAME: vertex.name,
+            DLWorkloadEnv.ROLE: vertex.role,
+            DLWorkloadEnv.RANK: str(vertex.rank),
+            DLWorkloadEnv.WORLD_SIZE: str(vertex.world_size),
+            DLWorkloadEnv.LOCAL_RANK: str(vertex.local_rank),
+            DLWorkloadEnv.LOCAL_WORLD_SIZE: str(vertex.local_world_size),
         }
-
         # setup global env
-        runtime_env[env_key].update(self.graph.dl_context.env)
+        envs.update(self.graph.dl_context.env)
 
         # setup role env
-        runtime_env[env_key].update(
-            self.graph.dl_context.workloads[vertex.role].instance_env
-        )
+        envs.update(self.graph.dl_context.workloads[vertex.role].instance_env)
 
         # setup device collocation env
         if vertex.get_core_resource_num() < 1:
@@ -136,30 +127,26 @@ class Scheduler(ABC):
                 if vertex.role in group_roles:
                     group_env_value = ",".join(r for r in group_roles)
                     break
-            runtime_env[env_key][
-                DLWorkloadEnv.DEVICE_COLLOCATION_GROUP
-            ] = group_env_value
+            envs[DLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = group_env_value
 
         # setup ray cuda visible env
-        if not set(
-            DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS.items()
-        ).issubset(set(runtime_env[env_key].items())):
+        if not set(DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS.items()).issubset(
+            set(envs.items())
+        ):
             # this env is used for disable 'ray set visible device' so we can
             # specify device by local_rank on ray(otherwise ray will assign a
             # specified device)
-            runtime_env[env_key].update(
-                DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS
-            )
+            envs.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
         else:
             # remove 'false' value setting for using 'ray set visible device'
             for key in DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS:
-                runtime_env[env_key].pop(key, None)
+                envs.pop(key, None)
 
+        # runtime env
+        runtime_env: Dict = {env_key: envs}
         # setup working dir
-        if DLWorkloadEnv.WORKING_DIR in runtime_env[env_key]:
-            runtime_env[working_dir_key] = runtime_env[env_key][
-                DLWorkloadEnv.WORKING_DIR
-            ]
+        if DLWorkloadEnv.WORKING_DIR in envs:
+            runtime_env[working_dir_key] = envs[DLWorkloadEnv.WORKING_DIR]
 
         logger.debug(f"Create workload actor with runtime-env: {runtime_env}")
 
@@ -168,7 +155,6 @@ class Scheduler(ABC):
     def __create_actor_by_vertex(
         self, master_handle, vertex: DLExecutionVertex, config
     ) -> ActorHandle:
-
         if vertex.use_pg():
             actor_creation_opts = vertex.get_cls().options(
                 name=vertex.name,
@@ -218,13 +204,38 @@ class Scheduler(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actor "
-                f"creation timeout: {timeout}s."
+                f"{len(not_ready)} workload actor creation timeout: {timeout}s."
             )
         logger.info(
             f"{len(ready)} workload actors created, "
             f"cost: {time.time() * 1000 - start:.2f}ms."
         )
+
+    @staticmethod
+    def create(strategy_type: SchedulingStrategyType, graph: DLExecutionGraph):
+        if strategy_type == SchedulingStrategyType.SIMPLE:
+            logger.info("Use simple strategy for scheduling by specification.")
+            return SimpleScheduler(graph)
+        elif strategy_type == SchedulingStrategyType.GROUP:
+            if graph.dl_context.has_workload_group():
+                logger.info("Use group strategy for scheduling by specification.")
+                return GroupOrderedScheduler(graph)
+            else:
+                logger.info(
+                    "Downgrade to simple strategy for scheduling because "
+                    "workload group description is empty in rl-context."
+                )
+                return SimpleScheduler(graph)
+        else:
+            # for auto type:
+            # use group strategy if exits group in context,
+            # or use simple strategy
+            if graph.dl_context.has_workload_group():
+                logger.info("Use group strategy for scheduling by auto.")
+                return GroupOrderedScheduler(graph)
+            else:
+                logger.info("Use simple strategy for scheduling by auto.")
+                return SimpleScheduler(graph)
 
 
 class SimpleScheduler(Scheduler):

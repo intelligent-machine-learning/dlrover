@@ -31,8 +31,9 @@ class ElasticExecutor(Executor):
         }
 
     def execute(self):
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(self._async_execute(), loop)
+        # loop = asyncio.get_event_loop()
+        # asyncio.run_coroutine_threadsafe(self._async_execute(), loop)
+        asyncio.create_task(self._async_execute())
 
     def _update_train_result(self, name, result):
         self._train_result[name] = result

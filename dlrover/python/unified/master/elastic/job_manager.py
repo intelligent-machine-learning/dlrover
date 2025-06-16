@@ -51,13 +51,9 @@ class ElasticJobManager(JobManager):
     def __init__(self):
         super(ElasticJobManager, self).__init__()
 
-        self._elastic_context = get_elastic_context()
+        self.elastic_context = get_elastic_context()
         self._node_watcher = new_node_watcher(PlatformType.RAY, self.job_name)
         self._lock = threading.Lock()
-
-    @property
-    def elastic_context(self):
-        return self._elastic_context
 
     def get_executor(self):
         return ElasticExecutor(self.graph)
@@ -131,9 +127,7 @@ class ElasticJobManager(JobManager):
         node.update_paral_config(paral_config)
         self.elastic_context.update_job_node(node)
 
-    def collect_node_heart_beat(
-        self, node_type, node_id, timestamp
-    ) -> DiagnosisAction:
+    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> DiagnosisAction:
         with self._lock:
             node = self.elastic_context.job_node(node_type, node_id)
             if node is None:
@@ -154,22 +148,16 @@ class ElasticJobManager(JobManager):
     def get_running_nodes(self):
         nodes = []
         with self._lock:
-            worker_nodes = self.elastic_context.job_nodes_by_type(
-                NodeType.WORKER
-            )
+            worker_nodes = self.elastic_context.job_nodes_by_type(NodeType.WORKER)
             for node in worker_nodes.values():
                 if node.status == NodeStatus.RUNNING:
                     nodes.append(node)
         return nodes
 
-    def update_node_resource_usage(
-        self, node_type, node_id, cpu, memory, gpu_stats=[]
-    ):
+    def update_node_resource_usage(self, node_type, node_id, cpu, memory, gpu_stats=[]):
         node = self.elastic_context.job_node(node_type, node_id)
         if node is None:
-            logger.warning(
-                f"Skip update node[{node_type}][{node_id}] resources"
-            )
+            logger.warning(f"Skip update node[{node_type}][{node_id}] resources")
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
         if node.config_resource.cpu:
@@ -204,8 +192,7 @@ class ElasticJobManager(JobManager):
             target_node = self.elastic_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported "
-                    f"status to {event_type}."
+                    f"Node {node_id}({node_type}) reported status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self.elastic_context.update_job_node(target_node)
