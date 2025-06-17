@@ -214,7 +214,7 @@ class PodScaler(Scaler):
             return
 
         self._remove_nodes(plan)
-        while True:
+        while self._started:
             if (
                 len(self._create_node_queue) > 0
                 and not _job_context.is_request_stopped()
@@ -224,14 +224,14 @@ class PodScaler(Scaler):
                 )
                 time.sleep(15)
             else:
-                if all(future.done for future in self._create_node_futures):
+                if all(future.done() for future in self._create_node_futures):
                     # wait async pod creation completed
                     logger.debug("Async pod creation finished.")
                     time.sleep(5)
                     break
                 else:
                     logger.debug("Waiting for async pod creation...")
-                    time.sleep(10)
+                    time.sleep(5)
                     continue
 
         with self._scaling_lock:

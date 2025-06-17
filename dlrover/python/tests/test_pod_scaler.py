@@ -15,7 +15,9 @@ import os
 import time
 import unittest
 from collections import deque
+from threading import Thread
 from unittest import mock
+from unittest.mock import MagicMock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -238,6 +240,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_scale(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler._started = True
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()
@@ -279,7 +282,18 @@ class PodScalerTest(unittest.TestCase):
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)
+
+        # test wait async execution
         scaler._create_node_queue.clear()
+        mock_future = MagicMock()
+        mock_future.done.return_value = False
+        scaler._create_node_futures.append(mock_future)
+
+        thread = Thread(target=scaler.scale, args=(scale_plan,))
+        thread.start()
+        thread.join(timeout=1)
+        self.assertTrue(thread.is_alive())
+        scaler._started = False
 
     def test_scale_thread(self):
         scaler = PodScaler("elasticjob-sample", "default")
