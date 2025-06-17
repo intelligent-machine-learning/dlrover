@@ -424,7 +424,7 @@ class K8sJobArgs(JobArgs):
         self.optimize_mode = job["spec"].get(
             "optimizeMode", OptimizeMode.SINGLE_JOB
         )
-        self.is_suspended = job["spec"].get("suspended", False)
+        self.enable_suspended = job["spec"].get("suspended", False)
 
         for replica, spec in job["spec"]["replicaSpecs"].items():
             if replica == NodeType.WORKER:

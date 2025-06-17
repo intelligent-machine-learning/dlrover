@@ -408,7 +408,7 @@ class K8sElasticJobWatcher(object):
         self._job_name = args.job_name
         self._namespace = args.namespace
         self._job_uid = args.job_uuid
-        self._is_suspended = args.is_suspended
+        self._enable_suspended = args.enable_suspended
         self._k8s_client = k8sClient.singleton_instance(args.namespace)
         self._job_context = JobContext.singleton_instance()
 
@@ -446,7 +446,7 @@ class K8sElasticJobWatcher(object):
                 sleep(5)
 
     def start(self):
-        if self._is_suspended:
+        if self._enable_suspended:
             logger.info(f"job {self._job_name} is suspended")
             self._job_context.request_suspend()
 
