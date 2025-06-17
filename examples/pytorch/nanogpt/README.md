@@ -26,7 +26,7 @@ pip install dlrover -U
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --nproc_per_node=${GPU_NUM} \
+dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
     examples/pytorch/nanogpt/train.py \
     --data_dir data/nanogpt/
 ```

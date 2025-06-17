@@ -897,7 +897,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
-        manager._worker_manager.is_all_workers_node_check_failed = (
+        manager._worker_manager.is_all_initial_workers_node_check_failed = (
             mock.MagicMock(return_value=True)
         )
         result, reason, msg = manager.should_early_stop()
