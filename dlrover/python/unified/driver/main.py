@@ -10,11 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import time
 
 import ray
 
+from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
 
@@ -73,6 +74,20 @@ def submit(args=None, blocking=True):
 
     runtime_env = {"env_vars": {}}
     runtime_env["env_vars"].update(dl_context.env)
+
+    # do ray init
+    if ray.is_initialized():
+        logger.info("Ray already initialized.")
+    else:
+        working_dir_env = dl_context.env.get(
+            DLWorkloadEnv.WORKING_DIR, os.getcwd()
+        )
+        logger.info(
+            f"Using specified working dir: {working_dir_env} "
+            f"instead of current working dir: {os.getcwd()}."
+        )
+        ray.init(address="auto", runtime_env={"working_dir": working_dir_env})
+        logger.info("Ray initialized.")
 
     master_actor = (
         get_master_cls(parsed_args)

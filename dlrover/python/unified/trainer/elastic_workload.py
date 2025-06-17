@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import shlex
 from typing import List
 
@@ -61,7 +62,8 @@ class ElasticWorkload(BaseWorkload):
 
         logger.info(
             f"Run dlrover command in elastic workload: {run_cmd} "
-            f"with node-id(rank): {self.rank}"
+            f"with node-id(rank): {self.rank}, "
+            f"under directory: {os.getcwd()}"
         )
         self._run_agent(run_cmd)
 
