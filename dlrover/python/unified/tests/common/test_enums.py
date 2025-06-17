@@ -23,7 +23,7 @@ class EnumsTest(unittest.TestCase):
     def test_trainer_type(self):
         self.assertTrue(TrainerType["USER_DEFINED"])
         self.assertTrue(TrainerType["GENERATED"])
-        self.assertTrue(TrainerType["SPMD_TORCHRUN"])
+        self.assertTrue(TrainerType["ELASTIC_TRAINING"])
 
         with self.assertRaises(KeyError):
             self.assertTrue(TrainerType["TEST"])
