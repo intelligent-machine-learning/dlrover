@@ -734,7 +734,7 @@ class DLJobBuilder(object):
 
         roles = set()
         for role, role_config in self._components.items():
-            if role == "trainer" or not role_config:
+            if role == InternalDLWorkloadRole.TRAINER_ROLE or not role_config:
                 continue
             roles.add(role)
         self._collocations.append(roles)
@@ -877,7 +877,10 @@ class RLJobBuilder(DLJobBuilder):
             return False
 
         for role, component in self._components.items():
-            if role != "trainer" and role not in RLJobBuilder.ROLES:
+            if (
+                role != InternalDLWorkloadRole.TRAINER_ROLE
+                and role not in RLJobBuilder.ROLES
+            ):
                 logger.error(
                     f"{role} is invalid for rl, supported roles "
                     f"are {RLJobBuilder.ROLES}."

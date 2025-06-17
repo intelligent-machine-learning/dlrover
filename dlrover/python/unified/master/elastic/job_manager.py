@@ -30,9 +30,13 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
+
+# isort: off
 from dlrover.python.master.node.job_context import (
     get_job_context as get_elastic_context,
 )
+
+# isort: on
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
