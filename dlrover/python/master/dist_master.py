@@ -38,7 +38,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.master import ElasticMaster, get_service_type
+from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
@@ -94,7 +94,7 @@ def _create_master_service_on_k8s(namespace, job_name, job_uuid, target_port):
     return succeed
 
 
-class DistributedJobMaster(ElasticMaster):
+class DistributedJobMaster(JobMaster):
     """The master of a distributed job which has multiple nodes. The master
     - launches nodes (e.g. the Pod on kubernetes).
     - builds the rendezvous of training nodes.
