@@ -203,7 +203,6 @@ class DistributedJobManager(JobManager):
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         if not self._has_running_workers():
-            self._check_suspend()
             # The job relaunches the evicted master, there are alive
             # worker nodes and the master does not need to launch workers.
             logger.info(
@@ -1360,14 +1359,6 @@ class DistributedJobManager(JobManager):
             if succeed:
                 logger.info(f"Host {node.host_name} is marked unscheduled.")
         return True
-
-    def _check_suspend(self):
-        while True:
-            if not self._job_context.is_suspended():
-                break
-            logger.info("Waiting for elasticJob is suspended")
-            time.sleep(5)
-
 
 def create_job_manager(args: JobArgs, perf_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
