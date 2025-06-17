@@ -307,7 +307,6 @@ def cleanup():
 
 
 def train(args):
-    global local_rank
     data_module = GPTDataModule(
         data_dir=args.data_dir,
         batch_size=args.batch_size,

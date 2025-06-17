@@ -514,10 +514,10 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
                         "local dlrover master is unavailable."
                     )
                     # torch-run(standalone)
-                    return False
+                    return False, None
                 else:
                     # dlrover-run + local-master(standalone)
-                    return True
+                    return True, master_handler
             else:
                 # raise exception directly
                 raise RuntimeError(
@@ -538,7 +538,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
             )
 
         # dlrover-run + dist-master(distributed)
-        return True
+        return True, None
 
 
 def run(args):
@@ -555,7 +555,9 @@ def run(args):
 
     is_standalone = args.standalone
     logger.info(f"Standalone mode: {is_standalone}")
-    use_dlrover_launch = _check_to_use_dlrover_run(job_name, is_standalone)
+    use_dlrover_launch, master_handler = _check_to_use_dlrover_run(
+        job_name, is_standalone
+    )
 
     # for torchrun standalone mode
     if is_standalone and not use_dlrover_launch:

@@ -1,0 +1,70 @@
+---
+name: build and publish dlrover release master image
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+env:
+  REGISTRY: ghcr.io
+  SET_API: https://api.github.com/orgs/intelligent-machine-learning/packages/container # yamllint disable-line
+  VER_REG: s/.*version=['\"]([^'\"]+)['\"].*/\1/
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_info:
+          - py_version: "3.8.14"
+            image_name: "release_dlrover_master_py38"
+          - py_version: "3.10.17"
+            image_name: "release_dlrover_master_py310"
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v3
+
+      - name: Extract version from SETUP
+        run: |
+          VERSION=$(grep "version=" setup.py | sed -E "${{ env.VER_REG }}")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.build_info.image_name }} # yamllint disable-line
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          file: ./docker/release/master.dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            PY_VERSION=${{ matrix.build_info.py_version }}
+
+      - name: Set Image Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            ${{ env.SET_API }}/${{ matrix.build_info.image_name }}/visibility \
+            -d '{"visibility":"public"}'

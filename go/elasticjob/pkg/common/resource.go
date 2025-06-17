@@ -32,7 +32,7 @@ import (
 
 const (
 	// LabelAppNameKey is the key of application name in the cluster.
-	LabelAppNameKey = "app.kubernets.io/name"
+	LabelAppNameKey = "app.kubernetes.io/name"
 	// ElasticJobAppName is the application name of dlrover elasticjob.
 	ElasticJobAppName = "elasticjob"
 	// LabelJobNameKey is the label key of the elasticjob name.

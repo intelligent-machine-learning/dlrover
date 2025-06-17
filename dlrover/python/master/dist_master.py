@@ -303,7 +303,7 @@ class DistributedJobMaster(ElasticMaster):
                         msg=msg,
                     )
                     self.request_stop(False, reason, msg)
-                    continue
+                    break
                 self.job_manager.clear_exited_nodes()
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
@@ -316,7 +316,7 @@ class DistributedJobMaster(ElasticMaster):
                     elif (
                         self.task_manager
                         and not self.task_manager.finished()
-                        and not self.task_manager.is_dataset_initialized()
+                        and self.task_manager.is_dataset_initialized(True)
                     ):
                         logger.warning(
                             "All workers exited but there also are "
@@ -328,7 +328,7 @@ class DistributedJobMaster(ElasticMaster):
                     self.job_manager.all_running_node_hanged()
                     and self.task_manager.task_hanged()
                 ):
-                    logger.error("All nodes hangeds")
+                    logger.error("All nodes hanged")
                     self._exit_code = 1
                     self._exit_reason = JobExitReason.HANG_ERROR
 
