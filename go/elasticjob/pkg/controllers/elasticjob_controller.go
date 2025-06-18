@@ -166,7 +166,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		delete(r.CachedJobs, job.Name)
 	case apiv1.JobSuspended:
 		logger.Infof("Job %s suspended", job.Name)
-		if job.Spec.Suspend != nil && !*job.Spec.Suspend {
+		if job.Spec.Suspend == nil || !*job.Spec.Suspend {
 			msg := fmt.Sprintf("ElasticJob %s is unspended.", job.Name)
 			common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
 		}
