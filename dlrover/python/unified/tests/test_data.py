@@ -146,16 +146,16 @@ class TestData(object):
             "type": "ELASTIC_TRAINING",
             "module": "dlrover.python.unified.tests.test_class",
             "class": "TestTrainer",
-            "node_number": 1,
+            "node_number": 2,
             "device_type": "CPU",
             "device_per_node": 1,
         },
         "workload": {
             "ELASTIC": {
-                "num": 4,
+                "num": 2,
                 "module": "dlrover.python.unified.tests.test_class",
                 "class": "TestActor",
-                "resource": {"cpu": 0.25},
+                "resource": {"cpu": 1},
             }
         },
     }

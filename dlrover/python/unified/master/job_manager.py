@@ -44,6 +44,8 @@ class JobManager(ABC):
         self._scheduler = self.get_scheduler()
         self._executor = self.get_executor()
 
+        self._stopped = False
+
     @property
     def context(self):
         return self._job_ctx
@@ -125,6 +127,8 @@ class JobManager(ABC):
 
         # destroy all workloads
         self.destroy_workloads()
+
+        self._stopped = True
 
     def _reset(self):
         pass

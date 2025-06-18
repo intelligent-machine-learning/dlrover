@@ -10,3 +10,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
+from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
+
+
+class ElasticExecutorTest(ElasticBaseTest):
+    def setUp(self):
+        super().setUp()
+        job_manager = ElasticJobManager()
+        self.executor = job_manager.executor
+
+    def test_basic(self):
+        self.assertEqual(
+            self.executor._update_train_result("1", True), ("1", True)
+        )
+
+    def test_execute(self):
+        pass

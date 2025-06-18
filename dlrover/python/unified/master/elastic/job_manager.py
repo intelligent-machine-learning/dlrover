@@ -102,6 +102,9 @@ class ElasticJobManager(JobManager):
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes status...")
         while True:
+            if self._stopped:
+                logger.info("Stop monitoring nodes.")
+                break
             try:
                 # update directly
                 list_nodes = self._node_watcher.list()
@@ -120,11 +123,13 @@ class ElasticJobManager(JobManager):
             time.sleep(5)
 
     def update_node_required_info(self, min_required, max_required, timeout):
+        # TODO
         pass
 
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
+        # TODO
         pass
 
     def update_node_paral_config(self, node_type, node_id, paral_config):
@@ -184,7 +189,6 @@ class ElasticJobManager(JobManager):
                     node.start_hang_time = now.timestamp()
             else:
                 node.start_hang_time = 0
-            self.elastic_context.update_job_node(node)
         else:
             logger.warning(
                 "CPU requests not configure "
