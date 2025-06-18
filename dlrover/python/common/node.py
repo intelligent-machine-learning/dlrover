@@ -405,6 +405,12 @@ class Node(object):
             return
         self.__dict__.update(node.__dict__)
 
+    def get_name(self):
+        if self.name is None:
+            return f"{self.id}"
+        else:
+            return self.name
+
 
 class NodeEvent(object):
     """NodeEvent is the event to change the status of a Node"""
