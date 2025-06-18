@@ -4,7 +4,6 @@ sequenceDiagram
   participant [<actor> User]
   participant Driver
   participant Master
-  participant Core
   participant JobManager
   %% participant Agents
   participant [<database> JobContext]
@@ -15,50 +14,52 @@ sequenceDiagram
     activate Master
     %% dlrover/python/unified/master/master.py
     Driver->>Master: 
-    Master->>Core: Init(job_config,dl_context)
-      Core->>JobContext: Init/TryLoadContext
+    Master->>JobManager: Init(job_config,dl_context)
+      JobManager->>JobContext: Init/TryLoadContext
+      
       %% dlrover/python/unified/master/elastic/master.py
-      Core->>JobManager: Init
-      %% Core->>SyncService: Init(JobManager)
+      %% JobManager->>SyncService: Init(JobManager)
         %% activate SyncService
-      %% Core->>DiagnosisMaster: Init
+      %% JobManager->>DiagnosisMaster: Init
 
   Driver->>Master: Ping&Wait
   Driver->>Master: Start
-  Master->>Core: Run
+  Master->>JobManager: Run
   Driver->>User: OK Submitted
   deactivate Driver
-    Core->>Core: SetJobStage(Pending)
+    JobManager->>JobManager: SetJobStage(Pending)
     alt JobContext is empty / New Job
-      Core->>JobManager: InitNodesState
+      JobManager->>JobManager: InitNodesState
         JobManager->>JobManager: Init/Build ExecutionGraph(dl_context)
-      Core->>JobContext: SaveContext
-      Core->>Scheduler: CreateNodes(Plan)
+      JobManager->>JobContext: SaveContext
+      JobManager->>Scheduler: CreateNodes(Plan)
         Scheduler->>Agents: Init
         activate Agents
-      Core->>JobManager: PreCheckNodes
+      JobManager->>JobManager: PreCheckNodes
         JobManager->>Agents: GetStatus()
 
     == Start Job Execution ==
-    Core->>Core: SetJobStage(Running)
-      Core->>JobManager: StartJob
+    JobManager->>JobManager: SetJobStage(Running)
+      JobManager->>JobManager: StartJob
         JobManager->>Agents: Start
         Agents->>TrainingWorker: Run
         activate TrainingWorker
         @note over TrainingWorker: MAIN PROCESS\nElastic Run\n[LongTime]
     end
-    loop every 5 seconds while Job is Running
-      Core->>JobManager: Check
-        JobManager->>Agents: getStatus()
-        JobManager->>JobContext: UpdateJobNode[status]
-      Core->>JobContext: SaveIfModified
+    loop while Job is Running
+      JobManager->>Agents: getStatus()
+      JobManager->>JobContext: UpdateJobNode[status]
+      JobManager->>JobContext: SaveIfModified
     end
+
     %% alt JobContext is empty
     %% else JobContext is not empty
     %%   @note right of Master: BUG: Not Update Singleton JobContext
     %%   Master->>Master: HandleFailure(MasterFailure)
     %%   @note right of Master: TODO
     %% end
+
+    TrainingWorker->>Master: Report/Get\n
   
 
   == After Training Finished ==
@@ -67,9 +68,8 @@ sequenceDiagram
   Agents->>JobManager: getStatus()==Finished
   deactivate Agents
 
-  JobManager->>Core: is_job_finished()==True
-  Core->>Core: SetJobStage(FINISHED)
-  Core->>Scheduler: Cleanup
+  JobManager->>JobManager: SetJobStage(FINISHED)
+  JobManager->>Scheduler: Cleanup
   deactivate Master
   
 

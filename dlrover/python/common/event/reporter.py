@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from functools import cache
 import importlib
 import json
 from datetime import datetime
@@ -66,8 +67,7 @@ class EventReporter(Singleton):
             labels_str = json.dumps(labels)
 
         logger.info(
-            f"[{time_str}][{event_type}][{instance}]"
-            f"[{action}][{msg}][{labels_str}]"
+            f"[{time_str}][{event_type}][{instance}][{action}][{msg}][{labels_str}]"
         )
 
     # ================ Master Start ================
@@ -121,9 +121,7 @@ class EventReporter(Singleton):
         )
 
     @ignore_exceptions()
-    def report_job_fail(
-        self, job_evt: DurationSpan, args: JobArgs, error: str
-    ):
+    def report_job_fail(self, job_evt: DurationSpan, args: JobArgs, error: str):
         job_evt.fail(error=error)
 
         self.report(
@@ -139,9 +137,7 @@ class EventReporter(Singleton):
     # ================ JobManager Start ================
 
     @ignore_exceptions()
-    def report_node_status_change(
-        self, node: Node, old_status: str, new_status: str
-    ):
+    def report_node_status_change(self, node: Node, old_status: str, new_status: str):
         """Report node status when changing."""
 
         _master_evt.worker_event(
@@ -369,6 +365,7 @@ class EventReporter(Singleton):
 context = Context.singleton_instance()
 
 
+@cache
 def get_event_reporter(*args, **kwargs) -> EventReporter:
     reporter_cls = context.reporter_cls
 
@@ -388,3 +385,20 @@ def get_event_reporter(*args, **kwargs) -> EventReporter:
         instance.initialize(*args, **kwargs)
 
     return instance
+
+
+def report_event(
+    event_type: str,
+    instance: str,
+    action: str,
+    msg: str = "",
+    labels: Dict[str, str] = None,
+):
+    """
+    Report an event using the global event reporter.
+    """
+    if labels is None:
+        labels = {}
+
+    reporter = get_event_reporter()
+    reporter.report(event_type, instance, action, msg, labels)

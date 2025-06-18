@@ -69,9 +69,7 @@ class JobManager(ABC):
         """Return failure according to the current job error."""
 
     def is_job_finished(self):
-        return (
-            self.executor.is_finished() and not self.context.is_in_failover()
-        )
+        return self.executor.is_finished() and not self.context.is_in_failover()
 
     def has_job_error(self):
         """Should be implemented by subclasses."""
@@ -87,9 +85,7 @@ class JobManager(ABC):
             return SimpleScheduler(self._execution_graph)
         elif strategy_type == SchedulingStrategyType.GROUP:
             if self._job_ctx.dl_context.has_workload_group():
-                logger.info(
-                    "Use group strategy for scheduling by specification."
-                )
+                logger.info("Use group strategy for scheduling by specification.")
                 return GroupOrderedScheduler(self._execution_graph)
             else:
                 logger.info(
@@ -141,8 +137,7 @@ class JobManager(ABC):
             for create_vertex in self.graph.get_all_vertices()
         ):
             logger.info(
-                "Still waiting actor creation callback for "
-                "updating runtime info..."
+                "Still waiting actor creation callback for updating runtime info..."
             )
             return False
         return True
@@ -187,14 +182,11 @@ class JobManager(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actors "
-                f"setup timeout: {timeout}s."
+                f"{len(not_ready)} workload actors setup timeout: {timeout}s."
             )
 
         end = time.time() * 1000 - start
-        logger.info(
-            f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
-        )
+        logger.info(f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms")
 
     def execute(self):
         self.executor.execute()
