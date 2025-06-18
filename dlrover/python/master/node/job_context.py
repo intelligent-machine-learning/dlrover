@@ -267,7 +267,6 @@ class JobContext(Singleton):
             self._job_stage = JobStage.JOB_SUSPENDED
         else:
             logger.error(f"{self._job_stage} Job can not be suspended")
-        self._job_stage = JobStage.JOB_SUSPENDED
 
     def request_unsuspend(self):
         self._job_stage = JobStage.JOB_RUNNING
