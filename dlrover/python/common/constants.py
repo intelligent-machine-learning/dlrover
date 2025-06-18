@@ -26,6 +26,7 @@ class PlatformType(object):
     RAY = "ray"
     PY_KUBERNETES = "pyk8s"
     LOCAL = "local"
+    PY_VOLCANO = "py_volcano"
 
 
 class CommunicationType(object):
@@ -294,6 +295,8 @@ class NodeEnv(object):
     NODE_ID = "NODE_ID"
     NODE_NUM = "NODE_NUM"
     NODE_RANK = "NODE_RANK"
+    MAX_NODE = "MAX_NODE"
+    MIN_NODE = "MIN_NODE"
 
     # Deprecated env vars.
     WORKER_TYPE = "WORKER_TYPE"
