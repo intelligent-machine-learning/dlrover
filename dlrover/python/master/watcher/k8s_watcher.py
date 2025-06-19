@@ -29,6 +29,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     ScalePlanLabel,
+    JobStage,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import (
@@ -411,6 +412,7 @@ class K8sElasticJobWatcher(object):
         self._enable_suspended = args.enable_suspended
         self._k8s_client = k8sClient.singleton_instance(args.namespace)
         self._job_context = JobContext.singleton_instance()
+        self._job_pre_status = JobStage.JOB_INIT
 
     def watch(self):
         w = watch.Watch()
@@ -432,13 +434,20 @@ class K8sElasticJobWatcher(object):
                             (evt_type == "MODIFIED" or evt_type == "ADDED")
                             and elasticjob_cr["metadata"].get("name", "") == self._job_name
                     ):
-                        logger.info(f"get elasticjob modified event, {elasticjob_cr}")
-                        if elasticjob_cr["spec"].get("suspend", False):
+                        logger.info(f"get elasticjob modified {evt_type} event")
+
+                        enableSuspended = elasticjob_cr["spec"].get("suspend", False)
+                        if (
+                            enableSuspended and self._job_context.get_job_stage() != JobStage.JOB_SUSPENDED
+                        ):
                             logger.info(f"job {self._job_name} is suspended")
-                            self._job_context.request_suspend()
-                        else:
+                            self._job_pre_status = self._job_context.get_job_stage()
+                            self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
+                        if (
+                            not enableSuspended and self._job_context.get_job_stage() == JobStage.JOB_SUSPENDED
+                        ):
                             logger.info(f"job {self._job_name} is unsuspended")
-                            self._job_context.request_unsuspend()
+                            self._job_context.update_job_stage(self._job_pre_status)
 
                 sleep(5)
             except Exception as e:
@@ -448,7 +457,8 @@ class K8sElasticJobWatcher(object):
     def start(self):
         if self._enable_suspended:
             logger.info(f"job {self._job_name} is suspended")
-            self._job_context.request_suspend()
+            self._job_pre_status = self._job_context.get_job_stage()
+            self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
 
         threading.Thread(
             target=self.watch, name="job-watcher", daemon=True
