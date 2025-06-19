@@ -25,7 +25,7 @@ from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,
 )
-from dlrover.python.unified.tests.base import BaseTest
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 from dlrover.python.unified.tests.test_data import TestData
 
@@ -33,11 +33,7 @@ from dlrover.python.unified.tests.test_data import TestData
 class SimpleSchedulerTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
-        ray.init(num_cpus=8)
-
-    def tearDown(self):
-        super().tearDown()
-        ray.shutdown()
+        self.init_ray_safely(num_cpus=8)
 
     def test_schedule(self):
         graph = DLExecutionGraph(self._job_context.dl_context)
@@ -65,7 +61,7 @@ class SimpleSchedulerTest(BaseMasterTest):
             self.assertEqual(vertex.create_time, 0)
 
 
-class GroupOrderedSchedulerSingleBundlePerNodeTest(BaseTest):
+class GroupOrderedSchedulerSingleBundlePerNodeTest(RayBaseTest):
     def setUp(self):
         super().setUp()
         args = [
@@ -87,11 +83,11 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(BaseTest):
         self.scheduler = GroupOrderedScheduler(self.graph)
 
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()
-        ray.shutdown()
+        self.close_ray_safely()
         super().tearDown()
 
     def test_schedule(self):
@@ -125,7 +121,7 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(BaseTest):
         self.assertFalse(bool(self.graph.get_placement_group()))
 
 
-class GroupOrderedSchedulerSingleGroupPerNodeTest(BaseTest):
+class GroupOrderedSchedulerSingleGroupPerNodeTest(RayBaseTest):
     def setUp(self):
         args = [
             "--job_name",
@@ -145,11 +141,11 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(BaseTest):
         self.graph = DLExecutionGraph(self._job_context.dl_context)
         self.scheduler = GroupOrderedScheduler(self.graph)
 
-        ray.init(num_cpus=8)
+        self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()
-        ray.shutdown()
+        self.close_ray_safely()
 
     def test_schedule(self):
         self.assertEqual(len(self.scheduler.graph.get_placement_group()), 0)

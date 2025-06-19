@@ -15,11 +15,11 @@ from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.dl_context import RLContext
 from dlrover.python.unified.common.job_context import get_job_context
-from dlrover.python.unified.tests.base import BaseTest
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class BaseMasterTest(BaseTest):
+class BaseMasterTest(RayBaseTest):
     def setUp(self):
         super().setUp()
         args = [
@@ -36,3 +36,7 @@ class BaseMasterTest(BaseTest):
 
         self._job_context = get_job_context()
         self._job_context.init(job_config, rl_context)
+
+    def tearDown(self):
+        self.close_ray_safely()
+        super().tearDown()

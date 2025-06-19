@@ -16,7 +16,7 @@ import time
 import ray
 
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.tests.base import BaseTest
+from dlrover.python.unified.tests.base import RayBaseTest
 
 try:
     from ray.exceptions import ActorDiedError as ade
@@ -33,14 +33,14 @@ from dlrover.python.unified.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
 
 
-class ApiFullTest(BaseTest):
+class ApiFullTest(RayBaseTest):
     def setUp(self):
         super().setUp()
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
-        ray.shutdown()
+        self.close_ray_safely()
         super().tearDown()
 
     @timeout(20)
@@ -152,11 +152,7 @@ class RLMasterNormalTest(BaseMasterTest):
         self._job_context._dl_context = rl_context
 
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
-
-    def tearDown(self):
-        super().tearDown()
-        ray.shutdown()
+        self.init_ray_safely(num_cpus=8)
 
     @timeout(20)
     def test(self):
@@ -207,11 +203,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._dl_context = rl_context
-        ray.init(num_cpus=8)
-
-    def tearDown(self):
-        super().tearDown()
-        ray.shutdown()
+        self.init_ray_safely(num_cpus=8)
 
     @timeout(30)
     def test_trainer_abnormal(self):
@@ -261,11 +253,7 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._dl_context = rl_context
-        ray.init(num_cpus=8)
-
-    def tearDown(self):
-        super().tearDown()
-        ray.shutdown()
+        self.init_ray_safely(num_cpus=8)
 
     @timeout(30)
     def test_trainer_workload_abnormal(self):

@@ -16,18 +16,19 @@ import ray
 
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.driver.main import main
-from dlrover.python.unified.tests.base import BaseTest
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class DriverTest(BaseTest):
+class DriverTest(RayBaseTest):
     def setUp(self):
+        super().setUp()
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8)
+        self.init_ray_safely()
 
     def tearDown(self):
-        os.environ.clear()
-        ray.shutdown()
+        self.close_ray_safely()
+        super().tearDown()
 
     def test_driver(self):
         if os.cpu_count() < 2:

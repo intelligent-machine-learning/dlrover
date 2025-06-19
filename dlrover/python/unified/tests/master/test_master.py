@@ -19,17 +19,17 @@ from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.tests.base import BaseTest
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class DLMasterTest(BaseTest):
+class DLMasterTest(RayBaseTest):
     def setUp(self):
         super().setUp()
-        ray.init(num_cpus=1)
+        self.init_ray_safely(num_cpus=1)
 
     def tearDown(self):
-        ray.shutdown()
+        self.close_ray_safely()
         super().tearDown()
 
     def test_master_actor(self):
