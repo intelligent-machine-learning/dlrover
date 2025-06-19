@@ -12,7 +12,9 @@
 # limitations under the License.
 
 import json
+import threading
 from datetime import datetime
+from time import sleep
 from typing import List
 
 from kubernetes import client, watch
@@ -27,6 +29,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     ScalePlanLabel,
+    JobStage,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import (
@@ -35,7 +38,7 @@ from dlrover.python.common.node import (
     NodeGroupResource,
     NodeResource,
 )
-from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.master.node.job_context import get_job_context, JobContext
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.kubernetes import (
@@ -397,3 +400,72 @@ class K8sScalePlanWatcher:
             name=scale_crd["metadata"]["name"],
             body=scale_crd,
         )
+
+class K8sElasticJobWatcher(object):
+    """K8sElasticJobWatcher monitors the Elasticjob CR on the cluster.
+    It nodify the JobContext to update the job status.
+    """
+    def __init__(self,args):
+        self._job_name = args.job_name
+        self._namespace = args.namespace
+        self._job_uid = args.job_uuid
+        self._enable_suspended = args.enable_suspended
+        self._k8s_client = k8sClient.singleton_instance(args.namespace)
+        self._job_context = JobContext.singleton_instance()
+        self._job_pre_status = JobStage.JOB_INIT
+
+    def watch(self):
+        w = watch.Watch()
+
+        while True:
+            try:
+                for event in w.stream(
+                    self._k8s_client.api_instance.list_namespaced_custom_object,
+                    namespace=self._namespace,
+                    group=ElasticJobApi.GROUP,
+                    version=ElasticJobApi.VERION,
+                    plural=ElasticJobApi.ELASTICJOB_PLURAL,
+                    timeout_seconds=60,
+                ):
+                    logger.info(f"get elasticjob event, {event}")
+                    elasticjob_cr = event.get("object", None)
+                    evt_type = event.get("type")
+                    if (
+                            (evt_type == "MODIFIED" or evt_type == "ADDED")
+                            and elasticjob_cr["metadata"].get("name", "") == self._job_name
+                    ):
+                        logger.info(f"get elasticjob modified {evt_type} event")
+
+                        enableSuspended = elasticjob_cr["spec"].get("suspend", False)
+                        if enableSuspended:
+                            # only RUNNING and INIT job can be suspended
+                            if (
+                                self._job_context.get_job_stage() == JobStage.JOB_RUNNING
+                                or self._job_context.get_job_stage() == JobStage.JOB_INIT
+                            ):
+                                logger.info(f"job {self._job_name} is suspended")
+                                self._job_pre_status = self._job_context.get_job_stage()
+                                self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
+                            else:
+                                logger.info(f"{self._job_context.get_job_stage()} job skip suspend")
+
+                        if (
+                            not enableSuspended and self._job_context.is_suspended()
+                        ):
+                            logger.info(f"job {self._job_name} is unsuspended")
+                            self._job_context.update_job_stage(self._job_pre_status)
+
+                sleep(5)
+            except Exception as e:
+                logger.warning(e)
+                sleep(5)
+
+    def start(self):
+        if self._enable_suspended:
+            logger.info(f"job {self._job_name} is suspended")
+            self._job_pre_status = self._job_context.get_job_stage()
+            self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
+
+        threading.Thread(
+            target=self.watch, name="job-watcher", daemon=True
+        ).start()

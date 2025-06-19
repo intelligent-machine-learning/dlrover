@@ -25,6 +25,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
@@ -260,6 +261,9 @@ class JobContext(Singleton):
 
     def is_request_stopped(self):
         return self._job_stage == JobStage.JOB_STOPPED
+
+    def is_suspended(self):
+        return self._job_stage == JobStage.JOB_SUSPENDED
 
 
 def get_job_context() -> JobContext:
