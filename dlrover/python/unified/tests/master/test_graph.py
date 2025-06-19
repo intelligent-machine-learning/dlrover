@@ -12,7 +12,6 @@
 # limitations under the License.
 import os
 import time
-import unittest
 from unittest.mock import MagicMock
 
 import ray
@@ -28,20 +27,23 @@ from dlrover.python.unified.master.graph import (
     VertexInvocationMeta,
 )
 from dlrover.python.unified.master.scheduler import GroupOrderedScheduler
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_class import TestActor, TestRollout
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class ExecutionGraphTest(unittest.TestCase):
+class ExecutionGraphTest(BaseTest):
     def setUp(self):
+        super().setUp()
         if self._testMethodName == "test_serialization":
             os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-            ray.init(num_cpus=8, ignore_reinit_error=True)
+            ray.init(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()
         if ray.is_initialized():
             ray.shutdown()
+        super().tearDown()
 
     def test_basic(self):
         args = [

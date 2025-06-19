@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import unittest
 from unittest.mock import MagicMock
 
 import ray
@@ -26,6 +25,7 @@ from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
     SimpleScheduler,
 )
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 from dlrover.python.unified.tests.test_data import TestData
 
@@ -33,7 +33,7 @@ from dlrover.python.unified.tests.test_data import TestData
 class SimpleSchedulerTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         super().tearDown()
@@ -65,8 +65,9 @@ class SimpleSchedulerTest(BaseMasterTest):
             self.assertEqual(vertex.create_time, 0)
 
 
-class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
+class GroupOrderedSchedulerSingleBundlePerNodeTest(BaseTest):
     def setUp(self):
+        super().setUp()
         args = [
             "--job_name",
             "test",
@@ -86,11 +87,12 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
         self.scheduler = GroupOrderedScheduler(self.graph)
 
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()
         ray.shutdown()
+        super().tearDown()
 
     def test_schedule(self):
         self.assertEqual(len(self.scheduler.graph.get_placement_group()), 0)
@@ -123,7 +125,7 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(unittest.TestCase):
         self.assertFalse(bool(self.graph.get_placement_group()))
 
 
-class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
+class GroupOrderedSchedulerSingleGroupPerNodeTest(BaseTest):
     def setUp(self):
         args = [
             "--job_name",
@@ -143,7 +145,7 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(unittest.TestCase):
         self.graph = DLExecutionGraph(self._job_context.dl_context)
         self.scheduler = GroupOrderedScheduler(self.graph)
 
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()

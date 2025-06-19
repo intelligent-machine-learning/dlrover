@@ -11,15 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     TrainerType,
 )
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class EnumsTest(unittest.TestCase):
+class EnumsTest(BaseTest):
     def test_trainer_type(self):
         self.assertTrue(TrainerType["USER_DEFINED"])
         self.assertTrue(TrainerType["GENERATED"])

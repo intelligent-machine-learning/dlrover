@@ -12,11 +12,11 @@
 # limitations under the License.
 import os
 import time
-import unittest
 
 import ray
 
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
+from dlrover.python.unified.tests.base import BaseTest
 
 try:
     from ray.exceptions import ActorDiedError as ade
@@ -33,13 +33,15 @@ from dlrover.python.unified.tests.test_data import TestData
 from dlrover.python.util.function_util import timeout
 
 
-class ApiFullTest(unittest.TestCase):
+class ApiFullTest(BaseTest):
     def setUp(self):
+        super().setUp()
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         ray.shutdown()
+        super().tearDown()
 
     @timeout(20)
     def test_elastic_training(self):
@@ -150,7 +152,7 @@ class RLMasterNormalTest(BaseMasterTest):
         self._job_context._dl_context = rl_context
 
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         super().tearDown()
@@ -205,7 +207,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._dl_context = rl_context
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         super().tearDown()
@@ -259,7 +261,7 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
         rl_context = RLContext.build_from_args(parsed_args)
         self._job_context._job_config = job_config
         self._job_context._dl_context = rl_context
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         super().tearDown()

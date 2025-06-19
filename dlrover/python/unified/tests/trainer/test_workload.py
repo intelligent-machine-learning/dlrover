@@ -11,16 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import unittest
 
 from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.trainer.elastic_workload import ElasticWorkload
 from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
 
 
-class BaseWorkloadTest(unittest.TestCase):
+class BaseWorkloadTest(BaseTest):
     def tearDown(self):
         os.environ.clear()
+        super().tearDown()
 
     def test_basic(self):
         os.environ["NAME"] = "test"
@@ -60,7 +61,7 @@ class BaseWorkloadTest(unittest.TestCase):
         self.assertEqual(os.environ["k2"], "v2")
 
 
-class ElasticWorkloadTest(unittest.TestCase):
+class ElasticWorkloadTest(BaseTest):
     def test_extract_args_from_cmd(self):
         test_cmd = (
             "dlrover-run --rdzv_conf join_timeout=600 --network_check "

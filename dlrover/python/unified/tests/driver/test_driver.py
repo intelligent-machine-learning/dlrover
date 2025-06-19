@@ -11,19 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import unittest
 
 import ray
 
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.driver.main import main
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class DriverTest(unittest.TestCase):
+class DriverTest(BaseTest):
     def setUp(self):
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        ray.init(num_cpus=8, ignore_reinit_error=True)
+        ray.init(num_cpus=8)
 
     def tearDown(self):
         os.environ.clear()

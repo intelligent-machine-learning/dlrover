@@ -47,8 +47,12 @@ def parse_type(name):
 
 def parse_from_actor_name(name):
     split_name = name.split("_")
-    if len(split_name) == 3:  # role_${size}_${index}
-        return split_name[0], split_name[1], split_name[2], None, None
+    if len(split_name) == 1:
+        return name
+    elif len(split_name) == 2:  # role_${index}
+        return split_name[0], split_name[1]
+    elif len(split_name) == 3:  # role_${size}_${index}
+        return split_name[0], split_name[1], split_name[2]
     else:  # role_${size}_${index}_${local_size}_${local_index}
         return (
             split_name[0],
@@ -123,4 +127,4 @@ class ActorWatcher(NodeWatcher):
                 status=parse_from_actor_state(actor_state.state),
             )
             nodes.append(node)
-        return []
+        return nodes
