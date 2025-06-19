@@ -437,14 +437,20 @@ class K8sElasticJobWatcher(object):
                         logger.info(f"get elasticjob modified {evt_type} event")
 
                         enableSuspended = elasticjob_cr["spec"].get("suspend", False)
+                        if enableSuspended:
+                            # only RUNNING and INIT job can be suspended
+                            if (
+                                self._job_context.get_job_stage() == JobStage.JOB_RUNNING
+                                or self._job_context.get_job_stage() == JobStage.JOB_INIT
+                            ):
+                                logger.info(f"job {self._job_name} is suspended")
+                                self._job_pre_status = self._job_context.get_job_stage()
+                                self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
+                            else:
+                                logger.info(f"{self._job_context.get_job_stage()} job skip suspend")
+
                         if (
-                            enableSuspended and self._job_context.get_job_stage() != JobStage.JOB_SUSPENDED
-                        ):
-                            logger.info(f"job {self._job_name} is suspended")
-                            self._job_pre_status = self._job_context.get_job_stage()
-                            self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
-                        if (
-                            not enableSuspended and self._job_context.get_job_stage() == JobStage.JOB_SUSPENDED
+                            not enableSuspended and self._job_context.is_suspended()
                         ):
                             logger.info(f"job {self._job_name} is unsuspended")
                             self._job_context.update_job_stage(self._job_pre_status)
