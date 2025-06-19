@@ -53,7 +53,7 @@ def get_master_cls(args):
         raise InvalidDLConfiguration()
 
 
-def submit(args=None, blocking=True):
+def submit(args=None, blocking=True, ray_address=None):
     # parse input arguments
     parsed_args = parse_job_args(args)
 
@@ -86,7 +86,13 @@ def submit(args=None, blocking=True):
             f"Using specified working dir: {working_dir_env} "
             f"instead of current working dir: {os.getcwd()}."
         )
-        ray.init(address="auto", runtime_env={"working_dir": working_dir_env})
+        if not ray_address:
+            address = "auto"
+        elif ray_address == "test":
+            address = None
+        else:
+            address = ray_address
+        ray.init(address=address, runtime_env={"working_dir": working_dir_env})
         logger.info("Ray initialized.")
 
     master_actor = (
@@ -135,8 +141,8 @@ def submit(args=None, blocking=True):
         logger.info("Driver exit now for none blocking mode.")
 
 
-def main(args=None, blocking=True):
-    return submit(args=args, blocking=blocking)
+def main(args=None, blocking=True, ray_address=None):
+    return submit(args=args, blocking=blocking, ray_address=ray_address)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,20 @@ class BaseTest(unittest.TestCase):
         )
 
 
+class AsyncBaseTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        logger.info(
+            f"========= {self.__class__.__name__}-"
+            f"{self._testMethodName} start ========="
+        )
+
+    def tearDown(self):
+        logger.info(
+            f"========= {self.__class__.__name__}-"
+            f"{self._testMethodName} end ========="
+        )
+
+
 class RayBaseTest(BaseTest):
     @classmethod
     def init_ray_safely(cls, **kwargs):

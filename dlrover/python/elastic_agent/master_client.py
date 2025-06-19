@@ -642,7 +642,7 @@ class RayMasterClient(MasterClient):
             self._master_addr.agent_report.remote(
                 self._gen_request(message).to_json()
             ),
-            timeout=10,
+            timeout=self._timeout,
         )
 
         return response
@@ -653,7 +653,7 @@ class RayMasterClient(MasterClient):
             self._master_addr.agent_get.remote(
                 self._gen_request(message).to_json()
             ),
-            timeout=10,
+            timeout=self._timeout,
         )
 
         return comm.deserialize_message(response.data)
