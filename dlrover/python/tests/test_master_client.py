@@ -398,6 +398,8 @@ class MasterRayClientTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.environ.clear()
+        context = Context.singleton_instance()
+        context.master_service_type = "grpc"
 
     def test_ray_client(self):
         self.assertIsNotNone(self._master_client)
