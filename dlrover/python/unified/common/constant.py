@@ -19,7 +19,7 @@ class DLMasterConstant(object):
     SETUP_TIMEOUT_MIN_SECS = 10
     SETUP_TIMEOUT_PER_ACTOR_SECS = 1
     RUN_WAIT_INTERVAL = 10
-    EXIT_WAIT_INTERVAL = 10
+    EXIT_WAIT_INTERVAL = 5
     GLOBAL_FAILOVER_INTERVAL = 5
     WORKLOAD_MAX_RESTART = 30
     PG_STRATEGY_ENV = "PG_STRATEGY"
@@ -31,7 +31,17 @@ class DLJobExitReason(object):
     FAILOVER_OUT_OF_LIMIT = "FAILOVER_OUT_OF_LIMIT"
 
 
+class InternalDLConfig(object):
+    ELASTIC_RUN_CMD = "ELASTIC_RUN_CMD"  # the dlrover-run command
+
+
+class InternalDLWorkloadRole(object):
+    TRAINER_ROLE = "TRAINER"
+    ELASTIC_ROLE = "ELASTIC"
+
+
 class DLWorkloadEnv(object):
+    JOB = "JOB"
     NAME = "NAME"
     ROLE = "ROLE"
     RANK = "RANK"
@@ -40,6 +50,8 @@ class DLWorkloadEnv(object):
     LOCAL_WORLD_SIZE = "LOCAL_WORLD_SIZE"
     MASTER_ADDR = "MASTER_ADDR"
     MASTER_PORT = "MASTER_PORT"
+
+    WORKING_DIR = "DLROVER_WORKING_DIR"
 
     DEVICE_COLLOCATION_GROUP = "DEVICE_COLLOCATION_GROUP"
 

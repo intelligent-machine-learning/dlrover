@@ -13,6 +13,7 @@
 
 import ray
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.master import BaseMaster
 from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
@@ -31,6 +32,7 @@ class MPMDMaster(BaseMaster):
 
         self._failover_coordinator = None
         self.init()
+        logger.info(f"MPMD master initialized: {self.job_name}.")
 
     @property
     def failover_coordinator(self):

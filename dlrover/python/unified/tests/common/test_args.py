@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import unittest
 
 from omegaconf import DictConfig
 
@@ -25,9 +24,10 @@ from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
 )
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class ArgsTest(unittest.TestCase):
+class ArgsTest(BaseTest):
     def test_parse_master_state_backend_type(self):
         self.assertEqual(
             _parse_master_state_backend_type("ray_internal"),

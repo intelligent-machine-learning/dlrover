@@ -44,7 +44,7 @@ class LocalJobMaster(JobMaster):
         self.task_manager = TaskManager(0, self.perf_monitor)
         self.job_manager = create_job_manager(args, self.perf_monitor)
         self.diagnosis_manager = DiagnosisMaster(args)
-        elastic_training = RendezvousName.ELASTIC_TRAINING
+        elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),

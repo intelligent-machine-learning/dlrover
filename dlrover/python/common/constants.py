@@ -31,6 +31,7 @@ class PlatformType(object):
 class CommunicationType(object):
     COMM_SERVICE_GRPC = "grpc"
     COMM_SERVICE_HTTP = "http"
+    COMM_SERVICE_RAY = "ray"
 
 
 class ElasticJobApi(object):
@@ -349,7 +350,7 @@ class k8sAPIExceptionReason(object):
 
 
 class RendezvousName(object):
-    ELASTIC_TRAINING = "elastic-training"
+    TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
 
 

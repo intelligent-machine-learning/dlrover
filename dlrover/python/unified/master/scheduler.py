@@ -109,6 +109,7 @@ class Scheduler(ABC):
         # runtime env
         runtime_env = {
             env_key: {
+                DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
                 DLWorkloadEnv.NAME: vertex.name,
                 DLWorkloadEnv.ROLE: vertex.role,
                 DLWorkloadEnv.RANK: str(vertex.rank),
@@ -247,13 +248,13 @@ class GroupOrderedScheduler(Scheduler):
         if self.graph.dl_context.workload_group.has_device_collocate():
             logger.info(
                 "Use 'SingleGroupPerNodePlacement' for workload group "
-                "has device colocate."
+                "has device collocation."
             )
             return SingleGroupPerNodePlacement(self.graph)
         else:
             logger.info(
                 "Use 'SingleBundlePerNodePlacement' for workload "
-                "group has no device colocate."
+                "group has no device collocation."
             )
             return SingleBundlePerNodePlacement(self.graph)
 

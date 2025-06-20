@@ -15,7 +15,7 @@ from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
 
 
-def new_node_watcher(platform, job_name, namespace):
+def new_node_watcher(platform, job_name, namespace="default"):
     logger.info("New %s Node Watcher", platform)
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         from dlrover.python.master.watcher.k8s_watcher import PodWatcher

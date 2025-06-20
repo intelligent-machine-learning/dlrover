@@ -75,7 +75,7 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         spec = _create_worker_spec(
             node_rank=0,
-            rdzv_name=RendezvousName.ELASTIC_TRAINING,
+            rdzv_name=RendezvousName.TRAINING,
             config=self.config,
             entrypoint="echo",
             args=[],

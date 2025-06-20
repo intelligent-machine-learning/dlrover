@@ -57,7 +57,6 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -97,7 +96,7 @@ class MasterServicer(ABC):
         sync_service=None,
     ):
         self._task_manager: TaskManager = task_manager
-        self._job_manager: JobManager = job_manager
+        self._job_manager = job_manager
         self._perf_monitor = perf_monitor
         self._rdzv_managers = rdzv_managers
         self._diagnosis_manager = diagnosis_manager
@@ -303,9 +302,7 @@ class MasterServicer(ABC):
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
             # a worker join network-check rdzv.
-            training_manager = self._rdzv_managers[
-                RendezvousName.ELASTIC_TRAINING
-            ]
+            training_manager = self._rdzv_managers[RendezvousName.TRAINING]
             training_manager.clear_waiting_nodes()
 
         # Pause hang diagnosis during rendezvous
@@ -345,10 +342,11 @@ class MasterServicer(ABC):
         res.round = rdzv_round
         for rank, meta in nodes.items():
             res.world[rank] = meta.process_num
-        if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
+        if nodes and request.rdzv_name == RendezvousName.TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
-            self._job_metric_collector.collect_custom_data(metrics)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(metrics)
             # Finish elastic training rendezvous so we continue diagnosis
             self._diagnosis_manager.continue_observing()
 
@@ -668,6 +666,7 @@ class MasterServicer(ABC):
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )
+        logger.info("debug rdzv return")
         return True
 
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
@@ -683,7 +682,8 @@ class MasterServicer(ABC):
                 CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
                 CustomMetricKeys.ERROR_CONTENT: message.error_data,
             }
-            self._job_metric_collector.collect_custom_data(custom_data)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(custom_data)
         return True
 
     def _kv_store_set(self, message: comm.KeyValuePair):
@@ -715,9 +715,9 @@ class MasterServicer(ABC):
     def _sync_checkpoint(
         self, node_type, node_id, message: comm.NodeCheckpointState
     ):
-        if RendezvousName.ELASTIC_TRAINING not in self._rdzv_managers:
+        if RendezvousName.TRAINING not in self._rdzv_managers:
             return False
-        rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
     def _report_node_diagnosis_data(self, message: comm.DiagnosisReportData):
@@ -807,6 +807,44 @@ class HttpMasterServicer(MasterServicer):
             elastic_ps_service,
             sync_service,
         )
+
+    def get_response(self, method):
+        return BaseResponse()
+
+    def get_task_type(self, task_type):
+        return task_type
+
+
+class RayMasterServicer(MasterServicer):
+    """Master service with ray implementation."""
+
+    def __init__(
+        self,
+        task_manager,
+        job_manager,
+        perf_monitor: PerfMonitor,
+        rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisMaster,
+        job_metric_collector=None,
+        elastic_ps_service=None,
+        sync_service=None,
+    ):
+        super().__init__(
+            task_manager,
+            job_manager,
+            perf_monitor,
+            rdzv_managers,
+            diagnosis_manager,
+            job_metric_collector,
+            elastic_ps_service,
+            sync_service,
+        )
+
+    def agent_report(self, request):
+        return self.report(BaseRequest.from_json(request), None)
+
+    def agent_get(self, request):
+        return self.get(BaseRequest.from_json(request), None)
 
     def get_response(self, method):
         return BaseResponse()
@@ -911,6 +949,7 @@ def create_master_service(
     service_type = _dlrover_context.master_service_type
     logger.info(f"Creating master {service_type} service with port: {port}")
 
+    server = None
     if service_type == CommunicationType.COMM_SERVICE_GRPC:
         server = grpc_lib.server(
             futures.ThreadPoolExecutor(
@@ -940,7 +979,7 @@ def create_master_service(
             master_servicer, server
         )
         server.add_insecure_port("[::]:{}".format(port))
-    else:
+    elif service_type == CommunicationType.COMM_SERVICE_HTTP:
         master_servicer = HttpMasterServicer(
             task_manager=task_manager,
             job_manager=job_manager,
@@ -972,4 +1011,5 @@ def create_master_service(
                 ),
             ],
         )
+
     return server
