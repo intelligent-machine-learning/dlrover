@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Union
+
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.job_manager import JobManager
 from dlrover.python.unified.master.mpmd.executor import MPMDTrainerExecutor
@@ -22,9 +24,11 @@ class MPMDJobManager(JobManager):
     def has_job_error(self):
         return self._executor.is_trainer_error()
 
-    def gen_failure_by_error(self) -> FailureDesc:
-        return FailureDesc(
-            failure_obj="TRAINER",
-            failure_time=self._executor.get_error(),
-            failure_level=-1,
-        )
+    def gen_failure_by_error(self) -> Union[FailureDesc, None]:
+        if self.has_job_error():
+            return FailureDesc(
+                failure_obj="TRAINER",
+                failure_level=-1,
+                reason=self._executor.get_error(),
+            )
+        return None

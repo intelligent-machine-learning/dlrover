@@ -43,6 +43,21 @@ class ElasticJobManagerTest(ElasticBaseTest):
 
         job_manager.stop_job()
 
+    def test_update_node_paral_config(self):
+        job_manager = ElasticJobManager()
+        job_manager.update_node_paral_config(NodeType.WORKER, 0, "test")
+
+        job_manager._elastic_context._job_nodes = {
+            NodeType.WORKER: {0: Node(node_type=NodeType.WORKER, node_id=0)}
+        }
+        job_manager.update_node_paral_config(NodeType.WORKER, 0, "test")
+        self.assertEqual(
+            job_manager._elastic_context._job_nodes[NodeType.WORKER][
+                0
+            ].paral_config,
+            "test",
+        )
+
     def test_collect_node_heartbeat(self):
         job_manager = ElasticJobManager()
         ts = time.time()

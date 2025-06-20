@@ -12,7 +12,7 @@ coverage:
     - "dlrover/python/unified/trainer/example"  # example codes
     # ray.remote class can not be covered
     - "dlrover/python/unified/**/master.py"
-    - "dlrover/python/unified/trainer/**/*workload.py"
+    - "dlrover/python/unified/**/*workload.py"
   status:
     changes: false
     default_rules:
