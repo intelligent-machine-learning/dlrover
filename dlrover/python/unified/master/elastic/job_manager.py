@@ -13,7 +13,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Union
 
 from dlrover.python.common.constants import (
     JobStage,
@@ -229,6 +229,6 @@ class ElasticJobManager(JobManager):
     def has_job_error(self):
         return len(self.executor.get_error()) > 0
 
-    def gen_failure_by_error(self) -> FailureDesc:
+    def gen_failure_by_error(self) -> Union[FailureDesc, None]:
         # TODO
         pass
