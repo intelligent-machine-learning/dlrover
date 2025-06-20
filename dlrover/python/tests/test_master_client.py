@@ -396,6 +396,9 @@ class MasterRayClientTest(unittest.TestCase):
         context.master_service_type = "ray"
         self._master_client = build_master_client(None, 3)
 
+    def tearDown(self) -> None:
+        os.environ.clear()
+
     def test_ray_client(self):
         self.assertIsNotNone(self._master_client)
         self.assertTrue(isinstance(self._master_client, RayMasterClient))
