@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
 
 import ray
+from dlrover.python.unified.trainer.trainer import MethodInvocationMeta
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
@@ -76,14 +77,19 @@ def trainer_invocation(
         def wrapped(*args, **kwargs):
             return func(*args, **kwargs)
 
-        wrapped._trainer_invocation = True
-        wrapped._trainer_invocation_blocking = blocking
-        wrapped._trainer_invocation_async = is_async
-        wrapped._trainer_invocation_async_timeout = timeout
-        wrapped._trainer_invocation_target = target
-        wrapped._trainer_invocation_auto_shard = auto_shard
-        wrapped._trainer_invocation_pre_func = pre_func
-        wrapped._trainer_invocation_post_func = post_func
+        setattr(
+            wrapped,
+            "_trainer_invocation",
+            MethodInvocationMeta(
+                blocking=blocking,
+                is_async=is_async,
+                timeout=timeout,
+                target=target,
+                auto_shard=auto_shard,
+                pre_func=pre_func,
+                post_func=post_func,
+            ),
+        )
         return wrapped
 
     return decorator
@@ -123,9 +129,7 @@ class BaseWorkload(ABC):
         self._rank = int(os.environ[DLWorkloadEnv.RANK])
         self._world_size = int(os.environ[DLWorkloadEnv.WORLD_SIZE])
         self._local_rank = int(os.environ[DLWorkloadEnv.LOCAL_RANK])
-        self._local_world_size = int(
-            os.environ[DLWorkloadEnv.LOCAL_WORLD_SIZE]
-        )
+        self._local_world_size = int(os.environ[DLWorkloadEnv.LOCAL_WORLD_SIZE])
 
         self.__create_time = int(time.time())
         self.__executor = ThreadPoolExecutor(max_workers=4)
