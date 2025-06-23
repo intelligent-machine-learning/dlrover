@@ -13,7 +13,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Dict, Union
+from typing import Dict, List
 
 from dlrover.python.common.constants import (
     JobStage,
@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PlatformType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
@@ -108,15 +109,24 @@ class ElasticJobManager(JobManager):
             try:
                 # update directly
                 list_nodes = self._node_watcher.list()
+                logger.debug(
+                    f"Got list nodes: {list_nodes}, current job "
+                    f"nodes: {self.elastic_context.job_nodes()}"
+                )
                 for list_node in list_nodes:
-                    node_id = list_node.id
+                    node_id = int(list_node.id)
                     with self._lock:
                         current_node = self.elastic_context.job_node(
                             NodeType.WORKER, node_id
                         )
-                        current_node.status = list_node.status
-                        self.elastic_context.update_job_node(current_node)
-
+                        if current_node:
+                            current_node.status = list_node.status
+                            self.elastic_context.update_job_node(current_node)
+                        else:
+                            logger.warning(
+                                f"Node {node_id} not exists "
+                                "during monitoring."
+                            )
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
@@ -229,6 +239,22 @@ class ElasticJobManager(JobManager):
     def has_job_error(self):
         return len(self.executor.get_error()) > 0
 
-    def gen_failure_by_error(self) -> Union[FailureDesc, None]:
-        # TODO
-        pass
+    def gen_failures_by_error(self) -> List[FailureDesc]:
+        failures = []
+        if self.has_job_error():
+            for error_vertex in self.executor.get_error():
+                failures.append(
+                    FailureDesc(
+                        workload_name=error_vertex,
+                        workload_role=InternalRoleType.ELASTIC.name,
+                        failure_time=int(time.time()),
+                        failure_level=3,
+                        extra_info={
+                            "FAILURE_TYPE": TrainingExceptionLevel.NODE_ERROR
+                        },
+                    )
+                )
+        logger.info(
+            f"Generated failures: {failures} by elastic training error."
+        )
+        return failures

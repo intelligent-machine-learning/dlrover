@@ -23,8 +23,19 @@ import time
 import torch
 import torch.distributed
 from codetiming import Timer
+from dlrover.python.unified.trainer.example.verl.base.decorator import (
+    Dispatch,
+    collect_megatron_compute_data_proto,
+    collect_megatron_pp_as_dp_data_proto,
+    dispatch_megatron_compute_data_proto,
+    dispatch_megatron_pp_as_dp_data_proto,
+    dispatch_one_to_all,
+    register,
+)
+from dlrover.python.unified.trainer.example.verl.base.worker import (
+    MegatronWorker,
+)
 from megatron.core import parallel_state as mpu
-from omegaconf import DictConfig
 from verl import DataProto
 from verl.utils import hf_tokenizer
 from verl.utils.checkpoint.megatron_checkpoint_manager import (
@@ -48,18 +59,6 @@ from verl.workers.critic.megatron_critic import MegatronPPOCritic
 from verl.workers.megatron_workers import set_random_seed
 from verl.workers.reward_model.megatron.reward_model import MegatronRewardModel
 
-from dlrover.python.unified.trainer.example.verl.base.decorator import (
-    Dispatch,
-    collect_megatron_compute_data_proto,
-    collect_megatron_pp_as_dp_data_proto,
-    dispatch_megatron_compute_data_proto,
-    dispatch_megatron_pp_as_dp_data_proto,
-    dispatch_one_to_all,
-    register,
-)
-from dlrover.python.unified.trainer.example.verl.base.worker import (
-    MegatronWorker,
-)
 from dlrover.python.unified.trainer.workload import trainer_invocation
 
 logger = logging.getLogger(__file__)

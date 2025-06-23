@@ -13,7 +13,7 @@
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple
+from typing import List, Tuple
 
 import ray
 
@@ -70,8 +70,8 @@ class BaseMaster(ABC):
         """To initialize the master core components."""
 
     @abstractmethod
-    def _handle_failure(self, failure: FailureDesc):
-        """To handle failure."""
+    def _handle_failures(self, failures: List[FailureDesc]):
+        """To handle failures."""
 
     @property
     def context(self):
@@ -153,7 +153,7 @@ class BaseMaster(ABC):
                     f"context: {context_from_ckpt}."
                 )
                 self._job_context = context_from_ckpt
-                self._handle_failure(self._gen_master_failure())
+                self._handle_failures(self._gen_master_failure())
             else:
                 logger.info(f"DLMaster new job executing: {self.job_name}.")
                 self._save_context_to_checkpoint()
@@ -165,6 +165,10 @@ class BaseMaster(ABC):
             self.exit_job(
                 stage=JobStage.ERROR, forced=True, reason=DLJobExitReason.ERROR
             )
+
+    def _get_master_wait_interval(self):
+        # default
+        return DLMasterConstant.RUN_WAIT_INTERVAL
 
     def _wait_and_exit(self):
         while True:
@@ -184,9 +188,11 @@ class BaseMaster(ABC):
             # TODO: temp impl for now
             elif self._job_manager.has_job_error():
                 logger.warning("Job got error, try failover...")
-                self._handle_failure(self._job_manager.gen_failure_by_error())
+                self._handle_failures(
+                    self._job_manager.gen_failures_by_error()
+                )
 
-            time.sleep(DLMasterConstant.RUN_WAIT_INTERVAL)
+            time.sleep(self._get_master_wait_interval())
             logger.debug("DLMaster still running...")
 
     def _should_continue_exiting(self) -> Tuple[bool, str]:
@@ -274,9 +280,9 @@ class BaseMaster(ABC):
                 failure_time=runtime_info.create_time,
                 reason="unknown",
             )
-            self._handle_failure(failure_desc)
+            self._handle_failures([failure_desc])
 
     def report_failure(self, failure: FailureDesc):
-        self._handle_failure(failure)
+        self._handle_failures([failure])
 
     """Remote call functions end"""

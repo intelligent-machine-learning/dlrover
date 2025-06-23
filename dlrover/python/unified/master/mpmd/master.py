@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
 
 import ray
 
@@ -44,8 +45,8 @@ class MPMDMaster(BaseMaster):
             self._job_manager, self._save_context_to_checkpoint, self.exit_job
         )
 
-    def _handle_failure(self, failure: FailureDesc):
-        self.failover_coordinator.handle_failure(failure)
+    def _handle_failures(self, failures: List[FailureDesc]):
+        self.failover_coordinator.handle_failures(failures)
 
     """Remote call functions start"""
     # TODO

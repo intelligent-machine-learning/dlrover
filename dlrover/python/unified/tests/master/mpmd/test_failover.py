@@ -38,7 +38,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
             reason="unknown",
         )
 
-        fc.handle_failure(desc)
+        fc.handle_failures(desc)
         job_manager.start_job.assert_called_once()
         job_manager.stop_job.assert_called_once()
 
@@ -48,6 +48,6 @@ class FailoverCoordinatorTest(BaseMasterTest):
             failure_level=0,
             reason="unknown",
         )
-        fc.handle_failure(desc)
+        fc.handle_failures(desc)
         job_manager.start_job.assert_called_once()
         job_manager.stop_job.assert_called_once()

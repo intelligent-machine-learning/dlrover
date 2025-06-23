@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
+from typing import Dict, List
 
 import ray
 
@@ -35,6 +35,9 @@ from dlrover.python.master.servicer import RayMasterServicer
 from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
+from dlrover.python.unified.master.elastic.failover import (
+    ElasticFailoverCoordinator,
+)
 from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
 from dlrover.python.unified.master.master import BaseMaster
 
@@ -56,6 +59,7 @@ class ElasticMaster(BaseMaster):
         self._sync_service = None
         self._diagnosis_manager = None
         self._master_service_handler = None
+        self._failover_coordinator = None
 
         self.init()
         logger.info(f"Elastic master initialized: {self.job_name}.")
@@ -76,7 +80,6 @@ class ElasticMaster(BaseMaster):
         self._job_manager = ElasticJobManager()
         self._sync_service = SyncService(self._job_manager)
         self._diagnosis_manager = DiagnosisMaster(job_args)
-
         self._master_service_handler = RayMasterServicer(
             task_manager=None,  # no need
             job_manager=self._job_manager,
@@ -86,6 +89,9 @@ class ElasticMaster(BaseMaster):
             job_metric_collector=None,  # no need
             elastic_ps_service=None,  # no need
             sync_service=self._sync_service,
+        )
+        self._failover_coordinator = ElasticFailoverCoordinator(
+            self._job_manager, self._save_context_to_checkpoint, self.exit_job
         )
 
     def _get_job_args_from_unified_context(self):
@@ -108,8 +114,11 @@ class ElasticMaster(BaseMaster):
         job_args.node_args = node_args
         return job_args
 
-    def _handle_failure(self, failure: FailureDesc):
-        pass
+    def _handle_failures(self, failures: List[FailureDesc]):
+        self._failover_coordinator.handle_failures(failures)
+
+    def _get_master_wait_interval(self):
+        return 5
 
     """Remote call functions start"""
 

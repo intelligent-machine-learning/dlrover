@@ -49,18 +49,23 @@ def parse_from_actor_name(name):
     split_name = name.split("_")
     if len(split_name) == 1:
         return name
-    elif len(split_name) == 2:  # role_${index}
+    elif len(split_name) == 2:
+        # role_${index}
         return split_name[0], split_name[1]
-    elif len(split_name) == 3:  # role_${size}_${index}
-        return split_name[0], split_name[1], split_name[2]
-    else:  # role_${size}_${index}_${local_size}_${local_index}
+    elif len(split_name) == 3:
+        # role_${size}-${index}_${local_size}-${local_index}
+        world_rank = split_name[1].split("-")
+        local_rank = split_name[2].split("-")
+
         return (
             split_name[0],
-            split_name[1],
-            split_name[2],
-            split_name[3],
-            split_name[4],
+            world_rank[0],
+            world_rank[1],
+            local_rank[0],
+            local_rank[1],
         )
+    else:
+        return name
 
 
 def parse_from_actor_state(state):
@@ -116,11 +121,11 @@ class ActorWatcher(NodeWatcher):
         actor_states = list_actors(filters=filters, limit=1000)
         for actor_state in actor_states:
             actor_name = actor_state.name
-            actor_type, actor_size, actor_index, _, _ = parse_from_actor_name(
+            _, actor_size, actor_index, _, _ = parse_from_actor_name(
                 actor_name
             )
             node = Node(
-                node_type=actor_type,
+                node_type=NodeType.WORKER,
                 node_id=actor_index,
                 name=actor_name,
                 rank_index=actor_index,

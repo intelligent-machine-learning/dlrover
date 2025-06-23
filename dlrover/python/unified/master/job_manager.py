@@ -12,7 +12,7 @@
 # limitations under the License.
 import time
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import List
 
 import ray
 
@@ -68,8 +68,8 @@ class JobManager(ABC):
         pass
 
     @abstractmethod
-    def gen_failure_by_error(self) -> Union[FailureDesc, None]:
-        """Return failure according to the current job error."""
+    def gen_failures_by_error(self) -> List[FailureDesc]:
+        """Return failures according to the current job error."""
 
     def is_job_finished(self):
         return (
@@ -201,8 +201,12 @@ class JobManager(ABC):
             f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
         )
 
-    def execute(self):
-        self.executor.execute()
+    def execute(self, **kwargs):
+        logger.debug(
+            f"{self.__class__.__name__} invoke executor "
+            f"with kwargs: {kwargs}"
+        )
+        self.executor.execute(**kwargs)
 
     def destroy_workloads(self):
         """Sync operation."""

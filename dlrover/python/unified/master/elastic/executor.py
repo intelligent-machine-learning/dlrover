@@ -23,6 +23,7 @@ from dlrover.python.unified.master.graph import DLExecutionGraph
 class ElasticExecutor(Executor):
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
+        self.__loop = asyncio.get_event_loop()
         self._train_result: Dict[str, Union[bool, None]] = {
             vertex.name: None
             for vertex in self.graph.execution_vertices[
@@ -30,25 +31,21 @@ class ElasticExecutor(Executor):
             ]
         }
 
-    def execute(self):
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(self._async_execute(), loop)
-
     def _update_train_result(self, name, result):
         self._train_result[name] = result
         return name, result
 
-    async def _async_execute(self):
-        logger.info("Start elastic training execution...")
+    def execute(self, target=None):
+        if target:
+            asyncio.run_coroutine_threadsafe(
+                self._async_execute(target), self.__loop
+            )
+        else:
+            asyncio.run_coroutine_threadsafe(
+                self._async_execute(), self.__loop
+            )
 
-        elastic_vertices = self.graph.execution_vertices[
-            InternalDLWorkloadRole.ELASTIC_ROLE
-        ]
-        tasks = {
-            vertex.name: vertex.actor_handle.run.remote()
-            for vertex in elastic_vertices
-        }
-
+    async def _async_execute(self, target=None):
         async def run_per_vertex(name, coro):
             try:
                 start = time.time()
@@ -61,6 +58,26 @@ class ElasticExecutor(Executor):
             except Exception as e:
                 logger.error(f"{name} run elastic training failed: {e}")
                 return self._update_train_result(name, False)
+
+        elastic_vertices = self.graph.execution_vertices[
+            InternalDLWorkloadRole.ELASTIC_ROLE
+        ]
+
+        if target:
+            logger.info(
+                f"Start elastic training execution on target: {target}"
+            )
+            tasks = {
+                vertex.name: vertex.actor_handle.run.remote()
+                for vertex in elastic_vertices
+                if vertex.name == target
+            }
+        else:
+            logger.info("Start elastic training execution...")
+            tasks = {
+                vertex.name: vertex.actor_handle.run.remote()
+                for vertex in elastic_vertices
+            }
 
         run_tasks = [
             run_per_vertex(name, coro) for name, coro in tasks.items()
@@ -77,7 +94,6 @@ class ElasticExecutor(Executor):
                     f"Node {vertex_name} elastic training failed: "
                     f"{self._train_result}."
                 )
-                # TODO: trigger failover
 
     def is_finished(self):
         logger.debug(f"Current elastic training result: {self._train_result}")
@@ -90,3 +106,15 @@ class ElasticExecutor(Executor):
             if result is not None and not result:
                 errors.append(vertex_name)
         return errors
+
+    def reset_error(self, target=None):
+        if target and target in self._train_result:
+            self._train_result[target] = None
+        else:
+            self._train_result = {
+                key: None if value is False else value
+                for key, value in self._train_result.items()
+            }
+        logger.info(
+            f"Reset elastic training error result: {self._train_result}"
+        )

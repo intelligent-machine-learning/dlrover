@@ -94,6 +94,16 @@ class ElasticExecutorAsyncTest(AsyncBaseTest):
         for vertex in self.mock_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]:
             self.assertTrue(self.executor._train_result[vertex.name])
 
+    async def test_async_execute_single(self):
+        for vertex in self.mock_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]:
+            vertex.actor_handle.run.remote = AsyncMock()
+
+        await self.executor._async_execute("ELASTIC_2-0_2-0")
+
+        for vertex in self.mock_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]:
+            if vertex.name == "ELASTIC_2-0_2-0":
+                self.assertTrue(self.executor._train_result[vertex.name])
+
     async def test_async_execute_failure(self):
         for vertex in self.mock_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]:
             if vertex.name == "ELASTIC_2-0_2-0":

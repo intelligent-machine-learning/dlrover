@@ -27,7 +27,7 @@ class Executor(ABC):
         return self._execution_graph
 
     @abstractmethod
-    def execute(self):
+    def execute(self, **kwargs):
         """
         Executes according to the execution graph.
         """

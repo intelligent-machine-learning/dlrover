@@ -27,8 +27,8 @@ class RayWatcherTest(unittest.TestCase):
         self.assertEqual(parse_from_actor_name("vertex1"), "vertex1")
         self.assertEqual(parse_from_actor_name("vertex_1"), ("vertex", "1"))
         self.assertEqual(
-            parse_from_actor_name("vertex_1_2_1_2"),
-            ("vertex", "1", "2", "1", "2"),
+            parse_from_actor_name("vertex_2-1_2-1"),
+            ("vertex", "2", "1", "2", "1"),
         )
 
 
@@ -44,7 +44,7 @@ class ActorWatcherTest(unittest.TestCase):
         nodes = watcher.list(actor_class="TestElasticWorkload")
         self.assertEqual(len(nodes), 0)
 
-        actor_name = "ELASTIC_0_1_0_1"
+        actor_name = "ELASTIC_1-0_1-0"
         runtime_env = {
             "env_vars": {
                 DLWorkloadEnv.JOB: "test",
