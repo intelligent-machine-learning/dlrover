@@ -1,26 +1,28 @@
-from typing import Dict, List
-from omegaconf import DictConfig
+from typing import Any, Dict, List
+
 from pydantic import AliasChoices, BaseModel, Field
 from ray.actor import ActorClass
 
 from dlrover.python.common.enums import ResourceType
-from dlrover.python.common.resource import Resource
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
-    TrainerType,
 )
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
 class ResourceDesc(BaseModel):
     cpu: float = Field(default=0.0)
-    memory: int = Field(default=0, validation_alias=AliasChoices("memory", "mem"))
+    memory: int = Field(
+        default=0, validation_alias=AliasChoices("memory", "mem")
+    )
     disk: int = Field(default=0)
     gpu: float = Field(default=0.0)
     gpu_type: str = Field(default="")
-    user_defined: Dict[str, float] = Field(default_factory=dict, alias="ud_resource")
+    user_defined: Dict[str, float] = Field(
+        default_factory=dict, alias="ud_resource"
+    )
 
     def is_empty(self) -> bool:
         """
@@ -38,7 +40,9 @@ class TrainerDesc(BaseModel):
     # class_name: str = Field(alias="class")
     # trainer_type: TrainerType
     node_number: int = 1
-    device_type: ResourceType = ResourceType[DLTrainerConstant.DEVICE_TYPE_DEFAULT]
+    device_type: ResourceType = ResourceType[
+        DLTrainerConstant.DEVICE_TYPE_DEFAULT
+    ]
     device_per_node: int = DLTrainerConstant.DEVICE_PER_NODE_DEFAULT
     torch_master_port: List[int] = DLTrainerConstant.TORCH_MASTER_PORT_DEFAULT
 
@@ -56,9 +60,12 @@ class WorkloadDesc(BaseModel):
         default_factory=ResourceDesc, alias="resource"
     )
     instance_env: Dict[str, str] = Field(default_factory=dict, alias="env")
+    config: Dict[str, Any] = Field(default_factory=dict)
 
     def get_cls(self):
-        cls = get_class_by_module_and_class_name(self.module_name, self.class_name)
+        cls = get_class_by_module_and_class_name(
+            self.module_name, self.class_name
+        )
         if not isinstance(cls, ActorClass):
             raise TypeError(f"Class {self.class_name} is not an ActorClass.")
         return cls
@@ -99,13 +106,16 @@ class JobConfig(BaseModel):
         description="The type of scheduling strategy to create workloads.",
     )
     job_max_restart: int = Field(
-        default=10, description="The maximum limit on the number of job-level restarts."
+        default=10,
+        description="The maximum limit on the number of job-level restarts.",
     )
     master_max_restart: int = Field(
-        default=10, description="The maximum limit on the number of master restarts."
+        default=10,
+        description="The maximum limit on the number of master restarts.",
     )
     trainer_max_restart: int = Field(
-        default=10, description="The maximum limit on the number of trainer restarts."
+        default=10,
+        description="The maximum limit on the number of trainer restarts.",
     )
     workload_max_restart: Dict[str, int] = Field(
         default_factory=lambda: {"default": 30},

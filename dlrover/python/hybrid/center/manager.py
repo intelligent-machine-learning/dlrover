@@ -1,12 +1,13 @@
-from threading import Thread
 import time
-from typing import Dict, Optional
+from threading import Thread
+from typing import Optional
 
-from dlrover.python.hybrid.config import JobConfig
-from dlrover.python.hybrid.defines import MasterStage
-from dlrover.python.hybrid.schedule.graph import DLExecutionGraph
-from dlrover.python.hybrid.schedule.scheduler import Node, Scheduler
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.hybrid.center.config import JobConfig
+from dlrover.python.hybrid.defines import MasterStage
+from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
+from dlrover.python.hybrid.center.schedule.scheduler import Scheduler
+from dlrover.python.hybrid.util.actor_helper import invoke_actors, kill_actors
 
 
 class Placement:
@@ -22,43 +23,41 @@ class HybridManager:
 
         # Create all components
         self.graph = DLExecutionGraph.create(config.dl_config)
-        self.placement = Placement()  # Placeholder for actual placement strategy
+        self.placement = (
+            Placement()
+        )  # Placeholder for actual placement strategy
         self.scheduler: Scheduler = Scheduler(config.scheduling_strategy_type)
         self.thread: Optional[Thread] = None
 
         # Runtime state
         self.stage: MasterStage = "INIT"
-        self.nodes: Dict[str, Node] = {}  # name -> node mapping
         logger.info(f"HybridManager initialized with config: {config}")
 
     def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when fail."""
         self.placement.allocate_placement_group(self.graph)
-        self.nodes = {
-            node.name: node for node in self.graph.prepare_nodes()
-        }  # include workers and subMasters
-
-        self.scheduler.create_nodes(self.nodes.values())  # create actors for all nodes
+        self.scheduler.create_nodes(self.graph)  # create actors for all nodes
         logger.info("Finished creating nodes for the job.")
 
         self._nodes_check()
 
     def _nodes_check(self):
-        self.scheduler.execute(
-            self.nodes.values(), "self_check"
-        )  # check all nodes itself
+        # check all nodes itself
+        nodes = [node.name for node in self.graph.vertices]
+        invoke_actors(nodes, "self_check")
         logger.info("All nodes self-checked successfully.")
 
-        masters = [node for node in self.nodes.values() if node.kind == "master"]
-        self.scheduler.execute(masters, "check_workers")  # let masters pre-check nodes
+        # let masters pre-check nodes
+        invoke_actors(nodes, "check_workers")
         logger.info("Masters checked all workers successfully.")
 
     def start(self):
         """Execute the job. Start tracking the job status."""
         self.stage = "RUNNING"
         self.save()
-        self.scheduler.execute(self.nodes.values(), "start")  # start all nodes
+        nodes = [node.name for node in self.graph.vertices]
+        invoke_actors(nodes, "start")  # start all nodes
         logger.info("Job started successfully.")
         self.thread = Thread(
             target=self._monitor_nodes, name="job_monitor", daemon=True
@@ -78,7 +77,7 @@ class HybridManager:
             return
         logger.info("Stopping the job...")
         self.stage = "STOPPING"
-        self.scheduler.cleanup(self.nodes.values())
+        kill_actors([node.name for node in self.graph.vertices])
         if self.thread is not None:
             self.thread.join()
         logger.info("Job stopped successfully.")
@@ -89,4 +88,6 @@ class HybridManager:
         """Save the job state to persistent storage."""
         # This is a placeholder for saving the job state.
         # In a real implementation, this would save to a database or file.
-        print(f"Job state saved: {self.stage}, nodes: {list(self.nodes.keys())}")
+        print(
+            f"Job state saved: {self.stage}, nodes: {[node.name for node in self.graph.vertices]}"
+        )

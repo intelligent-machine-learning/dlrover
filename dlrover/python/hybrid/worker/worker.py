@@ -1,8 +1,10 @@
 import ray
 
+from dlrover.python.hybrid.defines import ActorBase
+
 
 @ray.remote
-class Worker:
+class Worker(ActorBase):
     def status(self):
         return "Ready"
 
