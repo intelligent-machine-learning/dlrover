@@ -450,9 +450,7 @@ class K8sElasticJobWatcher(object):
 
     def start(self):
         if self._enable_suspended:
-            logger.info(f"job {self._job_name} is suspended")
-            self._job_pre_status = self._job_context.get_job_stage()
-            self._job_context.update_job_stage(JobStage.JOB_SUSPENDED)
+            self._job_context.request_suspend()
 
         threading.Thread(
             target=self.watch, name="job-watcher", daemon=True
