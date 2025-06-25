@@ -39,11 +39,11 @@ class JobManagerTest(BaseMasterTest):
             isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
         self.assertFalse(job_manager.has_job_error())
-        self.assertIsNone(job_manager.gen_failures_by_error())
+        self.assertFalse(job_manager.gen_failures_by_error())
         job_manager.gen_failures_by_error = MagicMock(
-            return_value=FailureDesc(failure_obj="Trainer", reason="test")
+            return_value=[FailureDesc(failure_obj="Trainer", reason="test")]
         )
-        self.assertEqual(job_manager.gen_failures_by_error().reason, "test")
+        self.assertEqual(job_manager.gen_failures_by_error()[0].reason, "test")
 
         job_manager._executor.execute = MagicMock(return_value=None)
         job_manager.start_job()

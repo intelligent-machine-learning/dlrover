@@ -49,7 +49,7 @@ class SimpleSchedulerTest(BaseMasterTest):
         for vertex in graph.get_all_vertices():
             self.assertIsNotNone(vertex.actor_handle)
 
-        self.assertIsNotNone(ray.get_actor("ACTOR_1_0_1_0"))
+        self.assertIsNotNone(ray.get_actor("ACTOR_1-0_1-0"))
         scheduler.cleanup()
         with self.assertRaises(ValueError):
             ray.get_actor("ACTOR_1-0_1-0")

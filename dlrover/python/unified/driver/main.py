@@ -151,4 +151,4 @@ def main(args=None, blocking=True, ray_address=None):
 
 
 if __name__ == "__main__":
-    main()
+    os._exit(main())
