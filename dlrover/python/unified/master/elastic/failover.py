@@ -18,6 +18,8 @@ from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.common.job_context import RestartInfo
 from dlrover.python.unified.master.failover import FailoverCoordinator
 
+FAILURE_TYPE_KEY = "FAILURE_TYPE"
+
 
 class ElasticFailoverCoordinator(FailoverCoordinator):
     """

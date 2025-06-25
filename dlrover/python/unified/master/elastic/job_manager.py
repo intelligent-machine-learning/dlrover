@@ -42,6 +42,7 @@ from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
+from dlrover.python.unified.master.elastic.failover import FAILURE_TYPE_KEY
 from dlrover.python.unified.master.job_manager import JobManager
 
 _MAX_POD_RELAUNCH_COUNT = 5
@@ -250,7 +251,7 @@ class ElasticJobManager(JobManager):
                         failure_time=int(time.time()),
                         failure_level=3,
                         extra_info={
-                            "FAILURE_TYPE": TrainingExceptionLevel.NODE_ERROR
+                            FAILURE_TYPE_KEY: TrainingExceptionLevel.NODE_ERROR
                         },
                     )
                 )

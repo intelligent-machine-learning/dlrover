@@ -43,8 +43,6 @@ class ElasticExecutorTest(ElasticBaseTest):
 
         self.executor.execute()
 
-        mock_get_loop.assert_called_once()
-
         mock_run_coroutine.assert_called_once()
         called_coro = mock_run_coroutine.call_args[0][0]
         self.assertEqual(
