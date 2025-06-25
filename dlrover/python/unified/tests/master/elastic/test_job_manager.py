@@ -12,7 +12,7 @@
 # limitations under the License.
 import threading
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     JobStage,
@@ -26,6 +26,13 @@ from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
 
 
 class ElasticJobManagerTest(ElasticBaseTest):
+    def setUp(self):
+        super().setUp()
+        patcher = patch("asyncio.get_event_loop")
+        self.addCleanup(patcher.stop)
+        self.mock_get_loop = patcher.start()
+        self.mock_get_loop.return_value = MagicMock()
+
     def test_basic(self):
         job_manager = ElasticJobManager()
         self.assertIsNotNone(job_manager.elastic_context)

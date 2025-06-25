@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.unified.common.args import parse_job_args
@@ -51,7 +51,10 @@ class ElasticFailoverCoordinatorTest(RayBaseTest):
         self.close_ray_safely()
         super().tearDown()
 
-    def test_handle_failures(self):
+    @patch("asyncio.get_event_loop")
+    def test_handle_failures(self, mock_get_loop):
+        mock_loop = MagicMock()
+        mock_get_loop.return_value = mock_loop
         job_manager = ElasticJobManager()
         job_manager.execute = MagicMock(return_value=None)
 

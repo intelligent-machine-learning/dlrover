@@ -23,6 +23,7 @@ from dlrover.python.unified.master.graph import DLExecutionGraph
 class ElasticExecutor(Executor):
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
+
         self.__loop = asyncio.get_event_loop()
         self._train_result: Dict[str, Union[bool, None]] = {
             vertex.name: None
