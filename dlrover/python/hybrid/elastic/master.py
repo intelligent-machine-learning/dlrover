@@ -1,10 +1,14 @@
-from dlrover.python.hybrid.defines import ActorBase, SubMaster
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.hybrid.defines import SubMaster
 from dlrover.python.hybrid.elastic.manager import ElasticManager
+from dlrover.python.hybrid.elastic.servicer import RayMasterServicer
 
 
 class ElasticMaster(SubMaster):
     def __init__(self, master_config):
         self.manager = ElasticManager(master_config)
+
+        self._init_service()
 
     def status(self):
         print("Elastic Master is running")
@@ -20,3 +24,20 @@ class ElasticMaster(SubMaster):
 
     def stop(self):
         self.manager.stop()
+
+    ## RPC methods
+
+    def _init_service(self):
+        self._service_handler = RayMasterServicer(self.manager)
+
+    async def agent_report(self, request):
+        logger.debug(f"Got agent report call: {request}")
+        response = self._service_handler.agent_report(request)
+        logger.debug(f"Response agent report call: {response}")
+        return response
+
+    async def agent_get(self, request):
+        logger.debug(f"Got agent get call: {request}")
+        response = self._service_handler.agent_get(request)
+        logger.debug(f"Response agent get call: {response}")
+        return response

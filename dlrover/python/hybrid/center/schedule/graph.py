@@ -126,7 +126,7 @@ class DLExecutionEdge:
 
 
 class DLExecutionGraph:
-    """The Logical computational graph for distributed deep learning."""
+    """The computational graph for distributed deep learning."""
 
     def __init__(
         self, vertices: List[DLExecutionVertex], edges: List[DLExecutionEdge]
