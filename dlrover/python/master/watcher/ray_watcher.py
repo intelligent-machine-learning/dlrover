@@ -76,20 +76,6 @@ class RayScalePlanWatcher:
         while True:
             yield None
 
-class RayElasticJobWatcher:
-    def __init__(self, job_name, namespace, job_uuid):
-        self.job_name = job_name
-        self.namespace = namespace
-        self.job_uuid = job_uuid
-
-    def watch(self):
-        while True:
-            yield None
-
-    def start(self):
-        self.watch()
-
-
 class ActorWatcher(NodeWatcher):
     """ActorWatcher monitors all actors of a ray Job."""
 

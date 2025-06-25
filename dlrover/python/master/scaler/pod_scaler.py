@@ -216,7 +216,7 @@ class PodScaler(Scaler):
         while True:
             if not self._job_context.is_suspended():
                 break
-            logger.info("Waiting for elasticJob is suspended")
+            logger.info("Waiting for elasticJob which is suspended")
             time.sleep(5)
 
         self._remove_nodes(plan)

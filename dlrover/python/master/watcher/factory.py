@@ -47,19 +47,12 @@ def new_scale_plan_watcher(platform, job_name, namespace, job_uuid):
         raise ValueError("Not support engine %s", platform)
 
 def new_elasticjob_watcher(args):
-    logger.info("New %s ElasticJob Watcher", args.platform)
-
     if args.platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         from dlrover.python.master.watcher.k8s_watcher import (
             K8sElasticJobWatcher
         )
 
+        logger.info(f"New elasticjob watcher for engine {args.platform}")
         return K8sElasticJobWatcher(args)
-    elif args.platform in (PlatformType.RAY):
-        from dlrover.python.master.watcher.ray_watcher import (
-            RayElasticJobWatcher,
-        )
-
-        return RayElasticJobWatcher(job_name, namespace, job_uuid)
     else:
-        raise ValueError("Not support engine %s", args.platform)
+        logger.info(f"Skip elasticjob watcher for engine {args.platform}")
