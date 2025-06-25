@@ -23,7 +23,6 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
-from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.master.elastic.failover import FAILURE_TYPE_KEY
 from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
 from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
