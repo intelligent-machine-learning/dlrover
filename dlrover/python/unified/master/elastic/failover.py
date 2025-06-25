@@ -44,20 +44,21 @@ class ElasticFailoverCoordinator(FailoverCoordinator):
         logger.info(
             f"ElasticFailoverCoordinator handle agent failure: {failure}"
         )
-        wl_name = failure.workload_name
+        role = failure.workload_role
         if self._is_agent_failure_exceeded_limit(failure):
             logger.error(
                 f"Failure exceed limit, master limit: "
                 f"{len(self.context.get_master_restart_info())}/"
                 f"{self.context.job_config.master_max_restart}, "
-                f"workload({wl_name}) limit: "
-                f"{len(self.context.get_workload_restart_info(wl_name))}/"
-                f"{self.context.job_config.get_workload_max_restart(wl_name)}"
+                f"workload({role}) limit: "
+                f"{len(self.context.get_workload_restart_info(role))}/"
+                f"{self.context.job_config.get_workload_max_restart(role)}"
             )
             self._abort_job()
             return
 
         # do failover
+        wl_name = failure.workload_name
         try:
             self.job_manager.execute(target=wl_name)
         except Exception as e:
@@ -67,7 +68,7 @@ class ElasticFailoverCoordinator(FailoverCoordinator):
             )
 
         self._job_context.add_restart_info(
-            failure.workload_name,
+            failure.workload_role,
             RestartInfo(restart_time=failure.failure_time),
         )
 
@@ -78,7 +79,7 @@ class ElasticFailoverCoordinator(FailoverCoordinator):
         )
 
     def _is_agent_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
-        wl_name = failure.workload_name
+        role = failure.workload_role
         return len(
-            self.context.get_workload_restart_info(wl_name)
-        ) >= self.context.job_config.get_workload_max_restart(wl_name)
+            self.context.get_workload_restart_info(role)
+        ) >= self.context.job_config.get_workload_max_restart(role)

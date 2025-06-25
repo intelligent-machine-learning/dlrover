@@ -114,6 +114,7 @@ def submit(args=None, blocking=True, ray_address=None):
     ray.get(master_actor.run.remote())
     logger.info("DLMaster is running...")
 
+    exit_code = 0
     if blocking:
         master_exit_start = 0
         while True:
@@ -129,6 +130,8 @@ def submit(args=None, blocking=True, ray_address=None):
                 # if result in ["FINISHED", "ERROR"]:
                 if JobStage.is_ending_stage(result):
                     logger.info(f"DLMaster exited with: {result}")
+                    if result == JobStage.ERROR:
+                        exit_code = 1
                     break
                 master_exit_start = 0
             except ade:
@@ -139,6 +142,8 @@ def submit(args=None, blocking=True, ray_address=None):
             time.sleep(MASTER_CONNECT_INTERVAL)
     else:
         logger.info("Driver exit now for none blocking mode.")
+
+    return exit_code
 
 
 def main(args=None, blocking=True, ray_address=None):
