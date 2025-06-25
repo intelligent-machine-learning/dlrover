@@ -19,7 +19,10 @@ from dlrover.python.unified.tests.test_class import (
     TestInteractiveTrainer,
     TestRollout,
 )
-from dlrover.python.unified.trainer.trainer import RoleGroupProxy
+from dlrover.python.unified.trainer.trainer import (
+    DefaultTrainer,
+    RoleGroupProxy,
+)
 
 
 class BaseTrainerTest(BaseTest):
@@ -51,6 +54,15 @@ class BaseTrainerTest(BaseTest):
         self.assertEqual(trainer.reward_resource, 1)
         self.assertEqual(trainer.critic_resource, 1)
         self.assertEqual(len(trainer.config), 1)
+
+    def test_default(self):
+        trainer = DefaultTrainer(
+            {RLRoleType.ACTOR.name: [None, None]},
+            {RLRoleType.ACTOR.name: (TestActor, 1)},
+            {"k1": "v1"},
+        )
+        trainer.init()
+        trainer.fit()
 
     def test_role_group_proxy(self):
         role_group = RoleGroupProxy(

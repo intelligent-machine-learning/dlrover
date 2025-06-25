@@ -19,8 +19,12 @@ from dlrover.python.common.constants import (
     NodeEventType,
     NodeStatus,
     NodeType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.node import Node, NodeEvent
+from dlrover.python.unified.common.constant import InternalDLWorkloadRole
+from dlrover.python.unified.common.enums import InternalRoleType
+from dlrover.python.unified.master.elastic.failover import FAILURE_TYPE_KEY
 from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
 from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
 
@@ -122,4 +126,31 @@ class ElasticJobManagerTest(ElasticBaseTest):
         job_manager.process_reported_node_event(node_event)
         self.assertEqual(
             job_manager.elastic_context.get_job_stage(), JobStage.JOB_STOPPING
+        )
+
+    def test_gen_failures_by_error(self):
+        job_manager = ElasticJobManager()
+        self.assertFalse(job_manager.gen_failures_by_error())
+
+        job_manager.has_job_error = MagicMock(return_value=True)
+        job_manager.executor.get_error = MagicMock(
+            return_value=["ELASTIC_1-0_1-0"]
+        )
+        self.assertEqual(len(job_manager.gen_failures_by_error()), 1)
+        self.assertEqual(
+            job_manager.gen_failures_by_error()[0].workload_role,
+            InternalDLWorkloadRole.ELASTIC_ROLE,
+        )
+        self.assertEqual(
+            job_manager.gen_failures_by_error()[0].workload_name,
+            "ELASTIC_1-0_1-0",
+        )
+        self.assertEqual(
+            job_manager.gen_failures_by_error()[0].failure_level, 3
+        )
+        self.assertEqual(
+            job_manager.gen_failures_by_error()[0].extra_info[
+                FAILURE_TYPE_KEY
+            ],
+            TrainingExceptionLevel.NODE_ERROR,
         )
