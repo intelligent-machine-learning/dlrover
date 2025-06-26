@@ -1,10 +1,10 @@
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.hybrid.defines import SubMaster
+from dlrover.python.hybrid.common.node_defines import ActorBase
 from dlrover.python.hybrid.elastic.manager import ElasticManager
 from dlrover.python.hybrid.elastic.servicer import RayMasterServicer
 
 
-class ElasticMaster(SubMaster):
+class ElasticMaster(ActorBase):
     def __init__(self, master_config):
         self.manager = ElasticManager(master_config)
 

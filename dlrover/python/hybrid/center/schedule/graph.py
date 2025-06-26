@@ -17,7 +17,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 from dlrover.python.common.resource import Resource
 from dlrover.python.hybrid.center.config import DLConfig, WorkloadDesc
-from dlrover.python.hybrid.defines import NodeInfo
+from dlrover.python.hybrid.common.node_defines import NodeInfo
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 
 
@@ -100,7 +100,7 @@ class DLExecutionVertex:
         return NodeInfo(
             name=self.name,
             role=self.role,
-            config=self.spec.config,
+            spec=self.spec,
             rank=self.rank,
             local_rank=self.local_rank,
         )
@@ -125,15 +125,39 @@ class DLExecutionEdge:
     async_group: Optional[str] = None
 
 
+@dataclass
+class DLWorkloadRole:
+    name: str
+    spec: WorkloadDesc
+    instance_number: int
+
+    def __post_init__(self):
+        self.instances = [
+            DLExecutionVertex(
+                role=self.name,
+                spec=self.spec,
+                world_size=self.instance_number,
+                rank=i,
+                local_world_size=self.spec.per_node,
+                local_rank=i % self.spec.per_node,
+            )
+            for i in range(self.instance_number)
+        ]
+        self.sub_master: Optional[str] = None
+        if self.spec.get_master_cls() is not None:
+            self.sub_master = f"{self.name}_master"
+
+
 class DLExecutionGraph:
     """The computational graph for distributed deep learning."""
 
     def __init__(
-        self, vertices: List[DLExecutionVertex], edges: List[DLExecutionEdge]
+        self, roles: Dict[str, DLWorkloadRole], edges: List[DLExecutionEdge]
     ):
-        self.vertices = vertices
+        self.roles = roles
         self.edges = edges
 
+        self.vertices: List[DLExecutionVertex] = []
         self.by_role: Dict[str, List[DLExecutionVertex]] = {}
         self.by_name: Dict[str, DLExecutionVertex] = {}
 
@@ -141,27 +165,22 @@ class DLExecutionGraph:
 
     def build_cache(self):
         """Build cache for quick access."""
-        self.by_role.clear()
-        self.by_name.clear()
-        for vertex in self.vertices:
-            if vertex.role not in self.by_role:
-                self.by_role[vertex.role] = []
-            self.by_role[vertex.role].append(vertex)
-            self.by_name[vertex.name] = vertex
+        self.vertices = [
+            vertex for role in self.roles.values() for vertex in role.instances
+        ]
+        self.by_role = {
+            role.name: role.instances for role in self.roles.values()
+        }
+        self.by_name = {vertex.name: vertex for vertex in self.vertices}
 
     @classmethod
     def create(cls, dl_config: DLConfig) -> "DLExecutionGraph":
-        vertices = []
-        edges = []
-        for name, workload in dl_config.workloads.items():
-            for i in range(workload.instance_number):
-                vertex = DLExecutionVertex(
-                    role=name,
-                    spec=workload,
-                    world_size=workload.instance_number,
-                    rank=i,
-                    local_world_size=workload.per_node,
-                    local_rank=i % workload.per_node,
-                )
-                vertices.append(vertex)
-        return cls(vertices, edges)
+        roles = {
+            name: DLWorkloadRole(
+                name=name,
+                spec=workload,
+                instance_number=workload.instance_number,
+            )
+            for name, workload in dl_config.workloads.items()
+        }
+        return cls(roles, edges=[])

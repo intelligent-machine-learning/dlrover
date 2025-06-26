@@ -1,6 +1,6 @@
 import ray
 
-from dlrover.python.hybrid.defines import ActorBase
+from dlrover.python.hybrid.common.node_defines import ActorBase
 
 
 @ray.remote

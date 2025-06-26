@@ -7,10 +7,10 @@ from ray.util.scheduling_strategies import SchedulingStrategyT
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.hybrid.center.config import ResourceDesc
 from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
+from dlrover.python.hybrid.common.node_defines import NodeInfo
 from dlrover.python.hybrid.util.actor_helper import (
     invoke_actors,
 )
-from dlrover.python.hybrid.worker.worker import Worker
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 
@@ -55,9 +55,22 @@ class Scheduler:
                 name=vertex.name,
                 resource=vertex.spec.instance_resource,
                 envs=vertex.get_envs(),
-                cls=Worker,  # type: ignore[assignment]
+                cls=vertex.spec.get_worker_cls(),  # type: ignore[assignment]
                 scheduling_strategy=None,  # no scheduling strategy for now
-                options={},  # options is used for actor's kwargs
+                options={"info": vertex.to_node_info()},
+            )
+            self.create_node(spec)
+        for role in graph.roles.values():
+            if role.sub_master is None:
+                continue
+            spec = RayNodeSpec(
+                name=role.sub_master,
+                # resource=role.sub_master.spec.instance_resource,
+                cls=role.spec.get_master_cls(),  # type: ignore[assignment]
+                scheduling_strategy=None,  # no scheduling strategy for now
+                options={
+                    "info": NodeInfo(role.sub_master, role.name, role.spec)
+                },
             )
             self.create_node(spec)
         logger.info("Finished creating nodes for the job.")

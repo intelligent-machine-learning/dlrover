@@ -2,7 +2,7 @@ import ray
 
 from dlrover.python.hybrid.center.config import JobConfig
 from dlrover.python.hybrid.center.manager import HybridManager
-from dlrover.python.hybrid.defines import MASTER_ACTOR_ID, NodeInfo
+from dlrover.python.hybrid.common.node_defines import MASTER_ACTOR_ID, NodeInfo
 from dlrover.python.hybrid.util.actor_helper import ActorProxy
 
 

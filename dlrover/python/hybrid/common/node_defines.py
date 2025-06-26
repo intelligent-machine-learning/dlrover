@@ -3,6 +3,8 @@ from typing import Literal, Protocol
 
 from typing_extensions import TypeAlias
 
+from dlrover.python.hybrid.common.workload_config import WorkloadDesc
+
 MASTER_ACTOR_ID = "__hybrid_master__"
 MasterStage: TypeAlias = Literal["INIT", "RUNNING", "STOPPING", "STOPPED"]
 
@@ -13,7 +15,7 @@ class NodeInfo:
 
     name: str
     role: str
-    config: dict
+    spec: WorkloadDesc
 
     rank: int = 0
     local_rank: int = 0

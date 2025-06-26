@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, List
 
-from dlrover.python.hybrid.defines import MASTER_ACTOR_ID, NodeInfo
+from dlrover.python.hybrid.common.node_defines import MASTER_ACTOR_ID, NodeInfo
 from dlrover.python.hybrid.util.actor_helper import (
     ActorProxy,
 )

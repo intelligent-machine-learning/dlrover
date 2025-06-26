@@ -1,15 +1,14 @@
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from pydantic import AliasChoices, BaseModel, Field
-from ray.actor import ActorClass
 
 from dlrover.python.common.enums import ResourceType
+from dlrover.python.hybrid.common.workload_config import WorkloadDesc
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
 )
-from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
 class ResourceDesc(BaseModel):
@@ -45,30 +44,6 @@ class TrainerDesc(BaseModel):
     ]
     device_per_node: int = DLTrainerConstant.DEVICE_PER_NODE_DEFAULT
     torch_master_port: List[int] = DLTrainerConstant.TORCH_MASTER_PORT_DEFAULT
-
-
-class WorkloadDesc(BaseModel):
-    """
-    Description of a workload.
-    """
-
-    # module_name: str = Field(alias="module_name")
-    # class_name: str = Field(alias="class_name")
-    instance_number: int = Field(alias="num")
-    per_node: int = Field(default=1)
-    instance_resource: ResourceDesc = Field(
-        default_factory=ResourceDesc, alias="resource"
-    )
-    instance_env: Dict[str, str] = Field(default_factory=dict, alias="env")
-    config: Dict[str, Any] = Field(default_factory=dict)
-
-    def get_cls(self):
-        cls = get_class_by_module_and_class_name(
-            self.module_name, self.class_name
-        )
-        if not isinstance(cls, ActorClass):
-            raise TypeError(f"Class {self.class_name} is not an ActorClass.")
-        return cls
 
 
 class DLConfig(BaseModel):
