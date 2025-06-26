@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
@@ -64,16 +64,27 @@ class ElasticExecutorTest(ElasticBaseTest):
         )
         self.assertFalse(self.executor.is_finished())
 
-    def test_execute(self):
+    @patch("ray.wait")
+    @patch("ray.get")
+    def test_execute(self, mock_get, mock_wait):
         self.assertEqual(
             self.executor._train_result,
             {"ELASTIC_2-0_2-0": None, "ELASTIC_2-1_2-1": None},
         )
-        for vertex in self.mock_vertices[InternalDLWorkloadRole.ELASTIC_ROLE]:
-            vertex.actor_handle.run.remote = MagicMock()
+
+        tasks = [
+            vertex.actor_handle.run.remote()
+            for vertex in self.mock_vertices[
+                InternalDLWorkloadRole.ELASTIC_ROLE
+            ]
+        ]
+
+        mock_wait.return_value = ([tasks[0], tasks[1]], [])
+        mock_get.return_value = None
+
         self.executor.execute()
 
         self.assertEqual(
             self.executor._train_result,
-            {"ELASTIC_2-0_2-0": False, "ELASTIC_2-1_2-1": False},
+            {"ELASTIC_2-0_2-0": True, "ELASTIC_2-1_2-1": True},
         )

@@ -70,11 +70,16 @@ class ElasticExecutor(Executor):
                 if value == task_ref
             )
             try:
-                logger.info(f"Update task result: {name}")
                 ray.get(task_ref)
+                logger.info(
+                    f"Update succeeded elastic training result for: {name}"
+                )
                 self._update_train_result(name, True)
             except RayTaskError as e:
-                logger.info(f"Update task result: {name}, error: {e}")
+                logger.info(
+                    f"Update failed elastic training result for: {name}, "
+                    f"error: {e}"
+                )
                 self._update_train_result(name, False)
 
         logger.info(
