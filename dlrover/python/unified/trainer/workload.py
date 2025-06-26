@@ -131,7 +131,11 @@ class BaseWorkload(ABC):
         self.__executor = ThreadPoolExecutor(max_workers=4)
 
         self.__executor.submit(self._report_runtime_info)
-        if ray.get_runtime_context().was_current_actor_reconstructed:
+        if (
+            ray.is_initialized()
+            and ray.get_runtime_context().actor_id
+            and ray.get_runtime_context().was_current_actor_reconstructed
+        ):
             self.__executor.submit(self._report_restarting)
 
         logger.info(
