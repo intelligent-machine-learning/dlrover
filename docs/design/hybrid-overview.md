@@ -56,38 +56,38 @@ sequenceDiagram
     autonumber
     participant Driver
     box Prime Master
-        participant HybridMaster
-        participant HybridManager
+        participant PrimeMaster
+        participant PrimeManager
         participant Scheduler
     end
 
-    Driver ->> HybridMaster : create(config)
-    HybridMaster ->> HybridManager : create(config)
-    Driver ->> HybridMaster : start()
-    HybridMaster ->> HybridManager : prepare()
-    activate HybridManager
-    HybridManager ->> HybridManager : Placement.allocate()
-    HybridManager ->> Scheduler : create_nodes()
+    Driver ->> PrimeMaster : create(config)
+    PrimeMaster ->> PrimeManager : create(config)
+    Driver ->> PrimeMaster : start()
+    PrimeMaster ->> PrimeManager : prepare()
+    activate PrimeManager
+    PrimeManager ->> PrimeManager : Placement.allocate()
+    PrimeManager ->> Scheduler : create_nodes()
     create participant Workers # Rename
     Scheduler ->> Workers : create()
     Scheduler ->> Workers : status() [Ping]
-    Workers -->> HybridMaster : get_nodes_by_role()
-    HybridManager ->> HybridManager : Nodes Check
-    HybridManager ->> Workers : self_check()
-    HybridManager ->> Workers : check_child() [SubMaster]
-    HybridMaster ->> HybridManager : start()
-    HybridManager ->> Workers : start() [Trainer/SubMaster]
-    HybridMaster -->> Driver : 
+    Workers -->> PrimeMaster : get_nodes_by_role()
+    PrimeManager ->> PrimeManager : Nodes Check
+    PrimeManager ->> Workers : self_check()
+    PrimeManager ->> Workers : check_child() [SubMaster]
+    PrimeMaster ->> PrimeManager : start()
+    PrimeManager ->> Workers : start() [Trainer/SubMaster]
+    PrimeMaster -->> Driver : 
     note right of Driver : Running
 
     loop RUNNING
-        HybridManager ->> HybridManager : monitor()
-        HybridManager ->> Workers : status()
+        PrimeManager ->> PrimeManager : monitor()
+        PrimeManager ->> Workers : status()
     end
 
-    deactivate HybridManager
-    HybridManager ->> HybridManager : stop()
-    HybridManager ->> Workers : stop()
+    deactivate PrimeManager
+    PrimeManager ->> PrimeManager : stop()
+    PrimeManager ->> Workers : stop()
 ```
 
 ### Entension Points
@@ -97,7 +97,7 @@ The hybrid training framework is designed to be extensible, allowing users to cu
 - **Worker Customization:** Users can implement custom `WorkerLoad` classes to handle specific workloads, such as data preprocessing or reinforcement learning tasks. This allows for flexible integration of different processing strategies within the hybrid training framework.
 - **Custom SubMaster:** Custom `SubMaster` implementations can be created to manage specific training processes, enabling tailored orchestration of elastic workloads.
 
-The `Worker/SubMaster` is driven by `HybridManager` through lifecycle hooks, allowing it to manage the lifecycle of each workload. This design enables users to easily extend the framework to support new processing paradigms without modifying the core architecture.
+The `Worker/SubMaster` is driven by `PrimeManager` through lifecycle hooks, allowing it to manage the lifecycle of each workload. This design enables users to easily extend the framework to support new processing paradigms without modifying the core architecture.
 
 Common Hooks include:
 
@@ -116,16 +116,22 @@ Common Hooks include:
 The hybrid training framework incorporates fault tolerance mechanisms to ensure robustness and reliability during training. Key features include:
 
 - **Node Health Checks:** Regular health checks are performed on all nodes to detect failures early. If a node becomes unresponsive, the framework can reallocate tasks to healthy nodes.
-- **Dynamic Node Management:** The framework can dynamically add or remove nodes based on workload requirements. If a node fails, the `HybridManager` can reassign its tasks to other available nodes, ensuring continuous operation.
-- **Transactional State Management:** The global state of the training process is managed in a transactional manner by `HybridManager`, allowing for recovery from failures without losing progress. `HybridMaster` could failover to another `HybridMaster` if needed. `Node` is designed to be stateless, could recover by reloading its state from `HybridManager`.
+- **Dynamic Node Management:** The framework can dynamically add or remove nodes based on workload requirements. If a node fails, the `PrimeManager` can reassign its tasks to other available nodes, ensuring continuous operation.
+- **Transactional State Management:** The global state of the training process is managed in a transactional manner by `PrimeManager`, allowing for recovery from failures without losing progress. `PrimeMaster` could failover to another `PrimeMaster` if needed. `Node` is designed to be stateless, could recover by reloading its state from `PrimeManager`.
 
 ## Usage Patterns
 
+There are three different driving patterns for the hybrid training framework:
+
+- SubMaster Driven: The `PrimeManager` drives the `SubMaster` and its workers, which are specialized for elastic training.
+- Worker Self-Loop: The `Worker` nodes operate in a self-driven loop, continuously pulling data, processing it, and writing results to a `DataChannel`.
+- Trainer Driven: The `Trainer` orchestrates the training process, coordinating interactions among various roles such as `Actor`, `Critic`, and `Rollout` in reinforcement learning scenarios.
+
 ### Elastic Training (SubMaster Driven)
 
-Elastic training is a core feature of the DLRover framework, enabling dynamic scaling of training resources based on workload demands. Within the hybrid training architecture, elastic training is seamlessly integrated and managed by the `HybridMaster`, which oversees the orchestration and lifecycle management of all elastic workloads.
+Elastic training is a core feature of the DLRover framework, enabling dynamic scaling of training resources based on workload demands. Within the hybrid training architecture, elastic training is seamlessly integrated and managed by the `PrimeMaster`, which oversees the orchestration and lifecycle management of all elastic workloads.
 
-The `HybridMaster` coordinates the creation, preparation, and execution of elastic training jobs, delegating the management of elastic-specific processes to the `ElasticMaster` (also referred to as `SubMaster`). The `ElasticMaster` is responsible for:
+The `PrimeMaster` coordinates the creation, preparation, and execution of elastic training jobs, delegating the management of elastic-specific processes to the `ElasticMaster` (also referred to as `SubMaster`). The `ElasticMaster` is responsible for:
 
 - Performing regular node health checks to ensure the reliability of the training cluster.
 - Providing rendezvous services to facilitate coordination and communication among elastic workers.
@@ -138,18 +144,18 @@ The sequence diagram below illustrates the flow of elastic training within the h
 sequenceDiagram
     autonumber
     actor Driver
-    box Hybrid Master
-        participant HybridMaster
-        participant HybridManager
+    box Prime Master
+        participant PrimeMaster
+        participant PrimeManager
         participant Scheduler
     end
 
-    Driver ->> HybridMaster : create(config)
-    HybridMaster ->> HybridManager : create(config)
-    Driver ->> HybridMaster : start()
-    HybridMaster ->> HybridManager : prepare()
-    HybridManager ->> HybridManager : Placement.allocate()
-    HybridManager ->> Scheduler : create_nodes()
+    Driver ->> PrimeMaster : create(config)
+    PrimeMaster ->> PrimeManager : create(config)
+    Driver ->> PrimeMaster : start()
+    PrimeMaster ->> PrimeManager : prepare()
+    PrimeManager ->> PrimeManager : Placement.allocate()
+    PrimeManager ->> Scheduler : create_nodes()
 
     create participant ElasticMaster
     Scheduler ->> ElasticMaster : create()
@@ -158,36 +164,36 @@ sequenceDiagram
 
     Scheduler ->> ElasticMaster : status() [Ping]
     Scheduler ->> ElasticWorkers : status() [Ping]
-    ElasticMaster -->> HybridMaster : get_nodes_by_role()
-    HybridManager ->> HybridManager : Nodes Check
-    HybridManager ->> ElasticMaster : self_check()
-    HybridManager ->> ElasticWorkers : self_check()
-    HybridManager ->> ElasticMaster : check_child() [SubMaster]
+    ElasticMaster -->> PrimeMaster : get_nodes_by_role()
+    PrimeManager ->> PrimeManager : Nodes Check
+    PrimeManager ->> ElasticMaster : self_check()
+    PrimeManager ->> ElasticWorkers : self_check()
+    PrimeManager ->> ElasticMaster : check_child() [SubMaster]
     ElasticMaster ->> ElasticWorkers : do_node_check()
-    HybridMaster ->> HybridManager : start()
-    HybridManager ->> ElasticMaster : start() [SubMaster]
+    PrimeMaster ->> PrimeManager : start()
+    PrimeManager ->> ElasticMaster : start() [SubMaster]
     ElasticMaster ->> ElasticWorkers : start_training() [Run User Script]
 
     activate ElasticWorkers
     activate ElasticMaster
 
-    HybridMaster -->> Driver : 
+    PrimeMaster -->> Driver : 
     note right of Driver : Running
     ElasticWorkers -->> ElasticMaster : rendezvous()
 
-    activate HybridManager
+    activate PrimeManager
     loop while RUNNING
-        HybridManager ->> HybridManager : monitor()
-        HybridManager ->> ElasticMaster : status()
+        PrimeManager ->> PrimeManager : monitor()
+        PrimeManager ->> ElasticMaster : status()
     end
     ElasticWorkers -->> ElasticMaster : finish_job()
     deactivate ElasticWorkers
-    ElasticMaster -->> HybridManager : status() == Finish
+    ElasticMaster -->> PrimeManager : status() == Finish
     deactivate ElasticMaster
 
-    HybridManager ->> HybridManager : stop()
-    deactivate HybridManager
-    HybridManager ->> Scheduler : cleanup()
+    PrimeManager ->> PrimeManager : stop()
+    deactivate PrimeManager
+    PrimeManager ->> Scheduler : cleanup()
     Scheduler ->> ElasticMaster : stop()
     Scheduler ->> ElasticWorkers : stop()
 ```
@@ -212,7 +218,7 @@ flowchart TD
         D3[Write to DataChannel]
         D1 --> D2 --> D3 --> D1
     end
-    subgraph Trainer
+    subgraph Training
         F1[Pull Data]
         F2[Process Data]
         F1 --> F2 --> F1
@@ -230,7 +236,7 @@ flowchart TD
 
     Start((Start)) --> Tokenizer
     Start --> Sampler
-    Start --> Trainer
+    Start --> Training
 ```
 
 ### Reinforcement Learning (Trainer Driven)
@@ -241,16 +247,19 @@ In reinforcement learning (RL) scenarios, the hybrid framework supports multiple
 flowchart TD
     Start((Start))
 
+    Start --> Trainer
+
     subgraph Trainer
+        T1[Collect Experience Data]
+        T2[Calculate Value]
+        T3[Invoke Actor Training]
+        T4[Invoke Critic Training]
+        T5[Update Actor Weights]
+
         Buffer[Experience Buffer]
 
-        T1[Collect Experience Data]
-        T2[Invoke Actor Training]
-        T3[Invoke Critic Training]
-        T4[Update Actor Weights]
-
-        T1 --> Buffer --> T2 --> T4
-        Buffer --> T3
+        T1 --> Buffer --> T2 --> T3 --> T5 --> T1
+        Buffer --> T4
     end
 
     subgraph Rollout
@@ -258,6 +267,8 @@ flowchart TD
         R2[Collect Experience Data]
         R1 --> R2
     end
+
+    R2 -.-> T1
 
 
     subgraph Actor
@@ -276,13 +287,10 @@ flowchart TD
 
         critic_in --> critic_fit -.-> critic
     end
-    Start --> Trainer
 
-
-    R2  -.-> T1
-    T2 -.-> actor_in
-    T3 -.-> critic_in
-    actor_weight -.-> T4 -.-> R1
-
-    critic --> actor_fit
+    T3 -.-> actor_in
+    T2 -.-> critic 
+    T4 -.-> critic_in
+    actor_weight -.-> T5 -.-> R1
+    critic -.-> T3
 ```
