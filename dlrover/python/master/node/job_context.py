@@ -266,8 +266,8 @@ class JobContext(Singleton):
     def request_suspend(self):
         with self._locker:
             if (
-                    self.get_job_stage() == JobStage.JOB_RUNNING
-                    or self.get_job_stage() == JobStage.JOB_INIT
+                    self._job_stage == JobStage.JOB_RUNNING
+                    or self._job_stage == JobStage.JOB_INIT
             ):
                 logger.info("job is suspended")
                 self._job_pre_status = self._job_stage
@@ -277,7 +277,7 @@ class JobContext(Singleton):
 
     def request_unsuspend(self):
         with self._locker:
-            if self.get_job_stage() == JobStage.JOB_SUSPENDED:
+            if self._job_stage == JobStage.JOB_SUSPENDED:
                 logger.info("job is unsuspended")
                 self._job_stage = self._job_pre_status
             else:

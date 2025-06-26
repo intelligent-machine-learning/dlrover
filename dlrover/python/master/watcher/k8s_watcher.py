@@ -427,20 +427,21 @@ class K8sElasticJobWatcher(object):
                     plural=ElasticJobApi.ELASTICJOB_PLURAL,
                     timeout_seconds=60,
                 ):
-                    logger.info(f"get elasticjob event, {event}")
+                    logger.debug(f"get elasticjob event, {event}")
                     elasticjob_cr = event.get("object", None)
                     evt_type = event.get("type")
                     if (
                             (evt_type == "MODIFIED" or evt_type == "ADDED")
                             and elasticjob_cr["metadata"].get("name", "") == self._job_name
                     ):
-                        logger.info(f"get elasticjob modified {evt_type} event")
+                        logger.info(f"get elasticjob {evt_type} event")
 
                         enable_suspended = elasticjob_cr["spec"].get("suspend", False)
-                        if enable_suspended:
+                        if enable_suspended and not self._job_context.is_suspended():
+                            logger.info("try to request suspend")
                             self._job_context.request_suspend()
-
                         if not enable_suspended and self._job_context.is_suspended():
+                            logger.info("try to request unsuspend")
                             self._job_context.request_unsuspend()
 
                 sleep(5)
