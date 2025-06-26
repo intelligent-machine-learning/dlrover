@@ -15,6 +15,7 @@ import time
 
 import ray
 
+from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
 from dlrover.python.unified.tests.base import RayBaseTest
 
@@ -156,9 +157,6 @@ class RLMasterNormalTest(BaseMasterTest):
 
     @timeout(20)
     def test(self):
-        if os.cpu_count() < 6:
-            return
-
         master_name = "test"
 
         master_actor = MPMDMaster.options(
@@ -171,7 +169,7 @@ class RLMasterNormalTest(BaseMasterTest):
 
         ray.get(master_actor.ping.remote())
         master_actor.run.remote()
-        time.sleep(5)
+        time.sleep(3)
 
         # wait master done
         while True:
@@ -179,7 +177,7 @@ class RLMasterNormalTest(BaseMasterTest):
                 result = ray.get(master_actor.get_job_status.remote())
             except ade:
                 break
-            if result != "FINISHED":
+            if not JobStage.is_ending_stage(result):
                 time.sleep(1)
             else:
                 break
@@ -207,9 +205,6 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
 
     @timeout(30)
     def test_trainer_abnormal(self):
-        if os.cpu_count() < 2:
-            return
-
         master_name = "test"
 
         master_actor = MPMDMaster.options(
@@ -221,7 +216,7 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
 
         ray.get(master_actor.ping.remote())
         master_actor.run.remote()
-        time.sleep(5)
+        time.sleep(3)
 
         # wait master done
         while True:
@@ -229,7 +224,8 @@ class RLMasterTrainerAbnormalTest(BaseMasterTest):
                 result = ray.get(master_actor.get_job_status.remote())
             except ade:
                 break
-            if result != "FINISHED":
+
+            if not JobStage.is_ending_stage(result):
                 time.sleep(1)
             else:
                 break
@@ -257,9 +253,6 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
 
     @timeout(30)
     def test_trainer_workload_abnormal(self):
-        if os.cpu_count() < 2:
-            return
-
         master_name = "test"
 
         master_actor = MPMDMaster.options(
@@ -271,15 +264,15 @@ class RLMasterTrainerWorkloadAbnormalTest(BaseMasterTest):
 
         ray.get(master_actor.ping.remote())
         master_actor.run.remote()
-        time.sleep(5)
+        time.sleep(3)
 
         # wait master done
         while True:
             try:
                 result = ray.get(master_actor.get_job_status.remote())
-            except ade:
+            except Exception:
                 break
-            if result != "FINISHED":
+            if not JobStage.is_ending_stage(result):
                 time.sleep(1)
             else:
                 break

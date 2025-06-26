@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.unified.common.args import parse_job_args

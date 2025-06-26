@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-import time
 from typing import Dict, Union
 
 import ray
+from ray.exceptions import RayTaskError
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
@@ -39,19 +39,6 @@ class ElasticExecutor(Executor):
         return name, result
 
     def execute(self, target=None):
-        def run_per_vertex(name, run_ref):
-            try:
-                start = time.time()
-                ray.get(run_ref)
-                logger.info(
-                    f"Node {name} elastic training completed in "
-                    f"{time.time() - start} seconds."
-                )
-                return self._update_train_result(name, True)
-            except Exception as e:
-                logger.error(f"{name} run elastic training failed: {e}")
-                return self._update_train_result(name, False)
-
         elastic_vertices = self.graph.execution_vertices[
             InternalDLWorkloadRole.ELASTIC_ROLE
         ]
@@ -72,11 +59,27 @@ class ElasticExecutor(Executor):
                 for vertex in elastic_vertices
             }
 
-        run_tasks = [
-            run_per_vertex(name, task_ref) for name, task_ref in tasks.items()
-        ]
+        tasks_mapping = tasks
+        task_refs = list(tasks.values())
+        ready, not_ready = ray.wait(task_refs, num_returns=len(task_refs))
 
-        logger.info(f"Elastic training execution results: {run_tasks}")
+        for task_ref in ready:
+            name = next(
+                key
+                for key, value in tasks_mapping.items()
+                if value == task_ref
+            )
+            try:
+                logger.info(f"Update task result: {name}")
+                ray.get(task_ref)
+                self._update_train_result(name, True)
+            except RayTaskError as e:
+                logger.info(f"Update task result: {name}, error: {e}")
+                self._update_train_result(name, False)
+
+        logger.info(
+            f"Elastic training execution results: {self._train_result}"
+        )
 
     def is_finished(self):
         logger.debug(f"Current elastic training result: {self._train_result}")

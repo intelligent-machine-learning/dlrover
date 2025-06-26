@@ -233,5 +233,5 @@ class TestTorchActor(BaseWorkload):
 class TestElasticWorkload(BaseWorkload):
     def run(self):
         time.sleep(1)
-        logger.info("TestElasticWorkload run called")
+        logger.info(f"TestElasticWorkload-{self.name} run called")
         return

@@ -104,7 +104,7 @@ def submit(args=None, blocking=True, ray_address=None):
             memory=parsed_args.master_mem,
             runtime_env=runtime_env,
             max_restarts=-1,
-            max_concurrency=4,
+            max_concurrency=64,
         )
         .remote(job_config.serialize(), dl_context.serialize())
     )
