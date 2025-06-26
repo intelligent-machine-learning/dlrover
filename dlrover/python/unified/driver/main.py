@@ -31,7 +31,7 @@ from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import DLType, JobStage
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
-MASTER_CONNECT_INTERVAL = 10
+MASTER_CONNECT_INTERVAL = 5  # must < master's RUN_WAIT_INTERVAL
 MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
 
 
@@ -104,6 +104,7 @@ def submit(args=None, blocking=True, ray_address=None):
             memory=parsed_args.master_mem,
             runtime_env=runtime_env,
             max_restarts=-1,
+            max_concurrency=4,
         )
         .remote(job_config.serialize(), dl_context.serialize())
     )
@@ -111,20 +112,12 @@ def submit(args=None, blocking=True, ray_address=None):
     ray.get(master_actor.ping.remote())
     logger.info("DLMaster created.")
 
-    ray.get(master_actor.run.remote())
-    logger.info("DLMaster is running...")
+    master_actor.run.remote()
+    logger.info("DLMaster start running...")
 
     exit_code = 0
     if blocking:
-        master_exit_start = 0
         while True:
-            if (
-                master_exit_start != 0
-                and time.time() - master_exit_start > MASTER_CONNECT_TIMEOUT
-            ):
-                logger.warning("DLMaster might dead, exit now.")
-                break
-
             try:
                 result = ray.get(master_actor.get_job_status.remote())
                 # if result in ["FINISHED", "ERROR"]:
@@ -133,10 +126,9 @@ def submit(args=None, blocking=True, ray_address=None):
                     if result == JobStage.ERROR:
                         exit_code = 1
                     break
-                master_exit_start = 0
             except ade:
-                if master_exit_start == 0:
-                    master_exit_start = time.time()
+                logger.info("DLMaster already exited.")
+                break
 
             logger.debug("DLMaster is running...")
             time.sleep(MASTER_CONNECT_INTERVAL)

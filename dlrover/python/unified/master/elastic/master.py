@@ -122,14 +122,6 @@ class ElasticMaster(BaseMaster):
 
     """Remote call functions start"""
 
-    async def async_agent_report(self, request):
-        response = await self.agent_report(request)
-        return response
-
-    async def async_get_report(self, request):
-        response = await self.agent_get(request)
-        return response
-
     def agent_report(self, request):
         logger.debug(f"Got agent report call: {request}")
         response = self._master_service_handler.agent_report(request)

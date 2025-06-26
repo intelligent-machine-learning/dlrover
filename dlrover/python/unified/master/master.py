@@ -10,9 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 import time
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple
 
 import ray
@@ -55,7 +55,7 @@ class BaseMaster(ABC):
         self._state_backend.init()
 
         self._create_time = int(time.time())
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        self._lock = threading.Lock()
 
         self._job_manager = None
 
@@ -159,7 +159,7 @@ class BaseMaster(ABC):
                 self._save_context_to_checkpoint()
                 self.job_manager.start_job()
 
-            self._executor.submit(self._wait_and_exit)
+            self._wait_and_exit()
         except Exception as e:
             logger.error("Got unexpected fatal error on starting.", e)
             self.exit_job(
@@ -229,7 +229,7 @@ class BaseMaster(ABC):
         self._cleanup_context_checkpoint()
 
         logger.info("DLMaster exit now.")
-        ray.actor.exit_actor()
+        ray.kill(self)
 
     """Remote call functions start"""
 
@@ -240,47 +240,36 @@ class BaseMaster(ABC):
     def get_job_status(self):
         return self.get_job_stage().name
 
-    def report(self, runtime_info: RuntimeInfo):
+    def report_restarting(self, name: str):
+        vertex_role = self.context.execution_graph.name_vertex_mapping[
+            name
+        ].role
+        failure_desc = FailureDesc(
+            failure_obj="WORKLOAD",
+            workload_name=name,
+            workload_role=vertex_role,
+            failure_time=int(time.time()),
+            reason="unknown",
+        )
+        self._handle_failures([failure_desc])
+
+    def report_runtime(self, runtime_info: RuntimeInfo):
         if not runtime_info:
             return
 
-        is_actor_restart = False
         name = runtime_info.name
 
         name_vertex_mapping = (
             self._job_context.execution_graph.name_vertex_mapping
         )
         if name in name_vertex_mapping:
-            vertex = name_vertex_mapping[name]
-
-            if vertex.create_time:
-                is_actor_restart = True
-
             # update runtime info
             name_vertex_mapping[name].update_runtime_info(
                 create_time=runtime_info.create_time,
                 hostname=runtime_info.hostname,
                 host_ip=runtime_info.host_ip,
             )
-        logger.info(
-            f"Got runtime info: {runtime_info} reported by: {name}, "
-            f"is restart: {is_actor_restart}."
-        )
-
-        # deal with workload restart
-        if is_actor_restart:
-            vertex_name = runtime_info.name
-            vertex_role = self.context.execution_graph.name_vertex_mapping[
-                vertex_name
-            ].role
-            failure_desc = FailureDesc(
-                failure_obj="WORKLOAD",
-                workload_name=vertex_name,
-                workload_role=vertex_role,
-                failure_time=runtime_info.create_time,
-                reason="unknown",
-            )
-            self._handle_failures([failure_desc])
+        logger.debug(f"Got runtime info: {runtime_info} reported by: {name}.")
 
     def report_failure(self, failure: FailureDesc):
         self._handle_failures([failure])

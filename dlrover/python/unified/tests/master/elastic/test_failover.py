@@ -51,10 +51,7 @@ class ElasticFailoverCoordinatorTest(RayBaseTest):
         self.close_ray_safely()
         super().tearDown()
 
-    @patch("asyncio.get_event_loop")
-    def test_handle_failures(self, mock_get_loop):
-        mock_loop = MagicMock()
-        mock_get_loop.return_value = mock_loop
+    def test_handle_failures(self):
         job_manager = ElasticJobManager()
         job_manager.execute = MagicMock(return_value=None)
 

@@ -31,10 +31,6 @@ from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
 class ElasticJobManagerTest(ElasticBaseTest):
     def setUp(self):
         super().setUp()
-        patcher = patch("asyncio.get_event_loop")
-        self.addCleanup(patcher.stop)
-        self.mock_get_loop = patcher.start()
-        self.mock_get_loop.return_value = MagicMock()
 
     def test_basic(self):
         job_manager = ElasticJobManager()

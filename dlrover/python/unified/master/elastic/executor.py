@@ -14,6 +14,8 @@ import asyncio
 import time
 from typing import Dict, Union
 
+import ray
+
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
 from dlrover.python.unified.master.executor import Executor
@@ -37,20 +39,10 @@ class ElasticExecutor(Executor):
         return name, result
 
     def execute(self, target=None):
-        if target:
-            asyncio.run_coroutine_threadsafe(
-                self._async_execute(target), self.__loop
-            )
-        else:
-            asyncio.run_coroutine_threadsafe(
-                self._async_execute(), self.__loop
-            )
-
-    async def _async_execute(self, target=None):
-        async def run_per_vertex(name, coro):
+        def run_per_vertex(name, run_ref):
             try:
                 start = time.time()
-                await coro
+                ray.get(run_ref)
                 logger.info(
                     f"Node {name} elastic training completed in "
                     f"{time.time() - start} seconds."
@@ -81,20 +73,10 @@ class ElasticExecutor(Executor):
             }
 
         run_tasks = [
-            run_per_vertex(name, coro) for name, coro in tasks.items()
+            run_per_vertex(name, task_ref) for name, task_ref in tasks.items()
         ]
-        for completed_task in asyncio.as_completed(run_tasks):
-            vertex_name, result = await completed_task
-            if result:
-                logger.info(
-                    f"Node {vertex_name} elastic training completed: "
-                    f"{self._train_result}."
-                )
-            else:
-                logger.warning(
-                    f"Node {vertex_name} elastic training failed: "
-                    f"{self._train_result}."
-                )
+
+        logger.info(f"Elastic training execution results: {run_tasks}")
 
     def is_finished(self):
         logger.debug(f"Current elastic training result: {self._train_result}")
