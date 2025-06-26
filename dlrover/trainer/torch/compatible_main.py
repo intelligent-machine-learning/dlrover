@@ -10,28 +10,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.python.common import env_utils
-from dlrover.trainer.torch.elastic_run import main as dlrover_main
 from torch.distributed.run import main as torch_main
 
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.log import default_logger as logger
+from dlrover.trainer.torch.elastic_run import main as dlrover_main
 
 
-if __name__ == "__main__":
+def main():
     """
-    This entry point is mainly designed for adapting to special scenarios, 
-    enforcing the use of `dlrover-run`. 
-    
-    If the dlrover master exists, the `dlrover-run` command is executed 
-    directly; otherwise, the use of `torchrun` is allowed for execution.  
+    This entry point is mainly designed for adapting to special scenarios,
+    enforcing the use of `dlrover-run`.
+
+    If the dlrover master exists, the `dlrover-run` command is executed
+    directly; otherwise, the use of `torchrun` is allowed for execution.
     """
 
     if env_utils.get_env(NodeEnv.DLROVER_MASTER_ADDR):
-        logger.warning("DLRover master exists but using torchrun command. "
-                       "Replace with dlrover-run directly.")
+        logger.warning(
+            "DLRover master exists but using torchrun command. "
+            "Replace with dlrover-run directly."
+        )
         dlrover_main()
     else:
         logger.info(
-            "DLRover master not exist so using torchrun command directly.")
+            "DLRover master not exist so using torchrun command directly."
+        )
         torch_main()
+
+
+if __name__ == "__main__":
+    main()
