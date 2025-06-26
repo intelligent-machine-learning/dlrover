@@ -194,4 +194,95 @@ sequenceDiagram
 
 ### Distributed Data Processing (Workers Self-Loop)
 
-### RL (Trainer Driven)
+In distributed data processing scenarios, each `Worker` node operates in a self-driven loop. Upon starting, the worker continuously pulls data from a `DataChannel`, processes the data using a user-defined `process` method, and writes the results to another `DataChannel`. This loop persists until a stop signal is received, enabling efficient and scalable parallel data processing across multiple workers.
+
+Source -> Tokenizer[Self-Loop] -> DataChannel -> Sampler[Self-Loop] -> DataChannel -> Trainer[Self-Loop] -> Model Output
+
+```mermaid
+flowchart TD
+    subgraph Tokenizer
+        B1[Pull Data]
+        B2[Process Data]
+        B3[Write to DataChannel]
+        B1 --> B2 --> B3 --> B1
+    end
+    subgraph Sampler
+        D1[Pull Data]
+        D2[Process Data]
+        D3[Write to DataChannel]
+        D1 --> D2 --> D3 --> D1
+    end
+    subgraph Trainer
+        F1[Pull Data]
+        F2[Process Data]
+        F1 --> F2 --> F1
+    end
+
+    Source[(Source)]
+    DataChannel1[(DataChannel1)]
+    DataChannel2[(DataChannel2)]
+
+    Source --> B1
+    B3 --> DataChannel1
+    DataChannel1 --> D1
+    D3 --> DataChannel2
+    DataChannel2 --> F1
+
+    Start((Start)) --> Tokenizer
+    Start --> Sampler
+    Start --> Trainer
+```
+
+### Reinforcement Learning (Trainer Driven)
+
+In reinforcement learning (RL) scenarios, the hybrid framework supports multiple specialized roles such as `Actor`, `Critic`, and `Rollout`. The `Actor` and `Critic` are typically managed as elastic training tasks, while `Rollout` nodes handle inference or environment simulation. The overall training process is orchestrated by a dedicated `Trainer` or by the `Actor` itself, which coordinates the interactions among all roles. This design enables flexible scaling and efficient resource allocation for complex RL workflows, supporting scenarios like distributed policy optimization, multi-agent training, and large-scale environment simulation.
+
+```mermaid
+flowchart TD
+    Start((Start))
+
+    subgraph Trainer
+        Buffer[Experience Buffer]
+
+        T1[Collect Experience Data]
+        T2[Invoke Actor Training]
+        T3[Invoke Critic Training]
+        T4[Update Actor Weights]
+
+        T1 --> Buffer --> T2 --> T4
+        Buffer --> T3
+    end
+
+    subgraph Rollout
+        R1[Rollout Environment Simulation]
+        R2[Collect Experience Data]
+        R1 --> R2
+    end
+
+
+    subgraph Actor
+        actor_in(Consume Experience Data)
+        actor_fit[Actor Training]
+        actor_weight[Actor Weight]
+
+        actor_in --> actor_fit --> actor_weight
+    end
+
+    subgraph Critic
+        critic_in(Consume Experience Data)
+
+        critic_fit[Critic Training]
+        critic(Evaluate Value Function)
+
+        critic_in --> critic_fit -.-> critic
+    end
+    Start --> Trainer
+
+
+    R2  -.-> T1
+    T2 -.-> actor_in
+    T3 -.-> critic_in
+    actor_weight -.-> T4 -.-> R1
+
+    critic --> actor_fit
+```
