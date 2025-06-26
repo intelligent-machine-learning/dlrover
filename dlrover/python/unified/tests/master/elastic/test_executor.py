@@ -12,6 +12,8 @@
 # limitations under the License.
 from unittest.mock import MagicMock, patch
 
+from ray.exceptions import RayTaskError
+
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
 from dlrover.python.unified.master.elastic.job_manager import ElasticJobManager
@@ -83,8 +85,14 @@ class ElasticExecutorTest(ElasticBaseTest):
         mock_get.return_value = None
 
         self.executor.execute()
-
         self.assertEqual(
             self.executor._train_result,
             {"ELASTIC_2-0_2-0": True, "ELASTIC_2-1_2-1": True},
+        )
+
+        mock_get.side_effect = RayTaskError("test", "test", "test")
+        self.executor.execute()
+        self.assertEqual(
+            self.executor._train_result,
+            {"ELASTIC_2-0_2-0": False, "ELASTIC_2-1_2-1": False},
         )
