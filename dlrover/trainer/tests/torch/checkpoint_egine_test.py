@@ -169,6 +169,10 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             sd = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
             paths = {CheckpointConstant.MODEL_STATES_NAME: saved_file}
             saving_engine.save_to_storage(step, sd, paths)
+
+            # Simulate quick save_to_memory after save_to_storage
+            saving_engine.save_to_memory(step + 1, sd, paths)
+
             time.sleep(3)
             # list the files in tmpdir recursively
             self.assertTrue(storage.exists(saved_file))

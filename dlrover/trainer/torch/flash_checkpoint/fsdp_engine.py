@@ -548,6 +548,8 @@ class FsdpCheckpointEngine(CheckpointEngine):
             )
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+            notify_event = self._notify_queue.get()
+            assert notify_event.step == step
         if success:
             self.latest_step = step
 
