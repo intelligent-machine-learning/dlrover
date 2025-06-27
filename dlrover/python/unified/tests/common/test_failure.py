@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-import unittest
 
 from dlrover.python.unified.common.failure import FailureDesc
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class FailureDescTest(unittest.TestCase):
+class FailureDescTest(BaseTest):
     def test_basic(self):
         desc = FailureDesc(
             workload_name="test",

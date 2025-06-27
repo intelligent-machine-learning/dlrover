@@ -24,6 +24,9 @@ from typing import Callable, List
 import ray
 import torch
 import torch.distributed
+from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
+    BasePPORole,
+)
 from openrlhf.datasets import PromptDataset, SFTDataset
 from openrlhf.models import Actor
 from openrlhf.trainer.ray.ppo_actor import ActorPPOTrainer
@@ -33,9 +36,6 @@ from openrlhf.utils.deepspeed import DeepspeedStrategy
 from openrlhf.utils.deepspeed.deepspeed_utils import offload_deepspeed_states
 from transformers.trainer import get_scheduler
 
-from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
-    BasePPORole,
-)
 from dlrover.python.unified.trainer.workload import trainer_invocation
 
 

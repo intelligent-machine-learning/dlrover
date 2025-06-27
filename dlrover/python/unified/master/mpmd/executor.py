@@ -56,7 +56,7 @@ class MPMDTrainerExecutor(Executor):
                 self._trainer_done_callback
             )
 
-    def is_trainer_finished(self):
+    def is_finished(self):
         if self.__trainer_result is None:
             return False
         return (
@@ -66,7 +66,7 @@ class MPMDTrainerExecutor(Executor):
     def is_trainer_error(self):
         return self.__trainer_error is not None
 
-    def get_trainer_error(self):
+    def get_error(self):
         return self.__trainer_error
 
     def _trainer_async(self):
