@@ -30,16 +30,16 @@ def main():
             "DLRover master exists but using torchrun command. "
             "Replace with dlrover-run directly."
         )
-        from dlrover.trainer.torch.elastic_run import main
+        from dlrover.trainer.torch.elastic_run import main as dlrover_main
 
-        main()
+        dlrover_main()
     else:
         logger.info(
             "DLRover master not exist so using torchrun command directly."
         )
-        from torch.distributed.run import main
+        from torch.distributed.run import main as torch_main
 
-        main()
+        torch_main()
 
 
 if __name__ == "__main__":

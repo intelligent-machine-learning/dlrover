@@ -378,13 +378,13 @@ class TestMainFunction(unittest.TestCase):
         mock_get_env = env_patcher.start()
 
         dlrover_patcher = patch(
-            "dlrover.trainer.torch.compatible_main.dlrover_main",
+            "dlrover.trainer.torch.elastic_run.main",
             return_value=None,
         )
         self.patchers.append(dlrover_patcher)
         mock_dlrover_main = dlrover_patcher.start()
         torch_patcher = patch(
-            "dlrover.trainer.torch.compatible_main.torch_main",
+            "torch.distributed.run.main",
             return_value=None,
         )
         self.patchers.append(torch_patcher)
@@ -405,13 +405,13 @@ class TestMainFunction(unittest.TestCase):
         mock_get_env = env_patcher.start()
 
         dlrover_patcher = patch(
-            "dlrover.trainer.torch.compatible_main.dlrover_main",
+            "dlrover.trainer.torch.elastic_run.main",
             return_value=None,
         )
         self.patchers.append(dlrover_patcher)
         mock_dlrover_main = dlrover_patcher.start()
         torch_patcher = patch(
-            "dlrover.trainer.torch.compatible_main.torch_main",
+            "torch.distributed.run.main",
             return_value=None,
         )
         self.patchers.append(torch_patcher)
