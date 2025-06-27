@@ -2,12 +2,31 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal, Optional, Union
 
 import ray
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from ray.actor import ActorClass
 from typing_extensions import TypeAlias
 
-from dlrover.python.hybrid.center.config import ResourceDesc
+from dlrover.python.hybrid.util.actor_helper import as_actor_class
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
+
+
+class ResourceDesc(BaseModel):
+    cpu: float = Field(default=0.0)
+    memory: int = Field(
+        default=0, validation_alias=AliasChoices("memory", "mem")
+    )
+    disk: int = Field(default=0)
+    gpu: float = Field(default=0.0)
+    gpu_type: str = Field(default="")
+    user_defined: Dict[str, float] = Field(
+        default_factory=dict, alias="ud_resource"
+    )
+
+    def is_empty(self) -> bool:
+        """
+        Check if the resource description is empty.
+        """
+        return self.cpu == 0.0 and self.gpu == 0.0 and not self.user_defined
 
 
 class BaseWorkloadDesc(BaseModel, ABC):
@@ -34,18 +53,18 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     Description of an elastic workload.
     """
 
-    kind: Literal["elastic"]
+    kind: Literal["elastic"] = Field(default="elastic")
     cmd: str = Field(description="Command to run the elastic workload.")
 
     def get_worker_cls(self) -> ActorClass:
         from dlrover.python.hybrid.elastic.worker import ElasticWorker
 
-        return ray.remote(ElasticWorker)  # type: ignore[return-value]
+        return ElasticWorker  # type: ignore[return-value]
 
     def get_master_cls(self) -> ActorClass:
         from dlrover.python.hybrid.elastic.master import ElasticMaster
 
-        return ray.remote(ElasticMaster)  # type: ignore[return-value]
+        return as_actor_class(ElasticMaster)  # type: ignore[return-value]
 
 
 class OtherWorkloadDesc(BaseWorkloadDesc):
@@ -53,7 +72,7 @@ class OtherWorkloadDesc(BaseWorkloadDesc):
     Description of a non-elastic workload.
     """
 
-    kind: Literal["other"]
+    kind: Literal["other"] = Field(default="other")
     module_name: str = Field(alias="module_name")
     class_name: str = Field(alias="class_name")
     config: Dict[str, Any] = Field(default_factory=dict)
@@ -65,7 +84,8 @@ class OtherWorkloadDesc(BaseWorkloadDesc):
         from ray.actor import ActorClass
 
         if not isinstance(cls, ActorClass):
-            raise TypeError(f"Class {self.class_name} is not an ActorClass.")
+            # raise TypeError(f"Class {self.class_name} is not an ActorClass.")
+            return ray.remote(cls)  # type: ignore[return-value]
         return cls
 
 

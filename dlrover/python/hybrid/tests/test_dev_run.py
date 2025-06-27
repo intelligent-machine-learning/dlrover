@@ -1,19 +1,34 @@
 import time
 
+import pytest
 import ray
 
 from dlrover.python.hybrid.center.config import (
     DLConfig,
     JobConfig,
-    WorkloadDesc,
 )
 from dlrover.python.hybrid.center.master import HybridMaster
+from dlrover.python.hybrid.common.workload_config import ElasticWorkloadDesc
+
+
+@pytest.fixture
+def _ray():
+    """Fixture to initialize and shutdown Ray."""
+    ray.init(
+        num_cpus=4,
+        num_gpus=0,
+        ignore_reinit_error=True,
+        namespace="dlrover_hybrid_test",
+    )
+    yield
+    ray.shutdown()
 
 
 def test_dev_run():
     dl_config = DLConfig(
         workloads={
-            "demo": WorkloadDesc(
+            "demo": ElasticWorkloadDesc(
+                cmd="python -m dlrover.python.hybrid.demo.demo",
                 num=2,
                 per_node=2,
             )
@@ -26,14 +41,8 @@ def test_dev_run():
     master = HybridMaster.create(config)
     assert master.status() == "INIT"
     master.start()
-    while master.status() != "RUNNING":
-        time.sleep(1)
-    time.sleep(5)  # wait for the job to start
-    master.stop()
     while master.status() != "STOPPED":
         time.sleep(1)
-
-    ray.shutdown()
 
 
 if __name__ == "__main__":

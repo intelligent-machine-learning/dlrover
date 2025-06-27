@@ -1,4 +1,4 @@
-import time
+import asyncio
 from threading import Thread
 from typing import Optional
 
@@ -7,7 +7,10 @@ from dlrover.python.hybrid.center.config import JobConfig
 from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
 from dlrover.python.hybrid.center.schedule.scheduler import Scheduler
 from dlrover.python.hybrid.common.node_defines import MasterStage
-from dlrover.python.hybrid.util.actor_helper import invoke_actors, kill_actors
+from dlrover.python.hybrid.util.actor_helper import (
+    invoke_actors_async,
+    kill_actors,
+)
 
 
 class Placement:
@@ -33,53 +36,71 @@ class HybridManager:
         self.stage: MasterStage = "INIT"
         logger.info(f"HybridManager initialized with config: {config}")
 
-    def prepare(self):
+    async def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when fail."""
         self.placement.allocate_placement_group(self.graph)
-        self.scheduler.create_nodes(self.graph)  # create actors for all nodes
+        await self.scheduler.create_nodes(
+            self.graph
+        )  # create actors for all nodes
         logger.info("Finished creating nodes for the job.")
 
-        self._nodes_check()
+        await self._nodes_check()
 
-    def _nodes_check(self):
+    async def _nodes_check(self):
         # check all nodes itself
         nodes = [node.name for node in self.graph.vertices]
-        invoke_actors(nodes, "self_check")
+        await invoke_actors_async(nodes, "self_check")
         logger.info("All nodes self-checked successfully.")
 
         # let masters pre-check nodes
-        invoke_actors(nodes, "check_workers")
+        masters = [
+            role.sub_master.name
+            for role in self.graph.roles.values()
+            if role.sub_master is not None
+        ]
+        await invoke_actors_async(masters, "check_workers")
         logger.info("Masters checked all workers successfully.")
 
-    def start(self):
+    async def start(self):
         """Execute the job. Start tracking the job status."""
         self.stage = "RUNNING"
         self.save()
         nodes = [node.name for node in self.graph.vertices]
-        invoke_actors(nodes, "start")  # start all nodes
+        await invoke_actors_async(nodes, "start")  # start all nodes
+        status = await invoke_actors_async(nodes, "status")
+        if any(it != "RUNNING" for it in status):
+            statusMap = {
+                node.name: node_status
+                for node, node_status in zip(self.graph.vertices, status)
+            }
+            raise Exception(f"Some nodes failed to start the job. {statusMap}")
         logger.info("Job started successfully.")
-        self.thread = Thread(
-            target=self._monitor_nodes, name="job_monitor", daemon=True
+        self._task = asyncio.create_task(
+            self._monitor_nodes(), name="job_monitor"
         )
-        self.thread.start()
 
-    def _monitor_nodes(self):
+    async def _monitor_nodes(self):
         """Monitor the nodes status."""
         while self.stage == "RUNNING":
-            pass
-            time.sleep(5)
-        self.stop()
+            await asyncio.sleep(5)
+            results = await invoke_actors_async(
+                [node.name for node in self.graph.vertices], "status"
+            )
+            if all(it in ["FAILED", "FINISHED"] for it in results):
+                logger.info("All nodes are finished or failed.")
+                break
+        await self.stop()
 
-    def stop(self):
+    async def stop(self):
         """Stop the job execution. And clean up resources."""
         if self.stage == "STOPPING" or self.stage == "STOPPED":
             return
         logger.info("Stopping the job...")
         self.stage = "STOPPING"
         kill_actors([node.name for node in self.graph.vertices])
-        if self.thread is not None:
-            self.thread.join()
+        if self._task is not None and self._task is not asyncio.current_task():
+            self._task.cancel()
         logger.info("Job stopped successfully.")
         self.stage = "STOPPED"
         self.save()

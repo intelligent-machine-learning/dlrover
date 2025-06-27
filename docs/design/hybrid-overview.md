@@ -294,3 +294,60 @@ flowchart TD
     actor_weight -.-> T5 -.-> R1
     critic -.-> T3
 ```
+
+## Implementation Design
+
+### Lifecycle Management
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant PrimeMaster
+    participant ElasticMaster
+    participant ElasticWorker
+    participant ElasticWorkerRunner
+
+    # Start
+
+    PrimeMaster ->> ElasticMaster : start()
+    ElasticMaster ->> ElasticWorker : start_elastic_training()
+    ElasticWorker ->> ElasticWorkerRunner : run()
+    activate ElasticWorkerRunner #running
+    note over ElasticWorkerRunner : Running
+    activate ElasticWorker #wait run()
+    note over ElasticWorker : Thread(wait run())
+
+    ElasticWorker -->> ElasticMaster : status() == RUNNING
+    activate ElasticMaster #monitoring
+    note over ElasticMaster : Thread(Monitor Workers)
+    
+    ElasticWorker -->> PrimeMaster : status() == RUNNING
+    ElasticMaster -->> PrimeMaster : status() == RUNNING
+    activate PrimeMaster #monitoring
+    note over PrimeMaster : Thread(Monitor Actors)
+
+    # Monitoring
+
+    loop RUNNING
+        ElasticMaster ->> ElasticWorker : status()
+    end
+    loop RUNNING
+        PrimeMaster ->> ElasticMaster : status()
+        PrimeMaster ->> ElasticWorker : status()
+    end
+
+    # End
+
+    ElasticWorkerRunner -->> ElasticWorker : end run()
+    deactivate ElasticWorkerRunner
+    ElasticWorker -->> ElasticMaster : status() == FINISH
+    deactivate ElasticWorker
+    ElasticMaster -->> PrimeMaster : status() == FINISH
+    deactivate ElasticMaster
+
+    PrimeMaster ->> PrimeMaster : stop()
+    deactivate PrimeMaster
+
+
+```

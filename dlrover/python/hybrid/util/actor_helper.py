@@ -3,7 +3,7 @@ from functools import partial
 from typing import Dict, List, Optional, TypeVar
 
 import ray
-from ray.actor import ActorHandle
+from ray.actor import ActorClass, ActorHandle
 from ray.exceptions import RayActorError
 
 from dlrover.python.common.log import default_logger as logger
@@ -21,6 +21,13 @@ def get_actor_with_cache(name: str, refresh: bool = False):
             logger.error(f"Error getting actor {name}: {e}")
             raise
     return __actors_cache[name]
+
+
+def as_actor_class(cls: type) -> ActorClass:
+    """Convert a class to a Ray actor class if it is not already."""
+    if isinstance(cls, ActorClass):
+        return cls
+    return ray.remote(cls)  # type: ignore[return-value]
 
 
 def __invoke_actor(
@@ -69,8 +76,9 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
                 results[task_id] = e
         waiting = next_waiting
         if len(waiting) > 0:
+            stragglers = [actors[task_id] for task_id in waiting.values()]
             logger.info(
-                f"Waiting for {len(waiting)} tasks to complete {method_name} ..."
+                f"Waiting for {len(stragglers)} tasks ({stragglers}) to complete {method_name} ..."
             )
     return results
 
@@ -153,7 +161,7 @@ async def invoke_actor_async(
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ):
-    return asyncio.gather(
+    return await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
             for actor in actors

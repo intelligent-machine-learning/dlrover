@@ -1,15 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from ray.actor import ActorClass
 from ray.util.scheduling_strategies import SchedulingStrategyT
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.hybrid.center.config import ResourceDesc
 from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
-from dlrover.python.hybrid.common.node_defines import NodeInfo
+from dlrover.python.hybrid.common.workload_config import ResourceDesc
 from dlrover.python.hybrid.util.actor_helper import (
-    invoke_actors,
+    invoke_actors_async,
 )
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
@@ -18,10 +17,10 @@ from dlrover.python.unified.common.enums import SchedulingStrategyType
 @dataclass
 class RayNodeSpec:
     name: str
-    resource: ResourceDesc
-    envs: Dict[str, str]
     cls: ActorClass
     options: Dict[str, Any]  # as kwargs for actor
+    resource: ResourceDesc = field(default_factory=ResourceDesc)
+    envs: Dict[str, str] = field(default_factory=dict)
     scheduling_strategy: SchedulingStrategyT = None
 
 
@@ -44,39 +43,38 @@ class Scheduler:
     def create_pgs(self, pgs):
         pass
 
-    def create_nodes(self, graph: DLExecutionGraph):
+    async def create_nodes(self, graph: DLExecutionGraph):
         """Create/Get actors for all nodes in the execution graph."""
         # 0. create placement group if not exists
         """TODO: Create placement group if not exists."""
 
         # 1. ray create_or_exists actors
-        for vertex in graph.vertices:
-            spec = RayNodeSpec(
-                name=vertex.name,
-                resource=vertex.spec.instance_resource,
-                envs=vertex.get_envs(),
-                cls=vertex.spec.get_worker_cls(),  # type: ignore[assignment]
-                scheduling_strategy=None,  # no scheduling strategy for now
-                options={"info": vertex.to_node_info()},
-            )
-            self.create_node(spec)
         for role in graph.roles.values():
-            if role.sub_master is None:
-                continue
-            spec = RayNodeSpec(
-                name=role.sub_master,
-                # resource=role.sub_master.spec.instance_resource,
-                cls=role.spec.get_master_cls(),  # type: ignore[assignment]
-                scheduling_strategy=None,  # no scheduling strategy for now
-                options={
-                    "info": NodeInfo(role.sub_master, role.name, role.spec)
-                },
-            )
-            self.create_node(spec)
+            for worker in role.instances:
+                spec = RayNodeSpec(
+                    name=worker.name,
+                    resource=role.spec.instance_resource,
+                    cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
+                    envs=worker.get_envs(),
+                    scheduling_strategy=None,  # no scheduling strategy for now
+                    options={"info": worker.to_node_info()},
+                )
+                self.create_node(spec)
+            if role.sub_master is not None:
+                # Create sub-master node if it exists
+                spec = RayNodeSpec(
+                    name=role.sub_master.name,
+                    # resource=role.spec.instance_resource,
+                    cls=role.spec.get_master_cls(),  # type: ignore[assignment]
+                    envs=role.sub_master.get_envs(),
+                    scheduling_strategy=None,  # no scheduling strategy for now
+                    options={"info": role.sub_master.to_node_info()},
+                )
+                self.create_node(spec)
         logger.info("Finished creating nodes for the job.")
 
         # 2. Check actors with ping
-        result = invoke_actors(
+        result = await invoke_actors_async(
             [node.name for node in graph.vertices], "status"
         )
         logger.info(f"Actors status: {result}")

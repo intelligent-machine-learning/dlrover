@@ -1,29 +1,38 @@
+import asyncio
+
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.hybrid.common.node_defines import ActorBase
+from dlrover.python.hybrid.common.node_defines import ActorBase, WorkerStage
 from dlrover.python.hybrid.elastic.manager import ElasticManager
 from dlrover.python.hybrid.elastic.servicer import RayMasterServicer
+from dlrover.python.hybrid.sdk.hybrid import PrimeMasterApi
+from dlrover.python.unified.common.enums import JobStage
 
 
 class ElasticMaster(ActorBase):
-    def __init__(self, master_config):
-        self.manager = ElasticManager(master_config)
+    def _setup(self):
+        nodes = PrimeMasterApi.get_nodes_by_role(self.node_info.role)
+        self.manager = ElasticManager(nodes)
 
+        self.manager._prepare()
         self._init_service()
 
     def status(self):
-        print("Elastic Master is running")
+        if JobStage.is_ending_stage(self.manager.stage):
+            self._update_stage_force(WorkerStage.FINISHED)
+        return super().status()
 
     def self_check(self):
-        pass
+        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
+            return
+        logger.info("Elastic Master self check")
 
     def check_workers(self):
         pass
 
-    def start(self):
-        self.manager.start()
-
-    def stop(self):
-        self.manager.stop()
+    async def start(self):
+        if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
+            return
+        await self.manager.start()
 
     ## RPC methods
 
@@ -32,12 +41,16 @@ class ElasticMaster(ActorBase):
 
     async def agent_report(self, request):
         logger.debug(f"Got agent report call: {request}")
-        response = self._service_handler.agent_report(request)
+        response = await asyncio.to_thread(
+            self._service_handler.agent_report, request
+        )
         logger.debug(f"Response agent report call: {response}")
         return response
 
     async def agent_get(self, request):
         logger.debug(f"Got agent get call: {request}")
-        response = self._service_handler.agent_get(request)
+        response = await asyncio.to_thread(
+            self._service_handler.agent_get, request
+        )
         logger.debug(f"Response agent get call: {response}")
         return response

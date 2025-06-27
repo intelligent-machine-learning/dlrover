@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -29,7 +30,7 @@ class PlacementGroupSpec:
 
 
 @dataclass
-class DLExecutionVertex:
+class DLExecutionVertex(ABC):
     """
     Vertex expression for computational graph.
 
@@ -42,6 +43,35 @@ class DLExecutionVertex:
     role: str
     spec: WorkloadDesc
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Get the name of the vertex.
+
+        Returns:
+            The name of the vertex.
+        """
+        pass
+
+    @abstractmethod
+    def get_envs(self) -> Dict[str, str]:
+        """
+        Get environment variables for the vertex.
+
+        Returns:
+            A dictionary of environment variables.
+        """
+        pass
+
+    @abstractmethod
+    def to_node_info(self) -> "NodeInfo":
+        """Convert to NodeInfo. Exposed to workers and sub-masters."""
+        pass
+
+
+@dataclass
+class DLExecutionWorkerVertex(DLExecutionVertex):
     world_size: int
     rank: int
     local_world_size: int
@@ -96,13 +126,45 @@ class DLExecutionVertex:
         return envs
 
     def to_node_info(self) -> "NodeInfo":
-        """Convert to NodeInfo. Exposed to workers and sub-masters."""
         return NodeInfo(
             name=self.name,
             role=self.role,
             spec=self.spec,
             rank=self.rank,
             local_rank=self.local_rank,
+        )
+
+
+@dataclass
+class DLExecutionMasterVertex(DLExecutionVertex):
+    """
+    Master vertex in the computational graph.
+
+    role: Role of the master vertex.
+    spec: Workload specification for the master vertex.
+    """
+
+    @property
+    def name(self):
+        return f"{self.role}-master"
+
+    def get_envs(self) -> Dict[str, str]:
+        envs = {
+            DLWorkloadEnv.NAME: self.name,
+            DLWorkloadEnv.ROLE: self.role,
+        }
+        # setup global env
+        # envs.update(self.graph.dl_context.env)
+
+        # setup role env
+        envs.update(self.spec.instance_env)
+        return envs
+
+    def to_node_info(self) -> "NodeInfo":
+        return NodeInfo(
+            name=self.name,
+            role=self.role,
+            spec=self.spec,
         )
 
 
@@ -133,7 +195,7 @@ class DLWorkloadRole:
 
     def __post_init__(self):
         self.instances = [
-            DLExecutionVertex(
+            DLExecutionWorkerVertex(
                 role=self.name,
                 spec=self.spec,
                 world_size=self.instance_number,
@@ -143,9 +205,12 @@ class DLWorkloadRole:
             )
             for i in range(self.instance_number)
         ]
-        self.sub_master: Optional[str] = None
+        self.sub_master: Optional[DLExecutionMasterVertex] = None
         if self.spec.get_master_cls() is not None:
-            self.sub_master = f"{self.name}_master"
+            self.sub_master = DLExecutionMasterVertex(
+                role=self.name,
+                spec=self.spec,
+            )
 
 
 class DLExecutionGraph:
@@ -157,8 +222,8 @@ class DLExecutionGraph:
         self.roles = roles
         self.edges = edges
 
+        # note: vertices includes both worker and sub-master vertices
         self.vertices: List[DLExecutionVertex] = []
-        self.by_role: Dict[str, List[DLExecutionVertex]] = {}
         self.by_name: Dict[str, DLExecutionVertex] = {}
 
         self.build_cache()
@@ -168,9 +233,9 @@ class DLExecutionGraph:
         self.vertices = [
             vertex for role in self.roles.values() for vertex in role.instances
         ]
-        self.by_role = {
-            role.name: role.instances for role in self.roles.values()
-        }
+        self.vertices.extend(
+            role.sub_master for role in self.roles.values() if role.sub_master
+        )
         self.by_name = {vertex.name: vertex for vertex in self.vertices}
 
     @classmethod

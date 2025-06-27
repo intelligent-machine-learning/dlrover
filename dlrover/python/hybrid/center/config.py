@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel, Field
 
 from dlrover.python.common.enums import ResourceType
 from dlrover.python.hybrid.common.workload_config import WorkloadDesc
@@ -9,25 +9,6 @@ from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
 )
-
-
-class ResourceDesc(BaseModel):
-    cpu: float = Field(default=0.0)
-    memory: int = Field(
-        default=0, validation_alias=AliasChoices("memory", "mem")
-    )
-    disk: int = Field(default=0)
-    gpu: float = Field(default=0.0)
-    gpu_type: str = Field(default="")
-    user_defined: Dict[str, float] = Field(
-        default_factory=dict, alias="ud_resource"
-    )
-
-    def is_empty(self) -> bool:
-        """
-        Check if the resource description is empty.
-        """
-        return self.cpu == 0.0 and self.gpu == 0.0 and not self.user_defined
 
 
 class TrainerDesc(BaseModel):

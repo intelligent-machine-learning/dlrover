@@ -13,5 +13,7 @@ def _proxy() -> "HybridMaster":
     return ActorProxy.wrap(MASTER_ACTOR_ID)
 
 
-def get_nodes_by_role(role: str) -> List[NodeInfo]:
-    return _proxy().get_nodes_by_role(role)
+class PrimeMasterApi:
+    @staticmethod
+    def get_nodes_by_role(role: str) -> List[NodeInfo]:
+        return _proxy().get_nodes_by_role(role)

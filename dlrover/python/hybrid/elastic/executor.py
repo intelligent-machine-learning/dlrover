@@ -15,11 +15,13 @@ import time
 from typing import Dict, List, Union
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.master.graph import DLExecutionVertex
+from dlrover.python.hybrid.common.node_defines import NodeInfo
+
+# TODO unused class, just for reference
 
 
 class ElasticExecutor:
-    def __init__(self, nodes: List[DLExecutionVertex]):
+    def __init__(self, nodes: List[NodeInfo]):
         self.nodes = nodes
         self._train_result: Dict[str, Union[bool, None]] = {
             vertex.name: None for vertex in nodes

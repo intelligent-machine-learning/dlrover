@@ -17,12 +17,12 @@ class HybridMaster:
     def status(self):
         return self.manager.stage
 
-    def start(self):
-        self.manager.prepare()
-        self.manager.start()
+    async def start(self):
+        await self.manager.prepare()
+        await self.manager.start()
 
-    def stop(self):
-        self.manager.stop()
+    async def stop(self):
+        await self.manager.stop()
 
     # region RPC
 
@@ -35,8 +35,10 @@ class HybridMaster:
 
     def get_nodes_by_role(self, role: str) -> list[NodeInfo]:
         """Get all nodes by role."""
-        nodes = self.manager.graph.by_role.get(role, [])
-        return [node.to_node_info() for node in nodes]
+        role_info = self.manager.graph.roles.get(role)
+        if role_info is None:
+            raise ValueError(f"Role {role} not found.")
+        return [node.to_node_info() for node in role_info.instances]
 
     @staticmethod
     def create(config: JobConfig, detached: bool = True) -> "HybridMaster":
@@ -47,6 +49,7 @@ class HybridMaster:
             num_cpus=config.master_cpu,
             memory=config.master_mem,
             max_restarts=config.master_max_restart,
+            max_concurrency=64,
         ).remote(config)
         return ActorProxy.wrap(MASTER_ACTOR_ID)
 
