@@ -53,7 +53,7 @@ class ElasticFailoverCoordinatorTest(RayBaseTest):
 
     def test_handle_failures(self):
         job_manager = ElasticJobManager()
-        job_manager.execute = MagicMock(return_value=None)
+        job_manager.re_execute = MagicMock(return_value=None)
 
         def callback():
             return
@@ -70,7 +70,7 @@ class ElasticFailoverCoordinatorTest(RayBaseTest):
         )
 
         fc.handle_failures([desc])
-        job_manager.execute.assert_called_once()
+        job_manager.re_execute.assert_called_once()
 
         desc = FailureDesc(
             workload_name="ELASTIC_1-0_1-0",
@@ -81,4 +81,4 @@ class ElasticFailoverCoordinatorTest(RayBaseTest):
         )
 
         fc.handle_failures([desc])
-        job_manager.execute.assert_called_once()
+        job_manager.re_execute.assert_called_once()
