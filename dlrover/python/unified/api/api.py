@@ -274,7 +274,7 @@ class DLJob(object):
 
         for key, value in kwargs.items():
             args.append(f"--{key}")
-            args.append(value)
+            args.append(f"{value}")
 
         main(args, blocking)
 

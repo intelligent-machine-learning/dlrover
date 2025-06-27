@@ -259,3 +259,6 @@ class ElasticJobManager(JobManager):
             f"Generated failures: {failures} by elastic training error."
         )
         return failures
+
+    def re_execute(self, vertex_name):
+        self.executor.add_execution(vertex_name)

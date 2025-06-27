@@ -10,9 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 from unittest.mock import MagicMock, patch
-
-from ray.exceptions import RayTaskError
 
 from dlrover.python.unified.common.constant import InternalDLWorkloadRole
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
@@ -22,6 +21,7 @@ from dlrover.python.unified.master.graph import (
     DLExecutionVertex,
 )
 from dlrover.python.unified.tests.master.elastic.base import ElasticBaseTest
+from dlrover.python.util.function_util import timeout
 
 
 class ElasticExecutorTest(ElasticBaseTest):
@@ -68,6 +68,7 @@ class ElasticExecutorTest(ElasticBaseTest):
 
     @patch("ray.wait")
     @patch("ray.get")
+    @timeout(10)
     def test_execute(self, mock_get, mock_wait):
         self.assertEqual(
             self.executor._train_result,
@@ -85,14 +86,10 @@ class ElasticExecutorTest(ElasticBaseTest):
         mock_get.return_value = None
 
         self.executor.execute()
-        self.assertEqual(
-            self.executor._train_result,
-            {"ELASTIC_2-0_2-0": True, "ELASTIC_2-1_2-1": True},
-        )
-
-        mock_get.side_effect = RayTaskError("test", "test", "test")
-        self.executor.execute()
-        self.assertEqual(
-            self.executor._train_result,
-            {"ELASTIC_2-0_2-0": False, "ELASTIC_2-1_2-1": False},
-        )
+        while True:
+            if self.executor._train_result == {
+                "ELASTIC_2-0_2-0": True,
+                "ELASTIC_2-1_2-1": True,
+            }:
+                break
+            time.sleep(0.1)

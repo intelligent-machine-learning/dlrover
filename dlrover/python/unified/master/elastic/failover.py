@@ -62,7 +62,7 @@ class ElasticFailoverCoordinator(FailoverCoordinator):
         # do failover
         wl_name = failure.workload_name
         try:
-            self.job_manager.execute(target=wl_name)
+            self.job_manager.re_execute(wl_name)
         except Exception as e:
             logger.error(
                 f"Failed to execute on target: {wl_name} for "

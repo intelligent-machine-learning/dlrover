@@ -46,9 +46,6 @@ class ApiFullTest(RayBaseTest):
 
     @timeout(20)
     def test_elastic_training(self):
-        if os.cpu_count() < 6:
-            return
-
         dl_job = (
             DLJobBuilder()
             .SFT_type()
@@ -70,10 +67,34 @@ class ApiFullTest(RayBaseTest):
         dl_job.submit("test", master_cpu=1, master_memory=128)
 
     @timeout(20)
-    def test_rl_0(self):
-        if os.cpu_count() < 6:
-            return
+    def test_elastic_training_with_error(self):
+        dl_job = (
+            DLJobBuilder()
+            .SFT_type()
+            .node_num(3)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
+            .dlrover_run(
+                "dlrover-run --nnodes=1:2 --nproc_per_node=2 "
+                "--rdzv_conf join_timeout=600 --network_check "
+                "--max-restarts=1 test.py",
+                "dlrover.python.unified.tests.test_class",
+                "TestErrorElasticWorkload",
+            )
+            .build()
+        )
 
+        dl_job.submit(
+            "test",
+            master_cpu=1,
+            master_memory=128,
+            workload_max_restart={"ELASTIC": 1},
+        )
+
+    @timeout(20)
+    def test_rl_0(self):
         rl_job = (
             RLJobBuilder()
             .node_num(3)
@@ -104,9 +125,6 @@ class ApiFullTest(RayBaseTest):
 
     @timeout(20)
     def test_rl_1(self):
-        if os.cpu_count() < 2:
-            return
-
         rl_job = (
             RLJobBuilder()
             .node_num(1)

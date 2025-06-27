@@ -13,6 +13,7 @@
 import threading
 import time
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple
 
 import ray
@@ -55,6 +56,7 @@ class BaseMaster(ABC):
         self._state_backend.init()
 
         self._create_time = int(time.time())
+        self._executor = ThreadPoolExecutor(max_workers=2)
         self._lock = threading.Lock()
 
         self._job_manager = None
@@ -159,7 +161,7 @@ class BaseMaster(ABC):
                 self._save_context_to_checkpoint()
                 self.job_manager.start_job()
 
-            self._wait_and_exit()
+            self._executor.submit(self._wait_and_exit)
         except Exception as e:
             logger.error("Got unexpected fatal error on starting.", e)
             self.exit_job(
