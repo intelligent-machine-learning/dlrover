@@ -211,7 +211,20 @@ def parse_args(args):
         action=check_env,
         help="Whether to test the communication performance.",
     )
-    return parser.parse_args(args)
+    args = parser.parse_args(args)
+
+    # reconfigure nnodes
+    max_node = os.getenv(NodeEnv.MAX_NODE, None)
+    min_node = os.getenv(NodeEnv.MAX_NODE, None)
+    if max_node is not None and min_node is not None:
+        new_nnodes = "{}:{}".format(
+            int(os.getenv("MIN_NODE")), int(os.getenv("MAX_NODE"))
+        )
+        logger.info(
+            f"The nnodes will be reconfigured from {args.nnodes} to {new_nnodes}"
+        )
+        args.nnodes = new_nnodes
+    return args
 
 
 class ElasticLaunch:
