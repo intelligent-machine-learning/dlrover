@@ -10,12 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from torch.distributed.run import main as torch_main
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
-from dlrover.trainer.torch.elastic_run import main as dlrover_main
 
 
 def main():
@@ -32,11 +30,15 @@ def main():
             "DLRover master exists but using torchrun command. "
             "Replace with dlrover-run directly."
         )
+        from dlrover.trainer.torch.elastic_run import main as dlrover_main
+
         dlrover_main()
     else:
         logger.info(
             "DLRover master not exist so using torchrun command directly."
         )
+        from torch.distributed.run import main as torch_main
+
         torch_main()
 
 
