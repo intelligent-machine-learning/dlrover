@@ -207,6 +207,13 @@ class BaseWorkload(ABC):
             return True
         return False
 
+    def get_restart_info(self):
+        """
+        Return info for failure.
+        format: (restart_time, level, reason, extra_info)
+        """
+        return int(time.time()), -1, "unknown", {}
+
     """Remote call functions start"""
 
     def _report_restarting(self):
@@ -215,7 +222,16 @@ class BaseWorkload(ABC):
         Should be invoked once when actor restarts.
         """
         try:
-            ray.get(self._master_handle.report_restarting.remote(self.name))
+            restart_info = self.get_restart_info()
+            ray.get(
+                self._master_handle.report_restarting.remote(
+                    self.name,
+                    restart_info[0],
+                    restart_info[1],
+                    restart_info[2],
+                    restart_info[3],
+                )
+            )
         except Exception as e:
             logger.error(
                 f"Report restarting to master got unexpected error: {e}"

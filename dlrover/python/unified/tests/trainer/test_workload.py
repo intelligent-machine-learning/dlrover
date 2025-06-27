@@ -56,6 +56,7 @@ class BaseWorkloadTest(BaseTest):
         self.assertFalse(workload.has_device_collocation())
         self.assertFalse(workload.is_actor_or_rollout_device_collocation())
         self.assertIsNotNone(workload.get_runtime_info())
+        self.assertIsNotNone(workload.get_restart_info())
 
         workload.setup({"k2": "v2"})
         self.assertEqual(os.environ["k2"], "v2")

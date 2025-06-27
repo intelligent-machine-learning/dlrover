@@ -242,7 +242,14 @@ class BaseMaster(ABC):
     def get_job_status(self):
         return self.get_job_stage().name
 
-    def report_restarting(self, name: str):
+    def report_restarting(
+        self,
+        name: str,
+        timestamp: int,
+        level: int = -1,
+        reason: str = "",
+        **kwargs,
+    ):
         vertex_role = self.context.execution_graph.name_vertex_mapping[
             name
         ].role
@@ -250,8 +257,10 @@ class BaseMaster(ABC):
             failure_obj="WORKLOAD",
             workload_name=name,
             workload_role=vertex_role,
-            failure_time=int(time.time()),
-            reason="unknown",
+            failure_time=timestamp,
+            failure_level=level,
+            reason=reason,
+            extra_info=kwargs,
         )
         self._handle_failures([failure_desc])
 
