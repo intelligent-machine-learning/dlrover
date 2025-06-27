@@ -234,7 +234,7 @@ def load_checkpoint(
     args = get_args()
     checkpointer = MegatronCheckpointer.singleton_instance(
         args.save,
-        storge=storage,
+        storage=storage,
         comm_backend=comm_backend,
         save_timeout=save_timeout,
         replica_count=replica_count,

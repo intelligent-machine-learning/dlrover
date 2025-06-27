@@ -1,0 +1,54 @@
+---
+name: build and publish dlrover controller image
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+env:
+  REGISTRY: ghcr.io
+  SET_API: https://api.github.com/orgs/intelligent-machine-learning/packages/container # yamllint disable-line
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dlrover_controller # yamllint disable-line
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./go/elasticjob
+          file: ./go/elasticjob/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Set Image Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            ${{ env.SET_API }}/${{ matrix.build_info.image_name }}/visibility \
+            -d '{"visibility":"public"}'

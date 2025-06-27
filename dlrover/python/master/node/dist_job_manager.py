@@ -262,7 +262,9 @@ class DistributedJobManager(JobManager):
         # node-check all failed
         if (
             self.is_all_reduce_type_job()
-            and self._worker_manager.is_all_workers_node_check_failed()
+            and self._worker_manager.is_all_initial_workers_node_check_failed(
+                self.get_worker_num()
+            )
         ):
             msg = (
                 "Stop the training early because all worker nodes has "
@@ -596,20 +598,16 @@ class DistributedJobManager(JobManager):
         """Callback with node list by the list api of k8s."""
 
         logger.debug(f"Got list nodes: {nodes}")
-        exist_nodes: Dict[str, List[int]] = {}
-        exist_ranks: Dict[str, List[int]] = {}
+        exist_nodes: Dict[str, List[Node]] = {}
         job_nodes = self.get_job_nodes()
         for node_type in job_nodes.keys():
             exist_nodes[node_type] = []
-            exist_ranks[node_type] = []
 
         if nodes:
             for node in nodes:
                 node_type = node.type
                 node_id = node.id
-                node_rank = node.rank_index
-                exist_nodes[node_type].append(node_id)
-                exist_ranks[node_type].append(node_rank)
+                exist_nodes[node_type].append(node)
 
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
@@ -638,7 +636,8 @@ class DistributedJobManager(JobManager):
                 if (
                     node.status != NodeStatus.INITIAL
                     and not node.is_released
-                    and node.id not in exist_nodes[node_type]
+                    and node.id
+                    not in [node.id for node in exist_nodes[node_type]]
                 ):
                     logger.info(
                         f"Node {node_type} {node.id} is deleted "
@@ -652,19 +651,25 @@ class DistributedJobManager(JobManager):
                 elif (
                     node.status == NodeStatus.INITIAL
                     and not node.is_released
-                    and node.id not in exist_nodes[node_type]
-                    and node.rank_index in exist_ranks[node_type]
+                    and node.id
+                    not in [node.id for node in exist_nodes[node_type]]
                 ):
-                    logger.info(
-                        f"Node {node_type} {node.id} with "
-                        f"rank {node.rank_index} is relaunched by new node "
-                        "without the event"
-                    )
-                    new_node = copy.deepcopy(node)
-                    new_node.is_released = True
-                    new_node.status = NodeStatus.DELETED
-                    event = NodeEvent(NodeEventType.DELETED, new_node)
-                    self._process_event_safely(event)
+                    for exist_node in exist_nodes[node_type]:
+                        if (
+                            node.rank_index == exist_node.rank_index
+                            and node.id < exist_node.id
+                        ):
+                            logger.info(
+                                f"Node {node_type} {node.id} with "
+                                f"rank {node.rank_index} is relaunched "
+                                "by new node without the event"
+                            )
+                            new_node = copy.deepcopy(node)
+                            new_node.is_released = True
+                            new_node.status = NodeStatus.DELETED
+                            new_node.exit_reason = NodeExitReason.RELAUNCHED
+                            event = NodeEvent(NodeEventType.DELETED, new_node)
+                            self._process_event_safely(event)
 
     def close_job(self):
         plan = ScalePlan()
@@ -900,7 +905,7 @@ class DistributedJobManager(JobManager):
         if should_relaunch:
             logger.info(
                 f"Recheck should_relaunch with {node} {node.config_resource}: "
-                f"{job_ctx.get_job_stage()} {self.is_all_reduce_type_job()}"
+                f"{job_ctx.get_job_stage()}"
             )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
@@ -914,7 +919,10 @@ class DistributedJobManager(JobManager):
                 and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
-                msg = "Disable relaunch"
+                msg = "Disable relaunch due to fatal error"
+            elif node.exit_reason == NodeExitReason.RELAUNCHED:
+                should_relaunch = False
+                msg = "Disable relaunch due to already relaunched"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if self.is_all_reduce_type_job():
@@ -957,13 +965,14 @@ class DistributedJobManager(JobManager):
                         f"{node.relaunch_count} "
                         f"exhausted {node.max_relaunch_count}"
                     )
+
         if should_relaunch:
             node.relaunch_count += 1
 
         if not should_relaunch and len(msg) > 0:
             self._report_event(
                 EventReportConstants.TYPE_INFO,
-                node.name,
+                node.get_name(),
                 EventReportConstants.ACTION_NOT_RELAUNCH,
                 msg,
                 {},

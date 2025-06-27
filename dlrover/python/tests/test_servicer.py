@@ -15,13 +15,14 @@ import os
 import time
 import unittest
 from unittest import mock
+from unittest.mock import MagicMock
 
 import ray
 import requests
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
-from dlrover.python.common.comm import BaseRequest, GPUStats
+from dlrover.python.common.comm import BaseRequest, BaseResponse, GPUStats
 from dlrover.python.common.constants import (
     JobStage,
     NodeEventType,
@@ -44,6 +45,7 @@ from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import (
     GrpcMasterServicer,
+    RayMasterServicer,
     create_master_service,
 )
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -673,3 +675,14 @@ class MasterServicerForRayTest(unittest.TestCase):
         res = self.servicer._query_ps_nodes()
         self.assertEqual(addr, res.nodes[task_id].addr)
         self.assertEqual("", res.nodes[0].addr)
+
+    def test_function_call(self):
+        servicer = RayMasterServicer(None, None, None, None, None)
+        self.assertIsNotNone(servicer)
+
+        servicer.agent_report = MagicMock(return_value=True)
+        self.assertTrue(servicer.agent_report(None))
+        servicer.agent_get = MagicMock(return_value=True)
+        self.assertTrue(servicer.agent_get(None))
+        self.assertTrue(isinstance(servicer.get_response(None), BaseResponse))
+        self.assertTrue(servicer.get_task_type("test"), "test")

@@ -13,7 +13,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.constants import (
     JobStage,
@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PlatformType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
@@ -30,13 +31,18 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
+
+# isort: off
 from dlrover.python.master.node.job_context import (
     get_job_context as get_elastic_context,
 )
+
+# isort: on
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.elastic.executor import ElasticExecutor
+from dlrover.python.unified.master.elastic.failover import FAILURE_TYPE_KEY
 from dlrover.python.unified.master.job_manager import JobManager
 
 _MAX_POD_RELAUNCH_COUNT = 5
@@ -51,9 +57,13 @@ class ElasticJobManager(JobManager):
     def __init__(self):
         super(ElasticJobManager, self).__init__()
 
-        self.elastic_context = get_elastic_context()
+        self._elastic_context = get_elastic_context()
         self._node_watcher = new_node_watcher(PlatformType.RAY, self.job_name)
         self._lock = threading.Lock()
+
+    @property
+    def elastic_context(self):
+        return self._elastic_context
 
     def get_executor(self):
         return ElasticExecutor(self.graph)
@@ -94,29 +104,43 @@ class ElasticJobManager(JobManager):
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes status...")
         while True:
+            if self._stopped:
+                logger.info("Stop monitoring nodes.")
+                break
             try:
                 # update directly
                 list_nodes = self._node_watcher.list()
+                logger.debug(
+                    f"Got list nodes: {list_nodes}, current job "
+                    f"nodes: {self.elastic_context.job_nodes()}"
+                )
                 for list_node in list_nodes:
-                    node_id = list_node.id
+                    node_id = int(list_node.id)
                     with self._lock:
                         current_node = self.elastic_context.job_node(
                             NodeType.WORKER, node_id
                         )
-                        current_node.status = list_node.status
-                        self.elastic_context.update_job_node(current_node)
-
+                        if current_node:
+                            current_node.status = list_node.status
+                            self.elastic_context.update_job_node(current_node)
+                        else:
+                            logger.warning(
+                                f"Node {node_id} not exists "
+                                "during monitoring."
+                            )
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
             time.sleep(5)
 
     def update_node_required_info(self, min_required, max_required, timeout):
+        # TODO
         pass
 
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
+        # TODO
         pass
 
     def update_node_paral_config(self, node_type, node_id, paral_config):
@@ -127,7 +151,9 @@ class ElasticJobManager(JobManager):
         node.update_paral_config(paral_config)
         self.elastic_context.update_job_node(node)
 
-    def collect_node_heart_beat(self, node_type, node_id, timestamp) -> DiagnosisAction:
+    def collect_node_heart_beat(
+        self, node_type, node_id, timestamp
+    ) -> DiagnosisAction:
         with self._lock:
             node = self.elastic_context.job_node(node_type, node_id)
             if node is None:
@@ -148,16 +174,22 @@ class ElasticJobManager(JobManager):
     def get_running_nodes(self):
         nodes = []
         with self._lock:
-            worker_nodes = self.elastic_context.job_nodes_by_type(NodeType.WORKER)
+            worker_nodes = self.elastic_context.job_nodes_by_type(
+                NodeType.WORKER
+            )
             for node in worker_nodes.values():
                 if node.status == NodeStatus.RUNNING:
                     nodes.append(node)
         return nodes
 
-    def update_node_resource_usage(self, node_type, node_id, cpu, memory, gpu_stats=[]):
+    def update_node_resource_usage(
+        self, node_type, node_id, cpu, memory, gpu_stats=[]
+    ):
         node = self.elastic_context.job_node(node_type, node_id)
         if node is None:
-            logger.warning(f"Skip update node[{node_type}][{node_id}] resources")
+            logger.warning(
+                f"Skip update node[{node_type}][{node_id}] resources"
+            )
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
         if node.config_resource.cpu:
@@ -168,7 +200,6 @@ class ElasticJobManager(JobManager):
                     node.start_hang_time = now.timestamp()
             else:
                 node.start_hang_time = 0
-            self.elastic_context.update_job_node(node)
         else:
             logger.warning(
                 "CPU requests not configure "
@@ -192,7 +223,8 @@ class ElasticJobManager(JobManager):
             target_node = self.elastic_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported status to {event_type}."
+                    f"Node {node_id}({node_type}) reported "
+                    f"status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self.elastic_context.update_job_node(target_node)
@@ -208,6 +240,25 @@ class ElasticJobManager(JobManager):
     def has_job_error(self):
         return len(self.executor.get_error()) > 0
 
-    def gen_failure_by_error(self) -> FailureDesc:
-        # TODO
-        pass
+    def gen_failures_by_error(self) -> List[FailureDesc]:
+        failures = []
+        if self.has_job_error():
+            for error_vertex in self.executor.get_error():
+                failures.append(
+                    FailureDesc(
+                        workload_name=error_vertex,
+                        workload_role=InternalRoleType.ELASTIC.name,
+                        failure_time=int(time.time()),
+                        failure_level=3,
+                        extra_info={
+                            FAILURE_TYPE_KEY: TrainingExceptionLevel.NODE_ERROR
+                        },
+                    )
+                )
+        logger.info(
+            f"Generated failures: {failures} by elastic training error."
+        )
+        return failures
+
+    def re_execute(self, vertex_name):
+        self.executor.add_execution(vertex_name)

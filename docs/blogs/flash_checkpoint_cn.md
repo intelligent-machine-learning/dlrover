@@ -399,7 +399,7 @@ pip install dlrover[torch] -U
 然后使用 dlrover-run 来启动训练。
 
 ```bash
-dlrover-run --nproc_per_node=2 fsdp_train.py \
+dlrover-run --standalone --nproc_per_node=2 fsdp_train.py \
  --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 ```

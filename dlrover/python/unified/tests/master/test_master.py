@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 
 import ray
 
@@ -20,15 +19,18 @@ from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class DLMasterTest(unittest.TestCase):
+class DLMasterTest(RayBaseTest):
     def setUp(self):
-        ray.init(num_cpus=1, ignore_reinit_error=True)
+        super().setUp()
+        self.init_ray_safely(num_cpus=1)
 
     def tearDown(self):
-        ray.shutdown()
+        self.close_ray_safely()
+        super().tearDown()
 
     def test_master_actor(self):
         args = [

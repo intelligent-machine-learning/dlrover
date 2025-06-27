@@ -10,17 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.dl_context import RLContext
 from dlrover.python.unified.common.job_context import get_job_context
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class BaseMasterTest(unittest.TestCase):
+class BaseMasterTest(RayBaseTest):
     def setUp(self):
+        super().setUp()
         args = [
             "--job_name",
             "test",
@@ -37,4 +38,5 @@ class BaseMasterTest(unittest.TestCase):
         self._job_context.init(job_config, rl_context)
 
     def tearDown(self):
-        pass
+        self.close_ray_safely()
+        super().tearDown()

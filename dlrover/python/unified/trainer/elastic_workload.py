@@ -10,19 +10,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import shlex
+import time
 from typing import List
 
 import ray
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.common.constants import (
+    NodeEnv,
+    NodeType,
+    TrainingExceptionLevel,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import RayMasterClient
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLConfig,
 )
+from dlrover.python.unified.master.elastic.failover import FAILURE_TYPE_KEY
 from dlrover.python.unified.trainer.workload import BaseWorkload
 from dlrover.trainer.torch.elastic_run import main
 
@@ -61,7 +68,8 @@ class ElasticWorkload(BaseWorkload):
 
         logger.info(
             f"Run dlrover command in elastic workload: {run_cmd} "
-            f"with node-id(rank): {self.rank}"
+            f"with node-id(rank): {self.rank}, "
+            f"under directory: {os.getcwd()}"
         )
         self._run_agent(run_cmd)
 
@@ -80,3 +88,11 @@ class ElasticWorkload(BaseWorkload):
                 exc_info=True,
             )
             raise RuntimeError("Agent run failed")
+
+    def get_restart_info(self):
+        return (
+            int(time.time()),
+            3,
+            "unknown",
+            {FAILURE_TYPE_KEY: TrainingExceptionLevel.NODE_ERROR},
+        )

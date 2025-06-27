@@ -139,11 +139,11 @@ class DLExecutionVertex(PickleSerializable):
         self.__sub_stage = sub_stage
         self.__sub_stage_index = sub_stage_index
         self.__invocation_meta = invocation_meta
-        self.extra_args = kwargs
+        self.__kwargs = kwargs
 
         # runtime info
         self._pg_info = PlacementGroupInfo()
-        self._actor_handle = None  # type: Optional[ActorHandle]
+        self._actor_handle = None
         self._create_time = 0
         self._exit_time = 0
         self._hostname = ""
@@ -207,8 +207,7 @@ class DLExecutionVertex(PickleSerializable):
         return self._pg_info.bundle_index
 
     @property
-    def actor_handle(self) -> ActorHandle:
-        assert self._actor_handle is not None, "Actor handle is not set."
+    def actor_handle(self):
         return self._actor_handle
 
     @property
@@ -232,16 +231,14 @@ class DLExecutionVertex(PickleSerializable):
         return self._restart_count
 
     def get_extra_args(self, key, default_value=None):
-        if key in self.extra_args:
-            return self.extra_args[key]
+        if key in self.__kwargs:
+            return self.__kwargs[key]
         return default_value
 
     def get_cls(self):
-        cls = get_class_by_module_and_class_name(self.module_name, self.class_name)
-        assert cls is not None, (
-            f"Class {self.class_name} in module {self.module_name} not found."
+        return get_class_by_module_and_class_name(
+            self.module_name, self.class_name
         )
-        return cls
 
     def get_actor_id(self) -> str:
         if self._actor_handle:
@@ -322,7 +319,9 @@ class DLExecutionEdge(PickleSerializable):
         at the same time.
     """
 
-    def __init__(self, index, from_role, to_role, invocation_name, async_group=None):
+    def __init__(
+        self, index, from_role, to_role, invocation_name, async_group=None
+    ):
         self._index = index
         self._from_role: Union[None, str] = from_role
         self._to_role: str = to_role
@@ -494,7 +493,9 @@ class DLExecutionGraph(PickleSerializable):
     def get_all_vertices(self) -> List[DLExecutionVertex]:
         return list(chain(*self.__execution_vertices.values()))
 
-    def get_vertices_by_role_type(self, role_type: str) -> List[DLExecutionVertex]:
+    def get_vertices_by_role_type(
+        self, role_type: str
+    ) -> List[DLExecutionVertex]:
         if role_type in self.execution_vertices:
             return self.execution_vertices[role_type]
         return []

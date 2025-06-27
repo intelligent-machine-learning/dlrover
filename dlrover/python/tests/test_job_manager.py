@@ -343,6 +343,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.OOM
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
+        node.exit_reason = NodeExitReason.RELAUNCHED
+        self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -894,7 +897,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
-        manager._worker_manager.is_all_workers_node_check_failed = (
+        manager._worker_manager.is_all_initial_workers_node_check_failed = (
             mock.MagicMock(return_value=True)
         )
         result, reason, msg = manager.should_early_stop()

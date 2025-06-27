@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.enums import SchedulingStrategyType
+from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.master.scheduler import (
     GroupOrderedScheduler,
@@ -37,6 +38,12 @@ class JobManagerTest(BaseMasterTest):
         self.assertTrue(
             isinstance(job_manager.get_scheduler(), GroupOrderedScheduler)
         )
+        self.assertFalse(job_manager.has_job_error())
+        self.assertFalse(job_manager.gen_failures_by_error())
+        job_manager.gen_failures_by_error = MagicMock(
+            return_value=[FailureDesc(failure_obj="Trainer", reason="test")]
+        )
+        self.assertEqual(job_manager.gen_failures_by_error()[0].reason, "test")
 
         job_manager._executor.execute = MagicMock(return_value=None)
         job_manager.start_job()

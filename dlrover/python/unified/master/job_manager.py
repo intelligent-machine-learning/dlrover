@@ -12,6 +12,7 @@
 # limitations under the License.
 import time
 from abc import ABC, abstractmethod
+from typing import List
 
 import ray
 
@@ -44,6 +45,8 @@ class JobManager(ABC):
         self._scheduler = self.get_scheduler()
         self._executor = self.get_executor()
 
+        self._stopped = False
+
     @property
     def context(self):
         return self._job_ctx
@@ -65,11 +68,13 @@ class JobManager(ABC):
         pass
 
     @abstractmethod
-    def gen_failure_by_error(self) -> FailureDesc:
-        """Return failure according to the current job error."""
+    def gen_failures_by_error(self) -> List[FailureDesc]:
+        """Return failures according to the current job error."""
 
     def is_job_finished(self):
-        return self.executor.is_finished() and not self.context.is_in_failover()
+        return (
+            self.executor.is_finished() and not self.context.is_in_failover()
+        )
 
     def has_job_error(self):
         """Should be implemented by subclasses."""
@@ -85,7 +90,9 @@ class JobManager(ABC):
             return SimpleScheduler(self._execution_graph)
         elif strategy_type == SchedulingStrategyType.GROUP:
             if self._job_ctx.dl_context.has_workload_group():
-                logger.info("Use group strategy for scheduling by specification.")
+                logger.info(
+                    "Use group strategy for scheduling by specification."
+                )
                 return GroupOrderedScheduler(self._execution_graph)
             else:
                 logger.info(
@@ -122,6 +129,8 @@ class JobManager(ABC):
         # destroy all workloads
         self.destroy_workloads()
 
+        self._stopped = True
+
     def _reset(self):
         pass
 
@@ -137,7 +146,8 @@ class JobManager(ABC):
             for create_vertex in self.graph.get_all_vertices()
         ):
             logger.info(
-                "Still waiting actor creation callback for updating runtime info..."
+                "Still waiting actor creation callback for "
+                "updating runtime info..."
             )
             return False
         return True
@@ -182,14 +192,21 @@ class JobManager(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actors setup timeout: {timeout}s."
+                f"{len(not_ready)} workload actors "
+                f"setup timeout: {timeout}s."
             )
 
         end = time.time() * 1000 - start
-        logger.info(f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms")
+        logger.info(
+            f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
+        )
 
-    def execute(self):
-        self.executor.execute()
+    def execute(self, **kwargs):
+        logger.debug(
+            f"{self.__class__.__name__} invoke executor "
+            f"with kwargs: {kwargs}"
+        )
+        self.executor.execute(**kwargs)
 
     def destroy_workloads(self):
         """Sync operation."""
