@@ -1360,6 +1360,7 @@ class DistributedJobManager(JobManager):
                 logger.info(f"Host {node.host_name} is marked unscheduled.")
         return True
 
+
 def create_job_manager(args: JobArgs, perf_monitor) -> DistributedJobManager:
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes

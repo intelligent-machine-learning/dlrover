@@ -76,6 +76,7 @@ class RayScalePlanWatcher:
         while True:
             yield None
 
+
 class ActorWatcher(NodeWatcher):
     """ActorWatcher monitors all actors of a ray Job."""
 

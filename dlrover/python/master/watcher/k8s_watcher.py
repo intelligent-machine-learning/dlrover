@@ -433,14 +433,24 @@ class K8sElasticJobWatcher(object):
                     evt_type = event.get("type")
                     if (
                         evt_type == "MODIFIED" or evt_type == "ADDED"
-                    ) and elasticjob_cr["metadata"].get("name", "") == self._job_name:
+                    ) and elasticjob_cr["metadata"].get(
+                        "name", ""
+                    ) == self._job_name:
                         logger.info(f"get elasticjob {evt_type} event")
 
-                        enable_suspended = elasticjob_cr["spec"].get("suspend", False)
-                        if enable_suspended and not self._job_context.is_suspended():
+                        enable_suspended = elasticjob_cr["spec"].get(
+                            "suspend", False
+                        )
+                        if (
+                            enable_suspended
+                            and not self._job_context.is_suspended()
+                        ):
                             logger.info("try to request suspend")
                             self._job_context.request_suspend()
-                        if not enable_suspended and self._job_context.is_suspended():
+                        if (
+                            not enable_suspended
+                            and self._job_context.is_suspended()
+                        ):
                             logger.info("try to request unsuspend")
                             self._job_context.request_unsuspend()
 
@@ -453,4 +463,6 @@ class K8sElasticJobWatcher(object):
         if self._enable_suspended:
             self._job_context.request_suspend()
 
-        threading.Thread(target=self.watch, name="job-watcher", daemon=True).start()
+        threading.Thread(
+            target=self.watch, name="job-watcher", daemon=True
+        ).start()
