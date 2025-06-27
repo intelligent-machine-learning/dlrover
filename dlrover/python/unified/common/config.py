@@ -112,8 +112,8 @@ class JobConfig(PickleSerializable):
         role = role.upper()
 
         if role in self._workload_max_restart:
-            return max(self._workload_max_restart[role], self.job_max_restart)
-        return DLMasterConstant.WORKLOAD_MAX_RESTART
+            return self._workload_max_restart[role]
+        return max(DLMasterConstant.WORKLOAD_MAX_RESTART, self.job_max_restart)
 
     @classmethod
     def build_from_args(cls, args):

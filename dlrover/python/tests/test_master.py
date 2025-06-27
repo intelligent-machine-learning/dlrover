@@ -204,11 +204,9 @@ class LocalJobMasterTest(unittest.TestCase):
 
     def test_rdzv_manager(self):
         self.master_client.report_rdzv_params(1, 1, 360, 1, 600)
-        self.master_client.join_rendezvous(
-            0, 8, RendezvousName.ELASTIC_TRAINING
-        )
+        self.master_client.join_rendezvous(0, 8, RendezvousName.TRAINING)
         round, group, world = self.master_client.get_comm_world(
-            RendezvousName.ELASTIC_TRAINING, 0
+            RendezvousName.TRAINING, 0
         )
         self.assertEqual(round, 1)
         self.assertEqual(group, 0)

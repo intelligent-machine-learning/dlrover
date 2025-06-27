@@ -14,13 +14,13 @@ import time
 from unittest.mock import MagicMock
 
 from dlrover.python.unified.common.failure import FailureDesc
-from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
+from dlrover.python.unified.master.mpmd.failover import MPMDFailoverCoordinator
 from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 
 
-class FailoverCoordinatorTest(BaseMasterTest):
-    def test_handle_failure(self):
+class MPMDFailoverCoordinatorTest(BaseMasterTest):
+    def test_handle_failures(self):
         job_manager = MPMDJobManager()
         job_manager.start_job = MagicMock(return_value=None)
         job_manager.stop_job = MagicMock(return_value=None)
@@ -28,7 +28,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
         def callback():
             return
 
-        fc = FailoverCoordinator(job_manager, callback, callback)
+        fc = MPMDFailoverCoordinator(job_manager, callback, callback)
 
         desc = FailureDesc(
             workload_name="test",
@@ -38,7 +38,7 @@ class FailoverCoordinatorTest(BaseMasterTest):
             reason="unknown",
         )
 
-        fc.handle_failure(desc)
+        fc.handle_failures([desc])
         job_manager.start_job.assert_called_once()
         job_manager.stop_job.assert_called_once()
 
@@ -48,6 +48,6 @@ class FailoverCoordinatorTest(BaseMasterTest):
             failure_level=0,
             reason="unknown",
         )
-        fc.handle_failure(desc)
+        fc.handle_failures([desc])
         job_manager.start_job.assert_called_once()
         job_manager.stop_job.assert_called_once()

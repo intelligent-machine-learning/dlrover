@@ -221,9 +221,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         self._rdzv_managers: Dict[
             str, RendezvousManager
         ] = self._master.rdzv_managers
-        rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.ELASTIC_TRAINING, None
-        )
+        rdzv_manager = self._rdzv_managers.get(RendezvousName.TRAINING, None)
         if rdzv_manager:
             self._min_node = rdzv_manager.get_min_nodes()
         else:

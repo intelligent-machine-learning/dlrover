@@ -10,19 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 from unittest import mock
 
 from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_class import (
     TestActor,
     TestInteractiveTrainer,
     TestRollout,
 )
-from dlrover.python.unified.trainer.trainer import RoleGroupProxy
+from dlrover.python.unified.trainer.trainer import (
+    DefaultTrainer,
+    RoleGroupProxy,
+)
 
 
-class BaseTrainerTest(unittest.TestCase):
+class BaseTrainerTest(BaseTest):
     def test_basic(self):
         trainer = TestInteractiveTrainer(
             {RLRoleType.ACTOR.name: [None, None]},
@@ -51,6 +54,15 @@ class BaseTrainerTest(unittest.TestCase):
         self.assertEqual(trainer.reward_resource, 1)
         self.assertEqual(trainer.critic_resource, 1)
         self.assertEqual(len(trainer.config), 1)
+
+    def test_default(self):
+        trainer = DefaultTrainer(
+            {RLRoleType.ACTOR.name: [None, None]},
+            {RLRoleType.ACTOR.name: (TestActor, 1)},
+            {"k1": "v1"},
+        )
+        trainer.init()
+        trainer.fit()
 
     def test_role_group_proxy(self):
         role_group = RoleGroupProxy(
