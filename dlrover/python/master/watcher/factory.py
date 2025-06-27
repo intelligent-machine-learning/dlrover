@@ -46,10 +46,11 @@ def new_scale_plan_watcher(platform, job_name, namespace, job_uuid):
     else:
         raise ValueError("Not support engine %s", platform)
 
+
 def new_elasticjob_watcher(args):
     if args.platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         from dlrover.python.master.watcher.k8s_watcher import (
-            K8sElasticJobWatcher
+            K8sElasticJobWatcher,
         )
 
         logger.info(f"New elasticjob watcher for engine {args.platform}")

@@ -24,12 +24,12 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     JobConstant,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
     ScalePlanLabel,
-    JobStage,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import (
@@ -38,7 +38,7 @@ from dlrover.python.common.node import (
     NodeGroupResource,
     NodeResource,
 )
-from dlrover.python.master.node.job_context import get_job_context, JobContext
+from dlrover.python.master.node.job_context import JobContext, get_job_context
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.kubernetes import (
@@ -401,11 +401,13 @@ class K8sScalePlanWatcher:
             body=scale_crd,
         )
 
+
 class K8sElasticJobWatcher(object):
     """K8sElasticJobWatcher monitors the Elasticjob CR on the cluster.
     It nodify the JobContext to update the job status.
     """
-    def __init__(self,args):
+
+    def __init__(self, args):
         self._job_name = args.job_name
         self._namespace = args.namespace
         self._job_uid = args.job_uuid
@@ -416,7 +418,6 @@ class K8sElasticJobWatcher(object):
 
     def watch(self):
         w = watch.Watch()
-
         while True:
             try:
                 for event in w.stream(
@@ -431,9 +432,8 @@ class K8sElasticJobWatcher(object):
                     elasticjob_cr = event.get("object", None)
                     evt_type = event.get("type")
                     if (
-                            (evt_type == "MODIFIED" or evt_type == "ADDED")
-                            and elasticjob_cr["metadata"].get("name", "") == self._job_name
-                    ):
+                        evt_type == "MODIFIED" or evt_type == "ADDED"
+                    ) and elasticjob_cr["metadata"].get("name", "") == self._job_name:
                         logger.info(f"get elasticjob {evt_type} event")
 
                         enable_suspended = elasticjob_cr["spec"].get("suspend", False)
@@ -453,6 +453,4 @@ class K8sElasticJobWatcher(object):
         if self._enable_suspended:
             self._job_context.request_suspend()
 
-        threading.Thread(
-            target=self.watch, name="job-watcher", daemon=True
-        ).start()
+        threading.Thread(target=self.watch, name="job-watcher", daemon=True).start()
