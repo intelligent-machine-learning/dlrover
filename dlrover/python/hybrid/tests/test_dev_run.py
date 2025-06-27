@@ -3,10 +3,7 @@ import time
 import pytest
 import ray
 
-from dlrover.python.hybrid.center.config import (
-    DLConfig,
-    JobConfig,
-)
+from dlrover.python.hybrid.center.config import DLConfig, JobConfig
 from dlrover.python.hybrid.center.master import HybridMaster
 from dlrover.python.hybrid.common.workload_config import ElasticWorkloadDesc
 

@@ -122,7 +122,9 @@ class Placement(ABC):
             logger.error("Got timeout when creating placement group.")
             raise ResourceError()
 
-        logger.info(f"All placement group created used: {time.time() - start:.2f}s")
+        logger.info(
+            f"All placement group created used: {time.time() - start:.2f}s"
+        )
 
     @classmethod
     @abstractmethod
@@ -162,7 +164,9 @@ class SingleBundlePerNodePlacement(Placement):
         if not strategy_from_env:
             return "STRICT_SPREAD"
 
-        logger.info(f"Override placement strategy from env: {strategy_from_env}.")
+        logger.info(
+            f"Override placement strategy from env: {strategy_from_env}."
+        )
         return strategy_from_env
 
     def prepare_placement_group(self):
@@ -192,7 +196,9 @@ class SingleBundlePerNodePlacement(Placement):
 
     def allocate_placement_group(self):
         workload_group = self.graph.get_workload_group()
-        pg = self.graph.get_placement_group(SingleBundlePerNodePlacement.PG_NAME)
+        pg = self.graph.get_placement_group(
+            SingleBundlePerNodePlacement.PG_NAME
+        )
         allocated_bundles = []
         bundle_topology = self.graph.get_bundle_topology()
 
@@ -233,7 +239,9 @@ class SingleGroupPerNodePlacement(Placement):
         if not strategy_from_env:
             return "STRICT_PACK"
 
-        logger.info(f"Override placement strategy from env: {strategy_from_env}.")
+        logger.info(
+            f"Override placement strategy from env: {strategy_from_env}."
+        )
         return strategy_from_env
 
     def prepare_placement_group(self):
@@ -285,7 +293,9 @@ class SingleGroupPerNodePlacement(Placement):
             group_desc = group_tuple[0]
 
             for role, role_group_size in group_desc.items():
-                for index, vertex in enumerate(self.graph.execution_vertices[role]):
+                for index, vertex in enumerate(
+                    self.graph.execution_vertices[role]
+                ):
                     pg = pgs[index // role_group_size]
                     bundle_index = index % role_group_size
                     logger.debug(
@@ -302,7 +312,9 @@ class SingleGroupPerNodePlacement(Placement):
             group_desc = group_tuple[0]
 
             for role, role_group_size in group_desc.items():
-                for index, vertex in enumerate(self.graph.execution_vertices[role]):
+                for index, vertex in enumerate(
+                    self.graph.execution_vertices[role]
+                ):
                     pg = pgs[index // role_group_size]
                     bundle_index = index % role_group_size
                     logger.debug(

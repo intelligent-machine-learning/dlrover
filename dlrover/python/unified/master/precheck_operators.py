@@ -168,7 +168,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
 
                 if (
                     pending_worker_0.create_time
-                    and now - pending_worker_0.create_time.timestamp() > timeout
+                    and now - pending_worker_0.create_time.timestamp()
+                    > timeout
                 ):
                     logger.warning(
                         f"Node {pending_worker_0.name} "
@@ -181,11 +182,14 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                     return True, pending_worker_0
                 return True, None
             else:
-                first_pending_wk = min(pending_workers, key=lambda x: x.create_time)  # type: ignore
+                first_pending_wk = min(
+                    pending_workers, key=lambda x: x.create_time
+                )  # type: ignore
                 if (
                     first_pending_wk
                     and first_pending_wk.create_time
-                    and now - first_pending_wk.create_time.timestamp() > timeout
+                    and now - first_pending_wk.create_time.timestamp()
+                    > timeout
                 ):
                     logger.warning(
                         f"Node {first_pending_wk.name} "
@@ -205,7 +209,9 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         start = time.time()
         while True:
             if time.time() - start > timeout:
-                logger.warning(f"Scheduling hasn't started for over {timeout}s.")
+                logger.warning(
+                    f"Scheduling hasn't started for over {timeout}s."
+                )
                 return False
 
             has_started = False
@@ -217,7 +223,9 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             if has_started:
                 return True
             else:
-                logger.info(f"Scheduling hasn't started yet, wait {wait_time}s...")
+                logger.info(
+                    f"Scheduling hasn't started yet, wait {wait_time}s..."
+                )
                 time.sleep(wait_time)
 
     def check(self, *args, **kwargs):
@@ -249,13 +257,19 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         while True:
             logger.info(f"Scheduling pre-check round: {round}")
             if job_type == DistributionStrategy.ALLREDUCE:
-                cur_nodes = list(job_ctx.job_nodes_by_type(NodeType.WORKER).values())
+                cur_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+                )
                 pending_result = self.check_allreduce_job_pending(
                     cur_nodes, timeout, strategy
                 )
             elif job_type == DistributionStrategy.PS:
-                ps_nodes = list(job_ctx.job_nodes_by_type(NodeType.PS).values())
-                worker_nodes = list(job_ctx.job_nodes_by_type(NodeType.WORKER).values())
+                ps_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.PS).values()
+                )
+                worker_nodes = list(
+                    job_ctx.job_nodes_by_type(NodeType.WORKER).values()
+                )
                 pending_result = self.check_ps_job_pending(
                     ps_nodes + worker_nodes, timeout, strategy
                 )
@@ -286,8 +300,9 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         result_msg = str(kwargs.get("result_msg"))
         abnormal_nodes = kwargs.get("abnormal_nodes")
         msg = result_msg
-        if result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG and isinstance(
-            abnormal_nodes, list
+        if (
+            result_msg == SchedulingPreCheckOperator.PENDING_TIMEOUT_MSG
+            and isinstance(abnormal_nodes, list)
         ):
             msg = result_msg + ":" + str(abnormal_nodes[0].id)
         return [
@@ -335,7 +350,8 @@ class ConnectionPreCheckOperator(PreCheckOperator):
                 for _, node in nodes.items():
                     if (
                         node.status == NodeStatus.RUNNING
-                        and node.reported_status[0] != NodeEventType.WAIT_PRE_CHECK
+                        and node.reported_status[0]
+                        != NodeEventType.WAIT_PRE_CHECK
                     ):
                         logger.debug(
                             f"Node {node.id} failed connection check, retry time: {i}."

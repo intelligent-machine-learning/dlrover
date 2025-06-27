@@ -15,9 +15,8 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.node.job_context import (
-    get_job_context as get_elastic_context,
-)
+from dlrover.python.master.node.job_context import \
+    get_job_context as get_elastic_context
 from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
 
@@ -102,9 +101,9 @@ class ElasticManager:
                         old_node = self._old_context.job_node(
                             NodeType.WORKER, node.rank
                         )
-                        assert old_node is not None, (
-                            f"Node({node.rank}) not found in context"
-                        )
+                        assert (
+                            old_node is not None
+                        ), f"Node({node.rank}) not found in context"
                         status = convert_to_node_state(status)
                         old_node.update_status(status)
                         self._old_context.update_job_node(old_node)

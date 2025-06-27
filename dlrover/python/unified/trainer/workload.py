@@ -19,7 +19,6 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
 
 import ray
-from dlrover.python.unified.trainer.trainer import MethodInvocationMeta
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
@@ -27,6 +26,7 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.remote.call_obj import RuntimeInfo
+from dlrover.python.unified.trainer.trainer import MethodInvocationMeta
 
 
 def trainer_invocation(
@@ -129,7 +129,9 @@ class BaseWorkload(ABC):
         self._rank = int(os.environ[DLWorkloadEnv.RANK])
         self._world_size = int(os.environ[DLWorkloadEnv.WORLD_SIZE])
         self._local_rank = int(os.environ[DLWorkloadEnv.LOCAL_RANK])
-        self._local_world_size = int(os.environ[DLWorkloadEnv.LOCAL_WORLD_SIZE])
+        self._local_world_size = int(
+            os.environ[DLWorkloadEnv.LOCAL_WORLD_SIZE]
+        )
 
         self.__create_time = int(time.time())
         self.__executor = ThreadPoolExecutor(max_workers=4)

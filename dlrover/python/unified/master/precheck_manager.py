@@ -23,9 +23,7 @@ from dlrover.python.common.event.reporter import report_event
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.diagnosis.common.diagnosis_action import (
-    DiagnosisAction,
-)
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.util.function_util import TimeoutException
 from dlrover.python.util.time_util import get_pending_timeout
@@ -114,7 +112,9 @@ class PreCheckManager:
         while True:
             logger.info(f"Pre-check round: {round}")
             for index, pre_check_op in enumerate(self.operators):
-                bypass = _dlrover_context.is_pre_check_operator_bypass(pre_check_op)
+                bypass = _dlrover_context.is_pre_check_operator_bypass(
+                    pre_check_op
+                )
                 success = self._do_check(
                     pre_check_op,
                     index,
@@ -131,7 +131,9 @@ class PreCheckManager:
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_PRE_CHECK_PASS,
         )
-        logger.info(f"Training pre-check complete, cost:{time.time() - start:.2f}s.")
+        logger.info(
+            f"Training pre-check complete, cost:{time.time() - start:.2f}s."
+        )
 
     def _do_check(
         self, op: PreCheckOperator, index: int, ignore_failure: bool = False

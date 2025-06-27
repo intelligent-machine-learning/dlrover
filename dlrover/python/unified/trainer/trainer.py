@@ -126,20 +126,24 @@ class RoleGroupProxy(object):
             if attr.target == "RANK0":
                 logger.debug(f"{method_name} do rank0 invocation")
                 refs = [
-                    getattr(self._actor_handles[0], method_name).remote(*args, **kwargs)
+                    getattr(self._actor_handles[0], method_name).remote(
+                        *args, **kwargs
+                    )
                 ]
             else:
                 logger.debug(f"{method_name} do all invocation")
-                if attr.auto_shard and self._can_shard_invocation(*args, **kwargs):
+                if attr.auto_shard and self._can_shard_invocation(
+                    *args, **kwargs
+                ):
                     logger.debug(f"{method_name} do sharding invocation")
                     result = []
                     for i in range(self.world_size):
                         shard_args = tuple(arg[i] for arg in args)
                         shard_kwargs = {k: v[i] for k, v in kwargs.items()}
                         result.append(
-                            getattr(self._actor_handles[i], method_name).remote(
-                                *shard_args, **shard_kwargs
-                            )
+                            getattr(
+                                self._actor_handles[i], method_name
+                            ).remote(*shard_args, **shard_kwargs)
                         )
                     refs = result
                 else:
@@ -216,7 +220,9 @@ class BaseTrainer(ABC):
         )
 
     def _get_workloads_size(self) -> Dict[str, int]:
-        return {role: len(handles) for role, handles in self._actor_handles.items()}
+        return {
+            role: len(handles) for role, handles in self._actor_handles.items()
+        }
 
     def __init_role_group_proxy(self):
         for role, handles in self._actor_handles.items():

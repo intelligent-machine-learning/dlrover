@@ -12,9 +12,8 @@
 # limitations under the License.
 
 from dlrover.python.master.node.job_context import JobContext, get_job_context
-from dlrover.python.unified.common.job_context import (
-    get_job_context as get_unified_job_context,
-)
+from dlrover.python.unified.common.job_context import \
+    get_job_context as get_unified_job_context
 
 
 class ElasticJobContext(JobContext):

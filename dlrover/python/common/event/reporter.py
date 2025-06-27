@@ -10,10 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from functools import cache
 import importlib
 import json
 from datetime import datetime
+from functools import cache
 from typing import Dict
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
@@ -121,7 +121,9 @@ class EventReporter(Singleton):
         )
 
     @ignore_exceptions()
-    def report_job_fail(self, job_evt: DurationSpan, args: JobArgs, error: str):
+    def report_job_fail(
+        self, job_evt: DurationSpan, args: JobArgs, error: str
+    ):
         job_evt.fail(error=error)
 
         self.report(
@@ -137,7 +139,9 @@ class EventReporter(Singleton):
     # ================ JobManager Start ================
 
     @ignore_exceptions()
-    def report_node_status_change(self, node: Node, old_status: str, new_status: str):
+    def report_node_status_change(
+        self, node: Node, old_status: str, new_status: str
+    ):
         """Report node status when changing."""
 
         _master_evt.worker_event(

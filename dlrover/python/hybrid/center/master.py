@@ -8,9 +8,9 @@ from dlrover.python.hybrid.util.actor_helper import ActorProxy
 
 class HybridMaster:
     def __init__(self, config: JobConfig):
-        assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
-            f"HybridMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
-        )
+        assert (
+            ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID
+        ), f"HybridMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
 
         self.manager = HybridManager(config)
 

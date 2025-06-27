@@ -100,7 +100,9 @@ class DiagnosisMaster:
                 EventReportConstants.JOB_INSTANCE,
                 EventReportConstants.ACTION_PRE_CHECK_DISABLE,
             )
-            logger.info("Pre-check operator config is empty, pre-check disabled.")
+            logger.info(
+                "Pre-check operator config is empty, pre-check disabled."
+            )
             self._job_context.set_pre_check_status(PreCheckStatus.DISABLED)
             return
 
@@ -155,7 +157,9 @@ class DiagnosisMaster:
                     check_start = time.time()
 
                     # do check
-                    current_op_result = pre_check_op.check(job_args=self._job_args)
+                    current_op_result = pre_check_op.check(
+                        job_args=self._job_args
+                    )
                     logger.info(
                         f"{pre_check_op_name}({index}) done checking, "
                         f"cost: {time.time() - check_start:.2f}s, "
@@ -164,7 +168,9 @@ class DiagnosisMaster:
 
                     if not current_op_result.is_success():
                         # for fail result
-                        if _dlrover_context.is_pre_check_operator_bypass(pre_check_op):
+                        if _dlrover_context.is_pre_check_operator_bypass(
+                            pre_check_op
+                        ):
                             if is_last_op:
                                 logger.warning(
                                     f"Set last {pre_check_op_name}"
@@ -256,7 +262,9 @@ class DiagnosisMaster:
                 round += 1
                 continue
 
-        logger.info(f"Training pre-check complete, cost:{time.time() - start:.2f}s.")
+        logger.info(
+            f"Training pre-check complete, cost:{time.time() - start:.2f}s."
+        )
 
     def new_metric_monitor(self, monitor):
         self._metric_monitor = monitor
@@ -337,7 +345,9 @@ class DiagnosisMaster:
                 logger.info("_diagnose_metrics thread has started")
 
         except Exception as e:
-            logger.error(f"Failed to start the diagnosis manager thread. Error: {e}")
+            logger.error(
+                f"Failed to start the diagnosis manager thread. Error: {e}"
+            )
 
     def stop_observing(self):
         logger.info("Stop diagnosis manager training observation...")
@@ -363,7 +373,9 @@ class DiagnosisMaster:
             return DiagnosisResult.DIAG_ERROR, 0, 0
 
         if len(metrics) < duration:
-            logger.debug(f"Waiting for tensor metrics: {len(metrics)}/{duration}")
+            logger.debug(
+                f"Waiting for tensor metrics: {len(metrics)}/{duration}"
+            )
             return DiagnosisResult.DIAG_WAITING, 0, 0
 
         key_list = list(metrics.keys())
@@ -407,8 +419,12 @@ class DiagnosisMaster:
             step_hang = _event_context.check_job_step_hang()
 
             if result is DiagnosisResult.DIAG_HANG:
-                start_dt = datetime.fromtimestamp(start).strftime("%Y-%m-%d %H:%M:%S")
-                end_dt = datetime.fromtimestamp(end).strftime("%Y-%m-%d %H:%M:%S")
+                start_dt = datetime.fromtimestamp(start).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                end_dt = datetime.fromtimestamp(end).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 logger.warning(
                     f"Detect job hang by tensor drop zero: "
                     f"{start_dt}-{end_dt}, step hang is {step_hang}"
@@ -416,17 +432,23 @@ class DiagnosisMaster:
 
                 if _dlrover_context.hang_detection == 2:
                     if step_hang is True:
-                        node = self._job_context.job_node_by_rank(NodeType.WORKER, 0)
+                        node = self._job_context.job_node_by_rank(
+                            NodeType.WORKER, 0
+                        )
                         if node is None:
                             logger.warning("Failed to get rank 0 worker")
                         else:
-                            logger.info(f"Restart worker-{node.id} all processes")
+                            logger.info(
+                                f"Restart worker-{node.id} all processes"
+                            )
                             _event_context.train_steps.clear_step_events()
                             self._job_context.enqueue_diagnosis_action(
                                 NodeAction(
                                     node_id=node.id,
                                     node_type=NodeType.WORKER,
-                                    action_type=(DiagnosisActionType.RESTART_WORKER),
+                                    action_type=(
+                                        DiagnosisActionType.RESTART_WORKER
+                                    ),
                                     instance=DiagnosisConstant.ANY_INSTANCE,
                                 )
                             )
@@ -446,4 +468,6 @@ class DiagnosisMaster:
             action = self._diagnostician.resolve_problems(observed_problems)
             self._job_context.enqueue_diagnosis_action(action)
 
-            time.sleep(DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS)
+            time.sleep(
+                DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
+            )
