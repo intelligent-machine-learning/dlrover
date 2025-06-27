@@ -273,7 +273,7 @@ class JobContext(Singleton):
                 self._job_pre_status = self._job_stage
                 self._job_stage = JobStage.JOB_SUSPENDED
             else:
-                logger.info(f"{self.get_job_stage()} job skip suspend")
+                logger.info(f"{self._job_stage} job skip suspend")
 
     def request_unsuspend(self):
         with self._locker:
@@ -281,7 +281,7 @@ class JobContext(Singleton):
                 logger.info("job is unsuspended")
                 self._job_stage = self._job_pre_status
             else:
-                logger.info(f"{self.get_job_stage()} job can not be unsuspend")
+                logger.info(f"{self._job_stage} job can not be unsuspend")
 
     def is_suspended(self):
         return self._job_stage == JobStage.JOB_SUSPENDED
