@@ -10,12 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
 
 import ray
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.master import BaseMaster
-from dlrover.python.unified.master.mpmd.failover import FailoverCoordinator
+from dlrover.python.unified.master.mpmd.failover import MPMDFailoverCoordinator
 from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 
 
@@ -31,6 +33,7 @@ class MPMDMaster(BaseMaster):
 
         self._failover_coordinator = None
         self.init()
+        logger.info(f"MPMD master initialized: {self.job_name}.")
 
     @property
     def failover_coordinator(self):
@@ -38,12 +41,12 @@ class MPMDMaster(BaseMaster):
 
     def init(self):
         self._job_manager = MPMDJobManager()
-        self._failover_coordinator = FailoverCoordinator(
+        self._failover_coordinator = MPMDFailoverCoordinator(
             self._job_manager, self._save_context_to_checkpoint, self.exit_job
         )
 
-    def _handle_failure(self, failure: FailureDesc):
-        self.failover_coordinator.handle_failure(failure)
+    def _handle_failures(self, failures: List[FailureDesc]):
+        self.failover_coordinator.handle_failures(failures)
 
     """Remote call functions start"""
     # TODO

@@ -14,8 +14,13 @@ from typing import Dict, List, Set, Tuple, Union
 
 from omegaconf import DictConfig
 
+from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.constant import (
+    DLWorkloadEnv,
+    InternalDLConfig,
+    InternalDLWorkloadRole,
+)
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
@@ -51,7 +56,12 @@ class DLTrainerConfig(DLRoleConfig):
     """
 
     def __init__(self, trainer_type, module_name, class_name, **kwargs):
-        super().__init__("trainer", module_name, class_name, **kwargs)
+        super().__init__(
+            InternalDLWorkloadRole.TRAINER_ROLE,
+            module_name,
+            class_name,
+            **kwargs,
+        )
         self._trainer_type: TrainerType = trainer_type
 
     @property
@@ -146,7 +156,7 @@ class DLJob(object):
 
     @property
     def trainer(self):
-        return self._components["trainer"]
+        return self._components[InternalDLWorkloadRole.TRAINER_ROLE]
 
     def get_workload(self, role):
         return self._components[role]
@@ -164,8 +174,12 @@ class DLJob(object):
                     )
                 }
 
-        # default
-        return {self.device_type: 1}
+        if role == InternalDLWorkloadRole.ELASTIC_ROLE:
+            # elastic agent takes all resource of a node
+            return {self.device_type: self.device_per_node}
+        else:
+            # default
+            return {self.device_type: 1}
 
     def _to_dl_config(self):
         config_result = {}
@@ -189,7 +203,7 @@ class DLJob(object):
         workload_dict = {}
 
         for role, role_config in self._components.items():
-            if role == "trainer":
+            if role == InternalDLWorkloadRole.TRAINER_ROLE:
                 continue
             if role_config:
                 role_dict = {
@@ -260,7 +274,7 @@ class DLJob(object):
 
         for key, value in kwargs.items():
             args.append(f"--{key}")
-            args.append(value)
+            args.append(f"{value}")
 
         main(args, blocking)
 
@@ -305,6 +319,20 @@ class DLJobBuilder(object):
             collocations=self._collocations,
         )
 
+    def has_elastic_training(self):
+        if InternalDLWorkloadRole.ELASTIC_ROLE in list(
+            self._components.keys()
+        ):
+            return True
+        return False
+
+    def _validate_dlrover_run_cmd(self, cmd) -> bool:
+        if not cmd:
+            return False
+        if not cmd.startswith("dlrover-run"):
+            return False
+        return True
+
     def validate(self) -> bool:
         if not self._dl_type:
             logger.error("'dl_type' must be set.")
@@ -331,8 +359,15 @@ class DLJobBuilder(object):
 
         # for role components
         if self._stream_type == DLStreamType.TASK_STREAM:
-            if "trainer" not in list(self._components.keys()):
-                logger.error("'trainer' must be set for task stream.")
+            if (
+                InternalDLWorkloadRole.TRAINER_ROLE
+                not in list(self._components.keys())
+                and not self.has_elastic_training()
+            ):
+                logger.error(
+                    "'trainer' must be set for task stream if "
+                    "elastic training not involved."
+                )
                 return False
 
         for role, component in self._components.items():
@@ -350,17 +385,31 @@ class DLJobBuilder(object):
 
                 if isinstance(component, DLTrainerConfig):  # for trainer
                     pass
-                else:  # for workload
-                    if component._num < 1:
+
+                if component.role_name == InternalDLWorkloadRole.ELASTIC_ROLE:
+                    # for elastic-training
+                    if not self._validate_dlrover_run_cmd(
+                        component.others.get("run_cmd")
+                    ):
+                        logger.error(
+                            "dlrover-run command is invalid for "
+                            "elastic training."
+                        )
+                        return False
+                elif (
+                    component.role_name == InternalDLWorkloadRole.TRAINER_ROLE
+                ):
+                    # for common trainer
+                    pass
+                elif isinstance(component, DLWorkloadConfig):
+                    # for general workload
+                    if component.total < 1:
                         logger.error(f"{role}'s 'num' must be greater than 0.")
                         return False
-                    if component._per_node < 1:
+                    if component.per_node < 1:
                         logger.error(
                             f"{role}'s 'per_node' must be greater than 0."
                         )
-                        return False
-                    if not isinstance(component._env, dict):
-                        logger.error(f"{role}'s 'env' must be dict type.")
                         return False
 
         # for workload collocations
@@ -541,11 +590,17 @@ class DLJobBuilder(object):
             self.builder.update_component(self.role_type, self.role_config)
             return self.builder
 
-    def _config_trainer_role(self, module_name, class_name, **kwargs):
+    def _config_trainer_role(
+        self,
+        module_name,
+        class_name,
+        trainer_type: TrainerType = TrainerType.USER_DEFINED,
+        **kwargs,
+    ):
         trainer_config = DLTrainerConfig(
-            TrainerType.USER_DEFINED, module_name, class_name, **kwargs
+            trainer_type, module_name, class_name, **kwargs
         )
-        self._components["trainer"] = trainer_config
+        self._components[InternalDLWorkloadRole.TRAINER_ROLE] = trainer_config
         return self
 
     def _config_workload_role(
@@ -571,6 +626,69 @@ class DLJobBuilder(object):
         """
 
         return self._config_workload_role(role_name, module_name, class_name)
+
+    def dlrover_run(
+        self,
+        run_cmd,
+        worker_module="dlrover.python.unified.trainer.elastic_workload",
+        worker_cls="ElasticWorkload",
+    ):
+        """
+        Setup elastic agent workload(use elastic agent for elastic training,
+            same with 'torchrun' case).
+
+        Args:
+            run_cmd (str): The training command.
+                e.g. 'dlrover-run --xxx train.py'
+        """
+
+        # set a default trainer
+        self._default_trainer()
+
+        # set workload role
+        self._config_workload_role(
+            InternalDLWorkloadRole.ELASTIC_ROLE,
+            worker_module,
+            worker_cls,
+            run_cmd=run_cmd,
+        )
+
+        # resolve total(--nnodes) and per-node(--nproc_per_node) from command
+        for part in run_cmd.split():
+            if part.startswith("--nnodes="):
+                value = part.split("=")[1]
+                if ":" in value:
+                    _, max_value = value.split(":")
+                    self._role_configurator.role_config._num = int(max_value)
+                else:
+                    self._role_configurator.role_config._num = int(value)
+            elif part.startswith("--nproc_per_node="):
+                self._role_configurator.role_config._per_node = int(
+                    part.split("=")[1]
+                )
+
+        assert self._role_configurator.role_config.total > 1
+        assert (
+            self._role_configurator.role_config.per_node
+            == self._device_per_node
+        )
+
+        # set the cmd into config
+        self._config[InternalDLConfig.ELASTIC_RUN_CMD] = run_cmd
+
+        # set default global env
+        self._env[
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
+        ] = CommunicationType.COMM_SERVICE_RAY
+
+        return self
+
+    def _default_trainer(self):
+        return self._config_trainer_role(
+            "dlrover.python.unified.trainer.trainer",
+            "DefaultTrainer",
+            TrainerType.ELASTIC_TRAINING,
+        )
 
     def trainer(self, module_name, class_name):
         """
@@ -616,7 +734,7 @@ class DLJobBuilder(object):
 
         roles = set()
         for role, role_config in self._components.items():
-            if role == "trainer" or not role_config:
+            if role == InternalDLWorkloadRole.TRAINER_ROLE or not role_config:
                 continue
             roles.add(role)
         self._collocations.append(roles)
@@ -759,7 +877,10 @@ class RLJobBuilder(DLJobBuilder):
             return False
 
         for role, component in self._components.items():
-            if role != "trainer" and role not in RLJobBuilder.ROLES:
+            if (
+                role != InternalDLWorkloadRole.TRAINER_ROLE
+                and role not in RLJobBuilder.ROLES
+            ):
                 logger.error(
                     f"{role} is invalid for rl, supported roles "
                     f"are {RLJobBuilder.ROLES}."

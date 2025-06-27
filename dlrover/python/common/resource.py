@@ -19,6 +19,7 @@ class Resource(object):
         self._memory: int = memory
         self._disk: int = disk
         self._gpu: float = gpu
+        self._gpu_type: str = ""
 
         self._ud_resource: Dict[str, float] = ud_resource
 
@@ -28,6 +29,7 @@ class Resource(object):
             f"mem={self._memory}, "
             f"disk={self._disk}, "
             f"gpu={self._gpu}, "
+            f"gpu_type={self._gpu_type}, "
             f"user_defined={self._ud_resource})"
         )
 
@@ -46,6 +48,10 @@ class Resource(object):
     @property
     def gpu(self):
         return self._gpu
+
+    @property
+    def gpu_type(self):
+        return self._gpu_type
 
     @property
     def ud_resource(self):

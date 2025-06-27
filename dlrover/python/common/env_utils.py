@@ -16,7 +16,7 @@ import socket
 
 import psutil
 
-from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -138,3 +138,12 @@ def get_hostname_and_ip():
         ip_address = "Unknown"
 
     return hostname, ip_address
+
+
+def is_ray_mode():
+    if (
+        get_env(NodeEnv.DLROVER_MASTER_SERVICE_TYPE)
+        == CommunicationType.COMM_SERVICE_RAY
+    ):
+        return True
+    return False

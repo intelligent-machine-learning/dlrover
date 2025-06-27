@@ -10,51 +10,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import threading
 import time
+from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.constant import (
-    DLJobExitReason,
-    DLMasterConstant,
-)
-from dlrover.python.unified.common.enums import FailoverLevel, JobStage
+from dlrover.python.unified.common.constant import DLMasterConstant
+from dlrover.python.unified.common.enums import FailoverLevel
 from dlrover.python.unified.common.failure import FailureDesc
-from dlrover.python.unified.common.job_context import (
-    RestartInfo,
-    get_job_context,
-)
-from dlrover.python.unified.master.mpmd.job_manager import JobManager
+from dlrover.python.unified.common.job_context import RestartInfo
+from dlrover.python.unified.master.failover import FailoverCoordinator
 
 
-class FailoverCoordinator(object):
+class MPMDFailoverCoordinator(FailoverCoordinator):
     """
-    To coordinate job management when failure happens.
+    To coordinate job management when failure happens in MPMD mode.
     """
 
-    def __init__(self, job_manager, save_context_callback, exit_job_callback):
-        self._job_manager: JobManager = job_manager
-        self._save_context_callback = save_context_callback
-        self._exit_job_callback = exit_job_callback
+    def handle_failures(self, failures: List[FailureDesc]):
+        # process 1st failure each time if there is multi failures
+        failure = failures[0]
 
-        self._job_context = get_job_context()
-
-        self._lock = threading.Lock()
-
-    @property
-    def context(self):
-        return self._job_context
-
-    def _is_failover_stage(self):
-        self._job_context.is_in_failover()
-
-    def _set_failover_stage(self):
-        self._job_context.set_in_failover_stage()
-
-    def _reset_failover_stage(self):
-        self._job_context.set_job_stage(JobStage.RUNNING)
-
-    def handle_failure(self, failure: FailureDesc):
         with self._lock:
             if self._is_failover_stage():
                 logger.info(
@@ -151,7 +126,7 @@ class FailoverCoordinator(object):
 
         start = int(time.time())
 
-        self._job_manager.stop_job()
+        self.job_manager.stop_job()
 
         wait_interval = DLMasterConstant.GLOBAL_FAILOVER_INTERVAL
         for i in range(wait_interval):
@@ -160,7 +135,7 @@ class FailoverCoordinator(object):
             )
             time.sleep(1)
 
-        self._job_manager.start_job()
+        self.job_manager.start_job()
         self._save_context()
         logger.info(
             f"Global failover procedure cost {time.time() - start:.2f}s"
@@ -172,18 +147,3 @@ class FailoverCoordinator(object):
         logger.info("Trigger partial failover procedure.")
         # TODO
         pass
-
-    def _ignore_failover(self, failure: FailureDesc):
-        logger.info(f"Ignore failover for failure: {failure}")
-
-    def _save_context(self):
-        logger.info("Save context after failover.")
-        self._save_context_callback()
-
-    def _abort_job(self):
-        logger.info("Abort job for failover can no longer proceed.")
-        self._exit_job_callback(
-            stage=JobStage.ERROR,
-            forced=True,
-            reason=DLJobExitReason.FAILOVER_OUT_OF_LIMIT,
-        )

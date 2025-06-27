@@ -12,6 +12,7 @@
 # limitations under the License.
 import time
 from abc import ABC, abstractmethod
+from typing import List
 
 import ray
 
@@ -21,6 +22,7 @@ from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
 )
 from dlrover.python.unified.common.enums import SchedulingStrategyType
+from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.graph import DLExecutionGraph
 from dlrover.python.unified.master.scheduler import (
@@ -43,6 +45,8 @@ class JobManager(ABC):
         self._scheduler = self.get_scheduler()
         self._executor = self.get_executor()
 
+        self._stopped = False
+
     @property
     def context(self):
         return self._job_ctx
@@ -51,9 +55,30 @@ class JobManager(ABC):
     def graph(self):
         return self._execution_graph
 
+    @property
+    def executor(self):
+        return self._executor
+
+    @property
+    def job_name(self):
+        return self.context.job_config.job_name
+
     @abstractmethod
     def get_executor(self):
         pass
+
+    @abstractmethod
+    def gen_failures_by_error(self) -> List[FailureDesc]:
+        """Return failures according to the current job error."""
+
+    def is_job_finished(self):
+        return (
+            self.executor.is_finished() and not self.context.is_in_failover()
+        )
+
+    def has_job_error(self):
+        """Should be implemented by subclasses."""
+        return False
 
     def _get_scheduling_type_from_context(self):
         return self._job_ctx.job_config.scheduling_strategy_type
@@ -103,6 +128,8 @@ class JobManager(ABC):
 
         # destroy all workloads
         self.destroy_workloads()
+
+        self._stopped = True
 
     def _reset(self):
         pass
@@ -174,23 +201,15 @@ class JobManager(ABC):
             f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
         )
 
-    def execute(self):
-        self._executor.execute()
+    def execute(self, **kwargs):
+        logger.debug(
+            f"{self.__class__.__name__} invoke executor "
+            f"with kwargs: {kwargs}"
+        )
+        self.executor.execute(**kwargs)
 
     def destroy_workloads(self):
         """Sync operation."""
 
         logger.info("Start destroying all workloads...")
         self._scheduler.cleanup()
-
-    def is_job_finished(self):
-        return (
-            self._executor.is_trainer_finished()
-            and not self.context.is_in_failover()
-        )
-
-    def is_trainer_error(self):
-        return self._executor.is_trainer_error()
-
-    def get_trainer_error(self):
-        return self._executor.get_trainer_error()

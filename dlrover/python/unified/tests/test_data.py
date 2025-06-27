@@ -143,19 +143,19 @@ class TestData(object):
     UD_SIMPLE_TEST_SFT_CONF_0 = {
         "config": {"c1": "v1"},
         "trainer": {
-            "type": "SPMD_TORCHRUN",
+            "type": "ELASTIC_TRAINING",
             "module": "dlrover.python.unified.tests.test_class",
             "class": "TestTrainer",
-            "node_number": 1,
+            "node_number": 2,
             "device_type": "CPU",
             "device_per_node": 1,
         },
         "workload": {
-            "sft": {
-                "num": 4,
+            "ELASTIC": {
+                "num": 2,
                 "module": "dlrover.python.unified.tests.test_class",
                 "class": "TestActor",
-                "resource": {"cpu": 0.25},
+                "resource": {"cpu": 1},
             }
         },
     }

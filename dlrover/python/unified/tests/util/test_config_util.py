@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import unittest
 
 from omegaconf import DictConfig, OmegaConf
 
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.util.config_util import (
     args_2_omega_conf,
     convert_str_values,
@@ -22,7 +22,7 @@ from dlrover.python.unified.util.config_util import (
 )
 
 
-class ConfigUtilTest(unittest.TestCase):
+class ConfigUtilTest(BaseTest):
     def test_args_2_omega_transfer(self):
         parser = argparse.ArgumentParser()
         parser.add_argument("--test0", type=str, default=None)

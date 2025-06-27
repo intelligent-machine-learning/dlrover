@@ -10,7 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Dict
 
 
 @dataclass
@@ -32,6 +33,7 @@ class FailureDesc(object):
             0: no need to care,
             1: partial recoverable,
             2: unrecoverable
+            3: recoverable
             Default is -1.
         reason (str, optional): The failure reason in str format.
     """
@@ -42,6 +44,7 @@ class FailureDesc(object):
     failure_time: int = 0
     failure_level: int = -1
     reason: str = ""
+    extra_info: Dict[str, Any] = field(default_factory=dict)
 
     def is_master_failure(self) -> bool:
         return self.failure_obj == "MASTER"
