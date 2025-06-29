@@ -108,7 +108,7 @@ class ElasticJobManagerTest(ElasticBaseTest):
 
         node0.config_resource.cpu = 10
         job_manager.update_node_resource_usage(NodeType.WORKER, 0, 0.1, 128)
-        self.assertNotEquals(node0.start_hang_time, 0)
+        self.assertNotEqual(node0.start_hang_time, 0)
 
         job_manager.update_node_resource_usage(NodeType.WORKER, 0, 5, 128)
         self.assertEqual(node0.start_hang_time, 0)
