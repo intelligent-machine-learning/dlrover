@@ -17,7 +17,7 @@ import os
 import unittest
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from kubernetes import client
 
@@ -256,6 +256,7 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             self.watcher.start()
 
         self.assertEqual(self.mock_job_context.is_suspended(), True)
+        self.assertIn(self.mock_job_context.get_job_stage(), "suspended, stopped, stopping")
 
     @patch("time.sleep", return_value=None)
     def test_watch_added_event_unsuspend(self, mock_sleep):
