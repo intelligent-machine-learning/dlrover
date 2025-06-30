@@ -58,6 +58,6 @@ class PrimeMaster:
             max_restarts=config.master_max_restart,
             max_concurrency=64,
         ).remote(config)
-        return ActorProxy.wrap(MASTER_ACTOR_ID)
+        return ActorProxy.wrap(MASTER_ACTOR_ID, PrimeMasterRemote)
 
     # endregion

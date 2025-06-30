@@ -4,7 +4,6 @@ from typing import (
     Dict,
     Generic,
     List,
-    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -118,37 +117,6 @@ def kill_actors(actors: List[str]):
         __actors_cache.pop(node, None)
 
 
-T = TypeVar("T")
-
-
-class ActorProxy:
-    def __init__(self, actor: str, cls: Optional[type], warmup: bool = True):
-        self.actor = actor
-        if warmup:
-            get_actor_with_cache(actor)  # warmup actor
-        # Optionally filter methods if a class is provided
-        if cls is not None:
-            self._methods = {
-                method for method in dir(cls) if not method.startswith("__")
-            }
-        else:
-            self._methods = None
-
-    def __getattr__(self, name):
-        if self._methods is not None and name not in self._methods:
-            raise AttributeError(
-                f"Method {name} not found in actor {self.actor}."
-            )
-        return partial(invoke_actor, self.actor, name)
-
-    @staticmethod
-    def wrap(
-        actor_name: str, cls: Optional[type[T]] = None, lazy: bool = False
-    ) -> "T":
-        """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
-
-
 async def invoke_actor_async(
     actor_name: str, method_name: str, *args, **kwargs
 ):
@@ -182,6 +150,30 @@ async def invoke_actors_async(
 
 
 T = TypeVar("T")
+
+
+class ActorProxy:
+    def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
+        self.actor = actor
+        self.stub_cls = stub_cls
+        if warmup:
+            get_actor_with_cache(actor)  # warmup actor
+
+    def __getattr__(self, name):
+        method = getattr(self.stub_cls, name, None)
+        if method is None:
+            raise AttributeError(
+                f"Method {name} not found in actor {self.actor}."
+            )
+        if asyncio.iscoroutinefunction(method):
+            return partial(invoke_actor_async, self.actor, name)
+        else:
+            return partial(invoke_actor, self.actor, name)
+
+    @staticmethod
+    def wrap(actor_name: str, cls: type[T], lazy: bool = False) -> "T":
+        """Wraps the actor proxy to return an instance of the class."""
+        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
 
 class BatchInvokeResult(Generic[T]):
@@ -257,21 +249,24 @@ class BatchInvokeResult(Generic[T]):
 
 
 class BatchActorProxy:
-    def __init__(self, actors: List[str], cls: Optional[type]):
+    def __init__(self, actors: List[str], stub_cls: type):
         self.actors = actors
         # Optionally filter methods if a class is provided
-        self.cls = cls
+        self.stub_cls = stub_cls
 
     def __getattr__(self, name):
-        if self.cls is not None and not hasattr(self.cls, name):
+        method = getattr(self.stub_cls, name, None)
+        if method is None:
             raise AttributeError(
-                f"Method {name} not found in class {self.cls.__name__}."
+                f"Method {name} not found in class {self.stub_cls.__name__}."
             )
-        return partial(invoke_actors, self.actors, name)
+        # if async
+        if asyncio.iscoroutinefunction(method):
+            return partial(invoke_actors_async, self.actors, name)
+        else:
+            return partial(invoke_actors, self.actors, name)
 
     @staticmethod
-    def wrap(
-        actor_name: str, cls: Optional[type[T]] = None, lazy: bool = False
-    ) -> "T":
+    def wrap(actor_name: str, cls: type[T], lazy: bool = False) -> "T":
         """Wraps the actor proxy to return an instance of the class."""
         return BatchActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
