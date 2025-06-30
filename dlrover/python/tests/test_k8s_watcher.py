@@ -17,6 +17,7 @@ import os
 import unittest
 from typing import List
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 from kubernetes import client
 
@@ -28,14 +29,16 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import Node, NodeEvent
+from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.k8s_watcher import (
     K8sScalePlanWatcher,
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
-    _verify_restarting_training,
+    _verify_restarting_training, K8sElasticJobWatcher,
 )
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.tests.test_utils import (
     WITH_TO_DELETED,
     create_pod,
@@ -224,3 +227,56 @@ class ScalePlanWatcherTest(unittest.TestCase):
             resource_plan.node_resources["elasticjob_sample-worker-0"].memory,
             1024,
         )
+
+
+class K8sElasticJobWatcherTest(unittest.TestCase):
+    def setUp(self):
+        self.mock_k8s_client = MagicMock()
+        self.mock_job_context = JobContext.singleton_instance()
+        self.watcher = K8sElasticJobWatcher(
+            JobArgs("k8s", "default", "test")
+        )
+
+    @patch("time.sleep", return_value=None)  # 避免实际等待
+    def test_watch_modified_event_suspend(self, mock_sleep):
+        # 模拟事件流
+        event_stream = [
+            {
+                "type": "MODIFIED",
+                "object": {
+                    "metadata": {"name": "test"},
+                    "spec": {"suspend": True},
+                },
+            }
+        ]
+        self.mock_k8s_client.api_instance.list_namespaced_custom_object.side_effect = [
+            iter(event_stream)
+        ]
+
+        with patch("kubernetes.watch.Watch.stream") as mock_stream:
+            mock_stream.return_value = iter(event_stream)
+            self.watcher.start()
+
+        self.assertEqual(self.mock_job_context.is_suspended(), True)
+
+    @patch("time.sleep", return_value=None)
+    def test_watch_added_event_unsuspend(self, mock_sleep):
+        # 模拟事件流
+        event_stream = [
+            {
+                "type": "ADDED",
+                "object": {
+                    "metadata": {"name": "test"},
+                    "spec": {"suspend": False},
+                },
+            }
+        ]
+
+        self.mock_job_context.request_suspend()
+
+        with patch("kubernetes.watch.Watch.stream") as mock_stream:
+            mock_stream.return_value = iter(event_stream)
+            self.watcher.start()
+
+        # 验证 job_context 是否调用 request_unsuspend
+        self.assertEqual(self.mock_job_context.is_suspended(), False)
