@@ -5,7 +5,7 @@ import ray
 
 from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
 from dlrover.python.unified.prime.config import DLConfig, JobConfig
-from dlrover.python.unified.prime.master import HybridMaster
+from dlrover.python.unified.prime.master import PrimeMaster
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def _ray():
         num_cpus=4,
         num_gpus=0,
         ignore_reinit_error=True,
-        namespace="dlrover_hybrid_test",
+        namespace="dlrover_unified_test",
     )
     yield
     ray.shutdown()
@@ -25,7 +25,7 @@ def test_dev_run(_ray):
     dl_config = DLConfig(
         workloads={
             "demo": ElasticWorkloadDesc(
-                cmd="python -m dlrover.python.hybrid.demo.demo",
+                cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
                 num=2,
                 per_node=2,
             )
@@ -35,12 +35,8 @@ def test_dev_run(_ray):
         job_name="test_job",
         dl_config=dl_config,
     )
-    master = HybridMaster.create(config)
+    master = PrimeMaster.create(config)
     assert master.status() == "INIT"
     master.start()
     while master.status() != "STOPPED":
         time.sleep(1)
-
-
-if __name__ == "__main__":
-    test_dev_run()

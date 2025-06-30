@@ -4,18 +4,20 @@ from dlrover.python.unified.common.node_defines import (
     MASTER_ACTOR_ID,
     NodeInfo,
 )
-from dlrover.python.unified.prime.config import JobConfig
-from dlrover.python.unified.prime.manager import HybridManager
 from dlrover.python.unified.util.actor_helper import ActorProxy
 
+from .api import PrimeMasterRemote
+from .config import JobConfig
+from .manager import PrimeManager
 
-class HybridMaster:
+
+class PrimeMaster:
     def __init__(self, config: JobConfig):
         assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
-            f"HybridMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
+            f"PrimeMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
         )
 
-        self.manager = HybridManager(config)
+        self.manager = PrimeManager(config)
 
     def status(self):
         return self.manager.stage
@@ -44,9 +46,11 @@ class HybridMaster:
         return [node.to_node_info() for node in role_info.instances]
 
     @staticmethod
-    def create(config: JobConfig, detached: bool = True) -> "HybridMaster":
-        """Create a HybridMaster instance."""
-        ray.remote(HybridMaster).options(
+    def create(
+        config: JobConfig, detached: bool = True
+    ) -> "PrimeMasterRemote":
+        """Create a PrimeMaster instance."""
+        ray.remote(PrimeMaster).options(
             name=MASTER_ACTOR_ID,
             lifetime="detached" if detached else "normal",
             num_cpus=config.master_cpu,

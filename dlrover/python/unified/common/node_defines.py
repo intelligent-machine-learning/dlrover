@@ -6,7 +6,7 @@ from typing_extensions import TypeAlias
 
 from dlrover.python.unified.common.workload_config import WorkloadDesc
 
-MASTER_ACTOR_ID = "__hybrid_master__"
+MASTER_ACTOR_ID = "__prime_master__"
 MasterStage: TypeAlias = Literal["INIT", "RUNNING", "STOPPING", "STOPPED"]
 
 

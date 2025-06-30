@@ -112,9 +112,10 @@ T = TypeVar("T")
 
 
 class ActorProxy:
-    def __init__(self, actor: str, cls: Optional[type]):
+    def __init__(self, actor: str, cls: Optional[type], warmup: bool = True):
         self.actor = actor
-        get_actor_with_cache(actor)  # warmup actor
+        if warmup:
+            get_actor_with_cache(actor)  # warmup actor
         # Optionally filter methods if a class is provided
         if cls is not None:
             self._methods = {
@@ -131,9 +132,11 @@ class ActorProxy:
         return partial(invoke_actor, self.actor, name)
 
     @staticmethod
-    def wrap(actor_name: str, cls: Optional[type[T]] = None) -> "T":
+    def wrap(
+        actor_name: str, cls: Optional[type[T]] = None, lazy: bool = False
+    ) -> "T":
         """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls)  # type: ignore
+        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
 
 async def invoke_actor_async(

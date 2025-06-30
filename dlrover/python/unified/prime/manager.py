@@ -20,7 +20,7 @@ class Placement:
         pass
 
 
-class HybridManager:
+class PrimeManager:
     def __init__(self, config: JobConfig) -> None:
         self.config = config
 
@@ -34,7 +34,7 @@ class HybridManager:
 
         # Runtime state
         self.stage: MasterStage = "INIT"
-        logger.info(f"HybridManager initialized with config: {config}")
+        logger.info(f"PrimeManager initialized with config: {config}")
 
     async def prepare(self):
         """Prepare all for the job execution.
