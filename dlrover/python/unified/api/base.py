@@ -514,8 +514,8 @@ class DLRoverRunBuilder(WorkloadBuilder):
         elastic_workload = self._create_workload_role(
             run_cmd=self._cmd,
         )
-        elastic_workload.set_num(self._node_num)
-        elastic_workload.set_per_node(self._proc_per_node)
+        elastic_workload.set_num(self._num)
+        elastic_workload.set_per_node(self._per_node)
 
         return {
             InternalDLWorkloadRole.TRAINER_ROLE: self.__default_trainer(),
