@@ -21,7 +21,7 @@ def _ray():
     ray.shutdown()
 
 
-def test_dev_run():
+def test_dev_run(_ray):
     dl_config = DLConfig(
         workloads={
             "demo": ElasticWorkloadDesc(

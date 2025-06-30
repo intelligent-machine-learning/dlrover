@@ -28,7 +28,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
     RendezvousManager,
 )
-from dlrover.python.master.master import ElasticMaster, get_service_type
+from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.local_job_manager import create_job_manager
@@ -38,7 +38,7 @@ from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
 
 
-class LocalJobMaster(ElasticMaster):
+class LocalJobMaster(JobMaster):
     def __init__(self, port, args: JobArgs):
         self.perf_monitor = PerfMonitor()
         self.task_manager = TaskManager(0, self.perf_monitor)
