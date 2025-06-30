@@ -19,6 +19,7 @@ from argparse import Namespace
 from unittest import mock
 from unittest.mock import ANY, MagicMock, patch
 
+import dlrover
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     JobConstant,
@@ -358,3 +359,66 @@ class ElasticRunTest(unittest.TestCase):
 
                 if case["name"] == "standalone_with_dlrover":
                     master_handler.close.assert_called_once()
+
+
+class TestMainFunction(unittest.TestCase):
+    def setUp(self):
+        self.patchers = []
+
+    def tearDown(self):
+        for patcher in self.patchers:
+            patcher.stop()
+
+    def test_main_with_dlrover_master(self):
+        env_patcher = patch(
+            "dlrover.trainer.torch.compatible_main.env_utils.get_env",
+            return_value="127.0.0.1:12345",
+        )
+        self.patchers.append(env_patcher)
+        mock_get_env = env_patcher.start()
+
+        dlrover_patcher = patch(
+            "dlrover.trainer.torch.elastic_run.main",
+            return_value=None,
+        )
+        self.patchers.append(dlrover_patcher)
+        mock_dlrover_main = dlrover_patcher.start()
+        torch_patcher = patch(
+            "torch.distributed.run.main",
+            return_value=None,
+        )
+        self.patchers.append(torch_patcher)
+        mock_torch_main = torch_patcher.start()
+
+        dlrover.trainer.torch.compatible_main.main()
+
+        mock_get_env.assert_called_once_with(NodeEnv.DLROVER_MASTER_ADDR)
+        mock_dlrover_main.assert_called_once()
+        mock_torch_main.assert_not_called()
+
+    def test_main_without_dlrover_master(self):
+        env_patcher = patch(
+            "dlrover.trainer.torch.compatible_main.env_utils.get_env",
+            return_value=None,
+        )
+        self.patchers.append(env_patcher)
+        mock_get_env = env_patcher.start()
+
+        dlrover_patcher = patch(
+            "dlrover.trainer.torch.elastic_run.main",
+            return_value=None,
+        )
+        self.patchers.append(dlrover_patcher)
+        mock_dlrover_main = dlrover_patcher.start()
+        torch_patcher = patch(
+            "torch.distributed.run.main",
+            return_value=None,
+        )
+        self.patchers.append(torch_patcher)
+        mock_torch_main = torch_patcher.start()
+
+        dlrover.trainer.torch.compatible_main.main()
+
+        mock_get_env.assert_called_once_with(NodeEnv.DLROVER_MASTER_ADDR)
+        mock_dlrover_main.assert_not_called()
+        mock_torch_main.assert_called_once()
