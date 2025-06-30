@@ -18,17 +18,23 @@ from ray.exceptions import RayActorError
 from dlrover.python.common.log import default_logger as logger
 
 __actors_cache: Dict[str, ActorHandle] = {}
+T = TypeVar("T")
 
 
-def get_actor_with_cache(name: str, refresh: bool = False):
+def refresh_actor_cache(name: str):
+    try:
+        __actors_cache.pop(name, None)
+        __actors_cache[name] = ray.get_actor(name)
+    except ValueError:
+        logger.error(f"Actor {name} not found")
+        raise
+
+
+def get_actor_with_cache(name: str):
     """Get a Ray actor by its name, optionally refreshing the cache."""
     # It's safe without a lock, as actors are identified by their names,
-    if refresh or name not in __actors_cache:
-        try:
-            __actors_cache[name] = ray.get_actor(name)
-        except Exception as e:
-            logger.error(f"Error getting actor {name}: {e}")
-            raise
+    if name not in __actors_cache:
+        refresh_actor_cache(name)
     return __actors_cache[name]
 
 
@@ -40,23 +46,23 @@ def as_actor_class(cls: type) -> ActorClass:
 
 
 def __invoke_actor(
-    actor: ActorHandle, method_name: str, *args, **kwargs
+    actor_name: str, method_name: str, *args, **kwargs
 ) -> ray.ObjectRef:
     """Invoke a method on a Ray actor."""
     try:
+        actor = get_actor_with_cache(actor_name)
         return getattr(actor, method_name).remote(*args, **kwargs)
     except AttributeError as e:
-        logger.error(f"Method {method_name} not found on actor {actor}: {e}")
+        logger.error(
+            f"Method {method_name} not found on actor {actor_name}: {e}"
+        )
         return ray.put(None)
 
 
 def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
     """Execute a method on all nodes."""
     tasks = [
-        __invoke_actor(
-            get_actor_with_cache(name), method_name, *args, **kwargs
-        )
-        for name in actors
+        __invoke_actor(name, method_name, *args, **kwargs) for name in actors
     ]
 
     results: list = [None] * len(actors)
@@ -68,19 +74,21 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
         next_waiting = {task: waiting[task] for task in not_ready}
         for task in ready:
             task_id = waiting.pop(task)
+            actor = actors[task_id]
             try:
                 result = ray.get(task)
                 results[task_id] = result
             except RayActorError as e:
-                logger.error(
-                    f"Error executing {method_name} on {actors[task_id]}: {e}"
-                )
-                actor = get_actor_with_cache(actors[task_id], refresh=True)
+                if method_name == "shutdown":
+                    results[task_id] = None  # Expected for shutdown
+                    continue
+                logger.error(f"Error executing {method_name} on {actor}: {e}")
+                refresh_actor_cache(actor)
                 task = __invoke_actor(actor, method_name, *args, **kwargs)
                 next_waiting[task] = task_id
             except Exception as e:
                 logger.error(
-                    f"Unexpected error executing {method_name} on {actors[task_id]}: {e}"
+                    f"Unexpected error executing {method_name} on {actor}: {e}"
                 )
                 results[task_id] = e
         waiting = next_waiting
@@ -104,13 +112,14 @@ def kill_actors(actors: List[str]):
     while len(toKill) > 0:
         name = toKill.pop()
         try:
+            ray.wait([__invoke_actor(name, "shutdown")])
             actor = get_actor_with_cache(name)
             ray.kill(actor, no_restart=True)
         except ValueError:
             # Actor not found, continue
             continue
         except RayActorError:
-            get_actor_with_cache(name, refresh=True)
+            refresh_actor_cache(name)
             toKill.append(name)
 
     for node in actors:
@@ -119,16 +128,17 @@ def kill_actors(actors: List[str]):
 
 async def invoke_actor_async(
     actor_name: str, method_name: str, *args, **kwargs
-):
+) -> Union[T, Exception]:
     """Call a method on a Ray actor by its name."""
-    actor = get_actor_with_cache(actor_name)
     while True:
         try:
-            res = __invoke_actor(actor, method_name, *args, **kwargs)
+            res = __invoke_actor(actor_name, method_name, *args, **kwargs)
             return await res
         except RayActorError as e:
+            if method_name == "shutdown":
+                return cast(T, None)  # Success for shutdown
             print(f"Error executing {method_name} on {actor_name}: {e}")
-            actor = get_actor_with_cache(actor_name, refresh=True)
+            refresh_actor_cache(actor_name)
             continue  # Retry with the refreshed actor
         except Exception as e:
             print(
@@ -139,17 +149,14 @@ async def invoke_actor_async(
 
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
-):
-    res = await asyncio.gather(
+) -> "BatchInvokeResult[T]":
+    res: list[Union[T, Exception]] = await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
             for actor in actors
         ]
     )
-    return BatchInvokeResult(actors, method_name, res)
-
-
-T = TypeVar("T")
+    return BatchInvokeResult[T](actors, method_name, res)
 
 
 class ActorProxy:
@@ -189,6 +196,7 @@ class BatchInvokeResult(Generic[T]):
 
     @overload
     def __getitem__(self, item: int, /) -> T: ...
+
     @overload
     def __getitem__(self, actor: str, /) -> T: ...
 

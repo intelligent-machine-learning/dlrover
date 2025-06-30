@@ -2,9 +2,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
 
+import ray.actor
 from typing_extensions import TypeAlias
 
 from dlrover.python.unified.common.workload_config import WorkloadDesc
+from dlrover.python.unified.util.test_hooks import init_coverage
 
 MASTER_ACTOR_ID = "__prime_master__"
 MasterStage: TypeAlias = Literal["INIT", "RUNNING", "STOPPING", "STOPPED"]
@@ -48,6 +50,7 @@ class ActorInfo:
 class ActorBase:
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
+        init_coverage()
         self.job_info = job_info
         self.actor_info = actor_info
         self.node_info = actor_info  # deprecated, use actor_info instead
@@ -72,6 +75,10 @@ class ActorBase:
     def start(self):
         """Start the actor/node.If already started, do nothing."""
         print("Worker started: No Implementation")
+
+    def shutdown(self):
+        """Self-kill the actor/node."""
+        ray.actor.exit_actor()  # As ray.kill don't execute callback.
 
     # for sub-master
     def check_workers(self):

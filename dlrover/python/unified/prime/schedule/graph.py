@@ -14,10 +14,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
+from pydantic import BaseModel
 
-from dlrover.python.common.resource import Resource
 from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.workload_config import ResourceDesc
 from dlrover.python.unified.common.workload_defines import ActorInfo
 from dlrover.python.unified.prime.config import DLConfig, WorkloadDesc
 
@@ -25,12 +25,11 @@ from dlrover.python.unified.prime.config import DLConfig, WorkloadDesc
 @dataclass
 class PlacementGroupSpec:
     name: str
-    strategy: PlacementGroupSchedulingStrategy
-    bundles: List[Resource]
+    strategy: str  # VALID_PLACEMENT_GROUP_STRATEGIES
+    bundles: List[ResourceDesc]
 
 
-@dataclass
-class DLExecutionVertex(ABC):
+class DLExecutionVertex(ABC, BaseModel):
     """
     Vertex expression for computational graph.
 
@@ -43,6 +42,9 @@ class DLExecutionVertex(ABC):
     role: str
     spec: WorkloadDesc
 
+    placement_group: Optional[PlacementGroupSpec] = None
+    bundle_index: int = -1
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -52,7 +54,6 @@ class DLExecutionVertex(ABC):
         Returns:
             The name of the vertex.
         """
-        pass
 
     @abstractmethod
     def get_envs(self) -> Dict[str, str]:
@@ -62,15 +63,12 @@ class DLExecutionVertex(ABC):
         Returns:
             A dictionary of environment variables.
         """
-        pass
 
     @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
-        pass
 
 
-@dataclass
 class DLExecutionWorkerVertex(DLExecutionVertex):
     world_size: int
     rank: int
@@ -135,7 +133,6 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
         )
 
 
-@dataclass
 class DLExecutionMasterVertex(DLExecutionVertex):
     """
     Master vertex in the computational graph.

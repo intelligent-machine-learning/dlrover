@@ -27,7 +27,7 @@ class Placement:
     def allocate_placement_group(self, graph: DLExecutionGraph):
         """Allocate placement group based on the execution graph."""
         # update vertices with placement group info
-        pass
+        ...
 
 
 class Scheduler:
@@ -45,7 +45,10 @@ class Scheduler:
     async def create_nodes(self, graph: DLExecutionGraph, job_info: JobInfo):
         """Create/Get actors for all nodes in the execution graph."""
         # 0. create placement group if not exists
-        """TODO: Create placement group if not exists."""
+        self.placement.allocate_placement_group(graph)
+        """Create placement group if not exists."""
+        pgs = set(it.placement_group for it in graph.vertices)
+        self.create_pgs(pgs)
 
         # 1. ray create_or_exists actors
         for role in graph.roles.values():

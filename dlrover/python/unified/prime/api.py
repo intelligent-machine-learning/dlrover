@@ -21,6 +21,10 @@ class PrimeMasterRemote:
         """Stop the master."""
         ...
 
+    def shutdown(self) -> None:
+        """Force shutdown the master."""
+        ...
+
     def get_actor_info(self, name: str) -> ActorInfo:
         """Get a actor by name."""
         ...

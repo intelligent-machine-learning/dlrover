@@ -15,7 +15,6 @@ from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import (
     get_job_context as get_elastic_context,
 )
-from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.common.workload_defines import (
     ActorInfo,
@@ -40,7 +39,6 @@ def convert_to_node_state(state: WorkerStage):
 
 class ElasticManager:
     def __init__(self, nodes: List[ActorInfo]):
-        self.job_name = "TODO"
         self.stage: JobStage = JobStage.INIT
         self.nodes: List[ActorInfo] = nodes
 
@@ -49,7 +47,7 @@ class ElasticManager:
         self.rdzv_manager = ElasticTrainingRendezvousManager()
         self.node_check_manager = NetworkCheckRendezvousManager()
         self.executor = ElasticExecutor(self.nodes)
-        self.node_watcher = ActorWatcher(self.job_name, "default")
+        # self.node_watcher = ActorWatcher(self.job_name, "default")
 
         # This is old singleton context, used for compatibility
         self._lock = threading.Lock()

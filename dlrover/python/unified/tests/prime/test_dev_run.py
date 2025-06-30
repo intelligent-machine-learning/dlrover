@@ -16,9 +16,19 @@ def _ray():
         num_gpus=0,
         ignore_reinit_error=True,
         namespace="dlrover_unified_test",
+        runtime_env={
+            "env_vars": {
+                "COVERAGE_PROCESS_START": ".coveragerc",
+            }
+        },
     )
     yield
+    time.sleep(2)
     ray.shutdown()
+
+    import coverage
+
+    coverage.Coverage().combine()
 
 
 def test_dev_run(_ray):
@@ -40,3 +50,4 @@ def test_dev_run(_ray):
     master.start()
     while master.status() != "STOPPED":
         time.sleep(1)
+    master.shutdown()

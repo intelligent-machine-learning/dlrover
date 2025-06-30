@@ -1,9 +1,11 @@
 import ray
+import ray.actor
 
 from dlrover.python.unified.common.workload_defines import (
     MASTER_ACTOR_ID,
     ActorInfo,
 )
+from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import PrimeMasterApi, PrimeMasterRemote
 from .config import JobConfig
@@ -12,6 +14,7 @@ from .manager import PrimeManager
 
 class PrimeMaster:
     def __init__(self, config: JobConfig):
+        init_coverage()
         assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
             f"PrimeMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
         )
@@ -28,6 +31,9 @@ class PrimeMaster:
     async def stop(self):
         await self.manager.stop()
 
+    async def shutdown(self):
+        ray.actor.exit_actor()
+
     # region RPC
 
     def get_actor_info(self, name: str) -> ActorInfo:
@@ -37,7 +43,7 @@ class PrimeMaster:
             raise ValueError(f"Actor {name} not found.")
         return actor.to_actor_info()
 
-    def get_actors_by_role(self, role: str) -> list[ActorInfo]:
+    def get_workers_by_role(self, role: str) -> list[ActorInfo]:
         """Get all actors by role."""
         role_info = self.manager.graph.roles.get(role)
         if role_info is None:
