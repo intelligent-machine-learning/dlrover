@@ -18,7 +18,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 from dlrover.python.common.resource import Resource
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.node_defines import NodeInfo
+from dlrover.python.unified.common.node_defines import ActorInfo
 from dlrover.python.unified.prime.config import DLConfig, WorkloadDesc
 
 
@@ -65,7 +65,7 @@ class DLExecutionVertex(ABC):
         pass
 
     @abstractmethod
-    def to_node_info(self) -> "NodeInfo":
+    def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
         pass
 
@@ -125,8 +125,8 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
 
         return envs
 
-    def to_node_info(self) -> "NodeInfo":
-        return NodeInfo(
+    def to_actor_info(self) -> "ActorInfo":
+        return ActorInfo(
             name=self.name,
             role=self.role,
             spec=self.spec,
@@ -160,8 +160,8 @@ class DLExecutionMasterVertex(DLExecutionVertex):
         envs.update(self.spec.instance_env)
         return envs
 
-    def to_node_info(self) -> "NodeInfo":
-        return NodeInfo(
+    def to_actor_info(self) -> "ActorInfo":
+        return ActorInfo(
             name=self.name,
             role=self.role,
             spec=self.spec,

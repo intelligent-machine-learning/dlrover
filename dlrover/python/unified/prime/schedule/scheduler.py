@@ -55,7 +55,7 @@ class Scheduler:
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
                     envs=worker.get_envs(),
                     scheduling_strategy=None,  # no scheduling strategy for now
-                    options={"info": worker.to_node_info()},
+                    options={"info": worker.to_actor_info()},
                 )
                 self.create_node(spec)
             if role.sub_master is not None:
@@ -66,7 +66,7 @@ class Scheduler:
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
                     envs=role.sub_master.get_envs(),
                     scheduling_strategy=None,  # no scheduling strategy for now
-                    options={"info": role.sub_master.to_node_info()},
+                    options={"info": role.sub_master.to_actor_info()},
                 )
                 self.create_node(spec)
         logger.info("Finished creating nodes for the job.")

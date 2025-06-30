@@ -1,7 +1,7 @@
 from dlrover.python.unified.common.node_defines import (
     MASTER_ACTOR_ID,
+    ActorInfo,
     MasterStage,
-    NodeInfo,
 )
 from dlrover.python.unified.util.actor_helper import ActorProxy
 
@@ -21,12 +21,12 @@ class PrimeMasterRemote:
         """Stop the master."""
         ...
 
-    def get_node(self, node_name: str) -> NodeInfo:
-        """Get a node by name."""
+    def get_actor_info(self, name: str) -> ActorInfo:
+        """Get a actor by name."""
         ...
 
-    def get_nodes_by_role(self, role: str) -> list[NodeInfo]:
-        """Get all nodes by role."""
+    def get_workers_by_role(self, role: str) -> list[ActorInfo]:
+        """Get all actors by role."""
         ...
 
 

@@ -2,11 +2,10 @@ import ray
 
 from dlrover.python.unified.common.node_defines import (
     MASTER_ACTOR_ID,
-    NodeInfo,
+    ActorInfo,
 )
-from dlrover.python.unified.util.actor_helper import ActorProxy
 
-from .api import PrimeMasterRemote
+from .api import PrimeMasterApi, PrimeMasterRemote
 from .config import JobConfig
 from .manager import PrimeManager
 
@@ -31,19 +30,19 @@ class PrimeMaster:
 
     # region RPC
 
-    def get_node(self, node_name: str) -> NodeInfo:
-        """Get a node by name."""
-        node = self.manager.graph.by_name.get(node_name)
-        if node is None:
-            raise ValueError(f"Node {node_name} not found.")
-        return node.to_node_info()
+    def get_actor_info(self, name: str) -> ActorInfo:
+        """Get a actor by name."""
+        actor = self.manager.graph.by_name.get(name)
+        if actor is None:
+            raise ValueError(f"Actor {name} not found.")
+        return actor.to_actor_info()
 
-    def get_nodes_by_role(self, role: str) -> list[NodeInfo]:
-        """Get all nodes by role."""
+    def get_actors_by_role(self, role: str) -> list[ActorInfo]:
+        """Get all actors by role."""
         role_info = self.manager.graph.roles.get(role)
         if role_info is None:
             raise ValueError(f"Role {role} not found.")
-        return [node.to_node_info() for node in role_info.instances]
+        return [node.to_actor_info() for node in role_info.instances]
 
     @staticmethod
     def create(
@@ -58,6 +57,6 @@ class PrimeMaster:
             max_restarts=config.master_max_restart,
             max_concurrency=64,
         ).remote(config)
-        return ActorProxy.wrap(MASTER_ACTOR_ID, PrimeMasterRemote)
+        return PrimeMasterApi
 
     # endregion

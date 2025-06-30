@@ -17,7 +17,7 @@ from dlrover.python.master.node.job_context import (
 )
 from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
-from dlrover.python.unified.common.node_defines import NodeInfo, WorkerStage
+from dlrover.python.unified.common.node_defines import ActorInfo, WorkerStage
 from dlrover.python.unified.sub.elastic.executor import ElasticExecutor
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
@@ -36,10 +36,10 @@ def convert_to_node_state(state: WorkerStage):
 
 
 class ElasticManager:
-    def __init__(self, nodes: List[NodeInfo]):
+    def __init__(self, nodes: List[ActorInfo]):
         self.job_name = "TODO"
         self.stage: JobStage = JobStage.INIT
-        self.nodes: List[NodeInfo] = nodes
+        self.nodes: List[ActorInfo] = nodes
 
         self.perf_monitor = PerfMonitor()
         self.diagnosis = DiagnosisMaster()

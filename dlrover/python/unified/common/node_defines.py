@@ -25,7 +25,7 @@ class WorkerStage(str, Enum):
 
 
 @dataclass
-class NodeInfo:
+class ActorInfo:
     """Information about a node. Exposed to workers and sub-masters."""
 
     name: str
@@ -37,7 +37,7 @@ class NodeInfo:
 
 
 class ActorBase:
-    def __init__(self, info: NodeInfo) -> None:
+    def __init__(self, info: ActorInfo) -> None:
         """Initialize the actor with node information."""
         self.node_info = info
         self.stage: WorkerStage = WorkerStage.INIT
