@@ -23,22 +23,22 @@ from kubernetes import client
 
 from dlrover.python.common.constants import (
     ElasticJobLabel,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
-    JobStage,
 )
 from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.k8s_watcher import (
+    K8sElasticJobWatcher,
     K8sScalePlanWatcher,
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
     _verify_restarting_training,
-    K8sElasticJobWatcher,
 )
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.tests.test_utils import (
@@ -250,9 +250,6 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
                 },
             }
         ]
-        self.mock_k8s_client.api_instance.list_namespaced_custom_object.side_effect = [
-            iter(event_stream)
-        ]
 
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
@@ -273,11 +270,11 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             }
         ]
 
+        # set job_context stage to suspended first
         self.mock_job_context.request_suspend()
 
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
-        # 验证 job_context 是否调用 request_unsuspend
         self.assertEqual(self.mock_job_context.is_suspended(), False)

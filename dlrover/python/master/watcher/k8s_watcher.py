@@ -418,10 +418,11 @@ class K8sElasticJobWatcher(object):
 
     def watch(self):
         w = watch.Watch()
+        api_instance = self._k8s_client.api_instance
         while True:
             try:
                 for event in w.stream(
-                    self._k8s_client.api_instance.list_namespaced_custom_object,
+                    api_instance.list_namespaced_custom_object,
                     namespace=self._namespace,
                     group=ElasticJobApi.GROUP,
                     version=ElasticJobApi.VERION,
