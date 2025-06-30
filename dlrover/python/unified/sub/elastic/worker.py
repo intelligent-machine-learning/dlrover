@@ -8,7 +8,7 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import RayMasterClient
-from dlrover.python.hybrid.common.node_defines import ActorBase, WorkerStage
+from dlrover.python.unified.common.node_defines import ActorBase, WorkerStage
 
 
 def extract_args_from_cmd(run_cmd: str) -> List[str]:

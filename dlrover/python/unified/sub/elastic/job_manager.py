@@ -20,8 +20,9 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
 )
-from dlrover.python.hybrid.elastic.manager import ElasticManager
 from dlrover.python.unified.common.enums import JobStage
+
+from .manager import ElasticManager
 
 
 # TODO: merge into ElasticManager

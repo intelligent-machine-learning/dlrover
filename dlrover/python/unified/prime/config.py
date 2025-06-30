@@ -3,7 +3,7 @@ from typing import Dict, List
 from pydantic import BaseModel, Field
 
 from dlrover.python.common.enums import ResourceType
-from dlrover.python.hybrid.common.workload_config import WorkloadDesc
+from dlrover.python.unified.common.workload_config import WorkloadDesc
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,

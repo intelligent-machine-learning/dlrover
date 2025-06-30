@@ -17,9 +17,9 @@ from typing import Dict, List, Optional
 from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 from dlrover.python.common.resource import Resource
-from dlrover.python.hybrid.center.config import DLConfig, WorkloadDesc
-from dlrover.python.hybrid.common.node_defines import NodeInfo
 from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.node_defines import NodeInfo
+from dlrover.python.unified.prime.config import DLConfig, WorkloadDesc
 
 
 @dataclass

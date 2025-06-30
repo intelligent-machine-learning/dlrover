@@ -3,9 +3,9 @@ import time
 import pytest
 import ray
 
-from dlrover.python.hybrid.center.config import DLConfig, JobConfig
-from dlrover.python.hybrid.center.master import HybridMaster
-from dlrover.python.hybrid.common.workload_config import ElasticWorkloadDesc
+from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
+from dlrover.python.unified.prime.config import DLConfig, JobConfig
+from dlrover.python.unified.prime.master import HybridMaster
 
 
 @pytest.fixture

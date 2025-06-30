@@ -4,7 +4,7 @@ from typing import Literal
 
 from typing_extensions import TypeAlias
 
-from dlrover.python.hybrid.common.workload_config import WorkloadDesc
+from dlrover.python.unified.common.workload_config import WorkloadDesc
 
 MASTER_ACTOR_ID = "__hybrid_master__"
 MasterStage: TypeAlias = Literal["INIT", "RUNNING", "STOPPING", "STOPPED"]

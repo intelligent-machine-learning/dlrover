@@ -34,7 +34,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.hybrid.elastic.manager import ElasticManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -43,6 +42,8 @@ from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.util.queue.queue import RayEventQueue
+
+from .manager import ElasticManager
 
 try:
     from dlrover.python.master.elastic_training.sync_service import SyncService
