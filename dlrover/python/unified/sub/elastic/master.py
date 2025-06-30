@@ -2,7 +2,10 @@ import asyncio
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import JobStage
-from dlrover.python.unified.common.node_defines import ActorBase, WorkerStage
+from dlrover.python.unified.common.workload_defines import (
+    ActorBase,
+    WorkerStage,
+)
 from dlrover.python.unified.prime.api import PrimeMasterApi
 
 from .manager import ElasticManager

@@ -1,6 +1,6 @@
 import ray
 
-from dlrover.python.unified.common.node_defines import (
+from dlrover.python.unified.common.workload_defines import (
     MASTER_ACTOR_ID,
     ActorInfo,
 )

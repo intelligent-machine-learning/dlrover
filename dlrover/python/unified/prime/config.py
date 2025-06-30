@@ -1,45 +1,32 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
 from dlrover.python.common.enums import ResourceType
-from dlrover.python.unified.common.workload_config import WorkloadDesc
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
 )
+from dlrover.python.unified.common.workload_config import WorkloadDesc
+from dlrover.python.unified.common.workload_defines import JobInfo
 
 
-class TrainerDesc(BaseModel):
-    """
-    Description of a trainer.
-    """
+class DLConfig(BaseModel):
+    user_config: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="User-defined configuration for the deep learning job.",
+    )
+    workloads: Dict[str, WorkloadDesc]
+    # workload_group: List[Dict[str, float]]  # TODO what is this for?
+    global_envs: Dict[str, str] = Field(default_factory=dict)
 
-    # module_name: str = Field(alias="module")
-    # class_name: str = Field(alias="class")
-    # trainer_type: TrainerType
     node_number: int = 1
     device_type: ResourceType = ResourceType[
         DLTrainerConstant.DEVICE_TYPE_DEFAULT
     ]
     device_per_node: int = DLTrainerConstant.DEVICE_PER_NODE_DEFAULT
     torch_master_port: List[int] = DLTrainerConstant.TORCH_MASTER_PORT_DEFAULT
-
-
-class DLConfig(BaseModel):
-    # config: DictConfig = Field(
-    # default_factory=DictConfig,
-    # description="The configuration of the deep learning job.",
-    # )
-    trainer: TrainerDesc = Field(
-        default_factory=TrainerDesc,
-        description="Description of the trainer.",
-    )
-    # The module name and class name of the trainer.
-    workloads: Dict[str, WorkloadDesc]
-    # workload_group: List[Dict[str, float]]  # TODO what is this for?
-    global_envs: Dict[str, str] = Field(default_factory=dict)
 
 
 class JobConfig(BaseModel):
@@ -69,11 +56,11 @@ class JobConfig(BaseModel):
         default=10,
         description="The maximum limit on the number of master restarts.",
     )
-    trainer_max_restart: int = Field(
-        default=10,
-        description="The maximum limit on the number of trainer restarts.",
-    )
-    workload_max_restart: Dict[str, int] = Field(
-        default_factory=lambda: {"default": 30},
-        description="The maximum limit on the number of workload actor restarts.",
-    )
+
+    def to_job_info(self) -> JobInfo:
+        """Convert to JobInfo."""
+        return JobInfo(
+            name=self.job_name,
+            job_id=self.job_name,
+            user_config=self.dl_config.user_config,
+        )

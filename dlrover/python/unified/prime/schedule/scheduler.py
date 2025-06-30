@@ -8,6 +8,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.common.workload_defines import JobInfo
 from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
 from dlrover.python.unified.util.actor_helper import invoke_actors_async
 
@@ -41,7 +42,7 @@ class Scheduler:
     def create_pgs(self, pgs):
         pass
 
-    async def create_nodes(self, graph: DLExecutionGraph):
+    async def create_nodes(self, graph: DLExecutionGraph, job_info: JobInfo):
         """Create/Get actors for all nodes in the execution graph."""
         # 0. create placement group if not exists
         """TODO: Create placement group if not exists."""
@@ -55,7 +56,10 @@ class Scheduler:
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
                     envs=worker.get_envs(),
                     scheduling_strategy=None,  # no scheduling strategy for now
-                    options={"info": worker.to_actor_info()},
+                    options={
+                        "job_info": job_info,
+                        "actor_info": worker.to_actor_info(),
+                    },
                 )
                 self.create_node(spec)
             if role.sub_master is not None:
@@ -66,7 +70,10 @@ class Scheduler:
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
                     envs=role.sub_master.get_envs(),
                     scheduling_strategy=None,  # no scheduling strategy for now
-                    options={"info": role.sub_master.to_actor_info()},
+                    options={
+                        "job_info": job_info,
+                        "actor_info": role.sub_master.to_actor_info(),
+                    },
                 )
                 self.create_node(spec)
         logger.info("Finished creating nodes for the job.")

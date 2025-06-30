@@ -17,7 +17,10 @@ from dlrover.python.master.node.job_context import (
 )
 from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
-from dlrover.python.unified.common.node_defines import ActorInfo, WorkerStage
+from dlrover.python.unified.common.workload_defines import (
+    ActorInfo,
+    WorkerStage,
+)
 from dlrover.python.unified.sub.elastic.executor import ElasticExecutor
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,

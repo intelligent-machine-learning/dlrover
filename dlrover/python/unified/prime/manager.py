@@ -3,7 +3,7 @@ from threading import Thread
 from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.node_defines import MasterStage
+from dlrover.python.unified.common.workload_defines import MasterStage
 from dlrover.python.unified.prime.config import JobConfig
 from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
 from dlrover.python.unified.prime.schedule.scheduler import Scheduler
@@ -41,7 +41,7 @@ class PrimeManager:
         Execute only once, not support failover when fail."""
         self.placement.allocate_placement_group(self.graph)
         await self.scheduler.create_nodes(
-            self.graph
+            self.graph, job_info=self.config.to_job_info()
         )  # create actors for all nodes
         logger.info("Finished creating nodes for the job.")
 

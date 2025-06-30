@@ -40,6 +40,10 @@ class BaseWorkloadDesc(BaseModel, ABC):
         default_factory=ResourceDesc, alias="resource"
     )
     instance_env: Dict[str, str] = Field(default_factory=dict, alias="env")
+    max_restart: int = Field(
+        default=10,
+        description="The maximum limit on the number of restarts.",
+    )
 
     @abstractmethod
     def get_worker_cls(self) -> ActorClass: ...

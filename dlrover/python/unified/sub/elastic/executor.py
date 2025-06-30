@@ -15,7 +15,7 @@ import time
 from typing import Dict, List, Union
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.node_defines import ActorInfo
+from dlrover.python.unified.common.workload_defines import ActorInfo
 
 # TODO unused class, just for reference
 

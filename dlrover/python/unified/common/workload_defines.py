@@ -25,6 +25,15 @@ class WorkerStage(str, Enum):
 
 
 @dataclass
+class JobInfo:
+    """Information about a job. Exposed to workers and sub-masters."""
+
+    name: str
+    job_id: str
+    user_config: dict
+
+
+@dataclass
 class ActorInfo:
     """Information about a node. Exposed to workers and sub-masters."""
 
@@ -37,9 +46,11 @@ class ActorInfo:
 
 
 class ActorBase:
-    def __init__(self, info: ActorInfo) -> None:
+    def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
-        self.node_info = info
+        self.job_info = job_info
+        self.actor_info = actor_info
+        self.node_info = actor_info  # deprecated, use actor_info instead
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
 
