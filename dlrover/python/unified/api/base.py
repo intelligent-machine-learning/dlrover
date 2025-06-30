@@ -318,9 +318,11 @@ class RoleBuilder(ABC):
     def _build_role(self) -> Dict[str, DLRoleConfig]:
         pass
 
+    @abstractmethod
     def _get_per_node(self):
         return 1
 
+    @abstractmethod
     def _get_total(self):
         return 1
 
@@ -466,8 +468,6 @@ class DLRoverRunBuilder(WorkloadBuilder):
         )
 
         self._cmd = cmd
-        self._proc_per_node = 0
-        self._node_num = 0
         self.__init_from_cmd()
 
     def __init_from_cmd(self):
@@ -477,11 +477,11 @@ class DLRoverRunBuilder(WorkloadBuilder):
                 value = part.split("=")[1]
                 if ":" in value:
                     _, max_value = value.split(":")
-                    self._node_num = int(max_value)
+                    self._num = int(max_value)
                 else:
-                    self._node_num = int(value)
+                    self._num = int(value)
             elif part.startswith("--nproc_per_node="):
-                self._proc_per_node = int(part.split("=")[1])
+                self._per_node = int(part.split("=")[1])
 
     def __validate_dlrover_run_cmd(self, cmd) -> bool:
         if not cmd:
@@ -491,7 +491,7 @@ class DLRoverRunBuilder(WorkloadBuilder):
         return True
 
     def _validate(self):
-        if not self._node_num >= 1 or not self._proc_per_node >= 1:
+        if not self._num >= 1 or not self._per_node >= 1:
             return False
         if not self.__validate_dlrover_run_cmd(self._cmd):
             logger.error(
