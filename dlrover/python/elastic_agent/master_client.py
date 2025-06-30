@@ -141,7 +141,7 @@ class MasterClient(Singleton, ABC):
             raise
         except Exception:
             logger.warning(
-                f"Unexpected error in kv_store_multi_set: " f"{keys}, {values}"
+                f"Unexpected error in kv_store_multi_set: {keys}, {values}"
             )
             raise
 
@@ -623,25 +623,28 @@ class HttpMasterClient(MasterClient):
 
 
 class RayMasterClient(MasterClient):
-    import ray
-
-    master_actor_handle = None
+    master_actor_name = None
 
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         super(RayMasterClient, self).__init__(
-            self.master_actor_handle, node_id, node_type, timeout
+            self.master_actor_name, node_id, node_type, timeout
         )
 
     @classmethod
-    def register_master_actor(cls, actor_handle):
-        cls.master_actor_handle = actor_handle
+    def register_master_actor(cls, actor_name: str):
+        cls.master_actor_name = actor_name
 
     @retry()
     def _report(self, message: comm.Message):
-        response = self.ray.get(
-            self._master_addr.agent_report.remote(
-                self._gen_request(message).to_json()
-            ),
+        import ray
+
+        from dlrover.python.unified.util.actor_helper import (
+            get_actor_with_cache,
+        )
+
+        actor = get_actor_with_cache(self._master_addr)
+        response = ray.get(
+            actor.agent_report.remote(self._gen_request(message).to_json()),
             timeout=self._timeout,
         )
 
@@ -649,10 +652,15 @@ class RayMasterClient(MasterClient):
 
     @retry()
     def _get(self, message: comm.Message):
-        response = self.ray.get(
-            self._master_addr.agent_get.remote(
-                self._gen_request(message).to_json()
-            ),
+        import ray
+
+        from dlrover.python.unified.util.actor_helper import (
+            get_actor_with_cache,
+        )
+
+        actor = get_actor_with_cache(self._master_addr)
+        response = ray.get(
+            actor.agent_get.remote(self._gen_request(message).to_json()),
             timeout=self._timeout,
         )
 
