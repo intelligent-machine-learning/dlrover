@@ -19,7 +19,10 @@ from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.common.node_defines import NodeInfo, WorkerStage
 from dlrover.python.unified.sub.elastic.executor import ElasticExecutor
-from dlrover.python.unified.util.actor_helper import invoke_actors_async
+from dlrover.python.unified.util.actor_helper import (
+    BatchInvokeResult,
+    invoke_actors_async,
+)
 
 
 def convert_to_node_state(state: WorkerStage):
@@ -68,13 +71,14 @@ class ElasticManager:
         # Initialize the elastic client here
         logger.info("Start job execution.")
         self.setup_workloads()
-        await invoke_actors_async(
+        res = await invoke_actors_async(
             [node.name for node in self.nodes], "start_elastic_job"
         )
-        status = await invoke_actors_async(
+        res.raise_for_errors()
+        res = await invoke_actors_async(
             [node.name for node in self.nodes], "status"
         )
-        if any(it != "RUNNING" for it in status):
+        if any(it != "RUNNING" for it in res.results):
             raise Exception("Some nodes failed to start the job.")
         self.stage = JobStage.RUNNING
         asyncio.create_task(self._monitor_nodes(), name="monitor_nodes")
@@ -93,12 +97,14 @@ class ElasticManager:
         logger.info("Start monitoring nodes status...")
         while self.stage == JobStage.RUNNING:
             try:
-                all_status: List[WorkerStage] = await invoke_actors_async(
+                res: BatchInvokeResult[
+                    WorkerStage
+                ] = await invoke_actors_async(
                     [node.name for node in self.nodes], "status"
                 )
-                logger.debug(f"Node status results: {all_status}")
+                logger.debug(f"Node status results: {res.results}")
                 with self._lock:
-                    for node, status in zip(self.nodes, all_status):
+                    for node, status in zip(self.nodes, res.results):
                         old_node = self._old_context.job_node(
                             NodeType.WORKER, node.rank
                         )
@@ -108,7 +114,7 @@ class ElasticManager:
                         status = convert_to_node_state(status)
                         old_node.update_status(status)
                         self._old_context.update_job_node(old_node)
-                if all(it.is_terminal() for it in all_status):
+                if all(it.is_terminal() for it in res.results):
                     self.stage = JobStage.FINISHED
                     logger.info("All nodes are finished.")
                     break

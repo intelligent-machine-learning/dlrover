@@ -50,7 +50,8 @@ class PrimeManager:
     async def _nodes_check(self):
         # check all nodes itself
         nodes = [node.name for node in self.graph.vertices]
-        await invoke_actors_async(nodes, "self_check")
+        res = await invoke_actors_async(nodes, "self_check")
+        res.raise_for_errors()
         logger.info("All nodes self-checked successfully.")
 
         # let masters pre-check nodes
@@ -59,7 +60,8 @@ class PrimeManager:
             for role in self.graph.roles.values()
             if role.sub_master is not None
         ]
-        await invoke_actors_async(masters, "check_workers")
+        res = await invoke_actors_async(masters, "check_workers")
+        res.raise_for_errors()
         logger.info("Masters checked all workers successfully.")
 
     async def start(self):
@@ -67,14 +69,17 @@ class PrimeManager:
         self.stage = "RUNNING"
         self.save()
         nodes = [node.name for node in self.graph.vertices]
-        await invoke_actors_async(nodes, "start")  # start all nodes
-        status = await invoke_actors_async(nodes, "status")
-        if any(it != "RUNNING" for it in status):
+        res = await invoke_actors_async(nodes, "start")  # start all nodes
+        res.raise_for_errors()
+
+        res = await invoke_actors_async(nodes, "status")
+        if any(it != "RUNNING" for it in res.results):
             statusMap = {
-                node.name: node_status
-                for node, node_status in zip(self.graph.vertices, status)
+                node: node_status
+                for node, node_status in zip(nodes, res.results)
             }
             raise Exception(f"Some nodes failed to start the job. {statusMap}")
+
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(
             self._monitor_nodes(), name="job_monitor"
@@ -84,10 +89,11 @@ class PrimeManager:
         """Monitor the nodes status."""
         while self.stage == "RUNNING":
             await asyncio.sleep(5)
-            results = await invoke_actors_async(
+            res = await invoke_actors_async(
                 [node.name for node in self.graph.vertices], "status"
             )
-            if all(it in ["FAILED", "FINISHED"] for it in results):
+            res.raise_for_errors()
+            if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 logger.info("All nodes are finished or failed.")
                 break
         await self.stop()

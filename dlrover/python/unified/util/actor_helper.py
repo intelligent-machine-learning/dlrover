@@ -1,6 +1,16 @@
 import asyncio
-from functools import partial
-from typing import Dict, List, Optional, TypeVar
+from functools import cached_property, partial
+from typing import (
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 import ray
 from ray.actor import ActorClass, ActorHandle
@@ -80,7 +90,7 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
             logger.info(
                 f"Waiting for {len(stragglers)} tasks ({stragglers}) to complete {method_name} ..."
             )
-    return results
+    return BatchInvokeResult(actors, method_name, results)
 
 
 def invoke_actor(actor_name: str, method_name: str, *args, **kwargs):
@@ -146,9 +156,7 @@ async def invoke_actor_async(
     actor = get_actor_with_cache(actor_name)
     while True:
         try:
-            res: ray.ObjectRef = getattr(actor, method_name).remote(
-                *args, **kwargs
-            )
+            res = __invoke_actor(actor, method_name, *args, **kwargs)
             return await res
         except RayActorError as e:
             print(f"Error executing {method_name} on {actor_name}: {e}")
@@ -164,9 +172,106 @@ async def invoke_actor_async(
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ):
-    return await asyncio.gather(
+    res = await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
             for actor in actors
         ]
     )
+    return BatchInvokeResult(actors, method_name, res)
+
+
+T = TypeVar("T")
+
+
+class BatchInvokeResult(Generic[T]):
+    def __init__(
+        self,
+        actors: List[str],
+        method_name: str,
+        results: List[Union[T, Exception]],
+    ):
+        self.actors = actors
+        self.method = method_name
+        self._results = results
+
+    @overload
+    def __getitem__(self, item: int, /) -> T: ...
+    @overload
+    def __getitem__(self, actor: str, /) -> T: ...
+
+    def __getitem__(self, item: Union[str, int]) -> T:
+        """Get the result for a specific actor by index or name. Raise Exception if the result is an error."""
+        if isinstance(item, str):
+            index = self.actors.index(item)
+            if index == -1:
+                raise KeyError(f"Actor {item} not found in results.")
+            item = index
+        if item < 0 or item >= len(self._results):
+            raise IndexError("Index out of range.")
+        res = self._results[item]
+        if isinstance(res, Exception):
+            raise res
+        return res
+
+    @cached_property
+    def is_all_successful(self) -> bool:
+        """Check if all results are successful."""
+        return all(
+            not isinstance(result, Exception) for result in self._results
+        )
+
+    def all_failed(self) -> List[Tuple[str, Exception]]:
+        """Get a list of failed actors with their exceptions."""
+        return [
+            (actor, result)
+            for actor, result in zip(self.actors, self._results)
+            if isinstance(result, Exception)
+        ]
+
+    def raise_for_errors(self):
+        """Raise an exception if any actor failed."""
+        if self.is_all_successful:
+            return
+
+        for actor, exc in self.all_failed():
+            logger.error(
+                f"Actor {actor} failed executing {self.method}: {exc}"
+            )
+        raise Exception(
+            f"Some actors failed executing {self.method}. "
+            f"Failed actors: {', '.join(actor for actor, _ in self.all_failed())}"
+        )
+
+    @property
+    def results(self) -> List[T]:
+        """Return results as a list of successful results."""
+        self.raise_for_errors()
+        return [cast(T, result) for result in self._results]
+
+    def as_dict(self) -> Dict[str, T]:
+        """Return results as a dictionary mapping actor names to results."""
+        return {
+            actor: result for actor, result in zip(self.actors, self.results)
+        }
+
+
+class BatchActorProxy:
+    def __init__(self, actors: List[str], cls: Optional[type]):
+        self.actors = actors
+        # Optionally filter methods if a class is provided
+        self.cls = cls
+
+    def __getattr__(self, name):
+        if self.cls is not None and not hasattr(self.cls, name):
+            raise AttributeError(
+                f"Method {name} not found in class {self.cls.__name__}."
+            )
+        return partial(invoke_actors, self.actors, name)
+
+    @staticmethod
+    def wrap(
+        actor_name: str, cls: Optional[type[T]] = None, lazy: bool = False
+    ) -> "T":
+        """Wraps the actor proxy to return an instance of the class."""
+        return BatchActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore

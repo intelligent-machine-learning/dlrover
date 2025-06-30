@@ -72,10 +72,10 @@ class Scheduler:
         logger.info("Finished creating nodes for the job.")
 
         # 2. Check actors with ping
-        result = await invoke_actors_async(
+        res = await invoke_actors_async(
             [node.name for node in graph.vertices], "status"
         )
-        logger.info(f"Actors status: {result}")
+        logger.info(f"Actors status: {res.as_dict()}")
 
     def create_node(self, node: RayNodeSpec):
         runtime_env: dict = {
