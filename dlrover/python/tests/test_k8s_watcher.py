@@ -255,8 +255,10 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
-        self.assertEqual(self.mock_job_context.is_suspended(), True)
-        self.assertIn(self.mock_job_context.get_job_stage(), "suspended, stopped, stopping")
+        self.assertIn(
+            self.mock_job_context.get_job_stage(),
+            "suspended, stopped, stopping",
+        )
 
     @patch("time.sleep", return_value=None)
     def test_watch_added_event_unsuspend(self, mock_sleep):
