@@ -11,10 +11,10 @@ from .api import PrimeMasterApi, PrimeMasterRemote
 from .config import JobConfig
 from .manager import PrimeManager
 
+init_coverage() # support coverage for master actor
 
 class PrimeMaster:
     def __init__(self, config: JobConfig):
-        init_coverage()
         assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
             f"PrimeMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
         )
