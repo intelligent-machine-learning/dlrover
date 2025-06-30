@@ -31,7 +31,6 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import Node, NodeEvent
-from dlrover.python.master.node.job_context import JobContext
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.k8s_watcher import (
     K8sElasticJobWatcher,
