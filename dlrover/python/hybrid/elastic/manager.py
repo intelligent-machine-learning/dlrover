@@ -15,8 +15,9 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.node.job_context import \
-    get_job_context as get_elastic_context
+from dlrover.python.master.node.job_context import (
+    get_job_context as get_elastic_context,
+)
 from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
 

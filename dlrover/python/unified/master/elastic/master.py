@@ -122,9 +122,6 @@ class ElasticMaster(BaseMaster):
 
     """Remote call functions start"""
 
-    def wait_and_exit(self):
-        self._wait_and_exit().remote()
-
     def agent_report(self, request):
         logger.debug(f"Got agent report call: {request}")
         response = self._master_service_handler.agent_report(request)
