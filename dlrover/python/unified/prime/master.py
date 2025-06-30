@@ -1,16 +1,19 @@
 import ray
 
-from dlrover.python.hybrid.center.config import JobConfig
-from dlrover.python.hybrid.center.manager import HybridManager
-from dlrover.python.hybrid.common.node_defines import MASTER_ACTOR_ID, NodeInfo
-from dlrover.python.hybrid.util.actor_helper import ActorProxy
+from dlrover.python.unified.common.node_defines import (
+    MASTER_ACTOR_ID,
+    NodeInfo,
+)
+from dlrover.python.unified.prime.config import JobConfig
+from dlrover.python.unified.prime.manager import HybridManager
+from dlrover.python.unified.util.actor_helper import ActorProxy
 
 
 class HybridMaster:
     def __init__(self, config: JobConfig):
-        assert (
-            ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID
-        ), f"HybridMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
+        assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
+            f"HybridMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
+        )
 
         self.manager = HybridManager(config)
 

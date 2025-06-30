@@ -6,9 +6,6 @@ from typing import List
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.hybrid.common.node_defines import NodeInfo, WorkerStage
-from dlrover.python.hybrid.elastic.executor import ElasticExecutor
-from dlrover.python.hybrid.util.actor_helper import invoke_actors_async
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -20,6 +17,9 @@ from dlrover.python.master.node.job_context import (
 )
 from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 from dlrover.python.unified.common.enums import JobStage
+from dlrover.python.unified.common.node_defines import NodeInfo, WorkerStage
+from dlrover.python.unified.sub.elastic.executor import ElasticExecutor
+from dlrover.python.unified.util.actor_helper import invoke_actors_async
 
 
 def convert_to_node_state(state: WorkerStage):
@@ -102,9 +102,9 @@ class ElasticManager:
                         old_node = self._old_context.job_node(
                             NodeType.WORKER, node.rank
                         )
-                        assert (
-                            old_node is not None
-                        ), f"Node({node.rank}) not found in context"
+                        assert old_node is not None, (
+                            f"Node({node.rank}) not found in context"
+                        )
                         status = convert_to_node_state(status)
                         old_node.update_status(status)
                         self._old_context.update_job_node(old_node)

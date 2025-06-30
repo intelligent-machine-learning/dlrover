@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, Field
 from ray.actor import ActorClass
 from typing_extensions import TypeAlias
 
-from dlrover.python.hybrid.util.actor_helper import as_actor_class
+from dlrover.python.unified.util.actor_helper import as_actor_class
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
@@ -42,8 +42,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
     instance_env: Dict[str, str] = Field(default_factory=dict, alias="env")
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass:
-        ...
+    def get_worker_cls(self) -> ActorClass: ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None
@@ -58,12 +57,12 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     cmd: str = Field(description="Command to run the elastic workload.")
 
     def get_worker_cls(self) -> ActorClass:
-        from dlrover.python.hybrid.elastic.worker import ElasticWorker
+        from dlrover.python.unified.sub import ElasticWorker
 
         return ElasticWorker  # type: ignore[return-value]
 
     def get_master_cls(self) -> ActorClass:
-        from dlrover.python.hybrid.elastic.master import ElasticMaster
+        from dlrover.python.unified.sub import ElasticMaster
 
         return as_actor_class(ElasticMaster)  # type: ignore[return-value]
 

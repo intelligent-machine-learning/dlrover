@@ -3,11 +3,11 @@ from threading import Thread
 from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.hybrid.center.config import JobConfig
-from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
-from dlrover.python.hybrid.center.schedule.scheduler import Scheduler
-from dlrover.python.hybrid.common.node_defines import MasterStage
-from dlrover.python.hybrid.util.actor_helper import (
+from dlrover.python.unified.common.node_defines import MasterStage
+from dlrover.python.unified.prime.config import JobConfig
+from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
+from dlrover.python.unified.prime.schedule.scheduler import Scheduler
+from dlrover.python.unified.util.actor_helper import (
     invoke_actors_async,
     kill_actors,
 )

@@ -5,11 +5,11 @@ from ray.actor import ActorClass
 from ray.util.scheduling_strategies import SchedulingStrategyT
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.hybrid.center.schedule.graph import DLExecutionGraph
-from dlrover.python.hybrid.common.workload_config import ResourceDesc
-from dlrover.python.hybrid.util.actor_helper import invoke_actors_async
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
+from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
+from dlrover.python.unified.util.actor_helper import invoke_actors_async
 
 
 @dataclass

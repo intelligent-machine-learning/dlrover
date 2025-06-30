@@ -4,8 +4,8 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.hybrid.common.node_defines import ActorBase, WorkerStage
 from dlrover.python.hybrid.elastic.manager import ElasticManager
 from dlrover.python.hybrid.elastic.servicer import RayMasterServicer
-from dlrover.python.hybrid.sdk.hybrid import PrimeMasterApi
 from dlrover.python.unified.common.enums import JobStage
+from dlrover.python.unified.prime.api import PrimeMasterApi
 
 
 class ElasticMaster(ActorBase):

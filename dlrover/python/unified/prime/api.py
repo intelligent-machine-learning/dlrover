@@ -1,10 +1,13 @@
 from typing import TYPE_CHECKING, List
 
-from dlrover.python.hybrid.common.node_defines import MASTER_ACTOR_ID, NodeInfo
-from dlrover.python.hybrid.util.actor_helper import ActorProxy
+from dlrover.python.unified.common.node_defines import (
+    MASTER_ACTOR_ID,
+    NodeInfo,
+)
+from dlrover.python.unified.util.actor_helper import ActorProxy
 
 if TYPE_CHECKING:
-    from dlrover.python.hybrid.center.master import HybridMaster
+    from .master import HybridMaster
 
 
 def _proxy() -> "HybridMaster":
