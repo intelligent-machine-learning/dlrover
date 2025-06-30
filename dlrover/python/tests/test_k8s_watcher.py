@@ -14,6 +14,7 @@
 import datetime
 import json
 import os
+import time
 import unittest
 from typing import List
 from unittest import mock
@@ -234,11 +235,9 @@ class ScalePlanWatcherTest(unittest.TestCase):
 class K8sElasticJobWatcherTest(unittest.TestCase):
     def setUp(self):
         mock_k8s_client()
-        self.mock_job_context = JobContext.singleton_instance()
         self.watcher = K8sElasticJobWatcher(JobArgs("k8s", "default", "test"))
 
-    @patch("time.sleep", return_value=None)  # 避免实际等待
-    def test_watch_modified_event_suspend(self, mock_sleep):
+    def test_watch_modified_event_suspend(self):
         # 模拟事件流
         event_stream = [
             {
@@ -250,19 +249,19 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             }
         ]
 
-        self.mock_job_context.update_job_stage(JobStage.JOB_INIT)
+        self.watcher._job_context.update_job_stage(JobStage.JOB_INIT)
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
+        time.sleep(10)
+
         self.assertIn(
-            self.mock_job_context.get_job_stage(),
+            self.watcher._job_context.get_job_stage(),
             "suspended, stopped, stopping",
         )
 
-    @patch("time.sleep", return_value=None)
-    def test_watch_added_event_unsuspend(self, mock_sleep):
-        # 模拟事件流
+    def test_watch_added_event_unsuspend(self):
         event_stream = [
             {
                 "type": "ADDED",
@@ -273,9 +272,14 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             }
         ]
 
-        self.mock_job_context.request_suspend()
+        self.watcher._job_context.update_job_stage(JobStage.JOB_INIT)
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
-        self.assertEqual(self.mock_job_context.is_suspended(), False)
+        time.sleep(10)
+
+        self.assertEqual(
+            self.watcher._job_context.is_suspended(),
+            False,
+        )
