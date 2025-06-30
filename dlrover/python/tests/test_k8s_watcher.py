@@ -233,13 +233,12 @@ class ScalePlanWatcherTest(unittest.TestCase):
 
 class K8sElasticJobWatcherTest(unittest.TestCase):
     def setUp(self):
-        self.mock_k8s_client = MagicMock()
+        mock_k8s_client()
         self.mock_job_context = JobContext.singleton_instance()
         self.watcher = K8sElasticJobWatcher(JobArgs("k8s", "default", "test"))
 
     @patch("time.sleep", return_value=None)  # 避免实际等待
     def test_watch_modified_event_suspend(self, mock_sleep):
-        self.mock_job_context.update_job_stage(JobStage.JOB_INIT)
         # 模拟事件流
         event_stream = [
             {
@@ -251,6 +250,7 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             }
         ]
 
+        self.mock_job_context.update_job_stage(JobStage.JOB_INIT)
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
@@ -270,9 +270,7 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             }
         ]
 
-        # set job_context stage to suspended first
         self.mock_job_context.request_suspend()
-
         with patch("kubernetes.watch.Watch") as mock_watch:
             mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
