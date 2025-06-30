@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeStatus,
     NodeType,
+    JobStage,
 )
 from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.master.node.job_context import JobContext
@@ -238,6 +239,7 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
 
     @patch("time.sleep", return_value=None)  # 避免实际等待
     def test_watch_modified_event_suspend(self, mock_sleep):
+        self.mock_job_context.update_job_stage(JobStage.JOB_INIT)
         # 模拟事件流
         event_stream = [
             {
@@ -252,8 +254,8 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
             iter(event_stream)
         ]
 
-        with patch("kubernetes.watch.Watch.stream") as mock_stream:
-            mock_stream.return_value = iter(event_stream)
+        with patch("kubernetes.watch.Watch") as mock_watch:
+            mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
         self.assertEqual(self.mock_job_context.is_suspended(), True)
@@ -273,8 +275,8 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
 
         self.mock_job_context.request_suspend()
 
-        with patch("kubernetes.watch.Watch.stream") as mock_stream:
-            mock_stream.return_value = iter(event_stream)
+        with patch("kubernetes.watch.Watch") as mock_watch:
+            mock_watch.return_value.stream.return_value = iter(event_stream)
             self.watcher.start()
 
         # 验证 job_context 是否调用 request_unsuspend
