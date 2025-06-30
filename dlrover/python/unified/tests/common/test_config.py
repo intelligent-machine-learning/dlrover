@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLMasterConstant
@@ -20,9 +18,10 @@ from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     RLRoleType,
 )
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class JobConfigTest(unittest.TestCase):
+class JobConfigTest(BaseTest):
     def test_building(self):
         args = [
             "--job_name",

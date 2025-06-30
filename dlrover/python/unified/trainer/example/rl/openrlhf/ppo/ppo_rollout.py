@@ -20,11 +20,10 @@ import queue
 from collections import defaultdict
 
 import ray
-from vllm import LLM
-
 from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
     BasePPORole,
 )
+from vllm import LLM
 
 
 @ray.remote

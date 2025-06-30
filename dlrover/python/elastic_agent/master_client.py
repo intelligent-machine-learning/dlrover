@@ -622,6 +622,55 @@ class HttpMasterClient(MasterClient):
         return request
 
 
+class RayMasterClient(MasterClient):
+    import ray
+
+    master_actor_handle = None
+
+    def __init__(self, master_addr, node_id, node_type, timeout=5):
+        super(RayMasterClient, self).__init__(
+            self.master_actor_handle, node_id, node_type, timeout
+        )
+
+    @classmethod
+    def register_master_actor(cls, actor_handle):
+        cls.master_actor_handle = actor_handle
+
+    @retry()
+    def _report(self, message: comm.Message):
+        response = self.ray.get(
+            self._master_addr.agent_report.remote(
+                self._gen_request(message).to_json()
+            ),
+            timeout=self._timeout,
+        )
+
+        return response
+
+    @retry()
+    def _get(self, message: comm.Message):
+        response = self.ray.get(
+            self._master_addr.agent_get.remote(
+                self._gen_request(message).to_json()
+            ),
+            timeout=self._timeout,
+        )
+
+        return comm.deserialize_message(response.data)
+
+    def _gen_request(self, message: comm.Message):
+        request = BaseRequest()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+
+        return request
+
+    def get_elastic_run_config(self) -> Dict[str, str]:
+        # no need to get config from master
+        return {}
+
+
 def build_master_client(
     master_addr=None, timeout=JobConstant.MASTER_CLIENT_DEFAULT_TIMEOUT
 ):
@@ -629,8 +678,8 @@ def build_master_client(
     Build a master client.
 
     Args:
-        master_addr (str): the address of the job master, the format
-            is "{IP}:{PORT}"
+        master_addr (Union[str, ActorHandle]): the address of the job master,
+            the format is "{IP}:{PORT}" if str type
         timeout (int): the timeout second of grpc requests.
     """
     if master_addr is None:
@@ -658,10 +707,18 @@ def build_master_client(
                 master_client = GrpcMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
-            else:
+            elif master_service_type == CommunicationType.COMM_SERVICE_HTTP:
                 master_client = HttpMasterClient(
+                    master_addr, node_id, node_type, timeout
+                )
+            else:
+                master_client = RayMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:
             logger.warning("The master is not available.")
+    else:
+        master_client = RayMasterClient(
+            master_addr, node_id, node_type, timeout
+        )
     return master_client

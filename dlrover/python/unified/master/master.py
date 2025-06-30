@@ -10,10 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple
+from typing import List, Tuple
 
 import ray
 
@@ -55,12 +56,13 @@ class BaseMaster(ABC):
         self._state_backend.init()
 
         self._create_time = int(time.time())
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._lock = threading.Lock()
 
         self._job_manager = None
 
         logger.info(
-            f"DLRover Master: {{({self.__class__.__name__})}} initiated with "
+            f"DLRover Master: {({self.__class__.__name__})} initiated with "
             f"job-config: {self._job_config}, "
             f"dl-context: {self._dl_context}."
         )
@@ -70,8 +72,8 @@ class BaseMaster(ABC):
         """To initialize the master core components."""
 
     @abstractmethod
-    def _handle_failure(self, failure: FailureDesc):
-        """To handle failure."""
+    def _handle_failures(self, failures: List[FailureDesc]):
+        """To handle failures."""
 
     @property
     def context(self):
@@ -153,7 +155,7 @@ class BaseMaster(ABC):
                     f"context: {context_from_ckpt}."
                 )
                 self._job_context = context_from_ckpt
-                self._handle_failure(self._gen_master_failure())
+                self._handle_failures(self._gen_master_failure())
             else:
                 logger.info(f"DLMaster new job executing: {self.job_name}.")
                 self._save_context_to_checkpoint()
@@ -162,12 +164,16 @@ class BaseMaster(ABC):
             self._executor.submit(self._wait_and_exit)
         except Exception as e:
             logger.error("Got unexpected fatal error on starting.", e)
-            self.exit_job(forced=True, reason=DLJobExitReason.ERROR)
+            self.exit_job(
+                stage=JobStage.ERROR, forced=True, reason=DLJobExitReason.ERROR
+            )
+
+    def _get_master_wait_interval(self):
+        # default
+        return DLMasterConstant.RUN_WAIT_INTERVAL
 
     def _wait_and_exit(self):
         while True:
-            trainer_error = self._job_manager.get_trainer_error()
-
             if self.get_job_stage() == JobStage.ERROR:
                 logger.info("Exit loop for job in error stage.")
                 break
@@ -181,16 +187,14 @@ class BaseMaster(ABC):
                         f"running: {self.get_job_stage()}, "
                         "keep waiting..."
                     )
-            elif trainer_error is not None:
-                logger.warning("Trainer got error, do trainer failover.")
-                self._handle_failure(
-                    FailureDesc(
-                        failure_obj="TRAINER",
-                        failure_time=trainer_error[0],
-                        failure_level=-1,
-                    )
+            # TODO: temp impl for now
+            elif self._job_manager.has_job_error():
+                logger.warning("Job got error, try failover...")
+                self._handle_failures(
+                    self._job_manager.gen_failures_by_error()
                 )
-            time.sleep(DLMasterConstant.RUN_WAIT_INTERVAL)
+
+            time.sleep(self._get_master_wait_interval())
             logger.debug("DLMaster still running...")
 
     def _should_continue_exiting(self) -> Tuple[bool, str]:
@@ -227,7 +231,7 @@ class BaseMaster(ABC):
         self._cleanup_context_checkpoint()
 
         logger.info("DLMaster exit now.")
-        ray.actor.exit_actor()
+        ray.kill(self)
 
     """Remote call functions start"""
 
@@ -238,49 +242,47 @@ class BaseMaster(ABC):
     def get_job_status(self):
         return self.get_job_stage().name
 
-    def report(self, runtime_info: RuntimeInfo):
+    def report_restarting(
+        self,
+        name: str,
+        timestamp: int,
+        level: int = -1,
+        reason: str = "",
+        **kwargs,
+    ):
+        vertex_role = self.context.execution_graph.name_vertex_mapping[
+            name
+        ].role
+        failure_desc = FailureDesc(
+            failure_obj="WORKLOAD",
+            workload_name=name,
+            workload_role=vertex_role,
+            failure_time=timestamp,
+            failure_level=level,
+            reason=reason,
+            extra_info=kwargs,
+        )
+        self._handle_failures([failure_desc])
+
+    def report_runtime(self, runtime_info: RuntimeInfo):
         if not runtime_info:
             return
 
-        is_actor_restart = False
         name = runtime_info.name
 
         name_vertex_mapping = (
             self._job_context.execution_graph.name_vertex_mapping
         )
         if name in name_vertex_mapping:
-            vertex = name_vertex_mapping[name]
-
-            if vertex.create_time:
-                is_actor_restart = True
-
             # update runtime info
             name_vertex_mapping[name].update_runtime_info(
                 create_time=runtime_info.create_time,
                 hostname=runtime_info.hostname,
                 host_ip=runtime_info.host_ip,
             )
-        logger.info(
-            f"Got runtime info: {runtime_info} reported by: {name}, "
-            f"is restart: {is_actor_restart}."
-        )
-
-        # deal with workload restart
-        if is_actor_restart:
-            vertex_name = runtime_info.name
-            vertex_role = self.context.execution_graph.name_vertex_mapping[
-                vertex_name
-            ].role
-            failure_desc = FailureDesc(
-                failure_obj="WORKLOAD",
-                workload_name=vertex_name,
-                workload_role=vertex_role,
-                failure_time=runtime_info.create_time,
-                reason="unknown",
-            )
-            self._handle_failure(failure_desc)
+        logger.debug(f"Got runtime info: {runtime_info} reported by: {name}.")
 
     def report_failure(self, failure: FailureDesc):
-        self._handle_failure(failure)
+        self._handle_failures([failure])
 
     """Remote call functions end"""

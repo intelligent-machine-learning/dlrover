@@ -327,7 +327,11 @@ def _launch_dlrover_local_master(master_addr, job_name):
 
 
 def _check_dlrover_master_available(addr, timeout=120):
-    """Verify that the master servicer is available."""
+    """Verify that the master servicer is available except ray mode."""
+    if env_utils.is_ray_mode():
+        logger.info("Skip dlrover master check for ray mode.")
+        return True
+
     if not addr:
         return False
 
@@ -479,7 +483,6 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
     So user should use 'torchrun' directly(without 'dlrover-run') to run
     distributed training if no dlrover available.
     """
-
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_rank = env_utils.get_node_rank()
 
@@ -511,10 +514,10 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
                         "local dlrover master is unavailable."
                     )
                     # torch-run(standalone)
-                    return False
+                    return False, None
                 else:
                     # dlrover-run + local-master(standalone)
-                    return True
+                    return True, master_handler
             else:
                 # raise exception directly
                 raise RuntimeError(
@@ -535,7 +538,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
             )
 
         # dlrover-run + dist-master(distributed)
-        return True
+        return True, None
 
 
 def run(args):
@@ -552,7 +555,9 @@ def run(args):
 
     is_standalone = args.standalone
     logger.info(f"Standalone mode: {is_standalone}")
-    use_dlrover_launch = _check_to_use_dlrover_run(job_name, is_standalone)
+    use_dlrover_launch, master_handler = _check_to_use_dlrover_run(
+        job_name, is_standalone
+    )
 
     # for torchrun standalone mode
     if is_standalone and not use_dlrover_launch:
@@ -567,7 +572,6 @@ def run(args):
             f"--rdzv-id={args.rdzv_id}\n"
             f"**************************************\n"
         )
-
     config, cmd, cmd_args = _elastic_config_from_args(args)
     config.run_id = job_name
     config.role = "dlrover-trainer"

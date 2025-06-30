@@ -19,7 +19,7 @@ import telnetlib
 import threading
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Deque, Dict, List, Optional
 
 from kubernetes import client
@@ -95,6 +95,7 @@ class PodScaler(Scaler):
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
         self._create_node_queue: Deque[Node] = deque()
+        self._create_node_futures: List[Future] = []
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
@@ -220,7 +221,7 @@ class PodScaler(Scaler):
             time.sleep(5)
 
         self._remove_nodes(plan)
-        while True:
+        while self._started:
             if (
                 len(self._create_node_queue) > 0
                 and not _job_context.is_request_stopped()
@@ -230,7 +231,16 @@ class PodScaler(Scaler):
                 )
                 time.sleep(15)
             else:
-                break
+                if all(future.done() for future in self._create_node_futures):
+                    # wait async pod creation completed
+                    logger.debug("Async pod creation finished.")
+                    time.sleep(5)
+                    break
+                else:
+                    logger.debug("Waiting for async pod creation...")
+                    time.sleep(5)
+                    continue
+
         with self._scaling_lock:
             if plan.empty():
                 return
@@ -433,9 +443,11 @@ class PodScaler(Scaler):
         with ThreadPoolExecutor(max_workers=4) as executor:
             while self._started:
                 while self._create_node_queue:
-                    executor.submit(
-                        self._create_pod_from_queue,
-                        self._create_node_queue.popleft(),
+                    self._create_node_futures.append(
+                        executor.submit(
+                            self._create_pod_from_queue,
+                            self._create_node_queue.popleft(),
+                        )
                     )
                 time.sleep(3)
 
@@ -454,15 +466,23 @@ class PodScaler(Scaler):
             return True
 
         succeed = False
-        if self._check_cluster_ready_for_pod(node_from_queue):
-            pod = self._create_pod(node_from_queue)
-            succeed = self._k8s_client.create_pod(pod)
-        if not succeed:
-            self._create_node_queue.appendleft(node_from_queue)
-        else:
-            # create svs for succeed pod
-            if not self._create_service_for_pod(node_from_queue):
+
+        try:
+            if self._check_cluster_ready_for_pod(node_from_queue):
+                pod = self._create_pod(node_from_queue)
+                succeed = self._k8s_client.create_pod(pod)
+            if not succeed:
                 self._create_node_queue.appendleft(node_from_queue)
+            else:
+                # create svs for succeed pod
+                if not self._create_service_for_pod(node_from_queue):
+                    self._create_node_queue.appendleft(node_from_queue)
+        except Exception as e:
+            logger.error(
+                f"Failed to create pod by unexpected error: {e}", exc_info=True
+            )
+            succeed = False
+
         return succeed
 
     def _check_cluster_ready_for_pod(self, node: Node):

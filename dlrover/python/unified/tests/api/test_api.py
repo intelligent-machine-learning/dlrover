@@ -10,26 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 
 from omegaconf import OmegaConf
 
+from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
+from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
     TrainerType,
 )
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class ApiTest(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
+class ApiTest(BaseTest):
     def test_basic(self):
         conf = OmegaConf.create({"k1": "v1"})
 
@@ -359,4 +355,49 @@ class ApiTest(unittest.TestCase):
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
             ],
             "false",
+        )
+
+    def test_spmd(self):
+        cmd = "dlrover-run --nnodes=2 --nproc_per_node=2 test.py"
+        dl_job = (
+            DLJobBuilder()
+            .SFT_type()
+            .node_num(3)
+            .device_per_node(2)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"e0": "v0"})
+            .dlrover_run(cmd)
+            .build()
+        )
+
+        self.assertIsNotNone(dl_job)
+        dl_config = dl_job._to_dl_config()
+        self.assertEqual(
+            dl_config["trainer"]["type"],
+            "ELASTIC_TRAINING",
+        )
+        self.assertEqual(
+            dl_config["trainer"]["class"],
+            "DefaultTrainer",
+        )
+        self.assertEqual(
+            dl_config["config"][InternalDLConfig.ELASTIC_RUN_CMD],
+            cmd,
+        )
+        self.assertEqual(
+            dl_config["env"][NodeEnv.DLROVER_MASTER_SERVICE_TYPE],
+            CommunicationType.COMM_SERVICE_RAY,
+        )
+        self.assertEqual(
+            dl_config["workload"]["ELASTIC"]["class"],
+            "ElasticWorkload",
+        )
+        self.assertEqual(
+            dl_config["workload"]["ELASTIC"]["num"],
+            2,
+        )
+        self.assertEqual(
+            dl_config["workload"]["ELASTIC"]["resource"]["CPU"],
+            2,
         )

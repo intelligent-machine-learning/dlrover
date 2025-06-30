@@ -10,13 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import time
 
 import ray
 
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.master.elastic.master import ElasticMaster
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.master.spmd.master import SPMDMaster
 
 try:
     from ray.exceptions import ActorDiedError as ade
@@ -30,7 +31,7 @@ from dlrover.python.unified.common.dl_context import DLContext, RLContext
 from dlrover.python.unified.common.enums import DLType, JobStage
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 
-MASTER_CONNECT_INTERVAL = 30
+MASTER_CONNECT_INTERVAL = 5  # must < master's RUN_WAIT_INTERVAL
 MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
 
 
@@ -47,12 +48,12 @@ def get_master_cls(args):
     if train_type in [DLType.RL, DLType.MULTIMODAL]:
         return MPMDMaster
     elif train_type in [DLType.SFT, DLType.PRE]:
-        return SPMDMaster
+        return ElasticMaster
     else:
         raise InvalidDLConfiguration()
 
 
-def submit(args=None, blocking=True):
+def submit(args=None, blocking=True, ray_address=None):
     # parse input arguments
     parsed_args = parse_job_args(args)
 
@@ -74,6 +75,26 @@ def submit(args=None, blocking=True):
     runtime_env = {"env_vars": {}}
     runtime_env["env_vars"].update(dl_context.env)
 
+    # do ray init
+    if ray.is_initialized():
+        logger.info("Ray already initialized.")
+    else:
+        working_dir_env = dl_context.env.get(
+            DLWorkloadEnv.WORKING_DIR, os.getcwd()
+        )
+        logger.info(
+            f"Using specified working dir: {working_dir_env} "
+            f"instead of current working dir: {os.getcwd()}."
+        )
+        if not ray_address:
+            address = "auto"
+        elif ray_address == "test":
+            address = None
+        else:
+            address = ray_address
+        ray.init(address=address, runtime_env={"working_dir": working_dir_env})
+        logger.info("Ray initialized.")
+
     master_actor = (
         get_master_cls(parsed_args)
         .options(
@@ -83,6 +104,7 @@ def submit(args=None, blocking=True):
             memory=parsed_args.master_mem,
             runtime_env=runtime_env,
             max_restarts=-1,
+            max_concurrency=64,
         )
         .remote(job_config.serialize(), dl_context.serialize())
     )
@@ -90,39 +112,35 @@ def submit(args=None, blocking=True):
     ray.get(master_actor.ping.remote())
     logger.info("DLMaster created.")
 
-    ray.get(master_actor.run.remote())
-    logger.info("DLMaster is running...")
+    master_actor.run.remote()
+    logger.info("DLMaster start running...")
 
+    exit_code = 0
     if blocking:
-        master_exit_start = 0
         while True:
-            if (
-                master_exit_start != 0
-                and time.time() - master_exit_start > MASTER_CONNECT_TIMEOUT
-            ):
-                logger.warning("DLMaster might dead, exit now.")
-                break
-
             try:
                 result = ray.get(master_actor.get_job_status.remote())
                 # if result in ["FINISHED", "ERROR"]:
                 if JobStage.is_ending_stage(result):
                     logger.info(f"DLMaster exited with: {result}")
+                    if result == JobStage.ERROR:
+                        exit_code = 1
                     break
-                master_exit_start = 0
             except ade:
-                if master_exit_start == 0:
-                    master_exit_start = time.time()
+                logger.info("DLMaster already exited.")
+                break
 
             logger.debug("DLMaster is running...")
             time.sleep(MASTER_CONNECT_INTERVAL)
     else:
         logger.info("Driver exit now for none blocking mode.")
 
+    return exit_code
 
-def main(args=None, blocking=True):
-    return submit(args=args, blocking=blocking)
+
+def main(args=None, blocking=True, ray_address=None):
+    return submit(args=args, blocking=blocking, ray_address=ray_address)
 
 
 if __name__ == "__main__":
-    main()
+    os._exit(main())

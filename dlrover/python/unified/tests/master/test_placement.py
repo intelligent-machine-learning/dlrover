@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import unittest
 
 from dlrover.python.common.enums import ResourceType
 from dlrover.python.unified.common.args import parse_job_args
@@ -25,11 +24,13 @@ from dlrover.python.unified.master.placement import (
     SingleBundlePerNodePlacement,
 )
 from dlrover.python.unified.master.scheduler import GroupOrderedScheduler
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class SingleBundlePerNodePlacementTest(unittest.TestCase):
+class SingleBundlePerNodePlacementTest(BaseTest):
     def setUp(self):
+        super().setUp()
         args = [
             "--job_name",
             "test",
@@ -53,6 +54,7 @@ class SingleBundlePerNodePlacementTest(unittest.TestCase):
 
     def tearDown(self):
         os.environ.clear()
+        super().tearDown()
 
     def test_prepare_allocations(self):
         self.assertEqual(
@@ -94,7 +96,7 @@ class SingleBundlePerNodePlacementTest(unittest.TestCase):
         self.assertEqual(vertices[0].pg_bundle_index, 3)
 
 
-class SingleGroupPerNodePlacementTest0(unittest.TestCase):
+class SingleGroupPerNodePlacementTest0(BaseTest):
     def setUp(self):
         args = [
             "--job_name",
@@ -199,7 +201,7 @@ class SingleGroupPerNodePlacementTest0(unittest.TestCase):
         self.assertEqual(vertices[1].pg_bundle_index, 1)
 
 
-class SingleGroupPerNodePlacementTest1(unittest.TestCase):
+class SingleGroupPerNodePlacementTest1(BaseTest):
     def setUp(self):
         args = [
             "--job_name",

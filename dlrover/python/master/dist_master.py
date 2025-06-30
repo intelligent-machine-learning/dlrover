@@ -96,9 +96,9 @@ def _create_master_service_on_k8s(namespace, job_name, job_uuid, target_port):
 
 
 class DistributedJobMaster(JobMaster):
-    """The master of a distrbiuted job which has multiple nodes. The master
+    """The master of a distributed job which has multiple nodes. The master
     - launches nodes (e.g. the Pod on kubernetes).
-    - builds the rendezvous of training ndoes.
+    - builds the rendezvous of training nodes.
     - monitors the node status and launch a new node to recover a failed node.
     - collects the training metrics including throughput and the workload
         of each node.
@@ -109,7 +109,7 @@ class DistributedJobMaster(JobMaster):
     JobManager: manages the nodes of a job. the job manager can launch nodes,
         monitor nodes and scale up/down nodes.
     RendezvousManager: build the rendezvous of training nodes.
-    TaskManager: assignes the data shard tasks to workers and recover the data
+    TaskManager: assigns the data shard tasks to workers and recover the data
         shard task of a failed worker.
     MetricCollector: collects the training metrics of a training job.
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
@@ -144,7 +144,7 @@ class DistributedJobMaster(JobMaster):
             if args.enable_dynamic_sharding
             else None
         )
-        elastic_training = RendezvousName.ELASTIC_TRAINING
+        elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
@@ -308,7 +308,7 @@ class DistributedJobMaster(JobMaster):
                         msg=msg,
                     )
                     self.request_stop(False, reason, msg)
-                    continue
+                    break
                 self.job_manager.clear_exited_nodes()
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
@@ -321,7 +321,7 @@ class DistributedJobMaster(JobMaster):
                     elif (
                         self.task_manager
                         and not self.task_manager.finished()
-                        and not self.task_manager.is_dataset_initialized()
+                        and self.task_manager.is_dataset_initialized(True)
                     ):
                         logger.warning(
                             "All workers exited but there also are "
@@ -333,7 +333,7 @@ class DistributedJobMaster(JobMaster):
                     self.job_manager.all_running_node_hanged()
                     and self.task_manager.task_hanged()
                 ):
-                    logger.error("All nodes hangeds")
+                    logger.error("All nodes hanged")
                     self._exit_code = 1
                     self._exit_reason = JobExitReason.HANG_ERROR
 
