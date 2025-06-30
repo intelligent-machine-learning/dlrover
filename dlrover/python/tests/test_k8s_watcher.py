@@ -36,7 +36,8 @@ from dlrover.python.master.watcher.k8s_watcher import (
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
-    _verify_restarting_training, K8sElasticJobWatcher,
+    _verify_restarting_training,
+    K8sElasticJobWatcher,
 )
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.tests.test_utils import (
@@ -233,9 +234,7 @@ class K8sElasticJobWatcherTest(unittest.TestCase):
     def setUp(self):
         self.mock_k8s_client = MagicMock()
         self.mock_job_context = JobContext.singleton_instance()
-        self.watcher = K8sElasticJobWatcher(
-            JobArgs("k8s", "default", "test")
-        )
+        self.watcher = K8sElasticJobWatcher(JobArgs("k8s", "default", "test"))
 
     @patch("time.sleep", return_value=None)  # 避免实际等待
     def test_watch_modified_event_suspend(self, mock_sleep):
