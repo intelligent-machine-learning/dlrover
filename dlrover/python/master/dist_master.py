@@ -316,7 +316,7 @@ class DistributedJobMaster(JobMaster):
                     elif (
                         self.task_manager
                         and not self.task_manager.finished()
-                        and self.task_manager.is_dataset_initialized(True)
+                        and self.task_manager.is_dataset_initialized()
                     ):
                         logger.warning(
                             "All workers exited but there also are "
