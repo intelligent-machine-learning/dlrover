@@ -14,14 +14,17 @@
 import datetime
 import json
 import os
+import time
 import unittest
 from typing import List
 from unittest import mock
+from unittest.mock import patch
 
 from kubernetes import client
 
 from dlrover.python.common.constants import (
     ElasticJobLabel,
+    JobStage,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
@@ -30,12 +33,14 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.k8s_watcher import (
+    K8sElasticJobWatcher,
     K8sScalePlanWatcher,
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
     _verify_restarting_training,
 )
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.tests.test_utils import (
     WITH_TO_DELETED,
     create_pod,
@@ -223,4 +228,57 @@ class ScalePlanWatcherTest(unittest.TestCase):
         self.assertEqual(
             resource_plan.node_resources["elasticjob_sample-worker-0"].memory,
             1024,
+        )
+
+
+class K8sElasticJobWatcherTest(unittest.TestCase):
+    def setUp(self):
+        mock_k8s_client()
+        self.watcher = K8sElasticJobWatcher(JobArgs("k8s", "default", "test"))
+
+    def test_watch_modified_event_suspend(self):
+        # 模拟事件流
+        event_stream = [
+            {
+                "type": "MODIFIED",
+                "object": {
+                    "metadata": {"name": "test"},
+                    "spec": {"suspend": True},
+                },
+            }
+        ]
+
+        self.watcher._job_context.update_job_stage(JobStage.JOB_INIT)
+        with patch("kubernetes.watch.Watch") as mock_watch:
+            mock_watch.return_value.stream.return_value = iter(event_stream)
+            self.watcher.start()
+
+        time.sleep(10)
+
+        self.assertIn(
+            self.watcher._job_context.get_job_stage(),
+            "suspended, stopped, stopping",
+        )
+
+    def test_watch_added_event_unsuspend(self):
+        event_stream = [
+            {
+                "type": "ADDED",
+                "object": {
+                    "metadata": {"name": "test"},
+                    "spec": {"suspend": False},
+                },
+            }
+        ]
+
+        self.watcher._job_context.update_job_stage(JobStage.JOB_INIT)
+        with patch("kubernetes.watch.Watch") as mock_watch:
+            mock_watch.return_value.stream.return_value = iter(event_stream)
+            self.watcher.start()
+
+        time.sleep(10)
+
+        self.assertEqual(
+            self.watcher._job_context.is_suspended(),
+            False,
         )
