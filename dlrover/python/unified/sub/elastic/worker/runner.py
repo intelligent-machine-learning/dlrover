@@ -12,7 +12,6 @@ from dlrover.trainer.torch.elastic_run import (
     _elastic_config_from_args,
     launch_agent,
     parse_args,
-    wait_pre_check,
 )
 
 init_coverage()  # support coverage for runner actor
@@ -49,9 +48,6 @@ class ElasticRunner:
         config, cmd, cmd_args = _elastic_config_from_args(parsed)
         config.run_id = self.job_name
         config.role = "dlrover-trainer"
-
-        # TODO remove this, as pre-check move to elastic-worker
-        wait_pre_check(config)
 
         launch_agent(config, cmd, list(cmd_args))
 

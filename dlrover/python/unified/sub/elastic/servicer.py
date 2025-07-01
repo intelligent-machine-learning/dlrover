@@ -89,10 +89,6 @@ class MasterServicer(ABC):
         """Should be implemented by subclasses."""
         return BaseResponse()
 
-    def get_task_type(self, task_type):
-        """Should be implemented by subclasses."""
-        return task_type
-
     def get(self, request, _=None):
         node_type = request.node_type
         node_id = request.node_id
@@ -158,7 +154,7 @@ class MasterServicer(ABC):
         raise NotImplementedError("deprecated, TF backend only")
 
     def _get_cluster_version(self, request: comm.ClusterVersionRequest):
-        return comm.ClusterVersion()
+        raise NotImplementedError("deprecated, TF backend only")
 
     def _query_ps_nodes(self):
         raise NotImplementedError("deprecated, TF backend only")
@@ -571,9 +567,7 @@ class MasterServicer(ABC):
     def _get_pre_check_result(
         self, node_type, node_id, message: comm.PreCheckRequest
     ) -> comm.PreCheckResponse:
-        return comm.PreCheckResponse(
-            status=get_job_context().get_pre_check_status()
-        )
+        raise NotImplementedError("deprecated, useless in unified")
 
     def _report_event(self, message: comm.Event):
         if self._event_reporter:
