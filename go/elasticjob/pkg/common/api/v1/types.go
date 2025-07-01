@@ -153,6 +153,9 @@ const (
 	// reached phase failed with no restarting.
 	// The training has failed its execution.
 	JobFailed JobConditionType = "Failed"
+
+	// JobSuspended means the job has been suspended.
+	JobSuspended JobConditionType = "Suspended"
 )
 
 // +k8s:openapi-gen=true
