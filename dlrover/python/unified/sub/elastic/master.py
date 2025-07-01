@@ -1,7 +1,6 @@
 import asyncio
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.common.workload_defines import (
     ActorBase,
     WorkerStage,
@@ -21,7 +20,7 @@ class ElasticMaster(ActorBase):
         self._init_service()
 
     def status(self):
-        if JobStage.is_ending_stage(self.manager.stage):
+        if self.manager.finished:
             self._update_stage_force(WorkerStage.FINISHED)
         return super().status()
 

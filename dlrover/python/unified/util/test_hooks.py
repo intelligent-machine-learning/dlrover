@@ -10,3 +10,13 @@ def init_coverage():
         coverage.process_startup()
     except ImportError:
         pass
+
+
+def coverage_enabled():
+    """Check if coverage is enabled."""
+    try:
+        import coverage
+
+        return coverage.Coverage.current() is not None
+    except ImportError:
+        return False

@@ -4,14 +4,14 @@ from typing import List
 
 import ray
 
-from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import RayMasterClient
 from dlrover.python.unified.common.workload_defines import (
     ActorBase,
     WorkerStage,
 )
+
+from .runner import ElasticRunner
 
 
 def extract_args_from_cmd(run_cmd: str) -> List[str]:
@@ -34,15 +34,21 @@ class ElasticWorker(ActorBase):
         assert self.node_info.spec.kind == "elastic"
         self.cmd = self.node_info.spec.cmd
 
-        env_utils.set_env(
-            NodeEnv.JOB_NAME,
-            "elastic_job",  # or use env_utils.get_env(DLWorkloadEnv.JOB
+        # Envs, will pass to the elastic agent for compatibility.
+        self.envs = {
+            NodeEnv.JOB_NAME: str(self.job_info.name),
+            NodeEnv.NODE_ID: str(self.node_info.rank),
+            NodeEnv.NODE_RANK: str(self.node_info.rank),
+            NodeEnv.NODE_TYPE: str(NodeType.WORKER),
+            NodeEnv.POD_NAME: str(self.node_info.name),
+        }
+        self.args = extract_args_from_cmd(self.cmd)
+        self.args.extend(
+            [
+                f"--nnodes={self.node_info.spec.instance_number}",
+                f"--nproc_per_node={self.node_info.spec.per_node}",
+            ]
         )
-        # following envs for compatible
-        env_utils.set_env(NodeEnv.NODE_ID, self.node_info.rank)
-        env_utils.set_env(NodeEnv.NODE_RANK, self.node_info.rank)
-        env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
-        env_utils.set_env(NodeEnv.POD_NAME, self.node_info.name)
 
     def self_check(self):
         """Check the worker itself."""
@@ -81,14 +87,16 @@ class ElasticWorker(ActorBase):
 
     def _run_agent(self):
         """Run the elastic agent."""
-        logger.info(
-            f"Run dlrover command in elastic workload: {self.cmd} "
-            f"with node-id(rank): {self.node_info.rank}"
-        )
+        logger.info(f"[Rank {self.node_info.rank}] Start Runner: {self.cmd} ")
         # set master handle's actor id as master address
         master = f"{self.node_info.role}-master"
-        RayMasterClient.register_master_actor(ray.get_actor(master))
 
-        # TODO main(extract_args_from_cmd(self.run_cmd))
-
+        runner = (
+            ray.remote(ElasticRunner)
+            .options(runtime_env={"env_vars": self.envs})
+            .remote(master, extract_args_from_cmd(self.cmd))
+        )
+        ray.get(runner.run.remote())  # type: ignore
         logger.info("Done elastic training.")
+
+        ray.wait([runner.shutdown.remote()])
