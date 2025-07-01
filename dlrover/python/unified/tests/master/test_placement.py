@@ -52,10 +52,6 @@ class SingleBundlePerNodePlacementTest(BaseTest):
 
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
 
-    def tearDown(self):
-        os.environ.clear()
-        super().tearDown()
-
     def test_prepare_allocations(self):
         self.assertEqual(
             self.graph.dl_context.trainer.device_type.name,
@@ -98,6 +94,8 @@ class SingleBundlePerNodePlacementTest(BaseTest):
 
 class SingleGroupPerNodePlacementTest0(BaseTest):
     def setUp(self):
+        super().setUp()
+
         args = [
             "--job_name",
             "test",
@@ -203,6 +201,8 @@ class SingleGroupPerNodePlacementTest0(BaseTest):
 
 class SingleGroupPerNodePlacementTest1(BaseTest):
     def setUp(self):
+        super().setUp()
+
         args = [
             "--job_name",
             "test",
