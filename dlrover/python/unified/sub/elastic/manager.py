@@ -78,6 +78,14 @@ class ElasticManager:
             )
         self._old_context.update_job_nodes({NodeType.WORKER: group_nodes})
 
+    async def check_workers(self):
+        logger.info("Do node-check for all nodes...")
+        res = await invoke_actors_async(
+            [node.name for node in self.nodes], "run_node_check"
+        )
+        res.raise_for_errors()
+        logger.info("Node-check finished for all nodes.")
+
     async def start(self):
         # Initialize the elastic client here
         logger.info("Start job execution.")

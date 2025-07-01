@@ -9,7 +9,10 @@ from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.workload_config import ResourceDesc
 from dlrover.python.unified.common.workload_defines import JobInfo
-from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
+from dlrover.python.unified.prime.schedule.graph import (
+    DLExecutionGraph,
+    PlacementGroupSpec,
+)
 from dlrover.python.unified.util.actor_helper import invoke_actors_async
 
 
@@ -28,6 +31,9 @@ class Placement:
         """Allocate placement group based on the execution graph."""
         # update vertices with placement group info
         ...
+        # TODO implement the logic to allocate placement groups
+        #  Refer: placement.py
+        #  Result: set PlacementGroupSpec and bundle_index for vertices
 
 
 class Scheduler:
@@ -39,15 +45,20 @@ class Scheduler:
 
         self.__pg = None  # Placement group for actors
 
-    def create_pgs(self, pgs):
-        pass
+    def create_pgs(self, pgs: set[PlacementGroupSpec]):
+        """Create placement groups for the given set of placement group specs."""
+        # TODO implement the logic to create placement groups
 
     async def create_nodes(self, graph: DLExecutionGraph, job_info: JobInfo):
         """Create/Get actors for all nodes in the execution graph."""
         # 0. create placement group if not exists
         self.placement.allocate_placement_group(graph)
         """Create placement group if not exists."""
-        pgs = set(it.placement_group for it in graph.vertices)
+        pgs = set(
+            it.placement_group
+            for it in graph.vertices
+            if it.placement_group is not None
+        )
         self.create_pgs(pgs)
 
         # 1. ray create_or_exists actors

@@ -58,6 +58,9 @@ class ElasticWorker(ActorBase):
         print("Worker self check")
         return "Self check passed"
 
+    def run_node_check(self):
+        """TODO Implement node check. Before starting."""
+
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
         if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
