@@ -623,7 +623,10 @@ class HttpMasterClient(MasterClient):
 
 
 class RayMasterClient(MasterClient):
-    import ray
+    try:
+        import ray
+    except ImportError:
+        logger.warning("Ray is not installed.")
 
     master_actor_handle = None
 
