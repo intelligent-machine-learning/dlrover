@@ -179,6 +179,19 @@ sequenceDiagram
 
     PrimeMaster -->> Driver : 
     note right of Driver : Running
+
+
+    note over PrimeMaster, ElasticWorkers: === Started ===
+
+
+    loop RUNNING
+        ElasticMaster ->> ElasticWorkers : status()
+        ElasticWorkers -->> ElasticMaster : status() == RUNNING
+        PrimeManager ->> ElasticMaster : status()
+        PrimeManager ->> ElasticWorkers : status()
+    end
+
+
     ElasticWorkers -->> ElasticMaster : rendezvous()
 
     activate PrimeManager
@@ -186,6 +199,11 @@ sequenceDiagram
         PrimeManager ->> PrimeManager : monitor()
         PrimeManager ->> ElasticMaster : status()
     end
+
+
+    note over PrimeMaster, ElasticWorkers: === Finish ===
+
+
     ElasticWorkers -->> ElasticMaster : finish_job()
     deactivate ElasticWorkers
     ElasticMaster -->> PrimeManager : status() == Finish
@@ -327,7 +345,9 @@ sequenceDiagram
     activate PrimeMaster #monitoring
     note over PrimeMaster : Thread(Monitor Actors)
 
-    # Monitoring
+
+    note over PrimeMaster, ElasticWorkerRunner: === Started ===
+
 
     loop RUNNING
         ElasticMaster ->> ElasticWorker : status()
@@ -337,7 +357,9 @@ sequenceDiagram
         PrimeMaster ->> ElasticWorker : status()
     end
 
-    # End
+
+    note over PrimeMaster, ElasticWorkerRunner: === Finish ===
+
 
     ElasticWorkerRunner -->> ElasticWorker : end run()
     deactivate ElasticWorkerRunner
