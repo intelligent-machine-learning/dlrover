@@ -6,8 +6,14 @@ import ray.actor
 from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import RayMasterClient
+from dlrover.python.training_event.predefined._dlrover import DLRoverAgentEvent
 from dlrover.python.unified.util.test_hooks import init_coverage
-from dlrover.trainer.torch.elastic_run import main
+from dlrover.trainer.torch.elastic_run import (
+    _elastic_config_from_args,
+    launch_agent,
+    parse_args,
+    wait_pre_check,
+)
 
 init_coverage()  # support coverage for runner actor
 
@@ -19,8 +25,9 @@ class ElasticRunner:
     agent features will be moved into workers, and runners will directly run training processes.
     """
 
-    def __init__(self, master: str, args: List[str]) -> None:
+    def __init__(self, job_name: str, master: str, args: List[str]) -> None:
         """Initialize the runner with master address and command line arguments."""
+        self.job_name = job_name
         self.master = master
         self.args = args
 
@@ -35,7 +42,18 @@ class ElasticRunner:
             f"Running elastic agent with master: {self.master}, "
             f"args: {self.args}"
         )
-        main(self.args)
+        parsed = parse_args(self.args)
+        evt = DLRoverAgentEvent.singleton_instance()
+        evt.start(pid=vars(parsed))
+
+        config, cmd, cmd_args = _elastic_config_from_args(parsed)
+        config.run_id = self.job_name
+        config.role = "dlrover-trainer"
+
+        # TODO remove this, as pre-check move to elastic-worker
+        wait_pre_check(config)
+
+        launch_agent(config, cmd, list(cmd_args))
 
     def shutdown(self):
         """Shutdown the worker process."""

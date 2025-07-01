@@ -42,13 +42,13 @@ class ElasticWorker(ActorBase):
             NodeEnv.NODE_TYPE: str(NodeType.WORKER),
             NodeEnv.POD_NAME: str(self.node_info.name),
         }
-        self.args = extract_args_from_cmd(self.cmd)
-        self.args.extend(
-            [
-                f"--nnodes={self.node_info.spec.instance_number}",
-                f"--nproc_per_node={self.node_info.spec.per_node}",
-            ]
-        )
+        self.args = [
+            "--nnodes",
+            f"{self.node_info.spec.instance_number}",
+            "--nproc_per_node",
+            f"{self.node_info.spec.per_node}",
+            *extract_args_from_cmd(self.cmd),
+        ]
 
     def self_check(self):
         """Check the worker itself."""
@@ -94,7 +94,7 @@ class ElasticWorker(ActorBase):
         runner = (
             ray.remote(ElasticRunner)
             .options(runtime_env={"env_vars": self.envs})
-            .remote(master, extract_args_from_cmd(self.cmd))
+            .remote(self.job_info.name, master, self.args)
         )
         ray.get(runner.run.remote())  # type: ignore
         logger.info("Done elastic training.")
