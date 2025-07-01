@@ -125,8 +125,14 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	switch job.Status.Phase {
 	case "":
 		common.InitializeJobStatuses(&job.Status, JobMasterReplicaType)
-		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		common.UpdateJobStatus(&job.Status, apiv1.JobCreated, common.JobCreatedReason, msg)
+		if job.Spec.Suspend != nil && *job.Spec.Suspend {
+			msg := fmt.Sprintf("ElasticJob %s is suspended.", job.Name)
+			common.UpdateJobStatus(&job.Status, apiv1.JobSuspended, common.JobSuspendedReason, msg)
+			delete(r.CachedJobs, job.Name)
+		} else {
+			msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
+			common.UpdateJobStatus(&job.Status, apiv1.JobCreated, common.JobCreatedReason, msg)
+		}
 		// A job yaml is applied.
 		err := r.createEasticJobMaster(job)
 		if err != nil {
@@ -158,6 +164,12 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	case apiv1.JobFailed:
 		logger.Infof("Job %s failed", job.Name)
 		delete(r.CachedJobs, job.Name)
+	case apiv1.JobSuspended:
+		logger.Infof("Job %s suspended", job.Name)
+		if job.Spec.Suspend == nil || !*job.Spec.Suspend {
+			msg := fmt.Sprintf("ElasticJob %s is unspended.", job.Name)
+			common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
+		}
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
@@ -315,6 +327,9 @@ func updateJobStatusPhase(masterPod *corev1.Pod, job *elasticv1alpha1.ElasticJob
 	} else if masterPod.Status.Phase == corev1.PodSucceeded {
 		msg := "The job master is succeeded."
 		common.UpdateJobStatus(&job.Status, apiv1.JobSucceeded, common.JobSucceededReason, msg)
+	} else if job.Spec.Suspend != nil && *job.Spec.Suspend {
+		msg := "The job master is suspended."
+		common.UpdateJobStatus(&job.Status, apiv1.JobSuspended, common.JobSuspendedReason, msg)
 	} else {
 		msg := "The job master is running."
 		common.UpdateJobStatus(&job.Status, apiv1.JobRunning, common.JobRunningReason, msg)
