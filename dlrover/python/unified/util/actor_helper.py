@@ -45,7 +45,7 @@ def refresh_actor_cache(name: str):
 
 
 def get_actor_with_cache(name: str):
-    """Get a Ray actor by its name, optionally refreshing the cache."""
+    """Get a Ray actor by its name."""
     # It's safe without a lock, as actors are identified by their names,
     if name not in __actors_cache:
         refresh_actor_cache(name)
@@ -70,7 +70,7 @@ def __invoke_actor(
         logger.error(
             f"Method {method_name} not found on actor {actor_name}: {e}"
         )
-        return ray.put(None)
+        return ray.put(e)
 
 
 def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
@@ -93,7 +93,7 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
                 result = ray.get(task)
                 results[task_id] = result
             except RayActorError as e:
-                if method_name == "shutdown":
+                if method_name == "__ray_terminate__":
                     results[task_id] = None  # Expected for shutdown
                     continue
                 logger.error(f"Error executing {method_name} on {actor}: {e}")
@@ -127,15 +127,12 @@ def kill_actors(actors: List[str]):
     while len(toKill) > 0:
         name = toKill.pop()
         try:
-            ray.wait([__invoke_actor(name, "shutdown")])
+            ray.wait([__invoke_actor(name, "__ray_terminate__")])
             actor = get_actor_with_cache(name)
             ray.kill(actor, no_restart=True)
         except ValueError:
             # Actor not found, continue
             continue
-        except RayActorError:
-            refresh_actor_cache(name)
-            toKill.append(name)
 
     for node in actors:
         __actors_cache.pop(node, None)
@@ -147,8 +144,16 @@ async def invoke_actor_async(
     """Call a method on a Ray actor by its name."""
     while True:
         try:
-            res = __invoke_actor(actor_name, method_name, *args, **kwargs)
-            return await res
+            actor = get_actor_with_cache(actor_name)
+            ref = getattr(actor, method_name).remote(*args, **kwargs)
+        except AttributeError:
+            logger.error(
+                f"Method {method_name} not found on actor {actor_name}"
+            )
+            raise
+
+        try:
+            return await ref
         except RayActorError as e:
             if method_name == "shutdown":
                 return cast(T, None)  # Success for shutdown
@@ -160,7 +165,7 @@ async def invoke_actor_async(
                 f"Unexpected error executing {method_name} on {actor_name}: "
                 f"{e}"
             )
-            return e
+            raise
 
 
 async def invoke_actors_async(
@@ -211,19 +216,18 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T:
-        ...
+    def __getitem__(self, item: int, /) -> T: ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T:
-        ...
+    def __getitem__(self, actor: str, /) -> T: ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
         Raise Exception if the result is an error."""
         if isinstance(item, str):
-            index = self.actors.index(item)
-            if index == -1:
+            try:
+                index = self.actors.index(item)
+            except ValueError:
                 raise KeyError(f"Actor {item} not found in results.")
             item = index
         if item < 0 or item >= len(self._results):
