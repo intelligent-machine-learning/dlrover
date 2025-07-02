@@ -13,10 +13,8 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
 
 import ray.actor
-from typing_extensions import TypeAlias
 
 from dlrover.python.unified.common.workload_config import WorkloadDesc
 from dlrover.python.unified.util.test_hooks import init_coverage
