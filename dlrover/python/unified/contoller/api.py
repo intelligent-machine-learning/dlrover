@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import List, Protocol
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
@@ -20,11 +21,18 @@ from dlrover.python.unified.util.actor_helper import ActorProxy
 MASTER_ACTOR_ID = "__prime_master__"
 
 
+@dataclass
+class MasterStatus:
+    """Status of the master actor."""
+
+    stage: MasterStage
+
+
 class PrimeMasterRemote(Protocol):
     """Stub for Remote interface for PrimeMaster."""
 
     @abstractmethod
-    def status(self) -> MasterStage:
+    def get_status(self) -> MasterStatus:
         """Get the status of the master."""
 
     @abstractmethod

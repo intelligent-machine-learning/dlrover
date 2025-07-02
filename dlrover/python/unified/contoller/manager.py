@@ -52,7 +52,7 @@ class PrimeManager:
 
     async def prepare(self):
         """Prepare all for the job execution.
-        Execute only once, not support failover when fail."""
+        Execute only once, not support failover when failed."""
         self.placement.allocate_placement_group(self.graph)
         await self.scheduler.create_nodes(
             self.graph, job_info=self.config.to_job_info()

@@ -19,14 +19,19 @@ import ray.actor
 from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.util.test_hooks import init_coverage
 
-from .api import MASTER_ACTOR_ID, PrimeMasterApi, PrimeMasterRemote
+from .api import (
+    MASTER_ACTOR_ID,
+    MasterStatus,
+    PrimeMasterApi,
+    PrimeMasterRemote,
+)
 from .config import JobConfig
 from .manager import PrimeManager
 
 init_coverage()  # support coverage for master actor
 
 
-class PrimeMaster:
+class PrimeMaster(PrimeMasterRemote):
     def __init__(self, config: JobConfig):
         assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
             f"PrimeMaster must be initialized as a Ray actor "
@@ -35,8 +40,8 @@ class PrimeMaster:
 
         self.manager = PrimeManager(config)
 
-    def status(self):
-        return self.manager.stage
+    def get_status(self):
+        return MasterStatus(stage=self.manager.stage)
 
     async def start(self):
         await self.manager.prepare()

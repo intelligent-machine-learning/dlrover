@@ -31,7 +31,7 @@ from .graph import DLExecutionGraph, PlacementGroupSpec
 
 
 @dataclass
-class RayNodeSpec:
+class RayActorSpec:
     name: str
     cls: ActorClass
     options: Dict[str, Any]  # as kwargs for actor
@@ -79,7 +79,7 @@ class Scheduler:
         # 1. ray create_or_exists actors
         for role in graph.roles.values():
             for worker in role.instances:
-                spec = RayNodeSpec(
+                spec = RayActorSpec(
                     name=worker.name,
                     resource=role.spec.instance_resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
@@ -90,10 +90,10 @@ class Scheduler:
                         "actor_info": worker.to_actor_info(),
                     },
                 )
-                self.create_node(spec)
+                self.create_actor(spec)
             if role.sub_master is not None:
                 # Create sub-master node if it exists
-                spec = RayNodeSpec(
+                spec = RayActorSpec(
                     name=role.sub_master.name,
                     # resource=role.spec.instance_resource,
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
@@ -104,7 +104,7 @@ class Scheduler:
                         "actor_info": role.sub_master.to_actor_info(),
                     },
                 )
-                self.create_node(spec)
+                self.create_actor(spec)
         logger.info("Finished creating nodes for the job.")
 
         # 2. Check actors with ping
@@ -113,7 +113,7 @@ class Scheduler:
         )
         logger.info(f"Actors status: {res.as_dict()}")
 
-    def create_node(self, node: RayNodeSpec):
+    def create_actor(self, node: RayActorSpec):
         runtime_env: dict = {
             "env_vars": node.envs,
         }

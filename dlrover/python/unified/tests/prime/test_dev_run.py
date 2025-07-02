@@ -61,11 +61,11 @@ def test_dev_run(_ray):
         dl_config=dl_config,
     )
     master = PrimeMaster.create(config)
-    assert master.status() == "INIT"
+    assert master.get_status().stage == "INIT"
     master.start()
-    assert master.status() == "RUNNING"
-    while master.status() != "STOPPED":
+    assert master.get_status().stage == "RUNNING"
+    while master.get_status().stage != "STOPPED":
         time.sleep(1)
     master.stop()  # Noop
-    assert master.status() == "STOPPED"
+    assert master.get_status().stage == "STOPPED"
     master.shutdown()
