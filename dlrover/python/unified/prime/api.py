@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from typing import Protocol
+from typing import List, Protocol
 
 from dlrover.python.unified.common.workload_defines import (
     MASTER_ACTOR_ID,
@@ -46,10 +46,10 @@ class PrimeMasterRemote(Protocol):
         """Get a actor by name."""
 
     @abstractmethod
-    def get_workers_by_role(self, role: str) -> list[ActorInfo]:
+    def get_workers_by_role(self, role: str) -> List[ActorInfo]:
         """Get all actors by role."""
 
 
-PrimeMasterApi = ActorProxy.wrap(
+PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
     MASTER_ACTOR_ID, cls=PrimeMasterRemote, lazy=True
 )

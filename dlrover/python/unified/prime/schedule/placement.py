@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+import typing
 from abc import ABC, abstractmethod
 from collections import Counter
 from typing import Dict, List, Optional
@@ -103,7 +104,7 @@ class Placement(ABC):
         if not allocated_bundles:
             return 0
 
-        counter: Counter[int] = Counter(allocated_bundles)
+        counter: typing.Counter[int] = Counter(allocated_bundles)
         max_bundle_index = max(counter.keys())
         for bundle_allocated in list(counter.items()):
             if bundle_allocated[1] >= bundle_topology[bundle_allocated[0]]:

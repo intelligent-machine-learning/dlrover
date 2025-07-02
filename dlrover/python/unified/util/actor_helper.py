@@ -13,7 +13,17 @@
 
 import asyncio
 from functools import cached_property, partial
-from typing import Dict, Generic, List, Tuple, TypeVar, Union, cast, overload
+from typing import (
+    Dict,
+    Generic,
+    List,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 import ray
 from ray.actor import ActorClass, ActorHandle
@@ -156,7 +166,7 @@ async def invoke_actor_async(
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ) -> "BatchInvokeResult[T]":
-    res: list[Union[T, Exception]] = await asyncio.gather(
+    res: List[Union[T, Exception]] = await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
             for actor in actors
@@ -184,7 +194,7 @@ class ActorProxy:
             return partial(invoke_actor, self.actor, name)
 
     @staticmethod
-    def wrap(actor_name: str, cls: type[T], lazy: bool = False) -> "T":
+    def wrap(actor_name: str, cls: Type[T], lazy: bool = False) -> "T":
         """Wraps the actor proxy to return an instance of the class."""
         return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
@@ -201,12 +211,10 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T:
-        ...
+    def __getitem__(self, item: int, /) -> T: ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T:
-        ...
+    def __getitem__(self, actor: str, /) -> T: ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
@@ -285,6 +293,6 @@ class BatchActorProxy:
             return partial(invoke_actors, self.actors, name)
 
     @staticmethod
-    def wrap(actor_name: List[str], cls: type[T]) -> "T":
+    def wrap(actor_name: List[str], cls: Type[T]) -> "T":
         """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls)
+        return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]

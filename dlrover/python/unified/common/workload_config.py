@@ -59,8 +59,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
     )
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass:
-        ...
+    def get_worker_cls(self) -> ActorClass: ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None
@@ -108,4 +107,4 @@ class OtherWorkloadDesc(BaseWorkloadDesc):
 
 
 # Union type for workload descriptions, discriminating by `kind`.
-WorkloadDesc: TypeAlias = Union[ElasticWorkloadDesc, OtherWorkloadDesc]
+WorkloadDesc: TypeAlias = Union[ElasticWorkloadDesc, OtherWorkloadDesc]  # type: ignore[valid-type, assignment]

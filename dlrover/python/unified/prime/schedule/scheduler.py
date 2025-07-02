@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from ray.actor import ActorClass
 from ray.util.scheduling_strategies import SchedulingStrategyT
@@ -58,7 +58,7 @@ class Scheduler:
 
         self.__pg = None  # Placement group for actors
 
-    def create_pgs(self, pgs: set[PlacementGroupSpec]):
+    def create_pgs(self, pgs: Set[PlacementGroupSpec]):
         """Create placement groups for
         the given set of placement group specs."""
         # TODO implement the logic to create placement groups

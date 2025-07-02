@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import ray
 import ray.actor
 
@@ -58,7 +60,7 @@ class PrimeMaster:
             raise ValueError(f"Actor {name} not found.")
         return actor.to_actor_info()
 
-    def get_workers_by_role(self, role: str) -> list[ActorInfo]:
+    def get_workers_by_role(self, role: str) -> List[ActorInfo]:
         """Get all actors by role."""
         role_info = self.manager.graph.roles.get(role)
         if role_info is None:
