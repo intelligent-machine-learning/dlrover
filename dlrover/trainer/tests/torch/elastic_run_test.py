@@ -56,6 +56,7 @@ class ElasticRunTest(unittest.TestCase):
         self._master.stop()
         os.environ.clear()
         JobConstant.PRE_CHECK_WAIT_SECS = self._pre_check_interval_ori
+        MasterClient._instance = None
 
     def test_launch_local_master(self):
         handler, addr = _launch_dlrover_local_master("test:1234", "test")

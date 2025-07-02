@@ -366,7 +366,6 @@ def _elastic_config_from_args(
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
 
-    master_config = _elastic_config_from_master(config)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
     # PyTorch >= 2.3.0 remove log_dir in the LaunchConfig.
@@ -374,35 +373,11 @@ def _elastic_config_from_args(
         elastic_config.log_dir = config.logs_specs.root_log_dir
 
     elastic_config.precheck = getattr(args, "precheck", False)
-    if master_config.precheck:
-        logger.info("Enable precheck by master")
-        elastic_config.precheck = master_config.precheck
-
     elastic_config.network_check = getattr(args, "network_check", False)
-    if master_config.network_check:
-        logger.info("Enable network checking by master")
-        elastic_config.network_check = True
-
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
-    if master_config.comm_perf_test:
-        logger.info("Enable comm_perf_test by master")
-        elastic_config.comm_perf_test = True
-
     elastic_config.numa_affinity = getattr(args, "numa_affinity", False)
-    if master_config.numa_affinity:
-        logger.info("Enable numa affinity by master")
-        elastic_config.numa_affinity = True
-
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
-    if master_config.auto_tunning:
-        logger.info("Enable auto_tunning by master")
-        elastic_config.auto_tunning = True
-
     elastic_config.auto_config = getattr(args, "auto_config", False)
-    if master_config.auto_config:
-        logger.info("Enable auto_config by master")
-        elastic_config.auto_config = True
-
     elastic_config.accelerator = getattr(
         args, "accelerator", Accelerators.NVIDIA_GPU
     )
@@ -410,15 +385,14 @@ def _elastic_config_from_args(
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
-    if master_config.exclude_straggler:
-        elastic_config.exclude_straggler = True
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
     elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
-    if master_config.save_at_breakpoint:
-        elastic_config.save_at_breakpoint = True
+
+    _merge_elastic_config_from_master(elastic_config)
+
     elastic_config.auto_configure_params()
     elastic_config.update_precheck_args()
     elastic_config.rdzv_backend = "dlrover-master"
@@ -428,9 +402,7 @@ def _elastic_config_from_args(
     return elastic_config, cmd, cmd_args
 
 
-def _elastic_config_from_master(config) -> ElasticLaunchConfig:
-    elastic_config = ElasticLaunchConfig(**config.__dict__)
-
+def _merge_elastic_config_from_master(config: ElasticLaunchConfig):
     _client = MasterClient.singleton_instance()
     try:
         logger.info("try to get elastic run config from master")
@@ -439,35 +411,37 @@ def _elastic_config_from_master(config) -> ElasticLaunchConfig:
         logger.error(f"fail to get elastic config from master: {e}")
         master_configs = {}
 
-    elastic_config.network_check = False
+    # if "precheck" in master_configs:
+    # logger.info("Enable precheck by master")
+    # config.precheck = True
+
     if "network_check" in master_configs:
-        elastic_config.network_check = True
+        logger.info("Enable network checking by master")
+        config.network_check = True
 
-    elastic_config.comm_perf_test = False
     if "comm_perf_test" in master_configs:
-        elastic_config.comm_perf_test = True
+        logger.info("Enable comm_perf_test by master")
+        config.comm_perf_test = True
 
-    elastic_config.auto_tunning = False
-    if "auto_tunning" in master_configs:
-        elastic_config.auto_tunning = True
-
-    elastic_config.auto_config = False
-    if "auto_config" in master_configs:
-        elastic_config.auto_config = True
-
-    elastic_config.exclude_straggler = False
-    if "exclude_straggler" in master_configs:
-        elastic_config.exclude_straggler = True
-
-    elastic_config.save_at_breakpoint = False
-    if "save_at_breakpoint" in master_configs:
-        elastic_config.save_at_breakpoint = True
-
-    elastic_config.numa_affinity = False
     if "numa_affinity" in master_configs:
-        elastic_config.numa_affinity = True
+        logger.info("Enable numa affinity by master")
+        config.numa_affinity = True
 
-    return elastic_config
+    if "auto_tunning" in master_configs:
+        logger.info("Enable auto_tunning by master")
+        config.auto_tunning = True
+
+    if "auto_config" in master_configs:
+        logger.info("Enable auto_config by master")
+        config.auto_config = True
+
+    if "exclude_straggler" in master_configs:
+        logger.info("Enable exclude_straggler by master")
+        config.exclude_straggler = True
+
+    if "save_at_breakpoint" in master_configs:
+        logger.info("Enable save_at_breakpoint by master")
+        config.save_at_breakpoint = True
 
 
 def _check_to_use_dlrover_run(job_name, is_standalone=False):
@@ -527,8 +501,7 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
             # for distribution mode
             # raise exception directly
             raise RuntimeError(
-                "Distributed dlrover master is unavailable "
-                "for distribution."
+                "Distributed dlrover master is unavailable for distribution."
             )
     else:
         if is_standalone:
