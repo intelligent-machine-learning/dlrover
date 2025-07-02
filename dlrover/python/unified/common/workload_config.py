@@ -46,7 +46,8 @@ class BaseWorkloadDesc(BaseModel, ABC):
     )
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass: ...
+    def get_worker_cls(self) -> ActorClass:
+        ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None

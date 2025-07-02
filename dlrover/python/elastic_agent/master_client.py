@@ -645,7 +645,7 @@ class RayMasterClient(MasterClient):
         if isinstance(self._master_addr, str):
             actor = get_actor_with_cache(self._master_addr)
         else:
-            actor = self._master_addr # ActorHandle
+            actor = self._master_addr  # ActorHandle
         response = ray.get(
             actor.agent_report.remote(self._gen_request(message).to_json()),
             timeout=self._timeout,
