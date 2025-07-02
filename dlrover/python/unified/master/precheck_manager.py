@@ -20,7 +20,6 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
 )
 from dlrover.python.common.event.reporter import report_event
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction

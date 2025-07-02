@@ -13,7 +13,7 @@
 import importlib
 import json
 from datetime import datetime
-from functools import cache
+from functools import lru_cache
 from typing import Dict
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
@@ -369,7 +369,7 @@ class EventReporter(Singleton):
 context = Context.singleton_instance()
 
 
-@cache
+@lru_cache(1)
 def get_event_reporter(*args, **kwargs) -> EventReporter:
     reporter_cls = context.reporter_cls
 
