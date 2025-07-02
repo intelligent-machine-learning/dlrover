@@ -11,4 +11,4 @@ runs:
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && ROLE_NAME=dlrover-trainer \
 python -m pytest --forked --durations=10 dlrover/python/tests \
-dlrover/trainer/tests -cov-report xml --cov=dlrover "
+dlrover/trainer/tests --cov-report xml --cov=dlrover "
