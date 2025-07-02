@@ -64,7 +64,7 @@ class Scheduler:
         the given set of placement group specs."""
         # TODO implement the logic to create placement groups
 
-    async def create_nodes(self, graph: DLExecutionGraph, job_info: JobInfo):
+    async def create_actors(self, graph: DLExecutionGraph, job_info: JobInfo):
         """Create/Get actors for all nodes in the execution graph."""
         # 0. create placement group if not exists
         self.placement.allocate_placement_group(graph)

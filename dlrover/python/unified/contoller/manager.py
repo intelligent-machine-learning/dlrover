@@ -54,10 +54,10 @@ class PrimeManager:
         """Prepare all for the job execution.
         Execute only once, not support failover when failed."""
         self.placement.allocate_placement_group(self.graph)
-        await self.scheduler.create_nodes(
+        await self.scheduler.create_actors(
             self.graph, job_info=self.config.to_job_info()
-        )  # create actors for all nodes
-        logger.info("Finished creating nodes for the job.")
+        )
+        logger.info("Finished creating actors for the job.")
 
         await self._nodes_check()
 
@@ -96,10 +96,10 @@ class PrimeManager:
 
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(
-            self._monitor_nodes(), name="job_monitor"
+            self._monitor_actors(), name="job_monitor"
         )
 
-    async def _monitor_nodes(self):
+    async def _monitor_actors(self):
         """Monitor the nodes' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
