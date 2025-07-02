@@ -38,9 +38,6 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.node.job_context import (
-    get_job_context as get_elastic_context,
-)
 from dlrover.python.unified.common.workload_defines import (
     ActorInfo,
     WorkerStage,
@@ -49,6 +46,13 @@ from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actors_async,
 )
+
+# isort: off
+from dlrover.python.master.node.job_context import (
+    get_job_context as get_elastic_context,
+)
+
+# isort: on
 
 
 def convert_to_node_state(state: WorkerStage):
