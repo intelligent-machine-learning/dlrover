@@ -16,13 +16,10 @@ from typing import List
 import ray
 import ray.actor
 
-from dlrover.python.unified.common.workload_defines import (
-    MASTER_ACTOR_ID,
-    ActorInfo,
-)
+from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.util.test_hooks import init_coverage
 
-from .api import PrimeMasterApi, PrimeMasterRemote
+from .api import MASTER_ACTOR_ID, PrimeMasterApi, PrimeMasterRemote
 from .config import JobConfig
 from .manager import PrimeManager
 

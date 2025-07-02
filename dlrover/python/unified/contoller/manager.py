@@ -16,7 +16,7 @@ from threading import Thread
 from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_defines import MasterStage
+from dlrover.python.unified.common.workload_base import MasterStage
 from dlrover.python.unified.util.actor_helper import (
     invoke_actors_async,
     kill_actors,

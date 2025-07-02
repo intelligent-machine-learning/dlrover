@@ -20,8 +20,8 @@ from ray.util.scheduling_strategies import SchedulingStrategyT
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
+from dlrover.python.unified.common.workload_base import JobInfo
 from dlrover.python.unified.common.workload_config import ResourceDesc
-from dlrover.python.unified.common.workload_defines import JobInfo
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actors_async,

@@ -37,10 +37,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.unified.common.workload_defines import (
-    ActorInfo,
-    WorkerStage,
-)
+from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actors_async,

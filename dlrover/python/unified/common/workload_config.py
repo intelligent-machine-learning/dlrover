@@ -71,7 +71,7 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     Description of an elastic workload.
     """
 
-    kind: Literal["elastic"] = Field(default="elastic")
+    backend: Literal["elastic"] = Field(default="elastic")
     cmd: str = Field(description="Command to run the elastic workload.")
 
     def get_worker_cls(self) -> ActorClass:
@@ -85,12 +85,12 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         return as_actor_class(ElasticMaster)  # type: ignore[return-value]
 
 
-class OtherWorkloadDesc(BaseWorkloadDesc):
+class CustomWorkloadDesc(BaseWorkloadDesc):
     """
-    Description of a non-elastic workload.
+    Description of a custom type workload.
     """
 
-    kind: Literal["other"] = Field(default="other")
+    backend: Literal["custom"] = Field(default="custom")
     module_name: str = Field(alias="module_name")
     class_name: str = Field(alias="class_name")
     config: Dict[str, Any] = Field(default_factory=dict)
@@ -108,6 +108,4 @@ class OtherWorkloadDesc(BaseWorkloadDesc):
 
 
 # Union type for workload descriptions, discriminating by `kind`.
-WorkloadDesc: TypeAlias = Union[
-    ElasticWorkloadDesc, OtherWorkloadDesc
-]  # type: ignore[valid-type, assignment]
+WorkloadDesc: TypeAlias = Union[ElasticWorkloadDesc, CustomWorkloadDesc]  # type: ignore[valid-type, assignment]

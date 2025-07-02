@@ -19,10 +19,7 @@ import ray
 
 from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_defines import (
-    ActorBase,
-    WorkerStage,
-)
+from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 
 from .runner import ElasticRunner
 
@@ -44,7 +41,7 @@ def extract_args_from_cmd(run_cmd: str) -> List[str]:
 @ray.remote
 class ElasticWorker(ActorBase):
     def _setup(self):
-        assert self.node_info.spec.kind == "elastic"
+        assert self.node_info.spec.backend == "elastic"
         self.cmd = self.node_info.spec.cmd
 
         # Envs, will pass to the elastic agent for compatibility.

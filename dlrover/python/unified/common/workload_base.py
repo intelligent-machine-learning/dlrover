@@ -21,8 +21,6 @@ from dlrover.python.unified.util.test_hooks import init_coverage
 
 init_coverage()  # support coverage for workers actor
 
-MASTER_ACTOR_ID = "__prime_master__"
-
 
 class MasterStage(str, Enum):
     INIT = "INIT"

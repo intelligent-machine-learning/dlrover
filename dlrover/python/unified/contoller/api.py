@@ -14,12 +14,10 @@
 from abc import abstractmethod
 from typing import List, Protocol
 
-from dlrover.python.unified.common.workload_defines import (
-    MASTER_ACTOR_ID,
-    ActorInfo,
-    MasterStage,
-)
+from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_helper import ActorProxy
+
+MASTER_ACTOR_ID = "__prime_master__"
 
 
 class PrimeMasterRemote(Protocol):

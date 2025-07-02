@@ -17,8 +17,8 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.common.workload_config import ResourceDesc
-from dlrover.python.unified.common.workload_defines import ActorInfo
 from dlrover.python.unified.contoller.config import DLConfig, WorkloadDesc
 
 

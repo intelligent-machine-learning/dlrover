@@ -21,8 +21,8 @@ from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     SchedulingStrategyType,
 )
+from dlrover.python.unified.common.workload_base import JobInfo
 from dlrover.python.unified.common.workload_config import WorkloadDesc
-from dlrover.python.unified.common.workload_defines import JobInfo
 
 
 class DLConfig(BaseModel):
