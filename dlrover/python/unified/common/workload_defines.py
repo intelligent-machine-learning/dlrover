@@ -24,7 +24,13 @@ from dlrover.python.unified.util.test_hooks import init_coverage
 init_coverage()  # support coverage for workers actor
 
 MASTER_ACTOR_ID = "__prime_master__"
-MasterStage: TypeAlias = Literal["INIT", "RUNNING", "STOPPING", "STOPPED"]  # type: ignore[valid-type, assignment]
+
+
+class MasterStage(str, Enum):
+    INIT = "INIT"
+    RUNNING = "RUNNING"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
 
 
 class WorkerStage(str, Enum):

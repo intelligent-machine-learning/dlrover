@@ -398,28 +398,13 @@ class MasterServicer(ABC):
         raise NotImplementedError("deprecated, TF backend only")
 
     def _check_start_auto_scale_worker(self):
-        sample_count = self._core.perf_monitor.get_sample_count()
-        if (
-            not self._start_autoscale
-            and sample_count >= _dlrover_context.sample_count_to_adjust_worker
-        ):
-            logger.info(
-                "Start autoscale with %s stats samples",
-                sample_count,
-            )
-            self._core.start_auto_scaling()
-            self._start_autoscale = True
+        "Noop, deprecated, TF backend only"
 
     def _update_cluster_version(self, message: comm.ClusterVersion):
         raise NotImplementedError("deprecated, TF backend only")
 
     def _update_node_address(self, message: comm.NodeAddress):
-        self._core.update_node_service_addr(
-            node_type=message.type,
-            node_id=message.id,
-            service_addr=message.addr,
-        )
-        return True
+        raise NotImplementedError("deprecated, TF backend only")
 
     def _deal_with_reported_node_event(self, message: comm.NodeEvent):
         node = Node(

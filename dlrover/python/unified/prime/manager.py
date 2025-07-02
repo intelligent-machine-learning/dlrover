@@ -46,7 +46,7 @@ class PrimeManager:
         self.thread: Optional[Thread] = None
 
         # Runtime state
-        self.stage: MasterStage = "INIT"
+        self.stage: MasterStage = MasterStage.INIT
         logger.info(f"PrimeManager initialized with config: {config}")
 
     async def prepare(self):
@@ -79,7 +79,7 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        self.stage = "RUNNING"
+        self.stage = MasterStage.RUNNING
         self.save()
         nodes = [node.name for node in self.graph.vertices]
         res = await invoke_actors_async(nodes, "start")  # start all nodes
@@ -99,8 +99,8 @@ class PrimeManager:
         )
 
     async def _monitor_nodes(self):
-        """Monitor the nodes status."""
-        while self.stage == "RUNNING":
+        """Monitor the nodes' status."""
+        while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
             res = await invoke_actors_async(
                 [node.name for node in self.graph.vertices], "status"
@@ -113,15 +113,18 @@ class PrimeManager:
 
     async def stop(self):
         """Stop the job execution. And clean up resources."""
-        if self.stage == "STOPPING" or self.stage == "STOPPED":
+        if (
+            self.stage == MasterStage.STOPPING
+            or self.stage == MasterStage.STOPPED
+        ):
             return
         logger.info("Stopping the job...")
-        self.stage = "STOPPING"
+        self.stage = MasterStage.STOPPING
         kill_actors([node.name for node in self.graph.vertices])
         if self._task is not None and self._task is not asyncio.current_task():
             self._task.cancel()
         logger.info("Job stopped successfully.")
-        self.stage = "STOPPED"
+        self.stage = MasterStage.STOPPED
         self.save()
 
     def save(self):

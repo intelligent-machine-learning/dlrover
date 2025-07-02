@@ -211,10 +211,12 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T: ...
+    def __getitem__(self, item: int, /) -> T:
+        ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T: ...
+    def __getitem__(self, actor: str, /) -> T:
+        ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.

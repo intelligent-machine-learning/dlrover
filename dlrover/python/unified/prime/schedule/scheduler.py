@@ -26,7 +26,10 @@ from dlrover.python.unified.prime.schedule.graph import (
     DLExecutionGraph,
     PlacementGroupSpec,
 )
-from dlrover.python.unified.util.actor_helper import invoke_actors_async
+from dlrover.python.unified.util.actor_helper import (
+    BatchInvokeResult,
+    invoke_actors_async,
+)
 
 
 @dataclass
@@ -107,7 +110,7 @@ class Scheduler:
         logger.info("Finished creating nodes for the job.")
 
         # 2. Check actors with ping
-        res = await invoke_actors_async(
+        res: BatchInvokeResult[str] = await invoke_actors_async(
             [node.name for node in graph.vertices], "status"
         )
         logger.info(f"Actors status: {res.as_dict()}")
