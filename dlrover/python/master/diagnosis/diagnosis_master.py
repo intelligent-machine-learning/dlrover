@@ -192,7 +192,10 @@ class DiagnosisMaster:
                             # go failed actions if check not passed
                             actions = pre_check_op.failed_actions(
                                 result_msg=current_op_result.result_msg,
-                                abnormal_nodes=current_op_result.abnormal_nodes,  # noqa: E501
+                                abnormal_nodes=(
+                                    current_op_result.abnormal_nodes,
+                                )
+                                # noqa: E501
                             )
                             self._job_context.enqueue_actions(actions)
                             wait_secs = pre_check_op.get_retry_interval_secs()
@@ -240,7 +243,8 @@ class DiagnosisMaster:
                         pre_check_op.__class__.__name__,
                     )
                     logger.error(
-                        f"{pre_check_op.__class__.__name__} got unexpected error: {e}",
+                        f"{pre_check_op.__class__.__name__} "
+                        f"got unexpected error: {e}",
                         exc_info=True,
                     )
                     if is_last_op:
@@ -403,13 +407,15 @@ class DiagnosisMaster:
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _metric_diagnose thread: {self._is_observing_started}"
+                    "Stop _metric_diagnose thread: "
+                    f"{self._is_observing_started}"
                 )
                 break
 
             if self._is_observing_paused:
                 logger.info(
-                    f"Pause _metric_diagnose thread: {self._is_observing_paused}"
+                    "Pause _metric_diagnose thread: "
+                    f"{self._is_observing_paused}"
                 )
                 time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
                 continue
@@ -459,7 +465,8 @@ class DiagnosisMaster:
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _diagnose thread due to {self._is_observing_started}"
+                    "Stop _diagnose thread due to "
+                    f"{self._is_observing_started}"
                 )
                 break
 

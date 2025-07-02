@@ -80,7 +80,10 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
 
     @property
     def name(self):
-        return f"{self.role}_{self.world_size}-{self.rank}_{self.local_world_size}-{self.local_rank}"
+        return (
+            f"{self.role}_{self.world_size}-{self.rank}"
+            f"_{self.local_world_size}-{self.local_rank}"
+        )
 
     def get_envs(self) -> Dict[str, str]:
         # TODO Do we need pass Env for workers, or set in workers themselves?

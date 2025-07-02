@@ -32,7 +32,7 @@ class ElasticMaster(ActorBase):
         self.manager._prepare()
         self._init_service()
 
-    ## Lifecycle Hooks
+    # Lifecycle Hooks
 
     def status(self):
         if self.manager.finished:
@@ -52,7 +52,7 @@ class ElasticMaster(ActorBase):
             return
         await self.manager.start()
 
-    ## RPC methods for Workers
+    # RPC methods for Workers
 
     # TODO(longtime): merge Servicer, flatten use Ray rpc.
 

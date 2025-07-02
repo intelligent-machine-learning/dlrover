@@ -34,11 +34,13 @@ class ElasticRunner:
     """The actual worker process that runs the training job
 
     Currently, it only runs the elastic agent, but in the future,
-    agent features will be moved into workers, and runners will directly run training processes.
+    agent features will be moved into workers,
+    and runners will directly run training processes.
     """
 
     def __init__(self, job_name: str, master: str, args: List[str]) -> None:
-        """Initialize the runner with master address and command line arguments."""
+        """Initialize the runner with master address
+        and command line arguments."""
         self.job_name = job_name
         self.master = master
         self.args = args

@@ -108,16 +108,19 @@ class ActorBase:
         """Update the stage of the actor/node."""
         if expected is not None and self.stage != expected:
             raise RuntimeError(
-                f"Cannot update stage from {self.stage} to {stage}, expected {expected}."
+                f"Cannot update stage from {self.stage} to {stage}, "
+                f"expected {expected}."
             )
         self.stage = stage
         print(f"Actor {self.node_info.name} updated to stage: {self.stage}")
 
     def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
-        """Update the stage of the actor/node if the current stage matches the expected stage."""
+        """Update the stage of the actor/node
+        if the current stage matches the expected stage."""
         if self.stage != expected:
             print(
-                f"Actor {self.node_info.name} is not in expected stage: {expected}, current stage: {self.stage}"
+                f"Actor {self.node_info.name} is not in expected stage: "
+                f"{expected}, current stage: {self.stage}"
             )
             return False  # not in the expected stage
         self.stage = stage

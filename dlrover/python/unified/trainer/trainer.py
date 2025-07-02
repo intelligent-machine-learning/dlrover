@@ -67,7 +67,8 @@ class RoleGroupProxy(object):
         self._actor_handles = actor_handles
 
         logger.info(
-            f"Initiate role-group-proxy with role: {role}, world_size: {world_size}"
+            f"Initiate role-group-proxy with role: "
+            f"{role}, world_size: {world_size}"
         )
 
     @property
@@ -97,7 +98,8 @@ class RoleGroupProxy(object):
             attr = self._role_methods.get(method_name, MethodInvocationMeta())
 
             logger.info(
-                f"Role group proxy method invocation, method: {method_name}, {attr}"
+                f"Role group proxy method invocation, "
+                f"method: {method_name}, {attr}"
             )
             # pre function invocation
             if attr.pre_func:

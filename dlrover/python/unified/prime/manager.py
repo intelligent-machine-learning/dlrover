@@ -129,6 +129,7 @@ class PrimeManager:
         # This is a placeholder for saving the job state.
         # In a real implementation, this would save to a database or file.
         print(
-            f"Job state saved: {self.stage}, nodes: {[node.name for node in self.graph.vertices]}"
+            f"Job state saved: {self.stage}, "
+            f"nodes: {[node.name for node in self.graph.vertices]}"
         )
         # TODO implement actual save logic. (Ref state_backend.py)

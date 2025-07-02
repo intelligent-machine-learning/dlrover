@@ -59,7 +59,8 @@ class Scheduler:
         self.__pg = None  # Placement group for actors
 
     def create_pgs(self, pgs: set[PlacementGroupSpec]):
-        """Create placement groups for the given set of placement group specs."""
+        """Create placement groups for
+        the given set of placement group specs."""
         # TODO implement the logic to create placement groups
 
     async def create_nodes(self, graph: DLExecutionGraph, job_info: JobInfo):

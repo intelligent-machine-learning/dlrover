@@ -26,6 +26,8 @@ from dlrover.python.unified.common.workload_defines import JobInfo
 
 
 class DLConfig(BaseModel):
+    """Description of training configuration."""
+
     user_config: Dict[str, Any] = Field(
         default_factory=dict,
         description="User-defined configuration for the deep learning job.",
@@ -43,10 +45,10 @@ class DLConfig(BaseModel):
 
 
 class JobConfig(BaseModel):
+    """Description of the job configuration."""
+
     job_name: str = Field(description="Name of the job.")
-    dl_config: DLConfig = Field(
-        description="Description of reinforcement learning's computing architecture."
-    )
+    dl_config: DLConfig = Field()
     master_cpu: int = 1  # in cores
     master_mem: int = 128  # in MiB
     master_state_backend_type: MasterStateBackendType = Field(
@@ -55,7 +57,8 @@ class JobConfig(BaseModel):
     )
     master_state_backend_config: Dict = Field(
         default_factory=dict,
-        description="The configuration of the master state backend, like: path and so on.",
+        description="The configuration of the master state backend, "
+        "like: path and so on.",
     )
     scheduling_strategy_type: SchedulingStrategyType = Field(
         default=SchedulingStrategyType.AUTO,

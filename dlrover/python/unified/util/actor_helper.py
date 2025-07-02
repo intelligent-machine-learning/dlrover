@@ -99,7 +99,8 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
         if len(waiting) > 0:
             stragglers = [actors[task_id] for task_id in waiting.values()]
             logger.info(
-                f"Waiting for {len(stragglers)} tasks ({stragglers}) to complete {method_name} ..."
+                f"Waiting for {len(stragglers)} tasks ({stragglers}) to "
+                f"complete {method_name} ..."
             )
     return BatchInvokeResult(actors, method_name, results)
 
@@ -146,7 +147,8 @@ async def invoke_actor_async(
             continue  # Retry with the refreshed actor
         except Exception as e:
             print(
-                f"Unexpected error executing {method_name} on {actor_name}: {e}"
+                f"Unexpected error executing {method_name} on {actor_name}: "
+                f"{e}"
             )
             return e
 
@@ -207,7 +209,8 @@ class BatchInvokeResult(Generic[T]):
         ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
-        """Get the result for a specific actor by index or name. Raise Exception if the result is an error."""
+        """Get the result for a specific actor by index or name.
+        Raise Exception if the result is an error."""
         if isinstance(item, str):
             index = self.actors.index(item)
             if index == -1:
@@ -246,7 +249,8 @@ class BatchInvokeResult(Generic[T]):
             )
         raise Exception(
             f"Some actors failed executing {self.method}. "
-            f"Failed actors: {', '.join(actor for actor, _ in self.all_failed())}"
+            f"Failed actors: "
+            f"{', '.join(actor for actor, _ in self.all_failed())}"
         )
 
     @property
@@ -281,6 +285,6 @@ class BatchActorProxy:
             return partial(invoke_actors, self.actors, name)
 
     @staticmethod
-    def wrap(actor_name: str, cls: type[T], lazy: bool = False) -> "T":
+    def wrap(actor_name: List[str], cls: type[T]) -> "T":
         """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
+        return BatchActorProxy(actor_name, cls)

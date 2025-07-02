@@ -164,7 +164,8 @@ class ElasticManager:
             target_node = self._old_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported status to {event_type}."
+                    f"Node {node_id}({node_type}) reported "
+                    f"status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self._old_context.update_job_node(target_node)

@@ -29,9 +29,10 @@ init_coverage()  # support coverage for master actor
 
 class PrimeMaster:
     def __init__(self, config: JobConfig):
-        assert (
-            ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID
-        ), f"PrimeMaster must be initialized as a Ray actor with the name '{MASTER_ACTOR_ID}'."
+        assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
+            f"PrimeMaster must be initialized as a Ray actor "
+            f"with the name '{MASTER_ACTOR_ID}'."
+        )
 
         self.manager = PrimeManager(config)
 
