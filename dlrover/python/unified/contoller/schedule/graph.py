@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_config import ResourceDesc
 from dlrover.python.unified.common.workload_defines import ActorInfo
-from dlrover.python.unified.prime.config import DLConfig, WorkloadDesc
+from dlrover.python.unified.contoller.config import DLConfig, WorkloadDesc
 
 
 @dataclass

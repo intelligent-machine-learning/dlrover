@@ -17,13 +17,14 @@ from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_defines import MasterStage
-from dlrover.python.unified.prime.config import JobConfig
-from dlrover.python.unified.prime.schedule.graph import DLExecutionGraph
-from dlrover.python.unified.prime.schedule.scheduler import Scheduler
 from dlrover.python.unified.util.actor_helper import (
     invoke_actors_async,
     kill_actors,
 )
+
+from .config import JobConfig
+from .schedule.graph import DLExecutionGraph
+from .schedule.scheduler import Scheduler
 
 
 class Placement:

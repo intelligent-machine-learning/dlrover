@@ -4,10 +4,10 @@
 
 - dlrover.python.unified
   - common: store data structures/protocols shared by all modules.
-  - prime
-  - sub
-    - elastic
-      - worker
+  - controller: PrimeMaster
+  - backend
+    - elastic: ElasticMaster
+      - worker: ElasticWorker
 
 ### Module Design Patterns
 
@@ -38,7 +38,7 @@ Visibility:
 - All submodules are internal to parent module, unless meaningfully exposed to outside.
 - All fields(without `_`) are public readonly(inside module), and should not reassigned.
 
-## Prime Module
+## Controller(PrimeMaster)
 
 - api.py: PrimeMasterRemote, exposed to outside
 - config.py: JobConfig, the input config for training.
@@ -49,7 +49,7 @@ Visibility:
   - graph.py: ExecutionGraph, the core state for scheduling.
   - placement.py: Placement, the placement logic for scheduling.
 
-## Elastic Module (example of SubMasters)
+## Elastic Backend (one example of Backend)
 
 - master.py: ElasticMaster
   1. Implements `ActorBase`, implementing lifecycle including `_setup`, `status`, `self_check`, `start`, `shutdown`.

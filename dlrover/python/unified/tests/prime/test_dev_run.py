@@ -17,8 +17,8 @@ import pytest
 import ray
 
 from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
-from dlrover.python.unified.prime.config import DLConfig, JobConfig
-from dlrover.python.unified.prime.master import PrimeMaster
+from dlrover.python.unified.contoller.config import DLConfig, JobConfig
+from dlrover.python.unified.contoller.master import PrimeMaster
 from dlrover.python.unified.util.test_hooks import coverage_enabled
 
 

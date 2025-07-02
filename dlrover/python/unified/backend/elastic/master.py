@@ -18,7 +18,7 @@ from dlrover.python.unified.common.workload_defines import (
     ActorBase,
     WorkerStage,
 )
-from dlrover.python.unified.prime.api import PrimeMasterApi
+from dlrover.python.unified.contoller.api import PrimeMasterApi
 
 from .manager import ElasticManager
 from .servicer import RayMasterServicer

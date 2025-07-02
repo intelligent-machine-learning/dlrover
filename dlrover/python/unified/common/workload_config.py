@@ -75,12 +75,12 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     cmd: str = Field(description="Command to run the elastic workload.")
 
     def get_worker_cls(self) -> ActorClass:
-        from dlrover.python.unified.sub import ElasticWorker
+        from dlrover.python.unified.backend import ElasticWorker
 
         return ElasticWorker  # type: ignore[return-value]
 
     def get_master_cls(self) -> ActorClass:
-        from dlrover.python.unified.sub import ElasticMaster
+        from dlrover.python.unified.backend import ElasticMaster
 
         return as_actor_class(ElasticMaster)  # type: ignore[return-value]
 

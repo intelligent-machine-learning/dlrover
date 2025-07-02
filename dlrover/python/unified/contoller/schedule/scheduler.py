@@ -22,14 +22,12 @@ from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.workload_config import ResourceDesc
 from dlrover.python.unified.common.workload_defines import JobInfo
-from dlrover.python.unified.prime.schedule.graph import (
-    DLExecutionGraph,
-    PlacementGroupSpec,
-)
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actors_async,
 )
+
+from .graph import DLExecutionGraph, PlacementGroupSpec
 
 
 @dataclass
