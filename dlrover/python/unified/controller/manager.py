@@ -27,13 +27,6 @@ from .schedule.graph import DLExecutionGraph
 from .schedule.scheduler import Scheduler
 
 
-class Placement:
-    def allocate_placement_group(self, graph: DLExecutionGraph):
-        """Allocate placement group based on the execution graph."""
-        # update vertices with placement group info
-        pass
-
-
 class PrimeManager:
     INSTANCE: "PrimeManager"
 
@@ -42,10 +35,7 @@ class PrimeManager:
 
         # Create all components
         self.graph = DLExecutionGraph.create(config.dl_config)
-        self.placement = (
-            Placement()
-        )  # Placeholder for actual placement strategy
-        self.scheduler: Scheduler = Scheduler(config.scheduling_strategy_type)
+        self.scheduler: Scheduler = Scheduler(config)
         self.thread: Optional[Thread] = None
 
         # Runtime state
@@ -57,10 +47,8 @@ class PrimeManager:
     async def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when failed."""
-        self.placement.allocate_placement_group(self.graph)
-        await self.scheduler.create_actors(
-            self.graph, job_info=self.config.to_job_info()
-        )
+        await self.scheduler.allocate_placement_group(self.graph)
+        await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
         await self._nodes_check()

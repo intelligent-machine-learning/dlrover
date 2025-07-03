@@ -201,8 +201,8 @@ class DLWorkloadRole:
                 spec=self.spec,
                 world_size=self.instance_number,
                 rank=i,
-                local_world_size=self.spec.per_node,
-                local_rank=i % self.spec.per_node,
+                local_world_size=self.spec.per_group,
+                local_rank=i % self.spec.per_group,
             )
             for i in range(self.instance_number)
         ]

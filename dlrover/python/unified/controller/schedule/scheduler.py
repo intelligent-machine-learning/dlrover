@@ -12,26 +12,34 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Set
+from typing import Any, Dict, List
 
 from ray.actor import ActorClass
-from ray.util.scheduling_strategies import SchedulingStrategyT
+from ray.util.placement_group import PlacementGroup, placement_group
+from ray.util.scheduling_strategies import (
+    PlacementGroupSchedulingStrategy,
+    SchedulingStrategyT,
+)
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.enums import SchedulingStrategyType
-from dlrover.python.unified.common.workload_base import JobInfo
 from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.controller.config import (
+    ACCELERATOR_TYPE,
+    JobConfig,
+)
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actors_async,
 )
 
-from .graph import DLExecutionGraph, PlacementGroupSpec
+from .graph import DLExecutionGraph
 
 
 @dataclass
 class RayActorSpec:
+    """Specification for a Ray actor. private to scheduler."""
+
     name: str
     cls: ActorClass
     options: Dict[str, Any]  # as kwargs for actor
@@ -41,40 +49,45 @@ class RayActorSpec:
 
 
 class Scheduler:
-    def __init__(self, strategy: SchedulingStrategyType) -> None:
-        self.strategy = strategy
-
-        # Placeholder for actual placement strategy
-        self.placement = Placement()
-
+    def __init__(self, config: JobConfig) -> None:
+        self._config = config
         self.__pg = None  # Placement group for actors
 
-    def create_pgs(self, pgs: Set[PlacementGroupSpec]):
+    async def allocate_placement_group(self, graph: DLExecutionGraph):
         """Create placement groups for
         the given set of placement group specs."""
-        # TODO implement the logic to create placement groups
+        bundles = []
+        for group in self._config.dl_config.workload_group:
+            bundle_id_start = len(bundles)
+            for _ in range(group.num):
+                bundles.append(group.resource)
+            for workload, num in group.workloads:
+                role = graph.roles[workload]
+                for worker in role.instances:
+                    worker.bundle_index = bundle_id_start + worker.rank // num
+        self.__pg = self._create_pg(bundles)
 
-    async def create_actors(self, graph: DLExecutionGraph, job_info: JobInfo):
+    async def create_actors(self, graph: DLExecutionGraph):
         """Create/Get actors for all nodes in the execution graph."""
-        # 0. create placement group if not exists
-        self.placement.allocate_placement_group(graph)
-        """Create placement group if not exists."""
-        pgs = set(
-            it.placement_group
-            for it in graph.vertices
-            if it.placement_group is not None
-        )
-        self.create_pgs(pgs)
-
-        # 1. ray create_or_exists actors
+        job_info = self._config.to_job_info()
         for role in graph.roles.values():
             for worker in role.instances:
+                assert (
+                    self.__pg is not None
+                ), "Placement group must be created before creating actors."
+                assert (
+                    worker.bundle_index >= 0
+                ), f"Worker {worker.name} bundle index must be allocated."
                 spec = RayActorSpec(
                     name=worker.name,
                     resource=role.spec.instance_resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
                     envs=worker.get_envs(),
-                    scheduling_strategy=None,  # no scheduling strategy for now
+                    scheduling_strategy=PlacementGroupSchedulingStrategy(
+                        placement_group=self.__pg,
+                        placement_group_bundle_index=worker.bundle_index,
+                        placement_group_capture_child_tasks=True,
+                    ),
                     options={
                         "job_info": job_info,
                         "actor_info": worker.to_actor_info(),
@@ -118,9 +131,31 @@ class Scheduler:
             get_if_exists=True,
             num_cpus=node.resource.cpu,
             memory=node.resource.memory,
-            num_gpus=node.resource.gpu,
+            # num_gpus=node.resource.gpu, # use bundle resource instead
             resources=node.resource.user_defined,
             runtime_env=runtime_env,
             scheduling_strategy=node.scheduling_strategy,
         ).remote(**node.options)
         logger.info(f"Created {node}")
+
+    def _create_pg(self, bundles: List[ResourceDesc]) -> PlacementGroup:
+        """Create a placement group with the given bundles."""
+
+        accelerator = self._config.dl_config.accelerator_type
+
+        def _to_bundle(resource: ResourceDesc) -> Dict[str, Any]:
+            """Convert ResourceDesc to a bundle dict."""
+            return {
+                "CPU": resource.cpu,
+                "memory": resource.memory,
+                "GPU": resource.accelerator
+                if accelerator == ACCELERATOR_TYPE.GPU
+                else 0,
+                **resource.user_defined,  # Add user-defined resources
+            }
+
+        return placement_group(
+            bundles=[_to_bundle(bundle) for bundle in bundles],
+            strategy="PACK",
+            name=f"dlrover_placement_group_{self._config.job_name}",
+        )

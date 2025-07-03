@@ -27,7 +27,7 @@ def test_dev_run():
             "demo": ElasticWorkloadDesc(
                 cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
                 num=2,
-                per_node=2,
+                proc_per_worker=2,
             )
         },
     )

@@ -56,7 +56,7 @@ class ElasticWorker(ActorBase):
             "--nnodes",
             f"{self.node_info.spec.instance_number}",
             "--nproc_per_node",
-            f"{self.node_info.spec.per_node}",
+            f"{self.node_info.spec.proc_per_worker}",
             *extract_args_from_cmd(self.cmd),
         ]
 
