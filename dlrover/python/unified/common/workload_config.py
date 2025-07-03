@@ -108,4 +108,7 @@ class CustomWorkloadDesc(BaseWorkloadDesc):
 
 
 # Union type for workload descriptions, discriminating by `kind`.
-WorkloadDesc: TypeAlias = Union[ElasticWorkloadDesc, CustomWorkloadDesc]  # type: ignore[valid-type, assignment]
+WorkloadDesc: TypeAlias = Union[
+    ElasticWorkloadDesc,
+    CustomWorkloadDesc,
+]  # type: ignore[valid-type, assignment]

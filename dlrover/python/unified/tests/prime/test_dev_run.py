@@ -19,6 +19,7 @@ from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
 from dlrover.python.unified.contoller.config import DLConfig, JobConfig
 from dlrover.python.unified.contoller.master import PrimeMaster
 
+
 @pytest.mark.usefixtures("tmp_ray")
 def test_dev_run():
     dl_config = DLConfig(

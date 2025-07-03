@@ -9,7 +9,6 @@ import ray.actor
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
-from dlrover.python.unified.tests.fixtures.ray_util import session_ray
 
 
 @ray.remote
@@ -30,15 +29,19 @@ class SimpleActor:
 
 
 class SimpleActorStub:
-    def some_method(self): ...
+    def some_method(self):
+        ...
 
-    async def some_method_async(self): ...
+    async def some_method_async(self):
+        ...
 
 
 class SimpleActorBatchStub:
-    def some_method(self) -> ah.BatchInvokeResult[str]: ...
+    def some_method(self) -> ah.BatchInvokeResult[str]:
+        ...
 
-    async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
+    async def some_method_async(self) -> ah.BatchInvokeResult[str]:
+        ...
 
 
 @pytest.fixture

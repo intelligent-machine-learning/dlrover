@@ -93,7 +93,10 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
                 result = ray.get(task)
                 results[task_id] = result
             except RayActorError as e:
-                if method_name == "__ray_terminate__" or method_name == "shutdown":
+                if (
+                    method_name == "__ray_terminate__"
+                    or method_name == "shutdown"
+                ):
                     results[task_id] = None  # Expected for shutdown
                     continue
                 logger.error(f"Error executing {method_name} on {actor}: {e}")
@@ -216,10 +219,12 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T: ...
+    def __getitem__(self, item: int, /) -> T:
+        ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T: ...
+    def __getitem__(self, actor: str, /) -> T:
+        ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.

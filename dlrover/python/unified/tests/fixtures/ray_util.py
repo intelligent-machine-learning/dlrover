@@ -45,6 +45,7 @@ def tmp_ray():
 
 @pytest.fixture(scope="session")
 def session_ray():
-    """Fixture to initialize and shutdown Ray. Session-scoped, shared across tests."""
+    """Fixture to initialize and shutdown Ray.
+    Session-scoped, shared across tests."""
     with _setup_ray():
         yield
