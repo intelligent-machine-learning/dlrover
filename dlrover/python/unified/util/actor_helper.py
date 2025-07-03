@@ -93,7 +93,7 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
                 result = ray.get(task)
                 results[task_id] = result
             except RayActorError as e:
-                if method_name == "__ray_terminate__":
+                if method_name == "__ray_terminate__" or method_name == "shutdown":
                     results[task_id] = None  # Expected for shutdown
                     continue
                 logger.error(f"Error executing {method_name} on {actor}: {e}")
@@ -155,7 +155,7 @@ async def invoke_actor_async(
         try:
             return await ref
         except RayActorError as e:
-            if method_name == "shutdown":
+            if method_name == "__ray_terminate__" or method_name == "shutdown":
                 return cast(T, None)  # Success for shutdown
             print(f"Error executing {method_name} on {actor_name}: {e}")
             refresh_actor_cache(actor_name)

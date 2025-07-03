@@ -9,6 +9,7 @@ import ray.actor
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
+from dlrover.python.unified.tests.fixtures.ray_util import session_ray
 
 
 @ray.remote
@@ -40,28 +41,23 @@ class SimpleActorBatchStub:
     async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
 
 
-@pytest.fixture(scope="module")
-def tmp_ray():
-    ray.init()
-    yield
-    ray.shutdown()
-
-
 @pytest.fixture
-def tmp_actor1(tmp_ray):
+def tmp_actor1(session_ray):
     name = f"actor1_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     ah.__actors_cache.clear()
     yield name
-    ray.kill(actor)
+    ah.kill_actors([name])
+    del actor
 
 
 @pytest.fixture
-def tmp_actor2(tmp_ray):
+def tmp_actor2(session_ray):
     name = f"actor2_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     yield name
-    ray.kill(actor)
+    ah.kill_actors([name])
+    del actor
 
 
 def test_get_actor_with_cache(tmp_actor1):

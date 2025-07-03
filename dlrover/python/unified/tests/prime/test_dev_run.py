@@ -14,39 +14,13 @@
 import time
 
 import pytest
-import ray
 
 from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
 from dlrover.python.unified.contoller.config import DLConfig, JobConfig
 from dlrover.python.unified.contoller.master import PrimeMaster
-from dlrover.python.unified.util.test_hooks import coverage_enabled
 
-
-@pytest.fixture
-def _ray():
-    """Fixture to initialize and shutdown Ray."""
-    envs = {}
-    if coverage_enabled():
-        envs["COVERAGE_PROCESS_START"] = ".coveragerc"
-        print("Coverage enabled, setting up environment variables for ray.")
-
-    ray.init(
-        num_cpus=4,
-        num_gpus=0,
-        ignore_reinit_error=True,
-        namespace="dlrover_unified_test",
-        runtime_env={"env_vars": envs},
-    )
-    yield
-    time.sleep(2)
-    ray.shutdown()
-
-    import coverage
-
-    coverage.Coverage().combine()
-
-
-def test_dev_run(_ray):
+@pytest.mark.usefixtures("tmp_ray")
+def test_dev_run():
     dl_config = DLConfig(
         workloads={
             "demo": ElasticWorkloadDesc(
