@@ -15,6 +15,7 @@ import time
 
 import ray
 
+from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.mpmd.master import MPMDMaster
 from dlrover.python.unified.tests.base import RayBaseTest
@@ -24,7 +25,7 @@ try:
 except ImportError:
     from builtins import RuntimeError as ade
 
-from dlrover.python.unified.api.api import DLJobBuilder, RLJobBuilder
+from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLMasterConstant
