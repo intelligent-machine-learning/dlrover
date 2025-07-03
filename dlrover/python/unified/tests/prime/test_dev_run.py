@@ -16,8 +16,8 @@ import time
 import pytest
 
 from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
-from dlrover.python.unified.contoller.config import DLConfig, JobConfig
-from dlrover.python.unified.contoller.master import PrimeMaster
+from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.controller.master import PrimeMaster
 
 
 @pytest.mark.usefixtures("tmp_ray")

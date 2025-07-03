@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
 import typing
 from abc import ABC, abstractmethod
 from collections import Counter
@@ -21,13 +20,9 @@ from ray.exceptions import GetTimeoutError
 from ray.util import placement_group, remove_placement_group
 from ray.util.placement_group import PlacementGroup
 
-from dlrover.python.common import env_utils
 from dlrover.python.common.enums import ResourceType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import PickleSerializable
-from dlrover.python.unified.common.constant import DLMasterConstant
-from dlrover.python.unified.common.exception import ResourceError
-from dlrover.python.unified.master.graph import DLExecutionGraph
 
 
 class PlacementGroupAllocation(PickleSerializable):
@@ -92,13 +87,6 @@ class PlacementGroupAllocation(PickleSerializable):
 
 
 class Placement(ABC):
-    def __init__(self, execution_graph: DLExecutionGraph):
-        self._graph = execution_graph
-
-    @property
-    def graph(self):
-        return self._graph
-
     @classmethod
     def _get_start_bundle(cls, allocated_bundles, bundle_topology) -> int:
         if not allocated_bundles:
@@ -112,25 +100,6 @@ class Placement(ABC):
             return int(bundle_allocated[0])
 
         return max_bundle_index + 1
-
-    # create placement group by ray api
-    def create_placement_group(self):
-        start = time.time()
-
-        try:
-            self.graph.create_placement_group()
-        except GetTimeoutError:
-            logger.error("Got timeout when creating placement group.")
-            raise ResourceError()
-
-        logger.info(
-            f"All placement group created used: {time.time() - start:.2f}s"
-        )
-
-    @classmethod
-    @abstractmethod
-    def get_placement_strategy(cls):
-        """Return ray placement group strategy"""
 
     @abstractmethod
     def prepare_placement_group(self):
@@ -158,20 +127,8 @@ class SingleBundlePerNodePlacement(Placement):
 
     PG_NAME = "SINGLE_BUNDLE_PER_NODE"
 
-    @classmethod
-    def get_placement_strategy(cls):
-        strategy_from_env = env_utils.get_env(DLMasterConstant.PG_STRATEGY_ENV)
-
-        if not strategy_from_env:
-            return "STRICT_SPREAD"
-
-        logger.info(
-            f"Override placement strategy from env: {strategy_from_env}."
-        )
-        return strategy_from_env
-
     def prepare_placement_group(self):
-        strategy = self.get_placement_strategy()
+        strategy = "STRICT_SPREAD"
 
         # define bundle unit resource
         device_per_node = self.graph.dl_context.trainer.device_per_node
@@ -233,25 +190,13 @@ class SingleGroupPerNodePlacement(Placement):
 
     PG_NAME = "SINGLE_GROUP_PER_NODE"
 
-    @classmethod
-    def get_placement_strategy(cls):
-        strategy_from_env = env_utils.get_env(DLMasterConstant.PG_STRATEGY_ENV)
-
-        if not strategy_from_env:
-            return "STRICT_PACK"
-
-        logger.info(
-            f"Override placement strategy from env: {strategy_from_env}."
-        )
-        return strategy_from_env
-
     def prepare_placement_group(self):
         if self.graph.dl_context.trainer.device_type == ResourceType.CPU:
             bundle_unit_resource = {"CPU": 1}
         else:
             bundle_unit_resource = {"GPU": 1}
 
-        strategy = self.get_placement_strategy()
+        strategy = "STRICT_PACK"
         pg_num = self.graph.dl_context.trainer.node_number
         bundles = []
         for _ in range(self.graph.dl_context.trainer.device_per_node):

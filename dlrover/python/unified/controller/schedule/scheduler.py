@@ -40,16 +40,6 @@ class RayActorSpec:
     scheduling_strategy: SchedulingStrategyT = None
 
 
-class Placement:
-    def allocate_placement_group(self, graph: DLExecutionGraph):
-        """Allocate placement group based on the execution graph."""
-        # update vertices with placement group info
-        ...
-        # TODO implement the logic to allocate placement groups
-        #  Refer: placement.py
-        #  Result: set PlacementGroupSpec and bundle_index for vertices
-
-
 class Scheduler:
     def __init__(self, strategy: SchedulingStrategyType) -> None:
         self.strategy = strategy

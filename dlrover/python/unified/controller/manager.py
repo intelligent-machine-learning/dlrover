@@ -35,6 +35,8 @@ class Placement:
 
 
 class PrimeManager:
+    INSTANCE: "PrimeManager"
+
     def __init__(self, config: JobConfig) -> None:
         self.config = config
 
@@ -49,6 +51,8 @@ class PrimeManager:
         # Runtime state
         self.stage: MasterStage = MasterStage.INIT
         logger.info(f"PrimeManager initialized with config: {config}")
+
+        self.INSTANCE = self  # Singleton instance
 
     async def prepare(self):
         """Prepare all for the job execution.

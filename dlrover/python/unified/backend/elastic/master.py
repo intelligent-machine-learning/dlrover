@@ -15,7 +15,7 @@ import asyncio
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
-from dlrover.python.unified.contoller.api import PrimeMasterApi
+from dlrover.python.unified.controller.api import PrimeMasterApi
 
 from .manager import ElasticManager
 from .servicer import RayMasterServicer
