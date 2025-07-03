@@ -24,13 +24,15 @@ from dlrover.python.util.common_util import get_class_by_module_and_class_name
 
 
 class ResourceDesc(BaseModel):
-    cpu: float = Field(default=0.0, le=0)
+    cpu: float = Field(default=0.0, ge=0)
     memory: int = Field(
-        default=0, le=0, validation_alias=AliasChoices("memory", "mem")
+        default=0, ge=0, validation_alias=AliasChoices("memory", "mem")
     )
-    disk: int = Field(default=0, le=0)
+    disk: int = Field(default=0, ge=0)
     accelerator: float = Field(
-        default=1, validation_alias=AliasChoices("accelerator", "acc", "gpu")
+        default=1,
+        gt=0,
+        validation_alias=AliasChoices("accelerator", "acc", "gpu"),
     )
     user_defined: Dict[str, float] = Field(
         default_factory=dict,

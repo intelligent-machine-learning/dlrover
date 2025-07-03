@@ -13,7 +13,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -36,7 +36,7 @@ class ACCELERATOR_TYPE(str, Enum):
 class WorkloadGroup:
     name: str
     num: int
-    workloads: List[Tuple[str, int]]  # (workload, num_instances)
+    workloads: List[str]
     resource: ResourceDesc
 
 
@@ -69,13 +69,13 @@ class DLConfig(BaseModel):
                     workloads=[],
                     resource=ResourceDesc(),
                 )
-            groups[group_name].workloads.append((name, workload.per_group))
+            groups[group_name].workloads.append(name)
             groups[group_name].resource += workload.instance_resource
         # Validate number of instances in each group
         for group in groups.values():
-            for name, num in group.workloads:
+            for name in group.workloads:
                 workload = self.workloads[name]
-                if workload.instance_number != num * workload.per_group:
+                if workload.instance_number != group.num * workload.per_group:
                     raise ValueError(
                         "Instance number for workload"
                         f" '{name}' is inconsistent.\n  {group}"

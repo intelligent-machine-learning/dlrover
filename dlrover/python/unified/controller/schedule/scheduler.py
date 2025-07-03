@@ -61,10 +61,12 @@ class Scheduler:
             bundle_id_start = len(bundles)
             for _ in range(group.num):
                 bundles.append(group.resource)
-            for workload, num in group.workloads:
+            for workload in group.workloads:
                 role = graph.roles[workload]
                 for worker in role.instances:
-                    worker.bundle_index = bundle_id_start + worker.rank // num
+                    worker.bundle_index = (
+                        bundle_id_start + worker.rank // worker.spec.per_group
+                    )
         self.__pg = self._create_pg(bundles)
 
     async def create_actors(self, graph: DLExecutionGraph):
@@ -145,14 +147,15 @@ class Scheduler:
 
         def _to_bundle(resource: ResourceDesc) -> Dict[str, Any]:
             """Convert ResourceDesc to a bundle dict."""
-            return {
+            ret = {
                 "CPU": resource.cpu,
                 "memory": resource.memory,
-                "GPU": resource.accelerator
-                if accelerator == ACCELERATOR_TYPE.GPU
-                else 0,
-                **resource.user_defined,  # Add user-defined resources
             }
+            if accelerator == ACCELERATOR_TYPE.GPU:
+                ret["GPU"] = resource.accelerator
+            elif accelerator == ACCELERATOR_TYPE.CPU:
+                ret["CPU"] = max(ret["CPU"], resource.accelerator)
+            return ret
 
         return placement_group(
             bundles=[_to_bundle(bundle) for bundle in bundles],

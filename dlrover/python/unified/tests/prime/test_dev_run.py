@@ -16,7 +16,11 @@ import time
 import pytest
 
 from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
-from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.controller.config import (
+    ACCELERATOR_TYPE,
+    DLConfig,
+    JobConfig,
+)
 from dlrover.python.unified.controller.master import PrimeMaster
 
 
@@ -30,6 +34,7 @@ def test_dev_run():
                 proc_per_worker=2,
             )
         },
+        accelerator_type=ACCELERATOR_TYPE.CPU,
     )
     config = JobConfig(
         job_name="test_job",
