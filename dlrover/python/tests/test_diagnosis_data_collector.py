@@ -40,6 +40,7 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.tests.test_utils import start_local_master
 
 
@@ -47,9 +48,12 @@ class TestDiagnosisDataCollector(unittest.TestCase):
     def setUp(self):
         self.master_proc, self.addr = start_local_master()
         MasterClient._instance = build_master_client(self.addr, 1)
+        ResourceMonitor._instance = None
 
     def tearDown(self):
         os.environ.clear()
+        MasterClient._instance = None
+        ResourceMonitor._instance = None
 
     @patch(
         "dlrover.python.diagnosis.datacollector.training_log_collector"

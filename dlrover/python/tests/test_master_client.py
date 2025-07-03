@@ -13,6 +13,7 @@
 
 import json
 import os
+import sys
 import time
 import unittest
 from datetime import datetime
@@ -399,6 +400,16 @@ class MasterRayClientTest(unittest.TestCase):
         os.environ.clear()
         context = Context.singleton_instance()
         context.master_service_type = "grpc"
+
+    @patch.dict("sys.modules", {"ray": None})
+    def test_ray_not_installed(self):
+        module = "dlrover.python.elastic_agent.master_client"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        from dlrover.python.elastic_agent.master_client import RayMasterClient
+
+        self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
 
     @patch("dlrover.python.unified.util.actor_helper.get_actor_with_cache")
     @patch("ray.get")
