@@ -19,7 +19,7 @@ import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common import comm
 from dlrover.python.common.comm import (
@@ -395,7 +395,6 @@ class MasterRayClientTest(unittest.TestCase):
         )
         context = Context.singleton_instance()
         context.master_service_type = "ray"
-        self._master_client = build_master_client(None, 3)
 
     def tearDown(self) -> None:
         os.environ.clear()
@@ -412,21 +411,23 @@ class MasterRayClientTest(unittest.TestCase):
 
         self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
 
-    def test_ray_client(self):
-        self.assertIsNotNone(self._master_client)
-        self.assertTrue(isinstance(self._master_client, RayMasterClient))
+    @patch("dlrover.python.unified.util.actor_helper.get_actor_with_cache")
+    @patch("ray.get")
+    def test_ray_client(self, mock_ray_get, mock_get_actor_with_cache):
+        RayMasterClient.register_master_actor("test")
+        client: RayMasterClient = build_master_client(None, 3)
+        self.assertIsNotNone(client)
+        self.assertTrue(isinstance(client, RayMasterClient))
 
-        self._master_client.register_master_actor("test")
-        self.assertEqual(self._master_client.master_actor_handle, "test")
-        self.assertFalse(self._master_client.get_elastic_run_config())
+        client.register_master_actor("test")
+        self.assertEqual(client.master_actor_name, "test")
+        self.assertFalse(client.get_elastic_run_config())
 
         req = BaseRequest(node_id=0, node_type="test")
-        self._master_client.ray.get = Mock(return_value=True)
-        self._master_client._master_addr = MagicMock()
-        self._master_client._master_addr.agent_report.remote = MagicMock()
-        self.assertTrue(self._master_client._report(req))
+        mock_ray_get.return_value = True
+        mock_get_actor_with_cache.return_value = MagicMock()
+        self.assertTrue(client._report(req))
 
         rep = BaseResponse()
-        self._master_client.ray.get = Mock(return_value=rep)
-        self._master_client._master_addr.agent_get.remote = MagicMock()
-        self.assertFalse(self._master_client._get(req))
+        mock_ray_get.return_value = rep
+        self.assertFalse(client._get(req))

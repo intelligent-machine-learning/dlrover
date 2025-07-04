@@ -29,10 +29,6 @@ class JobManagerTest(BaseMasterTest):
         super(JobManagerTest, self).setUp()
         os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
 
-    def tearDown(self):
-        os.environ.clear()
-        super(JobManagerTest, self).tearDown()
-
     def test_basic(self):
         job_manager = MPMDJobManager()
         self.assertTrue(

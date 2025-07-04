@@ -19,10 +19,6 @@ from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
 
 
 class BaseWorkloadTest(BaseTest):
-    def tearDown(self):
-        os.environ.clear()
-        super().tearDown()
-
     def test_basic(self):
         os.environ["NAME"] = "test"
         os.environ["ROLE"] = "ACTOR"

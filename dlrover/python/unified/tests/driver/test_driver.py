@@ -65,7 +65,6 @@ class DriverRayTest(RayBaseTest):
 
     def tearDown(self):
         self.close_ray_safely()
-        os.environ.clear()
         super().tearDown()
 
     def test_driver_all(self):
