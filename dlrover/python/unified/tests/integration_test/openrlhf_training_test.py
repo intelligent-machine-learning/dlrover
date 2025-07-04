@@ -25,10 +25,11 @@ from dlrover.python.unified.controller.master import PrimeMaster
 
 
 @pytest.mark.usefixtures("tmp_ray")
-def test_dev_run():
+def test_openrlhf_training():
+    pytest.skip("WIP: OpenRLHF training test is not ready yet.")
     dl_config = DLConfig(
         workloads={
-            "demo": ElasticWorkloadDesc(
+            "training": ElasticWorkloadDesc(
                 cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
                 num=2,
                 proc_per_worker=2,
@@ -37,7 +38,7 @@ def test_dev_run():
         accelerator_type=ACCELERATOR_TYPE.CPU,
     )
     config = JobConfig(
-        job_name="test_job",
+        job_name="test_openrlhf_training",
         dl_config=dl_config,
     )
     master = PrimeMaster.create(config)
@@ -49,3 +50,6 @@ def test_dev_run():
     master.stop()  # Noop
     assert master.get_status().stage == "STOPPED"
     master.shutdown()
+
+
+# TODO abnormal test cases

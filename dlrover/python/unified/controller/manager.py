@@ -98,9 +98,11 @@ class PrimeManager:
             res = await invoke_actors_async(
                 [node.name for node in self.graph.vertices], "status"
             )
-            res.raise_for_errors()
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
-                logger.info("All nodes are finished or failed.")
+                if all(it == "FINISHED" for it in res.results):
+                    logger.info("All nodes finished successfully.")
+                else:
+                    logger.info("All nodes finished, but some nodes failed.")
                 break
         await self.stop()
 
