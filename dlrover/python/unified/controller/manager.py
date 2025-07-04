@@ -47,7 +47,7 @@ class PrimeManager:
     async def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when failed."""
-        await self.scheduler.allocate_placement_group(self.graph)
+        self.scheduler.allocate_placement_group(self.graph)
         await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
