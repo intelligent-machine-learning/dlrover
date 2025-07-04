@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 import ray
-import ray.actor
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
@@ -45,7 +44,7 @@ class SimpleActorBatchStub:
 
 
 @pytest.fixture
-def tmp_actor1(session_ray):
+def tmp_actor1(shared_ray):
     name = f"actor1_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     ah.__actors_cache.clear()
@@ -55,7 +54,7 @@ def tmp_actor1(session_ray):
 
 
 @pytest.fixture
-def tmp_actor2(session_ray):
+def tmp_actor2(shared_ray):
     name = f"actor2_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     yield name

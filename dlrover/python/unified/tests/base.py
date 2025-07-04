@@ -13,6 +13,7 @@
 import os
 import unittest
 
+import pytest
 import ray
 from ray._private.test_utils import wait_for_condition
 
@@ -21,6 +22,9 @@ from dlrover.python.common.log import default_logger as logger
 
 class BaseTest(unittest.TestCase):
     def setUp(self):
+        if ray.is_initialized():
+            pytest.skip("Ray is already initialized before test.")
+
         self._bak_environ = os.environ.copy()
         logger.info(
             f"========= {self.__class__.__name__}-"
@@ -34,6 +38,8 @@ class BaseTest(unittest.TestCase):
         )
         os.environ.clear()
         os.environ.update(self._bak_environ)
+
+        assert not ray.is_initialized(), "Ray is still initialized after test."
 
 
 class AsyncBaseTest(unittest.IsolatedAsyncioTestCase):

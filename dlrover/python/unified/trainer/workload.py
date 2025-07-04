@@ -200,6 +200,8 @@ class BaseWorkload(ABC):
         return self.__create_time
 
     def _get_actor_id(self):
+        if not ray.is_initialized():
+            return None
         return ray.get_runtime_context().get_actor_id()
 
     def get_device_collocation(self):
