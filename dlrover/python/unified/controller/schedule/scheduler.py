@@ -51,11 +51,11 @@ class RayActorSpec:
 class Scheduler:
     def __init__(self, config: JobConfig) -> None:
         self._config = config
-        self.__pg = None  # Placement group for actors
+        self._pg = None  # Placement group for actors
 
-    async def allocate_placement_group(self, graph: DLExecutionGraph):
-        """Create placement groups for
-        the given set of placement group specs."""
+    def allocate_placement_group(self, graph: DLExecutionGraph):
+        """Allocate placement group for all actors.
+        Each workload group will be allocated to a placement group bundle."""
         bundles = []
         for group in self._config.dl_config.workload_group:
             bundle_id_start = len(bundles)
@@ -67,26 +67,26 @@ class Scheduler:
                     worker.bundle_index = (
                         bundle_id_start + worker.rank // worker.spec.per_group
                     )
-        self.__pg = self._create_pg(bundles)
+        self._pg = self._create_pg(bundles)
 
     async def create_actors(self, graph: DLExecutionGraph):
         """Create/Get actors for all nodes in the execution graph."""
         job_info = self._config.to_job_info()
         for role in graph.roles.values():
             for worker in role.instances:
-                assert (
-                    self.__pg is not None
-                ), "Placement group must be created before creating actors."
-                assert (
-                    worker.bundle_index >= 0
-                ), f"Worker {worker.name} bundle index must be allocated."
+                assert self._pg is not None, (
+                    "Placement group must be created before creating actors."
+                )
+                assert worker.bundle_index >= 0, (
+                    f"Worker {worker.name} bundle index must be allocated."
+                )
                 spec = RayActorSpec(
                     name=worker.name,
                     resource=role.spec.instance_resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
                     envs=worker.get_envs(),
                     scheduling_strategy=PlacementGroupSchedulingStrategy(
-                        placement_group=self.__pg,
+                        placement_group=self._pg,
                         placement_group_bundle_index=worker.bundle_index,
                         placement_group_capture_child_tasks=True,
                     ),

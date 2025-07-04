@@ -13,9 +13,9 @@ from dlrover.python.unified.util.test_hooks import coverage_enabled
 def disable_ray_auto_init():
     def auto_init_ray():
         """Patch to disable ray auto init in tests."""
-        assert (
-            ray.is_initialized()
-        ), "Ray should be initialized before using Ray APIs."
+        assert ray.is_initialized(), (
+            "Ray should be initialized before using Ray APIs."
+        )
 
     with patch("ray._private.auto_init_hook.auto_init_ray", auto_init_ray):
         yield
@@ -35,7 +35,7 @@ def coverage_envs():
         print("Combining coverage data...")
         import coverage
 
-        coverage.Coverage().combine()
+        coverage.Coverage.current().combine()
 
 
 @contextmanager
