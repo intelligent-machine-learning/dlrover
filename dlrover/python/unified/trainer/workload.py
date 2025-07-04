@@ -26,6 +26,7 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.remote.call_obj import RuntimeInfo
+from dlrover.python.unified.trainer.trainer import MethodInvocationMeta
 
 
 def trainer_invocation(
@@ -76,14 +77,19 @@ def trainer_invocation(
         def wrapped(*args, **kwargs):
             return func(*args, **kwargs)
 
-        wrapped._trainer_invocation = True
-        wrapped._trainer_invocation_blocking = blocking
-        wrapped._trainer_invocation_async = is_async
-        wrapped._trainer_invocation_async_timeout = timeout
-        wrapped._trainer_invocation_target = target
-        wrapped._trainer_invocation_auto_shard = auto_shard
-        wrapped._trainer_invocation_pre_func = pre_func
-        wrapped._trainer_invocation_post_func = post_func
+        setattr(
+            wrapped,
+            "_trainer_invocation",
+            MethodInvocationMeta(
+                blocking=blocking,
+                is_async=is_async,
+                timeout=timeout,
+                target=target,
+                auto_shard=auto_shard,
+                pre_func=pre_func,
+                post_func=post_func,
+            ),
+        )
         return wrapped
 
     return decorator

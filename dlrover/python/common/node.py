@@ -215,7 +215,7 @@ class Node(object):
         self.exit_reason = ""
         self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
-        self.start_hang_time = 0
+        self.start_hang_time: float = 0
         self.init_time = time.time()
         self.eval_time = 0
         self.host_name = host_name

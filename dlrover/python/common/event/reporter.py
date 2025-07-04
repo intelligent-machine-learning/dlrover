@@ -13,6 +13,7 @@
 import importlib
 import json
 from datetime import datetime
+from functools import lru_cache
 from typing import Dict
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
@@ -369,6 +370,7 @@ class EventReporter(Singleton):
 context = Context.singleton_instance()
 
 
+@lru_cache(1)
 def get_event_reporter(*args, **kwargs) -> EventReporter:
     reporter_cls = context.reporter_cls
 
@@ -388,3 +390,20 @@ def get_event_reporter(*args, **kwargs) -> EventReporter:
         instance.initialize(*args, **kwargs)
 
     return instance
+
+
+def report_event(
+    event_type: str,
+    instance: str,
+    action: str,
+    msg: str = "",
+    labels: Dict[str, str] = None,
+):
+    """
+    Report an event using the global event reporter.
+    """
+    if labels is None:
+        labels = {}
+
+    reporter = get_event_reporter()
+    reporter.report(event_type, instance, action, msg, labels)

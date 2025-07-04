@@ -38,7 +38,6 @@ class ExecutionGraphTest(RayBaseTest):
             self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
-        os.environ.clear()
         self.close_ray_safely()
         super().tearDown()
 
