@@ -47,7 +47,7 @@ class PrimeManager:
     async def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when failed."""
-        await self.scheduler.allocate_placement_group(self.graph)
+        self.scheduler.allocate_placement_group(self.graph)
         await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
@@ -98,9 +98,11 @@ class PrimeManager:
             res = await invoke_actors_async(
                 [node.name for node in self.graph.vertices], "status"
             )
-            res.raise_for_errors()
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
-                logger.info("All nodes are finished or failed.")
+                if all(it == "FINISHED" for it in res.results):
+                    logger.info("All nodes finished successfully.")
+                else:
+                    logger.info("All nodes finished, but some nodes failed.")
                 break
         await self.stop()
 
