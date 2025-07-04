@@ -86,7 +86,6 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(RayBaseTest):
         self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
-        os.environ.clear()
         self.close_ray_safely()
         super().tearDown()
 
@@ -144,7 +143,6 @@ class GroupOrderedSchedulerSingleGroupPerNodeTest(RayBaseTest):
         self.init_ray_safely(num_cpus=8)
 
     def tearDown(self):
-        os.environ.clear()
         self.close_ray_safely()
 
     def test_schedule(self):

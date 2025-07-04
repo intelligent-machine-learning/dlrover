@@ -12,7 +12,8 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Literal, Optional, Tuple
 
 import ray
 from omegaconf import DictConfig
@@ -22,13 +23,24 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.util.common_util import get_methods_by_class
 
 
+@dataclass
+class MethodInvocationMeta:
+    blocking: bool = True
+    is_async: bool = False
+    timeout: float = 10.0
+    target: Literal["ALL", "RANK0"] = "ALL"
+    auto_shard: bool = True
+    pre_func: Optional[Callable] = None
+    post_func: Optional[Callable] = None
+
+
 class RoleGroupProxy(object):
     def __init__(
         self,
         role: str,
         world_size: int,
         role_cls: type,
-        role_methods: Dict[str, Tuple],
+        role_methods: Dict[str, MethodInvocationMeta],
         actor_handles: List[ActorHandle],
     ):
         """
@@ -82,45 +94,23 @@ class RoleGroupProxy(object):
             if not self._actor_handles:
                 raise RuntimeError("Actor handle is empty.")
 
-            if method_name in self._role_methods:
-                method_attr = self._role_methods[method_name]
-                blocking = method_attr[1]
-                use_wait = method_attr[2]
-                wait_timeout = method_attr[3]
-                target = method_attr[4]
-                auto_shard = method_attr[5]
-                pre_func = method_attr[6]
-                post_func = method_attr[7]
-            else:
-                blocking = True
-                use_wait = False
-                wait_timeout = 10
-                target = "ALL"
-                auto_shard = True
-                pre_func = None
-                post_func = None
+            attr = self._role_methods.get(method_name, MethodInvocationMeta())
 
             logger.info(
-                "Role group proxy method invocation, "
-                f"method: {method_name}, "
-                f"use_wait: {use_wait}, "
-                f"wait_timeout: {wait_timeout}, "
-                f"target: {target}, "
-                f"auto_shard: {auto_shard}, "
-                f"pre_func: {pre_func}, "
-                f"post_func: {post_func}"
+                f"Role group proxy method invocation, "
+                f"method: {method_name}, {attr}"
             )
             # pre function invocation
-            if pre_func:
+            if attr.pre_func:
                 logger.debug(
-                    f"{method_name} [PRE-FUNC]: {pre_func.__name__}, "
+                    f"{method_name} [PRE-FUNC]: {attr.pre_func.__name__}, "
                     f"input args({len(args)}): {[type(arg) for arg in args]}, "
                     f"input kwargs({len(kwargs)}): "
                     f"{[type(v) for v in kwargs.values()]}"
                 )
-                args, kwargs = pre_func(self, *args, **kwargs)
+                args, kwargs = attr.pre_func(self, *args, **kwargs)
                 logger.debug(
-                    f"{method_name} [PRE-FUNC]: {pre_func.__name__}, "
+                    f"{method_name} [PRE-FUNC]: {attr.pre_func.__name__}, "
                     f"output args({len(args)}): "
                     f"{[type(arg) for arg in args]}, "
                     f"output kwargs({len(kwargs)}): "
@@ -134,7 +124,7 @@ class RoleGroupProxy(object):
                 f"input kwargs({len(kwargs)}): "
                 f"{[type(v) for v in kwargs.values()]}"
             )
-            if target == "RANK0":
+            if attr.target == "RANK0":
                 logger.debug(f"{method_name} do rank0 invocation")
                 refs = [
                     getattr(self._actor_handles[0], method_name).remote(
@@ -143,7 +133,9 @@ class RoleGroupProxy(object):
                 ]
             else:
                 logger.debug(f"{method_name} do all invocation")
-                if auto_shard and self._can_shard_invocation(*args, **kwargs):
+                if attr.auto_shard and self._can_shard_invocation(
+                    *args, **kwargs
+                ):
                     logger.debug(f"{method_name} do sharding invocation")
                     result = []
                     for i in range(self.world_size):
@@ -162,9 +154,9 @@ class RoleGroupProxy(object):
                         for actor in self._actor_handles
                     ]
 
-            if blocking:
-                if use_wait:
-                    ready, unready = ray.wait(refs, timeout=wait_timeout)
+            if attr.blocking:
+                if not attr.is_async:
+                    ready, unready = ray.wait(refs, timeout=attr.timeout)
                     result = ray.get(ready)
                 else:
                     result = ray.get(refs)
@@ -172,16 +164,16 @@ class RoleGroupProxy(object):
                 result = refs
 
             # post function invocation
-            if post_func:
+            if attr.post_func:
                 logger.debug(
-                    f"{method_name} [POST-FUNC]: {post_func.__name__}, "
+                    f"{method_name} [POST-FUNC]: {attr.post_func.__name__}, "
                     f"input args({len(args)}): {[type(arg) for arg in args]}, "
                     f"input kwargs({len(kwargs)}): "
                     f"{[type(v) for v in kwargs.values()]}"
                 )
-                result = post_func(self, result)
+                result = attr.post_func(self, result)
                 logger.debug(
-                    f"{method_name} [POST-FUNC]: {post_func.__name__}, "
+                    f"{method_name} [POST-FUNC]: {attr.post_func.__name__}, "
                     f"output args({len(args)}): "
                     f"{[type(arg) for arg in args]}, "
                     f"output kwargs({len(kwargs)}): "
@@ -242,29 +234,9 @@ class BaseTrainer(ABC):
             invocation_methods = {}
             for name, method in get_methods_by_class(cls):
                 if hasattr(method, "_trainer_invocation"):
-                    blocking = getattr(method, "_trainer_invocation_blocking")
-                    is_async = getattr(method, "_trainer_invocation_async")
-                    async_timeout = getattr(
-                        method, "_trainer_invocation_async_timeout"
-                    )
-                    target = getattr(method, "_trainer_invocation_target")
-                    auto_shard = getattr(
-                        method, "_trainer_invocation_auto_shard"
-                    )
-                    pre_func = getattr(method, "_trainer_invocation_pre_func")
-                    post_func = getattr(
-                        method, "_trainer_invocation_post_func"
-                    )
-                    invocation_methods[name] = (
-                        method,
-                        blocking,
-                        is_async,
-                        async_timeout,
-                        target,
-                        auto_shard,
-                        pre_func,
-                        post_func,
-                    )
+                    attr = getattr(method, "_trainer_invocation")
+                    assert isinstance(attr, MethodInvocationMeta)
+                    invocation_methods[name] = attr
 
             role_group_proxy = RoleGroupProxy(
                 role,

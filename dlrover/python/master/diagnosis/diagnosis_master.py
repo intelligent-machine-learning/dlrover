@@ -37,7 +37,6 @@ from dlrover.python.diagnosis.common.constants import (
 )
 from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
@@ -69,7 +68,7 @@ def get_pre_check_timeout():
     return get_pending_timeout() + 600
 
 
-class DiagnosisMaster(DiagnosisManager):
+class DiagnosisMaster:
     """
     DiagnosisMaster is used to manage all diagnosis issues in a training job.
     """
@@ -84,8 +83,6 @@ class DiagnosisMaster(DiagnosisManager):
         self._reporter = get_event_reporter()
         self._metric_monitor = None
         self._lock = threading.Lock()
-
-        super().__init__(self._job_context)
 
     def collect_diagnosis_data(self, data: DiagnosisData):
         self._data_manager.store_data(data)
@@ -196,7 +193,10 @@ class DiagnosisMaster(DiagnosisManager):
                             # go failed actions if check not passed
                             actions = pre_check_op.failed_actions(
                                 result_msg=current_op_result.result_msg,
-                                abnormal_nodes=current_op_result.abnormal_nodes,  # noqa: E501
+                                abnormal_nodes=(
+                                    current_op_result.abnormal_nodes,
+                                )
+                                # noqa: E501
                             )
                             self._job_context.enqueue_actions(actions)
                             wait_secs = pre_check_op.get_retry_interval_secs()

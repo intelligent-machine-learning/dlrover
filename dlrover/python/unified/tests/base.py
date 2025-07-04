@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import unittest
 
 import ray
@@ -20,6 +21,7 @@ from dlrover.python.common.log import default_logger as logger
 
 class BaseTest(unittest.TestCase):
     def setUp(self):
+        self._bak_environ = os.environ.copy()
         logger.info(
             f"========= {self.__class__.__name__}-"
             f"{self._testMethodName} start ========="
@@ -29,6 +31,8 @@ class BaseTest(unittest.TestCase):
         logger.info(
             f"========= {self.__class__.__name__}-{self._testMethodName} end ========="
         )
+        os.environ.clear()
+        os.environ.update(self._bak_environ)
 
 
 class AsyncBaseTest(unittest.IsolatedAsyncioTestCase):
