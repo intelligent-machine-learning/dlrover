@@ -112,4 +112,4 @@ class ElasticWorker(ActorBase):
         ray.get(runner.run.remote())  # type: ignore
         logger.info("Done elastic training.")
 
-        ray.wait([runner.shutdown.remote()])
+        ray.wait([runner.shutdown.remote()])  # type: ignore
