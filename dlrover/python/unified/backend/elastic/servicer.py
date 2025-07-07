@@ -29,7 +29,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.event.train_event import TrainEventName
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
@@ -45,14 +44,6 @@ from dlrover.python.util.queue.queue import RayEventQueue
 
 from .manager import ElasticManager
 
-try:
-    from dlrover.python.master.elastic_training.sync_service import SyncService
-except ImportError:
-    logger.info("Run the master locally.")
-    pass
-
-
-_dlrover_context = Context.singleton_instance()
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
 job_ctx = get_job_context()
@@ -65,12 +56,10 @@ class MasterServicer(ABC):
         self,
         job_manager: ElasticManager,
         job_metric_collector: Optional[JobMetricCollector] = None,
-        sync_service: Optional[SyncService] = None,
     ):
         self._core = job_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector = job_metric_collector
-        self._sync_service = sync_service
         self._start_autoscale = False
         self._event_reporter = get_event_reporter()
         self._rdzv_managers = {
@@ -436,27 +425,13 @@ class MasterServicer(ABC):
         return True
 
     def _join_sync(self, node_type, node_id, message: comm.SyncJoin):
-        success = False
-        if self._sync_service:
-            success = self._sync_service.join_sync(
-                message.sync_name, node_type, node_id
-            )
-        return success
+        raise NotImplementedError("deprecated, TF backend only")
 
     def _sync_finished(self, message: comm.SyncFinish):
-        success = False
-        if self._sync_service:
-            success = self._sync_service.sync_finished(message.sync_name)
-        return success
+        raise NotImplementedError("deprecated, TF backend only")
 
     def _barrier(self, message: comm.SyncBarrier):
-        if not self._sync_service:
-            return False
-        if message.notify:
-            success = self._sync_service.notify_barrier(message.barrier_name)
-        else:
-            success = self._sync_service.barrier(message.barrier_name)
-        return success
+        raise NotImplementedError("deprecated, TF backend only")
 
     def _report_rdzv_params(self, message: comm.RendezvousParams):
         # Enable auto-scaling workers if elasticity is enabled.
