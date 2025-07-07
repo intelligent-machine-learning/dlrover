@@ -74,14 +74,19 @@ class PrimeMaster(PrimeMasterRemote):
         config: JobConfig, detached: bool = True
     ) -> "PrimeMasterRemote":
         """Create a PrimeMaster instance."""
-        ray.remote(PrimeMaster).options(
-            name=MASTER_ACTOR_ID,
-            lifetime="detached" if detached else "normal",
-            num_cpus=config.master_cpu,
-            memory=config.master_mem,
-            max_restarts=config.master_max_restart,
-            max_concurrency=64,
-        ).remote(config)
+        ref = (
+            ray.remote(PrimeMaster)
+            .options(
+                name=MASTER_ACTOR_ID,
+                lifetime="detached" if detached else "normal",
+                num_cpus=config.master_cpu,
+                memory=config.master_mem,
+                max_restarts=config.master_max_restart,
+                max_concurrency=64,
+            )
+            .remote(config)
+        )
+        ray.get(ref.__ray_ready__.remote())
         return PrimeMasterApi
 
     # endregion
