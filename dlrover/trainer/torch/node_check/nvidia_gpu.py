@@ -38,6 +38,17 @@ def set_nccl_env():
 
 
 @record_execution_time
+def run():
+    use_cuda = torch.cuda.is_available()
+
+    # warmup
+    _ = matmul(use_cuda, round_num=3, verbose=False)
+    t = matmul(use_cuda, round_num=500, verbose=True)
+
+    shape = 1 << 24
+    t += bm_allreduce(shape, use_cuda)
+
+
 def main():
     use_cuda = torch.cuda.is_available()
 
@@ -61,13 +72,8 @@ def main():
                 cuda_version=torch.version.cuda,
             )
             logger.info(f"benchmark env: {bench_env}")
+    run()
 
-    # warmup
-    _ = matmul(use_cuda, round_num=3, verbose=False)
-    t = matmul(use_cuda, round_num=500, verbose=True)
-
-    shape = 1 << 24
-    t += bm_allreduce(shape, use_cuda)
     dist.destroy_process_group()
     return t
 

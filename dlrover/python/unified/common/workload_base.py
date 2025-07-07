@@ -92,8 +92,11 @@ class ActorBase:
         logger.info(f"[{self.node_info.name}] Running self check.")
 
     def start(self):
-        """Start the actor/node.If already started, do nothing."""
-        pass  # noop
+        """Start the actor/node. If already started, do nothing.
+
+        This method should be overridden by subMaster or trainer,
+        depending on the usage pattern.
+        """
 
     def shutdown(self):
         """Self-kill the actor/node."""

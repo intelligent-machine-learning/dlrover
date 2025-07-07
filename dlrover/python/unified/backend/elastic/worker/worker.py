@@ -11,18 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import shlex
 from contextlib import contextmanager
+from datetime import timedelta
 from threading import Thread
 from typing import List
 
 import ray
+import ray.train.torch as ray_train
+import torch
 
-from dlrover.python.common.constants import NodeEnv, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
-
-from .runner import ElasticRunner
+from dlrover.python.unified.util.os_util import get_free_port
 
 
 def extract_args_from_cmd(run_cmd: str) -> List[str]:
@@ -41,25 +43,37 @@ def extract_args_from_cmd(run_cmd: str) -> List[str]:
 
 @ray.remote
 class ElasticWorker(ActorBase):
+    """ElasticWorker is a Ray actor that runs an elastic training job.
+
+    This is different from "worker", which run old elastic agent.
+    It skips the torch-run, and directly runs the training in process.
+    """
+
     def _setup(self):
         assert self.node_info.spec.backend == "elastic"
-        self.cmd = self.node_info.spec.cmd
+        self.world_size = self.node_info.spec.instance_number
+        self.world_rank = self.node_info.rank
 
-        # Envs, will pass to the elastic agent for compatibility.
-        self.envs = {
-            NodeEnv.JOB_NAME: str(self.job_info.name),
-            NodeEnv.NODE_ID: str(self.node_info.rank),
-            NodeEnv.NODE_RANK: str(self.node_info.rank),
-            NodeEnv.NODE_TYPE: str(NodeType.WORKER),
-            NodeEnv.POD_NAME: str(self.node_info.name),
-        }
-        self.args = [
-            "--nnodes",
-            f"{self.node_info.spec.instance_number}",
-            "--nproc_per_node",
-            f"{self.node_info.spec.proc_per_worker}",
-            *extract_args_from_cmd(self.cmd),
-        ]
+        self._setup_envs()
+        # RayMasterClient.register_master_actor(f"{self.node_info.role}-master")
+
+    def _setup_envs(self):
+        """Setup environment variables for the worker."""
+
+        # referenced ray.train.torch.config.py
+
+        os.environ["LOCAL_RANK"] = str(self.node_info.local_rank)
+        os.environ["RANK"] = str(self.node_info.rank)
+        os.environ["LOCAL_WORLD_SIZE"] = str(self.node_info.spec.per_group)
+        os.environ["WORLD_SIZE"] = str(self.node_info.spec.instance_number)
+        os.environ["NODE_RANK"] = str(
+            self.node_info.rank // self.node_info.spec.per_group
+        )
+
+        device = ray_train.get_device()
+        os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
+        if torch.cuda.is_available() and device.type == "cuda":
+            torch.cuda.set_device(device)
 
     def self_check(self):
         """Check the worker itself."""
@@ -68,6 +82,53 @@ class ElasticWorker(ActorBase):
 
         logger.info(f"[{self.node_info.name}] Running self check.")
         return "Self check passed"
+
+    # region Rendezvous and process group setup
+
+    def get_master_addr(self):
+        """Create a c10d store for distributed training.
+
+        Return master address and port."""
+        assert self.world_rank == 0, "Only master can create c10d store."
+        addr = ray.util.get_node_ip_address()
+        port = get_free_port()
+
+        return f"tcp://{addr}:{port}"
+
+    def setup_torch_process_group(self, master_addr: str):
+        """Setup the torch process group for distributed training."""
+        assert self.node_info.spec.backend == "elastic"
+        backend = self.node_info.spec.comm_backend
+        timeout = timedelta(seconds=self.node_info.spec.comm_timeout_s)
+        if self.world_rank == 0:
+            logger.info(
+                f"Setting up torch process group with backend={backend}, "
+                f"world_rank={self.world_rank}, world_size={self.world_size}, "
+                f"init_method={master_addr}"
+            )
+        # TODO backend specific setup
+
+        torch.distributed.init_process_group(
+            backend=backend,
+            init_method=master_addr,
+            rank=self.world_rank,
+            world_size=self.world_size,
+            timeout=timeout,
+        )
+
+    def destroy_torch_process_group(self):
+        """Destroy the torch process group."""
+        devices = ray_train.get_devices()
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+            logger.info("Destroyed torch process group.")
+
+        if torch.cuda.is_available():
+            for device in devices:
+                with torch.cuda.device(device):
+                    torch.cuda.empty_cache()
+
+    # endregion
 
     def run_node_check(self):
         """TODO Implement node check. Before starting."""
@@ -103,16 +164,11 @@ class ElasticWorker(ActorBase):
 
     def _run_agent(self):
         """Run the elastic agent."""
-        logger.info(f"[Rank {self.node_info.rank}] Start Runner: {self.cmd} ")
+        logger.info(f"[Rank {self.node_info.rank}] Start Runner")
         # set master handle's actor id as master address
-        master = f"{self.node_info.role}-master"
 
-        runner = (
-            ray.remote(ElasticRunner)
-            .options(runtime_env={"env_vars": self.envs})
-            .remote(self.job_info.name, master, self.args)
-        )
-        ray.get(runner.run.remote())  # type: ignore
+        import dlrover.trainer.torch.node_check.nvidia_gpu
+
+        dlrover.trainer.torch.node_check.nvidia_gpu.run()
+
         logger.info("Done elastic training.")
-
-        ray.wait([runner.shutdown.remote()])  # type: ignore

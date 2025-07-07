@@ -135,8 +135,19 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     """
 
     backend: Literal["elastic"] = Field(default="elastic")
+
+    comm_backend: str = Field(
+        default="gloo",
+        description="Communication backend for the elastic workload. "
+        "Supported backends: 'gloo', 'nccl', 'mpi'.",
+    )
+    comm_timeout_s: int = Field(
+        default=30,
+        ge=0,
+        description="Timeout for communication operations in seconds.",
+    )
     cmd: str = Field(description="Command to run the elastic workload.")
-    proc_per_worker: int = Field(default=1)
+    proc_per_worker: int = Field(default=1)  # TODO remove
 
     def get_worker_cls(self) -> ActorClass:
         from dlrover.python.unified.backend import ElasticWorker

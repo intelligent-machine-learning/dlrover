@@ -40,6 +40,7 @@ from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
+    invoke_actor_async,
     invoke_actors_async,
 )
 
@@ -102,7 +103,7 @@ class ElasticManager:
     async def start(self):
         # Initialize the elastic client here
         logger.info("Start job execution.")
-        self.setup_workloads()
+        await self.setup_workloads()
         res = await invoke_actors_async(
             [node.name for node in self.nodes], "start_elastic_job"
         )
@@ -115,15 +116,25 @@ class ElasticManager:
         self._old_context.set_pre_check_status(PreCheckStatus.PASS)
         asyncio.create_task(self._monitor_nodes(), name="monitor_nodes")
 
-    def setup_workloads(self):
+    async def setup_workloads(self):
         logger.info("Start setup all workloads...")
         start = time.time() * 1000
-        # TODO setup rendezvous manager
-        ready = []
-        end = time.time() * 1000 - start
-        logger.info(
-            f"Finish setup all workloads({len(ready)}), cost: {end:.2f}ms"
+
+        master_addr = await invoke_actor_async(
+            self.nodes[0].name, "get_master_addr"
         )
+        logger.info(f"Rendezvous Master address: {master_addr}")
+
+        res = await invoke_actors_async(
+            [node.name for node in self.nodes],
+            "setup_torch_process_group",
+            master_addr=master_addr,
+        )
+        res.raise_for_errors()
+        logger.info("Setup torch process group for all nodes.")
+
+        end = time.time() * 1000 - start
+        logger.info(f"Finish setup all workloads, cost: {end:.2f}ms")
 
     async def _monitor_nodes(self):
         logger.info("Start monitoring nodes status...")
@@ -154,6 +165,10 @@ class ElasticManager:
                 logger.warning(e)
                 await asyncio.sleep(30)
             await asyncio.sleep(5)
+        res = await invoke_actors_async(
+            [node.name for node in self.nodes], "destroy_torch_process_group"
+        )
+        res.raise_for_errors()
 
     def process_reported_node_event(self, node_event: NodeEvent):
         event_type = node_event.event_type
