@@ -8,7 +8,9 @@ on:
 
 jobs:
   build-and-publish:
-    runs-on: easydl/dlrover:ci
+    runs-on: ubuntu-latest
+    container:
+      image: easydl/dlrover:ci
 
     steps:
       - name: Checkout Repo
