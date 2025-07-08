@@ -87,6 +87,11 @@ class CheckpointEvent:
 
 
 @dataclass
+class CheckpointNotifyEvent:
+    step: int = 0
+
+
+@dataclass
 class TensorMeta:
     shape: Tuple[int] = None  # type: ignore
     dtype: torch.dtype = None  # type: ignore
@@ -452,6 +457,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._latest_step = 0
         qname = CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0)
         self._event_queue = SharedQueue(name=qname, create=True)
+        self._notify_queue = SharedQueue(name=qname + "_notify", create=True)
         for i in range(self.local_shard_num):
             self._shm_handlers.append(SharedMemoryHandler(i))
             lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(i)
@@ -712,6 +718,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             return False
         finally:
             shm_lock.release()
+            self._notify_queue.put(CheckpointNotifyEvent(step=step))
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
