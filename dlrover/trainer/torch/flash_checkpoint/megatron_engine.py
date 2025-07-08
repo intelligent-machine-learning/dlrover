@@ -132,8 +132,6 @@ class MegatronCheckpointEngine(CheckpointEngine):
         if succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
-            notify_event = self._notify_queue.get()
-            assert notify_event.step == step
 
     def get_local_shard_num(self):
         local_world_size = env_utils.get_local_world_size()
@@ -249,8 +247,6 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         if success and self._local_rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
-            notify_event = self._notify_queue.get()
-            assert notify_event.step == step
 
         if success:
             self.latest_step = step

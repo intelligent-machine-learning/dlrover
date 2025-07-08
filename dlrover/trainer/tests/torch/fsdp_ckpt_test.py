@@ -419,3 +419,32 @@ class FsdpCheckpointTest(unittest.TestCase):
                 self.assertListEqual(files, [".metadata", "__0_0.distcp"])
                 reader = checkpointer._engine.load(path)
                 self.assertTrue(isinstance(reader, SharedMemoryReader))
+
+    def test_fast_save_memory(self):
+        state_dict = {"step": 100}
+        storage = PosixDiskStorage()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            path = tmpdir / str(100)
+            paths = {CheckpointConstant.MODEL_STATES_NAME: path}
+            engine = FsdpCheckpointEngine(tmpdir, storage)
+            engine.save_to_storage(100, state_dict, paths=paths)
+            self.assertEqual(engine._cached_step, 100)
+
+            # Simulate quick save_to_memory after save_to_storage.
+            # save_to_memory will wait for the async saving to complete,
+            # so no need to sleep here.
+            engine.save_to_memory(101, state_dict, paths)
+            self.assertEqual(engine._cached_step, 101)
+
+            # Check if the files are created correctly.
+            self.assertTrue(storage.exists(tmpdir / "._dlrover_ckpt_stage"))
+            self.assertTrue(storage.exists(tmpdir / "100/__0_0.distcp"))
+            # Check the tracker file, and the steps should be updated to 100
+            # which is store by save_to_storage.
+            tracker_file = tmpdir / CheckpointConstant.TRACER_FILE_NAME
+            self.assertTrue(storage.exists(tracker_file))
+            self.assertEqual(tracker_file.read_text(), "100")
+            ##
+            reader = engine.load(path)
+            self.assertTrue(isinstance(reader, SharedMemoryReader))

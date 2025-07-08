@@ -169,10 +169,6 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             sd = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
             paths = {CheckpointConstant.MODEL_STATES_NAME: saved_file}
             saving_engine.save_to_storage(step, sd, paths)
-
-            # Simulate quick save_to_memory after save_to_storage
-            saving_engine.save_to_memory(step + 1, sd, paths)
-
             time.sleep(3)
             # list the files in tmpdir recursively
             self.assertTrue(storage.exists(saved_file))
@@ -365,6 +361,46 @@ class CheckpointEngineTest(unittest.TestCase):
                 self.assertIsNone(engine._saver_group)
         finally:
             dist.destroy_process_group()
+
+    def test_fast_save_memory(self):
+        engines = [
+            FullCheckpointEngine,
+            DeepSpeedCheckpointEngine,
+        ]
+        for engine in engines:
+            self._test_fast_save_memory(engine)
+
+    def _test_fast_save_memory(self, engine_class):
+        model = SimpleNet()
+        state_dict = dict(
+            model=model.state_dict(),
+            step=100,
+        )
+        storage = PosixDiskStorage()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_engine = engine_class(tmpdir, storage)
+            tmp = Path(tmpdir)
+            saved_file = tmp / "checkpoint-100/checkpoint.pt"
+            sd = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
+            paths = {CheckpointConstant.MODEL_STATES_NAME: saved_file}
+            checkpoint_engine.save_to_storage(100, sd, paths)
+
+            # Simulate quick save_to_memory after save_to_storage.
+            # save_to_memory will wait for the async saving to complete,
+            # so no need to sleep here.
+            checkpoint_engine.save_to_memory(101, sd, paths)
+
+            # Check the tracker file and checkpoint, and the steps should
+            # be updated to 100 which is store by save_to_storage.
+            tracker_file = tmp / CheckpointConstant.TRACER_FILE_NAME
+            self.assertTrue(storage.exists(tracker_file))
+            self.assertEqual(tracker_file.read_text(), "100")
+            state = torch.load(saved_file)
+            self.assertEqual(state["step"], 100)
+
+            saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
+            saver.close()
+            checkpoint_engine.close()
 
 
 class PosixDiskStorageTest(unittest.TestCase):

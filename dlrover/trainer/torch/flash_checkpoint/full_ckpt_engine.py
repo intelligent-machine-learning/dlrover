@@ -112,6 +112,10 @@ class FullCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
+        if self._checkpoint_event_step > 0:
+            notify_event = self._notify_queue.get()
+            assert notify_event.step == self._checkpoint_event_step
+            self._checkpoint_event_step = -1
         conf = CheckpointConfig(step=step, paths=paths)
         return self.save_state_dict_to_memory(state_dict, conf)
 
@@ -140,8 +144,7 @@ class FullCheckpointEngine(CheckpointEngine):
         if success and self._rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
-            notify_event = self._notify_queue.get()
-            assert notify_event.step == step
+            self._checkpoint_event_step = step
         if success:
             self.latest_step = step
         return success
