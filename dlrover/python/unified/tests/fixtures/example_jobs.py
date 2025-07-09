@@ -29,9 +29,9 @@ def elastic_training_job():
         workloads={
             "training": ElasticWorkloadDesc(
                 cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
-                instance_number=2,
+                num=2,
                 proc_per_worker=2,
-                instance_resource=ResourceDesc(accelerator=1),
+                entry_point="dlrover.trainer.torch.node_check.nvidia_gpu::run",
             )
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,

@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import os
 import shlex
 from contextlib import contextmanager
 from datetime import timedelta
 from threading import Thread
-from typing import List
+from typing import Callable, List
 
 import ray
 import ray.train.torch as ray_train
@@ -162,13 +163,46 @@ class ElasticWorker(ActorBase):
             daemon=True,
         ).start()
 
+    def _load_user_func(self) -> Callable[..., object]:
+        """Load the user function from the entry point specified in the workload spec."""
+
+        assert self.node_info.spec.backend == "elastic"
+        entry_point = self.node_info.spec.entry_point
+        if not entry_point or "::" not in entry_point:
+            raise ValueError(
+                "Entry point is not specified in the workload spec. "
+                "It should be in the format 'module::function'."
+            )
+        module, func = entry_point.split("::", 1)
+        logger.info(
+            f"Running elastic job with entry point: {module}.{func}, "
+            f"world_rank={self.node_info.rank}, world_size={self.world_size}"
+        )
+
+        try:
+            module = importlib.import_module(module)
+            func = getattr(module, func)
+            if not callable(func):
+                raise ValueError(
+                    f"Entry point {entry_point} is not a callable function."
+                )
+            return func
+        except ImportError:
+            logger.error(
+                f"Failed to import module {module} for elastic job.",
+            )
+            raise
+        except AttributeError:
+            logger.error(
+                f"Failed to get function {func} from module {module} for "
+                f"elastic job.",
+            )
+            raise
+
     def _run_agent(self):
         """Run the elastic agent."""
-        logger.info(f"[Rank {self.node_info.rank}] Start Runner")
-        # set master handle's actor id as master address
 
-        import dlrover.trainer.torch.node_check.nvidia_gpu
-
-        dlrover.trainer.torch.node_check.nvidia_gpu.run()
+        run_user_func = self._load_user_func()
+        run_user_func()
 
         logger.info("Done elastic training.")

@@ -13,17 +13,13 @@
 
 import importlib
 from abc import ABC
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CustomMetricKeys,
-    JobConstant,
-    JobStage,
-    KeyValueOps,
     NodeEventType,
-    RendezvousName,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.event.context import JobEventContext
@@ -33,9 +29,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.master.elastic_training.kv_store_service import (
-    KVStoreService,
-)
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -58,21 +51,13 @@ class MasterServicer(ABC):
         job_metric_collector: Optional[JobMetricCollector] = None,
     ):
         self._core = job_manager
-        self._kv_store = KVStoreService()
         self._job_metric_collector = job_metric_collector
-        self._start_autoscale = False
         self._event_reporter = get_event_reporter()
-        self._rdzv_managers = {
-            RendezvousName.TRAINING: job_manager.rdzv_manager,
-            RendezvousName.NETWORK_CHECK: job_manager.node_check_manager,
-        }
 
         # preload module for class reflection
         self._diagnosis_data_module = importlib.import_module(
             "dlrover.python.diagnosis.common.diagnosis_data"
         )
-        # clear kv store in case previous data is still there
-        self._kv_store.clear()
 
     def get(self, request, _=None):
         node_type = request.node_type
@@ -92,22 +77,19 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.RunningNodesRequest):
             message = self._get_running_nodes()
         elif isinstance(req_message, comm.JoinRendezvousRequest):
-            message = self._join_rendezvous(req_message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.WaitingNodeNumRequest):
-            message = self._num_nodes_waiting(req_message.rdzv_name)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.NetworkReadyRequest):
             message = self._check_fault_node()
         elif isinstance(req_message, comm.StragglerExistRequest):
             message = self._check_straggler()
         elif isinstance(req_message, comm.CommWorldRequest):
-            message = self._get_comm_world(req_message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.KeyValuePair):
-            if req_message.op == KeyValueOps.ADD:
-                message = self._kv_store_add(req_message)
-            else:
-                message = self._kv_store_get(req_message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.KeyValuePairs):
-            message = self._kv_store_multi_get(req_message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.PsNodesRequest):
             raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.TrainingStatusRequest):
@@ -153,95 +135,6 @@ class MasterServicer(ABC):
     def _check_straggler(self):
         nodes, reason = self._core.node_check_manager.get_straggler()
         res = comm.NetworkCheckResult(nodes=nodes, reason=reason)
-        return res
-
-    def _join_rendezvous(self, request: comm.JoinRendezvousRequest):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        node_rank = request.node_rank
-        if node_rank == -1:  # Back compatibility
-            node_rank = request.node_id
-        round = rdzv_manager.join_rendezvous(
-            request.node_id,
-            node_rank,
-            request.local_world_size,
-            request.node_ip,
-        )
-        if request.rdzv_name == RendezvousName.NETWORK_CHECK:
-            # The waiting node in the training rdzv should clear if
-            # a worker join network-check rdzv.
-            self._core.rdzv_manager.clear_waiting_nodes()
-
-        # Pause hang diagnosis during rendezvous
-        if node_rank == 0:
-            self._core.diagnosis.pause_observing()
-
-        res = comm.RendezvousState(round=round)
-        return res
-
-    def _num_nodes_waiting(self, rdzv_name):
-        """
-        Return the number of waiting nodes for a rendezvous.
-
-        Args:
-            rdzv_name: NodeCheck or ElasticTraining
-
-        Returns:
-            >0: the number of waiting nodes
-            0: exception happened
-            -1: the job is stopping, no more rendezvous
-
-        """
-        waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
-        if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
-            logger.debug(
-                f"Job is stopping, set waiting_num {waiting_num} to -1"
-            )
-            waiting_num = -1
-        res = comm.RendezvousState(waiting_num=waiting_num)
-        return res
-
-    def _get_comm_world(self, request: comm.CommWorldRequest):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        rdzv_round, group, nodes = rdzv_manager.get_comm_world(request.node_id)
-        res = comm.RendezvousState(world={})
-        res.group = group
-        res.round = rdzv_round
-        for rank, meta in nodes.items():
-            res.world[rank] = meta.process_num
-        if nodes and request.rdzv_name == RendezvousName.TRAINING:
-            rdzv_round = rdzv_manager.get_rdzv_round()
-            metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
-            if self._job_metric_collector:
-                self._job_metric_collector.collect_custom_data(metrics)
-            # Finish elastic training rendezvous so we continue diagnosis
-            self._core.diagnosis.continue_observing()
-
-        return res
-
-    def _kv_store_get(self, request: comm.KeyValuePair):
-        value = self._kv_store.get(request.key)
-        res = comm.KeyValuePair(request.key, value)
-        logger.debug(f"_kv_store_get: {request} {res}")
-        return res
-
-    def _kv_store_add(self, request: comm.KeyValuePair):
-        value = self._kv_store.add(request.key, request.value)
-        res = comm.KeyValuePair(request.key, value)
-        logger.debug(f"_kv_store_add: {request} {res}")
-        return res
-
-    def _kv_store_multi_get(self, request: comm.KeyValuePairs):
-        kvs: Dict[str, bytes] = {}
-        for key in request.kvs.keys():
-            value = self._kv_store.get(key)
-            if value == b"":
-                kvs = {}
-                break
-            else:
-                kvs[key] = value
-
-        res = comm.KeyValuePairs(kvs)
-        logger.debug(f"_kv_store_multi_get: {request} {res}")
         return res
 
     def _get_paral_config(self):
@@ -299,13 +192,13 @@ class MasterServicer(ABC):
         elif isinstance(message, comm.NodeFailure):
             success = self._report_failure(node_type, node_id, message)
         elif isinstance(message, comm.RendezvousParams):
-            success = self._report_rdzv_params(message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(message, comm.PsReady):
             raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.KeyValuePair):
-            success = self._kv_store_set(message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(message, comm.KeyValuePairs):
-            success = self._kv_store_multi_set(message)
+            raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(message, comm.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
         elif isinstance(message, comm.NodeCheckpointState):
@@ -365,25 +258,6 @@ class MasterServicer(ABC):
 
         return True
 
-    def _report_rdzv_params(self, message: comm.RendezvousParams):
-        # Enable auto-scaling workers if elasticity is enabled.
-        for manager in self._rdzv_managers.values():
-            manager.update_rdzv_params(
-                min_nodes=message.min_nodes,
-                max_nodes=message.max_nodes,
-                waiting_timeout=message.waiting_timeout,
-                node_unit=message.node_unit,
-            )
-
-        join_timeout = message.join_timeout
-        if join_timeout == 0:  # Back compatibility
-            join_timeout = JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
-        self._core.update_node_required_info(
-            message.min_nodes, message.max_nodes, join_timeout
-        )
-        logger.info("debug rdzv return")
-        return True
-
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
         self._core.handle_training_failure(
             node_type,
@@ -399,17 +273,6 @@ class MasterServicer(ABC):
             }
             if self._job_metric_collector:
                 self._job_metric_collector.collect_custom_data(custom_data)
-        return True
-
-    def _kv_store_set(self, message: comm.KeyValuePair):
-        self._kv_store.set(message.key, message.value)
-        logger.debug(f"_kv_store_set: {message}")
-        return True
-
-    def _kv_store_multi_set(self, message: comm.KeyValuePairs):
-        for k, v in message.kvs.items():
-            self._kv_store.set(k, v)
-        logger.debug(f"_kv_store_multi_set: {message}")
         return True
 
     def _report_paral_config(

@@ -200,9 +200,6 @@ class ElasticManager:
 
     # ====== 节点管理与监控 ======
 
-    def update_node_required_info(self, min_required, max_required, timeout):
-        pass
-
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
