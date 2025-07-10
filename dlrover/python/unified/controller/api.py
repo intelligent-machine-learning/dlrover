@@ -26,6 +26,7 @@ class MasterStatus:
     """Status of the master actor."""
 
     stage: MasterStage
+    exit_code: int = 0
 
 
 class PrimeMasterRemote(Protocol):

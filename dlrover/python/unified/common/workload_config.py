@@ -30,8 +30,8 @@ class ResourceDesc(BaseModel):
     )
     disk: int = Field(default=0, ge=0)
     accelerator: float = Field(
-        default=1,
-        gt=0,
+        default=0.0,
+        ge=0,
         validation_alias=AliasChoices("accelerator", "acc", "gpu"),
     )
     user_defined: Dict[str, float] = Field(

@@ -82,7 +82,7 @@ class PrimeMaster(PrimeMasterRemote):
                 num_cpus=config.master_cpu,
                 memory=config.master_mem,
                 max_restarts=config.master_max_restart,
-                max_concurrency=64,
+                runtime_env={"env_vars": config.dl_config.global_envs},
             )
             .remote(config)
         )

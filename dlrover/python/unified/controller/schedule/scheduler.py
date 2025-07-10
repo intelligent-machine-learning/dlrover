@@ -68,18 +68,22 @@ class Scheduler:
                         bundle_id_start + worker.rank // worker.spec.per_group
                     )
         self._pg = self._create_pg(bundles)
+        if not self._pg.wait(timeout_seconds=30):
+            raise RuntimeError(
+                f"Failed to create placement group for job {self._config.job_name}."
+            )
 
     async def create_actors(self, graph: DLExecutionGraph):
         """Create/Get actors for all nodes in the execution graph."""
         job_info = self._config.to_job_info()
         for role in graph.roles.values():
             for worker in role.instances:
-                assert (
-                    self._pg is not None
-                ), "Placement group must be created before creating actors."
-                assert (
-                    worker.bundle_index >= 0
-                ), f"Worker {worker.name} bundle index must be allocated."
+                assert self._pg is not None, (
+                    "Placement group must be created before creating actors."
+                )
+                assert worker.bundle_index >= 0, (
+                    f"Worker {worker.name} bundle index must be allocated."
+                )
                 spec = RayActorSpec(
                     name=worker.name,
                     resource=role.spec.instance_resource,
@@ -157,6 +161,10 @@ class Scheduler:
                 ret["CPU"] = max(ret["CPU"], resource.accelerator)
             return ret
 
+        logger.info(
+            f"Creating placement group for job {self._config.job_name} "
+            f"with resource: {sum(bundles)} "
+        )
         return placement_group(
             bundles=[_to_bundle(bundle) for bundle in bundles],
             strategy="PACK",
