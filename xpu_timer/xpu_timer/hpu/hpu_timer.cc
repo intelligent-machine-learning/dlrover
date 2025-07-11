@@ -416,7 +416,8 @@ std::function<HpuTimer::FnReturn(HpuTimer*)> InterceptManager::handleMatmul(
     timer->trace->set_kernel_type(
         constant::Metrics::MatmulMetrics::KERNEL_TYPE);
 
-    hook::MatmulDebugData* mm_debug = timer->trace->mutable_mm_debug();
+    hook::KernelDebugData* debug_data = timer->trace->mutable_debug_data();
+    hook::MatmulDebugData* mm_debug = debug_data->mutable_mm_debug();
 
     std::string compute_dtype =
         HpuDataTypeUtils::getAclDtype(matmul_info->dtype_);
@@ -616,8 +617,8 @@ InterceptManager::handleGroupedMatmulV2(aclOpExecutor* executor) {
     timer->trace->set_kernel_type(
         constant::Metrics::MatmulMetrics::KERNEL_TYPE);
 
-    hook::GroupedMatmulDebugData* grouped_mm_debug =
-        timer->trace->mutable_grouped_mm_debug();
+    hook::KernelDebugData* debug_data = timer->trace->mutable_debug_data();
+    hook::GroupedMatmulDebugData* grouped_mm_debug = debug_data->mutable_grouped_mm_debug();
 
     std::string compute_dtype =
         HpuDataTypeUtils::getAclDtype(grouped_matmul_info->dtype_);
@@ -653,7 +654,8 @@ std::function<HpuTimer::FnReturn(HpuTimer*)> InterceptManager::handleHccl(
     std::ostringstream oss;
     timer->trace->Clear();
     timer->trace->set_kernel_type(constant::Metrics::CollMetrics::KERNEL_TYPE);
-    hook::NcclDebugData* hccl_debug = timer->trace->mutable_nccl_debug();
+    hook::KernelDebugData* debug_data = timer->trace->mutable_debug_data();
+    hook::NcclDebugData* hccl_debug = debug_data->mutable_nccl_debug();
 
     std::string dtype = HpuDataTypeUtils::getHcclDataType(datatype);
     uint64_t comm_size = count * HpuDataTypeUtils::getDtypeSizeInBytes(dtype);
