@@ -102,7 +102,7 @@ def timer(func):
         result = func(*args, **kwargs)
         t = round(time.time() - start, 3)
         logger.info(
-            f"Local rank {local_rank } execute {func.__name__} in {t}s."
+            f"Local rank {local_rank} execute {func.__name__} in {t}s."
         )
         return result
 

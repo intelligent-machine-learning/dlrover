@@ -11,15 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-
 from dlrover.python.unified.common.exception import (
     InvalidDLConfiguration,
     InvalidJobConfiguration,
 )
+from dlrover.python.unified.tests.base import BaseTest
 
 
-class ExceptionTest(unittest.TestCase):
+class ExceptionTest(BaseTest):
     def test_basic(self):
         with self.assertRaises(InvalidJobConfiguration) as e:
             raise InvalidJobConfiguration()

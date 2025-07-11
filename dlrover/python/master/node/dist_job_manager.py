@@ -262,7 +262,9 @@ class DistributedJobManager(JobManager):
         # node-check all failed
         if (
             self.is_all_reduce_type_job()
-            and self._worker_manager.is_all_workers_node_check_failed()
+            and self._worker_manager.is_all_initial_workers_node_check_failed(
+                self.get_worker_num()
+            )
         ):
             msg = (
                 "Stop the training early because all worker nodes has "
@@ -753,7 +755,7 @@ class DistributedJobManager(JobManager):
             pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
                 self._get_pod_unique_labels(event.node)
             )
-            logger.info(
+            logger.debug(
                 f"Recheck running pod with labels: {pod_labels_selector} "
                 f"for deleted event."
             )

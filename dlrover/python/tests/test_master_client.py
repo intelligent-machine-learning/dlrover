@@ -13,14 +13,21 @@
 
 import json
 import os
+import sys
 import time
 import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
+from unittest.mock import MagicMock, Mock, patch
 
 from dlrover.python.common import comm
-from dlrover.python.common.comm import DiagnosisAction, HeartbeatResponse
+from dlrover.python.common.comm import (
+    BaseRequest,
+    BaseResponse,
+    DiagnosisAction,
+    HeartbeatResponse,
+)
 from dlrover.python.common.constants import (
     CommunicationType,
     NodeEnv,
@@ -42,7 +49,10 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
 )
-from dlrover.python.elastic_agent.master_client import build_master_client
+from dlrover.python.elastic_agent.master_client import (
+    RayMasterClient,
+    build_master_client,
+)
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.training_event.event import EventTargetName, EventTypeName
 
@@ -208,7 +218,7 @@ class MasterClientTest(unittest.TestCase):
         )
 
     def test_num_nodes_waiting(self):
-        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        rdzv_name = RendezvousName.TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
 
@@ -369,10 +379,54 @@ class MasterHttpClientTest(unittest.TestCase):
 
     def test_http_client(self):
         # get request
-        rdzv_name = RendezvousName.ELASTIC_TRAINING
+        rdzv_name = RendezvousName.TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)
 
         # report request
         res = self._master_client.ready_for_ps_relaunch()
         self.assertTrue(res.success)
+
+
+class MasterRayClientTest(unittest.TestCase):
+    def setUp(self) -> None:
+        os.environ[
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
+        ] = CommunicationType.COMM_SERVICE_RAY
+        context = Context.singleton_instance()
+        context.master_service_type = "ray"
+        self._master_client = build_master_client(None, 3)
+
+    def tearDown(self) -> None:
+        os.environ.clear()
+        context = Context.singleton_instance()
+        context.master_service_type = "grpc"
+
+    @patch.dict("sys.modules", {"ray": None})
+    def test_ray_not_installed(self):
+        module = "dlrover.python.elastic_agent.master_client"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        from dlrover.python.elastic_agent.master_client import RayMasterClient
+
+        self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
+
+    def test_ray_client(self):
+        self.assertIsNotNone(self._master_client)
+        self.assertTrue(isinstance(self._master_client, RayMasterClient))
+
+        self._master_client.register_master_actor("test")
+        self.assertEqual(self._master_client.master_actor_handle, "test")
+        self.assertFalse(self._master_client.get_elastic_run_config())
+
+        req = BaseRequest(node_id=0, node_type="test")
+        self._master_client.ray.get = Mock(return_value=True)
+        self._master_client._master_addr = MagicMock()
+        self._master_client._master_addr.agent_report.remote = MagicMock()
+        self.assertTrue(self._master_client._report(req))
+
+        rep = BaseResponse()
+        self._master_client.ray.get = Mock(return_value=rep)
+        self._master_client._master_addr.agent_get.remote = MagicMock()
+        self.assertFalse(self._master_client._get(req))

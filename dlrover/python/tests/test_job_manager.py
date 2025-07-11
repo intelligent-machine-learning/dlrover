@@ -897,7 +897,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, PerfMonitor())
         manager._init_nodes()
 
-        manager._worker_manager.is_all_workers_node_check_failed = (
+        manager._worker_manager.is_all_initial_workers_node_check_failed = (
             mock.MagicMock(return_value=True)
         )
         result, reason, msg = manager.should_early_stop()
@@ -1121,3 +1121,24 @@ class LocalJobManagerTest(unittest.TestCase):
         self.assertFalse(job_context.is_request_stopped())
         job_context.request_stop()
         self.assertTrue(job_context.is_request_stopped())
+
+    def test_suspend_unsuspend_job_context(self):
+        job_context = get_job_context()
+
+        # test for regular suspend
+        init_job_stage = JobStage.JOB_INIT
+        job_context.update_job_stage(init_job_stage)
+
+        job_context.request_suspend()
+        self.assertEqual(job_context.is_suspended(), True)
+
+        job_context.request_unsuspend()
+        self.assertEqual(job_context.get_job_stage(), init_job_stage)
+
+        # try to suspend stopped job, but not work
+        job_context.request_stop()
+        job_context.request_unsuspend()
+        self.assertEqual(job_context.get_job_stage(), JobStage.JOB_STOPPED)
+
+        job_context.request_suspend()
+        self.assertEqual(job_context.get_job_stage(), JobStage.JOB_STOPPED)

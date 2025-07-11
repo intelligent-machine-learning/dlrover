@@ -53,7 +53,7 @@ class AllReduceEventCallbackTest(unittest.TestCase):
     def test_on_node_started(self):
         worker = Node(node_type=NodeType.WORKER, node_id=0)
         self.event_cb.on_node_started(worker, None)
-        et_manager = self.master.rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        et_manager = self.master.rdzv_managers[RendezvousName.TRAINING]
         self.assertEqual(len(et_manager._alive_nodes), 1)
         self.event_cb.on_node_deleted(worker, None)
         self.assertEqual(len(et_manager._alive_nodes), 0)

@@ -19,7 +19,7 @@ import telnetlib
 import threading
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Deque, Dict, List, Optional
 
 from kubernetes import client
@@ -95,6 +95,7 @@ class PodScaler(Scaler):
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
         self._create_node_queue: Deque[Node] = deque()
+        self._create_node_futures: List[Future] = []
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
@@ -107,6 +108,7 @@ class PodScaler(Scaler):
         self._master_service_type = _dlrover_context.master_service_type
         self._event_reporter = get_event_reporter()
         self._started = False
+        self._job_context = get_job_context()
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -212,8 +214,14 @@ class PodScaler(Scaler):
             )
             return
 
-        self._remove_nodes(plan)
         while True:
+            if not self._job_context.is_suspended():
+                break
+            logger.info("Waiting for elasticJob which is suspended")
+            time.sleep(5)
+
+        self._remove_nodes(plan)
+        while self._started:
             if (
                 len(self._create_node_queue) > 0
                 and not _job_context.is_request_stopped()
@@ -223,7 +231,16 @@ class PodScaler(Scaler):
                 )
                 time.sleep(15)
             else:
-                break
+                if all(future.done() for future in self._create_node_futures):
+                    # wait async pod creation completed
+                    logger.debug("Async pod creation finished.")
+                    time.sleep(5)
+                    break
+                else:
+                    logger.debug("Waiting for async pod creation...")
+                    time.sleep(5)
+                    continue
+
         with self._scaling_lock:
             if plan.empty():
                 return
@@ -426,9 +443,11 @@ class PodScaler(Scaler):
         with ThreadPoolExecutor(max_workers=4) as executor:
             while self._started:
                 while self._create_node_queue:
-                    executor.submit(
-                        self._create_pod_from_queue,
-                        self._create_node_queue.popleft(),
+                    self._create_node_futures.append(
+                        executor.submit(
+                            self._create_pod_from_queue,
+                            self._create_node_queue.popleft(),
+                        )
                     )
                 time.sleep(3)
 

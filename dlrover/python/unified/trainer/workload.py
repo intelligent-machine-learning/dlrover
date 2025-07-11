@@ -130,7 +130,13 @@ class BaseWorkload(ABC):
         self.__create_time = int(time.time())
         self.__executor = ThreadPoolExecutor(max_workers=4)
 
-        self.__executor.submit(self._report_master)
+        self.__executor.submit(self._report_runtime_info)
+        if (
+            ray.is_initialized()
+            and ray.get_runtime_context().get_actor_id()
+            and ray.get_runtime_context().was_current_actor_reconstructed
+        ):
+            self.__executor.submit(self._report_restarting)
 
         logger.info(
             f"Workload {self._name} created with role: {self._role}, "
@@ -201,17 +207,48 @@ class BaseWorkload(ABC):
             return True
         return False
 
+    def get_restart_info(self):
+        """
+        Return info for failure.
+        format: (restart_time, level, reason, extra_info)
+        """
+        return int(time.time()), -1, "unknown", {}
+
     """Remote call functions start"""
 
-    def _report_master(self):
+    def _report_restarting(self):
+        """
+        Internal function. Do not override.
+        Should be invoked once when actor restarts.
+        """
+        try:
+            restart_info = self.get_restart_info()
+            ray.get(
+                self._master_handle.report_restarting.remote(
+                    self.name,
+                    restart_info[0],
+                    restart_info[1],
+                    restart_info[2],
+                    restart_info[3],
+                )
+            )
+        except Exception as e:
+            logger.error(
+                f"Report restarting to master got unexpected error: {e}"
+            )
+            raise e
+
+    def _report_runtime_info(self):
         """
         Internal function. Do not override.
         """
         info = self.get_runtime_info()
         try:
-            ray.get(self._master_handle.report.remote(info))
+            ray.get(self._master_handle.report_runtime.remote(info))
         except Exception as e:
-            logger.error(f"Report master got unexpected error: {e}")
+            logger.error(
+                f"Report runtime info to master got unexpected error: {e}"
+            )
             raise e
 
     def ping(self):

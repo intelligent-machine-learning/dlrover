@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 from unittest import mock
 from unittest.mock import patch
 
@@ -23,10 +22,11 @@ from dlrover.python.unified.common.dl_context import (
 )
 from dlrover.python.unified.common.enums import RLRoleType, TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
+from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
-class DLContextTest(unittest.TestCase):
+class DLContextTest(BaseTest):
     @patch(
         "dlrover.python.unified.common.dl_context"
         ".get_class_by_module_and_class_name"

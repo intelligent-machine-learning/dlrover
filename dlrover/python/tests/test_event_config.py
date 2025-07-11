@@ -79,6 +79,9 @@ def test_init_from_env():
 
 
 def test_init_from_file():
+    # revert the pre definition in dlrover/python/tests/conftest.py
+    del os.environ["DLROVER_EVENT_ENABLE"]
+
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(
             b'{"event_exporter": "TEXT_FILE", '

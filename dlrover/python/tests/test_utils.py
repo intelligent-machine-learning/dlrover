@@ -341,7 +341,7 @@ def mock_k8s_client():
     return k8s_client
 
 
-def start_local_master(port=12345):
+def start_local_master(port=None):
     job_args = LocalJobArgs("local", "default", "test")
     job_args.initilize()
     if not port:
