@@ -31,9 +31,26 @@ message InterceptSymbolByOffset {
   map<int64, InterceptSymbol> symbols = 1;
 }
 
-message NcclDebugData {
+message KernelDebugData {
+  oneof launch_data {
+    NvidiaLaunchData nvidia_launch_data = 1;
+  }
+  oneof kernel_data {
+    MatmulDebugData mm_debug = 3;
+    NcclDebugData nccl_debug = 4;
+    FaDebugData fa_debug = 5;
+    MemoryDebugData memory_debug = 6;
+    GroupedMatmulDebugData grouped_mm_debug = 7;
+  }
+}
+
+message NvidiaLaunchData {
   repeated uint32 grids = 1;   // dim3
   repeated uint32 blocks = 2;  // dim3
+  uint32 stream_id = 3;
+}
+
+message NcclDebugData {
   uint64 comm_hash = 3;
   uint64 input_size_in_bytes = 4;  // diff coll operator are different
   string dtype = 5;
@@ -83,14 +100,8 @@ message KernelTrace {
   uint32 dur_us = 4;
   uint32 delay_us = 5;
   uint64 trace_id = 6;
-  oneof debug_data {
-    MatmulDebugData mm_debug = 7;
-    FaDebugData fa_debug = 8;
-    NcclDebugData nccl_debug = 9;
-    MemoryDebugData memory_debug = 10;
-    GroupedMatmulDebugData grouped_mm_debug = 12;
-  }
-  bool is_host = 11;
+  KernelDebugData debug_data = 7;
+  bool is_host = 8;
 }
 
 message GcDebugData {
