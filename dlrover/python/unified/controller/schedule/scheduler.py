@@ -79,12 +79,12 @@ class Scheduler:
         job_info = self._config.to_job_info()
         for role in graph.roles.values():
             for worker in role.instances:
-                assert self._pg is not None, (
-                    "Placement group must be created before creating actors."
-                )
-                assert worker.bundle_index >= 0, (
-                    f"Worker {worker.name} bundle index must be allocated."
-                )
+                assert (
+                    self._pg is not None
+                ), "Placement group must be created before creating actors."
+                assert (
+                    worker.bundle_index >= 0
+                ), f"Worker {worker.name} bundle index must be allocated."
                 spec = RayActorSpec(
                     name=worker.name,
                     resource=role.spec.instance_resource,
