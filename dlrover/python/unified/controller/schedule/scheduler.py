@@ -87,7 +87,7 @@ class Scheduler:
                 ), f"Worker {worker.name} bundle index must be allocated."
                 spec = RayActorSpec(
                     name=worker.name,
-                    resource=role.spec.instance_resource,
+                    resource=role.spec.resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
                     envs=worker.get_envs(),
                     scheduling_strategy=PlacementGroupSchedulingStrategy(

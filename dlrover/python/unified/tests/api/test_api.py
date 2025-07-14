@@ -245,14 +245,10 @@ class ApiTest(BaseTest):
         )
         assert rl_config.workloads["actor"].per_group == 4
         assert rl_config.workloads["rollout"].per_group == 4
-        assert rl_config.workloads["actor"].instance_number == 4
-        assert (
-            rl_config.workloads["actor"].instance_resource.accelerator == 0.5
-        )
-        assert rl_config.workloads["rollout"].instance_number == 4
-        assert (
-            rl_config.workloads["rollout"].instance_resource.accelerator == 0.5
-        )
+        assert rl_config.workloads["actor"].total == 4
+        assert rl_config.workloads["actor"].resource.accelerator == 0.5
+        assert rl_config.workloads["rollout"].total == 4
+        assert rl_config.workloads["rollout"].resource.accelerator == 0.5
         # collocation: 4: 4+4+4
         rl_job = (
             RLJobBuilder()
@@ -287,20 +283,12 @@ class ApiTest(BaseTest):
         assert rl_config.workloads["rollout"].per_group == 4
         assert rl_config.workloads["reference"].per_group == 4
 
-        assert rl_config.workloads["actor"].instance_number == 4
-        assert (
-            rl_config.workloads["actor"].instance_resource.accelerator == 0.33
-        )
-        assert rl_config.workloads["rollout"].instance_number == 4
-        assert (
-            rl_config.workloads["rollout"].instance_resource.accelerator
-            == 0.33
-        )
-        assert rl_config.workloads["reference"].instance_number == 4
-        assert (
-            rl_config.workloads["reference"].instance_resource.accelerator
-            == 0.33
-        )
+        assert rl_config.workloads["actor"].total == 4
+        assert rl_config.workloads["actor"].resource.accelerator == 0.33
+        assert rl_config.workloads["rollout"].total == 4
+        assert rl_config.workloads["rollout"].resource.accelerator == 0.33
+        assert rl_config.workloads["reference"].total == 4
+        assert rl_config.workloads["reference"].resource.accelerator == 0.33
 
         # collocation: 4: 4+4 2+2
         rl_job = (
@@ -344,21 +332,14 @@ class ApiTest(BaseTest):
         assert rl_config.workloads["reward"].per_group == 2
         assert rl_config.workloads["reference"].per_group == 6
 
-        assert rl_config.workloads["actor"].instance_number == 4
-        assert rl_config.workloads["actor"].instance_resource.accelerator == 1
-        assert rl_config.workloads["rollout"].instance_number == 4
-        assert (
-            rl_config.workloads["rollout"].instance_resource.accelerator == 1
-        )
-        assert rl_config.workloads["reference"].instance_number == 12
-        assert (
-            rl_config.workloads["reference"].instance_resource.accelerator
-            == 0.5
-        )
-        assert rl_config.workloads["reward"].instance_number == 4
-        assert (
-            rl_config.workloads["reward"].instance_resource.accelerator == 0.5
-        )
+        assert rl_config.workloads["actor"].total == 4
+        assert rl_config.workloads["actor"].resource.accelerator == 1
+        assert rl_config.workloads["rollout"].total == 4
+        assert rl_config.workloads["rollout"].resource.accelerator == 1
+        assert rl_config.workloads["reference"].total == 12
+        assert rl_config.workloads["reference"].resource.accelerator == 0.5
+        assert rl_config.workloads["reward"].total == 4
+        assert rl_config.workloads["reward"].resource.accelerator == 0.5
 
     def test_enable_ray_auto_visible_device(self):
         rl_job = (
@@ -383,7 +364,7 @@ class ApiTest(BaseTest):
         rl_config = rl_job._to_dl_config()
         assert isinstance(rl_config, DLConfig)
         assert (
-            rl_config.workloads["rollout"].instance_env[
+            rl_config.workloads["rollout"].envs[
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
             ]
             == "false"
@@ -411,8 +392,8 @@ class ApiTest(BaseTest):
         workload = dl_config.workloads["ELASTIC"]
         assert workload.backend == "elastic"
         assert workload.cmd == cmd
-        assert workload.instance_number == 2
-        assert workload.instance_resource.accelerator == 2
+        assert workload.total == 2
+        assert workload.resource.accelerator == 2
 
     def test_role_builder(self):
         trainer_builder = TrainerBuilder(DLJobBuilder(), "test", "m0", "c0")

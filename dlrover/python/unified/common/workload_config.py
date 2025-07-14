@@ -50,9 +50,9 @@ class ResourceDesc(BaseModel):
         )
 
     def __add__(self, other: "ResourceDesc") -> "ResourceDesc":
-        assert isinstance(
-            other, ResourceDesc
-        ), f"Cannot add {type(other)} to ResourceDesc."
+        assert isinstance(other, ResourceDesc), (
+            f"Cannot add {type(other)} to ResourceDesc."
+        )
         user_defined = self.user_defined.copy()
         for k, v in other.user_defined.items():
             user_defined[k] = user_defined.get(k, 0.0) + v
@@ -80,22 +80,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
     Base description of a workload.
     """
 
-    instance_number: int = Field(
-        validation_alias=AliasChoices(
-            "total", "num", "number", "instance_number"
-        )
-    )
-    instance_resource: ResourceDesc = Field(
+    total: int = Field(validation_alias=AliasChoices("total", "num", "number"))
+    resource: ResourceDesc = Field(
         default_factory=ResourceDesc,
-        validation_alias=AliasChoices(
-            "instance_resource", "resource", "res", "instance_res"
-        ),
+        validation_alias=AliasChoices("resource", "res"),
     )
-    instance_env: Dict[str, str] = Field(
+    envs: Dict[str, str] = Field(
         default_factory=dict,
-        validation_alias=AliasChoices(
-            "instance_env", "env", "environment", "envs"
-        ),
+        validation_alias=AliasChoices("env", "environment", "envs"),
     )
     max_restart: int = Field(
         default=10,
@@ -116,15 +108,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
 
     @model_validator(mode="after")
     def validate(self):
-        assert self.instance_number % self.per_group == 0, (
-            f"instance_number {self.instance_number} must be divisible by "
+        assert self.total % self.per_group == 0, (
+            f"instance_number {self.total} must be divisible by "
             f"per_group {self.per_group}."
         )
         return self
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass:
-        ...
+    def get_worker_cls(self) -> ActorClass: ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None

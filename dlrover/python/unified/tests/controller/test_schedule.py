@@ -114,10 +114,7 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
     for worker in graph.roles["reference"].instances:
         assert worker.bundle_index >= 0
-        assert (
-            bundles[worker.bundle_index].cpu
-            == worker.spec.instance_resource.cpu
-        )
+        assert bundles[worker.bundle_index].cpu == worker.spec.resource.cpu
     for i in range(4):
         assert (
             graph.roles["actor"].instances[i].bundle_index

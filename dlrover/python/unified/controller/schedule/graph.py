@@ -90,7 +90,7 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
         # envs.update(self.graph.dl_context.env)
 
         # setup role env
-        envs.update(self.spec.instance_env)
+        envs.update(self.spec.envs)
 
         # # setup device collocation env
         # if self.get_core_resource_num() < 1:
@@ -148,7 +148,7 @@ class DLExecutionMasterVertex(DLExecutionVertex):
         # envs.update(self.graph.dl_context.env)
 
         # setup role env
-        envs.update(self.spec.instance_env)
+        envs.update(self.spec.envs)
         return envs
 
     def to_actor_info(self) -> "ActorInfo":
@@ -235,7 +235,7 @@ class DLExecutionGraph:
             name: DLWorkloadRole(
                 name=name,
                 spec=workload,
-                instance_number=workload.instance_number,
+                instance_number=workload.total,
             )
             for name, workload in dl_config.workloads.items()
         }

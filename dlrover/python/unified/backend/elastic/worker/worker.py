@@ -13,11 +13,10 @@
 
 import importlib
 import os
-import shlex
 from contextlib import contextmanager
 from datetime import timedelta
 from threading import Thread
-from typing import Callable, List
+from typing import Callable
 
 import ray
 import ray.train.torch as ray_train
@@ -26,20 +25,6 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.unified.util.os_util import get_free_port
-
-
-def extract_args_from_cmd(run_cmd: str) -> List[str]:
-    args_list = shlex.split(run_cmd)
-
-    parsed_args = []
-    for arg in args_list[1:]:
-        if "=" in arg and arg.startswith("--"):
-            key, value = arg.split("=", 1)
-            parsed_args.extend([key, value])
-        else:
-            parsed_args.append(arg)
-
-    return parsed_args
 
 
 @ray.remote
@@ -52,7 +37,7 @@ class ElasticWorker(ActorBase):
 
     def _setup(self):
         assert self.node_info.spec.backend == "elastic"
-        self.world_size = self.node_info.spec.instance_number
+        self.world_size = self.node_info.spec.total
         self.world_rank = self.node_info.rank
 
         self._setup_envs()
@@ -66,7 +51,7 @@ class ElasticWorker(ActorBase):
         os.environ["LOCAL_RANK"] = str(self.node_info.local_rank)
         os.environ["RANK"] = str(self.node_info.rank)
         os.environ["LOCAL_WORLD_SIZE"] = str(self.node_info.spec.per_group)
-        os.environ["WORLD_SIZE"] = str(self.node_info.spec.instance_number)
+        os.environ["WORLD_SIZE"] = str(self.node_info.spec.total)
         os.environ["NODE_RANK"] = str(
             self.node_info.rank // self.node_info.spec.per_group
         )
