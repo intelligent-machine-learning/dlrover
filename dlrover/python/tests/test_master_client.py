@@ -412,6 +412,16 @@ class MasterRayClientTest(unittest.TestCase):
 
         self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
 
+    @patch.dict("sys.modules", {"dlrover.proto": None})
+    def test_pb_not_installed(self):
+        module = "dlrover.python.elastic_agent.master_client"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        from dlrover.python.elastic_agent.master_client import GrpcMasterClient
+
+        self.assertTrue(GrpcMasterClient)
+
     def test_ray_client(self):
         self.assertIsNotNone(self._master_client)
         self.assertTrue(isinstance(self._master_client, RayMasterClient))

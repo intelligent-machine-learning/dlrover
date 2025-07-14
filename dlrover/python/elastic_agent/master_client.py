@@ -542,7 +542,7 @@ class GrpcMasterClient(MasterClient):
             elastic_training_pb2_grpc,
         )
     except ImportError:
-        logger.warning("Ray is not installed.")
+        logger.warning("Protobuf is not installed.")
 
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         super(GrpcMasterClient, self).__init__(

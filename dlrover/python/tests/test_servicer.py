@@ -12,10 +12,11 @@
 # limitations under the License.
 import copy
 import os
+import sys
 import time
 import unittest
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import ray
 import requests
@@ -148,6 +149,28 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertTrue(response_content.success)
 
         self.server.stop()
+
+    @patch.dict("sys.modules", {"dlrover.proto": None})
+    def test_pb_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import GrpcMasterServicer
+
+            self.assertFalse(GrpcMasterServicer)
+
+    @patch.dict("sys.modules", {"tornado": None})
+    def test_tornado_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import HttpMasterHandler
+
+            self.assertFalse(HttpMasterHandler)
 
 
 class MasterServicerFunctionalTest(unittest.TestCase):
