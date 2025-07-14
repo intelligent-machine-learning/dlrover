@@ -59,7 +59,7 @@ def demo_config():
             ),
             "elastic": ElasticWorkloadDesc(
                 num=4,
-                cmd="elastic_run xxxx",
+                entry_point="training_script:run",
             ),
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,
@@ -84,7 +84,7 @@ def test_graph(demo_config: DLConfig):
         role_in_graph = graph.roles[name]
         assert role_in_graph.spec == workload
         assert role_in_graph.name == name
-        assert role_in_graph.instance_number == workload.instance_number
+        assert role_in_graph.instance_number == workload.total
         if name == "elastic":
             assert role_in_graph.sub_master is not None
         else:
