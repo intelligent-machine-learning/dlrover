@@ -237,11 +237,10 @@ class TestElasticWorkload(BaseWorkload):
         return
 
 
-@ray.remote
-class TestErrorElasticWorkload(BaseWorkload):
-    def run(self):
-        if self.rank == 0:
-            raise Exception(f"TestErrorElasticWorkload-{self.name} run failed")
-        time.sleep(1)
-        logger.info(f"TestErrorElasticWorkload-{self.name} run called")
-        return
+def elastic_workload_run():
+    time.sleep(1)
+    logger.info("elastic_workload_run run called")
+
+
+def elastic_workload_run_error():
+    raise Exception(f"elastic_workload_run_error run failed")

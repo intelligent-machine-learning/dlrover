@@ -54,22 +54,21 @@ class ApiFullTest(RayBaseTest):
         dl_job = (
             DLJobBuilder()
             .SFT_type()
-            .node_num(3)
+            .node_num(2)
             .device_per_node(2)
             .device_type("CPU")
             .config({"c1": "v1"})
             .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
             .dlrover_run(
-                "dlrover-run --nnodes=1:2 --nproc_per_node=2 "
-                "--rdzv_conf join_timeout=600 --network_check "
-                "--max-restarts=1 test.py",
-                "dlrover.python.unified.tests.test_class",
-                "TestElasticWorkload",
+                "dlrover.python.unified.tests.test_class::elastic_workload_run",
+                nnodes=2,
+                nproc_per_node=2,
             )
             .build()
         )
 
-        dl_job.submit("test", master_cpu=1, master_memory=128)
+        ret = dl_job.submit("test", master_cpu=1, master_memory=128)
+        assert ret == 0, "Job should succeed"
 
     @timeout(20)
     @pytest.mark.skip(
@@ -85,21 +84,20 @@ class ApiFullTest(RayBaseTest):
             .config({"c1": "v1"})
             .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
             .dlrover_run(
-                "dlrover-run --nnodes=1:2 --nproc_per_node=2 "
-                "--rdzv_conf join_timeout=600 --network_check "
-                "--max-restarts=1 test.py",
-                "dlrover.python.unified.tests.test_class",
-                "TestErrorElasticWorkload",
+                "dlrover.python.unified.tests.test_class::elastic_workload_run_error",
+                nnodes=2,
+                nproc_per_node=2,
             )
             .build()
         )
 
-        dl_job.submit(
+        ret = dl_job.submit(
             "test",
             master_cpu=1,
             master_memory=128,
             workload_max_restart={"ELASTIC": 1},
         )
+        assert ret != 0, "Job should fail due to error in workload"
 
     @timeout(20)
     @pytest.mark.skip(reason="WIP: RL API test is not ready yet.")

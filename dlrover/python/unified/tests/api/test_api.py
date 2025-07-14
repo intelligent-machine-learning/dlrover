@@ -371,16 +371,15 @@ class ApiTest(BaseTest):
         )
 
     def test_elastic(self):
-        cmd = "dlrover-run --nnodes=2 --nproc_per_node=2 test.py"
         dl_job = (
             DLJobBuilder()
             .SFT_type()
-            .node_num(3)
+            .node_num(2)
             .device_per_node(2)
             .device_type("CPU")
             .config({"c1": "v1"})
             .global_env({"e0": "v0"})
-            .dlrover_run(cmd)
+            .dlrover_run("test::main", nnodes=2, nproc_per_node=2)
             .build()
         )
 
@@ -391,8 +390,8 @@ class ApiTest(BaseTest):
         assert "ELASTIC" in dl_config.workloads
         workload = dl_config.workloads["ELASTIC"]
         assert workload.backend == "elastic"
-        assert workload.cmd == cmd
-        assert workload.total == 2
+        assert workload.entry_point == "test::main"
+        assert workload.total == 4
         assert workload.resource.accelerator == 2
 
     def test_role_builder(self):
@@ -417,18 +416,12 @@ class ApiTest(BaseTest):
 
         dlrover_run_builder = DLRoverRunBuilder(DLJobBuilder(), "test")
         self.assertFalse(dlrover_run_builder._validate())
-        dlrover_run_builder._cmd = "dlrover-run tset.py"
-        self.assertFalse(dlrover_run_builder._validate())
-        dlrover_run_builder.per_node(2)
-        dlrover_run_builder.total(1)
+        dlrover_run_builder._entrypoint = "tset::main"
         self.assertTrue(dlrover_run_builder._validate())
+        dlrover_run_builder.total(-1)
+        self.assertFalse(dlrover_run_builder._validate())
 
         dlrover_run_builder = DLRoverRunBuilder(
-            DLJobBuilder(),
-            "dlrover-run --nnodes=1:2 --nproc_per_node=2 "
-            "--rdzv_conf join_timeout=600 --network_check "
-            "--max-restarts=1 test.py",
-            "dlrover.python.unified.tests.test_class",
-            "TestElasticWorkload",
-        )
+            DLJobBuilder(), "test::main"
+        ).total(1)
         self.assertTrue(dlrover_run_builder._validate())

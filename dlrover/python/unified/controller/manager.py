@@ -102,10 +102,10 @@ class PrimeManager:
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
                 else:
+                    self.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
-                    self.exit_code = 1
                 assert self.stage == MasterStage.STOPPING  # request_stop
 
         assert self.stage == MasterStage.STOPPING, (
