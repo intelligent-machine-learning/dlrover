@@ -84,9 +84,6 @@ class MasterClient(Singleton, ABC):
         """Abstraction of get function."""
         pass
 
-    def get_task_type(self, task_type=""):
-        return None
-
     def kv_store_set(self, key, value):
         message = comm.KeyValuePair(key, value)
         message.op = KeyValueOps.SET
@@ -192,7 +189,7 @@ class MasterClient(Singleton, ABC):
         shuffle=False,
         num_minibatches_per_shard=0,
         dataset_name=None,
-        task_type=get_task_type(),
+        task_type=0,
         storage_type="",
     ):
         message = comm.DatasetShardParams(
@@ -581,9 +578,6 @@ class GrpcMasterClient(MasterClient):
         response = self._stub.get(request, timeout=self._timeout)
         res_message = comm.deserialize_message(response.data)
         return res_message
-
-    def get_task_type(self, task_type=""):
-        return self.elastic_training_pb2.NONE
 
 
 class HttpMasterClient(MasterClient):
