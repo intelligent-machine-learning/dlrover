@@ -24,7 +24,13 @@ from dlrover.python.unified.common.constant import (
 )
 from dlrover.python.unified.common.enums import DLStreamType, TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
-from dlrover.python.unified.driver.main import main
+from dlrover.python.unified.common.workload_config import (
+    CustomWorkloadDesc,
+    ElasticWorkloadDesc,
+    ResourceDesc,
+)
+from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.driver.main import submit
 
 
 class DLRoleConfig(object):
@@ -177,67 +183,66 @@ class DLJob(object):
                 collocation_process_num = 0
                 for role in collocation:
                     collocation_process_num += self._components[role].per_node
-                return {
-                    self.device_type: round(
+                return ResourceDesc(
+                    accelerator=round(
                         self.device_per_node / collocation_process_num, 2
                     )
-                }
+                )
 
         if role == InternalDLWorkloadRole.ELASTIC_ROLE:
-            # elastic agent takes all resource of a node
-            return {self.device_type: self.device_per_node}
+            return ResourceDesc(accelerator=self.device_per_node)
         else:
-            # default
-            return {self.device_type: 1}
+            return ResourceDesc(accelerator=1)
 
-    def _to_dl_config(self):
-        config_result = {}
+    def _to_dl_config(self) -> DLConfig:
+        assert self.trainer is not None
 
-        # general
-        config_result["config"] = self.config
-        config_result["env"] = self.env
-
-        # trainer
-        trainer_dict = {
-            "type": self.trainer.trainer_type.name,
-            "module": self.trainer.module_class[0],
-            "class": self.trainer.module_class[1],
-            "node_number": self.node_num,
-            "device_per_node": self.device_per_node,
-            "device_type": self.device_type,
-        }
-        config_result["trainer"] = trainer_dict
-
-        # workload
-        workload_dict = {}
-
+        workloads = {}
+        # DefaultTrainer is useless for prime master.
+        if self.trainer.module_class != (
+            "dlrover.python.unified.trainer.trainer",
+            "DefaultTrainer",
+        ):
+            workloads["trainer"] = CustomWorkloadDesc(
+                num=1,
+                env=self.trainer.others.get("env", {}),
+                module_name=self.trainer.module_class[0],
+                class_name=self.trainer.module_class[1],
+            )
         for role, role_config in self._components.items():
-            if role == InternalDLWorkloadRole.TRAINER_ROLE:
+            if not role_config or role == InternalDLWorkloadRole.TRAINER_ROLE:
                 continue
-            if role_config:
-                role_dict = {
-                    "module": role_config.module_class[0],
-                    "class": role_config.module_class[1],
-                    "num": role_config.total,
-                    "resource": self.__cal_role_resource(role),
-                    "env": role_config.env,
-                }
-                workload_dict[role] = role_dict
+            if role == InternalDLWorkloadRole.ELASTIC_ROLE:
+                workloads[role] = ElasticWorkloadDesc(
+                    num=role_config.total,
+                    env=role_config.env,
+                    resource=self.__cal_role_resource(role),
+                    proc_per_worker=role_config.per_node,
+                    cmd=self.config[InternalDLConfig.ELASTIC_RUN_CMD],
+                )
+                continue
+            workloads[role] = CustomWorkloadDesc(
+                num=role_config.total,
+                env=role_config.env,
+                module_name=role_config.module_class[0],
+                class_name=role_config.module_class[1],
+                resource=self.__cal_role_resource(role),
+                per_group=role_config.per_node,
+            )
 
-        config_result["workload"] = workload_dict
-
-        # workload group
-        workload_group_list = []
-        for collocation in self.collocations:
-            workload_group = {}
+        for i, collocation in enumerate(self.collocations):
+            name = f"collocation_{i}"
             for role in collocation:
-                workload_group[role] = self._components[role].per_node
+                workloads[role].group = name
 
-            workload_group_list.append(workload_group)
-
-        config_result["workload_group"] = workload_group_list
-
-        return config_result
+        return DLConfig(
+            user_config=self.config,
+            global_envs=self.env,
+            workloads=workloads,
+            device_per_node=self.device_per_node,
+            node_number=self.node_num,
+            accelerator_type=self.device_type,
+        )
 
     def submit(
         self,
@@ -266,26 +271,18 @@ class DLJob(object):
                 'dlrover.python.unified.common.args'
         """
 
-        args = [
-            "--job_name",
-            job_name,
-            "--master_cpu",
-            f"{master_cpu}",
-            "--master_mem",
-            f"{master_memory}",
-            "--job_max_restart",
-            f"{job_max_restart}",
-            "--dl_type",
-            f"{self.dl_type}",
-            "--dl_config",
-            f"{self._to_dl_config()}",
-        ]
+        config = JobConfig(
+            job_name=job_name,
+            master_cpu=master_cpu,
+            master_mem=master_memory,
+            job_max_restart=job_max_restart,
+            dl_config=self._to_dl_config(),
+        )
 
-        for key, value in kwargs.items():
-            args.append(f"--{key}")
-            args.append(f"{value}")
+        if kwargs:
+            logger.warning("Ignoring extra arguments: %s", kwargs)
 
-        main(args, blocking)
+        submit(config, blocking)
 
 
 class RoleBuilder(ABC):

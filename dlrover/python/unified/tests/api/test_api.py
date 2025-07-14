@@ -13,7 +13,6 @@
 
 from omegaconf import OmegaConf
 
-from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.unified.api.base import (
     DLJob,
     DLJobBuilder,
@@ -22,13 +21,13 @@ from dlrover.python.unified.api.base import (
     WorkloadBuilder,
 )
 from dlrover.python.unified.api.rl import RLJobBuilder
-from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
     TrainerType,
 )
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
+from dlrover.python.unified.controller.config import DLConfig
 from dlrover.python.unified.tests.base import BaseTest
 
 
@@ -103,10 +102,8 @@ class ApiTest(BaseTest):
         self.assertTrue("rollout" in rl_job.collocations[0])
 
         rl_config = rl_job._to_dl_config()
-        self.assertTrue(len(rl_config) > 1)
-        self.assertEqual(rl_config["trainer"]["class"], "c0")
-        self.assertEqual(len(rl_config["workload"]), 5)
-        self.assertEqual(len(rl_config["workload_group"]), 1)
+        self.assertIsNotNone(rl_config)
+        self.assertEqual(len(rl_config.workloads), 6)
 
     def test_dl_type(self):
         dl_job = (
@@ -240,18 +237,22 @@ class ApiTest(BaseTest):
             .build()
         )
         rl_config = rl_job._to_dl_config()
-        self.assertEqual(
-            rl_config["workload_group"], [{"actor": 4, "rollout": 4}]
+        assert isinstance(rl_config, DLConfig)
+        assert len(rl_config.workloads.keys()) == 3
+        assert (
+            rl_config.workloads["actor"].group
+            == rl_config.workloads["rollout"].group
         )
-        self.assertEqual(rl_config["workload"]["actor"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["actor"]["resource"]["GPU"], 0.5
+        assert rl_config.workloads["actor"].per_group == 4
+        assert rl_config.workloads["rollout"].per_group == 4
+        assert rl_config.workloads["actor"].instance_number == 4
+        assert (
+            rl_config.workloads["actor"].instance_resource.accelerator == 0.5
         )
-        self.assertEqual(rl_config["workload"]["rollout"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["rollout"]["resource"]["GPU"], 0.5
+        assert rl_config.workloads["rollout"].instance_number == 4
+        assert (
+            rl_config.workloads["rollout"].instance_resource.accelerator == 0.5
         )
-
         # collocation: 4: 4+4+4
         rl_job = (
             RLJobBuilder()
@@ -275,21 +276,30 @@ class ApiTest(BaseTest):
             .build()
         )
         rl_config = rl_job._to_dl_config()
-        self.assertEqual(
-            rl_config["workload_group"],
-            [{"actor": 4, "rollout": 4, "reference": 4}],
+        assert isinstance(rl_config, DLConfig)
+        assert len(rl_config.workloads.keys()) == 4
+        assert (
+            rl_config.workloads["actor"].group
+            == rl_config.workloads["rollout"].group
+            == rl_config.workloads["reference"].group
         )
-        self.assertEqual(rl_config["workload"]["actor"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["actor"]["resource"]["GPU"], 0.33
+        assert rl_config.workloads["actor"].per_group == 4
+        assert rl_config.workloads["rollout"].per_group == 4
+        assert rl_config.workloads["reference"].per_group == 4
+
+        assert rl_config.workloads["actor"].instance_number == 4
+        assert (
+            rl_config.workloads["actor"].instance_resource.accelerator == 0.33
         )
-        self.assertEqual(rl_config["workload"]["rollout"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["rollout"]["resource"]["GPU"], 0.33
+        assert rl_config.workloads["rollout"].instance_number == 4
+        assert (
+            rl_config.workloads["rollout"].instance_resource.accelerator
+            == 0.33
         )
-        self.assertEqual(rl_config["workload"]["reference"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["reference"]["resource"]["GPU"], 0.33
+        assert rl_config.workloads["reference"].instance_number == 4
+        assert (
+            rl_config.workloads["reference"].instance_resource.accelerator
+            == 0.33
         )
 
         # collocation: 4: 4+4 2+2
@@ -319,23 +329,35 @@ class ApiTest(BaseTest):
             .build()
         )
         rl_config = rl_job._to_dl_config()
-        self.assertEqual(
-            rl_config["workload_group"],
-            [{"actor": 2, "rollout": 2}, {"reward": 2, "reference": 6}],
+        assert isinstance(rl_config, DLConfig)
+        assert len(rl_config.workloads.keys()) == 5
+        assert (
+            rl_config.workloads["actor"].group
+            == rl_config.workloads["rollout"].group
         )
-        self.assertEqual(rl_config["workload"]["actor"]["num"], 4)
-        self.assertEqual(rl_config["workload"]["actor"]["resource"]["GPU"], 1)
-        self.assertEqual(rl_config["workload"]["rollout"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["rollout"]["resource"]["GPU"], 1
+        assert (
+            rl_config.workloads["reward"].group
+            == rl_config.workloads["reference"].group
         )
-        self.assertEqual(rl_config["workload"]["reference"]["num"], 12)
-        self.assertEqual(
-            rl_config["workload"]["reference"]["resource"]["GPU"], 0.5
+        assert rl_config.workloads["actor"].per_group == 2
+        assert rl_config.workloads["rollout"].per_group == 2
+        assert rl_config.workloads["reward"].per_group == 2
+        assert rl_config.workloads["reference"].per_group == 6
+
+        assert rl_config.workloads["actor"].instance_number == 4
+        assert rl_config.workloads["actor"].instance_resource.accelerator == 1
+        assert rl_config.workloads["rollout"].instance_number == 4
+        assert (
+            rl_config.workloads["rollout"].instance_resource.accelerator == 1
         )
-        self.assertEqual(rl_config["workload"]["reward"]["num"], 4)
-        self.assertEqual(
-            rl_config["workload"]["reward"]["resource"]["GPU"], 0.5
+        assert rl_config.workloads["reference"].instance_number == 12
+        assert (
+            rl_config.workloads["reference"].instance_resource.accelerator
+            == 0.5
+        )
+        assert rl_config.workloads["reward"].instance_number == 4
+        assert (
+            rl_config.workloads["reward"].instance_resource.accelerator == 0.5
         )
 
     def test_enable_ray_auto_visible_device(self):
@@ -359,11 +381,12 @@ class ApiTest(BaseTest):
             .build()
         )
         rl_config = rl_job._to_dl_config()
-        self.assertEqual(
-            rl_config["workload"]["rollout"]["env"][
+        assert isinstance(rl_config, DLConfig)
+        assert (
+            rl_config.workloads["rollout"].instance_env[
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
-            ],
-            "false",
+            ]
+            == "false"
         )
 
     def test_elastic(self):
@@ -382,34 +405,14 @@ class ApiTest(BaseTest):
 
         self.assertIsNotNone(dl_job)
         dl_config = dl_job._to_dl_config()
-        self.assertEqual(
-            dl_config["trainer"]["type"],
-            "ELASTIC_TRAINING",
-        )
-        self.assertEqual(
-            dl_config["trainer"]["class"],
-            "DefaultTrainer",
-        )
-        self.assertEqual(
-            dl_config["config"][InternalDLConfig.ELASTIC_RUN_CMD],
-            cmd,
-        )
-        self.assertEqual(
-            dl_config["env"][NodeEnv.DLROVER_MASTER_SERVICE_TYPE],
-            CommunicationType.COMM_SERVICE_RAY,
-        )
-        self.assertEqual(
-            dl_config["workload"]["ELASTIC"]["class"],
-            "ElasticWorkload",
-        )
-        self.assertEqual(
-            dl_config["workload"]["ELASTIC"]["num"],
-            2,
-        )
-        self.assertEqual(
-            dl_config["workload"]["ELASTIC"]["resource"]["CPU"],
-            2,
-        )
+        assert isinstance(dl_config, DLConfig)
+        assert len(dl_config.workloads) == 1
+        assert "ELASTIC" in dl_config.workloads
+        workload = dl_config.workloads["ELASTIC"]
+        assert workload.backend == "elastic"
+        assert workload.cmd == cmd
+        assert workload.instance_number == 2
+        assert workload.instance_resource.accelerator == 2
 
     def test_role_builder(self):
         trainer_builder = TrainerBuilder(DLJobBuilder(), "test", "m0", "c0")

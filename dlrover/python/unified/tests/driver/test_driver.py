@@ -14,47 +14,10 @@ import os
 
 import ray
 
-from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.constant import DLMasterConstant
-from dlrover.python.unified.driver.main import get_master_cls, main
-from dlrover.python.unified.master.elastic.master import ElasticMaster
-from dlrover.python.unified.master.mpmd.master import MPMDMaster
-from dlrover.python.unified.tests.base import BaseTest, RayBaseTest
+from dlrover.python.unified.driver.main import main
+from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
-
-
-class DriverTest(BaseTest):
-    def test_get_master_cls(self):
-        self.assertEqual(
-            get_master_cls(
-                parse_job_args(
-                    [
-                        "--job_name",
-                        "test",
-                        "--dl_type",
-                        "RL",
-                        "--dl_config",
-                        "{}",
-                    ]
-                )
-            ),
-            MPMDMaster,
-        )
-        self.assertEqual(
-            get_master_cls(
-                parse_job_args(
-                    [
-                        "--job_name",
-                        "test",
-                        "--dl_type",
-                        "SFT",
-                        "--dl_config",
-                        "{}",
-                    ]
-                )
-            ),
-            ElasticMaster,
-        )
 
 
 class DriverRayTest(RayBaseTest):

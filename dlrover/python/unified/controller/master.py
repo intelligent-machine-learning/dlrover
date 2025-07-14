@@ -48,7 +48,7 @@ class PrimeMaster(PrimeMasterRemote):
         await self.manager.start()
 
     async def stop(self):
-        await self.manager.stop()
+        await self.manager.stop("User requested stop.")
 
     async def shutdown(self):
         ray.actor.exit_actor()

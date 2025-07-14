@@ -40,6 +40,7 @@ class PrimeManager:
 
         # Runtime state
         self.stage: MasterStage = MasterStage.INIT
+        self.exit_code: int = 0
         logger.info(f"PrimeManager initialized with config: {config}")
 
         self.INSTANCE = self  # Singleton instance
@@ -100,20 +101,26 @@ class PrimeManager:
             )
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 if all(it == "FINISHED" for it in res.results):
-                    logger.info("All nodes finished successfully.")
+                    await self.stop("All nodes finished successfully.")
                 else:
-                    logger.info("All nodes finished, but some nodes failed.")
+                    await self.stop(
+                        "All nodes finished, but some nodes failed."
+                    )
+                    self.exit_code = 1
                 break
-        await self.stop()
+        assert self.stage in [
+            MasterStage.STOPPING,
+            MasterStage.STOPPED,
+        ], f"Job stage should be STOPPING or STOPPED, but got {self.stage}."
 
-    async def stop(self):
+    async def stop(self, reason: str):
         """Stop the job execution. And clean up resources."""
         if (
             self.stage == MasterStage.STOPPING
             or self.stage == MasterStage.STOPPED
         ):
             return
-        logger.info("Stopping the job...")
+        logger.info(f"Stopping the job: {reason}")
         self.stage = MasterStage.STOPPING
         kill_actors([node.name for node in self.graph.vertices])
         if self._task is not None and self._task is not asyncio.current_task():
