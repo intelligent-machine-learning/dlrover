@@ -20,7 +20,6 @@ from typing import Dict, Optional
 
 import requests
 
-from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
@@ -44,22 +43,15 @@ from dlrover.python.util.function_util import retry
 
 class MasterClient(Singleton, ABC):
     """MasterClient provides some APIs connect with the master
-    service via gRPC call.
+    service via gRPC/http/ray call.
+
     Args:
         master_addr: the master address
         node_id (int), the unique and ordered node ID assigned
         by dlrover command-line.
         node_type: the job type of node contains "worker", "ps"
             "evaluator" and "chief".
-        timeout (int): the timeout second of grpc requests.
-
-    Examples::
-        channel = elasticai_api.util.grpc_utils.build_channel(
-            "localhost:50001"
-        )
-        mc = MasterClient(channel, work_id=0)
-        # get task unit from master service
-        mc.get_task(...)
+        timeout (int): the timeout second of requests.
     """
 
     _instance_lock = threading.Lock()
@@ -91,6 +83,9 @@ class MasterClient(Singleton, ABC):
     def _get(self, message: comm.Message):
         """Abstraction of get function."""
         pass
+
+    def get_task_type(self, task_type=""):
+        return None
 
     def kv_store_set(self, key, value):
         message = comm.KeyValuePair(key, value)
@@ -197,7 +192,7 @@ class MasterClient(Singleton, ABC):
         shuffle=False,
         num_minibatches_per_shard=0,
         dataset_name=None,
-        task_type=elastic_training_pb2.NONE,
+        task_type=get_task_type(),
         storage_type="",
     ):
         message = comm.DatasetShardParams(
@@ -534,6 +529,24 @@ class MasterClient(Singleton, ABC):
 
 
 class GrpcMasterClient(MasterClient):
+    """
+    Examples::
+    channel = elasticai_api.util.grpc_utils.build_channel(
+        "localhost:50001"
+    )
+    mc = MasterClient(channel, work_id=0)
+    # get task unit from master service
+    mc.get_task(...)
+    """
+
+    try:
+        from dlrover.proto import (
+            elastic_training_pb2,
+            elastic_training_pb2_grpc,
+        )
+    except ImportError:
+        logger.warning("Ray is not installed.")
+
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         super(GrpcMasterClient, self).__init__(
             master_addr, node_id, node_type, timeout
@@ -549,11 +562,11 @@ class GrpcMasterClient(MasterClient):
 
     def _open_grpc_channel(self):
         self._channel = comm.build_grpc_channel(self._master_addr)
-        self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
+        self._stub = self.elastic_training_pb2_grpc.MasterStub(self._channel)
 
     @retry()
     def _report(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
+        request = self.elastic_training_pb2.Message()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
@@ -561,13 +574,16 @@ class GrpcMasterClient(MasterClient):
 
     @retry()
     def _get(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
+        request = self.elastic_training_pb2.Message()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
         response = self._stub.get(request, timeout=self._timeout)
         res_message = comm.deserialize_message(response.data)
         return res_message
+
+    def get_task_type(self, task_type=""):
+        return self.elastic_training_pb2.NONE
 
 
 class HttpMasterClient(MasterClient):

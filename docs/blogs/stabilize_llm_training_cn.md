@@ -213,7 +213,7 @@ cd dlrover/go/elasticjob
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
-2. 在构造训练镜像的 dockerfile 中安装 dlrover[torch]。
+2. 在构造训练镜像的 dockerfile 中安装 dlrover[k8s, torch]。
 
 ```python
 FROM registry.cn-hangzhou.aliyuncs.com/easydl/dlrover-train:torch201-py38  as base
@@ -221,7 +221,7 @@ FROM registry.cn-hangzhou.aliyuncs.com/easydl/dlrover-train:torch201-py38  as ba
 WORKDIR /dlrover
 
 RUN apt-get install sudo
-RUN pip install dlrover[torch] -U
+RUN pip install dlrover[k8s, torch] -U
 COPY ./model_zoo ./model_zoo
 
 ```

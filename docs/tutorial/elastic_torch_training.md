@@ -119,7 +119,7 @@ for _, (data, target) in enumerate(train_loader):
 You can install dlrover in your image like
 
 ```bash
-pip install dlrover[torch] -U
+pip install dlrover[k8s, torch] -U
 ```
 
 or build your image with the dockerfile.

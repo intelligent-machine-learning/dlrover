@@ -146,7 +146,7 @@ We can use `dlrover-run` to run the training script which
 `torchrun` or `torch.distributed.run` can run.
 
 ```bash
-pip install dlrover[torch]
+pip install dlrover[k8s, torch]
 dlrover-run --nnodes=1 --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
