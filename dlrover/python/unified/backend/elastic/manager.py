@@ -151,9 +151,9 @@ class ElasticManager:
                         old_node = self._old_context.job_node(
                             NodeType.WORKER, node.rank
                         )
-                        assert old_node is not None, (
-                            f"Node({node.rank}) not found in context"
-                        )
+                        assert (
+                            old_node is not None
+                        ), f"Node({node.rank}) not found in context"
                         status = convert_to_node_state(status)
                         old_node.update_status(status)
                         self._old_context.update_job_node(old_node)
