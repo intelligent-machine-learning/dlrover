@@ -50,9 +50,9 @@ class ResourceDesc(BaseModel):
         )
 
     def __add__(self, other: "ResourceDesc") -> "ResourceDesc":
-        assert isinstance(
-            other, ResourceDesc
-        ), f"Cannot add {type(other)} to ResourceDesc."
+        assert isinstance(other, ResourceDesc), (
+            f"Cannot add {type(other)} to ResourceDesc."
+        )
         user_defined = self.user_defined.copy()
         for k, v in other.user_defined.items():
             user_defined[k] = user_defined.get(k, 0.0) + v
@@ -111,8 +111,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
         return self
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass:
-        ...
+    def get_worker_cls(self) -> ActorClass: ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None

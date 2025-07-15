@@ -19,6 +19,8 @@ import ray.actor
 from dlrover.python.unified.common.workload_config import WorkloadDesc
 from dlrover.python.unified.util.test_hooks import init_coverage
 
+from typing import Optional
+
 init_coverage()  # support coverage for workers actor
 
 
@@ -105,7 +107,7 @@ class ActorBase:
     # Helper methods for subclasses to use
 
     def _update_stage_force(
-        self, stage: WorkerStage, expected: WorkerStage = None
+        self, stage: WorkerStage, expected: Optional[WorkerStage] = None
     ):
         """Update the stage of the actor/node."""
         if expected is not None and self.stage != expected:

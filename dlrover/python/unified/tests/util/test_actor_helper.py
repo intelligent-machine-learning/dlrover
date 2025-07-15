@@ -13,6 +13,7 @@
 
 import asyncio
 import random
+from abc import abstractmethod
 from typing import Any
 from unittest.mock import patch
 
@@ -41,19 +42,19 @@ class SimpleActor:
 
 
 class SimpleActorStub:
-    def some_method(self):
-        ...
+    @abstractmethod
+    def some_method(self): ...
 
-    async def some_method_async(self):
-        ...
+    @abstractmethod
+    async def some_method_async(self): ...
 
 
 class SimpleActorBatchStub:
-    def some_method(self) -> ah.BatchInvokeResult[str]:
-        ...
+    @abstractmethod
+    def some_method(self) -> ah.BatchInvokeResult[str]: ...
 
-    async def some_method_async(self) -> ah.BatchInvokeResult[str]:
-        ...
+    @abstractmethod
+    async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
 
 
 @pytest.fixture

@@ -58,5 +58,7 @@ class PrimeMasterRemote(Protocol):
 
 
 PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
-    MASTER_ACTOR_ID, cls=PrimeMasterRemote, lazy=True
+    MASTER_ACTOR_ID,
+    cls=PrimeMasterRemote,  # type:ignore[type-abstract]
+    lazy=True,
 )

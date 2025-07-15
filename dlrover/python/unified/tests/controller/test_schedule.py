@@ -103,7 +103,7 @@ def test_graph(demo_config: DLConfig):
 
 
 def test_allocate_placement_group(tmp_scheduler: Scheduler):
-    tmp_scheduler._create_pg = MagicMock()
+    tmp_scheduler._create_pg = MagicMock()  # type:ignore[method-assign]
     graph = DLExecutionGraph.create(tmp_scheduler._config.dl_config)
 
     tmp_scheduler.allocate_placement_group(graph)
@@ -127,8 +127,8 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
 def test_create_actors(tmp_scheduler: Scheduler):
     scheduler.invoke_actors_async = AsyncMock()
-    tmp_scheduler._create_pg = MagicMock()
-    tmp_scheduler.create_actor = MagicMock()
+    tmp_scheduler._create_pg = MagicMock()  # type:ignore[method-assign]
+    tmp_scheduler.create_actor = MagicMock()  # type:ignore[method-assign]
     graph = DLExecutionGraph.create(tmp_scheduler._config.dl_config)
 
     tmp_scheduler.allocate_placement_group(graph)

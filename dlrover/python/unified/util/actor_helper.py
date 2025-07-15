@@ -183,6 +183,9 @@ async def invoke_actors_async(
     return BatchInvokeResult[T](actors, method_name, res)
 
 
+T_Stub = TypeVar("T_Stub", covariant=True)
+
+
 class ActorProxy:
     def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
         self.actor = actor
@@ -202,7 +205,9 @@ class ActorProxy:
             return partial(invoke_actor, self.actor, name)
 
     @staticmethod
-    def wrap(actor_name: str, cls: Type[T], lazy: bool = False) -> "T":
+    def wrap(
+        actor_name: str, cls: Type[T_Stub], lazy: bool = False
+    ) -> "T_Stub":
         """Wraps the actor proxy to return an instance of the class."""
         return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
@@ -219,12 +224,10 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T:
-        ...
+    def __getitem__(self, item: int, /) -> T: ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T:
-        ...
+    def __getitem__(self, actor: str, /) -> T: ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
@@ -304,6 +307,6 @@ class BatchActorProxy:
             return partial(invoke_actors, self.actors, name)
 
     @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T]) -> "T":
+    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
         """Wraps the actor proxy to return an instance of the class."""
         return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]

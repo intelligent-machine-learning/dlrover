@@ -449,7 +449,7 @@ class MasterServicer(ABC):
         self, node_id, message: comm.SyncTrainingPort
     ) -> comm.SyncTrainingPort:
         logger.info(f"try to sync port {message.port} from {node_id}")
-        sync_ports: SyncNodeTrainingPorts = self._core.sync_node_training_port(
+        sync_ports: SyncNodeTrainingPorts = self._core.sync_node_training_port(  # type:ignore #TODO
             node_id, message.port
         )
         return comm.SyncTrainingPort(

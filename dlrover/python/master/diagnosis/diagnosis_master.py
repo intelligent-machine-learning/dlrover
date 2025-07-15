@@ -195,7 +195,7 @@ class DiagnosisMaster:
                                 result_msg=current_op_result.result_msg,
                                 abnormal_nodes=(
                                     current_op_result.abnormal_nodes,
-                                )
+                                ),
                                 # noqa: E501
                             )
                             self._job_context.enqueue_actions(actions)
