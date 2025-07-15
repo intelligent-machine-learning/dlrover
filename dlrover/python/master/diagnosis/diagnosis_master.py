@@ -14,6 +14,7 @@
 import threading
 import time
 from datetime import datetime
+from typing import Optional
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -73,7 +74,7 @@ class DiagnosisMaster(DiagnosisManager):
     DiagnosisMaster is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_args: JobArgs = None):
+    def __init__(self, job_args: Optional[JobArgs] = None):
         self._is_observing_started = False
         self._is_observing_paused = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)

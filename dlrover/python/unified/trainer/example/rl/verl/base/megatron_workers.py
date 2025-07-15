@@ -497,12 +497,16 @@ class ActorRolloutRefWorker(MegatronWorker):
             )
         prompts.batch = prompts.batch.cuda()
         meta_info = {
-            "eos_token_id": self.generation_config.eos_token_id
-            if self.generation_config is not None
-            else self.tokenizer.eos_token_id,
-            "pad_token_id": self.generation_config.pad_token_id
-            if self.generation_config is not None
-            else self.tokenizer.pad_token_id,
+            "eos_token_id": (
+                self.generation_config.eos_token_id
+                if self.generation_config is not None
+                else self.tokenizer.eos_token_id
+            ),
+            "pad_token_id": (
+                self.generation_config.pad_token_id
+                if self.generation_config is not None
+                else self.tokenizer.pad_token_id
+            ),
         }
         prompts.meta_info.update(meta_info)
         with self.sharding_manager:
@@ -570,9 +574,9 @@ class ActorRolloutRefWorker(MegatronWorker):
         data = data.to("cuda")
         output = data
         # we should always recompute old_log_probs when it is HybridEngine
-        output.meta_info[
-            "micro_batch_size"
-        ] = self.config.rollout.log_prob_micro_batch_size_per_gpu
+        output.meta_info["micro_batch_size"] = (
+            self.config.rollout.log_prob_micro_batch_size_per_gpu
+        )
         output.meta_info["temperature"] = self.config.rollout.temperature
         old_log_probs, entropys = self.actor.compute_log_prob(
             data=output, calculate_entropy=True

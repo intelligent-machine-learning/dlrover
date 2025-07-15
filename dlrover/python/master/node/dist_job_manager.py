@@ -126,9 +126,9 @@ class DistributedJobManager(JobManager):
         self._remove_exited_node = job_args.remove_exited_node
         node_restart_count: Dict[str, int] = {}
         for type, node_args in job_args.node_args.items():
-            self._job_resource.node_group_resources[
-                type
-            ] = node_args.group_resource
+            self._job_resource.node_group_resources[type] = (
+                node_args.group_resource
+            )
             node_restart_count[type] = node_args.restart_count
 
         self._ps_is_critical = False

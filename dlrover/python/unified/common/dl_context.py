@@ -166,9 +166,9 @@ class WorkloadGroupDesc(object):
             unit (ResourceType, optional): The resource unit if capacity is
                 specified. Default is 'GPU'.
         """
-        self._groups: List[
-            Tuple[Dict[str, int], int, Union[int, float]]
-        ] = groups
+        self._groups: List[Tuple[Dict[str, int], int, Union[int, float]]] = (
+            groups
+        )
         self._capacity: int = capacity
         self._unit: ResourceType = unit
 

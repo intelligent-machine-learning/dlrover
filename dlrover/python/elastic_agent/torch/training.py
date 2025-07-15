@@ -479,7 +479,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             finally:
                 rdzv_handler.shutdown()
         """
-        pass
+        return True
 
 
 class ElasticTrainingAgent(LocalElasticAgent):

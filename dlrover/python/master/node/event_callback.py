@@ -218,9 +218,9 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         super(AllReduceNodeHandlingCallback, self).__init__()
         self._master = master
         self._perf_monitor: PerfMonitor = self._master.perf_monitor
-        self._rdzv_managers: Dict[
-            str, RendezvousManager
-        ] = self._master.rdzv_managers
+        self._rdzv_managers: Dict[str, RendezvousManager] = (
+            self._master.rdzv_managers
+        )
         rdzv_manager = self._rdzv_managers.get(RendezvousName.TRAINING, None)
         if rdzv_manager:
             self._min_node = rdzv_manager.get_min_nodes()

@@ -89,7 +89,7 @@ class ReferenceModelRayActor(BasePPORole):
     def forward(
         self,
         sequences: torch.LongTensor,
-        num_actions: int = None,
+        num_actions: Optional[int] = None,
         attention_mask: Optional[torch.Tensor] = None,
         return_output=False,
         logps_allgather=False,

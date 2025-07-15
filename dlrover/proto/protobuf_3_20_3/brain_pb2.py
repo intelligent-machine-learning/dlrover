@@ -3109,132 +3109,132 @@ _JOBMETRICSRESPONSE = _descriptor.Descriptor(
 )
 
 _MODELFEATURE_TENSORALLOCBYTESENTRY.containing_type = _MODELFEATURE
-_MODELFEATURE.fields_by_name[
-    "tensor_alloc_bytes"
-].message_type = _MODELFEATURE_TENSORALLOCBYTESENTRY
+_MODELFEATURE.fields_by_name["tensor_alloc_bytes"].message_type = (
+    _MODELFEATURE_TENSORALLOCBYTESENTRY
+)
 _RUNTIMEINFO.fields_by_name["running_pods"].message_type = _PODMETA
 _JOBMETRICS.fields_by_name["job_meta"].message_type = _JOBMETA
 _JOBMETRICS.fields_by_name["metrics_type"].enum_type = _METRICSTYPE
-_JOBMETRICS.fields_by_name[
-    "training_hyper_params"
-].message_type = _TRAININGHYPERPARAMS
+_JOBMETRICS.fields_by_name["training_hyper_params"].message_type = (
+    _TRAININGHYPERPARAMS
+)
 _JOBMETRICS.fields_by_name["workflow_feature"].message_type = _WORKFLOWFEATURE
-_JOBMETRICS.fields_by_name[
-    "training_set_feature"
-].message_type = _TRAININGSETFEATURE
+_JOBMETRICS.fields_by_name["training_set_feature"].message_type = (
+    _TRAININGSETFEATURE
+)
 _JOBMETRICS.fields_by_name["model_feature"].message_type = _MODELFEATURE
 _JOBMETRICS.fields_by_name["runtime_info"].message_type = _RUNTIMEINFO
 _JOBMETRICS.fields_by_name["job_optimization"].message_type = _JOBOPTIMIZATION
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["training_hyper_params"]
 )
-_JOBMETRICS.fields_by_name[
-    "training_hyper_params"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["training_hyper_params"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["workflow_feature"]
 )
-_JOBMETRICS.fields_by_name[
-    "workflow_feature"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["workflow_feature"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["training_set_feature"]
 )
-_JOBMETRICS.fields_by_name[
-    "training_set_feature"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["training_set_feature"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["model_feature"]
 )
-_JOBMETRICS.fields_by_name[
-    "model_feature"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["model_feature"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["runtime_info"]
 )
-_JOBMETRICS.fields_by_name[
-    "runtime_info"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["runtime_info"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["job_exit_reason"]
 )
-_JOBMETRICS.fields_by_name[
-    "job_exit_reason"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["job_exit_reason"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["extra_info"]
 )
-_JOBMETRICS.fields_by_name[
-    "extra_info"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["extra_info"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["type"]
 )
-_JOBMETRICS.fields_by_name[
-    "type"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["type"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["resource"]
 )
-_JOBMETRICS.fields_by_name[
-    "resource"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["resource"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["customized_data"]
 )
-_JOBMETRICS.fields_by_name[
-    "customized_data"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["customized_data"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _JOBMETRICS.oneofs_by_name["metrics"].fields.append(
     _JOBMETRICS.fields_by_name["job_optimization"]
 )
-_JOBMETRICS.fields_by_name[
-    "job_optimization"
-].containing_oneof = _JOBMETRICS.oneofs_by_name["metrics"]
+_JOBMETRICS.fields_by_name["job_optimization"].containing_oneof = (
+    _JOBMETRICS.oneofs_by_name["metrics"]
+)
 _OPTIMIZECONFIG_CUSTOMIZEDCONFIGENTRY.containing_type = _OPTIMIZECONFIG
-_OPTIMIZECONFIG.fields_by_name[
-    "customized_config"
-].message_type = _OPTIMIZECONFIG_CUSTOMIZEDCONFIGENTRY
+_OPTIMIZECONFIG.fields_by_name["customized_config"].message_type = (
+    _OPTIMIZECONFIG_CUSTOMIZEDCONFIGENTRY
+)
 _PODSTATE_CUSTOMIZEDDATAENTRY.containing_type = _PODSTATE
 _PODSTATE.fields_by_name["resource"].message_type = _PODRESOURCE
 _PODSTATE.fields_by_name["used_resource"].message_type = _PODRESOURCE
-_PODSTATE.fields_by_name[
-    "customized_data"
-].message_type = _PODSTATE_CUSTOMIZEDDATAENTRY
+_PODSTATE.fields_by_name["customized_data"].message_type = (
+    _PODSTATE_CUSTOMIZEDDATAENTRY
+)
 _JOBSTATE_PODSENTRY.fields_by_name["value"].message_type = _PODSTATE
 _JOBSTATE_PODSENTRY.containing_type = _JOBSTATE
 _JOBSTATE_CUSTOMIZEDDATAENTRY.containing_type = _JOBSTATE
 _JOBSTATE.fields_by_name["pods"].message_type = _JOBSTATE_PODSENTRY
-_JOBSTATE.fields_by_name[
-    "customized_data"
-].message_type = _JOBSTATE_CUSTOMIZEDDATAENTRY
+_JOBSTATE.fields_by_name["customized_data"].message_type = (
+    _JOBSTATE_CUSTOMIZEDDATAENTRY
+)
 _OPTIMIZEJOBMETA.fields_by_name["state"].message_type = _JOBSTATE
 _OPTIMIZEREQUEST.fields_by_name["config"].message_type = _OPTIMIZECONFIG
 _OPTIMIZEREQUEST.fields_by_name["jobs"].message_type = _OPTIMIZEJOBMETA
 _TASKGROUPRESOURCE.fields_by_name["resource"].message_type = _PODRESOURCE
-_JOBRESOURCE_TASKGROUPRESOURCESENTRY.fields_by_name[
-    "value"
-].message_type = _TASKGROUPRESOURCE
+_JOBRESOURCE_TASKGROUPRESOURCESENTRY.fields_by_name["value"].message_type = (
+    _TASKGROUPRESOURCE
+)
 _JOBRESOURCE_TASKGROUPRESOURCESENTRY.containing_type = _JOBRESOURCE
-_JOBRESOURCE_PODRESOURCESENTRY.fields_by_name[
-    "value"
-].message_type = _PODRESOURCE
+_JOBRESOURCE_PODRESOURCESENTRY.fields_by_name["value"].message_type = (
+    _PODRESOURCE
+)
 _JOBRESOURCE_PODRESOURCESENTRY.containing_type = _JOBRESOURCE
-_JOBRESOURCE.fields_by_name[
-    "task_group_resources"
-].message_type = _JOBRESOURCE_TASKGROUPRESOURCESENTRY
-_JOBRESOURCE.fields_by_name[
-    "pod_resources"
-].message_type = _JOBRESOURCE_PODRESOURCESENTRY
+_JOBRESOURCE.fields_by_name["task_group_resources"].message_type = (
+    _JOBRESOURCE_TASKGROUPRESOURCESENTRY
+)
+_JOBRESOURCE.fields_by_name["pod_resources"].message_type = (
+    _JOBRESOURCE_PODRESOURCESENTRY
+)
 _JOBOPTIMIZEPLAN.fields_by_name["resource"].message_type = _JOBRESOURCE
 _JOBOPTIMIZEPLAN.fields_by_name["job"].message_type = _OPTIMIZEJOBMETA
 _JOBOPTIMIZATION.fields_by_name["config"].message_type = _OPTIMIZECONFIG
 _JOBOPTIMIZATION.fields_by_name["plan"].message_type = _JOBOPTIMIZEPLAN
 _JOBOPTIMIZATION.fields_by_name["job_states"].message_type = _JOBSTATE
 _OPTIMIZERESPONSE.fields_by_name["response"].message_type = _RESPONSE
-_OPTIMIZERESPONSE.fields_by_name[
-    "job_optimize_plans"
-].message_type = _JOBOPTIMIZEPLAN
+_OPTIMIZERESPONSE.fields_by_name["job_optimize_plans"].message_type = (
+    _JOBOPTIMIZEPLAN
+)
 _JOBMETRICSRESPONSE.fields_by_name["response"].message_type = _RESPONSE
 DESCRIPTOR.message_types_by_name["TrainingHyperParams"] = _TRAININGHYPERPARAMS
 DESCRIPTOR.message_types_by_name["WorkflowFeature"] = _WORKFLOWFEATURE
@@ -3266,7 +3266,7 @@ TrainingHyperParams = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _TRAININGHYPERPARAMS,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.TrainingHyperParams)
     },
 )
@@ -3277,7 +3277,7 @@ WorkflowFeature = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _WORKFLOWFEATURE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.WorkflowFeature)
     },
 )
@@ -3288,7 +3288,7 @@ TrainingSetFeature = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _TRAININGSETFEATURE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.TrainingSetFeature)
     },
 )
@@ -3303,12 +3303,12 @@ ModelFeature = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _MODELFEATURE_TENSORALLOCBYTESENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.ModelFeature.TensorAllocBytesEntry)
             },
         ),
         "DESCRIPTOR": _MODELFEATURE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.ModelFeature)
     },
 )
@@ -3320,7 +3320,7 @@ RuntimeInfo = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _RUNTIMEINFO,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.RuntimeInfo)
     },
 )
@@ -3331,7 +3331,7 @@ PodMeta = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _PODMETA,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.PodMeta)
     },
 )
@@ -3342,7 +3342,7 @@ JobMeta = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBMETA,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobMeta)
     },
 )
@@ -3353,7 +3353,7 @@ JobMetrics = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBMETRICS,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobMetrics)
     },
 )
@@ -3368,12 +3368,12 @@ OptimizeConfig = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _OPTIMIZECONFIG_CUSTOMIZEDCONFIGENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.OptimizeConfig.CustomizedConfigEntry)
             },
         ),
         "DESCRIPTOR": _OPTIMIZECONFIG,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.OptimizeConfig)
     },
 )
@@ -3389,12 +3389,12 @@ PodState = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _PODSTATE_CUSTOMIZEDDATAENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.PodState.CustomizedDataEntry)
             },
         ),
         "DESCRIPTOR": _PODSTATE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.PodState)
     },
 )
@@ -3410,7 +3410,7 @@ JobState = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _JOBSTATE_PODSENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.JobState.PodsEntry)
             },
         ),
@@ -3419,12 +3419,12 @@ JobState = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _JOBSTATE_CUSTOMIZEDDATAENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.JobState.CustomizedDataEntry)
             },
         ),
         "DESCRIPTOR": _JOBSTATE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobState)
     },
 )
@@ -3437,7 +3437,7 @@ OptimizeJobMeta = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _OPTIMIZEJOBMETA,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.OptimizeJobMeta)
     },
 )
@@ -3448,7 +3448,7 @@ OptimizeRequest = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _OPTIMIZEREQUEST,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.OptimizeRequest)
     },
 )
@@ -3459,7 +3459,7 @@ PodResource = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _PODRESOURCE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.PodResource)
     },
 )
@@ -3470,7 +3470,7 @@ TaskGroupResource = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _TASKGROUPRESOURCE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.TaskGroupResource)
     },
 )
@@ -3485,7 +3485,7 @@ JobResource = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _JOBRESOURCE_TASKGROUPRESOURCESENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.JobResource.TaskGroupResourcesEntry)
             },
         ),
@@ -3494,12 +3494,12 @@ JobResource = _reflection.GeneratedProtocolMessageType(
             (_message.Message,),
             {
                 "DESCRIPTOR": _JOBRESOURCE_PODRESOURCESENTRY,
-                "__module__": "brain_pb2"
+                "__module__": "brain_pb2",
                 # @@protoc_insertion_point(class_scope:brain.JobResource.PodResourcesEntry)
             },
         ),
         "DESCRIPTOR": _JOBRESOURCE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobResource)
     },
 )
@@ -3512,7 +3512,7 @@ JobOptimizePlan = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBOPTIMIZEPLAN,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobOptimizePlan)
     },
 )
@@ -3523,7 +3523,7 @@ JobOptimization = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBOPTIMIZATION,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobOptimization)
     },
 )
@@ -3534,7 +3534,7 @@ Response = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _RESPONSE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.Response)
     },
 )
@@ -3545,7 +3545,7 @@ OptimizeResponse = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _OPTIMIZERESPONSE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.OptimizeResponse)
     },
 )
@@ -3556,7 +3556,7 @@ JobMetricsRequest = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBMETRICSREQUEST,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobMetricsRequest)
     },
 )
@@ -3567,7 +3567,7 @@ JobMetricsResponse = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _JOBMETRICSRESPONSE,
-        "__module__": "brain_pb2"
+        "__module__": "brain_pb2",
         # @@protoc_insertion_point(class_scope:brain.JobMetricsResponse)
     },
 )

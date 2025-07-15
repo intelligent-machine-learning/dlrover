@@ -175,9 +175,9 @@ class PodWatcherTest(unittest.TestCase):
             "device_ids": ["npu_id_1", "npu_id_2"],
             "eventType": "NPU_reset",
         }
-        pod.metadata.annotations[
-            "pod.sigma.ali/scheduled-action"
-        ] = json.dumps(action)
+        pod.metadata.annotations["pod.sigma.ali/scheduled-action"] = (
+            json.dumps(action)
+        )
         reset = _verify_restarting_training(pod)
         self.assertTrue(reset)
 

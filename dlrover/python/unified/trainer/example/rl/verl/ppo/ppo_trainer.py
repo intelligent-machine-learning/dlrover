@@ -900,9 +900,9 @@ class PPOTrainer(BaseRLTrainer):
                                 )
                             )
 
-                            batch.batch[
-                                "reward_baselines"
-                            ] = reward_baseline_tensor
+                            batch.batch["reward_baselines"] = (
+                                reward_baseline_tensor
+                            )
 
                             del gen_baseline_batch, gen_baseline_output
 
@@ -1041,9 +1041,7 @@ class PPOTrainer(BaseRLTrainer):
                     if self.config.trainer.critic_warmup <= self.global_steps:
                         # update actor
                         with _timer("update_actor", timing_raw):
-                            batch.meta_info[
-                                "multi_turn"
-                            ] = (
+                            batch.meta_info["multi_turn"] = (
                                 self.config.actor_rollout_ref.rollout.multi_turn.enable
                             )
                             actor_output = self.RG_ACTOR.update_actor(batch)

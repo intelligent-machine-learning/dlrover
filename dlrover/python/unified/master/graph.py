@@ -121,7 +121,7 @@ class DLExecutionVertex(PickleSerializable):
         local_world_size: int,
         sub_stage: int = 0,
         sub_stage_index: int = 0,
-        invocation_meta: VertexInvocationMeta = None,
+        invocation_meta: Optional[VertexInvocationMeta] = None,
         **kwargs,
     ):
         # static info

@@ -256,7 +256,7 @@ Response = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _RESPONSE,
-        "__module__": "elastic_training_pb2"
+        "__module__": "elastic_training_pb2",
         # @@protoc_insertion_point(class_scope:elastic.Response)
     },
 )
@@ -267,7 +267,7 @@ Message = _reflection.GeneratedProtocolMessageType(
     (_message.Message,),
     {
         "DESCRIPTOR": _MESSAGE,
-        "__module__": "elastic_training_pb2"
+        "__module__": "elastic_training_pb2",
         # @@protoc_insertion_point(class_scope:elastic.Message)
     },
 )

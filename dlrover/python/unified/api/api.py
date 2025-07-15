@@ -677,9 +677,9 @@ class DLJobBuilder(object):
         self._config[InternalDLConfig.ELASTIC_RUN_CMD] = run_cmd
 
         # set default global env
-        self._env[
-            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
-        ] = CommunicationType.COMM_SERVICE_RAY
+        self._env[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
+            CommunicationType.COMM_SERVICE_RAY
+        )
 
         return self
 

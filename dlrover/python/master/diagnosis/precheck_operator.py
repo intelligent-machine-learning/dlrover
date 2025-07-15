@@ -126,8 +126,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             if not first_pending_wk:
                 first_pending_wk = min(
                     pending_workers,
-                    key=lambda x: x.create_time,
-                )  # type: ignore
+                    key=lambda x: x.create_time or 1e99,
+                )
 
             if (
                 first_pending_wk
@@ -218,8 +218,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 return True, None
             else:
                 first_pending_wk = min(
-                    pending_workers, key=lambda x: x.create_time
-                )  # type: ignore
+                    pending_workers, key=lambda x: x.create_time or 1e99
+                )
                 if (
                     first_pending_wk
                     and first_pending_wk.create_time

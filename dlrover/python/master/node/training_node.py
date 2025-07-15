@@ -20,7 +20,7 @@ from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -480,7 +480,7 @@ class ExternalConfig(metaclass=ABCMeta):
 
 
 class TrainingNodeConfig:
-    def __init__(self, external_config: ExternalConfig = None):
+    def __init__(self, external_config: Optional[ExternalConfig] = None):
         self._lock = Lock()
         self._recv_node_training_ports: Dict[int, int] = {}
         self._node_training_port = 0

@@ -581,9 +581,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_gpu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
@@ -596,9 +596,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_npu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
