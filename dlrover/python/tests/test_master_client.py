@@ -19,7 +19,7 @@ import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common import comm
 from dlrover.python.common.comm import (
@@ -354,6 +354,19 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(last_step.end_timestamp, now + 150)
         self.assertEqual(last_step.step_time, 50)
 
+    @patch.dict("sys.modules", {"dlrover.proto": None})
+    def test_pb_not_installed(self):
+        module = "dlrover.python.elastic_agent.master_client"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.elastic_agent.master_client import (
+                GrpcMasterClient,
+            )
+
+            self.assertFalse(GrpcMasterClient)
+
 
 class MasterClientBuildTest(unittest.TestCase):
     def test_build_failure(self):
@@ -390,6 +403,7 @@ class MasterHttpClientTest(unittest.TestCase):
 
 class MasterRayClientTest(unittest.TestCase):
     def setUp(self) -> None:
+        os.environ[NodeEnv.DLROVER_MASTER_ADDR] = "test_id"
         os.environ[
             NodeEnv.DLROVER_MASTER_SERVICE_TYPE
         ] = CommunicationType.COMM_SERVICE_RAY
@@ -408,35 +422,36 @@ class MasterRayClientTest(unittest.TestCase):
         if module in sys.modules:
             del sys.modules[module]
 
-        from dlrover.python.elastic_agent.master_client import RayMasterClient
+        with self.assertRaises(ImportError):
+            from dlrover.python.elastic_agent.master_client import (
+                RayMasterClient,
+            )
 
-        self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
+            self.assertFalse(RayMasterClient)
 
-    @patch.dict("sys.modules", {"dlrover.proto": None})
-    def test_pb_not_installed(self):
-        module = "dlrover.python.elastic_agent.master_client"
-        if module in sys.modules:
-            del sys.modules[module]
-
-        from dlrover.python.elastic_agent.master_client import GrpcMasterClient
-
-        self.assertTrue(GrpcMasterClient)
-
-    def test_ray_client(self):
+    @patch("ray.get_actor")
+    @patch("ray.get")
+    def test_ray_client(self, mock_get, mock_get_actor):
         self.assertIsNotNone(self._master_client)
         self.assertTrue(isinstance(self._master_client, RayMasterClient))
 
-        self._master_client.register_master_actor("test")
-        self.assertEqual(self._master_client.master_actor_handle, "test")
+        self.assertIsNone(self._master_client._master_actor_handle)
+        mock_get_actor.return_value = "test"
+        self._master_client._get_master_actor_handle()
+        self.assertEqual(self._master_client._master_actor_handle, "test")
         self.assertFalse(self._master_client.get_elastic_run_config())
 
         req = BaseRequest(node_id=0, node_type="test")
-        self._master_client.ray.get = Mock(return_value=True)
-        self._master_client._master_addr = MagicMock()
-        self._master_client._master_addr.agent_report.remote = MagicMock()
+        mock_get.return_value = True
+        self._master_client._master_actor_handle = MagicMock()
+        self._master_client._master_actor_handle.agent_report = MagicMock()
+        self._master_client._master_actor_handle.agent_report.remote = (
+            MagicMock()
+        )
         self.assertTrue(self._master_client._report(req))
 
         rep = BaseResponse()
-        self._master_client.ray.get = Mock(return_value=rep)
-        self._master_client._master_addr.agent_get.remote = MagicMock()
+        mock_get.return_value = rep
+        self._master_client._master_actor_handle.agent_report = MagicMock()
+        self._master_client._master_actor_handle.agent_get.remote = MagicMock()
         self.assertFalse(self._master_client._get(req))

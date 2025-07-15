@@ -525,59 +525,57 @@ class MasterClient(Singleton, ABC):
         return cls._instance
 
 
-class GrpcMasterClient(MasterClient):
-    """
-    Examples::
-    channel = elasticai_api.util.grpc_utils.build_channel(
-        "localhost:50001"
-    )
-    mc = MasterClient(channel, work_id=0)
-    # get task unit from master service
-    mc.get_task(...)
-    """
+try:
+    from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 
-    try:
-        from dlrover.proto import (
-            elastic_training_pb2,
-            elastic_training_pb2_grpc,
+    class GrpcMasterClient(MasterClient):
+        """
+        Examples::
+        channel = elasticai_api.util.grpc_utils.build_channel(
+            "localhost:50001"
         )
-    except ImportError:
-        logger.warning("Protobuf is not installed.")
+        mc = MasterClient(channel, work_id=0)
+        # get task unit from master service
+        mc.get_task(...)
+        """
 
-    def __init__(self, master_addr, node_id, node_type, timeout=5):
-        super(GrpcMasterClient, self).__init__(
-            master_addr, node_id, node_type, timeout
-        )
-        self._open_grpc_channel()
+        def __init__(self, master_addr, node_id, node_type, timeout=5):
+            super(GrpcMasterClient, self).__init__(
+                master_addr, node_id, node_type, timeout
+            )
+            self._open_grpc_channel()
 
-    def __del__(self):
-        self._close_grpc_channel()
+        def __del__(self):
+            self._close_grpc_channel()
 
-    def _close_grpc_channel(self):
-        if self._channel:
-            self._channel.close()
+        def _close_grpc_channel(self):
+            if self._channel:
+                self._channel.close()
 
-    def _open_grpc_channel(self):
-        self._channel = comm.build_grpc_channel(self._master_addr)
-        self._stub = self.elastic_training_pb2_grpc.MasterStub(self._channel)
+        def _open_grpc_channel(self):
+            self._channel = comm.build_grpc_channel(self._master_addr)
+            self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
-    @retry()
-    def _report(self, message: comm.Message):
-        request = self.elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        return self._stub.report(request, timeout=self._timeout)
+        @retry()
+        def _report(self, message: comm.Message):
+            request = elastic_training_pb2.Message()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
+            return self._stub.report(request, timeout=self._timeout)
 
-    @retry()
-    def _get(self, message: comm.Message):
-        request = self.elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        response = self._stub.get(request, timeout=self._timeout)
-        res_message = comm.deserialize_message(response.data)
-        return res_message
+        @retry()
+        def _get(self, message: comm.Message):
+            request = elastic_training_pb2.Message()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
+            response = self._stub.get(request, timeout=self._timeout)
+            res_message = comm.deserialize_message(response.data)
+            return res_message
+
+except ImportError:
+    logger.warning("Protobuf is not installed.")
 
 
 class HttpMasterClient(MasterClient):
@@ -632,56 +630,57 @@ class HttpMasterClient(MasterClient):
         return request
 
 
-class RayMasterClient(MasterClient):
-    try:
-        import ray
-    except ImportError:
-        logger.warning("Ray is not installed.")
+try:
+    import ray
 
-    master_actor_handle = None
+    class RayMasterClient(MasterClient):
+        def __init__(self, master_addr, node_id, node_type, timeout=5):
+            super(RayMasterClient, self).__init__(
+                master_addr, node_id, node_type, timeout
+            )
+            self._master_actor_handle = None
 
-    def __init__(self, master_addr, node_id, node_type, timeout=5):
-        super(RayMasterClient, self).__init__(
-            self.master_actor_handle, node_id, node_type, timeout
-        )
+        def _get_master_actor_handle(self):
+            if not self._master_actor_handle:
+                self._master_actor_handle = ray.get_actor(self._master_addr)
+            return self._master_actor_handle
 
-    @classmethod
-    def register_master_actor(cls, actor_handle):
-        cls.master_actor_handle = actor_handle
+        @retry()
+        def _report(self, message: comm.Message):
+            response = ray.get(
+                self._get_master_actor_handle().agent_report.remote(
+                    self._gen_request(message).to_json()
+                ),
+                timeout=self._timeout,
+            )
 
-    @retry()
-    def _report(self, message: comm.Message):
-        response = self.ray.get(
-            self._master_addr.agent_report.remote(
-                self._gen_request(message).to_json()
-            ),
-            timeout=self._timeout,
-        )
+            return response
 
-        return response
+        @retry()
+        def _get(self, message: comm.Message):
+            response = ray.get(
+                self._get_master_actor_handle().agent_get.remote(
+                    self._gen_request(message).to_json()
+                ),
+                timeout=self._timeout,
+            )
 
-    @retry()
-    def _get(self, message: comm.Message):
-        response = self.ray.get(
-            self._master_addr.agent_get.remote(
-                self._gen_request(message).to_json()
-            ),
-            timeout=self._timeout,
-        )
+            return comm.deserialize_message(response.data)
 
-        return comm.deserialize_message(response.data)
+        def _gen_request(self, message: comm.Message):
+            request = BaseRequest()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
 
-    def _gen_request(self, message: comm.Message):
-        request = BaseRequest()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
+            return request
 
-        return request
+        def get_elastic_run_config(self) -> Dict[str, str]:
+            # no need to get config from master
+            return {}
 
-    def get_elastic_run_config(self) -> Dict[str, str]:
-        # no need to get config from master
-        return {}
+except ImportError:
+    logger.warning("Ray is not installed.")
 
 
 def build_master_client(
@@ -730,8 +729,5 @@ def build_master_client(
                 )
         except Exception:
             logger.warning("The master is not available.")
-    else:
-        master_client = RayMasterClient(
-            master_addr, node_id, node_type, timeout
-        )
+
     return master_client
