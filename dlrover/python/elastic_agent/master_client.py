@@ -632,6 +632,7 @@ class HttpMasterClient(MasterClient):
 
 try:
     import ray
+    from ray.util.state import get_actor
 
     class RayMasterClient(MasterClient):
         def __init__(self, master_addr, node_id, node_type, timeout=5):
@@ -642,7 +643,9 @@ try:
 
         def _get_master_actor_handle(self):
             if not self._master_actor_handle:
-                self._master_actor_handle = ray.get_actor(self._master_addr)
+                self._master_actor_handle = ray.get_actor(
+                    get_actor(self._master_addr).name
+                )
             return self._master_actor_handle
 
         @retry()

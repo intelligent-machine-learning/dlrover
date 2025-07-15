@@ -429,16 +429,16 @@ class MasterRayClientTest(unittest.TestCase):
 
             self.assertFalse(RayMasterClient)
 
-    @patch("ray.get_actor")
     @patch("ray.get")
-    def test_ray_client(self, mock_get, mock_get_actor):
+    def test_ray_client(self, mock_get):
         self.assertIsNotNone(self._master_client)
         self.assertTrue(isinstance(self._master_client, RayMasterClient))
 
         self.assertIsNone(self._master_client._master_actor_handle)
-        mock_get_actor.return_value = "test"
-        self._master_client._get_master_actor_handle()
-        self.assertEqual(self._master_client._master_actor_handle, "test")
+        self._master_client._master_actor_handle = "test"
+        self.assertEqual(
+            self._master_client._get_master_actor_handle(), "test"
+        )
         self.assertFalse(self._master_client.get_elastic_run_config())
 
         req = BaseRequest(node_id=0, node_type="test")

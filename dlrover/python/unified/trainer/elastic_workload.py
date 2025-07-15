@@ -66,7 +66,7 @@ class ElasticWorkload(BaseWorkload):
         env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
         env_utils.set_env(NodeEnv.POD_NAME, self.name)
         env_utils.set_env(
-            NodeEnv.DLROVER_MASTER_ADDR, self.master_handle._actor_id
+            NodeEnv.DLROVER_MASTER_ADDR, self.master_handle._actor_id.hex()
         )
         env_utils.set_env(
             NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
