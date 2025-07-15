@@ -158,14 +158,14 @@ class ElasticWorker(ActorBase):
                 "Entry point is not specified in the workload spec. "
                 "It should be in the format 'module::function'."
             )
-        module, func = entry_point.split("::", 1)
+        module_name, func = entry_point.split("::", 1)
         logger.info(
-            f"Running elastic job with entry point: {module}.{func}, "
+            f"Running elastic job with entry point: {module_name}.{func}, "
             f"world_rank={self.node_info.rank}, world_size={self.world_size}"
         )
 
         try:
-            module = importlib.import_module(module)
+            module = importlib.import_module(module_name)
             func = getattr(module, func)
             if not callable(func):
                 raise ValueError(
@@ -174,12 +174,12 @@ class ElasticWorker(ActorBase):
             return func
         except ImportError:
             logger.error(
-                f"Failed to import module {module} for elastic job.",
+                f"Failed to import module {module_name} for elastic job.",
             )
             raise
         except AttributeError:
             logger.error(
-                f"Failed to get function {func} from module {module} for "
+                f"Failed to get function {func} from module {module_name} for "
                 f"elastic job.",
             )
             raise

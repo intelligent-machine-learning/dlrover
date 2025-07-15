@@ -243,4 +243,4 @@ def elastic_workload_run():
 
 
 def elastic_workload_run_error():
-    raise Exception(f"elastic_workload_run_error run failed")
+    raise Exception("elastic_workload_run_error run failed")
