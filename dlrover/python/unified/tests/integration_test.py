@@ -47,7 +47,9 @@ class ApiFullTest(RayBaseTest):
         super().tearDown()
 
     @timeout(20)
-    @pytest.mark.skip(reason="Fail due to ShareMemory problem, fixed with new workers")
+    @pytest.mark.skip(
+        reason="Fail due to ShareMemory problem, fixed with new workers"
+    )
     def test_elastic_training(self):
         dl_job = (
             DLJobBuilder()
@@ -70,7 +72,9 @@ class ApiFullTest(RayBaseTest):
         dl_job.submit("test", master_cpu=1, master_memory=128)
 
     @timeout(20)
-    @pytest.mark.skip(reason="Fail due to ShareMemory problem, fixed with new workers")
+    @pytest.mark.skip(
+        reason="Fail due to ShareMemory problem, fixed with new workers"
+    )
     def test_elastic_training_with_error(self):
         dl_job = (
             DLJobBuilder()
