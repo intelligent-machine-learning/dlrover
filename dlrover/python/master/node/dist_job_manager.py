@@ -754,7 +754,7 @@ class DistributedJobManager(JobManager):
             pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
                 self._get_pod_unique_labels(event.node)
             )
-            logger.info(
+            logger.debug(
                 f"Recheck running pod with labels: {pod_labels_selector} "
                 f"for deleted event."
             )

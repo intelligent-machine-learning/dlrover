@@ -13,12 +13,13 @@
 
 import json
 import os
+import sys
 import time
 import unittest
 from datetime import datetime
 from typing import List
 from unittest import mock
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from dlrover.python.common import comm
 from dlrover.python.common.comm import (
@@ -400,6 +401,16 @@ class MasterRayClientTest(unittest.TestCase):
         os.environ.clear()
         context = Context.singleton_instance()
         context.master_service_type = "grpc"
+
+    @patch.dict("sys.modules", {"ray": None})
+    def test_ray_not_installed(self):
+        module = "dlrover.python.elastic_agent.master_client"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        from dlrover.python.elastic_agent.master_client import RayMasterClient
+
+        self.assertIsNotNone(RayMasterClient("addr", 0, "worker"))
 
     def test_ray_client(self):
         self.assertIsNotNone(self._master_client)

@@ -533,6 +533,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
+        MasterClient._instance = None
 
     def test_monitor_workers(self):
         self.config.network_check = False

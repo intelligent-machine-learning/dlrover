@@ -50,6 +50,7 @@ from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
+from dlrover.python.master.watcher.factory import new_elasticjob_watcher
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.training_event import DLRoverMasterEvent
 from dlrover.python.util.function_util import TimeoutException
@@ -162,6 +163,7 @@ class DistributedJobMaster(JobMaster):
         self._job_evt = _master_evt.train_job(
             job_name=args.job_name, args=vars(args)
         )
+        self._elasticjob_watcher = new_elasticjob_watcher(args)
 
     def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
@@ -194,6 +196,9 @@ class DistributedJobMaster(JobMaster):
         logger.info(f"Starting master {get_service_type()} server")
         self._master_server.start()
         logger.info(f"Master {get_service_type()} server started")
+
+        if self._elasticjob_watcher:
+            self._elasticjob_watcher.start()
 
         # Composite the components
         if self.task_manager and self.job_manager:
@@ -316,7 +321,7 @@ class DistributedJobMaster(JobMaster):
                     elif (
                         self.task_manager
                         and not self.task_manager.finished()
-                        and self.task_manager.is_dataset_initialized(True)
+                        and self.task_manager.is_dataset_initialized()
                     ):
                         logger.warning(
                             "All workers exited but there also are unfinished tasks",

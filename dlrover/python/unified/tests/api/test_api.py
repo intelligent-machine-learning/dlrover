@@ -14,7 +14,14 @@
 from omegaconf import OmegaConf
 
 from dlrover.python.common.constants import CommunicationType, NodeEnv
-from dlrover.python.unified.api.api import DLJob, DLJobBuilder, RLJobBuilder
+from dlrover.python.unified.api.base import (
+    DLJob,
+    DLJobBuilder,
+    DLRoverRunBuilder,
+    TrainerBuilder,
+    WorkloadBuilder,
+)
+from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.common.constant import InternalDLConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
@@ -192,7 +199,7 @@ class ApiTest(BaseTest):
         # a minimum valid rl
         RLJobBuilder().node_num(1).device_per_node(1).config(
             {"k1": "v1"}
-        ).trainer("m0", "c0").actor("m1", "c1").build()
+        ).trainer("m0", "c0").actor("m1", "c1").total(1).per_node(1).build()
 
     def test_collocation_all(self):
         rl_job = (
@@ -202,7 +209,11 @@ class ApiTest(BaseTest):
             .config({"k1": "v1"})
             .trainer("m0", "c0")
             .actor("m1", "c1")
+            .total(1)
+            .per_node(1)
             .rollout("m2", "c2")
+            .total(1)
+            .per_node(1)
             .with_collocation_all()
             .build()
         )
@@ -355,7 +366,7 @@ class ApiTest(BaseTest):
             "false",
         )
 
-    def test_spmd(self):
+    def test_elastic(self):
         cmd = "dlrover-run --nnodes=2 --nproc_per_node=2 test.py"
         dl_job = (
             DLJobBuilder()
@@ -399,3 +410,41 @@ class ApiTest(BaseTest):
             dl_config["workload"]["ELASTIC"]["resource"]["CPU"],
             2,
         )
+
+    def test_role_builder(self):
+        trainer_builder = TrainerBuilder(DLJobBuilder(), "test", "m0", "c0")
+        self.assertIsNotNone(trainer_builder)
+        self.assertEqual(trainer_builder._get_total(), 1)
+        self.assertEqual(trainer_builder._get_per_node(), 0)
+        with self.assertRaises(AttributeError):
+            trainer_builder.test()
+
+        workload_builder = WorkloadBuilder(DLJobBuilder(), "test", "m0", "c0")
+        workload_builder.env(None)
+        self.assertEqual(workload_builder._env, {})
+        workload_builder.sub_stage(None)
+        self.assertEqual(workload_builder._sub_stage, [])
+        workload_builder.sub_stage([1])
+        self.assertEqual(workload_builder._sub_stage, [1])
+        self.assertFalse(workload_builder._validate())
+        workload_builder.total(1)
+        workload_builder.per_node(1)
+        self.assertTrue(workload_builder._validate())
+
+        dlrover_run_builder = DLRoverRunBuilder(DLJobBuilder(), "test")
+        self.assertFalse(dlrover_run_builder._validate())
+        dlrover_run_builder._cmd = "dlrover-run tset.py"
+        self.assertFalse(dlrover_run_builder._validate())
+        dlrover_run_builder.per_node(2)
+        dlrover_run_builder.total(1)
+        self.assertTrue(dlrover_run_builder._validate())
+
+        dlrover_run_builder = DLRoverRunBuilder(
+            DLJobBuilder(),
+            "dlrover-run --nnodes=1:2 --nproc_per_node=2 "
+            "--rdzv_conf join_timeout=600 --network_check "
+            "--max-restarts=1 test.py",
+            "dlrover.python.unified.tests.test_class",
+            "TestElasticWorkload",
+        )
+        self.assertTrue(dlrover_run_builder._validate())
