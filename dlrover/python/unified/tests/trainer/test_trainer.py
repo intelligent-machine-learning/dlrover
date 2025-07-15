@@ -101,9 +101,7 @@ class BaseTrainerTest(BaseTest):
             return_value=[mock.Mock()]
         )
         trainer.RG_ACTOR.test0()
-        # trainer.RG_ACTOR.test1()
-        # trainer.RG_ACTOR.test2()
-        # with self.assertRaises(Exception):
-        #     trainer.RG_ACTOR.test3()
-        # with self.assertRaises(Exception):
-        #     trainer.RG_ACTOR.test4()
+        trainer.RG_ACTOR.test1()
+        trainer.RG_ACTOR.test2()
+        trainer.RG_ACTOR.test3()
+        trainer.RG_ACTOR.test4()
