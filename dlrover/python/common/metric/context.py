@@ -35,9 +35,9 @@ class JobMetricContext(Singleton):
         and the value is another dict with worker node id as key,
         and xpu metric as value
         """
-        self._xpu_job_metrics: OrderedDict[
-            int, Dict[str, XpuNodeMetric]
-        ] = OrderedDict()
+        self._xpu_job_metrics: OrderedDict[int, Dict[str, XpuNodeMetric]] = (
+            OrderedDict()
+        )
         self.max_metric_records = DefaultValues.MAX_METRIC_REC
         self._lock = threading.Lock()
 
@@ -145,8 +145,7 @@ class JobMetricContext(Singleton):
                     total += v.get_avg_metric(metric)
 
                 logger.info(
-                    f"{metric}[{dt_str}]: "
-                    f"{round(total/len(metrics.values()), 2)}"
+                    f"{metric}[{dt_str}]: {round(total / len(metrics.values()), 2)}"
                 )
 
         except Exception as e:

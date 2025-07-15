@@ -247,8 +247,7 @@ class Context(Singleton):
                     result_ops.append(cls())
             except Exception:
                 logger.warning(
-                    "Invalid pre-check "
-                    f"operators: {self.pre_check_operators}"
+                    f"Invalid pre-check operators: {self.pre_check_operators}"
                 )
         return result_ops
 

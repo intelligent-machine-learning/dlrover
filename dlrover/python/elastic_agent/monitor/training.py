@@ -86,8 +86,7 @@ class TorchTrainingMonitor(Singleton):
     def start(self):
         if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
             logger.info(
-                f"Skip starting monitor for {NodeEnv.MONITOR_ENABLED} "
-                "disabled."
+                f"Skip starting monitor for {NodeEnv.MONITOR_ENABLED} disabled."
             )
             return
         thread = threading.Thread(

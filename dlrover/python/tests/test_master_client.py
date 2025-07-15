@@ -376,9 +376,9 @@ class MasterClientBuildTest(unittest.TestCase):
 
 class MasterHttpClientTest(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ[
-            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
-        ] = CommunicationType.COMM_SERVICE_HTTP
+        os.environ[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
+            CommunicationType.COMM_SERVICE_HTTP
+        )
         context = Context.singleton_instance()
         context.master_service_type = "http"
         self._master, addr = start_local_master()
@@ -404,9 +404,9 @@ class MasterHttpClientTest(unittest.TestCase):
 class MasterRayClientTest(unittest.TestCase):
     def setUp(self) -> None:
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = "test_id"
-        os.environ[
-            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
-        ] = CommunicationType.COMM_SERVICE_RAY
+        os.environ[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
+            CommunicationType.COMM_SERVICE_RAY
+        )
         context = Context.singleton_instance()
         context.master_service_type = "ray"
         self._master_client = build_master_client(None, 3)

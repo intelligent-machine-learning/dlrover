@@ -87,8 +87,7 @@ class ElasticWorkload(BaseWorkload):
             logger.info("Done elastic training.")
         except Exception as e:
             logger.error(
-                "Failed to run elastic agent for training by "
-                f"unexpected error: {e}",
+                f"Failed to run elastic agent for training by unexpected error: {e}",
                 exc_info=True,
             )
             raise RuntimeError("Agent run failed")

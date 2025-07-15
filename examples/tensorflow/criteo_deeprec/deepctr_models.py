@@ -119,7 +119,6 @@ class WideAndDeep(tf.estimator.Estimator):
     """Wide and Deep"""
 
     def __init__(self, model_dir, config=None, params=None):
-
         logger.info("config is %s", config)
         logger.info("model_dir is %s", config)
         run_config = config
@@ -195,7 +194,6 @@ class DeepFM(tf.estimator.Estimator):
     """MyEstimator"""
 
     def __init__(self, model_dir, config=None, params=None):
-
         logger.info("config is %s", config)
         logger.info("model_dir is %s", config)
         run_config = config
@@ -273,7 +271,6 @@ class xDeepFM(tf.estimator.Estimator):
     """Wide and Deep"""
 
     def __init__(self, model_dir, config=None, params=None):
-
         logger.info("config is %s", config)
         logger.info("model_dir is %s", config)
         run_config = config

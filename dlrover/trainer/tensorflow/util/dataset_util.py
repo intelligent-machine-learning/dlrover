@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
+from typing import Any, List, Optional
 
 import numpy as np
 import tensorflow as tf
@@ -29,13 +29,12 @@ class DatasetUtil(object):
         self,
         reader=None,
         columns: List[Column] = [],
-        reader_fn: Any = None,
+        reader_fn: Optional[Any] = None,
         schema=None,
         batch_size=64,
         epoch=10,
         field_delim=",",
     ):
-
         self.columns = columns
         self._batch_size = batch_size
         self._epoch = epoch

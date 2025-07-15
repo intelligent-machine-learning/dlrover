@@ -209,8 +209,7 @@ class PodScaler(Scaler):
         if not self._elasticjob_exists():
             plan_json = plan.to_json()
             logger.info(
-                f"Skip the scaleplan {plan_json} "
-                "because the job does not exist."
+                f"Skip the scaleplan {plan_json} because the job does not exist."
             )
             return
 
@@ -629,8 +628,7 @@ class PodScaler(Scaler):
                 time.sleep(1)
 
         logger.warning(
-            f"Master service check {host}:{port} "
-            f"failed after {timeout} retries."
+            f"Master service check {host}:{port} failed after {timeout} retries."
         )
         return False
 

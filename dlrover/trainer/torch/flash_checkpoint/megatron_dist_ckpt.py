@@ -12,6 +12,7 @@
 # limitations under the License.
 
 """Input/output checkpointing."""
+
 import os
 import random
 import sys
@@ -250,9 +251,9 @@ def save_checkpoint(
         model_state_dict["args"] = args
         model_state_dict["checkpoint_version"] = 3.0
         model_state_dict["iteration"] = iteration
-        model_state_dict[
-            "num_floating_point_operations_so_far"
-        ] = num_floating_point_operations_so_far
+        model_state_dict["num_floating_point_operations_so_far"] = (
+            num_floating_point_operations_so_far
+        )
         if len(model) == 1:
             model_state_dict["model"] = model[
                 0
@@ -269,9 +270,9 @@ def save_checkpoint(
             if optimizer is not None:
                 model_state_dict["optimizer"] = optimizer.state_dict()
             if opt_param_scheduler is not None:
-                model_state_dict[
-                    "opt_param_scheduler"
-                ] = opt_param_scheduler.state_dict()
+                model_state_dict["opt_param_scheduler"] = (
+                    opt_param_scheduler.state_dict()
+                )
 
         # RNG states.
         if not args.no_save_rng:
@@ -324,7 +325,6 @@ def get_parameter_state(dist_optimizer):
     """
     state = {}
     for _, gbuf_range_maps in enumerate(dist_optimizer.gbuf_ranges):
-
         # Iterate grad buffers (by data type).
         assert len(gbuf_range_maps) == 1, "single dtype supported, for now."
         for dtype, gbuf_range_map_for_all_buckets in gbuf_range_maps.items():
@@ -337,7 +337,6 @@ def get_parameter_state(dist_optimizer):
                 for model_param, param_range_map in gbuf_range_map[
                     "param_map"
                 ].items():
-
                     # Main param & optimizer states.
                     (
                         group_index,
@@ -423,7 +422,6 @@ def load_checkpoint(
 
     # Checkpoint not loaded.
     if model_state_dict is None:
-
         # Conditionally exit at this point.
         if args.exit_on_missing_checkpoint:
             print_rank_0(
@@ -581,8 +579,7 @@ def load_checkpoint(
         torch.distributed.barrier()
 
     print_rank_0(
-        f"  successfully loaded checkpoint from {args.load} "
-        f"at iteration {iteration}"
+        f"  successfully loaded checkpoint from {args.load} at iteration {iteration}"
     )
 
     return iteration, num_floating_point_operations_so_far
@@ -614,8 +611,7 @@ def _load_base_checkpoint(load_dir, rank0=False):
                 )
             )
             print_rank_0(
-                "    will not load any checkpoints and will start from "
-                "random"
+                "    will not load any checkpoints and will start from random"
             )
         return None, None, "", False
 

@@ -33,8 +33,7 @@ class MPMDFailoverCoordinator(FailoverCoordinator):
         with self._lock:
             if self._is_failover_stage():
                 logger.info(
-                    f"Ignore failure: {failure} for already in "
-                    "failover stage."
+                    f"Ignore failure: {failure} for already in failover stage."
                 )
                 return
 
@@ -118,8 +117,7 @@ class MPMDFailoverCoordinator(FailoverCoordinator):
         logger.info("Trigger global failover procedure.")
         if self._is_job_restart_exceeded_limit():
             logger.error(
-                "Job restart exceed limit: "
-                f"{self.context.job_config.job_max_restart}"
+                f"Job restart exceed limit: {self.context.job_config.job_max_restart}"
             )
             self._abort_job()
             return

@@ -495,7 +495,7 @@ class DLRoverRunBuilder(WorkloadBuilder):
             return False
         if not self.__validate_dlrover_run_cmd(self._cmd):
             logger.error(
-                "dlrover-run command is invalid for " "elastic training."
+                "dlrover-run command is invalid for elastic training."
             )
             return False
 
@@ -645,8 +645,7 @@ class DLJobBuilder(object):
                         collocations_set.add(role)
                     else:
                         logger.error(
-                            "The same role can only be defined once "
-                            "in 'collocation'."
+                            "The same role can only be defined once in 'collocation'."
                         )
                         return False
 
@@ -818,9 +817,9 @@ class DLJobBuilder(object):
         self._config[InternalDLConfig.ELASTIC_RUN_CMD] = run_cmd
 
         # set default global env
-        self._env[
-            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
-        ] = CommunicationType.COMM_SERVICE_RAY
+        self._env[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
+            CommunicationType.COMM_SERVICE_RAY
+        )
 
         return dlrover_run_builder
 

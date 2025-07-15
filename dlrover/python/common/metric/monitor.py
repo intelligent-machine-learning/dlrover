@@ -240,8 +240,7 @@ class SimpleMetricMonitor(MetricMonitor):
 
             if resp.status_code != requests.codes.ok:
                 logger.warning(
-                    f"Failed to query {job_name} {metric_type}: "
-                    f"{resp.status_code}"
+                    f"Failed to query {job_name} {metric_type}: {resp.status_code}"
                 )
                 return None
             rsp = resp.json()

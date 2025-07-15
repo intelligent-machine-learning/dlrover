@@ -77,7 +77,6 @@ class EstimatorExecutor(BaseExecutor):
         self.prepare()
 
     def prepare(self):
-
         self.get_cluster_info_by_tf_config()
         self._initialize_estimator_related()
         self._prepare_env()

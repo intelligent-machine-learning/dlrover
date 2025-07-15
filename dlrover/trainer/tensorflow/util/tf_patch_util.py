@@ -99,8 +99,7 @@ def wait_for_session_and_get_session(
             )
 
         logger.info(
-            "Waiting for model to be ready.  "
-            "Ready_for_local_init_op:  %s, ready: %s",
+            "Waiting for model to be ready.  Ready_for_local_init_op:  %s, ready: %s",
             not_ready_local_msg,
             not_ready_msg,
         )

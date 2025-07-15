@@ -147,8 +147,7 @@ def wait_socket_server(socket_server: LocalSocketComm, timeout=60):
         time.sleep(0.1)
         if time.time() - start_time > timeout:
             raise TimeoutError(
-                "Timed out waiting for socket server: "
-                f"{socket_server.name}."
+                f"Timed out waiting for socket server: {socket_server.name}."
             )
 
 
@@ -183,8 +182,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         replica_count=0,
     ):
         logger.info(
-            "Initializing checkpoint engine: "
-            f"{self.__class__.__name__.lower()}."
+            f"Initializing checkpoint engine: {self.__class__.__name__.lower()}."
         )
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
@@ -263,8 +261,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         ):
             self._saver_group = None
             message = (
-                "Use the default process group to sync "
-                "when saving checkpoint."
+                "Use the default process group to sync when saving checkpoint."
             )
             _local_rank0_log(self._local_rank, message)
         else:
@@ -318,8 +315,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         wait_socket_server(queue)
 
         logger.info(
-            "Notify agent to create a checkpoint saver using: "
-            f"{class_meta.__dict__}."
+            f"Notify agent to create a checkpoint saver using: {class_meta.__dict__}."
         )
         queue.put(class_meta)
 
@@ -427,8 +423,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                     break
             if time.time() - start > timeout:
                 logger.info(
-                    f"Timeout ({timeout})s to wait for "
-                    "the latest step checkpoint."
+                    f"Timeout ({timeout})s to wait for the latest step checkpoint."
                 )
                 break
             time.sleep(3)

@@ -187,7 +187,6 @@ def append_hooks(estimator_spec, key, params):
 
 
 def hook_estimator_call_model_fn(params=None):
-
     estimator_call_model_fn = Estimator._call_model_fn
 
     def dlrover_call_model_fn(*args, **kwargs):
@@ -212,9 +211,9 @@ def hook_estimator_call_model_fn(params=None):
                 TFConstants.EstimatorTrainingChiefHooks.name, []
             )
             chief_training_hooks.append(stop_at_step_hook)
-            params[
-                TFConstants.EstimatorTrainingChiefHooks.name
-            ] = chief_training_hooks
+            params[TFConstants.EstimatorTrainingChiefHooks.name] = (
+                chief_training_hooks
+            )
 
             for key in keys:
                 model_fn_results = append_hooks(model_fn_results, key, params)

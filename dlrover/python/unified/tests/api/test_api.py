@@ -192,9 +192,7 @@ class ApiTest(BaseTest):
                 {"k1": "v1"}
             ).trainer("m0", "c0").actor("m1", "c1").rollout("m2", "c2").reward(
                 "m3", "c3"
-            ).with_collocation(
-                "actor", "rollout"
-            ).with_collocation(
+            ).with_collocation("actor", "rollout").with_collocation(
                 "rollout", "reward"
             ).build()
 

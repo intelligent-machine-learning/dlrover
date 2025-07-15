@@ -61,7 +61,6 @@ def apply_lora(
     alpha=1.0,
     verbose=False,
 ):
-
     for name, module in model.named_modules():
         if any(name.endswith(target) for target in targets) and hasattr(
             module, "weight"

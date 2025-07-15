@@ -76,8 +76,7 @@ class ElasticFailoverCoordinator(FailoverCoordinator):
 
     def _handle_process_failure(self, failure: FailureDesc):
         logger.info(
-            f"Process failure: {failure} is handled by "
-            "elastic agent automated."
+            f"Process failure: {failure} is handled by elastic agent automated."
         )
 
     def _is_agent_failure_exceeded_limit(self, failure: FailureDesc) -> bool:
