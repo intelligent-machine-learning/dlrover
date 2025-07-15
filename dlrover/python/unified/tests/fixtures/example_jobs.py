@@ -1,4 +1,7 @@
-from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
+from dlrover.python.unified.common.workload_config import (
+    ElasticWorkloadDesc,
+    ResourceDesc,
+)
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
     DLConfig,
@@ -15,6 +18,7 @@ def elastic_training_job():
                 cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
                 instance_number=2,
                 proc_per_worker=2,
+                instance_resource=ResourceDesc(accelerator=1),
             )
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,

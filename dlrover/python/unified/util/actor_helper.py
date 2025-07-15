@@ -71,6 +71,9 @@ def __invoke_actor(
             f"Method {method_name} not found on actor {actor_name}: {e}"
         )
         return ray.put(e)
+    except Exception as e:
+        logger.error(f"Fail to submit task {method_name} to {actor_name}: {e}")
+        return ray.put(e)
 
 
 def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
@@ -142,33 +145,40 @@ def kill_actors(actors: List[str]):
 
 
 async def invoke_actor_async(
-    actor_name: str, method_name: str, *args, **kwargs
+    actor_name: str,
+    method_name: str,
+    *args,
+    _actor_retry: int = 3,
+    **kwargs,
 ) -> Union[T, Exception]:
     """Call a method on a Ray actor by its name."""
-    while True:
-        try:
-            actor = get_actor_with_cache(actor_name)
-            ref = getattr(actor, method_name).remote(*args, **kwargs)
-        except AttributeError:
-            logger.error(
-                f"Method {method_name} not found on actor {actor_name}"
-            )
-            raise
+    try:
+        actor = get_actor_with_cache(actor_name)
+        ref = getattr(actor, method_name).remote(*args, **kwargs)
+    except AttributeError:
+        logger.error(f"Method {method_name} not found on actor {actor_name}")
+        raise
 
-        try:
-            return await ref
-        except RayActorError as e:
-            if method_name == "__ray_terminate__" or method_name == "shutdown":
-                return cast(T, None)  # Success for shutdown
-            print(f"Error executing {method_name} on {actor_name}: {e}")
-            refresh_actor_cache(actor_name)
-            continue  # Retry with the refreshed actor
-        except Exception as e:
-            print(
-                f"Unexpected error executing {method_name} on {actor_name}: "
-                f"{e}"
+    try:
+        return await ref
+    except RayActorError as e:
+        if method_name == "__ray_terminate__" or method_name == "shutdown":
+            return cast(T, None)  # Success for shutdown
+        print(f"Error executing {method_name} on {actor_name}: {e}")
+        refresh_actor_cache(actor_name)
+        if _actor_retry > 0:
+            return await invoke_actor_async(
+                actor_name,
+                method_name,
+                *args,
+                **kwargs,
+                _actor_retry=_actor_retry - 1,
             )
+        else:
             raise
+    except Exception as e:
+        print(f"Unexpected error executing {method_name} on {actor_name}: {e}")
+        raise
 
 
 async def invoke_actors_async(
