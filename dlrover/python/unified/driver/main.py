@@ -18,14 +18,15 @@ import ray
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_base import MasterStage
-from dlrover.python.unified.controller.config import JobConfig
+from dlrover.python.unified.controller.config import DLConfig, JobConfig
 from dlrover.python.unified.controller.master import PrimeMaster
 
 MASTER_CONNECT_INTERVAL = 5  # must < master's RUN_WAIT_INTERVAL
 MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
 
 
-def submit(config: JobConfig, blocking=True, ray_address=None):
+def submit(config: JobConfig, blocking=True):
+    """Submit a job to DLRover."""
     # do ray init
     if ray.is_initialized():
         logger.info("Ray already initialized.")
@@ -37,13 +38,7 @@ def submit(config: JobConfig, blocking=True, ray_address=None):
             f"Using specified working dir: {working_dir_env} "
             f"instead of current working dir: {os.getcwd()}."
         )
-        if not ray_address:
-            address = "auto"
-        elif ray_address == "test":
-            address = None
-        else:
-            address = ray_address
-        ray.init(address=address, runtime_env={"working_dir": working_dir_env})
+        ray.init(runtime_env={"working_dir": working_dir_env})
         logger.info("Ray initialized.")
 
     master = PrimeMaster.create(config)
@@ -69,9 +64,41 @@ def submit(config: JobConfig, blocking=True, ray_address=None):
     return exit_code
 
 
-def main(args=None, blocking=True, ray_address=None):
-    config = JobConfig.model_validate_strings(args)
-    return submit(config=config, blocking=blocking, ray_address=ray_address)
+def main(args=None, blocking=True):
+    """Main function to start the DLRover driver from CLI."""
+
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="DLRover Driver CLI to start the DLRover master."
+    )
+    parser.add_argument(
+        "--job_name",
+        type=str,
+        help="Name of the job to be submitted.",
+    )
+    parser.add_argument(
+        "--master_cpu",
+        type=int,
+        default=1,
+        help="Number of CPUs for the master actor.",
+    )
+    parser.add_argument(
+        "--master_memory",
+        type=int,
+        default=100,
+        help="Memory (in MB) for the master actor.",
+    )
+    parser.add_argument(
+        "--dl_config",
+        type=str,
+        required=True,
+        help="Json for DLRover job configuration.",
+    )
+    args = parser.parse_args(args)
+    args.dl_config = DLConfig.model_validate_json(args.dl_config)
+    config = JobConfig.model_validate(args.__dict__)
+    return submit(config=config, blocking=blocking)
 
 
 if __name__ == "__main__":

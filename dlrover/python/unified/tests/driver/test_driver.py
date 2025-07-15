@@ -10,58 +10,91 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+from contextlib import ExitStack
+from unittest.mock import MagicMock, patch
 
-import ray
+import pytest
 
-from dlrover.python.unified.common.constant import DLMasterConstant
-from dlrover.python.unified.driver.main import main
-from dlrover.python.unified.tests.base import RayBaseTest
-from dlrover.python.unified.tests.test_data import TestData
+from dlrover.python.unified.common.workload_base import MasterStage
+from dlrover.python.unified.controller.api import PrimeMasterRemote
+from dlrover.python.unified.controller.config import JobConfig
+from dlrover.python.unified.driver.main import main, submit
+from dlrover.python.unified.tests.fixtures.example_jobs import (
+    elastic_training_job,
+)
 
 
-class DriverRayTest(RayBaseTest):
-    def setUp(self):
-        super().setUp()
-        os.environ[DLMasterConstant.PG_STRATEGY_ENV] = "SPREAD"
-        self.init_ray_safely()
+def test_submit():
+    fake_master = MagicMock(PrimeMasterRemote)
+    fake_master.get_status.return_value.stage = MasterStage.STOPPED
 
-    def tearDown(self):
-        self.close_ray_safely()
-        super().tearDown()
+    job = elastic_training_job()
 
-    def test_driver_all(self):
-        args = [
-            "--job_name",
-            "test",
-            "--master_cpu",
-            "1",
-            "--master_memory",
-            "100",
-            "--dl_type",
-            "RL",
-            "--dl_config",
-            f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
-        ]
+    with ExitStack() as stack:
+        stack.enter_context(patch("ray.is_initialized", return_value=True))
+        mock_create = stack.enter_context(
+            patch(
+                "dlrover.python.unified.controller.master.PrimeMaster.create"
+            )
+        )
+        mock_create.return_value = fake_master
+        ret = submit(job)
+        assert mock_create.called
+        assert ret is fake_master.get_status.return_value.exit_code
 
-        main(args)
-        self.assertIsNotNone(ray.get_actor("DLMaster-test"))
 
-    def test_driver_all_with_ray_init(self):
-        self.close_ray_safely()
+def test_submit_init():
+    fake_master = MagicMock(PrimeMasterRemote)
+    fake_master.get_status.return_value.stage = MasterStage.STOPPED
 
-        args = [
-            "--job_name",
-            "test",
-            "--master_cpu",
-            "1",
-            "--master_memory",
-            "100",
-            "--dl_type",
-            "RL",
-            "--dl_config",
-            f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
-        ]
+    job = elastic_training_job()
 
-        main(args, ray_address="test")
-        self.assertIsNotNone(ray.get_actor("DLMaster-test"))
+    with ExitStack() as stack:
+        stack.enter_context(patch("ray.is_initialized", return_value=False))
+        mock_init = stack.enter_context(patch("ray.init", return_value=None))
+        mock_create = stack.enter_context(
+            patch(
+                "dlrover.python.unified.controller.master.PrimeMaster.create"
+            )
+        )
+        mock_create.return_value = fake_master
+        ret = submit(job)
+        assert mock_init.called
+        assert mock_init.call_args.kwargs["runtime_env"] is not None
+        assert (
+            mock_init.call_args.kwargs["runtime_env"]["working_dir"]
+            is not None
+        )
+
+        assert mock_create.called
+        assert ret is fake_master.get_status.return_value.exit_code
+
+
+def test_driver_help():
+    with pytest.raises(SystemExit):
+        main(["--help"])
+
+
+def test_driver():
+    with patch("dlrover.python.unified.driver.main.submit") as mock_submit:
+        job = elastic_training_job()
+        main(
+            [
+                "--job_name",
+                "test",
+                "--master_cpu",
+                "1",
+                "--master_memory",
+                "100",
+                "--dl_config",
+                job.dl_config.model_dump_json(),
+            ]
+        )
+        assert mock_submit.called
+        config = mock_submit.call_args.kwargs["config"]
+
+        assert isinstance(config, JobConfig)
+        assert config.job_name == "test"
+        assert config.master_cpu == 1
+        assert config.master_mem == 100
+        assert config.dl_config == job.dl_config

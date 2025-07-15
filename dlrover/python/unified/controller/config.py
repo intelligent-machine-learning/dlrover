@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import MasterStateBackendType
@@ -109,7 +109,11 @@ class JobConfig(BaseModel):
     job_name: str = Field(description="Name of the job.")
     dl_config: DLConfig = Field()
     master_cpu: int = 1  # in cores
-    master_mem: int = 128  # in MiB
+    master_mem: int = Field(
+        default=128,
+        description="Memory (in MB) for the master actor.",
+        validation_alias=AliasChoices("master_memory", "master_mem"),
+    )
     master_state_backend_type: MasterStateBackendType = Field(
         default=MasterStateBackendType.RAY_INTERNAL,
         description="The type of the master state backend.",
