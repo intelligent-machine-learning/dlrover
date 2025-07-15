@@ -69,6 +69,7 @@ except ImportError:
     logger.info("Run the master locally.")
     pass
 
+
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
