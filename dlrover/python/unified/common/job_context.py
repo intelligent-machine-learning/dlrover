@@ -25,7 +25,6 @@ from dlrover.python.unified.master.graph import DLExecutionGraph
 
 @dataclass
 class RestartInfo(object):
-
     restart_time: int = 0
     with_failover: bool = True
     reason: str = ""

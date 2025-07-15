@@ -19,9 +19,7 @@ from dlrover.trainer.tensorflow.executor.base_executor import BaseExecutor
 
 class BaseExecutorTest(unittest.TestCase):
     def test_get_cluster_info_by_tf_config(self):
-        os.environ[
-            "TF_CONFIG"
-        ] = '{"cluster": { \
+        os.environ["TF_CONFIG"] = '{"cluster": { \
             "ps": ["web04-pod2.default.svc:5002"],\
             "chief":["p1.default.svc:5001"],\
             "worker": ["web04-pod1.default.svc:5000"]},\
@@ -63,9 +61,7 @@ class BaseExecutorTest(unittest.TestCase):
         )
 
     def test_get_chief_config(self):
-        os.environ[
-            "TF_CONFIG"
-        ] = '{"cluster": { \
+        os.environ["TF_CONFIG"] = '{"cluster": { \
             "ps": ["web04-pod2.default.svc:5002"],\
             "chief":["p1.default.svc:5001"],\
             "worker": ["web04-pod1.default.svc:5000"]},\
@@ -91,9 +87,7 @@ class BaseExecutorTest(unittest.TestCase):
         self.assertEqual(estimator_run_config._task_id, 0)
 
     def test_get_worker_config(self):
-        os.environ[
-            "TF_CONFIG"
-        ] = '{"cluster": { \
+        os.environ["TF_CONFIG"] = '{"cluster": { \
             "ps": ["web04-pod2.default.svc:5002"],\
             "chief":["p1.default.svc:5001"],\
             "worker": ["web04-pod1.default.svc:5000"]},\

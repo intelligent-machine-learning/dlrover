@@ -66,7 +66,6 @@ class CustomHTTPServer(abc.ABC):
 
 
 class TornadoHTTPServer(CustomHTTPServer):
-
     SERVING_THREAD_NAME = "http-server-serving-thread"
 
     def __init__(self, address, port, handler_class):

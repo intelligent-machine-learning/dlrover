@@ -66,8 +66,7 @@ class EventReporter(Singleton):
             labels_str = json.dumps(labels)
 
         logger.info(
-            f"[{time_str}][{event_type}][{instance}]"
-            f"[{action}][{msg}][{labels_str}]"
+            f"[{time_str}][{event_type}][{instance}][{action}][{msg}][{labels_str}]"
         )
 
     # ================ Master Start ================

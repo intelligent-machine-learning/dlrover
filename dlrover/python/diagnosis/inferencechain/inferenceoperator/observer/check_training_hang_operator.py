@@ -51,8 +51,7 @@ class CheckTrainingHangOperator(InferenceOperator):
     def infer(self, inferences: List[Inference]) -> List[Inference]:
         if not self.data_manager:
             logger.info(
-                "Skip training-hang inference for there is "
-                "no diagnosis data."
+                "Skip training-hang inference for there is no diagnosis data."
             )
             return [
                 Inference(

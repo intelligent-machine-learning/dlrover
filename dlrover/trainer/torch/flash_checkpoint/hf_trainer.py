@@ -274,8 +274,7 @@ class FlashCkptTrainer(Trainer):
         # They can then be reloaded using `from_pretrained()`
         if self.args.save_safetensors:
             logger.warn(
-                "Flash checkpoint does not support safatensors "
-                "and torch.save is used."
+                "Flash checkpoint does not support safatensors and torch.save is used."
             )
         if not isinstance(self.model, supported_classes):
             if state_dict is None:

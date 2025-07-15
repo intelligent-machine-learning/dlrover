@@ -77,16 +77,14 @@ def _build_job_args_parser():
         "--master_cpu",
         default=2,
         type=pos_int,
-        help="The number of cpu for the dlrover master actor. "
-        "Default is 2.",
+        help="The number of cpu for the dlrover master actor. Default is 2.",
     )
     parser.add_argument(
         "--master_mem",
         "--master_memory",
         default=4096,
         type=pos_int,
-        help="The size of memory(mb) for the dlrover master actor. "
-        "Default is 4096.",
+        help="The size of memory(mb) for the dlrover master actor. Default is 4096.",
     )
     parser.add_argument(
         "--master_state_backend_type",
@@ -108,8 +106,7 @@ def _build_job_args_parser():
         "--scheduling_strategy_type",
         default=SchedulingStrategyType.AUTO.value,
         type=_parse_scheduling_strategy_type,
-        help="The scheduling strategy type for the dlrover master to "
-        "create workloads.",
+        help="The scheduling strategy type for the dlrover master to create workloads.",
     )
     parser.add_argument(
         "--job_max_restart",

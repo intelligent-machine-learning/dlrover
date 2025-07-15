@@ -27,8 +27,7 @@ def get_log_file_path_from_env():
 DEFAULT_LEVEL = logging.INFO
 
 DEFAULT_FORMATTER = logging.Formatter(
-    "[%(asctime)s] [%(levelname)s]"
-    "[%(filename)s:%(lineno)d:%(funcName)s] %(message)s"
+    "[%(asctime)s] [%(levelname)s][%(filename)s:%(lineno)d:%(funcName)s] %(message)s"
 )
 
 

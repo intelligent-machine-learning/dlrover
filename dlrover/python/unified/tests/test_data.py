@@ -13,7 +13,6 @@
 
 
 class TestData(object):
-
     UD_SIMPLE_MOCK_RL_CONF = {
         "config": {"c1": "v1"},
         "trainer": {

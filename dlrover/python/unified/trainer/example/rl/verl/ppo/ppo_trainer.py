@@ -122,9 +122,9 @@ class PPOTrainer(BaseRLTrainer):
         real_train_batch_size = (
             config.data.train_batch_size * config.actor_rollout_ref.rollout.n
         )
-        assert (
-            real_train_batch_size % n_gpus == 0
-        ), f"real_train_batch_size ({real_train_batch_size}) must be divisible by total n_gpus ({n_gpus})."
+        assert real_train_batch_size % n_gpus == 0, (
+            f"real_train_batch_size ({real_train_batch_size}) must be divisible by total n_gpus ({n_gpus})."
+        )
 
         # A helper function to check "micro_batch_size" vs "micro_batch_size_per_gpu"
         # We throw an error if the user sets both. The new convention is "..._micro_batch_size_per_gpu".
@@ -224,7 +224,9 @@ class PPOTrainer(BaseRLTrainer):
             "seq-mean-token-sum",
             "seq-mean-token-mean",
             "seq-mean-token-sum-norm",
-        ], f"Invalid loss_agg_mode: {config.actor_rollout_ref.actor.loss_agg_mode}"
+        ], (
+            f"Invalid loss_agg_mode: {config.actor_rollout_ref.actor.loss_agg_mode}"
+        )
 
         if (
             config.algorithm.use_kl_in_reward
@@ -258,15 +260,15 @@ class PPOTrainer(BaseRLTrainer):
             )
             > 1
         ):
-            assert (
-                config.actor_rollout_ref.model.use_remove_padding
-            ), "When using sequence parallelism for actor/ref policy, you must enable `use_remove_padding`."
+            assert config.actor_rollout_ref.model.use_remove_padding, (
+                "When using sequence parallelism for actor/ref policy, you must enable `use_remove_padding`."
+            )
 
         if self.critics and config.critic.strategy == "fsdp":
             if config.critic.get("ulysses_sequence_parallel_size", 1) > 1:
-                assert (
-                    config.critic.model.use_remove_padding
-                ), "When using sequence parallelism for critic, you must enable `use_remove_padding`."
+                assert config.critic.model.use_remove_padding, (
+                    "When using sequence parallelism for critic, you must enable `use_remove_padding`."
+                )
 
         if config.data.get("val_batch_size", None) is not None:
             print(
@@ -277,16 +279,18 @@ class PPOTrainer(BaseRLTrainer):
 
         # check eval config
         if config.actor_rollout_ref.rollout.val_kwargs.do_sample:
-            assert (
-                config.actor_rollout_ref.rollout.temperature > 0
-            ), "validation gen temperature should be greater than 0 when enabling do_sample"
+            assert config.actor_rollout_ref.rollout.temperature > 0, (
+                "validation gen temperature should be greater than 0 when enabling do_sample"
+            )
 
         # check multi_turn with tool config
         if config.actor_rollout_ref.rollout.multi_turn.enable:
             assert (
                 config.actor_rollout_ref.rollout.multi_turn.tool_config_path
                 is not None
-            ), "tool_config_path must be set when enabling multi_turn with tool, due to no role-playing support"
+            ), (
+                "tool_config_path must be set when enabling multi_turn with tool, due to no role-playing support"
+            )
             assert config.algorithm.adv_estimator in [
                 AdvantageEstimator.GRPO
             ], "only GRPO is tested for multi-turn with tool"
@@ -373,9 +377,7 @@ class PPOTrainer(BaseRLTrainer):
                 if OmegaConf.select(
                     self.config, "actor_rollout_ref.actor.optim"
                 ):
-                    self.config.actor_rollout_ref.actor.optim.total_training_steps = (
-                        total_training_steps
-                    )
+                    self.config.actor_rollout_ref.actor.optim.total_training_steps = total_training_steps
                 if OmegaConf.select(self.config, "critic.optim"):
                     self.config.critic.optim.total_training_steps = (
                         total_training_steps
@@ -553,9 +555,9 @@ class PPOTrainer(BaseRLTrainer):
             )
 
         for key_info, lst in reward_extra_infos_dict.items():
-            assert len(lst) == 0 or len(lst) == len(
-                sample_scores
-            ), f"{key_info}: {len(lst)=}, {len(sample_scores)=}"
+            assert len(lst) == 0 or len(lst) == len(sample_scores), (
+                f"{key_info}: {len(lst)=}, {len(sample_scores)=}"
+            )
 
         data_sources = np.concatenate(data_source_lst, axis=0)
 
@@ -715,9 +717,9 @@ class PPOTrainer(BaseRLTrainer):
                 return 0
         else:
             if self.config.trainer.resume_mode == "resume_path":
-                assert isinstance(
-                    self.config.trainer.resume_from_path, str
-                ), "resume ckpt must be str type"
+                assert isinstance(self.config.trainer.resume_from_path, str), (
+                    "resume ckpt must be str type"
+                )
                 assert (
                     "global_step_" in self.config.trainer.resume_from_path
                 ), "resume ckpt must specify the global_steps"
@@ -900,9 +902,9 @@ class PPOTrainer(BaseRLTrainer):
                                 )
                             )
 
-                            batch.batch[
-                                "reward_baselines"
-                            ] = reward_baseline_tensor
+                            batch.batch["reward_baselines"] = (
+                                reward_baseline_tensor
+                            )
 
                             del gen_baseline_batch, gen_baseline_output
 
@@ -1041,9 +1043,7 @@ class PPOTrainer(BaseRLTrainer):
                     if self.config.trainer.critic_warmup <= self.global_steps:
                         # update actor
                         with _timer("update_actor", timing_raw):
-                            batch.meta_info[
-                                "multi_turn"
-                            ] = (
+                            batch.meta_info["multi_turn"] = (
                                 self.config.actor_rollout_ref.rollout.multi_turn.enable
                             )
                             actor_output = self.RG_ACTOR.update_actor(batch)

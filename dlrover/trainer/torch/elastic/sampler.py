@@ -97,9 +97,7 @@ class ElasticDistributedSampler(DistributedSampler):
             indices = indices[:total_size]
         assert len(indices) == total_size
 
-        # fmt: off
-        indices = indices[self.rank:self.total_size:self.num_replicas]
-        # fmt: on
+        indices = indices[self.rank : self.total_size : self.num_replicas]
         assert len(indices) == self.num_samples
 
         return iter(indices)

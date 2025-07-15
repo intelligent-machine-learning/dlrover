@@ -66,7 +66,6 @@ class MemoryStoreManager(StoreManager):
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
-
         if not hasattr(MemoryStoreManager, "_instance"):
             with MemoryStoreManager._instance_lock:
                 if not hasattr(MemoryStoreManager, "_instance"):

@@ -62,7 +62,7 @@ class BaseMaster(ABC):
         self._job_manager = None
 
         logger.info(
-            f"DLRover Master: {({self.__class__.__name__})} initiated with "
+            f"DLRover Master: { ({self.__class__.__name__}) } initiated with "
             f"job-config: {self._job_config}, "
             f"dl-context: {self._dl_context}."
         )
@@ -151,8 +151,7 @@ class BaseMaster(ABC):
             context_from_ckpt = self._load_context_from_checkpoint()
             if context_from_ckpt:
                 logger.info(
-                    "DLMaster recover from checkpoint, "
-                    f"context: {context_from_ckpt}."
+                    f"DLMaster recover from checkpoint, context: {context_from_ckpt}."
                 )
                 self._job_context = context_from_ckpt
                 self._handle_failures(self._gen_master_failure())
@@ -206,8 +205,7 @@ class BaseMaster(ABC):
 
     def exit_job(self, stage=None, need_cleanup=True, forced=False, reason=""):
         logger.info(
-            f"DLMaster exit job with cleanup: {need_cleanup}, "
-            f"reason: {reason}."
+            f"DLMaster exit job with cleanup: {need_cleanup}, reason: {reason}."
         )
         if not stage:
             self._update_job_stage(JobStage.FINISHED)

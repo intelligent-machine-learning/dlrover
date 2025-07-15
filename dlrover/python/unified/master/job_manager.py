@@ -146,8 +146,7 @@ class JobManager(ABC):
             for create_vertex in self.graph.get_all_vertices()
         ):
             logger.info(
-                "Still waiting actor creation callback for "
-                "updating runtime info..."
+                "Still waiting actor creation callback for updating runtime info..."
             )
             return False
         return True
@@ -192,8 +191,7 @@ class JobManager(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actors "
-                f"setup timeout: {timeout}s."
+                f"{len(not_ready)} workload actors setup timeout: {timeout}s."
             )
 
         end = time.time() * 1000 - start
@@ -203,8 +201,7 @@ class JobManager(ABC):
 
     def execute(self, **kwargs):
         logger.debug(
-            f"{self.__class__.__name__} invoke executor "
-            f"with kwargs: {kwargs}"
+            f"{self.__class__.__name__} invoke executor with kwargs: {kwargs}"
         )
         self.executor.execute(**kwargs)
 
