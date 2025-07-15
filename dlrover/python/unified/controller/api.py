@@ -18,7 +18,7 @@ from typing import List, Protocol
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_helper import ActorProxy
 
-MASTER_ACTOR_ID = "__prime_master__"
+MASTER_ACTOR_NAME = "__prime_master__"
 
 
 @dataclass
@@ -58,7 +58,7 @@ class PrimeMasterRemote(Protocol):
 
 
 PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
-    MASTER_ACTOR_ID,
+    MASTER_ACTOR_NAME,
     cls=PrimeMasterRemote,  # type:ignore[type-abstract]
     lazy=True,
 )

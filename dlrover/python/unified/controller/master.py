@@ -20,7 +20,7 @@ from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import (
-    MASTER_ACTOR_ID,
+    MASTER_ACTOR_NAME,
     MasterStatus,
     PrimeMasterApi,
     PrimeMasterRemote,
@@ -33,9 +33,11 @@ init_coverage()  # support coverage for master actor
 
 class PrimeMaster(PrimeMasterRemote):
     def __init__(self, config: JobConfig):
-        assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
+        assert (
+            ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_NAME
+        ), (
             f"PrimeMaster must be initialized as a Ray actor "
-            f"with the name '{MASTER_ACTOR_ID}'."
+            f"with the name '{MASTER_ACTOR_NAME}'."
         )
 
         self.manager = PrimeManager(config)
@@ -48,7 +50,7 @@ class PrimeMaster(PrimeMasterRemote):
         await self.manager.start()
 
     async def stop(self):
-        await self.manager.stop("User requested stop.")
+        await self.manager.stop("Requested stop.")
 
     async def shutdown(self):
         ray.actor.exit_actor()
@@ -77,7 +79,7 @@ class PrimeMaster(PrimeMasterRemote):
         ref = (
             ray.remote(PrimeMaster)
             .options(
-                name=MASTER_ACTOR_ID,
+                name=MASTER_ACTOR_NAME,
                 lifetime="detached" if detached else "normal",
                 num_cpus=config.master_cpu,
                 memory=config.master_mem,

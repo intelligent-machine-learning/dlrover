@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ray.actor import ActorClass
 from ray.util.placement_group import PlacementGroup, placement_group
@@ -51,7 +51,7 @@ class RayActorSpec:
 class Scheduler:
     def __init__(self, config: JobConfig) -> None:
         self._config = config
-        self._pg = None  # Placement group for actors
+        self._pg: Optional[PlacementGroup] = None  # Placement group for actors
 
     def allocate_placement_group(self, graph: DLExecutionGraph):
         """Allocate placement group for all actors.
