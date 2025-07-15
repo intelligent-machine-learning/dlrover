@@ -215,8 +215,9 @@ def test_batch_invoke_result_with_failure():
 
     assert batch["a"] == "ok"
     assert batch[0] == "ok"
-    with pytest.raises(Exception, check=lambda e: e is results[1]):
+    with pytest.raises(Exception) as exc_info:
         _ = batch[1]
+    assert exc_info.value is results[1]
 
     assert batch.all_failed() == [("b", results[1])]
     with pytest.raises(Exception):
