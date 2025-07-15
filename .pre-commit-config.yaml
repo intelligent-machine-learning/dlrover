@@ -1,21 +1,17 @@
 ---
 exclude: '^atorch/|^tfplus/^|xpu_timer/'
 repos:
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.12.3
     hooks:
-      - id: isort
+      # Run the linter.
+      - id: ruff-check
+        args: [--fix]
         exclude: dlrover/proto/|dlrover/python/unified/trainer/example/
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
+      # Run the formatter.
+      - id: ruff-format
         args: [--line-length=79]
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.2.3
-    hooks:
-      - id: flake8
-        exclude: dlrover/proto/|dlrover/python/unified/trainer/example/
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.16.1
     hooks:

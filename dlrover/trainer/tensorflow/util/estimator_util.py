@@ -187,7 +187,6 @@ def append_hooks(estimator_spec, key, params):
 
 
 def hook_estimator_call_model_fn(params=None):
-
     estimator_call_model_fn = Estimator._call_model_fn
 
     def dlrover_call_model_fn(*args, **kwargs):

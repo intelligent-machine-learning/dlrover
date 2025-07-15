@@ -112,8 +112,7 @@ def get_critical_worker_index(params: JobArgs):
         return critical_worker_index
     except Exception as e:
         logger.warning(
-            f"Invalid worker params: {worker_params.__dict__}, "
-            f"error: {str(e)}"
+            f"Invalid worker params: {worker_params.__dict__}, error: {str(e)}"
         )
         return {}
 
@@ -146,8 +145,7 @@ def reduce_timeout_pending_node_resource(node: Node):
     if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
         node.config_resource.cpu = new_cpu
         logger.info(
-            "Pod %s pending time %s beyonds %s."
-            "Delete and relaunch it with CPU %s",
+            "Pod %s pending time %s beyonds %s.Delete and relaunch it with CPU %s",
             node.name,
             pending_time,
             pending_timeout,
@@ -160,8 +158,7 @@ def reduce_timeout_pending_node_resource(node: Node):
     if new_memory > NodeResourceLimit.MIN_MEMORY:
         node.config_resource.memory = new_memory
         logger.info(
-            "Pod %s pending time %s beyonds %s."
-            "Delete and relaunch it with memory %s",
+            "Pod %s pending time %s beyonds %s.Delete and relaunch it with memory %s",
             node.name,
             pending_time,
             pending_timeout,
@@ -211,7 +208,8 @@ class TrainingNodeManager(object):
         if len(self._pending_nodes) == 0:
             return ""
         first_pending_node = min(
-            self._pending_nodes, key=lambda x: x.create_time  # type: ignore
+            self._pending_nodes,
+            key=lambda x: x.create_time,  # type: ignore
         )
         return first_pending_node.name
 

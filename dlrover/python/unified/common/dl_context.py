@@ -467,8 +467,7 @@ class DLContext(PickleSerializable):
             else:
                 if not self.trainer.module_name or not self.trainer.class_name:
                     logger.error(
-                        "Trainer mandatory arguments: module or class "
-                        "has empty value."
+                        "Trainer mandatory arguments: module or class has empty value."
                     )
                     return False
                 if not get_class_by_module_and_class_name(

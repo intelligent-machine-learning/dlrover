@@ -461,8 +461,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             )
         else:
             logger.info(
-                "Skip optimizing PS, because the interval"
-                "to change ps is too short."
+                "Skip optimizing PS, because the intervalto change ps is too short."
             )
             return ResourcePlan()
         if not plan.empty():

@@ -640,8 +640,7 @@ class DistributedJobManager(JobManager):
                     not in [node.id for node in exist_nodes[node_type]]
                 ):
                     logger.info(
-                        f"Node {node_type} {node.id} is deleted "
-                        "without the event"
+                        f"Node {node_type} {node.id} is deleted without the event"
                     )
                     new_node = copy.deepcopy(node)
                     new_node.is_released = True
@@ -911,8 +910,7 @@ class DistributedJobManager(JobManager):
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
                 logger.warning(
-                    f"Disable {node.name}/{node.id} relaunch "
-                    f"when job is stopping."
+                    f"Disable {node.name}/{node.id} relaunch when job is stopping."
                 )
             elif (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
@@ -961,10 +959,7 @@ class DistributedJobManager(JobManager):
                         f"has been exhausted for node: {node.name}."
                     )
                     should_relaunch = False
-                    msg = (
-                        f"{node.relaunch_count} "
-                        f"exhausted {node.max_relaunch_count}"
-                    )
+                    msg = f"{node.relaunch_count} exhausted {node.max_relaunch_count}"
 
         if should_relaunch:
             node.relaunch_count += 1
@@ -1334,8 +1329,7 @@ class DistributedJobManager(JobManager):
             target_node = self._job_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported "
-                    f"status to {event_type}."
+                    f"Node {node_id}({node_type}) reported status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self._job_context.update_job_node(target_node)
@@ -1355,8 +1349,7 @@ class DistributedJobManager(JobManager):
 
     def _handle_node_error(self, node: Node, error_data: str):
         logger.info(
-            f"{node.name} on {node.host_name} is down. "
-            f"Reason: {error_data}"
+            f"{node.name} on {node.host_name} is down. Reason: {error_data}"
         )
         if self._job_args.cordon_fault_node:
             succeed = self._k8s_client.cordon_node(node.host_name)

@@ -95,8 +95,7 @@ class DiagnosisManager:
     def start_data_collection(self):
         with self._lock:
             logger.info(
-                "Start periodical data collectors: "
-                f"{self._periodical_collector}"
+                f"Start periodical data collectors: {self._periodical_collector}"
             )
             for collector, time_interval in self._periodical_collector.items():
                 try:

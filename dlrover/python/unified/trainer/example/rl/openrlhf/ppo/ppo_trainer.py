@@ -70,8 +70,7 @@ class PPOTrainer(BaseRLTrainer):
                     rollout_actor.init.remote(
                         model=args.pretrain,
                         enforce_eager=args.enforce_eager,
-                        worker_cls="openrlhf.trainer.ray.vllm_worker_wrap."
-                        "WorkerWrap",
+                        worker_cls="openrlhf.trainer.ray.vllm_worker_wrap.WorkerWrap",
                         tensor_parallel_size=args.vllm_tensor_parallel_size,
                         seed=seed,
                         distributed_executor_backend="ray",

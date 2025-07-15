@@ -135,13 +135,12 @@ class MasterClient(Singleton, ABC):
             return response.success
         except IndexError:
             logger.warning(
-                f"IndexError in kv_store_multi_set: "
-                f"{keys}, {values} are inconsistent"
+                f"IndexError in kv_store_multi_set: {keys}, {values} are inconsistent"
             )
             raise
         except Exception:
             logger.warning(
-                f"Unexpected error in kv_store_multi_set: " f"{keys}, {values}"
+                f"Unexpected error in kv_store_multi_set: {keys}, {values}"
             )
             raise
 
@@ -257,8 +256,7 @@ class MasterClient(Singleton, ABC):
         )
         if action_cls is None:
             logger.warning(
-                "Invalid diagnosis action "
-                f"action type: {response.action.action_cls}"
+                f"Invalid diagnosis action action type: {response.action.action_cls}"
             )
         else:
             action = action_cls.from_json(response.action.action_content)
@@ -586,10 +584,7 @@ class HttpMasterClient(MasterClient):
             json=self._gen_request(message).to_json(),
         ) as response:
             if response.status_code != 200:
-                error_msg = (
-                    "Failed to report master "
-                    f"with http request: {type(message)}."
-                )
+                error_msg = f"Failed to report master with http request: {type(message)}."
                 raise RuntimeError(error_msg)
             response_data: BaseResponse = comm.deserialize_message(
                 response.content
@@ -603,10 +598,7 @@ class HttpMasterClient(MasterClient):
             json=self._gen_request(message).to_json(),
         ) as response:
             if response.status_code != 200:
-                error_msg = (
-                    "Failed to get from master "
-                    f"with http request: {type(message)}."
-                )
+                error_msg = f"Failed to get from master with http request: {type(message)}."
                 raise RuntimeError(error_msg)
             response_data: BaseResponse = comm.deserialize_message(
                 response.content

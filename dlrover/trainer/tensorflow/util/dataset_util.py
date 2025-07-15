@@ -35,7 +35,6 @@ class DatasetUtil(object):
         epoch=10,
         field_delim=",",
     ):
-
         self.columns = columns
         self._batch_size = batch_size
         self._epoch = epoch

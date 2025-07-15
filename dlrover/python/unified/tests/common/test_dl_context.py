@@ -28,8 +28,7 @@ from dlrover.python.unified.tests.test_data import TestData
 
 class DLContextTest(BaseTest):
     @patch(
-        "dlrover.python.unified.common.dl_context"
-        ".get_class_by_module_and_class_name"
+        "dlrover.python.unified.common.dl_context.get_class_by_module_and_class_name"
     )
     def test_building(self, mock_get_class):
         # with valid input

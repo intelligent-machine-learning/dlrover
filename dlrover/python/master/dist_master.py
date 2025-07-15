@@ -319,8 +319,7 @@ class DistributedJobMaster(JobMaster):
                         and self.task_manager.is_dataset_initialized(True)
                     ):
                         logger.warning(
-                            "All workers exited but there also are "
-                            "unfinished tasks",
+                            "All workers exited but there also are unfinished tasks",
                         )
                     break
 
@@ -395,14 +394,12 @@ class DistributedJobMaster(JobMaster):
         if success:
             self._exit_code = 0
             logger.info(
-                f"Request to stop. Success: {success}, reason: {reason}, "
-                f"msg: {msg}."
+                f"Request to stop. Success: {success}, reason: {reason}, msg: {msg}."
             )
         else:
             self._exit_code = 1
             logger.error(
-                f"Request to stop. Success: {success}, reason: {reason}, "
-                f"msg: {msg}."
+                f"Request to stop. Success: {success}, reason: {reason}, msg: {msg}."
             )
 
         action = EventReportConstants.ACTION_STOP

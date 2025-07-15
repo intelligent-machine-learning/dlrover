@@ -378,8 +378,7 @@ class DLJobBuilder(object):
             if component:
                 if not component._module_name or not component._class_name:
                     logger.error(
-                        f"{role}'s 'module_name' and 'class_name' "
-                        "cannot be empty."
+                        f"{role}'s 'module_name' and 'class_name' cannot be empty."
                     )
                     return False
 
@@ -392,8 +391,7 @@ class DLJobBuilder(object):
                         component.others.get("run_cmd")
                     ):
                         logger.error(
-                            "dlrover-run command is invalid for "
-                            "elastic training."
+                            "dlrover-run command is invalid for elastic training."
                         )
                         return False
                 elif (
@@ -437,8 +435,7 @@ class DLJobBuilder(object):
                         collocations_set.add(role)
                     else:
                         logger.error(
-                            "The same role can only be defined once "
-                            "in 'collocation'."
+                            "The same role can only be defined once in 'collocation'."
                         )
                         return False
 

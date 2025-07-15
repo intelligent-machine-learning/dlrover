@@ -163,7 +163,7 @@ class TrainerProcess(CommonPredefined):
         global_step: int,
         path: str = "",
         size: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         persist_ckpt event used in async checkpoint saving. stands

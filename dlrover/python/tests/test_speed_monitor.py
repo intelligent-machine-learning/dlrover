@@ -25,8 +25,8 @@ class SpeedMonitorTest(unittest.TestCase):
         monitor.add_running_worker(NodeType.WORKER, 0)
         monitor.add_running_worker(NodeType.WORKER, 1)
         monitor.collect_global_step(1, 1)
-        monitor.collect_global_step(301, 11),
-        monitor.collect_global_step(9001, 301),
+        (monitor.collect_global_step(301, 11),)
+        (monitor.collect_global_step(9001, 301),)
         self.assertEqual(monitor.completed_global_step, 9001)
         self.assertTrue(monitor.worker_adjustment_finished())
         self.assertEqual(monitor.running_speed, 30)

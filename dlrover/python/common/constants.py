@@ -165,10 +165,7 @@ class NodeExitReason(object):
 
 
 class NodeExitDescription(object):
-    CHECK_FAILED_MSG = (
-        "This node failed the node-check "
-        "procedure(mat-mul + comm) before training."
-    )
+    CHECK_FAILED_MSG = "This node failed the node-check procedure(mat-mul + comm) before training."
 
 
 class JobExitReason(object):

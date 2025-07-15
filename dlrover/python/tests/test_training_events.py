@@ -576,24 +576,21 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(_event_context.check_job_step_hang(), False)
 
         with patch(
-            "dlrover.python.common.event.context."
-            "StepEvents.last_steps_avg_time"
+            "dlrover.python.common.event.context.StepEvents.last_steps_avg_time"
         ) as mock_method:
             mock_method.return_value = 20
             self.assertEqual(_event_context.check_job_step_hang(), False)
             self.assertEqual(_event_context.hang_threshold, 200)
 
         with patch(
-            "dlrover.python.common.event.context."
-            "StepEvents.last_steps_avg_time"
+            "dlrover.python.common.event.context.StepEvents.last_steps_avg_time"
         ) as mock_method:
             mock_method.return_value = 500
             self.assertEqual(_event_context.check_job_step_hang(), False)
             self.assertEqual(_event_context.hang_threshold, 600)
 
         with patch(
-            "dlrover.python.common.event.context."
-            "StepEvents.last_steps_avg_time"
+            "dlrover.python.common.event.context.StepEvents.last_steps_avg_time"
         ) as mock_method:
             mock_method.return_value = 10
             self.assertEqual(_event_context.check_job_step_hang(), False)

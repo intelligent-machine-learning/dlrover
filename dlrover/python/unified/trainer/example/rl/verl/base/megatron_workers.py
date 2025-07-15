@@ -24,13 +24,11 @@ import torch
 import torch.distributed
 from codetiming import Timer
 from dlrover.python.unified.trainer.example.verl.base.decorator import (
-    Dispatch,
     collect_megatron_compute_data_proto,
     collect_megatron_pp_as_dp_data_proto,
     dispatch_megatron_compute_data_proto,
     dispatch_megatron_pp_as_dp_data_proto,
     dispatch_one_to_all,
-    register,
 )
 from dlrover.python.unified.trainer.example.verl.base.worker import (
     MegatronWorker,
@@ -268,9 +266,9 @@ class ActorRolloutRefWorker(MegatronWorker):
 
             infer_tp = self.config.rollout.tensor_model_parallel_size
             dp = self.world_size // infer_tp
-            assert (
-                self.world_size % infer_tp == 0
-            ), f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
+            assert self.world_size % infer_tp == 0, (
+                f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
+            )
             rollout_device_mesh = init_device_mesh(
                 "cuda",
                 mesh_shape=(dp, infer_tp),

@@ -90,8 +90,7 @@ class SyncService(object):
             if worker in self._sync_objs_target[sync_name]:
                 self._sync_objs_target[sync_name].remove(worker)
                 logger.info(
-                    "{} not running, removed from {}. "
-                    "Remaining {}".format(
+                    "{} not running, removed from {}. Remaining {}".format(
                         worker,
                         sync_name,
                         self._sync_objs_target[sync_name],

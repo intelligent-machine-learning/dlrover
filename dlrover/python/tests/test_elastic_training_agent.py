@@ -1077,12 +1077,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
     @patch(
-        "dlrover.python.elastic_agent.master_client"
-        ".MasterClient.report_failed_exited"
+        "dlrover.python.elastic_agent.master_client.MasterClient.report_failed_exited"
     )
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_node_status_report(self, mock_run, mock_report_failed_exited):
         config = ElasticLaunchConfig(1, 1, 1)
@@ -1108,8 +1106,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             mock_report_failed_exited.assert_called_once()
 
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_launch_agent(self, mock_run):
         config = ElasticLaunchConfig(1, 1, 1)

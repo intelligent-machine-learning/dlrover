@@ -447,7 +447,8 @@ class ParameterServerManager(TrainingNodeManager):
         if len(pending_ps) != 0:
             now = time.time()
             first_pending_ps = min(
-                pending_ps, key=lambda x: x.create_time  # type: ignore
+                pending_ps,
+                key=lambda x: x.create_time,  # type:ignore #notnull
             )
             if not first_pending_ps or not first_pending_ps.create_time:
                 logger.debug(
