@@ -150,8 +150,7 @@ def parse_args(args):
         "--auto_config",
         "--auto-config",
         action=check_env,
-        help="Whether to automatically configure the nnodes "
-        "and nproc_per_nodes.",
+        help="Whether to automatically configure the nnodes and nproc_per_nodes.",
     )
     parser.add_argument(
         "--auto_tunning",

@@ -162,8 +162,7 @@ class AtorchEventCollector(Singleton):
 
                 if self._first_step is not None and step != self._first_step:
                     logger.info(
-                        f"Report event: {ts} {target} {event_name} "
-                        f"{event_type} {step}"
+                        f"Report event: {ts} {target} {event_name} {event_type} {step}"
                     )
                     self._report_event(
                         ts, target, event_name, event_type, step

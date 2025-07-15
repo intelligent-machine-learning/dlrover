@@ -68,8 +68,7 @@ class CausalSelfAttention(nn.Module):
         )
         if not self.flash:
             print(
-                "WARNING: using slow attention. "
-                "Flash Attention requires PyTorch >= 2.0"
+                "WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0"
             )
             # causal mask to ensure that attention is only applied to
             # the left in the input sequence
@@ -85,9 +84,7 @@ class CausalSelfAttention(nn.Module):
             B,
             T,
             C,
-        ) = (
-            x.size()
-        )  # Batch size, sequence length, embedding dimensionality (n_embd)
+        ) = x.size()  # Batch size, sequence length, embedding dimensionality (n_embd)
 
         # Calculate query, key, values for all heads in batch and move
         # head forward to be the batch dim
@@ -356,9 +353,9 @@ class GPT(nn.Module):
         # Basically the openai checkpoints use a "Conv1D" module, but we
         # only want to use a vanilla Linear this means that we have to
         # transpose these weights when we import them
-        assert len(sd_keys_hf) == len(
-            sd_keys
-        ), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
+        assert len(sd_keys_hf) == len(sd_keys), (
+            f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
+        )
         for k in sd_keys_hf:
             if any(k.endswith(w) for w in transposed):
                 # special treatment for the Conv1D weights we need to

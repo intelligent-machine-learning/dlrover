@@ -724,8 +724,7 @@ class MasterServicer(ABC):
             )
             if data_cls is None:
                 logger.warning(
-                    "Invalid diagnosis report "
-                    f"data type: {message.data_cls}"
+                    f"Invalid diagnosis report data type: {message.data_cls}"
                 )
                 return False
             data_obj = data_cls.from_json(message.data_content)
@@ -769,8 +768,7 @@ class MasterServicer(ABC):
         )
         if action and not isinstance(action, NoAction):
             logger.info(
-                f"Master return action {action.__class__.__name__}: "
-                f"{action.to_json()}"
+                f"Master return action {action.__class__.__name__}: {action.to_json()}"
             )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,

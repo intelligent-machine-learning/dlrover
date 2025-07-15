@@ -35,9 +35,9 @@ class PSManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
         self._job_resource = JobResource()
-        self._job_resource.node_group_resources[
-            NodeType.PS
-        ] = NodeGroupResource(2, NodeResource(16, 2048))
+        self._job_resource.node_group_resources[NodeType.PS] = (
+            NodeGroupResource(2, NodeResource(16, 2048))
+        )
         self._elastic_job = new_elastic_job(
             PlatformType.KUBERNETES, "test", "default"
         )

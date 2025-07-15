@@ -19,7 +19,7 @@
 import itertools
 import math
 import os
-from typing import Callable, List
+from typing import Optional, Callable, List
 
 import ray
 import torch
@@ -246,9 +246,11 @@ class ActorModelRayActor(BasePPORole):
         critic_model: ray.actor.ActorHandle,
         initial_model: ray.actor.ActorHandle,
         reward_model: List[ray.actor.ActorHandle],
-        remote_rm_url: List[str] = None,
-        reward_fn: Callable[[List[torch.Tensor]], torch.Tensor] = None,
-        vllm_engines: List[ray.actor.ActorHandle] = None,
+        remote_rm_url: Optional[List[str]] = None,
+        reward_fn: Optional[
+            Callable[[List[torch.Tensor]], torch.Tensor]
+        ] = None,
+        vllm_engines: Optional[List[ray.actor.ActorHandle]] = None,
         critic_train_remote: bool = False,
     ):
         """Train actor model with prompt datasets."""

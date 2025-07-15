@@ -582,9 +582,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_gpu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
@@ -597,9 +597,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_npu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
@@ -1078,12 +1078,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
     @patch(
-        "dlrover.python.elastic_agent.master_client"
-        ".MasterClient.report_failed_exited"
+        "dlrover.python.elastic_agent.master_client.MasterClient.report_failed_exited"
     )
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_node_status_report(self, mock_run, mock_report_failed_exited):
         config = ElasticLaunchConfig(1, 1, 1)
@@ -1109,8 +1107,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             mock_report_failed_exited.assert_called_once()
 
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_launch_agent(self, mock_run):
         config = ElasticLaunchConfig(1, 1, 1)

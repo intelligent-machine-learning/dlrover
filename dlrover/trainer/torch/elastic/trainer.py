@@ -17,7 +17,7 @@ import socket
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
@@ -205,7 +205,7 @@ class ElasticTrainer(object):
     def __init__(
         self,
         model,
-        dataloader: ElasticDataLoader = None,
+        dataloader: Optional[ElasticDataLoader] = None,
     ):
         self.model = model
         self.dataloader = dataloader

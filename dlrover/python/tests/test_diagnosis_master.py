@@ -231,8 +231,7 @@ class DiagnosisMasterTest(unittest.TestCase):
         )
 
     @patch(
-        "dlrover.python.common.event.context.JobEventContext"
-        ".check_job_step_hang",
+        "dlrover.python.common.event.context.JobEventContext.check_job_step_hang",
     )
     def test_diagnose_metrics(self, mock_check_job_step_hang):
         mock_check_job_step_hang.return_value = True
@@ -319,8 +318,7 @@ class DiagnosisMasterTest(unittest.TestCase):
         _metric_context.clear_node_metrics()
 
     @patch(
-        "dlrover.python.master.diagnosis.diagnosis_master"
-        ".get_pre_check_timeout"
+        "dlrover.python.master.diagnosis.diagnosis_master.get_pre_check_timeout"
     )
     def test_pre_check(self, mock_get_pre_check_timeout):
         mock_get_pre_check_timeout.return_value = 2

@@ -233,7 +233,7 @@ class JobContext(Singleton):
         with self._locker:
             self._job_nodes = {}
 
-    def report_failed_node(self, node_id: Union[int, str] = None):
+    def report_failed_node(self, node_id: Optional[Union[int, str]] = None):
         if node_id is None:
             return
 

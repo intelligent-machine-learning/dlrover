@@ -383,8 +383,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 else:
                     if start_pending == 0:
                         logger.info(
-                            "The node is not in the world "
-                            "and waits for more nodes."
+                            "The node is not in the world and waits for more nodes."
                         )
                         start_pending = time.time()
                     time.sleep(JobConstant.RENDEZVOUS_DEFAULT_INTERVAL)
@@ -479,7 +478,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             finally:
                 rdzv_handler.shutdown()
         """
-        pass
+        return True
 
 
 class ElasticTrainingAgent(LocalElasticAgent):
@@ -552,8 +551,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     self._rank_cpu_affinity[rank] = get_gpu_affinity(rank)
                 logger.info(
-                    f"get rank {rank} affinity: "
-                    f"{self._rank_cpu_affinity[rank]}"
+                    f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
                 )
 
     @prof
@@ -857,8 +855,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _initialize_workers(self, worker_group, max_errors=3):
         logger.info(
-            "Start initializing "
-            f"training({self.__class__.__name__}) workers."
+            f"Start initializing training({self.__class__.__name__}) workers."
         )
         start_pending = 0
         err_cnt = 0
@@ -1116,20 +1113,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
             action.__class__ = NodeAction
             if action.action_type == DiagnosisActionType.RESTART_WORKER:
                 logger.info(
-                    f"Process diagnosis action: "
-                    f"{action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action.action_type} {action.instance}"
                 )
                 if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
                     self._remaining_failovers -= 1
                     logger.info(
-                        f"Decrement remaining FO to "
-                        f"{self._remaining_failovers}"
+                        f"Decrement remaining FO to {self._remaining_failovers}"
                     )
                 self._restart_workers(self._worker_group)
             elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
                 logger.info(
-                    f"Process diagnosis action: "
-                    f"{action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action.action_type} {action.instance}"
                 )
                 self._stop_workers(self._worker_group)
                 self._worker_group.state = WorkerState.FAILED
@@ -1321,16 +1315,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 barrier_timeout=self._exit_barrier_timeout,
             )
             logger.info(
-                f"Done waiting for other agents. Elapsed: "
-                f"{time.time() - start} seconds"
+                f"Done waiting for other agents. Elapsed: {time.time() - start} seconds"
             )
         except SignalException as e:
             logger.warning(f"Got termination signal: {e.sigval}")
             raise
         except Exception:
             logger.error(
-                f"Error waiting on exit barrier. Elapsed: "
-                f"{time.time() - start} seconds"
+                f"Error waiting on exit barrier. Elapsed: {time.time() - start} seconds"
             )
 
 
@@ -1821,8 +1813,7 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
             break
         else:
             logger.error(
-                "Network of the cluster is not available "
-                "because of abnormal node."
+                "Network of the cluster is not available because of abnormal node."
             )
     if success and config.comm_perf_test:
         comm_perf_check(config=config, entrypoint=entrypoint, args=cmd_args)

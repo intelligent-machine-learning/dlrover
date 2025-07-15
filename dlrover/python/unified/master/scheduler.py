@@ -135,9 +135,9 @@ class Scheduler(ABC):
                 if vertex.role in group_roles:
                     group_env_value = ",".join(r for r in group_roles)
                     break
-            runtime_env[env_key][
-                DLWorkloadEnv.DEVICE_COLLOCATION_GROUP
-            ] = group_env_value
+            runtime_env[env_key][DLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = (
+                group_env_value
+            )
 
         # setup ray cuda visible env
         if not set(
@@ -161,7 +161,6 @@ class Scheduler(ABC):
     def __create_actor_by_vertex(
         self, master_handle, vertex: DLExecutionVertex, config
     ) -> ActorHandle:
-
         if vertex.use_pg():
             actor_creation_opts = vertex.get_cls().options(
                 name=vertex.name,
@@ -211,8 +210,7 @@ class Scheduler(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actor "
-                f"creation timeout: {timeout}s."
+                f"{len(not_ready)} workload actor creation timeout: {timeout}s."
             )
         logger.info(
             f"{len(ready)} workload actors created, "

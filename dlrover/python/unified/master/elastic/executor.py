@@ -84,8 +84,7 @@ class ElasticExecutor(Executor):
                     if not self._train_result[name]:
                         ray.get(task_ref)
                         logger.info(
-                            "Update succeeded elastic training result "
-                            f"for: {name}"
+                            f"Update succeeded elastic training result for: {name}"
                         )
                         self._update_train_result(name, True)
                 except RayTaskError as e:
@@ -97,8 +96,7 @@ class ElasticExecutor(Executor):
                         self._update_train_result(name, False)
 
             logger.debug(
-                "Current elastic training execution "
-                f"results: {self._train_result}"
+                f"Current elastic training execution results: {self._train_result}"
             )
             time.sleep(1)
 

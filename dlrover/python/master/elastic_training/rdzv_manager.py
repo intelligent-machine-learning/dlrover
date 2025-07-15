@@ -659,8 +659,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             else:
                 abnormal_nodes.append(node_id)
         logger.info(
-            f"Normal nodes: {normal_nodes}.\n"
-            f"Abnormal nodes: {abnormal_nodes}"
+            f"Normal nodes: {normal_nodes}.\nAbnormal nodes: {abnormal_nodes}"
         )
 
     def report_network_check_result(

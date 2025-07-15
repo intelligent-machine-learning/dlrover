@@ -16,7 +16,7 @@ import inspect
 import math
 import random
 from abc import ABCMeta, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -33,7 +33,9 @@ class Shard(object):
         record_indices: indices of records in the dataset.
     """
 
-    def __init__(self, name, start, end, record_indices: List[int] = None):
+    def __init__(
+        self, name, start, end, record_indices: Optional[List[int]] = None
+    ):
         self.name = name
         self.start = start
         self.end = end

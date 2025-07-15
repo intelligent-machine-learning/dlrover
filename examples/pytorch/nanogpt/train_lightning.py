@@ -133,8 +133,7 @@ class Nanogpt(pl.LightningModule):
                 config = json.load(f)
                 meta_vocab_size = config["vocab_size"]
                 print(
-                    f"found vocab_size = {meta_vocab_size}"
-                    f"(inside {config_path})"
+                    f"found vocab_size = {meta_vocab_size}(inside {config_path})"
                 )
         else:
             # Determine the vocab size we'll use for from-scratch training

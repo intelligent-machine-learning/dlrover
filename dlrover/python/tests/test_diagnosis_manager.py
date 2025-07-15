@@ -147,8 +147,7 @@ class DiagnosisManagerTest(unittest.TestCase):
             )
 
     @patch(
-        "dlrover.python.diagnosis.common"
-        ".diagnostician.Diagnostician.diagnose"
+        "dlrover.python.diagnosis.common.diagnostician.Diagnostician.diagnose"
     )
     def test_start_periodical_diagnosis(self, mock_diagnose):
         context = get_agent_context()

@@ -207,7 +207,6 @@ def train_epoch(
     # Note: Set epoch into the sampler.
     train_loader.sampler.set_epoch(epoch)
     for _, (data, target) in enumerate(train_loader):
-
         # Automatically adjust the accumulated step to keep the global batch
         # size fixed even if the number of workers changes.
         with elastic_trainer.step(fixed_batch_size):

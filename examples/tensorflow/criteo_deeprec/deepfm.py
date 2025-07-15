@@ -75,7 +75,6 @@ class DeepFM(tf.estimator.Estimator):
     """MyEstimator"""
 
     def __init__(self, model_dir, config=None, params=None):
-
         logger.info("config is %s", config)
         logger.info("model_dir is %s", config)
         run_config = config
@@ -172,7 +171,6 @@ class DeepFM(tf.estimator.Estimator):
             )
 
         if mode == tf.estimator.ModeKeys.EVAL:
-
             metrics = {
                 "auc": tf.metrics.auc(
                     labels=labels, predictions=probability, num_thresholds=1000
