@@ -42,6 +42,7 @@ class PrimeManager:
         self.stage: MasterStage = MasterStage.INIT
         self.exit_code: int = 0
         logger.info(f"PrimeManager initialized with config: {config}")
+        self._stopped_event = asyncio.Event()
 
         self.INSTANCE = self  # Singleton instance
 
@@ -88,11 +89,9 @@ class PrimeManager:
             raise Exception(f"Some nodes failed to start the job. {statusMap}")
 
         logger.info("Job started successfully.")
-        self._task = asyncio.create_task(
-            self._monitor_actors(), name="job_monitor"
-        )
+        asyncio.create_task(self._main_loop(), name="job_monitor")
 
-    async def _monitor_actors(self):
+    async def _main_loop(self):
         """Monitor the nodes' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
@@ -101,33 +100,37 @@ class PrimeManager:
             )
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 if all(it == "FINISHED" for it in res.results):
-                    await self.stop("All nodes finished successfully.")
+                    self.request_stop("All nodes finished successfully.")
                 else:
-                    await self.stop(
+                    self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
                     self.exit_code = 1
-                break
-        assert self.stage in [
-            MasterStage.STOPPING,
-            MasterStage.STOPPED,
-        ], f"Job stage should be STOPPING or STOPPED, but got {self.stage}."
+                assert self.stage == MasterStage.STOPPING  # request_stop
 
-    async def stop(self, reason: str):
+        assert self.stage == MasterStage.STOPPING, (
+            f"Job stage should be STOPPING, but got {self.stage}."
+        )
+        kill_actors([node.name for node in self.graph.vertices])
+        logger.info("Job stopped successfully.")
+        self.stage = MasterStage.STOPPED
+        self.save()
+        self._stopped_event.set()
+
+    def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""
         if (
             self.stage == MasterStage.STOPPING
             or self.stage == MasterStage.STOPPED
         ):
             return
-        logger.info(f"Stopping the job: {reason}")
+        logger.info(f"Requesting to stop the job: {reason}")
         self.stage = MasterStage.STOPPING
-        kill_actors([node.name for node in self.graph.vertices])
-        if self._task is not None and self._task is not asyncio.current_task():
-            self._task.cancel()
-        logger.info("Job stopped successfully.")
-        self.stage = MasterStage.STOPPED
-        self.save()
+
+    async def wait(self):
+        """Wait for the job to finish."""
+        await self._stopped_event.wait()
+        assert self.stage == MasterStage.STOPPED
 
     def save(self):
         """Save the job state to persistent storage."""
