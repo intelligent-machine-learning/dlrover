@@ -12,17 +12,23 @@
 # limitations under the License.
 import copy
 import os
+import sys
 import time
 import unittest
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import ray
 import requests
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
-from dlrover.python.common.comm import BaseRequest, BaseResponse, GPUStats
+from dlrover.python.common.comm import (
+    BaseRequest,
+    BaseResponse,
+    GPUStats,
+    TaskType,
+)
 from dlrover.python.common.constants import (
     JobStage,
     NodeEventType,
@@ -147,7 +153,34 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertIsNotNone(response_content)
         self.assertTrue(response_content.success)
 
+        response = requests.post(
+            "http://localhost:8000/test", json=request.to_json()
+        )
+        self.assertEqual(response.status_code, 404)
+
         self.server.stop()
+
+    @patch.dict("sys.modules", {"dlrover.proto": None})
+    def test_pb_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import GrpcMasterServicer
+
+            self.assertFalse(GrpcMasterServicer)
+
+    @patch.dict("sys.modules", {"tornado": None})
+    def test_tornado_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import HttpMasterHandler
+
+            self.assertFalse(HttpMasterHandler)
 
 
 class MasterServicerFunctionalTest(unittest.TestCase):
@@ -627,6 +660,33 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             self.job_manager._job_context.job_node(
                 task_type, task_id
             ).is_node_check_failed()
+        )
+
+    def test_get_task_type(self):
+        from dlrover.proto import elastic_training_pb2
+
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.WAIT),
+            elastic_training_pb2.WAIT,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.TRAINING),
+            elastic_training_pb2.TRAINING,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.EVALUATION),
+            elastic_training_pb2.EVALUATION,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.PREDICTION),
+            elastic_training_pb2.PREDICTION,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.TRAIN_END_CALLBACK),
+            elastic_training_pb2.TRAIN_END_CALLBACK,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(None), elastic_training_pb2.NONE
         )
 
 

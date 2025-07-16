@@ -390,10 +390,10 @@ DLRover 中提供了 DDP、FSDP 和 DeepSpeed 训练 GPT-2 的例子，
 
 ### 单机多卡运行
 
-首先我们需要在运行环境中按照 dlrover[torch]。
+首先我们需要在运行环境中按照 dlrover[k8s, torch]。
 
 ```bash
-pip install dlrover[torch] -U
+pip install dlrover[k8s, torch] -U
 ```
 
 然后使用 dlrover-run 来启动训练。
