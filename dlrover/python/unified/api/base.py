@@ -204,8 +204,8 @@ class DLJob(object):
             "DefaultTrainer",
         ):
             workloads["trainer"] = CustomWorkloadDesc(
-                num=1,
-                env=self.trainer.others.get("env", {}),
+                instance_number=1,
+                instance_env=self.trainer.others.get("env", {}),
                 module_name=self.trainer.module_class[0],
                 class_name=self.trainer.module_class[1],
             )
@@ -214,19 +214,19 @@ class DLJob(object):
                 continue
             if role == InternalDLWorkloadRole.ELASTIC_ROLE:
                 workloads[role] = ElasticWorkloadDesc(
-                    num=role_config.total,
-                    env=role_config.env,
-                    resource=self.__cal_role_resource(role),
+                    instance_number=role_config.total,
+                    instance_env=role_config.env,
+                    instance_resource=self.__cal_role_resource(role),
                     proc_per_worker=role_config.per_node,
                     cmd=self.config[InternalDLConfig.ELASTIC_RUN_CMD],
                 )
                 continue
             workloads[role] = CustomWorkloadDesc(
-                num=role_config.total,
-                env=role_config.env,
+                instance_number=role_config.total,
+                instance_env=role_config.env,
                 module_name=role_config.module_class[0],
                 class_name=role_config.module_class[1],
-                resource=self.__cal_role_resource(role),
+                instance_resource=self.__cal_role_resource(role),
                 per_group=role_config.per_node,
             )
 
