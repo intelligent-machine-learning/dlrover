@@ -1,11 +1,24 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 import random
+from abc import abstractmethod
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 import ray
-import ray.actor
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
@@ -29,23 +42,23 @@ class SimpleActor:
 
 
 class SimpleActorStub:
-    def some_method(self):
-        ...
+    @abstractmethod
+    def some_method(self): ...
 
-    async def some_method_async(self):
-        ...
+    @abstractmethod
+    async def some_method_async(self): ...
 
 
 class SimpleActorBatchStub:
-    def some_method(self) -> ah.BatchInvokeResult[str]:
-        ...
+    @abstractmethod
+    def some_method(self) -> ah.BatchInvokeResult[str]: ...
 
-    async def some_method_async(self) -> ah.BatchInvokeResult[str]:
-        ...
+    @abstractmethod
+    async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
 
 
 @pytest.fixture
-def tmp_actor1(session_ray):
+def tmp_actor1(shared_ray):
     name = f"actor1_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     ah.__actors_cache.clear()
@@ -55,7 +68,7 @@ def tmp_actor1(session_ray):
 
 
 @pytest.fixture
-def tmp_actor2(session_ray):
+def tmp_actor2(shared_ray):
     name = f"actor2_{random.randint(1, 10000)}"
     actor = SimpleActor.options(name=name, max_restarts=-1).remote()
     yield name
@@ -202,8 +215,9 @@ def test_batch_invoke_result_with_failure():
 
     assert batch["a"] == "ok"
     assert batch[0] == "ok"
-    with pytest.raises(Exception, check=lambda e: e is results[1]):
+    with pytest.raises(Exception) as exc_info:
         _ = batch[1]
+    assert exc_info.value is results[1]
 
     assert batch.all_failed() == [("b", results[1])]
     with pytest.raises(Exception):

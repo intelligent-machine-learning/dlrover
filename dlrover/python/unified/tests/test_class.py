@@ -110,11 +110,11 @@ class TestActor(BaseWorkload):
     def test3(self):
         pass
 
-    def pre_func(self):
-        pass
+    def pre_func(self, *args, **kwargs):
+        return args, kwargs
 
-    def post_func(self):
-        pass
+    def post_func(self, result):
+        return result
 
     @trainer_invocation(
         is_async=True, timeout=5, pre_func=pre_func, post_func=post_func

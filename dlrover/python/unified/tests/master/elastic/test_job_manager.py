@@ -12,7 +12,7 @@
 # limitations under the License.
 import threading
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
     JobStage,
@@ -47,7 +47,12 @@ class ElasticJobManagerTest(ElasticBaseTest):
 
         self.assertFalse(job_manager.has_job_error())
 
-        job_manager.stop_job()
+        def mock_get_actor(name):
+            # Mock all kill success
+            raise ValueError("Actor not found")
+
+        with patch("ray.get_actor", mock_get_actor):
+            job_manager.stop_job()
 
     def test_update_node_paral_config(self):
         job_manager = ElasticJobManager()

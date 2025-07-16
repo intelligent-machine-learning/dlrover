@@ -45,9 +45,9 @@ class ElasticRunner:
         self.master = master
         self.args = args
 
-        os.environ[
-            NodeEnv.DLROVER_MASTER_SERVICE_TYPE
-        ] = CommunicationType.COMM_SERVICE_RAY
+        os.environ[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
+            CommunicationType.COMM_SERVICE_RAY
+        )
         RayMasterClient.register_master_actor(master)
 
     def run(self):

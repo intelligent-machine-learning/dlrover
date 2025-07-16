@@ -18,15 +18,7 @@ from pydantic import BaseModel
 
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_base import ActorInfo
-from dlrover.python.unified.common.workload_config import ResourceDesc
 from dlrover.python.unified.controller.config import DLConfig, WorkloadDesc
-
-
-@dataclass
-class PlacementGroupSpec:
-    name: str
-    strategy: str  # VALID_PLACEMENT_GROUP_STRATEGIES
-    bundles: List[ResourceDesc]
 
 
 class DLExecutionVertex(ABC, BaseModel):
@@ -42,7 +34,6 @@ class DLExecutionVertex(ABC, BaseModel):
     role: str
     spec: WorkloadDesc
 
-    placement_group: Optional[PlacementGroupSpec] = None
     bundle_index: int = -1
 
     @property
@@ -75,7 +66,6 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
     local_world_size: int
     local_rank: int
 
-    placement_group: Optional[PlacementGroupSpec] = None
     bundle_index: int = -1
 
     @property

@@ -16,11 +16,12 @@ from typing import List
 import ray
 import ray.actor
 
-from dlrover.python.unified.common.workload_base import ActorInfo
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import (
-    MASTER_ACTOR_ID,
+    MASTER_ACTOR_NAME,
     MasterStatus,
     PrimeMasterApi,
     PrimeMasterRemote,
@@ -32,25 +33,41 @@ init_coverage()  # support coverage for master actor
 
 
 class PrimeMaster(PrimeMasterRemote):
+    """The master actor for managing the job execution."""
+
     def __init__(self, config: JobConfig):
-        assert ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_ID, (
+        assert (
+            ray.get_runtime_context().get_actor_name() == MASTER_ACTOR_NAME
+        ), (
             f"PrimeMaster must be initialized as a Ray actor "
-            f"with the name '{MASTER_ACTOR_ID}'."
+            f"with the name '{MASTER_ACTOR_NAME}'."
         )
 
         self.manager = PrimeManager(config)
 
     def get_status(self):
+        """Get the current status of the job."""
         return MasterStatus(stage=self.manager.stage)
 
     async def start(self):
+        """Start the job execution."""
         await self.manager.prepare()
         await self.manager.start()
 
     async def stop(self):
-        await self.manager.stop()
+        """Stop the job execution."""
+        self.manager.request_stop("Requested stop.")
+
+    async def wait(self):
+        """Wait for the job to finish."""
+        await self.manager.wait()
 
     async def shutdown(self):
+        """Shutdown the master actor and clean up resources."""
+        if self.manager.stage != MasterStage.STOPPED:
+            logger.warning(
+                f"Job is not stopped yet, current stage: {self.manager.stage}. "
+            )
         ray.actor.exit_actor()
 
     # region RPC
@@ -74,14 +91,19 @@ class PrimeMaster(PrimeMasterRemote):
         config: JobConfig, detached: bool = True
     ) -> "PrimeMasterRemote":
         """Create a PrimeMaster instance."""
-        ray.remote(PrimeMaster).options(
-            name=MASTER_ACTOR_ID,
-            lifetime="detached" if detached else "normal",
-            num_cpus=config.master_cpu,
-            memory=config.master_mem,
-            max_restarts=config.master_max_restart,
-            max_concurrency=64,
-        ).remote(config)
+        ref = (
+            ray.remote(PrimeMaster)
+            .options(
+                name=MASTER_ACTOR_NAME,
+                lifetime="detached" if detached else "normal",
+                num_cpus=config.master_cpu,
+                memory=config.master_mem,
+                max_restarts=config.master_max_restart,
+                runtime_env={"env_vars": config.dl_config.global_envs},
+            )
+            .remote(config)
+        )
+        ray.get(ref.__ray_ready__.remote())  # type: ignore
         return PrimeMasterApi
 
     # endregion
