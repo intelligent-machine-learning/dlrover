@@ -13,9 +13,11 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 import ray.actor
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_config import WorkloadDesc
 from dlrover.python.unified.util.test_hooks import init_coverage
 
@@ -87,11 +89,11 @@ class ActorBase:
         """Check the actor/node itself."""
         if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
             return  # already in the expected stage
-        print("Worker self check")
+        logger.info(f"[{self.node_info.name}] Running self check.")
 
     def start(self):
         """Start the actor/node.If already started, do nothing."""
-        print("Worker started: No Implementation")
+        pass  # noop
 
     def shutdown(self):
         """Self-kill the actor/node."""
@@ -105,7 +107,7 @@ class ActorBase:
     # Helper methods for subclasses to use
 
     def _update_stage_force(
-        self, stage: WorkerStage, expected: WorkerStage = None
+        self, stage: WorkerStage, expected: Optional[WorkerStage] = None
     ):
         """Update the stage of the actor/node."""
         if expected is not None and self.stage != expected:
@@ -114,17 +116,21 @@ class ActorBase:
                 f"expected {expected}."
             )
         self.stage = stage
-        print(f"Actor {self.node_info.name} updated to stage: {self.stage}")
+        logger.info(
+            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+        )
 
     def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
         """Update the stage of the actor/node
         if the current stage matches the expected stage."""
         if self.stage != expected:
-            print(
+            logger.warning(
                 f"Actor {self.node_info.name} is not in expected stage: "
                 f"{expected}, current stage: {self.stage}"
             )
             return False  # not in the expected stage
         self.stage = stage
-        print(f"Actor {self.node_info.name} updated to stage: {self.stage}")
+        logger.info(
+            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+        )
         return True

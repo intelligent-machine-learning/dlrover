@@ -14,7 +14,7 @@ import importlib
 import json
 from datetime import datetime
 from functools import lru_cache
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.python.common.constants import EventReportConstants, NodeStatus
 from dlrover.python.common.global_context import Context
@@ -396,7 +396,7 @@ def report_event(
     instance: str,
     action: str,
     msg: str = "",
-    labels: Dict[str, str] = None,
+    labels: Optional[Dict[str, str]] = None,
 ):
     """
     Report an event using the global event reporter.

@@ -30,8 +30,8 @@ class ResourceDesc(BaseModel):
     )
     disk: int = Field(default=0, ge=0)
     accelerator: float = Field(
-        default=1,
-        gt=0,
+        default=0.0,
+        ge=0,
         validation_alias=AliasChoices("accelerator", "acc", "gpu"),
     )
     user_defined: Dict[str, float] = Field(
@@ -50,9 +50,9 @@ class ResourceDesc(BaseModel):
         )
 
     def __add__(self, other: "ResourceDesc") -> "ResourceDesc":
-        assert isinstance(
-            other, ResourceDesc
-        ), f"Cannot add {type(other)} to ResourceDesc."
+        assert isinstance(other, ResourceDesc), (
+            f"Cannot add {type(other)} to ResourceDesc."
+        )
         user_defined = self.user_defined.copy()
         for k, v in other.user_defined.items():
             user_defined[k] = user_defined.get(k, 0.0) + v
@@ -80,11 +80,23 @@ class BaseWorkloadDesc(BaseModel, ABC):
     Base description of a workload.
     """
 
-    instance_number: int = Field(alias="num")
-    instance_resource: ResourceDesc = Field(
-        default_factory=ResourceDesc, alias="resource"
+    instance_number: int = Field(
+        validation_alias=AliasChoices(
+            "total", "num", "number", "instance_number"
+        )
     )
-    instance_env: Dict[str, str] = Field(default_factory=dict, alias="env")
+    instance_resource: ResourceDesc = Field(
+        default_factory=ResourceDesc,
+        validation_alias=AliasChoices(
+            "instance_resource", "resource", "res", "instance_res"
+        ),
+    )
+    instance_env: Dict[str, str] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices(
+            "instance_env", "env", "environment", "envs"
+        ),
+    )
     max_restart: int = Field(
         default=10,
         description="The maximum limit on the number of restarts.",
@@ -111,8 +123,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
         return self
 
     @abstractmethod
-    def get_worker_cls(self) -> ActorClass:
-        ...
+    def get_worker_cls(self) -> ActorClass: ...
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None

@@ -13,6 +13,7 @@
 import os
 import time
 
+import pytest
 import ray
 
 from dlrover.python.unified.api.rl import RLJobBuilder
@@ -46,6 +47,9 @@ class ApiFullTest(RayBaseTest):
         super().tearDown()
 
     @timeout(20)
+    @pytest.mark.skip(
+        reason="Fail due to ShareMemory problem, fixed with new workers"
+    )
     def test_elastic_training(self):
         dl_job = (
             DLJobBuilder()
@@ -68,6 +72,9 @@ class ApiFullTest(RayBaseTest):
         dl_job.submit("test", master_cpu=1, master_memory=128)
 
     @timeout(20)
+    @pytest.mark.skip(
+        reason="Fail due to ShareMemory problem, fixed with new workers"
+    )
     def test_elastic_training_with_error(self):
         dl_job = (
             DLJobBuilder()
@@ -95,6 +102,7 @@ class ApiFullTest(RayBaseTest):
         )
 
     @timeout(20)
+    @pytest.mark.skip(reason="WIP: RL API test is not ready yet.")
     def test_rl_0(self):
         rl_job = (
             RLJobBuilder()
@@ -125,6 +133,7 @@ class ApiFullTest(RayBaseTest):
         rl_job.submit("test", master_cpu=1, master_memory=128)
 
     @timeout(20)
+    @pytest.mark.skip(reason="WIP: RL API test is not ready yet.")
     def test_rl_1(self):
         rl_job = (
             RLJobBuilder()

@@ -36,6 +36,7 @@ T = TypeVar("T")
 
 
 def refresh_actor_cache(name: str):
+    """Refresh the cache for a Ray actor by its name."""
     try:
         __actors_cache.pop(name, None)
         __actors_cache[name] = ray.get_actor(name)
@@ -70,6 +71,9 @@ def __invoke_actor(
         logger.error(
             f"Method {method_name} not found on actor {actor_name}: {e}"
         )
+        return ray.put(e)
+    except Exception as e:
+        logger.error(f"Fail to submit task {method_name} to {actor_name}: {e}")
         return ray.put(e)
 
 
@@ -142,38 +146,49 @@ def kill_actors(actors: List[str]):
 
 
 async def invoke_actor_async(
-    actor_name: str, method_name: str, *args, **kwargs
+    actor_name: str,
+    method_name: str,
+    *args,
+    _actor_retry: int = 3,
+    **kwargs,
 ) -> Union[T, Exception]:
     """Call a method on a Ray actor by its name."""
-    while True:
-        try:
-            actor = get_actor_with_cache(actor_name)
-            ref = getattr(actor, method_name).remote(*args, **kwargs)
-        except AttributeError:
-            logger.error(
-                f"Method {method_name} not found on actor {actor_name}"
-            )
-            raise
+    try:
+        actor = get_actor_with_cache(actor_name)
+        ref = getattr(actor, method_name).remote(*args, **kwargs)
+    except AttributeError:
+        logger.error(f"Method {method_name} not found on actor {actor_name}")
+        raise
 
-        try:
-            return await ref
-        except RayActorError as e:
-            if method_name == "__ray_terminate__" or method_name == "shutdown":
-                return cast(T, None)  # Success for shutdown
-            print(f"Error executing {method_name} on {actor_name}: {e}")
-            refresh_actor_cache(actor_name)
-            continue  # Retry with the refreshed actor
-        except Exception as e:
-            print(
-                f"Unexpected error executing {method_name} on {actor_name}: "
-                f"{e}"
+    try:
+        return await ref
+    except RayActorError as e:
+        if method_name == "__ray_terminate__" or method_name == "shutdown":
+            return cast(T, None)  # Success for shutdown
+        logger.error(f"Error executing {method_name} on {actor_name}: {e}")
+        refresh_actor_cache(actor_name)
+        if _actor_retry > 0:
+            return await invoke_actor_async(
+                actor_name,
+                method_name,
+                *args,
+                **kwargs,
+                _actor_retry=_actor_retry - 1,
             )
+        else:
             raise
+    except Exception:
+        logger.error(
+            f"Unexpected error executing {method_name} on {actor_name}",
+            exc_info=True,
+        )
+        raise
 
 
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ) -> "BatchInvokeResult[T]":
+    """Execute a method on all nodes asynchronously."""
     res: List[Union[T, Exception]] = await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
@@ -183,7 +198,12 @@ async def invoke_actors_async(
     return BatchInvokeResult[T](actors, method_name, res)
 
 
+T_Stub = TypeVar("T_Stub", covariant=True)
+
+
 class ActorProxy:
+    """A proxy class to interact with Ray actors as if they were local objects."""
+
     def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
         self.actor = actor
         self.stub_cls = stub_cls
@@ -202,12 +222,16 @@ class ActorProxy:
             return partial(invoke_actor, self.actor, name)
 
     @staticmethod
-    def wrap(actor_name: str, cls: Type[T], lazy: bool = False) -> "T":
+    def wrap(
+        actor_name: str, cls: Type[T_Stub], lazy: bool = False
+    ) -> "T_Stub":
         """Wraps the actor proxy to return an instance of the class."""
         return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
 
 class BatchInvokeResult(Generic[T]):
+    """A class to hold results from invoking methods on multiple actors."""
+
     def __init__(
         self,
         actors: List[str],
@@ -219,12 +243,10 @@ class BatchInvokeResult(Generic[T]):
         self._results = results
 
     @overload
-    def __getitem__(self, item: int, /) -> T:
-        ...
+    def __getitem__(self, item: int, /) -> T: ...
 
     @overload
-    def __getitem__(self, actor: str, /) -> T:
-        ...
+    def __getitem__(self, actor: str, /) -> T: ...
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
@@ -286,6 +308,12 @@ class BatchInvokeResult(Generic[T]):
 
 
 class BatchActorProxy:
+    """
+    A proxy class to interact with multiple Ray actors as if they were local objects.
+
+    All return values in Stub should be BatchInvokeResult.
+    """
+
     def __init__(self, actors: List[str], stub_cls: type):
         self.actors = actors
         # Optionally filter methods if a class is provided
@@ -304,6 +332,6 @@ class BatchActorProxy:
             return partial(invoke_actors, self.actors, name)
 
     @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T]) -> "T":
+    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
         """Wraps the actor proxy to return an instance of the class."""
         return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]

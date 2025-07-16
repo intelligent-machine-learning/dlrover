@@ -64,7 +64,12 @@ class BaseTrainerTest(BaseTest):
         trainer.init()
         trainer.fit()
 
-    def test_role_group_proxy(self):
+    @mock.patch("ray.wait")
+    @mock.patch("ray.get")
+    def test_role_group_proxy(self, patch_get, patch_wait):
+        patch_get.side_effect = lambda x: x
+        patch_wait.side_effect = lambda *args, **kwargs: (args[0], [])
+
         role_group = RoleGroupProxy(
             RLRoleType.ACTOR.name, 2, TestActor, {}, [None]
         )
@@ -98,7 +103,5 @@ class BaseTrainerTest(BaseTest):
         trainer.RG_ACTOR.test0()
         trainer.RG_ACTOR.test1()
         trainer.RG_ACTOR.test2()
-        with self.assertRaises(Exception):
-            trainer.RG_ACTOR.test3()
-        with self.assertRaises(Exception):
-            trainer.RG_ACTOR.test4()
+        trainer.RG_ACTOR.test3()
+        trainer.RG_ACTOR.test4()

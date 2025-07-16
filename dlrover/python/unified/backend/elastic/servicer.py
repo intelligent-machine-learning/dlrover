@@ -29,7 +29,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.event.train_event import TrainEventName
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
@@ -45,14 +44,6 @@ from dlrover.python.util.queue.queue import RayEventQueue
 
 from .manager import ElasticManager
 
-try:
-    from dlrover.python.master.elastic_training.sync_service import SyncService
-except ImportError:
-    logger.info("Run the master locally.")
-    pass
-
-
-_dlrover_context = Context.singleton_instance()
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
 job_ctx = get_job_context()
@@ -65,12 +56,10 @@ class MasterServicer(ABC):
         self,
         job_manager: ElasticManager,
         job_metric_collector: Optional[JobMetricCollector] = None,
-        sync_service: Optional[SyncService] = None,
     ):
         self._core = job_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector = job_metric_collector
-        self._sync_service = sync_service
         self._start_autoscale = False
         self._event_reporter = get_event_reporter()
         self._rdzv_managers = {
@@ -85,25 +74,21 @@ class MasterServicer(ABC):
         # clear kv store in case previous data is still there
         self._kv_store.clear()
 
-    def get_response(self, method):
-        """Should be implemented by subclasses."""
-        return BaseResponse()
-
     def get(self, request, _=None):
         node_type = request.node_type
         node_id = request.node_id
         req_message = comm.deserialize_message(request.data)
 
-        response = self.get_response("get")
+        response = BaseResponse()
         if not req_message:
             return response
         message = None
         if isinstance(req_message, comm.TaskRequest):
-            message = self._get_task(node_type, node_id, req_message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.ShardCheckpointRequest):
-            message = self._get_shard_checkpoint(req_message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.ClusterVersionRequest):
-            message = self._get_cluster_version(req_message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.RunningNodesRequest):
             message = self._get_running_nodes()
         elif isinstance(req_message, comm.JoinRendezvousRequest):
@@ -124,9 +109,9 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.KeyValuePairs):
             message = self._kv_store_multi_get(req_message)
         elif isinstance(req_message, comm.PsNodesRequest):
-            message = self._query_ps_nodes()
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.TrainingStatusRequest):
-            message = self._get_training_status()
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(req_message, comm.ParallelConfigRequest):
             message = self._get_paral_config()
         elif isinstance(req_message, comm.CheckHardwareResetRequest):
@@ -134,30 +119,16 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.SyncTrainingPort):
             message = self._sync_training_ports(node_id, req_message)
         elif isinstance(req_message, comm.ElasticRunConfigRequest):
-            configs = self._core.get_elastic_run_configs()
-            message = comm.ElasticRunConfig(configs=configs)
+            raise NotImplementedError("deprecated, useless in unified")
         elif isinstance(req_message, comm.PreCheckRequest):
-            message = self._get_pre_check_result(
-                node_type, node_id, req_message
-            )
+            raise NotImplementedError("deprecated, useless in unified")
         elif isinstance(req_message, comm.HeartBeat):
+            # raise NotImplementedError("deprecated, useless in unified")
             message = self._report_heartbeat(node_type, node_id, req_message)
 
         if message:
             response.data = message.serialize()
         return response
-
-    def _get_task(self, node_type, node_id, request: comm.TaskRequest):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _get_shard_checkpoint(self, request: comm.ShardCheckpointRequest):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _get_cluster_version(self, request: comm.ClusterVersionRequest):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _query_ps_nodes(self):
-        raise NotImplementedError("deprecated, TF backend only")
 
     def _get_running_nodes(self):
         res = comm.RunningNodes(nodes=[])
@@ -173,9 +144,6 @@ class MasterServicer(ABC):
                 meta.gpu = node.config_resource.gpu_num
             res.nodes.append(meta)
         return res
-
-    def _get_training_status(self):
-        raise NotImplementedError("deprecated, TF backend only")
 
     def _check_fault_node(self):
         nodes, reason = self._core.node_check_manager.check_fault_node()
@@ -295,45 +263,45 @@ class MasterServicer(ABC):
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
-        response = self.get_response("report")
+        response = BaseResponse()
         if not message:
             return response
 
         success = False
         if isinstance(message, comm.DatasetShardParams):
-            success = self._collect_dataset_shard_params(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.ResourceStats):
             success = self._update_node_resource_usage(
                 node_type, node_id, message
             )
         elif isinstance(message, comm.ModelInfo):
-            success = self._collect_model_info(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.GlobalStep):
-            success = self._collect_global_step(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.ShardCheckpoint):
-            success = self._restore_shard_checkpoint(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.TaskResult):
-            success = self._report_task_result(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.ClusterVersion):
-            success = self._update_cluster_version(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.NodeAddress):
-            success = self._update_node_address(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.NodeEvent):
             success = self._deal_with_reported_node_event(message)
         elif isinstance(message, comm.AtorchEvent):
             success = self._handle_reported_atorch_event(message)
         elif isinstance(message, comm.SyncJoin):
-            success = self._join_sync(node_type, node_id, message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.SyncFinish):
-            success = self._sync_finished(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.SyncBarrier):
-            success = self._barrier(message)
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.NodeFailure):
             success = self._report_failure(node_type, node_id, message)
         elif isinstance(message, comm.RendezvousParams):
             success = self._report_rdzv_params(message)
         elif isinstance(message, comm.PsReady):
-            success = self._ready_for_ps_relaunch()
+            raise NotImplementedError("deprecated, TF backend only")
         elif isinstance(message, comm.KeyValuePair):
             success = self._kv_store_set(message)
         elif isinstance(message, comm.KeyValuePairs):
@@ -349,12 +317,6 @@ class MasterServicer(ABC):
 
         response.success = success
         return response
-
-    def _ready_for_ps_relaunch(self):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _collect_dataset_shard_params(self, metrics: comm.DatasetShardParams):
-        raise NotImplementedError("deprecated, TF backend only")
 
     def _update_node_resource_usage(
         self, node_type, node_id, metrics: comm.ResourceStats
@@ -373,38 +335,6 @@ class MasterServicer(ABC):
                 metrics.gpu_stats,
             )
         return True
-
-    def _collect_model_info(self, metrics: comm.ModelInfo):
-        if self._job_metric_collector:
-            self._job_metric_collector.collect_model_metric(metrics)
-        return True
-
-    def _collect_global_step(self, metrics: comm.GlobalStep):
-        self._core.perf_monitor.collect_global_step(
-            metrics.step, metrics.timestamp
-        )
-        if self._job_metric_collector and self._core:
-            nodes = self._core.get_running_nodes()
-            self._job_metric_collector.collect_runtime_stats(
-                self._core.perf_monitor, nodes
-            )
-        self._check_start_auto_scale_worker()
-        return True
-
-    def _restore_shard_checkpoint(self, message: comm.ShardCheckpoint):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _report_task_result(self, request: comm.TaskResult):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _check_start_auto_scale_worker(self):
-        "Noop, deprecated, TF backend only"
-
-    def _update_cluster_version(self, message: comm.ClusterVersion):
-        raise NotImplementedError("deprecated, TF backend only")
-
-    def _update_node_address(self, message: comm.NodeAddress):
-        raise NotImplementedError("deprecated, TF backend only")
 
     def _deal_with_reported_node_event(self, message: comm.NodeEvent):
         node = Node(
@@ -434,29 +364,6 @@ class MasterServicer(ABC):
             _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True
-
-    def _join_sync(self, node_type, node_id, message: comm.SyncJoin):
-        success = False
-        if self._sync_service:
-            success = self._sync_service.join_sync(
-                message.sync_name, node_type, node_id
-            )
-        return success
-
-    def _sync_finished(self, message: comm.SyncFinish):
-        success = False
-        if self._sync_service:
-            success = self._sync_service.sync_finished(message.sync_name)
-        return success
-
-    def _barrier(self, message: comm.SyncBarrier):
-        if not self._sync_service:
-            return False
-        if message.notify:
-            success = self._sync_service.notify_barrier(message.barrier_name)
-        else:
-            success = self._sync_service.barrier(message.barrier_name)
-        return success
 
     def _report_rdzv_params(self, message: comm.RendezvousParams):
         # Enable auto-scaling workers if elasticity is enabled.
@@ -542,17 +449,12 @@ class MasterServicer(ABC):
         self, node_id, message: comm.SyncTrainingPort
     ) -> comm.SyncTrainingPort:
         logger.info(f"try to sync port {message.port} from {node_id}")
-        sync_ports: SyncNodeTrainingPorts = self._core.sync_node_training_port(
+        sync_ports: SyncNodeTrainingPorts = self._core.sync_node_training_port(  # type:ignore #TODO
             node_id, message.port
         )
         return comm.SyncTrainingPort(
             port=sync_ports.training_port, newport=sync_ports.next_check_port
         )
-
-    def _get_pre_check_result(
-        self, node_type, node_id, message: comm.PreCheckRequest
-    ) -> comm.PreCheckResponse:
-        raise NotImplementedError("deprecated, useless in unified")
 
     def _report_event(self, message: comm.Event):
         if self._event_reporter:
