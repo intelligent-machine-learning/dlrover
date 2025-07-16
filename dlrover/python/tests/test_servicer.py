@@ -12,16 +12,23 @@
 # limitations under the License.
 import copy
 import os
+import sys
 import time
 import unittest
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import ray
 import requests
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import comm, env_utils
-from dlrover.python.common.comm import BaseRequest, GPUStats
+from dlrover.python.common.comm import (
+    BaseRequest,
+    BaseResponse,
+    GPUStats,
+    TaskType,
+)
 from dlrover.python.common.constants import (
     JobStage,
     NodeEventType,
@@ -44,6 +51,7 @@ from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.servicer import (
     GrpcMasterServicer,
+    RayMasterServicer,
     create_master_service,
 )
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -145,7 +153,34 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.assertIsNotNone(response_content)
         self.assertTrue(response_content.success)
 
+        response = requests.post(
+            "http://localhost:8000/test", json=request.to_json()
+        )
+        self.assertEqual(response.status_code, 404)
+
         self.server.stop()
+
+    @patch.dict("sys.modules", {"dlrover.proto": None})
+    def test_pb_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import GrpcMasterServicer
+
+            self.assertFalse(GrpcMasterServicer)
+
+    @patch.dict("sys.modules", {"tornado": None})
+    def test_tornado_not_installed(self):
+        module = "dlrover.python.master.servicer"
+        if module in sys.modules:
+            del sys.modules[module]
+
+        with self.assertRaises(ImportError):
+            from dlrover.python.master.servicer import HttpMasterHandler
+
+            self.assertFalse(HttpMasterHandler)
 
 
 class MasterServicerFunctionalTest(unittest.TestCase):
@@ -175,7 +210,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.elastic_ps_service = ElasticPsService()
         training_manager = ElasticTrainingRendezvousManager()
         rdzv_managers = {
-            RendezvousName.ELASTIC_TRAINING: training_manager,
+            RendezvousName.TRAINING: training_manager,
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         sync_service = SyncService(self.job_manager)
@@ -378,13 +413,11 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.assertEqual(res_msg.status, 3)
 
     def test_num_nodes_waiting(self):
-        message = comm.WaitingNodeNumRequest(
-            0, 8, RendezvousName.ELASTIC_TRAINING
-        )
+        message = comm.WaitingNodeNumRequest(0, 8, RendezvousName.TRAINING)
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         self.servicer._rdzv_managers[
-            RendezvousName.ELASTIC_TRAINING
+            RendezvousName.TRAINING
         ]._waiting_nodes = {0: 8}
         response = self.servicer.get(request, None)
         res_msg: comm.RendezvousState = comm.deserialize_message(response.data)
@@ -509,18 +542,16 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.assertFalse(config.restart)
 
     def test_join_rendezvous(self):
-        request = comm.JoinRendezvousRequest(
-            0, 8, RendezvousName.ELASTIC_TRAINING
-        )
+        request = comm.JoinRendezvousRequest(0, 8, RendezvousName.TRAINING)
         self.servicer._join_rendezvous(request)
-        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        res = self.servicer._num_nodes_waiting(RendezvousName.TRAINING)
         self.assertEqual(res.waiting_num, 1)
 
         request = comm.JoinRendezvousRequest(
             0, 8, RendezvousName.NETWORK_CHECK
         )
         self.servicer._join_rendezvous(request)
-        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        res = self.servicer._num_nodes_waiting(RendezvousName.TRAINING)
         self.assertEqual(res.waiting_num, 0)
 
         request = comm.JoinRendezvousRequest(
@@ -528,7 +559,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         )
         job_ctx.update_job_stage(JobStage.JOB_STOPPING)
         self.servicer._join_rendezvous(request)
-        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        res = self.servicer._num_nodes_waiting(RendezvousName.TRAINING)
         self.assertEqual(res.waiting_num, -1)
         job_ctx.update_job_stage(JobStage.JOB_INIT)
 
@@ -546,7 +577,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
 
     def test_sync_checkpoint(self):
         message = comm.NodeCheckpointState(step=100)
-        et_name = RendezvousName.ELASTIC_TRAINING
+        et_name = RendezvousName.TRAINING
         rdzv_manager = self.servicer._rdzv_managers[et_name]
         rdzv_manager._latest_rdzv_nodes = [0, 1]
         success = self.servicer._sync_checkpoint(NodeType.WORKER, 0, message)
@@ -631,6 +662,33 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             ).is_node_check_failed()
         )
 
+    def test_get_task_type(self):
+        from dlrover.proto import elastic_training_pb2
+
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.WAIT),
+            elastic_training_pb2.WAIT,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.TRAINING),
+            elastic_training_pb2.TRAINING,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.EVALUATION),
+            elastic_training_pb2.EVALUATION,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.PREDICTION),
+            elastic_training_pb2.PREDICTION,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(TaskType.TRAIN_END_CALLBACK),
+            elastic_training_pb2.TRAIN_END_CALLBACK,
+        )
+        self.assertEqual(
+            self.servicer.get_task_type(None), elastic_training_pb2.NONE
+        )
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -677,3 +735,14 @@ class MasterServicerForRayTest(unittest.TestCase):
         res = self.servicer._query_ps_nodes()
         self.assertEqual(addr, res.nodes[task_id].addr)
         self.assertEqual("", res.nodes[0].addr)
+
+    def test_function_call(self):
+        servicer = RayMasterServicer(None, None, None, None, None)
+        self.assertIsNotNone(servicer)
+
+        servicer.agent_report = MagicMock(return_value=True)
+        self.assertTrue(servicer.agent_report(None))
+        servicer.agent_get = MagicMock(return_value=True)
+        self.assertTrue(servicer.agent_get(None))
+        self.assertTrue(isinstance(servicer.get_response(None), BaseResponse))
+        self.assertTrue(servicer.get_task_type("test"), "test")

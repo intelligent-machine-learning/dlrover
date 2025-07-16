@@ -1,26 +1,25 @@
 ---
 exclude: '^atorch/|^tfplus/^|xpu_timer/'
 repos:
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.12.3
     hooks:
-      - id: isort
+      # Run the linter.
+      - id: ruff-check
+        args: [--fix]
         exclude: dlrover/proto/|dlrover/python/unified/trainer/example/
-  - repo: https://github.com/psf/black
-    rev: 22.3.0
-    hooks:
-      - id: black
+      # Run the formatter.
+      - id: ruff-format
         args: [--line-length=79]
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.2.3
-    hooks:
-      - id: flake8
-        exclude: dlrover/proto/|dlrover/python/unified/trainer/example/
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.812
+    rev: v1.16.1
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, --follow-imports=skip]
+        args:
+          - --ignore-missing-imports
+          - --follow-imports=skip
+          - --disable-error-code=import-untyped
         exclude: dlrover/proto/|dlrover/python/unified/trainer/example/
   - repo: local
     hooks:
@@ -39,13 +38,13 @@ repos:
         language: system
         files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx)$
   - repo: https://github.com/dnephin/pre-commit-golang.git
-    rev: v0.3.3
+    rev: v0.5.1
     hooks:
       - id: go-fmt
       - id: go-lint
       - id: no-go-testing
   - repo: https://github.com/gruntwork-io/pre-commit
-    rev: v0.1.8
+    rev: v0.1.30
     hooks:
       - id: shellcheck
         files: \.(sh)$
@@ -58,7 +57,7 @@ repos:
         files: \.(go|py|sh)$
         exclude: \.(deepcopy.go|pb.go)$
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.23.0
+    rev: v1.37.1
     hooks:
       - id: yamllint
         exclude:

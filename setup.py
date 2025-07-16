@@ -14,10 +14,8 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio>=1.58.0",
     "psutil",
     "pynvml",
-    "urllib3<1.27,>=1.21.1",
     "deprecated",
     "requests",
     "packaging",
@@ -25,18 +23,16 @@ install_requires = [
 
 
 extra_require = {
-    "master": ["tornado", "ray", "kubernetes", "omegaconf"],
-    "k8s": ["kubernetes"],
-    "ray": ["ray"],
+    "k8s": ["kubernetes", "tornado", "grpcio"],
+    "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
-    "rl": ["ray"],
 }
 
 
 setup(
     name="dlrover",
-    version="0.5.0.dev0",
+    version="0.6.0.dev0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"

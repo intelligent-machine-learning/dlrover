@@ -22,6 +22,7 @@ pip install -q grpcio-tools
 pip install -q psutil
 pip install -q deprecated
 pip install -q tornado
+pip install -q pytest-forked
 
 if [ "$1" = "basic" ]; then
   echo ""
@@ -43,7 +44,8 @@ pip install -q accelerate==0.29.2
 pip install -q transformers==4.37.2
 pip install -q peft==0.10.0
 pip install -q omegaconf
-pip install -q tensordict cloudpickle --no-deps
+pip install -q tensordict==0.9.0 cloudpickle --no-deps
+pip install -q types-Deprecated types-PyYAML types-requests
 
 end_time=$(date +%s)
 cost_time=$((end_time-start_time))

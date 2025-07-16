@@ -52,8 +52,7 @@ class TaskManager(object):
         self._paral_eval_count = 0
         self._paral_eval_started = False
         logger.info(
-            "Task manager initialized with "
-            f"process-timeout: {task_process_timeout}"
+            f"Task manager initialized with process-timeout: {task_process_timeout}"
         )
 
     def new_dataset(
@@ -155,10 +154,9 @@ class TaskManager(object):
             return all(dataset_hang)
         return False
 
-    def is_dataset_initialized(self, with_logging=False):
+    def is_dataset_initialized(self):
         if not self._datasets:
-            if with_logging:
-                logger.info("No datasets have been initialized.")
+            logger.debug("No datasets have been initialized.")
             return False
         return True
 

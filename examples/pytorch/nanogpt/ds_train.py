@@ -293,15 +293,13 @@ def timing_logger(func):
         if func == load_checkpoint:
             # Print the load checkpoint time.
             with result as loaded:
-                print(
-                    f"Load checkpoint time : {total_time}s"
-                ) if loaded else None
+                if loaded:
+                    print(f"Load checkpoint time : {total_time}s")
         elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(
-                    f"Save checkpoint time: {total_time}s"
-                ) if saved else None
+                if saved:
+                    print(f"Save checkpoint time: {total_time}s")
 
         return result
 

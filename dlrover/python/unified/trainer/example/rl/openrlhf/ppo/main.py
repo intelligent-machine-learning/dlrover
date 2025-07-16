@@ -21,7 +21,7 @@ from datetime import datetime
 from openrlhf.cli.train_ppo_ray import _validate_args
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.api import RLJobBuilder
+from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.util.config_util import args_2_omega_conf
 
 
@@ -354,8 +354,7 @@ if __name__ == "__main__":
         "--deepspeed_enable_sleep",
         action="store_true",
         default=False,
-        help="Enable sleep mode for deepspeed when using "
-        "--colocate_all_models",
+        help="Enable sleep mode for deepspeed when using --colocate_all_models",
     )
 
     # packing samples using Flash Attention2
@@ -633,9 +632,9 @@ if __name__ == "__main__":
         "reinforce_baseline",
         "group_norm",
     ]:
-        assert (
-            args.n_samples_per_prompt > 1
-        ), f"{args.advantage_estimator} requires n_samples_per_prompt > 1"
+        assert args.n_samples_per_prompt > 1, (
+            f"{args.advantage_estimator} requires n_samples_per_prompt > 1"
+        )
 
     if args.remote_rm_url:
         args.remote_rm_url = args.remote_rm_url.split(",")
@@ -654,16 +653,15 @@ if __name__ == "__main__":
     if args.packing_samples:
         if not args.flash_attn:
             logger.warning(
-                "Please --flash_attn to accelerate when "
-                "--packing_samples is enabled."
+                "Please --flash_attn to accelerate when --packing_samples is enabled."
             )
             args.flash_attn = True
-        assert (
-            args.vllm_num_engines > 0
-        ), "Only support `--packing_samples` with vLLM."
-        assert (
-            not args.pretrain_data
-        ), "`--pretrain_data` is not supported with `--packing_samples` yet."
+        assert args.vllm_num_engines > 0, (
+            "Only support `--packing_samples` with vLLM."
+        )
+        assert not args.pretrain_data, (
+            "`--pretrain_data` is not supported with `--packing_samples` yet."
+        )
 
     if args.vllm_enable_sleep and not args.colocate_all_models:
         logger.info(

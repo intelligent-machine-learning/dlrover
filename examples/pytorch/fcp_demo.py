@@ -16,7 +16,7 @@ The demo demonstrates how to use Flash Checkpoint in a DDP job.
 We can start a DDP job by
 
 ```
-pip install dlrover[torch] -U
+pip install dlrover[k8s, torch] -U
 dlrover-run --standalone --max_restarts=2 --nproc_per_node=2 fcp_demo.py
 ```
 """

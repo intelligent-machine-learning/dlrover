@@ -19,10 +19,6 @@ from abc import ABC, abstractmethod
 from concurrent import futures
 from typing import Dict, List, Optional
 
-import grpc as grpc_lib
-import tornado
-
-from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseRequest, BaseResponse, TaskType
 from dlrover.python.common.constants import (
@@ -57,7 +53,6 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
@@ -97,7 +92,7 @@ class MasterServicer(ABC):
         sync_service=None,
     ):
         self._task_manager: TaskManager = task_manager
-        self._job_manager: JobManager = job_manager
+        self._job_manager = job_manager
         self._perf_monitor = perf_monitor
         self._rdzv_managers = rdzv_managers
         self._diagnosis_manager = diagnosis_manager
@@ -303,9 +298,7 @@ class MasterServicer(ABC):
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
             # a worker join network-check rdzv.
-            training_manager = self._rdzv_managers[
-                RendezvousName.ELASTIC_TRAINING
-            ]
+            training_manager = self._rdzv_managers[RendezvousName.TRAINING]
             training_manager.clear_waiting_nodes()
 
         # Pause hang diagnosis during rendezvous
@@ -345,10 +338,11 @@ class MasterServicer(ABC):
         res.round = rdzv_round
         for rank, meta in nodes.items():
             res.world[rank] = meta.process_num
-        if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
+        if nodes and request.rdzv_name == RendezvousName.TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
-            self._job_metric_collector.collect_custom_data(metrics)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(metrics)
             # Finish elastic training rendezvous so we continue diagnosis
             self._diagnosis_manager.continue_observing()
 
@@ -668,6 +662,7 @@ class MasterServicer(ABC):
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )
+        logger.info("debug rdzv return")
         return True
 
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
@@ -683,7 +678,8 @@ class MasterServicer(ABC):
                 CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
                 CustomMetricKeys.ERROR_CONTENT: message.error_data,
             }
-            self._job_metric_collector.collect_custom_data(custom_data)
+            if self._job_metric_collector:
+                self._job_metric_collector.collect_custom_data(custom_data)
         return True
 
     def _kv_store_set(self, message: comm.KeyValuePair):
@@ -715,9 +711,9 @@ class MasterServicer(ABC):
     def _sync_checkpoint(
         self, node_type, node_id, message: comm.NodeCheckpointState
     ):
-        if RendezvousName.ELASTIC_TRAINING not in self._rdzv_managers:
+        if RendezvousName.TRAINING not in self._rdzv_managers:
             return False
-        rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
     def _report_node_diagnosis_data(self, message: comm.DiagnosisReportData):
@@ -728,8 +724,7 @@ class MasterServicer(ABC):
             )
             if data_cls is None:
                 logger.warning(
-                    "Invalid diagnosis report "
-                    f"data type: {message.data_cls}"
+                    f"Invalid diagnosis report data type: {message.data_cls}"
                 )
                 return False
             data_obj = data_cls.from_json(message.data_content)
@@ -773,8 +768,7 @@ class MasterServicer(ABC):
         )
         if action and not isinstance(action, NoAction):
             logger.info(
-                f"Master return action {action.__class__.__name__}: "
-                f"{action.to_json()}"
+                f"Master return action {action.__class__.__name__}: {action.to_json()}"
             )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,
@@ -815,10 +809,8 @@ class HttpMasterServicer(MasterServicer):
         return task_type
 
 
-class GrpcMasterServicer(
-    MasterServicer, elastic_training_pb2_grpc.MasterServicer
-):
-    """Master service with grpc implementation."""
+class RayMasterServicer(MasterServicer):
+    """Master service with ray implementation."""
 
     def __init__(
         self,
@@ -831,7 +823,7 @@ class GrpcMasterServicer(
         elastic_ps_service=None,
         sync_service=None,
     ):
-        super(GrpcMasterServicer, self).__init__(
+        super().__init__(
             task_manager,
             job_manager,
             perf_monitor,
@@ -842,58 +834,118 @@ class GrpcMasterServicer(
             sync_service,
         )
 
+    def agent_report(self, request):
+        return self.report(BaseRequest.from_json(request), None)
+
+    def agent_get(self, request):
+        return self.get(BaseRequest.from_json(request), None)
+
     def get_response(self, method):
-        if method == "report":
-            return elastic_training_pb2.Response()
-        else:
-            return elastic_training_pb2.Message()
+        return BaseResponse()
 
     def get_task_type(self, task_type):
-        if task_type == TaskType.WAIT:
-            return elastic_training_pb2.WAIT
-        elif task_type == TaskType.TRAINING:
-            return elastic_training_pb2.TRAINING
-        elif task_type == TaskType.EVALUATION:
-            return elastic_training_pb2.EVALUATION
-        elif task_type == TaskType.PREDICTION:
-            return elastic_training_pb2.PREDICTION
-        elif task_type == TaskType.TRAIN_END_CALLBACK:
-            return elastic_training_pb2.TRAIN_END_CALLBACK
-        else:
-            return elastic_training_pb2.NONE
+        return task_type
 
 
-class HttpMasterHandler(tornado.web.RequestHandler):
-    def initialize(self, master_servicer: HttpMasterServicer):
-        self._handler = master_servicer
+try:
+    from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 
-    def get(self):
-        self.write("Not supported")
+    class GrpcMasterServicer(
+        MasterServicer, elastic_training_pb2_grpc.MasterServicer
+    ):
+        """Master service with grpc implementation."""
 
-    def post(self):
-        try:
-            path = self.request.path
-            request = BaseRequest.from_json(json.loads(self.request.body))
+        def __init__(
+            self,
+            task_manager,
+            job_manager,
+            perf_monitor: PerfMonitor,
+            rdzv_managers: Dict[str, RendezvousManager],
+            diagnosis_manager: DiagnosisMaster,
+            job_metric_collector=None,
+            elastic_ps_service=None,
+            sync_service=None,
+        ):
+            super(GrpcMasterServicer, self).__init__(
+                task_manager,
+                job_manager,
+                perf_monitor,
+                rdzv_managers,
+                diagnosis_manager,
+                job_metric_collector,
+                elastic_ps_service,
+                sync_service,
+            )
 
-            if path == "/get":
-                # return message
-                response = self._handler.get(request, BaseRequest())
-                if not response.data:
-                    response.success = True
-                self.write(response.serialize())
-            elif path == "/report":
-                # return boolean
-                self.write(
-                    self._handler.report(request, BaseRequest()).serialize()
-                )
+        def get_response(self, method):
+            if method == "report":
+                return elastic_training_pb2.Response()
             else:
-                self.set_status(404)
-                logger.error(f"No service found for {path}.")
-                self.write("")
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            self.set_status(500)
-            self.write(f"{str(e)}")
+                return elastic_training_pb2.Message()
+
+        def get_task_type(self, task_type):
+            if task_type == TaskType.WAIT:
+                return elastic_training_pb2.WAIT
+            elif task_type == TaskType.TRAINING:
+                return elastic_training_pb2.TRAINING
+            elif task_type == TaskType.EVALUATION:
+                return elastic_training_pb2.EVALUATION
+            elif task_type == TaskType.PREDICTION:
+                return elastic_training_pb2.PREDICTION
+            elif task_type == TaskType.TRAIN_END_CALLBACK:
+                return elastic_training_pb2.TRAIN_END_CALLBACK
+            else:
+                return elastic_training_pb2.NONE
+
+except ImportError:
+    logger.warning(
+        "Protobuf is not installed. Can be ignored if "
+        "using ray or using http server on k8s."
+    )
+
+
+try:
+    import tornado
+
+    class HttpMasterHandler(tornado.web.RequestHandler):
+        def initialize(self, master_servicer: HttpMasterServicer):
+            self._handler = master_servicer
+
+        def get(self):
+            self.write("Not supported")
+
+        def post(self):
+            try:
+                path = self.request.path
+                request = BaseRequest.from_json(json.loads(self.request.body))
+
+                if path == "/get":
+                    # return message
+                    response = self._handler.get(request, BaseRequest())
+                    if not response.data:
+                        response.success = True
+                    self.write(response.serialize())
+                elif path == "/report":
+                    # return boolean
+                    self.write(
+                        self._handler.report(
+                            request, BaseRequest()
+                        ).serialize()
+                    )
+                else:
+                    self.set_status(404)
+                    logger.error(f"No service found for {path}.")
+                    self.write("")
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                self.set_status(500)
+                self.write(f"{str(e)}")
+
+except ImportError:
+    logger.warning(
+        "Tornado is not installed. Can be ignored if using ray or "
+        "using grpc server on k8s."
+    )
 
 
 def create_master_service(
@@ -911,7 +963,10 @@ def create_master_service(
     service_type = _dlrover_context.master_service_type
     logger.info(f"Creating master {service_type} service with port: {port}")
 
+    server = None
     if service_type == CommunicationType.COMM_SERVICE_GRPC:
+        import grpc as grpc_lib
+
         server = grpc_lib.server(
             futures.ThreadPoolExecutor(
                 max_workers=max_threads,
@@ -940,7 +995,7 @@ def create_master_service(
             master_servicer, server
         )
         server.add_insecure_port("[::]:{}".format(port))
-    else:
+    elif service_type == CommunicationType.COMM_SERVICE_HTTP:
         master_servicer = HttpMasterServicer(
             task_manager=task_manager,
             job_manager=job_manager,
@@ -972,4 +1027,5 @@ def create_master_service(
                 ),
             ],
         )
+
     return server

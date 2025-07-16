@@ -75,7 +75,7 @@ Flash Checkpoint 导出 Checkpoint 的时候，每个 rank 先将自己的优化
 
 ### 简单易用的接口
 
-安装 DLRover 包pip install dlrover[torch] -U，
+安装 DLRover 包pip install dlrover[k8s, torch] -U，
 然后在 megatron/training.py 中将原有的 save_checkpoint 和
 load_checkpoint 换成 DLRover 的 flash Checkpoint 接口即可。
 

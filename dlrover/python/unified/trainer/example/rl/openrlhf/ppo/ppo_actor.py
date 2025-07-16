@@ -19,11 +19,14 @@
 import itertools
 import math
 import os
-from typing import Callable, List
+from typing import Optional, Callable, List
 
 import ray
 import torch
 import torch.distributed
+from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
+    BasePPORole,
+)
 from openrlhf.datasets import PromptDataset, SFTDataset
 from openrlhf.models import Actor
 from openrlhf.trainer.ray.ppo_actor import ActorPPOTrainer
@@ -33,9 +36,6 @@ from openrlhf.utils.deepspeed import DeepspeedStrategy
 from openrlhf.utils.deepspeed.deepspeed_utils import offload_deepspeed_states
 from transformers.trainer import get_scheduler
 
-from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
-    BasePPORole,
-)
 from dlrover.python.unified.trainer.workload import trainer_invocation
 
 
@@ -246,9 +246,11 @@ class ActorModelRayActor(BasePPORole):
         critic_model: ray.actor.ActorHandle,
         initial_model: ray.actor.ActorHandle,
         reward_model: List[ray.actor.ActorHandle],
-        remote_rm_url: List[str] = None,
-        reward_fn: Callable[[List[torch.Tensor]], torch.Tensor] = None,
-        vllm_engines: List[ray.actor.ActorHandle] = None,
+        remote_rm_url: Optional[List[str]] = None,
+        reward_fn: Optional[
+            Callable[[List[torch.Tensor]], torch.Tensor]
+        ] = None,
+        vllm_engines: Optional[List[ray.actor.ActorHandle]] = None,
         critic_train_remote: bool = False,
     ):
         """Train actor model with prompt datasets."""

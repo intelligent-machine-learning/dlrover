@@ -20,7 +20,6 @@ from typing import Dict, Optional
 
 import requests
 
-from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import comm, env_utils
 from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
@@ -44,22 +43,15 @@ from dlrover.python.util.function_util import retry
 
 class MasterClient(Singleton, ABC):
     """MasterClient provides some APIs connect with the master
-    service via gRPC call.
+    service via gRPC/http/ray call.
+
     Args:
         master_addr: the master address
         node_id (int), the unique and ordered node ID assigned
         by dlrover command-line.
         node_type: the job type of node contains "worker", "ps"
             "evaluator" and "chief".
-        timeout (int): the timeout second of grpc requests.
-
-    Examples::
-        channel = elasticai_api.util.grpc_utils.build_channel(
-            "localhost:50001"
-        )
-        mc = MasterClient(channel, work_id=0)
-        # get task unit from master service
-        mc.get_task(...)
+        timeout (int): the timeout second of requests.
     """
 
     _instance_lock = threading.Lock()
@@ -135,13 +127,12 @@ class MasterClient(Singleton, ABC):
             return response.success
         except IndexError:
             logger.warning(
-                f"IndexError in kv_store_multi_set: "
-                f"{keys}, {values} are inconsistent"
+                f"IndexError in kv_store_multi_set: {keys}, {values} are inconsistent"
             )
             raise
         except Exception:
             logger.warning(
-                f"Unexpected error in kv_store_multi_set: " f"{keys}, {values}"
+                f"Unexpected error in kv_store_multi_set: {keys}, {values}"
             )
             raise
 
@@ -197,7 +188,7 @@ class MasterClient(Singleton, ABC):
         shuffle=False,
         num_minibatches_per_shard=0,
         dataset_name=None,
-        task_type=elastic_training_pb2.NONE,
+        task_type=0,
         storage_type="",
     ):
         message = comm.DatasetShardParams(
@@ -257,8 +248,7 @@ class MasterClient(Singleton, ABC):
         )
         if action_cls is None:
             logger.warning(
-                "Invalid diagnosis action "
-                f"action type: {response.action.action_cls}"
+                f"Invalid diagnosis action action type: {response.action.action_cls}"
             )
         else:
             action = action_cls.from_json(response.action.action_content)
@@ -533,41 +523,57 @@ class MasterClient(Singleton, ABC):
         return cls._instance
 
 
-class GrpcMasterClient(MasterClient):
-    def __init__(self, master_addr, node_id, node_type, timeout=5):
-        super(GrpcMasterClient, self).__init__(
-            master_addr, node_id, node_type, timeout
+try:
+    from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
+
+    class GrpcMasterClient(MasterClient):
+        """
+        Examples::
+        channel = elasticai_api.util.grpc_utils.build_channel(
+            "localhost:50001"
         )
-        self._open_grpc_channel()
+        mc = MasterClient(channel, work_id=0)
+        # get task unit from master service
+        mc.get_task(...)
+        """
 
-    def __del__(self):
-        self._close_grpc_channel()
+        def __init__(self, master_addr, node_id, node_type, timeout=5):
+            super(GrpcMasterClient, self).__init__(
+                master_addr, node_id, node_type, timeout
+            )
+            self._open_grpc_channel()
 
-    def _close_grpc_channel(self):
-        if self._channel:
-            self._channel.close()
+        def __del__(self):
+            self._close_grpc_channel()
 
-    def _open_grpc_channel(self):
-        self._channel = comm.build_grpc_channel(self._master_addr)
-        self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
+        def _close_grpc_channel(self):
+            if self._channel:
+                self._channel.close()
 
-    @retry()
-    def _report(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        return self._stub.report(request, timeout=self._timeout)
+        def _open_grpc_channel(self):
+            self._channel = comm.build_grpc_channel(self._master_addr)
+            self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
-    @retry()
-    def _get(self, message: comm.Message):
-        request = elastic_training_pb2.Message()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.data = message.serialize()
-        response = self._stub.get(request, timeout=self._timeout)
-        res_message = comm.deserialize_message(response.data)
-        return res_message
+        @retry()
+        def _report(self, message: comm.Message):
+            request = elastic_training_pb2.Message()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
+            return self._stub.report(request, timeout=self._timeout)
+
+        @retry()
+        def _get(self, message: comm.Message):
+            request = elastic_training_pb2.Message()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
+            response = self._stub.get(request, timeout=self._timeout)
+            res_message = comm.deserialize_message(response.data)
+            return res_message
+
+except ImportError:
+    logger.warning("Protobuf is not installed.")
 
 
 class HttpMasterClient(MasterClient):
@@ -586,10 +592,7 @@ class HttpMasterClient(MasterClient):
             json=self._gen_request(message).to_json(),
         ) as response:
             if response.status_code != 200:
-                error_msg = (
-                    "Failed to report master "
-                    f"with http request: {type(message)}."
-                )
+                error_msg = f"Failed to report master with http request: {type(message)}."
                 raise RuntimeError(error_msg)
             response_data: BaseResponse = comm.deserialize_message(
                 response.content
@@ -603,10 +606,7 @@ class HttpMasterClient(MasterClient):
             json=self._gen_request(message).to_json(),
         ) as response:
             if response.status_code != 200:
-                error_msg = (
-                    "Failed to get from master "
-                    f"with http request: {type(message)}."
-                )
+                error_msg = f"Failed to get from master with http request: {type(message)}."
                 raise RuntimeError(error_msg)
             response_data: BaseResponse = comm.deserialize_message(
                 response.content
@@ -622,6 +622,62 @@ class HttpMasterClient(MasterClient):
         return request
 
 
+try:
+    import ray
+    from ray.util.state import get_actor
+
+    class RayMasterClient(MasterClient):
+        def __init__(self, master_addr, node_id, node_type, timeout=5):
+            super(RayMasterClient, self).__init__(
+                master_addr, node_id, node_type, timeout
+            )
+            self._master_actor_handle = None
+
+        def _get_master_actor_handle(self):
+            if not self._master_actor_handle:
+                self._master_actor_handle = ray.get_actor(
+                    get_actor(self._master_addr).name
+                )
+            return self._master_actor_handle
+
+        @retry()
+        def _report(self, message: comm.Message):
+            response = ray.get(
+                self._get_master_actor_handle().agent_report.remote(
+                    self._gen_request(message).to_json()
+                ),
+                timeout=self._timeout,
+            )
+
+            return response
+
+        @retry()
+        def _get(self, message: comm.Message):
+            response = ray.get(
+                self._get_master_actor_handle().agent_get.remote(
+                    self._gen_request(message).to_json()
+                ),
+                timeout=self._timeout,
+            )
+
+            return comm.deserialize_message(response.data)
+
+        def _gen_request(self, message: comm.Message):
+            request = BaseRequest()
+            request.node_id = self._node_id
+            request.node_type = self._node_type
+            request.data = message.serialize()
+
+            return request
+
+        def get_elastic_run_config(self) -> Dict[str, str]:
+            # no need to get config from master
+            return {}
+
+except ImportError:
+    logger.warning("Ray is not installed.")
+
+
 def build_master_client(
     master_addr=None, timeout=JobConstant.MASTER_CLIENT_DEFAULT_TIMEOUT
 ):
@@ -629,8 +685,8 @@ def build_master_client(
     Build a master client.
 
     Args:
-        master_addr (str): the address of the job master, the format
-            is "{IP}:{PORT}"
+        master_addr (Union[str, ActorHandle]): the address of the job master,
+            the format is "{IP}:{PORT}" if str type
         timeout (int): the timeout second of grpc requests.
     """
     if master_addr is None:
@@ -658,10 +714,15 @@ def build_master_client(
                 master_client = GrpcMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
-            else:
+            elif master_service_type == CommunicationType.COMM_SERVICE_HTTP:
                 master_client = HttpMasterClient(
+                    master_addr, node_id, node_type, timeout
+                )
+            else:
+                master_client = RayMasterClient(
                     master_addr, node_id, node_type, timeout
                 )
         except Exception:
             logger.warning("The master is not available.")
+
     return master_client

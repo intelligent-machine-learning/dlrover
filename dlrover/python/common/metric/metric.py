@@ -180,21 +180,21 @@ class GpuNodeMetric(XpuNodeMetric):
         self.avg_metrics.metrics[GpuMetricEnum.GPU_TENSOR_UTIL] = 0.0
 
         for _, metric in self.node_metrics.items():
-            self.avg_metrics.metrics[
-                GpuMetricEnum.GPU_FREE_MEM
-            ] += metric.get_metric(GpuMetricEnum.GPU_FREE_MEM)
-            self.avg_metrics.metrics[
-                GpuMetricEnum.GPU_USED_MEM
-            ] += metric.get_metric(GpuMetricEnum.GPU_USED_MEM)
-            self.avg_metrics.metrics[
-                GpuMetricEnum.GPU_UTIL
-            ] += metric.get_metric(GpuMetricEnum.GPU_UTIL)
-            self.avg_metrics.metrics[
-                GpuMetricEnum.GPU_SM_UTIL
-            ] += metric.get_metric(GpuMetricEnum.GPU_SM_UTIL)
-            self.avg_metrics.metrics[
-                GpuMetricEnum.GPU_TENSOR_UTIL
-            ] += metric.get_metric(GpuMetricEnum.GPU_TENSOR_UTIL)
+            self.avg_metrics.metrics[GpuMetricEnum.GPU_FREE_MEM] += (
+                metric.get_metric(GpuMetricEnum.GPU_FREE_MEM)
+            )
+            self.avg_metrics.metrics[GpuMetricEnum.GPU_USED_MEM] += (
+                metric.get_metric(GpuMetricEnum.GPU_USED_MEM)
+            )
+            self.avg_metrics.metrics[GpuMetricEnum.GPU_UTIL] += (
+                metric.get_metric(GpuMetricEnum.GPU_UTIL)
+            )
+            self.avg_metrics.metrics[GpuMetricEnum.GPU_SM_UTIL] += (
+                metric.get_metric(GpuMetricEnum.GPU_SM_UTIL)
+            )
+            self.avg_metrics.metrics[GpuMetricEnum.GPU_TENSOR_UTIL] += (
+                metric.get_metric(GpuMetricEnum.GPU_TENSOR_UTIL)
+            )
 
         self.avg_metrics.metrics[GpuMetricEnum.GPU_FREE_MEM] = round(
             self.avg_metrics.metrics[GpuMetricEnum.GPU_FREE_MEM]
@@ -245,15 +245,15 @@ class NpuNodeMetric(XpuNodeMetric):
 
     def update_avg_metrics(self):
         for _, metric in self.node_metrics.items():
-            self.avg_metrics.metrics[
-                NpuMetricEnum.NPU_TOTAL_MEM
-            ] += metric.get_metric(NpuMetricEnum.NPU_TOTAL_MEM)
-            self.avg_metrics.metrics[
-                NpuMetricEnum.NPU_USED_MEM
-            ] += metric.get_metric(NpuMetricEnum.NPU_USED_MEM)
-            self.avg_metrics.metrics[
-                NpuMetricEnum.NPU_UTIL
-            ] += metric.get_metric(NpuMetricEnum.NPU_UTIL)
+            self.avg_metrics.metrics[NpuMetricEnum.NPU_TOTAL_MEM] += (
+                metric.get_metric(NpuMetricEnum.NPU_TOTAL_MEM)
+            )
+            self.avg_metrics.metrics[NpuMetricEnum.NPU_USED_MEM] += (
+                metric.get_metric(NpuMetricEnum.NPU_USED_MEM)
+            )
+            self.avg_metrics.metrics[NpuMetricEnum.NPU_UTIL] += (
+                metric.get_metric(NpuMetricEnum.NPU_UTIL)
+            )
 
         self.avg_metrics.metrics[NpuMetricEnum.NPU_TOTAL_MEM] = round(
             self.avg_metrics.metrics[NpuMetricEnum.NPU_TOTAL_MEM]

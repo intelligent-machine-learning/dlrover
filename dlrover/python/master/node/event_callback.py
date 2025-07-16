@@ -54,8 +54,7 @@ class NodeEventCallback(metaclass=abc.ABCMeta):
                 func(self, *args, **kwargs)
             except Exception as e:
                 logger.warning(
-                    f"Fail to call {self.__class__.__name__}"
-                    f".{func.__name__}",
+                    f"Fail to call {self.__class__.__name__}.{func.__name__}",
                     e,
                 )
 
@@ -218,12 +217,10 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         super(AllReduceNodeHandlingCallback, self).__init__()
         self._master = master
         self._perf_monitor: PerfMonitor = self._master.perf_monitor
-        self._rdzv_managers: Dict[
-            str, RendezvousManager
-        ] = self._master.rdzv_managers
-        rdzv_manager = self._rdzv_managers.get(
-            RendezvousName.ELASTIC_TRAINING, None
+        self._rdzv_managers: Dict[str, RendezvousManager] = (
+            self._master.rdzv_managers
         )
+        rdzv_manager = self._rdzv_managers.get(RendezvousName.TRAINING, None)
         if rdzv_manager:
             self._min_node = rdzv_manager.get_min_nodes()
         else:
@@ -299,8 +296,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         if node.exit_reason == NodeExitReason.FATAL_ERROR:
             if not _dlrover_ctx.relaunch_always:
                 logger.info(
-                    f"Need to stop job for node: {node.name} "
-                    "has fatal error."
+                    f"Need to stop job for node: {node.name} has fatal error."
                 )
                 stop_node = True
         if node.relaunch_count >= node.max_relaunch_count:

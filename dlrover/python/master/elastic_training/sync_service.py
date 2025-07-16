@@ -18,14 +18,13 @@ from typing import Dict, List, Set, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.master.node.dist_job_manager import DistributedJobManager
 
 _WAIT_SYNC_TINEOUT = 3600
 
 
 class SyncService(object):
     def __init__(self, job_manager):
-        self._job_manager: DistributedJobManager = job_manager
+        self._job_manager = job_manager
         self._sync_objs_target: Dict[str, List[Tuple[str, int]]] = {}
         self._finished_barriers: Set[str] = set()
         self._lock = threading.Lock()
@@ -91,8 +90,7 @@ class SyncService(object):
             if worker in self._sync_objs_target[sync_name]:
                 self._sync_objs_target[sync_name].remove(worker)
                 logger.info(
-                    "{} not running, removed from {}. "
-                    "Remaining {}".format(
+                    "{} not running, removed from {}. Remaining {}".format(
                         worker,
                         sync_name,
                         self._sync_objs_target[sync_name],

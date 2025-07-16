@@ -87,9 +87,9 @@ def _split_args_kwargs_data_proto_with_auto_padding(chunks, *args, **kwargs):
                 )
                 splitted_kwargs[_padding_size_key] = padding_size
             else:
-                assert data_proto_len == len(
-                    arg
-                ), f"expecting all arg share same length of {data_proto_len}, but got {len(arg)}"
+                assert data_proto_len == len(arg), (
+                    f"expecting all arg share same length of {data_proto_len}, but got {len(arg)}"
+                )
                 data_proto_len = len(arg)
             arg.padding(padding_size=padding_size)
 
@@ -104,9 +104,9 @@ def _split_args_kwargs_data_proto_with_auto_padding(chunks, *args, **kwargs):
                 padding_size = chunks - (data_proto_len % chunks)
                 splitted_kwargs[_padding_size_key] = padding_size
             else:
-                assert data_proto_len == len(
-                    val
-                ), f"expecting all arg share same length of {data_proto_len}, but got {len(val)}"
+                assert data_proto_len == len(val), (
+                    f"expecting all arg share same length of {data_proto_len}, but got {len(val)}"
+                )
                 data_proto_len = len(val)
         splitted_kwargs[key] = val.chunk(chunks=chunks)
 
@@ -217,9 +217,9 @@ def collect_megatron_compute_data_proto(role_group, output):
 
     output = collect_megatron_compute(role_group, output)
     for o in output:
-        assert isinstance(
-            o, (DataProto, ray.ObjectRef)
-        ), f"expecting {o} to be DataProto, but got {type(o)}"
+        assert isinstance(o, (DataProto, ray.ObjectRef)), (
+            f"expecting {o} to be DataProto, but got {type(o)}"
+        )
 
     return _concat_data_proto_or_future(output)
 
@@ -261,9 +261,9 @@ def dispatch_megatron_pp_as_dp(role_group, *args, **kwargs):
 
     all_kwargs = {}
     for k, v in kwargs.items():
-        assert (
-            isinstance(v, (List, Tuple)) and len(v) == pp_dp_cp_size
-        ), f"expect len(v)=={pp_dp_cp_size}, got {len(v)}"
+        assert isinstance(v, (List, Tuple)) and len(v) == pp_dp_cp_size, (
+            f"expect len(v)=={pp_dp_cp_size}, got {len(v)}"
+        )
         transformed_v = []
         for i in range(role_group.world_size):
             rank_info = role_group.get_megatron_rank_info()[i]
@@ -368,9 +368,9 @@ def collect_dp_compute_data_proto(role_group, output):
     from verl.protocol import DataProto
 
     for o in output:
-        assert isinstance(
-            o, (DataProto, ray.ObjectRef)
-        ), f"expecting {o} to be DataProto, but got {type(o)}"
+        assert isinstance(o, (DataProto, ray.ObjectRef)), (
+            f"expecting {o} to be DataProto, but got {type(o)}"
+        )
 
     output = collect_dp_compute(role_group, output)
     return _concat_data_proto_or_future(output)
@@ -443,21 +443,21 @@ def get_predefined_execute_fn(execute_mode):
 
 
 def _check_dispatch_mode(dispatch_mode):
-    assert isinstance(
-        dispatch_mode, (Dispatch, Dict)
-    ), f"dispatch_mode must be a Dispatch or a Dict. Got {dispatch_mode}"
+    assert isinstance(dispatch_mode, (Dispatch, Dict)), (
+        f"dispatch_mode must be a Dispatch or a Dict. Got {dispatch_mode}"
+    )
     if isinstance(dispatch_mode, Dict):
         necessary_keys = ["dispatch_fn", "collect_fn"]
         for key in necessary_keys:
-            assert (
-                key in dispatch_mode
-            ), f"key {key} should be in dispatch_mode if it is a dictionary"
+            assert key in dispatch_mode, (
+                f"key {key} should be in dispatch_mode if it is a dictionary"
+            )
 
 
 def _check_execute_mode(execute_mode):
-    assert isinstance(
-        execute_mode, Execute
-    ), f"execute_mode must be a Execute. Got {execute_mode}"
+    assert isinstance(execute_mode, Execute), (
+        f"execute_mode must be a Execute. Got {execute_mode}"
+    )
 
 
 def _materialize_futures(*args, **kwargs):

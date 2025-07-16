@@ -90,11 +90,10 @@ Notice:
 #### Step 3: Use API for Submit
 
 Use the common [API](#Job Submitting API) to submit a ray 
-job to run the DL training defined by user: 
+job to run the DL training defined by user:
 
 ```python
-from dlrover.python.unified.api.api import DLJobBuilder
-
+from dlrover.python.unified.api.base import DLJobBuilder
 
 dl_job = (
     DLJobBuilder()

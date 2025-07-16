@@ -31,6 +31,7 @@ class PlatformType(object):
 class CommunicationType(object):
     COMM_SERVICE_GRPC = "grpc"
     COMM_SERVICE_HTTP = "http"
+    COMM_SERVICE_RAY = "ray"
 
 
 class ElasticJobApi(object):
@@ -164,10 +165,7 @@ class NodeExitReason(object):
 
 
 class NodeExitDescription(object):
-    CHECK_FAILED_MSG = (
-        "This node failed the node-check "
-        "procedure(mat-mul + comm) before training."
-    )
+    CHECK_FAILED_MSG = "This node failed the node-check procedure(mat-mul + comm) before training."
 
 
 class JobExitReason(object):
@@ -349,7 +347,7 @@ class k8sAPIExceptionReason(object):
 
 
 class RendezvousName(object):
-    ELASTIC_TRAINING = "elastic-training"
+    TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
 
 
@@ -501,6 +499,7 @@ class JobStage(object):
     JOB_RUNNING = "running"
     JOB_STOPPING = "stopping"
     JOB_STOPPED = "stopped"
+    JOB_SUSPENDED = "suspended"
 
 
 class KeyValueOps(object):

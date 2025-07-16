@@ -298,8 +298,7 @@ class WorkerManager(TrainingNodeManager):
                 )
             ):
                 logger.debug(
-                    f"Worker {worker} has exited: "
-                    f"{worker.exit_reason} {worker.status}"
+                    f"Worker {worker} has exited: {worker.exit_reason} {worker.status}"
                 )
                 return True
         return False
@@ -427,7 +426,8 @@ class WorkerManager(TrainingNodeManager):
             # with condition 3
             now = time.time()
             first_pending_worker = min(
-                pending_workers, key=lambda x: x.create_time  # type: ignore
+                pending_workers,
+                key=lambda x: x.create_time,  # type: ignore
             )
             if (
                 not first_pending_worker

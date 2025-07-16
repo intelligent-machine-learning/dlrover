@@ -108,6 +108,7 @@ class PodScaler(Scaler):
         self._master_service_type = _dlrover_context.master_service_type
         self._event_reporter = get_event_reporter()
         self._started = False
+        self._job_context = get_job_context()
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -208,10 +209,15 @@ class PodScaler(Scaler):
         if not self._elasticjob_exists():
             plan_json = plan.to_json()
             logger.info(
-                f"Skip the scaleplan {plan_json} "
-                "because the job does not exist."
+                f"Skip the scaleplan {plan_json} because the job does not exist."
             )
             return
+
+        while True:
+            if not self._job_context.is_suspended():
+                break
+            logger.info("Waiting for elasticJob which is suspended")
+            time.sleep(5)
 
         self._remove_nodes(plan)
         while self._started:
@@ -622,8 +628,7 @@ class PodScaler(Scaler):
                 time.sleep(1)
 
         logger.warning(
-            f"Master service check {host}:{port} "
-            f"failed after {timeout} retries."
+            f"Master service check {host}:{port} failed after {timeout} retries."
         )
         return False
 

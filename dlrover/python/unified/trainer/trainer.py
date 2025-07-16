@@ -55,8 +55,7 @@ class RoleGroupProxy(object):
         self._actor_handles = actor_handles
 
         logger.info(
-            f"Initiate role-group-proxy with role: {role}, "
-            f"world_size: {world_size}"
+            f"Initiate role-group-proxy with role: {role}, world_size: {world_size}"
         )
 
     @property
@@ -330,3 +329,15 @@ class BaseTrainer(ABC):
         """
         Requires user implementation: the core training logic.
         """
+
+
+class DefaultTrainer(BaseTrainer):
+    """
+    Internal default trainer, such as: for elastic training case.
+    """
+
+    def init(self):
+        pass
+
+    def fit(self):
+        pass

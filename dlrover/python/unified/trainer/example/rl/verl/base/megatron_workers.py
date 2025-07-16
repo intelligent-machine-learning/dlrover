@@ -23,8 +23,17 @@ import time
 import torch
 import torch.distributed
 from codetiming import Timer
+from dlrover.python.unified.trainer.example.verl.base.decorator import (
+    collect_megatron_compute_data_proto,
+    collect_megatron_pp_as_dp_data_proto,
+    dispatch_megatron_compute_data_proto,
+    dispatch_megatron_pp_as_dp_data_proto,
+    dispatch_one_to_all,
+)
+from dlrover.python.unified.trainer.example.verl.base.worker import (
+    MegatronWorker,
+)
 from megatron.core import parallel_state as mpu
-from omegaconf import DictConfig
 from verl import DataProto
 from verl.utils import hf_tokenizer
 from verl.utils.checkpoint.megatron_checkpoint_manager import (
@@ -48,18 +57,6 @@ from verl.workers.critic.megatron_critic import MegatronPPOCritic
 from verl.workers.megatron_workers import set_random_seed
 from verl.workers.reward_model.megatron.reward_model import MegatronRewardModel
 
-from dlrover.python.unified.trainer.example.verl.base.decorator import (
-    Dispatch,
-    collect_megatron_compute_data_proto,
-    collect_megatron_pp_as_dp_data_proto,
-    dispatch_megatron_compute_data_proto,
-    dispatch_megatron_pp_as_dp_data_proto,
-    dispatch_one_to_all,
-    register,
-)
-from dlrover.python.unified.trainer.example.verl.base.worker import (
-    MegatronWorker,
-)
 from dlrover.python.unified.trainer.workload import trainer_invocation
 
 logger = logging.getLogger(__file__)
@@ -269,9 +266,9 @@ class ActorRolloutRefWorker(MegatronWorker):
 
             infer_tp = self.config.rollout.tensor_model_parallel_size
             dp = self.world_size // infer_tp
-            assert (
-                self.world_size % infer_tp == 0
-            ), f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
+            assert self.world_size % infer_tp == 0, (
+                f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
+            )
             rollout_device_mesh = init_device_mesh(
                 "cuda",
                 mesh_shape=(dp, infer_tp),
@@ -498,12 +495,16 @@ class ActorRolloutRefWorker(MegatronWorker):
             )
         prompts.batch = prompts.batch.cuda()
         meta_info = {
-            "eos_token_id": self.generation_config.eos_token_id
-            if self.generation_config is not None
-            else self.tokenizer.eos_token_id,
-            "pad_token_id": self.generation_config.pad_token_id
-            if self.generation_config is not None
-            else self.tokenizer.pad_token_id,
+            "eos_token_id": (
+                self.generation_config.eos_token_id
+                if self.generation_config is not None
+                else self.tokenizer.eos_token_id
+            ),
+            "pad_token_id": (
+                self.generation_config.pad_token_id
+                if self.generation_config is not None
+                else self.tokenizer.pad_token_id
+            ),
         }
         prompts.meta_info.update(meta_info)
         with self.sharding_manager:
@@ -571,9 +572,9 @@ class ActorRolloutRefWorker(MegatronWorker):
         data = data.to("cuda")
         output = data
         # we should always recompute old_log_probs when it is HybridEngine
-        output.meta_info[
-            "micro_batch_size"
-        ] = self.config.rollout.log_prob_micro_batch_size_per_gpu
+        output.meta_info["micro_batch_size"] = (
+            self.config.rollout.log_prob_micro_batch_size_per_gpu
+        )
         output.meta_info["temperature"] = self.config.rollout.temperature
         old_log_probs, entropys = self.actor.compute_log_prob(
             data=output, calculate_entropy=True

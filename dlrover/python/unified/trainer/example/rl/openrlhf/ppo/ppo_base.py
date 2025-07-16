@@ -51,8 +51,7 @@ class BasePPORole(BaseRLWorkload):
         self.strategy = strategy
         strategy.setup_distributed()
         logger.info(
-            f"{self.name} done dist init, "
-            f"using device: {torch.cuda.current_device()}"
+            f"{self.name} done dist init, using device: {torch.cuda.current_device()}"
         )
 
     def init_model_from_pretrained(self, *args, **kwargs):
@@ -89,7 +88,7 @@ class ReferenceModelRayActor(BasePPORole):
     def forward(
         self,
         sequences: torch.LongTensor,
-        num_actions: int = None,
+        num_actions: Optional[int] = None,
         attention_mask: Optional[torch.Tensor] = None,
         return_output=False,
         logps_allgather=False,

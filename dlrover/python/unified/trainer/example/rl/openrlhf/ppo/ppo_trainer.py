@@ -15,7 +15,7 @@
 # licensed under the Apache License 2.0. See [https://github.com/OpenRLHF/
 # OpenRLHF] for details.
 import argparse
-from typing import Callable, List
+from typing import Optional, Callable, List
 
 import ray
 import torch
@@ -70,8 +70,7 @@ class PPOTrainer(BaseRLTrainer):
                     rollout_actor.init.remote(
                         model=args.pretrain,
                         enforce_eager=args.enforce_eager,
-                        worker_cls="openrlhf.trainer.ray.vllm_worker_wrap."
-                        "WorkerWrap",
+                        worker_cls="openrlhf.trainer.ray.vllm_worker_wrap.WorkerWrap",
                         tensor_parallel_size=args.vllm_tensor_parallel_size,
                         seed=seed,
                         distributed_executor_backend="ray",
@@ -139,8 +138,10 @@ class PPOTrainer(BaseRLTrainer):
 
     def async_fit_actor_model(
         self,
-        remote_rm_urls: List[str] = None,
-        reward_fn: Callable[[List[torch.Tensor]], torch.Tensor] = None,
+        remote_rm_urls: Optional[List[str]] = None,
+        reward_fn: Optional[
+            Callable[[List[torch.Tensor]], torch.Tensor]
+        ] = None,
     ):
         """Train actor model.
 
@@ -187,9 +188,9 @@ class PPOTrainer(BaseRLTrainer):
                     remote_rm_url=remote_rm_urls,
                     reward_fn=reward_fn,
                     vllm_engines=self.rollouts,
-                    critic_train_remote=(i < len(critic_actors))
-                    if critic_actor
-                    else None,
+                    critic_train_remote=(
+                        (i < len(critic_actors)) if critic_actor else None
+                    ),
                 )
             )
 

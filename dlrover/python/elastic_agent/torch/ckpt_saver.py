@@ -61,8 +61,7 @@ def report_local_event(
         labels = {}
     time_str = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")
     logger.info(
-        f"[{time_str}][{event_type}][{instance}]"
-        f"[{action}][{msg}][{json.dumps(labels)}]"
+        f"[{time_str}][{event_type}][{instance}][{action}][{msg}][{json.dumps(labels)}]"
     )
 
 
@@ -486,7 +485,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """
 
         def _saver(class_meta: ClassMeta):
-
             # if the thread is not alive, the saver may be created
             if cls._saver_instance is not None:
                 cls._saver_instance.close()
@@ -510,7 +508,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
                 # use a lock to avoid concurrent creation of the saver
                 with threading.Lock():
-
                     # if the saver thread is alive, skip creating the saver
                     if (
                         cls._saver_instance
@@ -518,8 +515,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                         and saver_thread.is_alive()
                     ):
                         logger.info(
-                            "The saver is already created, "
-                            "skip creating the saver."
+                            "The saver is already created, skip creating the saver."
                         )
                         continue
 
@@ -609,8 +605,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     self.global_shard_num = event.global_shard_num
                 elif event.type == CheckpointEventType.SAVE:
                     logger.info(
-                        "ShardingSaver save checkpoint to storage, "
-                        f"event {event}"
+                        f"ShardingSaver save checkpoint to storage, event {event}"
                     )
                     self.save_step_checkpoint(event.step)
                 elif event.type == CheckpointEventType.EXIT:
@@ -791,8 +786,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             steps.append(config.step)
         if len(set(steps)) > 1:
             logger.error(
-                "Skip because steps in shards are not "
-                f"inconsistent: {steps}"
+                f"Skip because steps in shards are not inconsistent: {steps}"
             )
             return
 
@@ -803,8 +797,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             synced = self._sync_node_checkpoint(master_client, step, timeout)
             if not synced:
                 logger.info(
-                    "Skip saving the checkpoint from "
-                    "the memory to the storage."
+                    "Skip saving the checkpoint from the memory to the storage."
                 )
                 self._stop_commit = True
                 return
@@ -845,8 +838,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 elapsed_time = time.time() - start
                 if elapsed_time > timeout:
                     logger.info(
-                        "It is timeout to sync checkpoint "
-                        "because some nodes may fail."
+                        "It is timeout to sync checkpoint because some nodes may fail."
                     )
                     return False
 
@@ -990,8 +982,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
 
         if not write_success:
             logger.error(
-                f"Rank {self._node_rank} save checkpoint failed for "
-                f"step {step}"
+                f"Rank {self._node_rank} save checkpoint failed for step {step}"
             )
             self._writing_storage = False
             return
@@ -1038,8 +1029,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 success = True
                 break
             logger.info(
-                f"The number of ready shards is {ready_num} "
-                f"!= {self.global_shard_num}."
+                f"The number of ready shards is {ready_num} != {self.global_shard_num}."
             )
             # timeout
             elapsed_time = round(time.time() - start_time, 2)
@@ -1103,8 +1093,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             step (int): the iteration step.
         """
         logger.info(
-            f"Rank {self._node_rank} start save checkpoint to storage, "
-            f"step: {step}"
+            f"Rank {self._node_rank} start save checkpoint to storage, step: {step}"
         )
         passed = self._check_shard_step_consistence(step)
         if not passed:
@@ -1151,8 +1140,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
         if not write_success:
             logger.error(
-                f"Rank {self._node_rank} save checkpoint failed for "
-                f"step {step}"
+                f"Rank {self._node_rank} save checkpoint failed for step {step}"
             )
             self._writing_storage = False
             return
@@ -1231,8 +1219,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         logger.info(
-            f"Start commit checkpoint tmp_path: {tmp_path}, "
-            f"path: {target_path}"
+            f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
         )
         start_time = time.time()
         success = False
@@ -1257,15 +1244,13 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 self.storage.safe_rmtree(step_done_dir)
                 self.update_tracker_file(step)
                 logger.info(
-                    f"Commit checkpoint tmp_path: {tmp_path}, "
-                    f"path: {target_path}"
+                    f"Commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
                 )
                 success = True
                 break
 
             logger.info(
-                f"The number of ready shards is {ready_num} "
-                f"!= {self.global_shard_num}."
+                f"The number of ready shards is {ready_num} != {self.global_shard_num}."
             )
 
             # timeout

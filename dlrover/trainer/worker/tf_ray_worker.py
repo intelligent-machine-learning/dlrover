@@ -90,7 +90,6 @@ class TFRayWorker:
             self.tensorflow_failover.start_failover_monitor()
 
     def get_ps_cluster(self):
-
         if self._args.get("mock"):
             while True:
                 ps_num = 0

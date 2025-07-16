@@ -129,7 +129,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         master_addr = "127.0.0.1"
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -502,7 +502,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             node_id,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -533,6 +533,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def tearDown(self):
         JobConstant.TRAINING_AGENT_LOOP_DEFAULT_INTERVAL = 15
         self._master.stop()
+        MasterClient._instance = None
 
     def test_monitor_workers(self):
         self.config.network_check = False
@@ -581,9 +582,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_gpu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
@@ -596,9 +597,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             "dlrover.python.common.metric.monitor.SimpleMetricMonitor._collector",  # noqa
             side_effect=mock_npu_metric_collect(),
         ):
-            os.environ[
-                "DLROVER_METRIC_URL"
-            ] = "https://metric.mock.dlrover.org"
+            os.environ["DLROVER_METRIC_URL"] = (
+                "https://metric.mock.dlrover.org"
+            )
             os.environ["DLROVER_METRIC_TOKEN"] = "0123456789"
             self.assertIsNot(os.getenv("DLROVER_METRIC_URL", ""), "")
             self.assertIsNot(os.getenv("DLROVER_METRIC_TOKEN", ""), "")
@@ -692,7 +693,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_create_worker_spec(self):
         spec = _create_worker_spec(
             node_rank=0,
-            rdzv_name=RendezvousName.ELASTIC_TRAINING,
+            rdzv_name=RendezvousName.TRAINING,
             config=self.config,
             entrypoint="echo",
             args=[],
@@ -1077,12 +1078,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
     @patch(
-        "dlrover.python.elastic_agent.master_client"
-        ".MasterClient.report_failed_exited"
+        "dlrover.python.elastic_agent.master_client.MasterClient.report_failed_exited"
     )
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_node_status_report(self, mock_run, mock_report_failed_exited):
         config = ElasticLaunchConfig(1, 1, 1)
@@ -1108,8 +1107,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             mock_report_failed_exited.assert_called_once()
 
     @patch(
-        "dlrover.python.elastic_agent.torch.training"
-        ".ElasticTrainingAgent.run"
+        "dlrover.python.elastic_agent.torch.training.ElasticTrainingAgent.run"
     )
     def test_launch_agent(self, mock_run):
         config = ElasticLaunchConfig(1, 1, 1)
@@ -1156,7 +1154,7 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             node_id,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -1333,7 +1331,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
             **self.config.rdzv_configs,
         )
         rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
@@ -1370,7 +1368,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         )
         rdzv_parameters.config["pend_timeout"] = 1
         rdzv_handler = MasterRendezvousHandler(
-            RendezvousName.ELASTIC_TRAINING,
+            RendezvousName.TRAINING,
             0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,

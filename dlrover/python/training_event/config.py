@@ -94,7 +94,6 @@ def is_dlrover_event_enabled():
 
 @dataclass
 class Config(Singleton):
-
     event_exporter: str = DEFAULT_EVENT_EXPORTER
     async_exporter: bool = False
     queue_size: int = 1024
@@ -109,7 +108,6 @@ class Config(Singleton):
     debug_mode: bool = False
 
     def __init__(self, config_file: Optional[str] = None):
-
         self.rank = get_rank()
         self.pid = get_pid()
 
@@ -181,7 +179,6 @@ class Config(Singleton):
         )
 
     def _set_if_valid(self, dict_val, key, key_converter=None, parser=None):
-
         if key_converter is not None:
             converted_key = key_converter(key)
         else:

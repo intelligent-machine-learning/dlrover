@@ -109,6 +109,7 @@ class Scheduler(ABC):
         # runtime env
         runtime_env = {
             env_key: {
+                DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
                 DLWorkloadEnv.NAME: vertex.name,
                 DLWorkloadEnv.ROLE: vertex.role,
                 DLWorkloadEnv.RANK: str(vertex.rank),
@@ -134,9 +135,9 @@ class Scheduler(ABC):
                 if vertex.role in group_roles:
                     group_env_value = ",".join(r for r in group_roles)
                     break
-            runtime_env[env_key][
-                DLWorkloadEnv.DEVICE_COLLOCATION_GROUP
-            ] = group_env_value
+            runtime_env[env_key][DLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = (
+                group_env_value
+            )
 
         # setup ray cuda visible env
         if not set(
@@ -160,7 +161,6 @@ class Scheduler(ABC):
     def __create_actor_by_vertex(
         self, master_handle, vertex: DLExecutionVertex, config
     ) -> ActorHandle:
-
         if vertex.use_pg():
             actor_creation_opts = vertex.get_cls().options(
                 name=vertex.name,
@@ -210,8 +210,7 @@ class Scheduler(ABC):
         )
         if len(not_ready) > 0:
             raise TimeoutError(
-                f"{len(not_ready)} workload actor "
-                f"creation timeout: {timeout}s."
+                f"{len(not_ready)} workload actor creation timeout: {timeout}s."
             )
         logger.info(
             f"{len(ready)} workload actors created, "
@@ -247,13 +246,13 @@ class GroupOrderedScheduler(Scheduler):
         if self.graph.dl_context.workload_group.has_device_collocate():
             logger.info(
                 "Use 'SingleGroupPerNodePlacement' for workload group "
-                "has device colocate."
+                "has device collocation."
             )
             return SingleGroupPerNodePlacement(self.graph)
         else:
             logger.info(
                 "Use 'SingleBundlePerNodePlacement' for workload "
-                "group has no device colocate."
+                "group has no device collocation."
             )
             return SingleBundlePerNodePlacement(self.graph)
 

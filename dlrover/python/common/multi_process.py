@@ -96,8 +96,7 @@ def _create_socket_client(path):
         client.connect(path)
     except Exception as e:
         logger.warning(
-            "Unexpected error when creating socket client by "
-            f"path: {path}, error: {e}",
+            f"Unexpected error when creating socket client by path: {path}, error: {e}",
             exc_info=True,
         )
         raise e
@@ -194,8 +193,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     def __init__(self, name="", create=False, persist=False):
         logger.debug(
-            f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
-            f"for {name}"
+            f"Initialize(create:{create}) {self.__class__.__name__.lower()} for {name}"
         )
         self._name = name
         self._socket_file = self._create_socket_path()
