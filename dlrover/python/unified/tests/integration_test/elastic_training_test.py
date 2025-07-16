@@ -85,4 +85,5 @@ def test_elastic_training_with_error(tmp_ray):
     )
     assert ret != 0, "Job should fail due to error in workload"
 
+
 # TODO abnormal test cases

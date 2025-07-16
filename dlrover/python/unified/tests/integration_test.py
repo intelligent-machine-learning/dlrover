@@ -26,7 +26,6 @@ try:
 except ImportError:
     from builtins import RuntimeError as ade
 
-from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLMasterConstant
