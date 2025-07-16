@@ -19,7 +19,7 @@ import pytest
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.util.actor_helper import kill_actors
+from dlrover.python.unified.util.actor_helper import kill_actors, __actors_cache
 from dlrover.python.unified.util.test_hooks import coverage_enabled
 
 
@@ -69,6 +69,7 @@ def _setup_ray(envs):
     if actors:
         logger.warning(f"Cleaning up {len(actors)} actors...: {actors}")
         kill_actors(actors)
+    __actors_cache.clear()
     ray.shutdown()
 
 

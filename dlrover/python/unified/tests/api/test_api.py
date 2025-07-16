@@ -333,9 +333,9 @@ class ApiTest(BaseTest):
         assert rl_config.workloads["reference"].per_group == 6
 
         assert rl_config.workloads["actor"].total == 4
-        assert rl_config.workloads["actor"].resource.accelerator == 1
+        assert rl_config.workloads["actor"].resource.accelerator == 0.5
         assert rl_config.workloads["rollout"].total == 4
-        assert rl_config.workloads["rollout"].resource.accelerator == 1
+        assert rl_config.workloads["rollout"].resource.accelerator == 0.5
         assert rl_config.workloads["reference"].total == 12
         assert rl_config.workloads["reference"].resource.accelerator == 0.5
         assert rl_config.workloads["reward"].total == 4
@@ -392,7 +392,7 @@ class ApiTest(BaseTest):
         assert workload.backend == "elastic"
         assert workload.entry_point == "test::main"
         assert workload.total == 4
-        assert workload.resource.accelerator == 2
+        assert workload.resource.accelerator == 1
 
     def test_role_builder(self):
         trainer_builder = TrainerBuilder(DLJobBuilder(), "test", "m0", "c0")

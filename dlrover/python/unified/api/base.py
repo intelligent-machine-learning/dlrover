@@ -208,8 +208,10 @@ class DLJob(object):
 
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
+            resource = ResourceDesc(accelerator=round(1/len(collocation),2))
             for role in collocation:
                 workloads[role].group = name
+                workloads[role].resource = resource.model_copy()
 
         return DLConfig(
             user_config=self.config,
