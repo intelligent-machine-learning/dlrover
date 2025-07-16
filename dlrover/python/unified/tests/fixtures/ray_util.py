@@ -18,6 +18,7 @@ from unittest.mock import patch
 import pytest
 import ray
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.util.actor_helper import kill_actors
 from dlrover.python.unified.util.test_hooks import coverage_enabled
 
@@ -41,11 +42,13 @@ def coverage_envs():
     if coverage_enabled():
         file = Path(__file__).parent / "ray.coveragerc"
         envs["COVERAGE_PROCESS_START"] = file.as_posix()
-        print("Coverage enabled, setting up environment variables for ray.")
-        print(f"  COVERAGE_PROCESS_START={file.as_posix()}")
+        logger.info(
+            "Coverage enabled, setting up environment variables for ray."
+        )
+        logger.info(f"  COVERAGE_PROCESS_START={file.as_posix()}")
     yield envs
     if coverage_enabled():
-        print("Combining coverage data...")
+        logger.info("Combining coverage data...")
         import coverage
 
         coverage.Coverage.current().combine()
@@ -64,7 +67,7 @@ def _setup_ray(envs):
 
     actors = ray.util.list_named_actors()
     if actors:
-        print(f"Cleaning up {len(actors)} actors...: {actors}")
+        logger.warning(f"Cleaning up {len(actors)} actors...: {actors}")
         kill_actors(actors)
     ray.shutdown()
 

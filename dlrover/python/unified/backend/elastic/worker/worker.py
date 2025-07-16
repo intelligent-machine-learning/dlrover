@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import shlex
+from contextlib import contextmanager
 from threading import Thread
 from typing import List
 
@@ -65,11 +66,13 @@ class ElasticWorker(ActorBase):
         if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
             return  # already in the expected stage
 
-        print("Worker self check")
+        logger.info(f"[{self.node_info.name}] Running self check.")
         return "Self check passed"
 
     def run_node_check(self):
         """TODO Implement node check. Before starting."""
+        logger.info(f"[{self.node_info.name}] Running node check.")
+        logger.info("SKIP, node check is not implemented yet.")
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
@@ -77,16 +80,16 @@ class ElasticWorker(ActorBase):
             return  # already in the expected stage
         logger.info(f"Starting elastic worker {self.node_info.name}.")
 
-        def _run():
+        @contextmanager
+        def wrap_run():
             try:
-                self._run_agent()
+                yield
                 self._update_stage_force(
                     WorkerStage.FINISHED, WorkerStage.RUNNING
                 )
-            except Exception as e:
+            except Exception:
                 logger.error(
-                    "Failed to run elastic agent for training by "
-                    f"unexpected error: {e}",
+                    "Unexpected error occurred while running elastic agent for training",
                     exc_info=True,
                 )
                 self._update_stage_force(
@@ -94,7 +97,7 @@ class ElasticWorker(ActorBase):
                 )
 
         Thread(
-            target=_run,
+            target=wrap_run()(self._run_agent),
             daemon=True,
         ).start()
 

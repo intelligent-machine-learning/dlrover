@@ -36,6 +36,7 @@ T = TypeVar("T")
 
 
 def refresh_actor_cache(name: str):
+    """Refresh the cache for a Ray actor by its name."""
     try:
         __actors_cache.pop(name, None)
         __actors_cache[name] = ray.get_actor(name)
@@ -164,7 +165,7 @@ async def invoke_actor_async(
     except RayActorError as e:
         if method_name == "__ray_terminate__" or method_name == "shutdown":
             return cast(T, None)  # Success for shutdown
-        print(f"Error executing {method_name} on {actor_name}: {e}")
+        logger.error(f"Error executing {method_name} on {actor_name}: {e}")
         refresh_actor_cache(actor_name)
         if _actor_retry > 0:
             return await invoke_actor_async(
@@ -176,14 +177,18 @@ async def invoke_actor_async(
             )
         else:
             raise
-    except Exception as e:
-        print(f"Unexpected error executing {method_name} on {actor_name}: {e}")
+    except Exception:
+        logger.error(
+            f"Unexpected error executing {method_name} on {actor_name}",
+            exc_info=True,
+        )
         raise
 
 
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ) -> "BatchInvokeResult[T]":
+    """Execute a method on all nodes asynchronously."""
     res: List[Union[T, Exception]] = await asyncio.gather(
         *[
             invoke_actor_async(actor, method_name, *args, **kwargs)
@@ -197,6 +202,8 @@ T_Stub = TypeVar("T_Stub", covariant=True)
 
 
 class ActorProxy:
+    """A proxy class to interact with Ray actors as if they were local objects."""
+
     def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
         self.actor = actor
         self.stub_cls = stub_cls
@@ -223,6 +230,8 @@ class ActorProxy:
 
 
 class BatchInvokeResult(Generic[T]):
+    """A class to hold results from invoking methods on multiple actors."""
+
     def __init__(
         self,
         actors: List[str],
@@ -299,6 +308,12 @@ class BatchInvokeResult(Generic[T]):
 
 
 class BatchActorProxy:
+    """
+    A proxy class to interact with multiple Ray actors as if they were local objects.
+
+    All return values in Stub should be BatchInvokeResult.
+    """
+
     def __init__(self, actors: List[str], stub_cls: type):
         self.actors = actors
         # Optionally filter methods if a class is provided

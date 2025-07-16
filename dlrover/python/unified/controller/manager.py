@@ -136,7 +136,7 @@ class PrimeManager:
         """Save the job state to persistent storage."""
         # This is a placeholder for saving the job state.
         # In a real implementation, this would save to a database or file.
-        print(
+        logger.info(
             f"Job state saved: {self.stage}, "
             f"nodes: {[node.name for node in self.graph.vertices]}"
         )
