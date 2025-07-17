@@ -65,32 +65,35 @@ class ActorMethodInvocation(Generic[T]):
     wraps ObjectRef and handles retries for actor errors.
     """
 
-    def __init__(self, actor_name: str, method_name: str, *args, **kwargs):
+    def __init__(self, actor_name: str, method_name: str, args, kwargs):
         self.actor_name = actor_name
         self.method_name = method_name
         self.args = args
         self.kwargs = kwargs
 
-        self._result: Union[T, ray.ObjectRef, Exception] = self._invoke()
+        self._result: Union[T, ray.ObjectRef, Exception] = None  # type: ignore
         self._retry_count = 3
 
-    def _invoke(self) -> Union[ray.ObjectRef, Exception]:
+        self._invoke()
+
+    def _invoke(self):
         # Return ObjectRef or Exception that occurs during invocation.
         try:
             actor = get_actor_with_cache(self.actor_name)
-            return getattr(actor, self.method_name).remote(
+            self._result = getattr(actor, self.method_name).remote(
                 *self.args, **self.kwargs
             )
         except AttributeError as e:
             logger.error(
                 f"Method {self.method_name} not found on actor {self.actor_name}: {e}"
             )
-            return e
+            self._result = e
         except Exception as e:
             logger.error(
                 f"Fail to submit task {self.method_name} to {self.actor_name}: {e}"
             )
-            return e
+            self._result = e
+        self._check_result()
 
     def resolve_sync(self):
         """Wait for the result of the invocation."""
@@ -102,7 +105,7 @@ class ActorMethodInvocation(Generic[T]):
                 f"Error executing {self.method_name} on {self.actor_name}: {e}"
             )
             self._result = e
-        self._do_retry()
+        self._check_result()
 
     async def resolve_async(self):
         """Wait for the result of the invocation."""
@@ -115,10 +118,9 @@ class ActorMethodInvocation(Generic[T]):
                 f"Error executing {self.method_name} on {self.actor_name}: {e}"
             )
             self._result = e
+        self._check_result()
 
-        self._do_retry()
-
-    def _do_retry(self):
+    def _check_result(self):
         """Check if the invocation should be retried."""
         # retry for actor restart or unavailable errors
         if self._retry_count > 0 and isinstance(
@@ -137,7 +139,7 @@ class ActorMethodInvocation(Generic[T]):
                 f" retrying ({self._retry_count} retries left); {self._result}"
             )
             refresh_actor_cache(self.actor_name)
-            self._result = self._invoke()
+            self._invoke()
 
     @property
     def pending(self) -> bool:
@@ -147,9 +149,10 @@ class ActorMethodInvocation(Generic[T]):
     @property
     def result_or_exception(self) -> Union[T, Exception]:
         """Get the result of the invocation."""
-        assert not isinstance(self._result, ray.ObjectRef), (
+        assert not self.pending, (
             "Invocation is still pending. Call resolve first."
         )
+        assert not isinstance(self._result, ray.ObjectRef)
         return self._result
 
     @property
@@ -200,7 +203,7 @@ class ActorMethodInvocation(Generic[T]):
 def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
     """Execute a method on all nodes."""
     tasks = [
-        ActorMethodInvocation(actor, method_name, *args, **kwargs)
+        ActorMethodInvocation(actor, method_name, args, kwargs)
         for actor in actors
     ]
 
@@ -218,7 +221,7 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
 
 def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:
     """Call a method on a Ray actor by its name."""
-    ref = ActorMethodInvocation[T](actor_name, method_name, *args, **kwargs)
+    ref = ActorMethodInvocation[T](actor_name, method_name, args, kwargs)
     return ref.wait()
 
 
@@ -247,7 +250,7 @@ async def invoke_actor_async(
     **kwargs,
 ) -> T:
     """Call a method on a Ray actor by its name."""
-    ref = ActorMethodInvocation[T](actor_name, method_name, *args, **kwargs)
+    ref = ActorMethodInvocation[T](actor_name, method_name, args, kwargs)
     return await ref
 
 
@@ -264,7 +267,7 @@ async def invoke_actors_async(
 
     res: List[Union[T, Exception]] = await asyncio.gather(
         *[
-            wait(ActorMethodInvocation[T](actor, method_name, *args, **kwargs))
+            wait(ActorMethodInvocation[T](actor, method_name, args, kwargs))
             for actor in actors
         ]
     )
@@ -328,12 +331,11 @@ class BatchInvokeResult(Generic[T]):
 
         for actor, exc in self.all_failed():
             logger.error(
-                f"Actor {actor} failed executing {self.method}: {exc}"
+                f"Actor {actor} failed executing {self.method}", exc_info=exc
             )
         raise Exception(
-            f"Some actors failed executing {self.method}. "
-            f"Failed actors: "
-            f"{', '.join(actor for actor, _ in self.all_failed())}"
+            f"Some actors failed executing {self.method}: "
+            f"{[actor for actor, _ in self.all_failed()]}"
         )
 
     @property
