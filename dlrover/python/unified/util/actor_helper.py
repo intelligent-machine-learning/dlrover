@@ -12,13 +12,12 @@
 # limitations under the License.
 
 import asyncio
-from functools import cached_property, partial
+from functools import cached_property
 from typing import (
     Dict,
     Generic,
     List,
     Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -27,7 +26,7 @@ from typing import (
 
 import ray
 from ray.actor import ActorClass, ActorHandle
-from ray.exceptions import RayActorError
+from ray.exceptions import ActorUnavailableError, RayActorError
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -95,8 +94,10 @@ def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
             actor = actors[task_id]
             try:
                 result = ray.get(task)
+                if isinstance(result, Exception):
+                    raise result
                 results[task_id] = result
-            except RayActorError as e:
+            except (RayActorError, ActorUnavailableError) as e:
                 if (
                     method_name == "__ray_terminate__"
                     or method_name == "shutdown"
@@ -162,27 +163,28 @@ async def invoke_actor_async(
 
     try:
         return await ref
-    except RayActorError as e:
+    except (RayActorError, ActorUnavailableError) as e:
         if method_name == "__ray_terminate__" or method_name == "shutdown":
             return cast(T, None)  # Success for shutdown
-        logger.error(f"Error executing {method_name} on {actor_name}: {e}")
-        refresh_actor_cache(actor_name)
-        if _actor_retry > 0:
-            return await invoke_actor_async(
-                actor_name,
-                method_name,
-                *args,
-                **kwargs,
-                _actor_retry=_actor_retry - 1,
-            )
-        else:
-            raise
-    except Exception:
         logger.error(
-            f"Unexpected error executing {method_name} on {actor_name}",
-            exc_info=True,
+            f"ActorError when executing {method_name} on {actor_name}: {e}"
+        )
+        if _actor_retry <= 0:
+            raise
+    except Exception as e:
+        logger.error(
+            f"Unexpected error executing {method_name} on {actor_name}: {e}"
         )
         raise
+    # retry without cache
+    refresh_actor_cache(actor_name)
+    return await invoke_actor_async(
+        actor_name,
+        method_name,
+        *args,
+        **kwargs,
+        _actor_retry=_actor_retry - 1,
+    )
 
 
 async def invoke_actors_async(
@@ -196,37 +198,6 @@ async def invoke_actors_async(
         ]
     )
     return BatchInvokeResult[T](actors, method_name, res)
-
-
-T_Stub = TypeVar("T_Stub", covariant=True)
-
-
-class ActorProxy:
-    """A proxy class to interact with Ray actors as if they were local objects."""
-
-    def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
-        self.actor = actor
-        self.stub_cls = stub_cls
-        if warmup:
-            get_actor_with_cache(actor)  # warmup actor
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in actor {self.actor}."
-            )
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actor_async, self.actor, name)
-        else:
-            return partial(invoke_actor, self.actor, name)
-
-    @staticmethod
-    def wrap(
-        actor_name: str, cls: Type[T_Stub], lazy: bool = False
-    ) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
 
 
 class BatchInvokeResult(Generic[T]):
@@ -305,33 +276,3 @@ class BatchInvokeResult(Generic[T]):
         return {
             actor: result for actor, result in zip(self.actors, self.results)
         }
-
-
-class BatchActorProxy:
-    """
-    A proxy class to interact with multiple Ray actors as if they were local objects.
-
-    All return values in Stub should be BatchInvokeResult.
-    """
-
-    def __init__(self, actors: List[str], stub_cls: type):
-        self.actors = actors
-        # Optionally filter methods if a class is provided
-        self.stub_cls = stub_cls
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in class {self.stub_cls.__name__}."
-            )
-        # if async
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actors_async, self.actors, name)
-        else:
-            return partial(invoke_actors, self.actors, name)
-
-    @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]

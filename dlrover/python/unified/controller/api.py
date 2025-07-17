@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import List, Protocol
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
-from dlrover.python.unified.util.actor_helper import ActorProxy
+from dlrover.python.unified.util.actor_proxy import ActorProxy
 
 MASTER_ACTOR_NAME = "__prime_master__"
 

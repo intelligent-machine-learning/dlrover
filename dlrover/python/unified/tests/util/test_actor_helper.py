@@ -13,8 +13,7 @@
 
 import asyncio
 import random
-from abc import abstractmethod
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import pytest
@@ -22,14 +21,16 @@ import ray
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
+from dlrover.python.unified.util.actor_proxy import (
+    ActorProxy,
+    BatchActorProxy,
+    invoke_meta,
+)
 
 
 @ray.remote
 class SimpleActor:
     def some_method(self):
-        return "ok"
-
-    def some_method_async(self):
         return "ok"
 
     def method_exception(self):
@@ -41,19 +42,17 @@ class SimpleActor:
         return "restarted"
 
 
-class SimpleActorStub:
-    @abstractmethod
+class SimpleActorStub(Protocol):
     def some_method(self): ...
 
-    @abstractmethod
+    @invoke_meta(name="some_method")
     async def some_method_async(self): ...
 
 
-class SimpleActorBatchStub:
-    @abstractmethod
+class SimpleActorBatchStub(Protocol):
     def some_method(self) -> ah.BatchInvokeResult[str]: ...
 
-    @abstractmethod
+    @invoke_meta(name="some_method")
     async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
 
 
@@ -118,8 +117,7 @@ def test_invoke_actor(tmp_actor1):
 
 def test_invoke_actor_async(tmp_actor1):
     assert (
-        asyncio.run(ah.invoke_actor_async(tmp_actor1, "some_method_async"))
-        == "ok"
+        asyncio.run(ah.invoke_actor_async(tmp_actor1, "some_method")) == "ok"
     )
     with pytest.raises(AttributeError):
         assert asyncio.run(
@@ -142,7 +140,7 @@ def test_invoke_actors(tmp_actor1, tmp_actor2):
     assert result[0] == "ok"
     assert result[1] == "ok"
     result2 = asyncio.run(
-        ah.invoke_actors_async([tmp_actor1, tmp_actor2], "some_method_async")
+        ah.invoke_actors_async([tmp_actor1, tmp_actor2], "some_method")
     )
     assert result.results == result2.results
 
@@ -159,7 +157,7 @@ def test_kill_actors(tmp_actor1, tmp_actor2):
 
 
 def test_actor_proxy(tmp_actor1):
-    actor = ah.ActorProxy.wrap(tmp_actor1, SimpleActorStub)
+    actor = ActorProxy.wrap(tmp_actor1, SimpleActorStub)
     assert actor.some_method() == "ok"
     with pytest.raises(AttributeError):
         actor.non_existent_method()  # type: ignore[union-attr]
@@ -167,7 +165,7 @@ def test_actor_proxy(tmp_actor1):
 
 
 def test_batch_actor_proxy(tmp_actor1, tmp_actor2):
-    actors = ah.BatchActorProxy.wrap(
+    actors = BatchActorProxy.wrap(
         [tmp_actor1, tmp_actor2], SimpleActorBatchStub
     )
     result = actors.some_method()

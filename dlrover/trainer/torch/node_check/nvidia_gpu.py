@@ -37,16 +37,16 @@ def set_nccl_env():
         os.environ[k] = v
 
 
-@record_execution_time
 def run():
     use_cuda = torch.cuda.is_available()
 
     # warmup
     _ = matmul(use_cuda, round_num=3, verbose=False)
-    t = matmul(use_cuda, round_num=500, verbose=True)
 
+    t = matmul(use_cuda, round_num=500, verbose=True)
     shape = 1 << 24
     t += bm_allreduce(shape, use_cuda)
+    return t
 
 
 def main():
@@ -72,7 +72,8 @@ def main():
                 cuda_version=torch.version.cuda,
             )
             logger.info(f"benchmark env: {bench_env}")
-    run()
+
+    t = record_execution_time(run)()
 
     dist.destroy_process_group()
     return t
@@ -80,4 +81,4 @@ def main():
 
 if __name__ == "__main__":
     set_nccl_env()
-    t = main()
+    main()
