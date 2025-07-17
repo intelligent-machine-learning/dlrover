@@ -15,13 +15,17 @@ import asyncio
 from dataclasses import dataclass
 from functools import partial
 from typing import (
+    Callable,
     List,
     Optional,
+    ParamSpec,
     Type,
     TypeVar,
 )
 
 from .actor_helper import (
+    ActorBatchInvocation,
+    ActorInvocation,
     get_actor_with_cache,
     invoke_actor,
     invoke_actor_async,
@@ -31,27 +35,27 @@ from .actor_helper import (
 
 
 @dataclass
-class ActorInvokeExtMeta:
+class ActorInvocationMeta:
     name: Optional[str] = None
     timeout: Optional[float] = None
 
 
 META_ATTR_NAME = "__invoke_meta__"
-EMPTY_META = ActorInvokeExtMeta()
+EMPTY_META = ActorInvocationMeta()
 
 
 def invoke_meta(
     name: Optional[str] = None,
     timeout: Optional[float] = None,
 ):
-    """Decorator to create an ActorInvokeMeta instance."""
+    """Decorator to create an ActorInvocationMeta instance."""
     assert timeout is None or timeout > 0, (
         f"Timeout must be a positive number, got {timeout}."
     )
 
     def decorator(func):
         """Decorator to apply the invoke meta to a function."""
-        meta = ActorInvokeExtMeta(
+        meta = ActorInvocationMeta(
             name=name or func.__name__,
             timeout=timeout,
         )
@@ -60,6 +64,30 @@ def invoke_meta(
         return func
 
     return decorator
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def invoke_actor_t(
+    func: Callable[P, R], actor_name: str, *args: P.args, **kwargs: P.kwargs
+) -> ActorInvocation[R]:
+    """Type Safe wrapper for invoking a method on a Ray actor."""
+    meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
+    name = meta.name or func.__name__
+    return ActorInvocation[R](actor_name, name, *args, **kwargs)
+
+
+def invoke_actors_t(
+    func: Callable[P, R], actors: List[str], *args: P.args, **kwargs: P.kwargs
+) -> ActorBatchInvocation[R]:
+    """Type Safe wrapper for invoking a method on a Ray actor."""
+    meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
+    name = meta.name or func.__name__
+    return ActorBatchInvocation[R](
+        [ActorInvocation[R](actor, name, *args, **kwargs) for actor in actors]
+    )
 
 
 T_Stub = TypeVar("T_Stub", covariant=True)
@@ -80,7 +108,7 @@ class ActorProxy:
             raise AttributeError(
                 f"Method {name} not found in actor {self.actor}."
             )
-        meta: ActorInvokeExtMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
+        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
         if asyncio.iscoroutinefunction(method):
             return partial(invoke_actor_async, self.actor, meta.name or name)
         else:

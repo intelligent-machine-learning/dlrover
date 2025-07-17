@@ -60,12 +60,12 @@ def as_actor_class(cls: type) -> ActorClass:
     return ray.remote(cls)  # type: ignore[return-value]
 
 
-class ActorMethodInvocation(Generic[T]):
+class ActorInvocation(Generic[T]):
     """A class to represent an invocation of a method on a Ray actor.
     wraps ObjectRef and handles retries for actor errors.
     """
 
-    def __init__(self, actor_name: str, method_name: str, args, kwargs):
+    def __init__(self, actor_name: str, method_name: str, *args, **kwargs):
         self.actor_name = actor_name
         self.method_name = method_name
         self.args = args
@@ -177,10 +177,10 @@ class ActorMethodInvocation(Generic[T]):
 
     @staticmethod
     def wait_many(
-        refs: List["ActorMethodInvocation[T]"], timeout: float = 10.0
-    ) -> List["ActorMethodInvocation[T]"]:
+        refs: List["ActorInvocation[T]"], timeout: float = 10.0
+    ) -> List["ActorInvocation[T]"]:
         """Wait for all invocations to complete, return not ready refs."""
-        waiting_refs: Dict[ray.ObjectRef, ActorMethodInvocation[T]] = {
+        waiting_refs: Dict[ray.ObjectRef, ActorInvocation[T]] = {
             ref._result: ref
             for ref in refs
             if isinstance(ref._result, ray.ObjectRef)
@@ -200,28 +200,77 @@ class ActorMethodInvocation(Generic[T]):
         return not_ready
 
 
-def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
+class ActorBatchInvocation(Generic[T]):
+    """A class to represent an invocation of a method on multiple Ray actors."""
+
+    def __init__(self, refs: List[ActorInvocation[T]]):
+        assert len(refs) > 0, "At least one actor must be specified."
+        self.refs = refs
+        self.method_name = refs[0].method_name
+
+    @property
+    def pending(self) -> bool:
+        """Check if any invocation is still pending."""
+        return any(ref.pending for ref in self.refs)
+
+    def resolve_sync(self):
+        """Wait for all invocations to complete."""
+        waiting = self.refs
+        while len(waiting) > 0:
+            waiting = ActorInvocation.wait_many(waiting, timeout=10.0)
+            if len(waiting) > 0:
+                stragglers = [ref.actor_name for ref in waiting]
+                logger.info(
+                    f"Waiting completing {self.method_name} ...: {stragglers}"
+                )
+
+    async def resolve_async(self):
+        async def wait(ref: ActorInvocation[T]):
+            """Resolve the invocation and return the result."""
+            while ref.pending:
+                await ref.resolve_async()
+
+        await asyncio.gather(*[wait(ref) for ref in self.refs])
+
+    def result(self) -> "BatchInvokeResult[T]":
+        """Get the results of all invocations."""
+        assert not self.pending, (
+            "Invocations are still pending. Call resolve first."
+        )
+        results = [ref.result_or_exception for ref in self.refs]
+        return BatchInvokeResult(
+            [ref.actor_name for ref in self.refs],
+            self.method_name,
+            results,
+        )
+
+    def wait(self) -> "BatchInvokeResult[T]":
+        """Wait for all invocations to complete and return the results."""
+        self.resolve_sync()
+        return self.result()
+
+    def __await__(self) -> Generator[None, None, "BatchInvokeResult[T]"]:
+        """Await the results of all invocations."""
+        yield from self.resolve_async().__await__()
+        return self.result()
+
+
+def invoke_actors(
+    actors: List[str], method_name: str, *args, **kwargs
+) -> "BatchInvokeResult[T]":
     """Execute a method on all nodes."""
-    tasks = [
-        ActorMethodInvocation(actor, method_name, args, kwargs)
-        for actor in actors
-    ]
-
-    waiting = tasks
-    while len(waiting) > 0:
-        waiting = ActorMethodInvocation.wait_many(waiting, timeout=10)
-        if len(waiting) > 0:
-            stragglers = [ref.actor_name for ref in waiting]
-            logger.info(f"Waiting completing {method_name} ...: {stragglers}")
-
-    return BatchInvokeResult(
-        actors, method_name, [ref.result_or_exception for ref in tasks]
+    ref = ActorBatchInvocation(
+        [
+            ActorInvocation[T](actor, method_name, *args, **kwargs)
+            for actor in actors
+        ]
     )
+    return ref.wait()
 
 
 def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:
     """Call a method on a Ray actor by its name."""
-    ref = ActorMethodInvocation[T](actor_name, method_name, args, kwargs)
+    ref = ActorInvocation[T](actor_name, method_name, *args, **kwargs)
     return ref.wait()
 
 
@@ -250,7 +299,7 @@ async def invoke_actor_async(
     **kwargs,
 ) -> T:
     """Call a method on a Ray actor by its name."""
-    ref = ActorMethodInvocation[T](actor_name, method_name, args, kwargs)
+    ref = ActorInvocation[T](actor_name, method_name, *args, **kwargs)
     return await ref
 
 
@@ -259,19 +308,13 @@ async def invoke_actors_async(
 ) -> "BatchInvokeResult[T]":
     """Execute a method on all nodes asynchronously."""
 
-    async def wait(ref: ActorMethodInvocation[T]):
-        """Resolve the invocation and return the result."""
-        while ref.pending:
-            await ref.resolve_async()
-        return ref.result_or_exception
-
-    res: List[Union[T, Exception]] = await asyncio.gather(
-        *[
-            wait(ActorMethodInvocation[T](actor, method_name, args, kwargs))
+    ref = ActorBatchInvocation(
+        [
+            ActorInvocation[T](actor, method_name, *args, **kwargs)
             for actor in actors
         ]
     )
-    return BatchInvokeResult[T](actors, method_name, res)
+    return await ref
 
 
 class BatchInvokeResult(Generic[T]):

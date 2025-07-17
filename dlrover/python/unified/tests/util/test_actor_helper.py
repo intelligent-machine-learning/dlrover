@@ -24,6 +24,8 @@ import dlrover.python.unified.util.actor_helper as ah
 from dlrover.python.unified.util.actor_proxy import (
     ActorProxy,
     BatchActorProxy,
+    invoke_actor_t,
+    invoke_actors_t,
     invoke_meta,
 )
 
@@ -31,6 +33,10 @@ from dlrover.python.unified.util.actor_proxy import (
 @ray.remote
 class SimpleActor:
     def some_method(self):
+        return "ok"
+
+    def some_method_with_arg(self, a: int, b: str):
+        assert a == 1 and b == "b"
         return "ok"
 
     def method_exception(self):
@@ -44,6 +50,7 @@ class SimpleActor:
 
 class SimpleActorStub(Protocol):
     def some_method(self): ...
+    def some_method_with_arg(self, a: int, b: str): ...
 
     @invoke_meta(name="some_method")
     async def some_method_async(self): ...
@@ -54,6 +61,18 @@ class SimpleActorBatchStub(Protocol):
 
     @invoke_meta(name="some_method")
     async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
+
+
+class SimpleActorStaticStub(Protocol):
+    @staticmethod
+    def some_method() -> str: ...
+
+    @staticmethod
+    @invoke_meta(name="some_method")
+    def some_method_alias() -> str: ...
+
+    @staticmethod
+    def some_method_with_arg(a: int, b: str) -> str: ...
 
 
 @pytest.fixture
@@ -102,6 +121,9 @@ def test_as_actor_class():
 
 def test_invoke_actor(tmp_actor1):
     assert ah.invoke_actor(tmp_actor1, "some_method") == "ok"
+    assert (
+        ah.invoke_actor(tmp_actor1, "some_method_with_arg", 1, b="b") == "ok"
+    )
 
     with pytest.raises(AttributeError):
         ah.invoke_actor(tmp_actor1, "non_existent_method")
@@ -159,6 +181,7 @@ def test_kill_actors(tmp_actor1, tmp_actor2):
 def test_actor_proxy(tmp_actor1):
     actor = ActorProxy.wrap(tmp_actor1, SimpleActorStub)
     assert actor.some_method() == "ok"
+    assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
         actor.non_existent_method()  # type: ignore[union-attr]
     assert asyncio.run(actor.some_method_async()) == "ok"
@@ -222,3 +245,20 @@ def test_batch_invoke_result_with_failure():
         _ = batch.results
     with pytest.raises(Exception):
         _ = batch.as_dict()
+
+
+def test_static_stub_invoke(tmp_actor1, tmp_actor2):
+    stub = SimpleActorStaticStub
+    assert invoke_actor_t(stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor_t(stub.some_method_alias, tmp_actor2).wait() == "ok"
+    assert (
+        invoke_actor_t(stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        == "ok"
+    )
+
+    assert invoke_actors_t(
+        stub.some_method, [tmp_actor1, tmp_actor2]
+    ).wait().results == [
+        "ok",
+        "ok",
+    ]
