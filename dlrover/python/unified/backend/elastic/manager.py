@@ -34,22 +34,19 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
-    NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
-from dlrover.python.unified.util.actor_helper import (
-    BatchInvokeResult,
-    invoke_actor_async,
-    invoke_actors_async,
-)
-
-# isort: off
 from dlrover.python.master.node.job_context import (
     get_job_context as get_elastic_context,
 )
-
-# isort: on
+from dlrover.python.unified.backend.elastic import remote_call
+from dlrover.python.unified.backend.elastic.node_check_manager import (
+    NodeCheckManager,
+)
+from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.util.actor_proxy import (
+    invoke_actors_t,
+)
 
 
 def convert_to_node_state(state: WorkerStage):
@@ -63,14 +60,14 @@ def convert_to_node_state(state: WorkerStage):
 
 
 class ElasticManager:
-    def __init__(self, nodes: List[ActorInfo]):
-        self.nodes: List[ActorInfo] = nodes
+    def __init__(self, workers: List[ActorInfo]):
+        self.workers: List[ActorInfo] = workers
         self.finished = False
 
         self.perf_monitor = PerfMonitor()
         self.diagnosis = DiagnosisMaster()
         self.rdzv_manager = ElasticTrainingRendezvousManager()
-        self.node_check_manager = NetworkCheckRendezvousManager()
+        self.node_check_manager = NodeCheckManager()
         # self.node_watcher = ActorWatcher(self.job_name, "default")
 
         # This is old singleton context, used for compatibility
@@ -82,34 +79,42 @@ class ElasticManager:
 
     def _init_old_context(self):
         group_nodes = {}
-        for elastic_vertex in self.nodes:
-            group_nodes[elastic_vertex.rank] = Node(
+        for worker in self.workers:
+            group_nodes[worker.rank] = Node(
                 node_type=NodeType.WORKER,
-                node_id=elastic_vertex.rank,
-                rank_index=elastic_vertex.rank,
-                name=elastic_vertex.name,
+                node_id=worker.rank,
+                rank_index=worker.rank,
+                name=worker.name,
                 max_relaunch_count=3,
             )
         self._old_context.update_job_nodes({NodeType.WORKER: group_nodes})
 
     async def check_workers(self):
         logger.info("Do node-check for all nodes...")
-        res = await invoke_actors_async(
-            [node.name for node in self.nodes], "run_node_check"
+        delays = await self.node_check_manager.check_nodes(self.workers)
+        abnormal_nodes = self.node_check_manager.find_abnormal_nodes(
+            self.workers, delays, threshold=30.0
         )
-        res.raise_for_errors()
+        if abnormal_nodes:
+            logger.warning(
+                f"Node-check found {len(abnormal_nodes)} abnormal nodes: "
+                f"{', '.join(str(node) for node in abnormal_nodes)}"
+            )
+            raise Exception(
+                "Node-check failed, some nodes are not ready to start the job."
+            )
         logger.info("Node-check finished for all nodes.")
 
     async def start(self):
         # Initialize the elastic client here
         logger.info("Start job execution.")
         await self.setup_workloads()
-        res = await invoke_actors_async(
-            [node.name for node in self.nodes], "start_elastic_job"
+        res = await invoke_actors_t(
+            remote_call.start_elastic_job, [node.name for node in self.workers]
         )
         res.raise_for_errors()
-        res = await invoke_actors_async(
-            [node.name for node in self.nodes], "status"
+        res = await invoke_actors_t(
+            remote_call.status, [node.name for node in self.workers]
         )
         if any(it != "RUNNING" for it in res.results):
             raise Exception("Some nodes failed to start the job.")
@@ -118,36 +123,26 @@ class ElasticManager:
 
     async def setup_workloads(self):
         logger.info("Start setup all workloads...")
-        start = time.time() * 1000
+        start = time.time()
 
-        master_addr = await invoke_actor_async(
-            self.nodes[0].name, "get_master_addr"
-        )
-        logger.info(f"Rendezvous Master address: {master_addr}")
-
-        res = await invoke_actors_async(
-            [node.name for node in self.nodes],
-            "setup_torch_process_group",
-            master_addr=master_addr,
-        )
-        res.raise_for_errors()
+        await self.node_check_manager._setup_rendezvous_group(self.workers)
         logger.info("Setup torch process group for all nodes.")
 
-        end = time.time() * 1000 - start
-        logger.info(f"Finish setup all workloads, cost: {end:.2f}ms")
+        elapsed = time.time() - start
+        logger.info(
+            f"Finish setup all workloads, cost: {elapsed / 1000:.2f}ms"
+        )
 
     async def _monitor_nodes(self):
         logger.info("Start monitoring nodes status...")
         while not self.finished:
             try:
-                res: BatchInvokeResult[
-                    WorkerStage
-                ] = await invoke_actors_async(
-                    [node.name for node in self.nodes], "status"
+                res = await invoke_actors_t(
+                    remote_call.status, [node.name for node in self.workers]
                 )
                 logger.debug(f"Node status results: {res.results}")
                 with self._lock:
-                    for node, status in zip(self.nodes, res.results):
+                    for node, status in zip(self.workers, res.results):
                         old_node = self._old_context.job_node(
                             NodeType.WORKER, node.rank
                         )
@@ -165,8 +160,9 @@ class ElasticManager:
                 logger.warning(e)
                 await asyncio.sleep(30)
             await asyncio.sleep(5)
-        res = await invoke_actors_async(
-            [node.name for node in self.nodes], "destroy_torch_process_group"
+        res = await invoke_actors_t(
+            remote_call.destroy_torch_process_group,
+            [node.name for node in self.workers],
         )
         res.raise_for_errors()
 

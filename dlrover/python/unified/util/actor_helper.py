@@ -27,7 +27,7 @@ from typing import (
 
 import ray
 from ray.actor import ActorClass, ActorHandle
-from ray.exceptions import ActorUnavailableError, RayActorError
+from ray.exceptions import ActorUnavailableError, RayActorError, RayTaskError
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -100,9 +100,13 @@ class ActorInvocation(Generic[T]):
         assert isinstance(self._result, ray.ObjectRef)
         try:
             self._result = cast(T, ray.get(self._result))
+        except RayTaskError as e:
+            self._result = RuntimeError(
+                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+            )
         except Exception as e:
             logger.error(
-                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
             )
             self._result = e
         self._check_result()
@@ -113,9 +117,13 @@ class ActorInvocation(Generic[T]):
 
         try:
             self._result = cast(T, await self._result)
+        except RayTaskError as e:
+            self._result = RuntimeError(
+                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+            )
         except Exception as e:
             logger.error(
-                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
             )
             self._result = e
         self._check_result()
