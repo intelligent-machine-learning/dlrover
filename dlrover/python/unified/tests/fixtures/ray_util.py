@@ -20,8 +20,8 @@ import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.util.actor_helper import (
-    kill_actors,
     __actors_cache,
+    kill_actors,
 )
 from dlrover.python.unified.util.test_hooks import coverage_enabled
 
@@ -58,13 +58,18 @@ def coverage_envs():
 
 
 @contextmanager
-def _setup_ray(envs):
+def _setup_ray(envs, **kwargs):
     """Setup coverage environment variables if coverage is enabled."""
     if ray.is_initialized():
         pytest.fail("Ray is already initialized before setup.")
+    if len(kwargs) > 0:
+        logger.warning(
+            f"Ray is initialized with additional parameters: {kwargs}"
+        )
     ray.init(
         namespace="dlrover_test",
         runtime_env={"env_vars": envs},
+        **kwargs,
     )
     yield
 
@@ -77,9 +82,10 @@ def _setup_ray(envs):
 
 
 @pytest.fixture()
-def tmp_ray(coverage_envs):
+def tmp_ray(request, coverage_envs):
     """Fixture to initialize and shutdown Ray."""
-    with _setup_ray(coverage_envs):
+    options = request.param if hasattr(request, "param") else {}
+    with _setup_ray(coverage_envs, **options):
         yield
 
 
