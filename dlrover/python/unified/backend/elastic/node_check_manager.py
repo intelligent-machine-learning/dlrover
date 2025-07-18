@@ -1,3 +1,16 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 import time
 from typing import Collection, List, OrderedDict, Tuple
@@ -113,7 +126,7 @@ class NodeCheckManager:
 
     def _grouping_round0(self, size: int) -> List[Tuple[int, ...]]:
         """Group nodes just by their rank. like [1, 2], [3, 4], [5]."""
-        groups = []
+        groups: List[Tuple[int, ...]] = []
         for i in range(0, size, 2):
             if i + 1 < size:
                 groups.append((i, i + 1))
@@ -127,7 +140,7 @@ class NodeCheckManager:
             range(len(round0_times)), key=lambda x: round0_times[x]
         )
         left, right = 0, len(sorted_nodes) - 1
-        groups = []
+        groups: List[Tuple[int, ...]] = []
         while left < right:
             groups.append((sorted_nodes[left], sorted_nodes[right]))
             left += 1

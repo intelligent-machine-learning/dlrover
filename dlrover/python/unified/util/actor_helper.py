@@ -276,7 +276,7 @@ def invoke_actors(
     return ref.wait()
 
 
-def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:
+def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:  # type: ignore[type-var]
     """Call a method on a Ray actor by its name."""
     ref = ActorInvocation[T](actor_name, method_name, *args, **kwargs)
     return ref.wait()

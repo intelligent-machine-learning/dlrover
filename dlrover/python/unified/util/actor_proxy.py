@@ -140,7 +140,7 @@ class BatchActorProxy:
             raise AttributeError(
                 f"Method {name} not found in class {self.stub_cls.__name__}."
             )
-        meta: ActorInvokeExtMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
+        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
 
         if asyncio.iscoroutinefunction(method):
             return partial(invoke_actors_async, self.actors, meta.name or name)
