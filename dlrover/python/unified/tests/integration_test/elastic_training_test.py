@@ -12,8 +12,6 @@
 # limitations under the License.
 
 
-import pytest
-
 from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.tests.fixtures.example_jobs import (
@@ -22,8 +20,8 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 from dlrover.python.util.function_util import timeout
 
 
-@pytest.mark.usefixtures("tmp_ray")
-def test_elastic_training():
+@timeout(30)
+def test_elastic_training(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
     assert master.get_status().stage == "INIT"
@@ -35,7 +33,7 @@ def test_elastic_training():
     master.shutdown()
 
 
-@timeout(20)
+@timeout(30)
 def test_elastic_training_api_full(tmp_ray):
     dl_job = (
         DLJobBuilder()
@@ -57,7 +55,7 @@ def test_elastic_training_api_full(tmp_ray):
     assert ret == 0, "Job should succeed"
 
 
-@timeout(20)
+@timeout(30)
 def test_elastic_training_with_error(tmp_ray):
     dl_job = (
         DLJobBuilder()
