@@ -415,7 +415,7 @@ class MasterRayClientTest(unittest.TestCase):
 
     @patch("dlrover.python.unified.util.actor_helper.get_actor_with_cache")
     @patch("ray.get")
-    @pytest.skip("Not use RayMasterClient in python 3.8")
+    @pytest.mark.skip("Not use RayMasterClient in python 3.8")
     def test_ray_client(self, mock_ray_get, mock_get_actor_with_cache):
         RayMasterClient.register_master_actor("test")
         client: RayMasterClient = build_master_client(None, 3)
