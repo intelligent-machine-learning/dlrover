@@ -1134,16 +1134,20 @@ class DistributedJobManager(JobManager):
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
         if node.config_resource.cpu:
-            cpu_percent = node.used_resource.cpu / node.config_resource.cpu
-            if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
-                if node.start_hang_time == 0:
-                    now = datetime.now()
-                    node.start_hang_time = now.timestamp()
+            if node.config_resource.gpu_num:
+                # skip cpu hang for gpu case for now
+                logger.debug("CPU hang calculation is skipped when gpu > 0.")
             else:
-                if node.start_hang_time > 0:
-                    now = datetime.now()
-                node.start_hang_time = 0
-            self._job_context.update_job_node(node)
+                cpu_percent = node.used_resource.cpu / node.config_resource.cpu
+                if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+                    if node.start_hang_time == 0:
+                        now = datetime.now()
+                        node.start_hang_time = now.timestamp()
+                else:
+                    if node.start_hang_time > 0:
+                        now = datetime.now()
+                    node.start_hang_time = 0
+                self._job_context.update_job_node(node)
         else:
             logger.warning(
                 "CPU requests not configure "
