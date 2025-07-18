@@ -61,6 +61,9 @@ class DLExecutionVertex(ABC, BaseModel):
 
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
+    """Worker vertex in the computational graph."""
+
+    node_rank: int
     world_size: int
     rank: int
     local_world_size: int
@@ -122,6 +125,7 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
             name=self.name,
             role=self.role,
             spec=self.spec,
+            node_rank=self.node_rank,
             rank=self.rank,
             local_rank=self.local_rank,
         )
@@ -189,6 +193,7 @@ class DLWorkloadRole:
             DLExecutionWorkerVertex(
                 role=self.name,
                 spec=self.spec,
+                node_rank=i // self.spec.per_group,
                 world_size=self.instance_number,
                 rank=i,
                 local_world_size=self.spec.per_group,

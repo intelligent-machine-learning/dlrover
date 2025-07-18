@@ -62,6 +62,7 @@ class ActorInfo:
     role: str
     spec: WorkloadDesc
 
+    node_rank: int = 0
     rank: int = 0
     local_rank: int = 0
 
