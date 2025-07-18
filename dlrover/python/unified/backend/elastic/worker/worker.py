@@ -37,8 +37,8 @@ class ElasticWorker(ActorBase):
 
     def _setup(self):
         assert self.node_info.spec.backend == "elastic"
-        self.world_size = self.node_info.spec.total
-        self.world_rank = self.node_info.rank
+
+        self._process_group_setup = False
 
         self._setup_envs()
         # RayMasterClient.register_master_actor(f"{self.node_info.role}-master")
@@ -72,35 +72,39 @@ class ElasticWorker(ActorBase):
     # region Rendezvous and process group setup
 
     def get_master_addr(self):
-        """Create a c10d store for distributed training.
-
-        Return master address and port."""
-        assert self.world_rank == 0, "Only master can create c10d store."
+        """Get a master address for distributed training."""
         addr = ray.util.get_node_ip_address()
         port = get_free_port()
 
         return f"tcp://{addr}:{port}"
 
-    def setup_torch_process_group(self, master_addr: str):
+    def setup_torch_process_group(
+        self, master_addr: str, world_size: int, rank: int
+    ):
         """Setup the torch process group for distributed training."""
         assert self.node_info.spec.backend == "elastic"
         backend = self.node_info.spec.comm_backend
         timeout = timedelta(seconds=self.node_info.spec.comm_timeout_s)
-        if self.world_rank == 0:
-            logger.info(
-                f"Setting up torch process group with backend={backend}, "
-                f"world_rank={self.world_rank}, world_size={self.world_size}, "
-                f"init_method={master_addr}"
-            )
+        logger.info(
+            f"Setting up torch process group with backend={backend}, "
+            f"world_rank={rank}, world_size={world_size}, "
+            f"init_method={master_addr}"
+        )
         # TODO backend specific setup
+
+        assert not self._process_group_setup, (
+            "Torch process group is already set up. "
+            "Call destroy_torch_process_group() before setting it up again."
+        )
 
         torch.distributed.init_process_group(
             backend=backend,
             init_method=master_addr,
-            rank=self.world_rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
             timeout=timeout,
         )
+        self._process_group_setup = True
 
     def destroy_torch_process_group(self):
         """Destroy the torch process group."""
@@ -108,6 +112,7 @@ class ElasticWorker(ActorBase):
         if torch.distributed.is_initialized():
             torch.distributed.destroy_process_group()
             logger.info("Destroyed torch process group.")
+        self._process_group_setup = False
 
         if torch.cuda.is_available():
             for device in devices:
@@ -115,6 +120,31 @@ class ElasticWorker(ActorBase):
                     torch.cuda.empty_cache()
 
     # endregion
+
+    def get_ray_node_id(self) -> str:
+        return ray.get_runtime_context().get_node_id()
+
+    def run_network_check(self) -> float:
+        """Run network check before starting the job."""
+        try:
+            from dlrover.python.unified.backend.elastic.worker.node_check import (
+                run_comm_check,
+            )
+
+            logger.info(f"[{self.node_info.name}] Running network check.")
+            res = run_comm_check()
+            res = round(res, 3)  # round to 3 decimal places
+            logger.info(
+                f"[{self.node_info.name}] Network check finished, "
+                f"result: {res:.3f} seconds."
+            )
+            return res
+        except Exception as e:
+            logger.error(
+                f"[{self.node_info.name}] Failed to run network check: {e}",
+                exc_info=True,
+            )
+            return float("inf")  # return inf to indicate failure
 
     def run_node_check(self):
         """TODO Implement node check. Before starting."""
@@ -160,8 +190,7 @@ class ElasticWorker(ActorBase):
             )
         module_name, func = entry_point.split("::", 1)
         logger.info(
-            f"Running elastic job with entry point: {module_name}.{func}, "
-            f"world_rank={self.node_info.rank}, world_size={self.world_size}"
+            f"Running elastic job with entry point: {module_name}.{func}. "
         )
 
         try:

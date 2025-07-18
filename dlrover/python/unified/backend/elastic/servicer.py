@@ -19,7 +19,6 @@ from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseRequest, BaseResponse
 from dlrover.python.common.constants import (
     CustomMetricKeys,
-    NodeEventType,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.event.context import JobEventContext
@@ -81,9 +80,9 @@ class MasterServicer(ABC):
         elif isinstance(req_message, comm.WaitingNodeNumRequest):
             raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.NetworkReadyRequest):
-            message = self._check_fault_node()
+            raise NotImplementedError("deprecated, new unified Node-check")
         elif isinstance(req_message, comm.StragglerExistRequest):
-            message = self._check_straggler()
+            raise NotImplementedError("deprecated, new unified Node-check")
         elif isinstance(req_message, comm.CommWorldRequest):
             raise NotImplementedError("deprecated, new RDZV based on Ray")
         elif isinstance(req_message, comm.KeyValuePair):
@@ -125,16 +124,6 @@ class MasterServicer(ABC):
                 meta.gpu_type = node.config_resource.gpu_type
                 meta.gpu = node.config_resource.gpu_num
             res.nodes.append(meta)
-        return res
-
-    def _check_fault_node(self):
-        nodes, reason = self._core.node_check_manager.check_fault_node()
-        res = comm.NetworkCheckResult(nodes=nodes, reason=reason)
-        return res
-
-    def _check_straggler(self):
-        nodes, reason = self._core.node_check_manager.get_straggler()
-        res = comm.NetworkCheckResult(nodes=nodes, reason=reason)
         return res
 
     def _get_paral_config(self):
@@ -236,13 +225,6 @@ class MasterServicer(ABC):
             rank_index=message.node.rank,
         )
         event = NodeEvent(message.event_type, node)
-
-        # let rdzv manager deal with rendezvous issue
-        if event.is_node_check_event():
-            succeed = event.event_type == NodeEventType.NODE_CHECK_SUCCEEDED
-            self._core.node_check_manager.report_network_check_result(
-                node.rank_index, succeed, message.event_elapsed_time
-            )
 
         # let job manager deal with node issue(update status)
         self._core.process_reported_node_event(event)
