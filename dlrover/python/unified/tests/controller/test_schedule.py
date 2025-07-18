@@ -123,13 +123,13 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
 
 def test_create_actors(tmp_scheduler: Scheduler):
-    scheduler.invoke_actors_async = AsyncMock()
+    scheduler.invoke_actors_t = AsyncMock()
     tmp_scheduler._create_pg = MagicMock()  # type:ignore[method-assign]
     tmp_scheduler.create_actor = MagicMock()  # type:ignore[method-assign]
     graph = DLExecutionGraph.create(tmp_scheduler._config.dl_config)
 
     tmp_scheduler.allocate_placement_group(graph)
-    scheduler.invoke_actors_async.return_value = BatchInvokeResult(
+    scheduler.invoke_actors_t.return_value = BatchInvokeResult(
         actors=[node.name for node in graph.vertices],
         method_name="status",
         results=["RUNNING"]
