@@ -24,14 +24,12 @@ from ray.util.scheduling_strategies import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
     JobConfig,
 )
-from dlrover.python.unified.util.actor_helper import (
-    BatchInvokeResult,
-    invoke_actors_async,
-)
+from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
 from .graph import DLExecutionGraph
 
@@ -118,9 +116,7 @@ class Scheduler:
         logger.info("Finished creating nodes for the job.")
 
         # 2. Check actors with ping
-        res: BatchInvokeResult[str] = await invoke_actors_async(
-            [node.name for node in graph.vertices], "status"
-        )
+        res = await invoke_actors_t(remote_call.status, graph.vertices)
         logger.info(f"Actors status: {res.as_dict()}")
 
     def create_actor(self, node: RayActorSpec):

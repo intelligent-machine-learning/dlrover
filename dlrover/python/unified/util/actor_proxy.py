@@ -19,8 +19,11 @@ from typing import (
     List,
     Optional,
     ParamSpec,
+    Protocol,
+    Sequence,
     Type,
     TypeVar,
+    Union,
 )
 
 from .actor_helper import (
@@ -70,6 +73,13 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+class IActorInfo(Protocol):
+    """Common interface for actor information, for extracting name."""
+
+    @property
+    def name(self) -> str: ...
+
+
 def invoke_actor_t(
     func: Callable[P, R], actor_name: str, *args: P.args, **kwargs: P.kwargs
 ) -> ActorInvocation[R]:
@@ -80,13 +90,24 @@ def invoke_actor_t(
 
 
 def invoke_actors_t(
-    func: Callable[P, R], actors: List[str], *args: P.args, **kwargs: P.kwargs
+    func: Callable[P, R],
+    actors: Sequence[Union[str, IActorInfo]],
+    *args: P.args,
+    **kwargs: P.kwargs,
 ) -> ActorBatchInvocation[R]:
     """Type Safe wrapper for invoking a method on a Ray actor."""
     meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
     name = meta.name or func.__name__
     return ActorBatchInvocation[R](
-        [ActorInvocation[R](actor, name, *args, **kwargs) for actor in actors]
+        [
+            ActorInvocation[R](
+                actor if isinstance(actor, str) else actor.name,
+                name,
+                *args,
+                **kwargs,
+            )
+            for actor in actors
+        ]
     )
 
 

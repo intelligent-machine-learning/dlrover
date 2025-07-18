@@ -17,10 +17,11 @@ from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import MasterStage
+from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.util.actor_helper import (
-    invoke_actors_async,
     kill_actors,
 )
+from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
 from .config import JobConfig
 from .schedule.graph import DLExecutionGraph
@@ -58,7 +59,7 @@ class PrimeManager:
     async def _nodes_check(self):
         # check all nodes itself
         nodes = [node.name for node in self.graph.vertices]
-        res = await invoke_actors_async(nodes, "self_check")
+        res = await invoke_actors_t(remote_call.self_check, nodes)
         res.raise_for_errors()
         logger.info("All nodes self-checked successfully.")
 
@@ -68,7 +69,7 @@ class PrimeManager:
             for role in self.graph.roles.values()
             if role.sub_master is not None
         ]
-        res = await invoke_actors_async(masters, "check_workers")
+        res = await invoke_actors_t(remote_call.check_workers, masters)
         res.raise_for_errors()
         logger.info("Masters checked all workers successfully.")
 
@@ -77,10 +78,10 @@ class PrimeManager:
         self.stage = MasterStage.RUNNING
         self.save()
         nodes = [node.name for node in self.graph.vertices]
-        res = await invoke_actors_async(nodes, "start")  # start all nodes
+        res = await invoke_actors_t(remote_call.start, nodes)
         res.raise_for_errors()
 
-        res = await invoke_actors_async(nodes, "status")
+        res = await invoke_actors_t(remote_call.status, nodes)
         if any(it != "RUNNING" for it in res.results):
             statusMap = {
                 node: node_status
@@ -95,8 +96,8 @@ class PrimeManager:
         """Monitor the nodes' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
-            res = await invoke_actors_async(
-                [node.name for node in self.graph.vertices], "status"
+            res = await invoke_actors_t(
+                remote_call.status, self.graph.vertices
             )
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 if all(it == "FINISHED" for it in res.results):
