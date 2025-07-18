@@ -70,7 +70,8 @@ class DLConfig(BaseModel):
                     resource=ResourceDesc(),
                 )
             groups[group_name].workloads.append(name)
-            groups[group_name].resource += workload.resource
+            for _ in range(workload.per_group):
+                groups[group_name].resource += workload.resource
         # Validate number of instances in each group
         for group in groups.values():
             for name in group.workloads:

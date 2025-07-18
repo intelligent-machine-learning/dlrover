@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 
 import pytest
 
@@ -30,8 +29,7 @@ def test_elastic_training():
     assert master.get_status().stage == "INIT"
     master.start()
     assert master.get_status().stage == "RUNNING"
-    while master.get_status().stage != "STOPPED":
-        time.sleep(1)
+    master.wait()
     master.stop()  # Noop
     assert master.get_status().stage == "STOPPED"
     master.shutdown()

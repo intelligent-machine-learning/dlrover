@@ -69,6 +69,7 @@ def _setup_ray(envs, **kwargs):
     ray.init(
         namespace="dlrover_test",
         runtime_env={"env_vars": envs},
+        num_cpus=8,  # Default CPU count for tests
         **kwargs,
     )
     yield

@@ -41,6 +41,10 @@ class PrimeMasterRemote(Protocol):
         """Start the master."""
 
     @abstractmethod
+    def wait(self) -> None:
+        """Wait for the job to finish."""
+
+    @abstractmethod
     def stop(self) -> None:
         """Stop the master."""
 
