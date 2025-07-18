@@ -178,11 +178,9 @@ class ElasticWorker(ActorBase):
             daemon=True,
         ).start()
 
-    def _load_user_func(self) -> Callable[..., object]:
+    def _load_user_func(self, entry_point: str) -> Callable[..., object]:
         """Load the user function from the entry point specified in the workload spec."""
 
-        assert self.node_info.spec.backend == "elastic"
-        entry_point = self.node_info.spec.entry_point
         if not entry_point or "::" not in entry_point:
             raise ValueError(
                 "Entry point is not specified in the workload spec. "
@@ -215,8 +213,9 @@ class ElasticWorker(ActorBase):
 
     def _run_agent(self):
         """Run the elastic agent."""
+        assert self.node_info.spec.backend == "elastic"
 
-        run_user_func = self._load_user_func()
+        run_user_func = self._load_user_func(self.node_info.spec.entry_point)
         run_user_func()
 
         logger.info("Done elastic training.")

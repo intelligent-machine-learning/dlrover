@@ -38,27 +38,27 @@ def demo_config():
     return DLConfig(
         workloads={
             "actor": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestActor",
                 resource=ResourceDesc(cpu=0.31),
                 group="actor_rollout",
             ),
             "reference": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestReference",
                 resource=ResourceDesc(cpu=0.32),
             ),
             "rollout": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestRollout",
                 resource=ResourceDesc(cpu=0.33),
                 group="actor_rollout",
             ),
             "elastic": ElasticWorkloadDesc(
-                num=4,
+                total=4,
                 entry_point="training_script:run",
             ),
         },

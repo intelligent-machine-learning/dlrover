@@ -11,14 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
 from .manager import ElasticManager
-from .servicer import RayMasterServicer
 
 
 class ElasticMaster(ActorBase):
@@ -27,7 +25,6 @@ class ElasticMaster(ActorBase):
         self.manager = ElasticManager(nodes)
 
         self.manager._prepare()
-        self._init_service()
 
     # Lifecycle Hooks
 
@@ -51,23 +48,5 @@ class ElasticMaster(ActorBase):
 
     # RPC methods for Workers
 
-    # TODO(longtime): merge Servicer, flatten use Ray rpc.
-
-    def _init_service(self):
-        self._service_handler = RayMasterServicer(self.manager)
-
-    async def agent_report(self, request):
-        logger.debug(f"Got agent report call: {request}")
-        response = await asyncio.to_thread(
-            self._service_handler.agent_report, request
-        )
-        logger.debug(f"Response agent report call: {response}")
-        return response
-
-    async def agent_get(self, request):
-        logger.debug(f"Got agent get call: {request}")
-        response = await asyncio.to_thread(
-            self._service_handler.agent_get, request
-        )
-        logger.debug(f"Response agent get call: {response}")
-        return response
+    # TODO metric rpc: AtorchEvent, Event
+    # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)
