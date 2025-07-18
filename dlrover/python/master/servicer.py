@@ -38,7 +38,6 @@ from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.http_server import TornadoHTTPServer
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
 from dlrover.python.diagnosis.common.diagnosis_action import NoAction
@@ -777,38 +776,6 @@ class MasterServicer(ABC):
         return comm.HeartbeatResponse(action=grpc_action)
 
 
-class HttpMasterServicer(MasterServicer):
-    """Master service with http implementation."""
-
-    def __init__(
-        self,
-        task_manager,
-        job_manager,
-        perf_monitor: PerfMonitor,
-        rdzv_managers: Dict[str, RendezvousManager],
-        diagnosis_manager: DiagnosisMaster,
-        job_metric_collector=None,
-        elastic_ps_service=None,
-        sync_service=None,
-    ):
-        super().__init__(
-            task_manager,
-            job_manager,
-            perf_monitor,
-            rdzv_managers,
-            diagnosis_manager,
-            job_metric_collector,
-            elastic_ps_service,
-            sync_service,
-        )
-
-    def get_response(self, method):
-        return BaseResponse()
-
-    def get_task_type(self, task_type):
-        return task_type
-
-
 class RayMasterServicer(MasterServicer):
     """Master service with ray implementation."""
 
@@ -906,6 +873,39 @@ except ImportError:
 
 try:
     import tornado
+    from dlrover.python.common.http_server import TornadoHTTPServer
+
+    class HttpMasterServicer(MasterServicer):
+        """Master service with http implementation."""
+
+        def __init__(
+                self,
+                task_manager,
+                job_manager,
+                perf_monitor: PerfMonitor,
+                rdzv_managers: Dict[str, RendezvousManager],
+                diagnosis_manager: DiagnosisMaster,
+                job_metric_collector=None,
+                elastic_ps_service=None,
+                sync_service=None,
+        ):
+            super().__init__(
+                task_manager,
+                job_manager,
+                perf_monitor,
+                rdzv_managers,
+                diagnosis_manager,
+                job_metric_collector,
+                elastic_ps_service,
+                sync_service,
+            )
+
+        def get_response(self, method):
+            return BaseResponse()
+
+        def get_task_type(self, task_type):
+            return task_type
+
 
     class HttpMasterHandler(tornado.web.RequestHandler):
         def initialize(self, master_servicer: HttpMasterServicer):
