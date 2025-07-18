@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import List, Protocol
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
-from dlrover.python.unified.util.actor_helper import ActorProxy
+from dlrover.python.unified.util.actor_proxy import ActorProxy
 
 MASTER_ACTOR_NAME = "__prime_master__"
 
@@ -39,6 +39,10 @@ class PrimeMasterRemote(Protocol):
     @abstractmethod
     def start(self) -> None:
         """Start the master."""
+
+    @abstractmethod
+    def wait(self) -> None:
+        """Wait for the job to finish."""
 
     @abstractmethod
     def stop(self) -> None:

@@ -61,6 +61,9 @@ class DLExecutionVertex(ABC, BaseModel):
 
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
+    """Worker vertex in the computational graph."""
+
+    node_rank: int
     world_size: int
     rank: int
     local_world_size: int
@@ -90,7 +93,7 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
         # envs.update(self.graph.dl_context.env)
 
         # setup role env
-        envs.update(self.spec.instance_env)
+        envs.update(self.spec.envs)
 
         # # setup device collocation env
         # if self.get_core_resource_num() < 1:
@@ -122,6 +125,7 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
             name=self.name,
             role=self.role,
             spec=self.spec,
+            node_rank=self.node_rank,
             rank=self.rank,
             local_rank=self.local_rank,
         )
@@ -148,7 +152,7 @@ class DLExecutionMasterVertex(DLExecutionVertex):
         # envs.update(self.graph.dl_context.env)
 
         # setup role env
-        envs.update(self.spec.instance_env)
+        envs.update(self.spec.envs)
         return envs
 
     def to_actor_info(self) -> "ActorInfo":
@@ -189,6 +193,7 @@ class DLWorkloadRole:
             DLExecutionWorkerVertex(
                 role=self.name,
                 spec=self.spec,
+                node_rank=i // self.spec.per_group,
                 world_size=self.instance_number,
                 rank=i,
                 local_world_size=self.spec.per_group,
@@ -235,7 +240,7 @@ class DLExecutionGraph:
             name: DLWorkloadRole(
                 name=name,
                 spec=workload,
-                instance_number=workload.instance_number,
+                instance_number=workload.total,
             )
             for name, workload in dl_config.workloads.items()
         }

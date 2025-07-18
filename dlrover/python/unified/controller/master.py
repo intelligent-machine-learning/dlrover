@@ -47,7 +47,9 @@ class PrimeMaster(PrimeMasterRemote):
 
     def get_status(self):
         """Get the current status of the job."""
-        return MasterStatus(stage=self.manager.stage)
+        return MasterStatus(
+            stage=self.manager.stage, exit_code=self.manager.exit_code
+        )
 
     async def start(self):
         """Start the job execution."""
@@ -88,7 +90,7 @@ class PrimeMaster(PrimeMasterRemote):
 
     @staticmethod
     def create(
-        config: JobConfig, detached: bool = True
+        config: JobConfig, detached: bool = True, timeout: float = 10.0
     ) -> "PrimeMasterRemote":
         """Create a PrimeMaster instance."""
         ref = (
@@ -103,7 +105,7 @@ class PrimeMaster(PrimeMasterRemote):
             )
             .remote(config)
         )
-        ray.get(ref.__ray_ready__.remote())  # type: ignore
+        ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
         return PrimeMasterApi
 
     # endregion

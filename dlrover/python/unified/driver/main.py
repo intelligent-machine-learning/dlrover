@@ -11,18 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import time
 
 import ray
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.workload_base import MasterStage
 from dlrover.python.unified.controller.config import DLConfig, JobConfig
 from dlrover.python.unified.controller.master import PrimeMaster
-
-MASTER_CONNECT_INTERVAL = 5  # must < master's RUN_WAIT_INTERVAL
-MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
 
 
 def submit(config: JobConfig, blocking=True):
@@ -47,21 +42,16 @@ def submit(config: JobConfig, blocking=True):
     master.start()
     logger.info("DLMaster started.")
 
-    exit_code = 0
     if blocking:
-        while True:
-            result = master.get_status()
-            if result.stage is MasterStage.STOPPED:
-                logger.info(f"DLMaster exited with: {result.stage}")
-                exit_code = result.exit_code
-                break
-
-            logger.debug("DLMaster is running...")
-            time.sleep(MASTER_CONNECT_INTERVAL)
+        master.wait()
+        result = master.get_status()
+        logger.info(
+            f"DLMaster exited: {result.stage}, exit code: {result.exit_code}"
+        )
+        return result.exit_code
     else:
         logger.info("Driver exit now for none blocking mode.")
-
-    return exit_code
+        return 0
 
 
 def main(args=None, blocking=True):

@@ -13,8 +13,7 @@
 
 import asyncio
 import random
-from abc import abstractmethod
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import pytest
@@ -22,6 +21,13 @@ import ray
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
+from dlrover.python.unified.util.actor_proxy import (
+    ActorProxy,
+    BatchActorProxy,
+    invoke_actor_t,
+    invoke_actors_t,
+    invoke_meta,
+)
 
 
 @ray.remote
@@ -29,7 +35,8 @@ class SimpleActor:
     def some_method(self):
         return "ok"
 
-    def some_method_async(self):
+    def some_method_with_arg(self, a: int, b: str):
+        assert a == 1 and b == "b"
         return "ok"
 
     def method_exception(self):
@@ -41,20 +48,31 @@ class SimpleActor:
         return "restarted"
 
 
-class SimpleActorStub:
-    @abstractmethod
+class SimpleActorStub(Protocol):
     def some_method(self): ...
+    def some_method_with_arg(self, a: int, b: str): ...
 
-    @abstractmethod
+    @invoke_meta(name="some_method")
     async def some_method_async(self): ...
 
 
-class SimpleActorBatchStub:
-    @abstractmethod
+class SimpleActorBatchStub(Protocol):
     def some_method(self) -> ah.BatchInvokeResult[str]: ...
 
-    @abstractmethod
+    @invoke_meta(name="some_method")
     async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
+
+
+class SimpleActorStaticStub(Protocol):
+    @staticmethod
+    def some_method() -> str: ...
+
+    @staticmethod
+    @invoke_meta(name="some_method")
+    def some_method_alias() -> str: ...
+
+    @staticmethod
+    def some_method_with_arg(a: int, b: str) -> str: ...
 
 
 @pytest.fixture
@@ -103,6 +121,9 @@ def test_as_actor_class():
 
 def test_invoke_actor(tmp_actor1):
     assert ah.invoke_actor(tmp_actor1, "some_method") == "ok"
+    assert (
+        ah.invoke_actor(tmp_actor1, "some_method_with_arg", 1, b="b") == "ok"
+    )
 
     with pytest.raises(AttributeError):
         ah.invoke_actor(tmp_actor1, "non_existent_method")
@@ -118,8 +139,7 @@ def test_invoke_actor(tmp_actor1):
 
 def test_invoke_actor_async(tmp_actor1):
     assert (
-        asyncio.run(ah.invoke_actor_async(tmp_actor1, "some_method_async"))
-        == "ok"
+        asyncio.run(ah.invoke_actor_async(tmp_actor1, "some_method")) == "ok"
     )
     with pytest.raises(AttributeError):
         assert asyncio.run(
@@ -142,7 +162,7 @@ def test_invoke_actors(tmp_actor1, tmp_actor2):
     assert result[0] == "ok"
     assert result[1] == "ok"
     result2 = asyncio.run(
-        ah.invoke_actors_async([tmp_actor1, tmp_actor2], "some_method_async")
+        ah.invoke_actors_async([tmp_actor1, tmp_actor2], "some_method")
     )
     assert result.results == result2.results
 
@@ -159,15 +179,16 @@ def test_kill_actors(tmp_actor1, tmp_actor2):
 
 
 def test_actor_proxy(tmp_actor1):
-    actor = ah.ActorProxy.wrap(tmp_actor1, SimpleActorStub)
+    actor = ActorProxy.wrap(tmp_actor1, SimpleActorStub)
     assert actor.some_method() == "ok"
+    assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
         actor.non_existent_method()  # type: ignore[union-attr]
     assert asyncio.run(actor.some_method_async()) == "ok"
 
 
 def test_batch_actor_proxy(tmp_actor1, tmp_actor2):
-    actors = ah.BatchActorProxy.wrap(
+    actors = BatchActorProxy.wrap(
         [tmp_actor1, tmp_actor2], SimpleActorBatchStub
     )
     result = actors.some_method()
@@ -224,3 +245,20 @@ def test_batch_invoke_result_with_failure():
         _ = batch.results
     with pytest.raises(Exception):
         _ = batch.as_dict()
+
+
+def test_static_stub_invoke(tmp_actor1, tmp_actor2):
+    stub = SimpleActorStaticStub
+    assert invoke_actor_t(stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor_t(stub.some_method_alias, tmp_actor2).wait() == "ok"
+    assert (
+        invoke_actor_t(stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        == "ok"
+    )
+
+    assert invoke_actors_t(
+        stub.some_method, [tmp_actor1, tmp_actor2]
+    ).wait().results == [
+        "ok",
+        "ok",
+    ]

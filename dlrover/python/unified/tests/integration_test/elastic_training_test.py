@@ -11,28 +11,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 
-import pytest
-
+from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
+from dlrover.python.util.function_util import timeout
 
 
-@pytest.mark.usefixtures("tmp_ray")
-def test_elastic_training():
+@timeout(30)
+def test_elastic_training(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
     assert master.get_status().stage == "INIT"
     master.start()
     assert master.get_status().stage == "RUNNING"
-    while master.get_status().stage != "STOPPED":
-        time.sleep(1)
+    master.wait()
     master.stop()  # Noop
     assert master.get_status().stage == "STOPPED"
     master.shutdown()
+
+
+@timeout(30)
+def test_elastic_training_api_full(tmp_ray):
+    dl_job = (
+        DLJobBuilder()
+        .SFT_type()
+        .node_num(2)
+        .device_per_node(2)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
+        .dlrover_run(
+            "dlrover.python.unified.tests.test_class::elastic_workload_run",
+            nnodes=2,
+            nproc_per_node=2,
+        )
+        .build()
+    )
+
+    ret = dl_job.submit("test", master_cpu=1, master_memory=128)
+    assert ret == 0, "Job should succeed"
+
+
+@timeout(30)
+def test_elastic_training_with_error(tmp_ray):
+    dl_job = (
+        DLJobBuilder()
+        .SFT_type()
+        .node_num(3)
+        .device_per_node(2)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
+        .dlrover_run(
+            "dlrover.python.unified.tests.test_class::elastic_workload_run_error",
+            nnodes=2,
+            nproc_per_node=2,
+        )
+        .build()
+    )
+
+    ret = dl_job.submit(
+        "test",
+        master_cpu=1,
+        master_memory=128,
+        workload_max_restart={"ELASTIC": 1},
+    )
+    assert ret != 0, "Job should fail due to error in workload"
 
 
 # TODO abnormal test cases
