@@ -54,7 +54,9 @@ def coverage_envs():
         logger.info("Combining coverage data...")
         import coverage
 
-        coverage.Coverage.current().combine()
+        cur = coverage.Coverage.current()
+        assert cur is not None
+        cur.combine()
 
 
 @contextmanager
