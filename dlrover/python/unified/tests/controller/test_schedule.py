@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,
@@ -38,28 +38,28 @@ def demo_config():
     return DLConfig(
         workloads={
             "actor": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestActor",
                 resource=ResourceDesc(cpu=0.31),
                 group="actor_rollout",
             ),
             "reference": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestReference",
                 resource=ResourceDesc(cpu=0.32),
             ),
             "rollout": CustomWorkloadDesc(
-                num=4,
+                total=4,
                 module_name="dlrover.python.unified.tests.test_class",
                 class_name="TestRollout",
                 resource=ResourceDesc(cpu=0.33),
                 group="actor_rollout",
             ),
             "elastic": ElasticWorkloadDesc(
-                num=4,
-                cmd="elastic_run xxxx",
+                total=4,
+                entry_point="training_script:run",
             ),
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,
@@ -84,7 +84,7 @@ def test_graph(demo_config: DLConfig):
         role_in_graph = graph.roles[name]
         assert role_in_graph.spec == workload
         assert role_in_graph.name == name
-        assert role_in_graph.instance_number == workload.instance_number
+        assert role_in_graph.instance_number == workload.total
         if name == "elastic":
             assert role_in_graph.sub_master is not None
         else:
@@ -114,10 +114,7 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
     for worker in graph.roles["reference"].instances:
         assert worker.bundle_index >= 0
-        assert (
-            bundles[worker.bundle_index].cpu
-            == worker.spec.instance_resource.cpu
-        )
+        assert bundles[worker.bundle_index].cpu == worker.spec.resource.cpu
     for i in range(4):
         assert (
             graph.roles["actor"].instances[i].bundle_index
@@ -126,13 +123,13 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
 
 def test_create_actors(tmp_scheduler: Scheduler):
-    scheduler.invoke_actors_async = AsyncMock()
+    scheduler.invoke_actors_t = AsyncMock()
     tmp_scheduler._create_pg = MagicMock()  # type:ignore[method-assign]
     tmp_scheduler.create_actor = MagicMock()  # type:ignore[method-assign]
     graph = DLExecutionGraph.create(tmp_scheduler._config.dl_config)
 
     tmp_scheduler.allocate_placement_group(graph)
-    scheduler.invoke_actors_async.return_value = BatchInvokeResult(
+    scheduler.invoke_actors_t.return_value = BatchInvokeResult(
         actors=[node.name for node in graph.vertices],
         method_name="status",
         results=["RUNNING"]

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
 )
@@ -28,10 +28,9 @@ def elastic_training_job():
     dl_config = DLConfig(
         workloads={
             "training": ElasticWorkloadDesc(
-                cmd="python -m dlrover.trainer.torch.node_check.nvidia_gpu",
-                instance_number=2,
-                proc_per_worker=2,
-                instance_resource=ResourceDesc(accelerator=1),
+                num=2,
+                entry_point="dlrover.trainer.torch.node_check.nvidia_gpu::run",
+                resource=ResourceDesc(accelerator=1),
             )
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,

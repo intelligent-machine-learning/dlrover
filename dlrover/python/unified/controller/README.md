@@ -1,5 +1,15 @@
 # Some notes for understanding the code
 
+## Glossary
+
+- `Controller/PrimeMaster`: the main controller of the system, responsible for managing the training process.
+- `Role`: A role in the training process, such as `Actor`, `Critic`, `DataPreprocessor`, etc. Each role has a set of `Worker` and optional one `SubMaster`.
+- `Group`: Group is a set of `Worker`, which will be scheduled together into same `ray-node`, sharing resources.
+- `SubMaster`: a sub-controller for one role, responsible for managing specific training process, such as ElasticMaster for elastic training.
+- `Worker`: bearer for `WorkLoad`, which can be a GPU worker (training) or CPU worker (data preprocessor).
+- `WorkLoad`: the actual user-program to be executed inside the `Worker`, such as training or data preprocessing.
+- `Actor`: the scheduling unit, based on `ray-actor`, which can be a `SubMaster` or a `Worker`.
+
 ## Modules Architecture
 
 - dlrover.python.unified

@@ -16,7 +16,6 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.controller.config import DLConfig, WorkloadDesc
 
@@ -47,20 +46,14 @@ class DLExecutionVertex(ABC, BaseModel):
         """
 
     @abstractmethod
-    def get_envs(self) -> Dict[str, str]:
-        """
-        Get environment variables for the vertex.
-
-        Returns:
-            A dictionary of environment variables.
-        """
-
-    @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
 
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
+    """Worker vertex in the computational graph."""
+
+    node_rank: int
     world_size: int
     rank: int
     local_world_size: int
@@ -75,53 +68,12 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
             f"_{self.local_world_size}-{self.local_rank}"
         )
 
-    def get_envs(self) -> Dict[str, str]:
-        # TODO Do we need pass Env for workers, or set in workers themselves?
-        envs = {
-            # DLWorkloadEnv.JOB: _job_ctx.job_config.job_name,
-            DLWorkloadEnv.NAME: self.name,
-            DLWorkloadEnv.ROLE: self.role,
-            DLWorkloadEnv.RANK: str(self.rank),
-            DLWorkloadEnv.WORLD_SIZE: str(self.world_size),
-            DLWorkloadEnv.LOCAL_RANK: str(self.local_rank),
-            DLWorkloadEnv.LOCAL_WORLD_SIZE: str(self.local_world_size),
-        }
-        # setup global env
-        # envs.update(self.graph.dl_context.env)
-
-        # setup role env
-        envs.update(self.spec.instance_env)
-
-        # # setup device collocation env
-        # if self.get_core_resource_num() < 1:
-        #     group_env_value = ""
-        #     for group_tuple in self.graph.dl_context.workload_group.groups:
-        #         group_roles = list(group_tuple[0].keys())
-        #         if self.role in group_roles:
-        #             group_env_value = ",".join(r for r in group_roles)
-        #             break
-        #     envs[DLWorkloadEnv.DEVICE_COLLOCATION_GROUP] = group_env_value
-
-        # setup ray cuda visible env
-        if not set(
-            DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS.items()
-        ).issubset(set(envs.items())):
-            # this env is used for disable 'ray set visible device' so we can
-            # specify device by local_rank on ray(otherwise ray will assign a
-            # specified device)
-            envs.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
-        else:
-            # remove 'false' value setting for using 'ray set visible device'
-            for key in DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS:
-                envs.pop(key, None)
-
-        return envs
-
     def to_actor_info(self) -> "ActorInfo":
         return ActorInfo(
             name=self.name,
             role=self.role,
             spec=self.spec,
+            node_rank=self.node_rank,
             rank=self.rank,
             local_rank=self.local_rank,
         )
@@ -138,18 +90,6 @@ class DLExecutionMasterVertex(DLExecutionVertex):
     @property
     def name(self):
         return f"{self.role}-master"
-
-    def get_envs(self) -> Dict[str, str]:
-        envs = {
-            DLWorkloadEnv.NAME: self.name,
-            DLWorkloadEnv.ROLE: self.role,
-        }
-        # setup global env
-        # envs.update(self.graph.dl_context.env)
-
-        # setup role env
-        envs.update(self.spec.instance_env)
-        return envs
 
     def to_actor_info(self) -> "ActorInfo":
         return ActorInfo(
@@ -189,6 +129,7 @@ class DLWorkloadRole:
             DLExecutionWorkerVertex(
                 role=self.name,
                 spec=self.spec,
+                node_rank=i // self.spec.per_group,
                 world_size=self.instance_number,
                 rank=i,
                 local_world_size=self.spec.per_group,
@@ -235,7 +176,7 @@ class DLExecutionGraph:
             name: DLWorkloadRole(
                 name=name,
                 spec=workload,
-                instance_number=workload.instance_number,
+                instance_number=workload.total,
             )
             for name, workload in dl_config.workloads.items()
         }

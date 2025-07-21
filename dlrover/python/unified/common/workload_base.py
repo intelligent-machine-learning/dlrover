@@ -18,7 +18,7 @@ from typing import Optional
 import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_config import WorkloadDesc
+from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.test_hooks import init_coverage
 
 init_coverage()  # support coverage for workers actor
@@ -56,14 +56,16 @@ class JobInfo:
 
 @dataclass
 class ActorInfo:
-    """Information about a node. Exposed to workers and sub-masters."""
+    """Information about a actor. Exposed to workers and sub-masters."""
 
     name: str
     role: str
     spec: WorkloadDesc
 
-    rank: int = 0
-    local_rank: int = 0
+    # common rank information, may be used in rendezvous
+    rank: int = 0  # global rank in role
+    node_rank: int = 0  # node rank in role
+    local_rank: int = 0  # local rank in node
 
 
 class ActorBase:
@@ -72,7 +74,6 @@ class ActorBase:
         init_coverage()
         self.job_info = job_info
         self.actor_info = actor_info
-        self.node_info = actor_info  # deprecated, use actor_info instead
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
 
@@ -89,11 +90,14 @@ class ActorBase:
         """Check the actor/node itself."""
         if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
             return  # already in the expected stage
-        logger.info(f"[{self.node_info.name}] Running self check.")
+        logger.info(f"[{self.actor_info.name}] Running self check.")
 
     def start(self):
-        """Start the actor/node.If already started, do nothing."""
-        pass  # noop
+        """Start the actor/node. If already started, do nothing.
+
+        This method should be overridden by subMaster or trainer,
+        depending on the usage pattern.
+        """
 
     def shutdown(self):
         """Self-kill the actor/node."""
@@ -117,20 +121,21 @@ class ActorBase:
             )
         self.stage = stage
         logger.info(
-            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
 
     def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
         """Update the stage of the actor/node
-        if the current stage matches the expected stage."""
+        if the current stage matches the expected stage.
+        """
         if self.stage != expected:
             logger.warning(
-                f"Actor {self.node_info.name} is not in expected stage: "
+                f"Actor {self.actor_info.name} is not in expected stage: "
                 f"{expected}, current stage: {self.stage}"
             )
             return False  # not in the expected stage
         self.stage = stage
         logger.info(
-            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
         return True

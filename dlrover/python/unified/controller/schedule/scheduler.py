@@ -23,15 +23,13 @@ from ray.util.scheduling_strategies import (
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.common.workload_desc import ResourceDesc
+from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
     JobConfig,
 )
-from dlrover.python.unified.util.actor_helper import (
-    BatchInvokeResult,
-    invoke_actors_async,
-)
+from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
 from .graph import DLExecutionGraph
 
@@ -55,7 +53,8 @@ class Scheduler:
 
     def allocate_placement_group(self, graph: DLExecutionGraph):
         """Allocate placement group for all actors.
-        Each workload group will be allocated to a placement group bundle."""
+        Each workload group will be allocated to a placement group bundle.
+        """
         bundles: List[ResourceDesc] = []
         for group in self._config.dl_config.workload_group:
             bundle_id_start = len(bundles)
@@ -65,7 +64,7 @@ class Scheduler:
                 role = graph.roles[workload]
                 for worker in role.instances:
                     worker.bundle_index = (
-                        bundle_id_start + worker.rank // worker.spec.per_group
+                        bundle_id_start + worker.rank // role.spec.per_group
                     )
         self._pg = self._create_pg(bundles)
         assert self._pg is not None
@@ -75,9 +74,18 @@ class Scheduler:
             )
 
     async def create_actors(self, graph: DLExecutionGraph):
-        """Create/Get actors for all nodes in the execution graph."""
+        """Create/Get actors for all actors in the execution graph."""
         job_info = self._config.to_job_info()
+        global_envs = {
+            DLWorkloadEnv.JOB: self._config.job_name,
+            **self._config.dl_config.global_envs,
+        }
         for role in graph.roles.values():
+            role_envs = {
+                **global_envs,
+                DLWorkloadEnv.ROLE: role.name,
+                **role.spec.envs,
+            }
             for worker in role.instances:
                 assert self._pg is not None, (
                     "Placement group must be created before creating actors."
@@ -87,9 +95,12 @@ class Scheduler:
                 )
                 spec = RayActorSpec(
                     name=worker.name,
-                    resource=role.spec.instance_resource,
+                    resource=role.spec.resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
-                    envs=worker.get_envs(),
+                    envs={
+                        **role_envs,
+                        DLWorkloadEnv.NAME: worker.name,
+                    },
                     scheduling_strategy=PlacementGroupSchedulingStrategy(
                         placement_group=self._pg,
                         placement_group_bundle_index=worker.bundle_index,
@@ -107,7 +118,10 @@ class Scheduler:
                     name=role.sub_master.name,
                     # resource=role.spec.instance_resource,
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
-                    envs=role.sub_master.get_envs(),
+                    envs={
+                        **role_envs,
+                        DLWorkloadEnv.NAME: role.sub_master.name,
+                    },
                     scheduling_strategy=None,  # no scheduling strategy for now
                     options={
                         "job_info": job_info,
@@ -115,12 +129,10 @@ class Scheduler:
                     },
                 )
                 self.create_actor(spec)
-        logger.info("Finished creating nodes for the job.")
+        logger.info("Finished creating actors for the job.")
 
         # 2. Check actors with ping
-        res: BatchInvokeResult[str] = await invoke_actors_async(
-            [node.name for node in graph.vertices], "status"
-        )
+        res = await invoke_actors_t(remote_call.status, graph.vertices)
         logger.info(f"Actors status: {res.as_dict()}")
 
     def create_actor(self, node: RayActorSpec):

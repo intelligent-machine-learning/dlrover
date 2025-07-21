@@ -12,13 +12,13 @@
 # limitations under the License.
 
 import asyncio
-from functools import cached_property, partial
+from functools import cached_property
 from typing import (
     Dict,
+    Generator,
     Generic,
     List,
     Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -27,7 +27,7 @@ from typing import (
 
 import ray
 from ray.actor import ActorClass, ActorHandle
-from ray.exceptions import RayActorError
+from ray.exceptions import ActorUnavailableError, RayActorError, RayTaskError
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -60,71 +60,226 @@ def as_actor_class(cls: type) -> ActorClass:
     return ray.remote(cls)  # type: ignore[return-value]
 
 
-def __invoke_actor(
-    actor_name: str, method_name: str, *args, **kwargs
-) -> ray.ObjectRef:
-    """Invoke a method on a Ray actor."""
-    try:
-        actor = get_actor_with_cache(actor_name)
-        return getattr(actor, method_name).remote(*args, **kwargs)
-    except AttributeError as e:
-        logger.error(
-            f"Method {method_name} not found on actor {actor_name}: {e}"
-        )
-        return ray.put(e)
-    except Exception as e:
-        logger.error(f"Fail to submit task {method_name} to {actor_name}: {e}")
-        return ray.put(e)
+class ActorInvocation(Generic[T]):
+    """A class to represent an invocation of a method on a Ray actor.
+    wraps ObjectRef and handles retries for actor errors.
+    """
 
+    def __init__(self, actor_name: str, method_name: str, *args, **kwargs):
+        self.actor_name = actor_name
+        self.method_name = method_name
+        self.args = args
+        self.kwargs = kwargs
 
-def invoke_actors(actors: List[str], method_name: str, *args, **kwargs):
-    """Execute a method on all nodes."""
-    tasks = [
-        __invoke_actor(name, method_name, *args, **kwargs) for name in actors
-    ]
+        self._result: Union[T, ray.ObjectRef, Exception] = None  # type: ignore
+        self._retry_count = 3
 
-    results: list = [None] * len(actors)
-    waiting = {task: task_id for task_id, task in enumerate(tasks)}
-    while len(waiting) > 0:
-        ready, not_ready = ray.wait(
-            list(waiting.keys()), num_returns=len(waiting), timeout=10
-        )
-        next_waiting = {task: waiting[task] for task in not_ready}
-        for task in ready:
-            task_id = waiting.pop(task)
-            actor = actors[task_id]
-            try:
-                result = ray.get(task)
-                results[task_id] = result
-            except RayActorError as e:
-                if (
-                    method_name == "__ray_terminate__"
-                    or method_name == "shutdown"
-                ):
-                    results[task_id] = None  # Expected for shutdown
-                    continue
-                logger.error(f"Error executing {method_name} on {actor}: {e}")
-                refresh_actor_cache(actor)
-                task = __invoke_actor(actor, method_name, *args, **kwargs)
-                next_waiting[task] = task_id
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error executing {method_name} on {actor}: {e}"
-                )
-                results[task_id] = e
-        waiting = next_waiting
-        if len(waiting) > 0:
-            stragglers = [actors[task_id] for task_id in waiting.values()]
-            logger.info(
-                f"Waiting for {len(stragglers)} tasks ({stragglers}) to "
-                f"complete {method_name} ..."
+        self._invoke()
+
+    def _invoke(self):
+        # Return ObjectRef or Exception that occurs during invocation.
+        try:
+            actor = get_actor_with_cache(self.actor_name)
+            self._result = getattr(actor, self.method_name).remote(
+                *self.args, **self.kwargs
             )
-    return BatchInvokeResult(actors, method_name, results)
+        except AttributeError as e:
+            logger.error(
+                f"Method {self.method_name} not found on actor {self.actor_name}: {e}"
+            )
+            self._result = e
+        except Exception as e:
+            logger.error(
+                f"Fail to submit task {self.method_name} to {self.actor_name}: {e}"
+            )
+            self._result = e
+        self._check_result()
+
+    def resolve_sync(self):
+        """Wait for the result of the invocation."""
+        assert isinstance(self._result, ray.ObjectRef)
+        try:
+            self._result = cast(T, ray.get(self._result))
+        except RayTaskError as e:
+            self._result = RuntimeError(
+                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
+            )
+            self._result = e
+        self._check_result()
+
+    async def resolve_async(self):
+        """Wait for the result of the invocation."""
+        assert isinstance(self._result, ray.ObjectRef)
+
+        try:
+            self._result = cast(T, await self._result)
+        except RayTaskError as e:
+            self._result = RuntimeError(
+                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
+            )
+            self._result = e
+        self._check_result()
+
+    def _check_result(self):
+        """Check if the invocation should be retried."""
+        # retry for actor restart or unavailable errors
+        if self._retry_count > 0 and isinstance(
+            self._result, (RayActorError, ActorUnavailableError)
+        ):
+            if (
+                self.method_name == "__ray_terminate__"
+                or self.method_name == "shutdown"
+            ):
+                self._result = cast(T, None)  # Success for shutdown
+                return
+
+            self._retry_count -= 1
+            logger.warning(
+                f"ActorError when executing {self.method_name} on {self.actor_name},"
+                f" retrying ({self._retry_count} retries left); {self._result}"
+            )
+            refresh_actor_cache(self.actor_name)
+            self._invoke()
+
+    @property
+    def pending(self) -> bool:
+        """Check if the invocation is still pending."""
+        return isinstance(self._result, ray.ObjectRef)
+
+    @property
+    def result_or_exception(self) -> Union[T, Exception]:
+        """Get the result of the invocation."""
+        assert not self.pending, (
+            "Invocation is still pending. Call resolve first."
+        )
+        assert not isinstance(self._result, ray.ObjectRef)
+        return self._result
+
+    @property
+    def result(self) -> T:
+        """Get the result of the invocation, raising an exception if it failed."""
+        res = self.result_or_exception
+        if isinstance(res, Exception):
+            raise res
+        return cast(T, res)
+
+    def wait(self) -> T:
+        """Wait for the result of the invocation, blocking until it is ready."""
+        while self.pending:
+            self.resolve_sync()
+        return self.result
+
+    def __await__(self) -> Generator[None, None, T]:
+        """Await the result of the invocation."""
+        while isinstance(self._result, ray.ObjectRef):
+            yield from self.resolve_async().__await__()
+        return self.result
+
+    @staticmethod
+    def wait_many(
+        refs: List["ActorInvocation[T]"], timeout: float = 10.0
+    ) -> List["ActorInvocation[T]"]:
+        """Wait for all invocations to complete, return not ready refs."""
+        waiting_refs: Dict[ray.ObjectRef, ActorInvocation[T]] = {
+            ref._result: ref
+            for ref in refs
+            if isinstance(ref._result, ray.ObjectRef)
+        }
+        if len(waiting_refs) > 0:
+            ready, _ = ray.wait(
+                list(waiting_refs.keys()),
+                timeout=timeout,
+                num_returns=len(waiting_refs),
+            )
+            for task in ready:
+                ref = waiting_refs.pop(task)
+                ref.resolve_sync()
+                if isinstance(ref._result, ray.ObjectRef):
+                    waiting_refs[ref._result] = ref  # re-add if still pending
+        not_ready = list(waiting_refs.values())
+        return not_ready
 
 
-def invoke_actor(actor_name: str, method_name: str, *args, **kwargs):
+class ActorBatchInvocation(Generic[T]):
+    """A class to represent an invocation of a method on multiple Ray actors."""
+
+    def __init__(self, refs: List[ActorInvocation[T]]):
+        assert len(refs) > 0, "At least one actor must be specified."
+        self.refs = refs
+        self.method_name = refs[0].method_name
+
+    @property
+    def pending(self) -> bool:
+        """Check if any invocation is still pending."""
+        return any(ref.pending for ref in self.refs)
+
+    def resolve_sync(self):
+        """Wait for all invocations to complete."""
+        waiting = self.refs
+        while len(waiting) > 0:
+            waiting = ActorInvocation.wait_many(waiting, timeout=10.0)
+            if len(waiting) > 0:
+                stragglers = [ref.actor_name for ref in waiting]
+                logger.info(
+                    f"Waiting completing {self.method_name} ...: {stragglers}"
+                )
+
+    async def resolve_async(self):
+        async def wait(ref: ActorInvocation[T]):
+            """Resolve the invocation and return the result."""
+            while ref.pending:
+                await ref.resolve_async()
+
+        await asyncio.gather(*[wait(ref) for ref in self.refs])
+
+    def result(self) -> "BatchInvokeResult[T]":
+        """Get the results of all invocations."""
+        assert not self.pending, (
+            "Invocations are still pending. Call resolve first."
+        )
+        results = [ref.result_or_exception for ref in self.refs]
+        return BatchInvokeResult(
+            [ref.actor_name for ref in self.refs],
+            self.method_name,
+            results,
+        )
+
+    def wait(self) -> "BatchInvokeResult[T]":
+        """Wait for all invocations to complete and return the results."""
+        self.resolve_sync()
+        return self.result()
+
+    def __await__(self) -> Generator[None, None, "BatchInvokeResult[T]"]:
+        """Await the results of all invocations."""
+        yield from self.resolve_async().__await__()
+        return self.result()
+
+
+def invoke_actors(
+    actors: List[str], method_name: str, *args, **kwargs
+) -> "BatchInvokeResult[T]":
+    """Execute a method on all nodes."""
+    ref = ActorBatchInvocation(
+        [
+            ActorInvocation[T](actor, method_name, *args, **kwargs)
+            for actor in actors
+        ]
+    )
+    return ref.wait()
+
+
+def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:  # type: ignore[type-var]
     """Call a method on a Ray actor by its name."""
-    return invoke_actors([actor_name], method_name, *args, **kwargs)[0]
+    ref = ActorInvocation[T](actor_name, method_name, *args, **kwargs)
+    return ref.wait()
 
 
 def kill_actors(actors: List[str]):
@@ -134,7 +289,7 @@ def kill_actors(actors: List[str]):
     while len(toKill) > 0:
         name = toKill.pop()
         try:
-            ray.wait([__invoke_actor(name, "__ray_terminate__")])
+            invoke_actor(name, "__ray_terminate__")
             actor = get_actor_with_cache(name)
             ray.kill(actor, no_restart=True)
         except ValueError:
@@ -149,84 +304,25 @@ async def invoke_actor_async(
     actor_name: str,
     method_name: str,
     *args,
-    _actor_retry: int = 3,
     **kwargs,
-) -> Union[T, Exception]:
+) -> T:
     """Call a method on a Ray actor by its name."""
-    try:
-        actor = get_actor_with_cache(actor_name)
-        ref = getattr(actor, method_name).remote(*args, **kwargs)
-    except AttributeError:
-        logger.error(f"Method {method_name} not found on actor {actor_name}")
-        raise
-
-    try:
-        return await ref
-    except RayActorError as e:
-        if method_name == "__ray_terminate__" or method_name == "shutdown":
-            return cast(T, None)  # Success for shutdown
-        logger.error(f"Error executing {method_name} on {actor_name}: {e}")
-        refresh_actor_cache(actor_name)
-        if _actor_retry > 0:
-            return await invoke_actor_async(
-                actor_name,
-                method_name,
-                *args,
-                **kwargs,
-                _actor_retry=_actor_retry - 1,
-            )
-        else:
-            raise
-    except Exception:
-        logger.error(
-            f"Unexpected error executing {method_name} on {actor_name}",
-            exc_info=True,
-        )
-        raise
+    ref = ActorInvocation[T](actor_name, method_name, *args, **kwargs)
+    return await ref
 
 
 async def invoke_actors_async(
     actors: List[str], method_name: str, *args, **kwargs
 ) -> "BatchInvokeResult[T]":
     """Execute a method on all nodes asynchronously."""
-    res: List[Union[T, Exception]] = await asyncio.gather(
-        *[
-            invoke_actor_async(actor, method_name, *args, **kwargs)
+
+    ref = ActorBatchInvocation(
+        [
+            ActorInvocation[T](actor, method_name, *args, **kwargs)
             for actor in actors
         ]
     )
-    return BatchInvokeResult[T](actors, method_name, res)
-
-
-T_Stub = TypeVar("T_Stub", covariant=True)
-
-
-class ActorProxy:
-    """A proxy class to interact with Ray actors as if they were local objects."""
-
-    def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
-        self.actor = actor
-        self.stub_cls = stub_cls
-        if warmup:
-            get_actor_with_cache(actor)  # warmup actor
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in actor {self.actor}."
-            )
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actor_async, self.actor, name)
-        else:
-            return partial(invoke_actor, self.actor, name)
-
-    @staticmethod
-    def wrap(
-        actor_name: str, cls: Type[T_Stub], lazy: bool = False
-    ) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
+    return await ref
 
 
 class BatchInvokeResult(Generic[T]):
@@ -250,7 +346,8 @@ class BatchInvokeResult(Generic[T]):
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
-        Raise Exception if the result is an error."""
+        Raise Exception if the result is an error.
+        """
         if isinstance(item, str):
             try:
                 index = self.actors.index(item)
@@ -286,12 +383,11 @@ class BatchInvokeResult(Generic[T]):
 
         for actor, exc in self.all_failed():
             logger.error(
-                f"Actor {actor} failed executing {self.method}: {exc}"
+                f"Actor {actor} failed executing {self.method}", exc_info=exc
             )
         raise Exception(
-            f"Some actors failed executing {self.method}. "
-            f"Failed actors: "
-            f"{', '.join(actor for actor, _ in self.all_failed())}"
+            f"Some actors failed executing {self.method}: "
+            f"{[actor for actor, _ in self.all_failed()]}"
         )
 
     @property
@@ -305,33 +401,3 @@ class BatchInvokeResult(Generic[T]):
         return {
             actor: result for actor, result in zip(self.actors, self.results)
         }
-
-
-class BatchActorProxy:
-    """
-    A proxy class to interact with multiple Ray actors as if they were local objects.
-
-    All return values in Stub should be BatchInvokeResult.
-    """
-
-    def __init__(self, actors: List[str], stub_cls: type):
-        self.actors = actors
-        # Optionally filter methods if a class is provided
-        self.stub_cls = stub_cls
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in class {self.stub_cls.__name__}."
-            )
-        # if async
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actors_async, self.actors, name)
-        else:
-            return partial(invoke_actors, self.actors, name)
-
-    @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]

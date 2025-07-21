@@ -20,7 +20,7 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import MasterStateBackendType
 from dlrover.python.unified.common.workload_base import JobInfo
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     WorkloadDesc,
 )
@@ -65,17 +65,18 @@ class DLConfig(BaseModel):
             if group_name not in groups:
                 groups[group_name] = WorkloadGroup(
                     name=group_name,
-                    num=workload.instance_number // workload.per_group,
+                    num=workload.total // workload.per_group,
                     workloads=[],
                     resource=ResourceDesc(),
                 )
             groups[group_name].workloads.append(name)
-            groups[group_name].resource += workload.instance_resource
+            for _ in range(workload.per_group):
+                groups[group_name].resource += workload.resource
         # Validate number of instances in each group
         for group in groups.values():
             for name in group.workloads:
                 workload = self.workloads[name]
-                if workload.instance_number != group.num * workload.per_group:
+                if workload.total != group.num * workload.per_group:
                     raise ValueError(
                         "Instance number for workload"
                         f" '{name}' is inconsistent.\n  {group}"
@@ -91,7 +92,7 @@ class DLConfig(BaseModel):
                     f"exceeds device_per_node {self.device_per_node}."
                 )
         sum_accelerator = sum(
-            workload.instance_resource.accelerator
+            workload.resource.accelerator
             for workload in self.workloads.values()
         )
         if sum_accelerator > self.node_number * self.device_per_node:

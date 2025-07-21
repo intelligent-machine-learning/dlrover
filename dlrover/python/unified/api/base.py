@@ -10,21 +10,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set, Tuple, Union
 
 from omegaconf import DictConfig
 
-from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
-    InternalDLConfig,
     InternalDLWorkloadRole,
 )
 from dlrover.python.unified.common.enums import DLStreamType, TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,
@@ -171,41 +170,18 @@ class DLJob(object):
 
     @property
     def trainer(self):
-        return self._components[InternalDLWorkloadRole.TRAINER_ROLE]
+        return self._components.get(InternalDLWorkloadRole.TRAINER_ROLE)
 
     def get_workload(self, role):
         return self._components[role]
 
-    def __cal_role_resource(self, role):
-        # if role in collocations
-        for collocation in self.collocations:
-            if role in collocation:
-                collocation_process_num = 0
-                for role in collocation:
-                    collocation_process_num += self._components[role].per_node
-                return ResourceDesc(
-                    accelerator=round(
-                        self.device_per_node / collocation_process_num, 2
-                    )
-                )
-
-        if role == InternalDLWorkloadRole.ELASTIC_ROLE:
-            return ResourceDesc(accelerator=self.device_per_node)
-        else:
-            return ResourceDesc(accelerator=1)
-
     def _to_dl_config(self) -> DLConfig:
-        assert self.trainer is not None
-
         workloads = {}
         # DefaultTrainer is useless for prime master.
-        if self.trainer.module_class != (
-            "dlrover.python.unified.trainer.trainer",
-            "DefaultTrainer",
-        ):
+        if self.trainer:
             workloads["trainer"] = CustomWorkloadDesc(
-                instance_number=1,
-                instance_env=self.trainer.others.get("env", {}),
+                total=1,
+                envs=self.trainer.others.get("env", {}),
                 module_name=self.trainer.module_class[0],
                 class_name=self.trainer.module_class[1],
             )
@@ -214,26 +190,28 @@ class DLJob(object):
                 continue
             if role == InternalDLWorkloadRole.ELASTIC_ROLE:
                 workloads[role] = ElasticWorkloadDesc(
-                    instance_number=role_config.total,
-                    instance_env=role_config.env,
-                    instance_resource=self.__cal_role_resource(role),
-                    proc_per_worker=role_config.per_node,
-                    cmd=self.config[InternalDLConfig.ELASTIC_RUN_CMD],
+                    total=role_config.total,
+                    envs=role_config.env,
+                    resource=ResourceDesc(accelerator=1),
+                    entry_point=role_config.others["entrypoint"],
+                    per_group=role_config.per_node,
                 )
                 continue
             workloads[role] = CustomWorkloadDesc(
-                instance_number=role_config.total,
-                instance_env=role_config.env,
+                total=role_config.total,
+                envs=role_config.env,
                 module_name=role_config.module_class[0],
                 class_name=role_config.module_class[1],
-                instance_resource=self.__cal_role_resource(role),
+                resource=ResourceDesc(accelerator=1),
                 per_group=role_config.per_node,
             )
 
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
+            resource = ResourceDesc(accelerator=round(1 / len(collocation), 2))
             for role in collocation:
                 workloads[role].group = name
+                workloads[role].resource = resource.model_copy()
 
         return DLConfig(
             user_config=self.config,
@@ -252,7 +230,7 @@ class DLJob(object):
         master_memory=8192,
         job_max_restart=10,
         **kwargs,
-    ):
+    ) -> int:
         """
         Submit the current dl job.
 
@@ -269,6 +247,9 @@ class DLJob(object):
 
             Other arguments please refer to:
                 'dlrover.python.unified.common.args'
+        Returns:
+            int: The exit code of the job. 0 means success, other means
+                failure.
         """
 
         config = JobConfig(
@@ -282,7 +263,7 @@ class DLJob(object):
         if kwargs:
             logger.warning("Ignoring extra arguments: %s", kwargs)
 
-        submit(config, blocking)
+        return submit(config, blocking)
 
 
 class RoleBuilder(ABC):
@@ -449,73 +430,49 @@ class WorkloadBuilder(RoleBuilder):
             self._role, self._module_name, self._class_name, **kwargs
         )
 
-    def build(self):
+    def build(self) -> "DLJob":
         return self._job_builder.build()
 
 
 class DLRoverRunBuilder(WorkloadBuilder):
+    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+::[a-zA-Z0-9_]+$"
+
     def __init__(
-        self, parent_builder, cmd="", worker_module="", worker_cls=""
+        self,
+        parent_builder,
+        entrypoint: str = "",
+        nnodes: int = 1,
+        nproc_per_node: int = 1,
     ):
         super().__init__(
             parent_builder,
             InternalDLWorkloadRole.ELASTIC_ROLE,
-            worker_module,
-            worker_cls,
+            "",
+            "",
         )
-
-        self._cmd = cmd
-        self.__init_from_cmd()
-
-    def __init_from_cmd(self):
-        # resolve total(--nnodes) and per-node(--nproc_per_node) from command
-        for part in self._cmd.split():
-            if part.startswith("--nnodes="):
-                value = part.split("=")[1]
-                if ":" in value:
-                    _, max_value = value.split(":")
-                    self._num = int(max_value)
-                else:
-                    self._num = int(value)
-            elif part.startswith("--nproc_per_node="):
-                self._per_node = int(part.split("=")[1])
-
-    def __validate_dlrover_run_cmd(self, cmd) -> bool:
-        if not cmd:
-            return False
-        if not cmd.startswith("dlrover-run"):
-            return False
-        return True
+        self._entrypoint = entrypoint
+        self._num = nnodes * nproc_per_node
+        self._per_node = nproc_per_node
 
     def _validate(self):
         if not self._num >= 1 or not self._per_node >= 1:
             return False
-        if not self.__validate_dlrover_run_cmd(self._cmd):
-            logger.error(
-                "dlrover-run command is invalid for elastic training."
-            )
+        if (
+            self._entrypoint is None
+            or re.match(self.ENTRYPOINT_REGEX, self._entrypoint) is None
+        ):
             return False
-
         return True
-
-    @classmethod
-    def __default_trainer(cls):
-        return DLTrainerConfig(
-            TrainerType.ELASTIC_TRAINING,
-            "dlrover.python.unified.trainer.trainer",
-            "DefaultTrainer",
-        )
 
     def _build_role(self) -> Dict[str, DLRoleConfig]:
         # build elastic workload
         elastic_workload = self._create_workload_role(
-            run_cmd=self._cmd,
+            entrypoint=self._entrypoint,
         )
         elastic_workload.set_num(self._num)
         elastic_workload.set_per_node(self._per_node)
 
         return {
-            InternalDLWorkloadRole.TRAINER_ROLE: self.__default_trainer(),
             self._role: elastic_workload,
         }
 
@@ -793,29 +750,24 @@ class DLJobBuilder(object):
 
     def dlrover_run(
         self,
-        run_cmd,
-        worker_module="dlrover.python.unified.trainer.elastic_workload",
-        worker_cls="ElasticWorkload",
+        entrypoint: str,
+        /,
+        nnodes: int,
+        nproc_per_node: int,
     ):
         """
         Setup elastic agent workload(use elastic agent for elastic training,
             same with 'torchrun' case).
 
         Args:
-            run_cmd (str): The training command.
-                e.g. 'dlrover-run --xxx train.py'
+            entrypoint (str): The training entrypoint.
+                e.g. 'xxx.module::function'
+            nnodes (int): The number of nodes.
+            nproc_per_node (int): The number of processes per node.
         """
 
         dlrover_run_builder = DLRoverRunBuilder(
-            self, run_cmd, worker_module, worker_cls
-        )
-
-        # set the cmd into config
-        self._config[InternalDLConfig.ELASTIC_RUN_CMD] = run_cmd
-
-        # set default global env
-        self._env[NodeEnv.DLROVER_MASTER_SERVICE_TYPE] = (
-            CommunicationType.COMM_SERVICE_RAY
+            self, entrypoint, nnodes, nproc_per_node
         )
 
         return dlrover_run_builder
