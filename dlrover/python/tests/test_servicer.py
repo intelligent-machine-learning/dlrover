@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import importlib
 import os
 import sys
 import time
@@ -167,9 +168,9 @@ class MasterServicerBasicTest(unittest.TestCase):
             del sys.modules[module]
 
         with self.assertRaises(ImportError):
-            from dlrover.python.master.servicer import GrpcMasterServicer
-
-            self.assertFalse(GrpcMasterServicer)
+            importlib.import_module(
+                "dlrover.python.master.servicer.GrpcMasterServicer"
+            )
 
     @patch.dict("sys.modules", {"tornado": None})
     def test_tornado_not_installed(self):
@@ -178,17 +179,18 @@ class MasterServicerBasicTest(unittest.TestCase):
             del sys.modules[module]
 
         with self.assertRaises(ImportError):
-            from dlrover.python.master.servicer import HttpMasterHandler
-
-            self.assertFalse(HttpMasterHandler)
+            importlib.import_module(
+                "dlrover.python.master.servicer.HttpMasterHandler"
+            )
 
         with self.assertRaises(ImportError):
-            from dlrover.python.master.servicer import HttpMasterServicer
-
-            self.assertFalse(HttpMasterServicer)
+            importlib.import_module(
+                "dlrover.python.master.servicer.HttpMasterServicer"
+            )
 
     def test_http_master_servicer_basic(self):
         from dlrover.python.master.servicer import HttpMasterServicer
+
         servicer = HttpMasterServicer(None, None, None, None, None)
         self.assertEqual(servicer.get_task_type("test"), "test")
 

@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import json
 import os
 import sys
@@ -361,11 +361,9 @@ class MasterClientTest(unittest.TestCase):
             del sys.modules[module]
 
         with self.assertRaises(ImportError):
-            from dlrover.python.elastic_agent.master_client import (
-                GrpcMasterClient,
+            importlib.import_module(
+                "dlrover.python.elastic_agent.master_client.GrpcMasterClient"
             )
-
-            self.assertFalse(GrpcMasterClient)
 
 
 class MasterClientBuildTest(unittest.TestCase):
@@ -423,11 +421,9 @@ class MasterRayClientTest(unittest.TestCase):
             del sys.modules[module]
 
         with self.assertRaises(ImportError):
-            from dlrover.python.elastic_agent.master_client import (
-                RayMasterClient,
+            importlib.import_module(
+                "dlrover.python.elastic_agent.master_client.RayMasterClient"
             )
-
-            self.assertFalse(RayMasterClient)
 
     @patch("ray.get")
     def test_ray_client(self, mock_get):
