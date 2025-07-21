@@ -52,9 +52,7 @@ class ElasticWorker(ActorBase):
         os.environ["RANK"] = str(self.node_info.rank)
         os.environ["LOCAL_WORLD_SIZE"] = str(self.node_info.spec.per_group)
         os.environ["WORLD_SIZE"] = str(self.node_info.spec.total)
-        os.environ["NODE_RANK"] = str(
-            self.node_info.rank // self.node_info.spec.per_group
-        )
+        os.environ["NODE_RANK"] = str(self.node_info.node_rank)
 
         device = ray_train.get_device()
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)

@@ -64,7 +64,7 @@ class Scheduler:
                 role = graph.roles[workload]
                 for worker in role.instances:
                     worker.bundle_index = (
-                        bundle_id_start + worker.rank // worker.spec.per_group
+                        bundle_id_start + worker.rank // role.spec.per_group
                     )
         self._pg = self._create_pg(bundles)
         assert self._pg is not None
@@ -76,7 +76,16 @@ class Scheduler:
     async def create_actors(self, graph: DLExecutionGraph):
         """Create/Get actors for all actors in the execution graph."""
         job_info = self._config.to_job_info()
+        global_envs = {
+            DLWorkloadEnv.JOB: self._config.job_name,
+            **self._config.dl_config.global_envs,
+        }
         for role in graph.roles.values():
+            role_envs = {
+                **global_envs,
+                DLWorkloadEnv.ROLE: role.name,
+                **role.spec.envs,
+            }
             for worker in role.instances:
                 assert self._pg is not None, (
                     "Placement group must be created before creating actors."
@@ -88,7 +97,10 @@ class Scheduler:
                     name=worker.name,
                     resource=role.spec.resource,
                     cls=role.spec.get_worker_cls(),  # type: ignore[assignment]
-                    envs=worker.get_envs(),
+                    envs={
+                        **role_envs,
+                        DLWorkloadEnv.NAME: worker.name,
+                    },
                     scheduling_strategy=PlacementGroupSchedulingStrategy(
                         placement_group=self._pg,
                         placement_group_bundle_index=worker.bundle_index,
@@ -106,7 +118,10 @@ class Scheduler:
                     name=role.sub_master.name,
                     # resource=role.spec.instance_resource,
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
-                    envs=role.sub_master.get_envs(),
+                    envs={
+                        **role_envs,
+                        DLWorkloadEnv.NAME: role.sub_master.name,
+                    },
                     scheduling_strategy=None,  # no scheduling strategy for now
                     options={
                         "job_info": job_info,
