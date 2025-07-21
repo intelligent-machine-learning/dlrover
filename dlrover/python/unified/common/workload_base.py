@@ -56,15 +56,16 @@ class JobInfo:
 
 @dataclass
 class ActorInfo:
-    """Information about a node. Exposed to workers and sub-masters."""
+    """Information about a actor. Exposed to workers and sub-masters."""
 
     name: str
     role: str
     spec: WorkloadDesc
 
-    node_rank: int = 0
-    rank: int = 0
-    local_rank: int = 0
+    # common rank information, may be used in rendezvous
+    rank: int = 0  # global rank in role
+    node_rank: int = 0  # node rank in role
+    local_rank: int = 0  # local rank in node
 
 
 class ActorBase:

@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import asyncio
-import threading
 import time
 from typing import List
 
@@ -35,10 +34,6 @@ class ElasticManager:
         # self.perf_monitor = PerfMonitor()
         # self.diagnosis = DiagnosisMaster()
         self.node_check_manager = NodeCheckManager()
-        # self.node_watcher = ActorWatcher(self.job_name, "default")
-
-        # This is old singleton context, used for compatibility
-        self._lock = threading.Lock()
 
     def _prepare(self):
         pass
@@ -47,7 +42,7 @@ class ElasticManager:
         logger.info("Do node-check for all nodes...")
         delays = await self.node_check_manager.check_nodes(self.workers)
         abnormal_nodes = self.node_check_manager.find_abnormal_nodes(
-            self.workers, delays, threshold=30.0
+            self.workers, delays, threshold=300.0
         )
         if abnormal_nodes:
             logger.warning(
@@ -57,6 +52,15 @@ class ElasticManager:
             raise Exception(
                 "Node-check failed, some nodes are not ready to start the job."
             )
+        straggling_nodes = self.node_check_manager.find_straggling_nodes(
+            self.workers, delays
+        )
+        if straggling_nodes:
+            logger.warning(
+                f"Node-check found {len(straggling_nodes)} straggling nodes: "
+                f"{', '.join(str(node) for node in straggling_nodes)}"
+            )
+            # No action taken for straggling nodes
         logger.info("Node-check finished for all nodes.")
 
     async def start(self):

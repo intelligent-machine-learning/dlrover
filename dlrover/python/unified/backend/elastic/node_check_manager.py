@@ -134,10 +134,10 @@ class NodeCheckManager:
                 groups.append((i,))
         return groups
 
-    def _grouping_round1(self, round0_times: List[float]):
+    def _grouping_round1(self, last_elapsed_time: List[float]):
         """Grouping nodes based on their round 0 times. like [Best, Worst]..."""
         sorted_nodes = sorted(
-            range(len(round0_times)), key=lambda x: round0_times[x]
+            range(len(last_elapsed_time)), key=lambda x: last_elapsed_time[x]
         )
         left, right = 0, len(sorted_nodes) - 1
         groups: List[Tuple[int, ...]] = []
