@@ -21,7 +21,7 @@ from .manager import ElasticManager
 
 class ElasticMaster(ActorBase):
     def _setup(self):
-        workers = PrimeMasterApi.get_workers_by_role(self.node_info.role)
+        workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
 
         self.manager._prepare()

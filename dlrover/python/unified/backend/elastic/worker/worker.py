@@ -36,23 +36,23 @@ class ElasticWorker(ActorBase):
     """
 
     def _setup(self):
-        assert self.node_info.spec.backend == "elastic"
+        assert self.actor_info.spec.backend == "elastic"
 
         self._process_group_setup = False
 
         self._setup_envs()
-        # RayMasterClient.register_master_actor(f"{self.node_info.role}-master")
+        # RayMasterClient.register_master_actor(f"{self.actor_info.role}-master")
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
 
         # referenced ray.train.torch.config.py
 
-        os.environ["LOCAL_RANK"] = str(self.node_info.local_rank)
-        os.environ["RANK"] = str(self.node_info.rank)
-        os.environ["LOCAL_WORLD_SIZE"] = str(self.node_info.spec.per_group)
-        os.environ["WORLD_SIZE"] = str(self.node_info.spec.total)
-        os.environ["NODE_RANK"] = str(self.node_info.node_rank)
+        os.environ["LOCAL_RANK"] = str(self.actor_info.local_rank)
+        os.environ["RANK"] = str(self.actor_info.rank)
+        os.environ["LOCAL_WORLD_SIZE"] = str(self.actor_info.spec.per_group)
+        os.environ["WORLD_SIZE"] = str(self.actor_info.spec.total)
+        os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
         device = ray_train.get_device()
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
@@ -64,7 +64,7 @@ class ElasticWorker(ActorBase):
         if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
             return  # already in the expected stage
 
-        logger.info(f"[{self.node_info.name}] Running self check.")
+        logger.info(f"[{self.actor_info.name}] Running self check.")
         return "Self check passed"
 
     # region Rendezvous and process group setup
@@ -80,9 +80,9 @@ class ElasticWorker(ActorBase):
         self, master_addr: str, world_size: int, rank: int
     ):
         """Setup the torch process group for distributed training."""
-        assert self.node_info.spec.backend == "elastic"
-        backend = self.node_info.spec.comm_backend
-        timeout = timedelta(seconds=self.node_info.spec.comm_timeout_s)
+        assert self.actor_info.spec.backend == "elastic"
+        backend = self.actor_info.spec.comm_backend
+        timeout = timedelta(seconds=self.actor_info.spec.comm_timeout_s)
         logger.info(
             f"Setting up torch process group with backend={backend}, "
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"
@@ -128,31 +128,31 @@ class ElasticWorker(ActorBase):
                 run_comm_check,
             )
 
-            logger.info(f"[{self.node_info.name}] Running network check.")
+            logger.info(f"[{self.actor_info.name}] Running network check.")
             res = run_comm_check()
             res = round(res, 3)  # round to 3 decimal places
             logger.info(
-                f"[{self.node_info.name}] Network check finished, "
+                f"[{self.actor_info.name}] Network check finished, "
                 f"result: {res:.3f} seconds."
             )
             return res
         except Exception as e:
             logger.error(
-                f"[{self.node_info.name}] Failed to run network check: {e}",
+                f"[{self.actor_info.name}] Failed to run network check: {e}",
                 exc_info=True,
             )
             return float("inf")  # return inf to indicate failure
 
     def run_node_check(self):
         """TODO Implement node check. Before starting."""
-        logger.info(f"[{self.node_info.name}] Running node check.")
+        logger.info(f"[{self.actor_info.name}] Running node check.")
         logger.info("SKIP, node check is not implemented yet.")
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
         if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
             return  # already in the expected stage
-        logger.info(f"Starting elastic worker {self.node_info.name}.")
+        logger.info(f"Starting elastic worker {self.actor_info.name}.")
 
         @contextmanager
         def wrap_run():
@@ -210,9 +210,9 @@ class ElasticWorker(ActorBase):
 
     def _run_agent(self):
         """Run the elastic agent."""
-        assert self.node_info.spec.backend == "elastic"
+        assert self.actor_info.spec.backend == "elastic"
 
-        run_user_func = self._load_user_func(self.node_info.spec.entry_point)
+        run_user_func = self._load_user_func(self.actor_info.spec.entry_point)
         run_user_func()
 
         logger.info("Done elastic training.")

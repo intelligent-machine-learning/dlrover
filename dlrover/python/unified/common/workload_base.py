@@ -73,7 +73,6 @@ class ActorBase:
         init_coverage()
         self.job_info = job_info
         self.actor_info = actor_info
-        self.node_info = actor_info  # deprecated, use actor_info instead
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
 
@@ -90,7 +89,7 @@ class ActorBase:
         """Check the actor/node itself."""
         if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
             return  # already in the expected stage
-        logger.info(f"[{self.node_info.name}] Running self check.")
+        logger.info(f"[{self.actor_info.name}] Running self check.")
 
     def start(self):
         """Start the actor/node. If already started, do nothing.
@@ -121,7 +120,7 @@ class ActorBase:
             )
         self.stage = stage
         logger.info(
-            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
 
     def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
@@ -130,12 +129,12 @@ class ActorBase:
         """
         if self.stage != expected:
             logger.warning(
-                f"Actor {self.node_info.name} is not in expected stage: "
+                f"Actor {self.actor_info.name} is not in expected stage: "
                 f"{expected}, current stage: {self.stage}"
             )
             return False  # not in the expected stage
         self.stage = stage
         logger.info(
-            f"Actor {self.node_info.name} updated to stage: {self.stage}"
+            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
         return True
