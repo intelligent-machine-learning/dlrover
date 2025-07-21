@@ -13,7 +13,7 @@
 
 import asyncio
 import time
-from typing import Collection, List, OrderedDict, Tuple
+from typing import Collection, List, OrderedDict, Sequence, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo
@@ -30,7 +30,7 @@ from . import remote_call
 
 
 def assert_sorted_by_rank(workers: List[ActorInfo]):
-    """Assert that nodes are sorted by rank."""
+    """Assert that workers are sorted by rank."""
     for i, node in enumerate(workers):
         assert node.rank == i, (
             f"Node {node.name} has rank {node.rank}, expected {i}"
@@ -43,12 +43,12 @@ async def group_by_node(
     node_ids = await invoke_actors_t(
         remote_call.get_ray_node_id, [w.name for w in workers]
     )
-    grouped_nodes: OrderedDict[str, List[ActorInfo]] = OrderedDict()
+    grouped: OrderedDict[str, List[ActorInfo]] = OrderedDict()
     for node, worker in zip(node_ids.results, workers):
-        if node not in grouped_nodes:
-            grouped_nodes[node] = []
-        grouped_nodes[node].append(worker)
-    return list(grouped_nodes.values())
+        if node not in grouped:
+            grouped[node] = []
+        grouped[node].append(worker)
+    return list(grouped.values())
 
 
 class NodeCheckManager:
@@ -79,7 +79,7 @@ class NodeCheckManager:
         res_round0 = await self._perform_node_check(workers)
         await invoke_actors_t(
             remote_call.destroy_torch_process_group,
-            [it.name for it in workers],
+            workers,
         )
         logger.info("Completed round 0 of node checks.")
         # TODO handle fail cases
@@ -91,7 +91,7 @@ class NodeCheckManager:
         res_round1 = await self._perform_node_check(workers)
         await invoke_actors_t(
             remote_call.destroy_torch_process_group,
-            [it.name for it in workers],
+            workers,
         )
         logger.info("Completed round 1 of node checks.")
         logger.info(f"Node check results: {res_round1.as_dict()}")
@@ -169,7 +169,7 @@ class NodeCheckManager:
         res.raise_for_errors()
 
     async def _setup_rendezvous_groups(
-        self, nodes: List[ActorInfo], groups: List[Collection[int]]
+        self, nodes: List[ActorInfo], groups: Sequence[Collection[int]]
     ):
         logger.info(f"Groups for rendezvous: {groups}")
         start = time.time()

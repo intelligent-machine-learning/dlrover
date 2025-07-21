@@ -32,7 +32,7 @@ if [ "$1" = "basic" ]; then
   exit 0
 fi
 
-pip install -q 'ray[default]' 'ray[train]'
+pip install -q 'ray[default, train]'
 pip install -q pyhocon
 pip install -q pytest-cov
 pip install -q pytest-ordering

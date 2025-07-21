@@ -73,7 +73,7 @@ class Scheduler:
             )
 
     async def create_actors(self, graph: DLExecutionGraph):
-        """Create/Get actors for all nodes in the execution graph."""
+        """Create/Get actors for all actors in the execution graph."""
         job_info = self._config.to_job_info()
         for role in graph.roles.values():
             for worker in role.instances:
@@ -113,7 +113,7 @@ class Scheduler:
                     },
                 )
                 self.create_actor(spec)
-        logger.info("Finished creating nodes for the job.")
+        logger.info("Finished creating actors for the job.")
 
         # 2. Check actors with ping
         res = await invoke_actors_t(remote_call.status, graph.vertices)

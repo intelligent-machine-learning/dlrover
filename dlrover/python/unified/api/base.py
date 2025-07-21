@@ -435,6 +435,8 @@ class WorkloadBuilder(RoleBuilder):
 
 
 class DLRoverRunBuilder(WorkloadBuilder):
+    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+::[a-zA-Z0-9_]+$"
+
     def __init__(
         self,
         parent_builder,
@@ -457,8 +459,7 @@ class DLRoverRunBuilder(WorkloadBuilder):
             return False
         if (
             self._entrypoint is None
-            or re.match(r"^[a-zA-Z0-9_.]+::[a-zA-Z0-9_]+$", self._entrypoint)
-            is None
+            or re.match(self.ENTRYPOINT_REGEX, self._entrypoint) is None
         ):
             return False
         return True

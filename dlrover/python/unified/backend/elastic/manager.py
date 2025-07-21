@@ -16,28 +16,15 @@ import threading
 import time
 from typing import List
 
-from dlrover.python.common.constants import (
-    NodeStatus,
-)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.elastic import remote_call
 from dlrover.python.unified.backend.elastic.node_check_manager import (
     NodeCheckManager,
 )
-from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actors_t,
 )
-
-
-def convert_to_node_state(state: WorkerStage):
-    if state in ["INIT", "CHECKING"]:
-        return NodeStatus.PENDING
-    elif state in ["RUNNING"]:
-        return NodeStatus.RUNNING
-    elif state in ["FINISHED", "FAILED"]:
-        return NodeStatus.FINISHED
-    return NodeStatus.UNKNOWN
 
 
 class ElasticManager:
@@ -85,7 +72,7 @@ class ElasticManager:
         )
         if any(it != "RUNNING" for it in res.results):
             raise Exception("Some nodes failed to start the job.")
-        asyncio.create_task(self._monitor_nodes(), name="monitor_nodes")
+        asyncio.create_task(self._monitor(), name="monitor_nodes")
 
     async def setup_workloads(self):
         logger.info("Start setup all workloads...")
@@ -99,7 +86,7 @@ class ElasticManager:
             f"Finish setup all workloads, cost: {elapsed / 1000:.2f}ms"
         )
 
-    async def _monitor_nodes(self):
+    async def _monitor(self):
         logger.info("Start monitoring nodes status...")
         while not self.finished:
             try:
