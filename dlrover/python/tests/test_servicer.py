@@ -168,6 +168,7 @@ class MasterServicerBasicTest(unittest.TestCase):
 
         with self.assertRaises(ImportError):
             from dlrover.python.master.servicer import GrpcMasterServicer
+
             self.assertFalse(GrpcMasterServicer)
 
     @patch.dict("sys.modules", {"tornado": None})
@@ -178,10 +179,12 @@ class MasterServicerBasicTest(unittest.TestCase):
 
         with self.assertRaises(ImportError):
             from dlrover.python.master.servicer import HttpMasterHandler
+
             self.assertFalse(HttpMasterHandler)
 
         with self.assertRaises(ImportError):
             from dlrover.python.master.servicer import HttpMasterServicer
+
             self.assertFalse(HttpMasterServicer)
 
 

@@ -879,15 +879,15 @@ try:
         """Master service with http implementation."""
 
         def __init__(
-                self,
-                task_manager,
-                job_manager,
-                perf_monitor: PerfMonitor,
-                rdzv_managers: Dict[str, RendezvousManager],
-                diagnosis_manager: DiagnosisMaster,
-                job_metric_collector=None,
-                elastic_ps_service=None,
-                sync_service=None,
+            self,
+            task_manager,
+            job_manager,
+            perf_monitor: PerfMonitor,
+            rdzv_managers: Dict[str, RendezvousManager],
+            diagnosis_manager: DiagnosisMaster,
+            job_metric_collector=None,
+            elastic_ps_service=None,
+            sync_service=None,
         ):
             super().__init__(
                 task_manager,
@@ -905,7 +905,6 @@ try:
 
         def get_task_type(self, task_type):
             return task_type
-
 
     class HttpMasterHandler(tornado.web.RequestHandler):
         def initialize(self, master_servicer: HttpMasterServicer):
