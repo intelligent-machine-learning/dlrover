@@ -187,6 +187,11 @@ class MasterServicerBasicTest(unittest.TestCase):
 
             self.assertFalse(HttpMasterServicer)
 
+    def test_http_master_servicer_basic(self):
+        from dlrover.python.master.servicer import HttpMasterServicer
+        servicer = HttpMasterServicer(None, None, None, None, None)
+        self.assertEqual(servicer.get_task_type("test"), "test")
+
 
 class MasterServicerFunctionalTest(unittest.TestCase):
     def setUp(self) -> None:
