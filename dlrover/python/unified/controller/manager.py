@@ -107,7 +107,7 @@ class PrimeManager:
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
-                assert self.stage == MasterStage.STOPPING  # request_stop
+                break
 
         assert self.stage == MasterStage.STOPPING, (
             f"Job stage should be STOPPING, but got {self.stage}."

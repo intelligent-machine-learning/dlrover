@@ -93,6 +93,7 @@ def tmp_ray(request, coverage_envs):
 @pytest.fixture(scope="module")
 def shared_ray(coverage_envs):
     """Fixture to initialize and shutdown Ray. Shared across tests.
-    Module scope to avoid affecting other modules."""
+    Module scope to avoid affecting other modules.
+    """
     with _setup_ray(coverage_envs):
         yield

@@ -18,7 +18,7 @@ from typing import Optional
 import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_config import WorkloadDesc
+from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.test_hooks import init_coverage
 
 init_coverage()  # support coverage for workers actor
@@ -126,7 +126,8 @@ class ActorBase:
 
     def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
         """Update the stage of the actor/node
-        if the current stage matches the expected stage."""
+        if the current stage matches the expected stage.
+        """
         if self.stage != expected:
             logger.warning(
                 f"Actor {self.node_info.name} is not in expected stage: "

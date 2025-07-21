@@ -47,7 +47,8 @@ def get_ray_node_id() -> str:  # pragma: no cover
 
 def run_network_check() -> float:  # pragma: no cover
     """Run network check before starting the job.
-    Returns the time taken for the check."""
+    Returns the time taken for the check.
+    """
     ...
 
 

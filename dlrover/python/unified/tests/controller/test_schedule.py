@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,

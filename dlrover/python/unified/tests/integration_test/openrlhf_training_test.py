@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from dlrover.python.unified.common.workload_config import ElasticWorkloadDesc
+from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
     DLConfig,

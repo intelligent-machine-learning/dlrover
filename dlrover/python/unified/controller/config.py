@@ -20,7 +20,7 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import MasterStateBackendType
 from dlrover.python.unified.common.workload_base import JobInfo
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     WorkloadDesc,
 )

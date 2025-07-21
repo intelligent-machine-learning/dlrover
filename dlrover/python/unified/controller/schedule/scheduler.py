@@ -23,7 +23,7 @@ from ray.util.scheduling_strategies import (
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.workload_config import ResourceDesc
+from dlrover.python.unified.common.workload_desc import ResourceDesc
 from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
@@ -53,7 +53,8 @@ class Scheduler:
 
     def allocate_placement_group(self, graph: DLExecutionGraph):
         """Allocate placement group for all actors.
-        Each workload group will be allocated to a placement group bundle."""
+        Each workload group will be allocated to a placement group bundle.
+        """
         bundles: List[ResourceDesc] = []
         for group in self._config.dl_config.workload_group:
             bundle_id_start = len(bundles)

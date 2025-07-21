@@ -87,8 +87,7 @@ class ElasticWorker(ActorBase):
         timeout = timedelta(seconds=self.node_info.spec.comm_timeout_s)
         logger.info(
             f"Setting up torch process group with backend={backend}, "
-            f"world_rank={rank}, world_size={world_size}, "
-            f"init_method={master_addr}"
+            f"world_rank={rank}, world_size={world_size}, by {master_addr}"
         )
         # TODO backend specific setup
 

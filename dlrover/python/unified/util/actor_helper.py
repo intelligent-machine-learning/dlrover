@@ -346,7 +346,8 @@ class BatchInvokeResult(Generic[T]):
 
     def __getitem__(self, item: Union[str, int]) -> T:
         """Get the result for a specific actor by index or name.
-        Raise Exception if the result is an error."""
+        Raise Exception if the result is an error.
+        """
         if isinstance(item, str):
             try:
                 index = self.actors.index(item)

@@ -23,7 +23,7 @@ from dlrover.python.unified.common.constant import (
 )
 from dlrover.python.unified.common.enums import DLStreamType, TrainerType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
-from dlrover.python.unified.common.workload_config import (
+from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,
