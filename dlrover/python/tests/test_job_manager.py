@@ -750,6 +750,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         hang = manager.all_running_node_hanged()
         self.assertFalse(hang)
 
+        # test when gpu > 0
+        for _, nodes in job_nodes.items():
+            for _, node in nodes.items():
+                node.start_hang_time = 0
+                node.status = NodeStatus.RUNNING
+                node.hang = False
+                node.config_resource.gpu_num = 1
+                self.job_context.update_job_node(node)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+        for _, nodes in job_nodes.items():
+            for _, node in nodes.items():
+                self.assertFalse(node.start_hang_time)
+
     def test_no_cpu_request_node_hang(self):
         params = MockK8sJobWithoutCPURequestArgs()
         params.initilize()
@@ -763,6 +778,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
         hang = manager.all_running_node_hanged()
         self.assertFalse(hang)
+
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.5, 256)
         hang = manager.all_running_node_hanged()
         self.assertFalse(hang)
