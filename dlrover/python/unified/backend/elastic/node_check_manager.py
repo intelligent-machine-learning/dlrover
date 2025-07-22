@@ -113,14 +113,23 @@ class NodeCheckManager:
         """Find straggling nodes based on their times.
         Outside 3 standard deviations from the mean.
         """
-        if not times:
+        if not times or len(nodes) < 3:
             return []
 
-        mean_time = sum(times) / len(times)
-        std_dev = (
-            sum((t - mean_time) ** 2 for t in times) / len(times)
-        ) ** 0.5
-        threshold = mean_time + 3 * std_dev
+        # Sort the times to find the mean and standard deviation of normal samples.
+        sorted_times = sorted(times)
+        normal_num = 2
+        while normal_num < len(times):
+            samples = sorted_times[:normal_num]
+            mean_time = sum(samples) / len(samples)
+            std_dev = (
+                sum((t - mean_time) ** 2 for t in samples) / len(samples)
+            ) ** 0.5
+            threshold = mean_time + 3 * std_dev
+            # Check if the next sample is above the threshold.
+            if sorted_times[normal_num] > threshold:
+                break
+            normal_num += 1
 
         return self.find_abnormal_nodes(nodes, times, threshold)
 
