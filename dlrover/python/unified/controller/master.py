@@ -22,7 +22,6 @@ from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import (
     MASTER_ACTOR_NAME,
-    MasterStatus,
     PrimeMasterApi,
     PrimeMasterRemote,
 )
@@ -47,9 +46,7 @@ class PrimeMaster(PrimeMasterRemote):
 
     def get_status(self):
         """Get the current status of the job."""
-        return MasterStatus(
-            stage=self.manager.stage, exit_code=self.manager.exit_code
-        )
+        return self.manager.status
 
     async def start(self):
         """Start the job execution."""

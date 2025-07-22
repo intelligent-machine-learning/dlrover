@@ -18,6 +18,7 @@ from typing import Optional
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import MasterStage
 from dlrover.python.unified.controller import remote_call
+from dlrover.python.unified.controller.api import MasterStatus
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
 )
@@ -40,12 +41,28 @@ class PrimeManager:
         self.thread: Optional[Thread] = None
 
         # Runtime state
-        self.stage: MasterStage = MasterStage.INIT
-        self.exit_code: int = 0
-        logger.info(f"PrimeManager initialized with config: {config}")
+        self._stage: MasterStage = MasterStage.INIT
         self._stopped_event = asyncio.Event()
+        # Exposed state for status detail
+        self.status = MasterStatus(
+            self._stage,
+        )
 
+        logger.info(f"PrimeManager initialized with config: {config}")
         self.INSTANCE = self  # Singleton instance
+
+    @property
+    def stage(self) -> MasterStage:
+        """Get the current stage of the job."""
+        return self._stage
+
+    def _update_stage(self, stage: MasterStage):
+        """Update the stage of the job."""
+        if self._stage != stage:
+            logger.info(f"Updating job stage from {self._stage} to {stage}")
+            self._stage = stage
+            self.status.stage = stage
+            self.save()
 
     async def prepare(self):
         """Prepare all for the job execution.
@@ -75,8 +92,7 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        self.stage = MasterStage.RUNNING
-        self.save()
+        self._update_stage(MasterStage.RUNNING)
         nodes = [node.name for node in self.graph.vertices]
         res = await invoke_actors_t(remote_call.start, nodes)
         res.raise_for_errors()
@@ -103,7 +119,7 @@ class PrimeManager:
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
                 else:
-                    self.exit_code = 1
+                    self.status.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
@@ -114,8 +130,7 @@ class PrimeManager:
         )
         kill_actors([node.name for node in self.graph.vertices])
         logger.info("Job stopped successfully.")
-        self.stage = MasterStage.STOPPED
-        self.save()
+        self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
 
     def request_stop(self, reason: str):
@@ -126,7 +141,7 @@ class PrimeManager:
         ):
             return
         logger.info(f"Requesting to stop the job: {reason}")
-        self.stage = MasterStage.STOPPING
+        self._update_stage(MasterStage.STOPPING)
 
     async def wait(self):
         """Wait for the job to finish."""
