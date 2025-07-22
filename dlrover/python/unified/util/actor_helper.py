@@ -18,6 +18,7 @@ from typing import (
     Generator,
     Generic,
     List,
+    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -27,7 +28,12 @@ from typing import (
 
 import ray
 from ray.actor import ActorClass, ActorHandle
-from ray.exceptions import ActorUnavailableError, RayActorError, RayTaskError
+from ray.exceptions import (
+    ActorDiedError,
+    ActorUnavailableError,
+    RayActorError,
+    RayTaskError,
+)
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -60,6 +66,9 @@ def as_actor_class(cls: type) -> ActorClass:
     return ray.remote(cls)  # type: ignore[return-value]
 
 
+RAY_INVOKE_TIMEOUT = 10.0  # Default timeout for Ray actor invocations
+
+
 class ActorInvocation(Generic[T]):
     """A class to represent an invocation of a method on a Ray actor.
     wraps ObjectRef and handles retries for actor errors.
@@ -83,6 +92,10 @@ class ActorInvocation(Generic[T]):
             self._result = getattr(actor, self.method_name).remote(
                 *self.args, **self.kwargs
             )
+        except ValueError as e:
+            # already logged by get_actor_with_cache
+            # logger.error(f"Actor {self.actor_name} not found: {e}")
+            self._result = e
         except AttributeError as e:
             logger.error(
                 f"Method {self.method_name} not found on actor {self.actor_name}: {e}"
@@ -105,6 +118,13 @@ class ActorInvocation(Generic[T]):
                 f"Error executing {self.method_name} on {self.actor_name}: {e}"
             )
         except Exception as e:
+            if (
+                isinstance(e, ActorDiedError)
+                and self.method_name == "__ray_terminate__"
+            ):
+                # Special case for actor termination, we consider it a success.
+                self._result = cast(T, None)
+                return
             logger.error(
                 f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
             )
@@ -185,7 +205,7 @@ class ActorInvocation(Generic[T]):
 
     @staticmethod
     def wait_many(
-        refs: List["ActorInvocation[T]"], timeout: float = 10.0
+        refs: List["ActorInvocation[T]"], timeout: Optional[float] = None
     ) -> List["ActorInvocation[T]"]:
         """Wait for all invocations to complete, return not ready refs."""
         waiting_refs: Dict[ray.ObjectRef, ActorInvocation[T]] = {
@@ -285,17 +305,24 @@ def invoke_actor(actor_name: str, method_name: str, *args, **kwargs) -> T:  # ty
 def kill_actors(actors: List[str]):
     """Kill Ray actors by their names."""
     logger.info(f"Killing actors: {actors}")
-    toKill = actors.copy()
-    while len(toKill) > 0:
-        name = toKill.pop()
+    refs = []
+    for actor in actors:
         try:
-            invoke_actor(name, "__ray_terminate__")
-            actor = get_actor_with_cache(name)
+            actor_handle = get_actor_with_cache(actor)
+            refs.append(actor_handle.__ray_terminate__.remote())
+        except ValueError:
+            # Actor not found, continue
+            continue
+    ray.wait(
+        refs, num_returns=len(refs), timeout=10.0
+    )  # try graceful shutdown
+    for actor in actors:
+        try:
+            get_actor_with_cache(actor)
             ray.kill(actor, no_restart=True)
         except ValueError:
             # Actor not found, continue
             continue
-
     for node in actors:
         __actors_cache.pop(node, None)
 
