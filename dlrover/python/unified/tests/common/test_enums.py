@@ -14,6 +14,7 @@
 from dlrover.python.unified.common.enums import (
     MasterStateBackendType,
     TrainerType,
+    RLRoleType,
 )
 from dlrover.python.unified.tests.base import BaseTest
 
@@ -33,3 +34,8 @@ class EnumsTest(BaseTest):
 
         with self.assertRaises(KeyError):
             self.assertTrue(MasterStateBackendType["LOCAL"])
+
+    def test_rl_role(self):
+        self.assertFalse(RLRoleType.is_rl_role("test"))
+        self.assertTrue(RLRoleType.is_rl_role("trainer"))
+        self.assertTrue(RLRoleType.is_rl_role("Actor"))

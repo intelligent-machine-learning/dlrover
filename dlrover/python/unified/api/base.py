@@ -21,7 +21,7 @@ from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLWorkloadRole,
 )
-from dlrover.python.unified.common.enums import DLStreamType, TrainerType
+from dlrover.python.unified.common.enums import DLStreamType, RLRoleType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
@@ -52,25 +52,6 @@ class DLRoleConfig(object):
         return self._kwargs
 
 
-class DLTrainerConfig(DLRoleConfig):
-    """
-    Configuration for trainer in task stream.
-    """
-
-    def __init__(self, trainer_type, module_name, class_name, **kwargs):
-        super().__init__(
-            InternalDLWorkloadRole.TRAINER_ROLE,
-            module_name,
-            class_name,
-            **kwargs,
-        )
-        self._trainer_type: TrainerType = trainer_type
-
-    @property
-    def trainer_type(self):
-        return self._trainer_type
-
-
 class DLWorkloadConfig(DLRoleConfig):
     """
     Configuration for all different types' workload.
@@ -82,6 +63,7 @@ class DLWorkloadConfig(DLRoleConfig):
         self._num = 1
         self._per_node = 1
         self._env = {}
+        self._resource = {}
         self._sub_stage = []
 
     @property
@@ -93,8 +75,12 @@ class DLWorkloadConfig(DLRoleConfig):
         return self._per_node
 
     @property
-    def env(self) -> dict:
+    def env(self) -> Dict[str, str]:
         return self._env
+
+    @property
+    def resource(self) -> Dict[str, Union[int, float]]:
+        return self._resource
 
     @property
     def sub_stage(self) -> list:
@@ -108,6 +94,9 @@ class DLWorkloadConfig(DLRoleConfig):
 
     def set_env(self, env):
         self._env = env
+
+    def set_resource(self, resource):
+        self._resource = resource
 
     def set_sub_stage(self, sub_stage):
         self._sub_stage = sub_stage
@@ -168,43 +157,32 @@ class DLJob(object):
     def collocations(self):
         return self._collocations
 
-    @property
-    def trainer(self):
-        return self._components.get(InternalDLWorkloadRole.TRAINER_ROLE)
-
     def get_workload(self, role):
         return self._components[role]
 
     def _to_dl_config(self) -> DLConfig:
         workloads = {}
-        # DefaultTrainer is useless for prime master.
-        if self.trainer:
-            workloads["trainer"] = CustomWorkloadDesc(
-                total=1,
-                envs=self.trainer.others.get("env", {}),
-                module_name=self.trainer.module_class[0],
-                class_name=self.trainer.module_class[1],
-            )
+
         for role, role_config in self._components.items():
-            if not role_config or role == InternalDLWorkloadRole.TRAINER_ROLE:
+            if not role_config:
                 continue
             if role == InternalDLWorkloadRole.ELASTIC_ROLE:
                 workloads[role] = ElasticWorkloadDesc(
                     total=role_config.total,
                     envs=role_config.env,
-                    resource=ResourceDesc(accelerator=1),
+                    resource=ResourceDesc.get_or_default(role_config.resource),
                     entry_point=role_config.others["entrypoint"],
                     per_group=role_config.per_node,
                 )
-                continue
-            workloads[role] = CustomWorkloadDesc(
-                total=role_config.total,
-                envs=role_config.env,
-                module_name=role_config.module_class[0],
-                class_name=role_config.module_class[1],
-                resource=ResourceDesc(accelerator=1),
-                per_group=role_config.per_node,
-            )
+            else:
+                workloads[role] = CustomWorkloadDesc(
+                    total=role_config.total,
+                    envs=role_config.env,
+                    module_name=role_config.module_class[0],
+                    class_name=role_config.module_class[1],
+                    resource=ResourceDesc.get_or_default(role_config.resource),
+                    per_group=role_config.per_node,
+                )
 
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
@@ -305,30 +283,6 @@ class RoleBuilder(ABC):
         return 1
 
 
-class TrainerBuilder(RoleBuilder):
-    def __init__(self, job_builder, trainer_type, module_name, class_name):
-        super().__init__(
-            job_builder,
-            InternalDLWorkloadRole.TRAINER_ROLE,
-            module_name,
-            class_name,
-        )
-
-        self._trainer_type = trainer_type
-
-    def _build_role(self) -> Dict[str, DLRoleConfig]:
-        trainer = DLTrainerConfig(
-            self._trainer_type, self._module_name, self._class_name
-        )
-        return {InternalDLWorkloadRole.TRAINER_ROLE: trainer}
-
-    def _get_per_node(self):
-        return 0
-
-    def _get_total(self):
-        return 1
-
-
 class WorkloadBuilder(RoleBuilder):
     def __init__(self, job_builder, role, module_name, class_name):
         super().__init__(job_builder, role, module_name, class_name)
@@ -336,6 +290,7 @@ class WorkloadBuilder(RoleBuilder):
         self._num = 0
         self._per_node = 0
         self._env = {}
+        self._resource = {}
         self._sub_stage = []
 
     def total(self, num=1):
@@ -375,6 +330,27 @@ class WorkloadBuilder(RoleBuilder):
         self._env.update(env)
         return self
 
+    def resource(self, cpu=0, memory=0, disk=0, accelerator=0, **kwargs):
+        """
+        The resource for current role.
+
+        Args:
+            cpu (int, optional): The number of CPU cores to use. Defaults to 0.
+            memory (int, optional): The size of memory to use. Defaults to 0. Unit: mb.
+            accelerator (int, optional): The number of accelerator cores to use. Defaults to 0.
+        """
+
+        self._resource.update(
+            {
+                "cpu": cpu,
+                "memory": memory,
+                "disk": disk,
+                "accelerator": accelerator,
+            }
+        )
+        self._resource.update(kwargs)
+        return self
+
     def enable_ray_auto_visible_device(self):
         """
         Enable to let ray set visible device automatically.
@@ -407,12 +383,15 @@ class WorkloadBuilder(RoleBuilder):
         if not super()._validate():
             return False
 
-        if self._num < 1 or self._per_node < 1:
-            logger.error(
-                "Total number or per node number must be greater than 1."
-            )
+        if self._num < 1:
+            logger.error(f"{self._role}: total number must be greater than 1.")
             return False
 
+        if self._per_node < 1:
+            logger.error(
+                f"{self._role}: per node number must be greater than 1."
+            )
+            return False
         return True
 
     def _build_role(self) -> Dict[str, DLRoleConfig]:
@@ -421,6 +400,7 @@ class WorkloadBuilder(RoleBuilder):
         workload.set_num(self._num)
         workload.set_per_node(self._per_node)
         workload.set_env(self._env)
+        workload.set_resource(self._resource)
         workload.set_sub_stage(self._sub_stage)
 
         return {self._role: workload}
@@ -561,19 +541,6 @@ class DLJobBuilder(object):
             logger.error("'config' must be dict type and cannot be empty.")
             return False
 
-        # for role components
-        if self._stream_type == DLStreamType.TASK_STREAM:
-            if (
-                InternalDLWorkloadRole.TRAINER_ROLE
-                not in list(self._role_builders.keys())
-                and not self.has_elastic_training()
-            ):
-                logger.error(
-                    "'trainer' must be set for task stream if "
-                    "elastic training not involved."
-                )
-                return False
-
         # for workload collocations
         if self._collocations:
             collocations_set = set()
@@ -585,11 +552,6 @@ class DLJobBuilder(object):
                         logger.error(
                             "Collocation cannot be defined without "
                             f"role definition: {role}."
-                        )
-                        return False
-                    elif isinstance(role_builder, TrainerBuilder):
-                        logger.error(
-                            "Trainer cannot be defined with collocation."
                         )
                         return False
 
@@ -790,7 +752,7 @@ class DLJobBuilder(object):
             roles (str): Multi role names.
         """
 
-        roles = [role.lower() for role in roles]
+        roles = [role.upper() for role in roles]
         self._collocations.append(set(roles))
         return self
 
@@ -803,7 +765,7 @@ class DLJobBuilder(object):
 
         roles = set()
         for role in list(self._role_builders.keys()):
-            if role == InternalDLWorkloadRole.TRAINER_ROLE:
+            if role == RLRoleType.TRAINER.name:
                 continue
             roles.add(role)
         self._collocations.append(roles)

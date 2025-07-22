@@ -17,14 +17,13 @@ from dlrover.python.unified.api.base import (
     DLJob,
     DLJobBuilder,
     DLRoverRunBuilder,
-    TrainerBuilder,
     WorkloadBuilder,
 )
 from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
-    TrainerType,
+    RLRoleType,
 )
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.controller.config import DLConfig
@@ -59,7 +58,7 @@ class ApiTest(BaseTest):
             .critic("m5", "c5")
             .total(4)
             .per_node(2)
-            .with_collocation("Actor", "rollout")
+            .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
 
@@ -72,34 +71,54 @@ class ApiTest(BaseTest):
         self.assertEqual(rl_job.device_type, "GPU")
         self.assertEqual(rl_job.config, {"k1": "v1"})
         self.assertEqual(rl_job.env, {"e0": "v0"})
-        self.assertEqual(rl_job.trainer.module_class, ("m0", "c0"))
-        self.assertEqual(rl_job.trainer.trainer_type, TrainerType.USER_DEFINED)
         self.assertEqual(
-            rl_job.get_workload("actor").module_class, ("m1", "c1")
-        )
-        self.assertEqual(rl_job._components["actor"].role_name, "actor")
-        self.assertEqual(rl_job.get_workload("actor").total, 4)
-        self.assertEqual(rl_job.get_workload("actor").per_node, 2)
-        self.assertEqual(rl_job.get_workload("actor").env, {"e1": "v1"})
-        self.assertEqual(rl_job.get_workload("actor").sub_stage, [])
-        self.assertEqual(
-            rl_job.get_workload("rollout").module_class, ("m2", "c2")
-        )
-        self.assertEqual(rl_job.get_workload("rollout").total, 4)
-        self.assertEqual(rl_job.get_workload("rollout").per_node, 2)
-        self.assertEqual(rl_job.get_workload("rollout").env, {"e2": "v2"})
-        self.assertEqual(
-            rl_job.get_workload("reward").module_class, ("m3", "c3")
+            rl_job.get_workload(RLRoleType.TRAINER.name).module_class,
+            ("m0", "c0"),
         )
         self.assertEqual(
-            rl_job.get_workload("reference").module_class, ("m4", "c4")
+            rl_job.get_workload(RLRoleType.ACTOR.name).module_class,
+            ("m1", "c1"),
         )
         self.assertEqual(
-            rl_job.get_workload("critic").module_class, ("m5", "c5")
+            rl_job._components[RLRoleType.ACTOR.name].role_name,
+            RLRoleType.ACTOR.name,
+        )
+        self.assertEqual(rl_job.get_workload(RLRoleType.ACTOR.name).total, 4)
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ACTOR.name).per_node, 2
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ACTOR.name).env, {"e1": "v1"}
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ACTOR.name).sub_stage, []
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).module_class,
+            ("m2", "c2"),
+        )
+        self.assertEqual(rl_job.get_workload(RLRoleType.ROLLOUT.name).total, 4)
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).per_node, 2
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).env, {"e2": "v2"}
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.REWARD.name).module_class,
+            ("m3", "c3"),
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.REFERENCE.name).module_class,
+            ("m4", "c4"),
+        )
+        self.assertEqual(
+            rl_job.get_workload(RLRoleType.CRITIC.name).module_class,
+            ("m5", "c5"),
         )
         self.assertEqual(len(rl_job.collocations), 1)
-        self.assertTrue("actor" in rl_job.collocations[0])
-        self.assertTrue("rollout" in rl_job.collocations[0])
+        self.assertTrue(RLRoleType.ACTOR.name in rl_job.collocations[0])
+        self.assertTrue(RLRoleType.ROLLOUT.name in rl_job.collocations[0])
 
         rl_config = rl_job._to_dl_config()
         self.assertIsNotNone(rl_config)
@@ -165,13 +184,13 @@ class ApiTest(BaseTest):
         with self.assertRaises(InvalidDLConfiguration):
             DLJobBuilder().dl_type().node_num(1).device_per_node(1).build()
 
-        # without trainer
+        # rl without trainer
         with self.assertRaises(InvalidDLConfiguration):
-            DLJobBuilder().dl_type().node_num(1).device_per_node(1).config(
+            RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).build()
 
-        # without actor
+        # rl without actor
         with self.assertRaises(InvalidDLConfiguration):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
@@ -189,8 +208,10 @@ class ApiTest(BaseTest):
                 {"k1": "v1"}
             ).trainer("m0", "c0").actor("m1", "c1").rollout("m2", "c2").reward(
                 "m3", "c3"
-            ).with_collocation("actor", "rollout").with_collocation(
-                "rollout", "reward"
+            ).with_collocation(
+                RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name
+            ).with_collocation(
+                RLRoleType.ROLLOUT.name, RLRoleType.REWARD.name
             ).build()
 
         # a minimum valid rl
@@ -214,7 +235,10 @@ class ApiTest(BaseTest):
             .with_collocation_all()
             .build()
         )
-        self.assertEqual(rl_job._collocations[0], {"actor", "rollout"})
+        self.assertEqual(
+            rl_job._collocations[0],
+            {RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name},
+        )
 
     def test_to_dl_config(self):
         # collocation: 4: 4+4
@@ -233,22 +257,28 @@ class ApiTest(BaseTest):
             .total(4)
             .per_node(4)
             .env({"e2": "v2"})
-            .with_collocation("Actor", "rollout")
+            .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
         rl_config = rl_job._to_dl_config()
         assert isinstance(rl_config, DLConfig)
         assert len(rl_config.workloads.keys()) == 3
         assert (
-            rl_config.workloads["actor"].group
-            == rl_config.workloads["rollout"].group
+            rl_config.workloads[RLRoleType.ACTOR.name].group
+            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
         )
-        assert rl_config.workloads["actor"].per_group == 4
-        assert rl_config.workloads["rollout"].per_group == 4
-        assert rl_config.workloads["actor"].total == 4
-        assert rl_config.workloads["actor"].resource.accelerator == 0.5
-        assert rl_config.workloads["rollout"].total == 4
-        assert rl_config.workloads["rollout"].resource.accelerator == 0.5
+        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 4
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 4
+        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
+            == 0.5
+        )
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            == 0.5
+        )
         # collocation: 4: 4+4+4
         rl_job = (
             RLJobBuilder()
@@ -268,27 +298,40 @@ class ApiTest(BaseTest):
             .reference("m3", "c3")
             .total(4)
             .per_node(4)
-            .with_collocation("actor", "rollout", "reference")
+            .with_collocation(
+                RLRoleType.ACTOR.name,
+                RLRoleType.ROLLOUT.name,
+                RLRoleType.REFERENCE.name,
+            )
             .build()
         )
         rl_config = rl_job._to_dl_config()
         assert isinstance(rl_config, DLConfig)
         assert len(rl_config.workloads.keys()) == 4
         assert (
-            rl_config.workloads["actor"].group
-            == rl_config.workloads["rollout"].group
-            == rl_config.workloads["reference"].group
+            rl_config.workloads[RLRoleType.ACTOR.name].group
+            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
+            == rl_config.workloads[RLRoleType.REFERENCE.name].group
         )
-        assert rl_config.workloads["actor"].per_group == 4
-        assert rl_config.workloads["rollout"].per_group == 4
-        assert rl_config.workloads["reference"].per_group == 4
+        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 4
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 4
+        assert rl_config.workloads[RLRoleType.REFERENCE.name].per_group == 4
 
-        assert rl_config.workloads["actor"].total == 4
-        assert rl_config.workloads["actor"].resource.accelerator == 0.33
-        assert rl_config.workloads["rollout"].total == 4
-        assert rl_config.workloads["rollout"].resource.accelerator == 0.33
-        assert rl_config.workloads["reference"].total == 4
-        assert rl_config.workloads["reference"].resource.accelerator == 0.33
+        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
+            == 0.33
+        )
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            == 0.33
+        )
+        assert rl_config.workloads[RLRoleType.REFERENCE.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.REFERENCE.name].resource.accelerator
+            == 0.33
+        )
 
         # collocation: 4: 4+4 2+2
         rl_job = (
@@ -312,34 +355,48 @@ class ApiTest(BaseTest):
             .reward("m4", "c4")
             .total(4)
             .per_node(2)
-            .with_collocation("actor", "rollout")
-            .with_collocation("reward", "reference")
+            .with_collocation(RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name)
+            .with_collocation(
+                RLRoleType.REWARD.name, RLRoleType.REFERENCE.name
+            )
             .build()
         )
         rl_config = rl_job._to_dl_config()
         assert isinstance(rl_config, DLConfig)
         assert len(rl_config.workloads.keys()) == 5
         assert (
-            rl_config.workloads["actor"].group
-            == rl_config.workloads["rollout"].group
+            rl_config.workloads[RLRoleType.ACTOR.name].group
+            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
         )
         assert (
-            rl_config.workloads["reward"].group
-            == rl_config.workloads["reference"].group
+            rl_config.workloads[RLRoleType.REWARD.name].group
+            == rl_config.workloads[RLRoleType.REFERENCE.name].group
         )
-        assert rl_config.workloads["actor"].per_group == 2
-        assert rl_config.workloads["rollout"].per_group == 2
-        assert rl_config.workloads["reward"].per_group == 2
-        assert rl_config.workloads["reference"].per_group == 6
+        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 2
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 2
+        assert rl_config.workloads[RLRoleType.REWARD.name].per_group == 2
+        assert rl_config.workloads[RLRoleType.REFERENCE.name].per_group == 6
 
-        assert rl_config.workloads["actor"].total == 4
-        assert rl_config.workloads["actor"].resource.accelerator == 0.5
-        assert rl_config.workloads["rollout"].total == 4
-        assert rl_config.workloads["rollout"].resource.accelerator == 0.5
-        assert rl_config.workloads["reference"].total == 12
-        assert rl_config.workloads["reference"].resource.accelerator == 0.5
-        assert rl_config.workloads["reward"].total == 4
-        assert rl_config.workloads["reward"].resource.accelerator == 0.5
+        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
+            == 0.5
+        )
+        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            == 0.5
+        )
+        assert rl_config.workloads[RLRoleType.REFERENCE.name].total == 12
+        assert (
+            rl_config.workloads[RLRoleType.REFERENCE.name].resource.accelerator
+            == 0.5
+        )
+        assert rl_config.workloads[RLRoleType.REWARD.name].total == 4
+        assert (
+            rl_config.workloads[RLRoleType.REWARD.name].resource.accelerator
+            == 0.5
+        )
 
     def test_enable_ray_auto_visible_device(self):
         rl_job = (
@@ -358,13 +415,13 @@ class ApiTest(BaseTest):
             .enable_ray_auto_visible_device()
             .env({"e2": "v2"})
             .per_node(4)
-            .with_collocation("Actor", "rollout")
+            .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
         rl_config = rl_job._to_dl_config()
         assert isinstance(rl_config, DLConfig)
         assert (
-            rl_config.workloads["rollout"].envs[
+            rl_config.workloads[RLRoleType.ROLLOUT.name].envs[
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
             ]
             == "false"
@@ -395,13 +452,6 @@ class ApiTest(BaseTest):
         assert workload.resource.accelerator == 1
 
     def test_role_builder(self):
-        trainer_builder = TrainerBuilder(DLJobBuilder(), "test", "m0", "c0")
-        self.assertIsNotNone(trainer_builder)
-        self.assertEqual(trainer_builder._get_total(), 1)
-        self.assertEqual(trainer_builder._get_per_node(), 0)
-        with self.assertRaises(AttributeError):
-            trainer_builder.test()
-
         workload_builder = WorkloadBuilder(DLJobBuilder(), "test", "m0", "c0")
         workload_builder.env(None)
         self.assertEqual(workload_builder._env, {})

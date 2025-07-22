@@ -11,12 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.base import DLJobBuilder, TrainerBuilder
-from dlrover.python.unified.common.constant import InternalDLWorkloadRole
+from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
-    TrainerType,
+    RLRoleType,
 )
 
 
@@ -25,12 +24,20 @@ class RLJobBuilder(DLJobBuilder):
     Extension job builder for Reinforcement Learning (RL).
     """
 
-    ACTOR_ROLE = "actor"
-    REF_ROLE = "reference"
-    REW_ROLE = "reward"
-    CRITIC_ROLE = "critic"
-    ROLLOUT_ROLE = "rollout"
-    ROLES = [ACTOR_ROLE, REF_ROLE, REW_ROLE, CRITIC_ROLE, ROLLOUT_ROLE]
+    TRAINER_ROLE = RLRoleType.TRAINER.name
+    ACTOR_ROLE = RLRoleType.ACTOR.name
+    REF_ROLE = RLRoleType.REFERENCE.name
+    REW_ROLE = RLRoleType.REWARD.name
+    CRITIC_ROLE = RLRoleType.CRITIC.name
+    ROLLOUT_ROLE = RLRoleType.ROLLOUT.name
+    ROLES = [
+        TRAINER_ROLE,
+        ACTOR_ROLE,
+        REF_ROLE,
+        REW_ROLE,
+        CRITIC_ROLE,
+        ROLLOUT_ROLE,
+    ]
 
     def __init__(self):
         super(RLJobBuilder, self).__init__()
@@ -47,9 +54,16 @@ class RLJobBuilder(DLJobBuilder):
 
         assert self._stream_type == DLStreamType.TASK_STREAM
 
-        return TrainerBuilder(
-            self, TrainerType.USER_DEFINED, module_name, class_name
+        builder = self.workload(
+            RLJobBuilder.TRAINER_ROLE, module_name, class_name
         )
+
+        # default property
+        builder.total(1)
+        builder.per_node(1)
+        builder.resource(cpu=4, mem=8192)
+
+        return builder
 
     def actor(self, module_name, class_name):
         """
@@ -117,10 +131,7 @@ class RLJobBuilder(DLJobBuilder):
             return False
 
         for role, _ in self._role_builders.items():
-            if (
-                role != InternalDLWorkloadRole.TRAINER_ROLE
-                and role not in RLJobBuilder.ROLES
-            ):
+            if role not in RLJobBuilder.ROLES:
                 logger.error(
                     f"{role} is invalid for rl, supported roles "
                     f"are {RLJobBuilder.ROLES}."

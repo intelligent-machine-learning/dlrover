@@ -16,17 +16,17 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Union
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.backend.rl.trainer import BaseRLTrainer
 from dlrover.python.unified.common.job_context import get_job_context
 from dlrover.python.unified.master.executor import Executor
 from dlrover.python.unified.master.graph import DLExecutionGraph
-from dlrover.python.unified.trainer.trainer import BaseTrainer
 
 
 class MPMDTrainerExecutor(Executor):
     def __init__(self, execution_graph: DLExecutionGraph):
         super().__init__(execution_graph)
 
-        self.__trainer: Union[BaseTrainer, None] = None
+        self.__trainer: Union[BaseRLTrainer, None] = None
         self.__trainer_result: Union[Future, None] = None
         self.__trainer_error = None
 

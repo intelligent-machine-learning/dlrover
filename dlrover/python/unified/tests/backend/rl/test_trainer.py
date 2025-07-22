@@ -1,7 +1,7 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Copyright 2025 The DLRover Authors. All rights reserved.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -12,16 +12,16 @@
 # limitations under the License.
 from unittest import mock
 
+from dlrover.python.unified.backend.rl.trainer import (
+    RoleGroupProxy,
+    DefaultTrainer,
+)
 from dlrover.python.unified.common.enums import RLRoleType
 from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_class import (
     TestActor,
     TestInteractiveTrainer,
     TestRollout,
-)
-from dlrover.python.unified.trainer.trainer import (
-    DefaultTrainer,
-    RoleGroupProxy,
 )
 
 

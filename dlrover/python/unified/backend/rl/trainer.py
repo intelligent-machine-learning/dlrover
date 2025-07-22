@@ -1,7 +1,7 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Copyright 2025 The DLRover Authors. All rights reserved.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -10,17 +10,101 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
+import time
+import types
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import chain
+from threading import Thread
 from typing import Callable, Dict, List, Literal, Optional, Tuple
 
 import ray
-from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.util.common_util import get_methods_by_class
+from dlrover.python.unified.backend.rl import remote_call
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.common.workload_base import (
+    ActorBase,
+    WorkerStage,
+    ActorInfo,
+)
+from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.actor_helper import ActorBatchInvocation
+from dlrover.python.unified.util.actor_proxy import invoke_actor_t
+from dlrover.python.util.common_util import (
+    get_methods_by_class,
+    get_class_by_module_and_class_name,
+)
+
+
+def trainer_invocation(
+    blocking=True,
+    is_async=False,
+    timeout=10,
+    target="ALL",
+    auto_shard=True,
+    pre_func=None,
+    post_func=None,
+):
+    """
+    Decorator for timeout controlled function using.
+
+    Args:
+        blocking (bool, optional): Whether block until the remote result
+            return. Default is True.
+        is_async (bool, optional): Whether invoke by ray.wait(),
+            when 'get_ref=' is False. Default is False.
+        timeout (int, optional): The timeout(seconds) set for ray.wait(),
+            when 'get_ref=' is False. Default is 10(seconds).
+        target (str, optional): The remote invocation target.
+            Support:
+                ALL: All the remote actors should invoke.
+                RANK0: Only the 1st actor should invoke.
+            Default is 'ALL'.
+        auto_shard (bool, optional): Whether enable sharding invocation when
+            the length of the input parameter matches the number of target
+            workloads. Default is True.
+            i.e.
+            split the n pieces of data, distribute them to n workloads,
+            and have each workload process one part.
+        pre_func (function, optional): The function will be invoked before the
+            remote function.
+        post_func (function, optional): The function will be invoked after the
+            remote function.
+    """
+
+    assert timeout > 0
+    assert target in ["ALL", "RANK0"]
+    if pre_func:
+        assert isinstance(pre_func, types.FunctionType)
+    if post_func:
+        assert isinstance(post_func, types.FunctionType)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        setattr(
+            wrapped,
+            "_trainer_invocation",
+            MethodInvocationMeta(
+                blocking=blocking,
+                is_async=is_async,
+                timeout=timeout,
+                target=target,
+                auto_shard=auto_shard,
+                pre_func=pre_func,
+                post_func=post_func,
+            ),
+        )
+        return wrapped
+
+    return decorator
 
 
 @dataclass
@@ -185,9 +269,9 @@ class RoleGroupProxy(object):
         return remote_method
 
 
-class BaseTrainer(ABC):
+class BaseRLTrainer(ActorBase, ABC):
     """
-    The trainer is the core logic for deep learning training.
+    The trainer is the core logic for rl training.
     Users need to extend the current base class and implement their own
     business logic. In the trainer, users operate the workloads of different
     DL roles to complete the training process.
@@ -198,27 +282,144 @@ class BaseTrainer(ABC):
             Format:
                 key - role
                 value - tuple with: class-type, device
-
-        config: The configuration used for training.
     """
 
-    def __init__(
-        self,
-        actor_handles: Dict[str, List[ActorHandle]],
-        actor_metas: Dict[str, Tuple[type, float]],
-        config: DictConfig,
-    ):
-        self._actor_handles = actor_handles
-        self._actor_metas = actor_metas
-        self._config = config
+    _workload_workers: Dict[str, List[ActorInfo]] = {}
+    _actor_handles: Dict[str, List[ActorHandle]] = {}
+    _actor_metas: Dict[str, Tuple[type, float]] = {}
+    __role_group_proxy: Dict[str, RoleGroupProxy] = {}
 
-        self.__role_group_proxy: Dict[str, RoleGroupProxy] = {}
+    async def start(self):
+        # Initialize the elastic client here
+        logger.info("Start job execution.")
+        await self._setup_workloads()
+
+        self._start_execution()
+
+    async def _setup_workloads(self):
+        start = time.time()
+
+        # setup trainer itself
+        self._setup_trainer()
+
+        # setup other workloads
+        for role, group in self._workload_workers.items():
+            logger.info(f"Setting up workload: {role}...")
+            master_addr = await invoke_actor_t(
+                remote_call.get_master_addr, group[0].name
+            )
+
+            envs = {
+                DLWorkloadEnv.MASTER_ADDR: master_addr[0],
+                DLWorkloadEnv.MASTER_PORT: str(master_addr[1]),
+            }
+
+            res = await ActorBatchInvocation(
+                [
+                    invoke_actor_t(
+                        remote_call.setup_rl_workload,
+                        node.name,
+                        env_dict=envs,
+                    )
+                    for i, node in enumerate(group)
+                ]
+            )
+            res.raise_for_errors()
+
+        elapsed = time.time() - start
+        logger.info(
+            f"Finish setup all rl workloads, cost: {elapsed / 1000:.2f}ms"
+        )
+
+    def _setup_trainer(self):
+        all_workers = PrimeMasterApi.get_all_roles()
+        del all_workers[RLRoleType.TRAINER.name]
+        self._workload_workers = all_workers
+
+        for role, actors_info in self._workload_workers.items():
+            if role not in self._actor_handles:
+                self._actor_handles[role] = []
+            if role not in self._actor_metas:
+                clz = get_class_by_module_and_class_name(
+                    actors_info[0].spec.module_name,
+                    actors_info[0].spec.class_name,
+                )
+                self._actor_metas[role] = (
+                    clz,
+                    actors_info[0].spec.resource.accelerator,
+                )
+
+            for actor_info in actors_info:
+                self._actor_handles[role].append(
+                    ray.get_actor(actor_info.name)
+                )
+
         self.__init_role_group_proxy()
+        self._update_stage_force(WorkerStage.READY)
         logger.info(
             f"Trainer initiated with workloads: {self._get_workloads_size()}, "
             f"role actor metas: {self._actor_metas}, "
-            f"config: {config}"
+            f"config: {self.config}"
         )
+
+    def _start_execution(self):
+        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
+
+        @contextmanager
+        def wrap_run():
+            try:
+                yield
+                self._update_stage_force(
+                    WorkerStage.FINISHED, WorkerStage.RUNNING
+                )
+
+                invocations = ActorBatchInvocation(
+                    [
+                        invoke_actor_t(
+                            remote_call.update_rl_workload_stage,
+                            actor_info.name,
+                            WorkerStage.FINISHED,
+                        )
+                        for actor_info in list(
+                            chain(*self._workload_workers.values())
+                        )
+                    ]
+                )
+                invocations.wait()
+
+            except Exception:
+                logger.error(
+                    "Unexpected error occurred while running rl trainer",
+                    exc_info=True,
+                )
+                self._update_stage_force(
+                    WorkerStage.FAILED, WorkerStage.RUNNING
+                )
+
+                invocations = ActorBatchInvocation(
+                    [
+                        invoke_actor_t(
+                            remote_call.update_rl_workload_stage,
+                            actor_info.name,
+                            WorkerStage.FAILED,
+                        )
+                        for actor_info in list(
+                            chain(*self._workload_workers.values())
+                        )
+                    ]
+                )
+                invocations.wait()
+
+        Thread(
+            target=wrap_run()(self.__execute),
+            daemon=True,
+        ).start()
+
+    def __execute(self):
+        logger.info("Trainer init invocation.")
+        self.init()
+        logger.info("Trainer fit invocation.")
+        self.fit()
 
     def _get_workloads_size(self) -> Dict[str, int]:
         return {
@@ -254,8 +455,58 @@ class BaseTrainer(ABC):
         return self._actor_handles
 
     @property
-    def config(self) -> DictConfig:
-        return self._config
+    def config(self):
+        return self.job_info.user_config
+
+    @property
+    def actors(self) -> List[ActorHandle]:
+        """Get all actors' actor handle."""
+        return self.get_actor_handles(RLRoleType.ACTOR.name)
+
+    @property
+    def actor_resource(self):
+        """Get resource used(occupied) for ACTOR."""
+        return self.get_workload_resource(RLRoleType.ACTOR.name)
+
+    @property
+    def references(self) -> List[ActorHandle]:
+        """Get all references' actor handle."""
+        return self.get_actor_handles(RLRoleType.REFERENCE.name)
+
+    @property
+    def reference_resource(self):
+        """Get resource used(occupied) for REFERENCE."""
+        return self.get_workload_resource(RLRoleType.REFERENCE.name)
+
+    @property
+    def rollouts(self) -> List[ActorHandle]:
+        """Get all rollouts' actor handle."""
+        return self.get_actor_handles(RLRoleType.ROLLOUT.name)
+
+    @property
+    def rollout_resource(self):
+        """Get resource used(occupied) for ROLLOUT."""
+        return self.get_workload_resource(RLRoleType.ROLLOUT.name)
+
+    @property
+    def rewards(self) -> List[ActorHandle]:
+        """Get all rewards' actor handle."""
+        return self.get_actor_handles(RLRoleType.REWARD.name)
+
+    @property
+    def reward_resource(self):
+        """Get resource used(occupied) for REWARD."""
+        return self.get_workload_resource(RLRoleType.REWARD.name)
+
+    @property
+    def critics(self) -> List[ActorHandle]:
+        """Get all critics' actor handle."""
+        return self.get_actor_handles(RLRoleType.CRITIC.name)
+
+    @property
+    def critic_resource(self):
+        """Get resource used(occupied) for CRITIC."""
+        return self.get_workload_resource(RLRoleType.CRITIC.name)
 
     def get_workload_resource(self, role_type: str):
         """Return the workload's resource by role type."""
@@ -303,7 +554,7 @@ class BaseTrainer(ABC):
         """
 
 
-class DefaultTrainer(BaseTrainer):
+class DefaultTrainer(BaseRLTrainer):
     """
     Internal default trainer, such as: for elastic training case.
     """

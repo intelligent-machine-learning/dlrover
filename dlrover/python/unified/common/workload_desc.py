@@ -39,6 +39,14 @@ class ResourceDesc(BaseModel):
         validation_alias=AliasChoices("user_defined", "ud_resource"),
     )
 
+    @classmethod
+    def get_or_default(cls, resource: Dict[str, Union[int, float]]):
+        desc = cls(**{k: v for k, v in resource.items()})
+
+        if desc.is_empty():
+            return ResourceDesc(accelerator=1)
+        return desc
+
     def is_empty(self) -> bool:
         """
         Check if the resource description is empty.
@@ -80,7 +88,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
     Base description of a workload.
     """
 
-    total: int = Field(validation_alias=AliasChoices("total", "num", "number"))
+    total: int = Field(
+        default=1, validation_alias=AliasChoices("total", "num", "number")
+    )
     resource: ResourceDesc = Field(
         default_factory=ResourceDesc,
         validation_alias=AliasChoices("resource", "res"),
@@ -149,7 +159,7 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         return ElasticWorker  # type: ignore[return-value]
 
     def get_master_cls(self) -> ActorClass:
-        from dlrover.python.unified.backend import ElasticMaster
+        from dlrover.python.unified.backend.elastic.master import ElasticMaster
 
         return as_actor_class(ElasticMaster)  # type: ignore[return-value]
 

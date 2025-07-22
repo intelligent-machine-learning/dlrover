@@ -36,7 +36,6 @@ class InternalDLConfig(object):
 
 
 class InternalDLWorkloadRole(object):
-    TRAINER_ROLE = "TRAINER"
     ELASTIC_ROLE = "ELASTIC"
 
 

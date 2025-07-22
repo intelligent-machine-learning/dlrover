@@ -135,27 +135,27 @@ class Scheduler:
         res = await invoke_actors_t(remote_call.status, graph.vertices)
         logger.info(f"Actors status: {res.as_dict()}")
 
-    def create_actor(self, node: RayActorSpec):
+    def create_actor(self, actor: RayActorSpec):
         runtime_env: dict = {
-            "env_vars": node.envs,
+            "env_vars": actor.envs,
         }
         # setup working dir
-        if DLWorkloadEnv.WORKING_DIR in node.envs:
-            runtime_env["working_dir"] = node.envs[DLWorkloadEnv.WORKING_DIR]
+        if DLWorkloadEnv.WORKING_DIR in actor.envs:
+            runtime_env["working_dir"] = actor.envs[DLWorkloadEnv.WORKING_DIR]
 
-        node.cls.options(
-            name=node.name,
+        logger.info(f"Creating actor: {actor}")
+        actor.cls.options(
+            name=actor.name,
             lifetime="detached",
             max_restarts=-1,  # Allow unlimited restarts
             get_if_exists=True,
-            num_cpus=node.resource.cpu,
-            memory=node.resource.memory,
+            num_cpus=actor.resource.cpu,
+            memory=actor.resource.memory,
             # num_gpus=node.resource.gpu, # use bundle resource instead
-            resources=node.resource.user_defined,
+            resources=actor.resource.user_defined,
             runtime_env=runtime_env,
-            scheduling_strategy=node.scheduling_strategy,
-        ).remote(**node.options)
-        logger.info(f"Created {node}")
+            scheduling_strategy=actor.scheduling_strategy,
+        ).remote(**actor.options)
 
     def _create_pg(self, bundles: List[ResourceDesc]) -> PlacementGroup:
         """Create a placement group with the given bundles."""
@@ -172,7 +172,9 @@ class Scheduler:
                 ret["GPU"] = resource.accelerator
             elif accelerator == ACCELERATOR_TYPE.CPU:
                 ret["CPU"] = max(ret["CPU"], resource.accelerator)
-            return ret
+
+            # remove value=0
+            return {k: v for k, v in ret.items() if v != 0}
 
         logger.info(
             f"Creating placement group for job {self._config.job_name} "

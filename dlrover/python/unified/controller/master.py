@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Dict
 
 import ray
 import ray.actor
@@ -87,6 +87,13 @@ class PrimeMaster(PrimeMasterRemote):
         if role_info is None:
             raise ValueError(f"Role {role} not found.")
         return [node.to_actor_info() for node in role_info.instances]
+
+    def get_all_roles(self) -> Dict[str, List[ActorInfo]]:
+        """Get all roles."""
+        return {
+            role: [node.to_actor_info() for node in role_info.instances]
+            for role, role_info in self.manager.graph.roles.items()
+        }
 
     @staticmethod
     def create(

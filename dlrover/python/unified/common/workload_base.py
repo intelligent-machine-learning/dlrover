@@ -13,9 +13,10 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import ray.actor
+from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
@@ -36,6 +37,7 @@ class WorkerStage(str, Enum):
 
     INIT = "INIT"
     PENDING = "PENDING"  # Checking
+    READY = "READY"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -51,7 +53,7 @@ class JobInfo:
 
     name: str
     job_id: str
-    user_config: dict
+    user_config: Union[dict, DictConfig]
 
 
 @dataclass
@@ -97,6 +99,11 @@ class ActorBase:
 
         This method should be overridden by subMaster or trainer,
         depending on the usage pattern.
+
+        Noticed:
+        1. The worker stage must be 'RUNNING' after the method invocation.
+        2. Main processing need to be defined in a async thread under the
+           worker actor.
         """
 
     def shutdown(self):

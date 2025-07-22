@@ -13,7 +13,7 @@
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List, Protocol
+from typing import List, Protocol, Dict
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
@@ -59,6 +59,10 @@ class PrimeMasterRemote(Protocol):
     @abstractmethod
     def get_workers_by_role(self, role: str) -> List[ActorInfo]:
         """Get all actors by role."""
+
+    @abstractmethod
+    def get_all_roles(self) -> Dict[str, List[ActorInfo]]:
+        """Get all roles."""
 
 
 PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
