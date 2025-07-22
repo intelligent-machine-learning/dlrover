@@ -11,19 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-
-def init_coverage():
-    if "COVERAGE_PROCESS_START" not in os.environ:
-        return
-    try:
-        import coverage
-
-        coverage.process_startup()
-    except ImportError:
-        pass
-
 
 def coverage_enabled():
     """Check if coverage is enabled."""

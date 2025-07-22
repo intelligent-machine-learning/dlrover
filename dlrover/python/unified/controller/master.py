@@ -28,8 +28,6 @@ from .api import (
 from .config import JobConfig
 from .manager import PrimeManager
 
-init_coverage()  # support coverage for master actor
-
 
 class PrimeMaster(PrimeMasterRemote):
     """The master actor for managing the job execution."""

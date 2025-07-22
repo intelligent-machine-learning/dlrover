@@ -19,9 +19,6 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
-from dlrover.python.unified.util.test_hooks import init_coverage
-
-init_coverage()  # support coverage for workers actor
 
 
 class MasterStage(str, Enum):
@@ -71,7 +68,6 @@ class ActorInfo:
 class ActorBase:
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
-        init_coverage()
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
