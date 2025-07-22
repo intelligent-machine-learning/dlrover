@@ -18,7 +18,6 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
-from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import (
     MASTER_ACTOR_NAME,

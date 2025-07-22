@@ -92,7 +92,11 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        self._update_stage(MasterStage.RUNNING)
+        if self.stage != MasterStage.INIT:
+            raise RuntimeError(
+                f"Cannot start job in stage {self.stage}. "
+                "Expected stage is INIT."
+            )
         nodes = [node.name for node in self.graph.vertices]
         res = await invoke_actors_t(remote_call.start, nodes)
         res.raise_for_errors()
@@ -107,6 +111,7 @@ class PrimeManager:
 
         logger.info("Job started successfully.")
         asyncio.create_task(self._main_loop(), name="job_monitor")
+        self._update_stage(MasterStage.RUNNING)
 
     async def _main_loop(self):
         """Monitor the nodes' status."""
@@ -141,7 +146,13 @@ class PrimeManager:
         ):
             return
         logger.info(f"Requesting to stop the job: {reason}")
-        self._update_stage(MasterStage.STOPPING)
+        if self.stage == MasterStage.RUNNING:
+            self._update_stage(MasterStage.STOPPING)
+        else:
+            # No running job, terminate
+            kill_actors([node.name for node in self.graph.vertices])
+            self._update_stage(MasterStage.STOPPED)
+            self._stopped_event.set()
 
     async def wait(self):
         """Wait for the job to finish."""
