@@ -72,6 +72,7 @@ class PrimeManager:
         logger.info("Finished creating actors for the job.")
 
         await self._nodes_check()
+        self._update_stage(MasterStage.READY)
 
     async def _nodes_check(self):
         # Wait for all nodes to be ready

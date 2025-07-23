@@ -23,6 +23,7 @@ from dlrover.python.unified.common.workload_desc import WorkloadDesc
 
 class MasterStage(str, Enum):
     INIT = "INIT"
+    READY = "READY"
     RUNNING = "RUNNING"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
