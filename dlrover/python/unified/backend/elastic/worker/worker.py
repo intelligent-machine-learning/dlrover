@@ -38,9 +38,10 @@ class ElasticWorker(ActorBase):
         assert self.actor_info.spec.backend == "elastic"
 
         self._process_group_setup = False
-
         self._setup_envs()
-        # RayMasterClient.register_master_actor(f"{self.actor_info.role}-master")
+
+        self._self_check()
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
@@ -58,13 +59,10 @@ class ElasticWorker(ActorBase):
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)
 
-    def self_check(self):
+    def _self_check(self):
         """Check the worker itself."""
-        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
-            return  # already in the expected stage
 
         logger.info(f"[{self.actor_info.name}] Running self check.")
-        return "Self check passed"
 
     # region Rendezvous and process group setup
 
@@ -149,8 +147,10 @@ class ElasticWorker(ActorBase):
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
-        if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
-            return  # already in the expected stage
+        assert self.stage == WorkerStage.READY, (
+            f"Cannot start elastic worker {self.actor_info.name} in stage {self.stage}. "
+            "Expected stage is READY."
+        )
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
 
         @contextmanager
@@ -173,6 +173,7 @@ class ElasticWorker(ActorBase):
             target=wrap_run()(self._run_agent),
             daemon=True,
         ).start()
+        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
 
     def _run_agent(self):
         """Run the elastic agent."""

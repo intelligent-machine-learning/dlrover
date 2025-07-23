@@ -74,11 +74,22 @@ class PrimeManager:
         await self._nodes_check()
 
     async def _nodes_check(self):
-        # check all nodes itself
+        # Wait for all nodes to be ready
         nodes = [node.name for node in self.graph.vertices]
-        res = await invoke_actors_t(remote_call.self_check, nodes)
-        res.raise_for_errors()
-        logger.info("All nodes self-checked successfully.")
+        while True:
+            res = await invoke_actors_t(remote_call.status, nodes)
+            not_ready = {
+                node: status
+                for node, status in zip(nodes, res.results)
+                if status != "READY"
+            }
+            if len(not_ready) == 0:
+                logger.info("All nodes are ready.")
+                break
+            logger.warning(
+                f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
+            )
+            await asyncio.sleep(5)
 
         # let masters pre-check nodes
         masters = [

@@ -18,11 +18,6 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 # mypy: disable-error-code=empty-body
 
 
-def self_check() -> None:  # pragma: no cover
-    """Run self check before starting the job."""
-    ...
-
-
 def check_workers() -> None:  # pragma: no cover
     """For SubMaster to check the status of workers."""
     ...

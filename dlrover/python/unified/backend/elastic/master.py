@@ -12,7 +12,6 @@
 # limitations under the License.
 
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
@@ -25,6 +24,7 @@ class ElasticMaster(ActorBase):
         self.manager = ElasticManager(workers)
 
         self.manager._prepare()
+        self._update_stage_force(WorkerStage.READY)
 
     # Lifecycle Hooks
 
@@ -33,18 +33,15 @@ class ElasticMaster(ActorBase):
             self._update_stage_force(WorkerStage.FINISHED)
         return super().status()
 
-    def self_check(self):
-        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
-            return
-        logger.info("Elastic Master self check")
-
     async def check_workers(self):
         await self.manager.check_workers()
 
     async def start(self):
-        if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
-            return
+        assert self.stage == WorkerStage.READY, (
+            f"Cannot start ElasticMaster in stage {self.stage}, expected READY."
+        )
         await self.manager.start()
+        self._update_stage_force(WorkerStage.RUNNING)
 
     # RPC methods for Workers
 

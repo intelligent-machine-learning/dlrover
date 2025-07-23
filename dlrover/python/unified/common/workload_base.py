@@ -31,8 +31,13 @@ class MasterStage(str, Enum):
 class WorkerStage(str, Enum):
     """Stages of a worker actor."""
 
+    # CALL __init__
     INIT = "INIT"
-    PENDING = "PENDING"  # Checking
+    # _setup
+    # _self_check(optional)
+    READY = "READY"
+    # CALL check_workers(optional)
+    # CALL start
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -75,24 +80,29 @@ class ActorBase:
 
     # Hook methods for subclasses to implement
     def _setup(self):
-        """Setup the actor/node."""
-        pass
+        """Setup the actor/node.
+
+        This method is called during initialization and should be overridden
+        by subclasses to perform any necessary setup before the actor/node
+        is ready to run.
+
+        Could be asynchronous, but must keep stage not READY until all setup is done.
+        And it must update the stage to READY when setup is complete.
+        """
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def status(self):
         """Get the state of the actor/node."""
         return self.stage
-
-    def self_check(self):
-        """Check the actor/node itself."""
-        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
-            return  # already in the expected stage
-        logger.info(f"[{self.actor_info.name}] Running self check.")
 
     def start(self):
         """Start the actor/node. If already started, do nothing.
 
         This method should be overridden by subMaster or trainer,
         depending on the usage pattern.
+
+        It should update the stage of self and all workers to RUNNING when the actor/node is started.
+        And ensure that stage update to FINISHED or FAILED when the job is done.
         """
 
     def shutdown(self):
@@ -102,6 +112,11 @@ class ActorBase:
     # for sub-master
     def check_workers(self):
         """Check the workers of the master."""
+        if self.stage != WorkerStage.READY:
+            logger.error(
+                f"Only READY stage can perform check_workers. current: {self.stage}"
+            )
+            return
         pass
 
     # Helper methods for subclasses to use
