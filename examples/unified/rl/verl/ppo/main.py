@@ -78,7 +78,7 @@ def main(config):
             "ActorRolloutRefWorker",
         )
         .total(total_node * device_per_node)
-        .per_node(device_per_node)
+        .per_group(device_per_node)
     )
     if has_ref:
         (
@@ -87,7 +87,7 @@ def main(config):
                 "ActorRolloutRefWorker",
             )
             .total(total_node * device_per_node)
-            .per_node(device_per_node)
+            .per_group(device_per_node)
         )
     if has_rew:
         (
@@ -96,7 +96,7 @@ def main(config):
                 "RewardModelWorker",
             )
             .total(total_node * device_per_node)
-            .per_node(device_per_node)
+            .per_group(device_per_node)
         )
     if has_critic:
         (
@@ -105,7 +105,7 @@ def main(config):
                 "CriticWorker",
             )
             .total(total_node * device_per_node)
-            .per_node(device_per_node)
+            .per_group(device_per_node)
         )
 
     # set colocation

@@ -43,21 +43,21 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .env({"e1": "v1"})
             .rollout("m2", "c2")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .env({"e2": "v2"})
             .reward("m3", "c3")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .reference("m4", "c4")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .critic("m5", "c5")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
@@ -85,7 +85,7 @@ class ApiTest(BaseTest):
         )
         self.assertEqual(rl_job.get_workload(RLRoleType.ACTOR.name).total, 4)
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ACTOR.name).per_node, 2
+            rl_job.get_workload(RLRoleType.ACTOR.name).per_group, 2
         )
         self.assertEqual(
             rl_job.get_workload(RLRoleType.ACTOR.name).env, {"e1": "v1"}
@@ -99,7 +99,7 @@ class ApiTest(BaseTest):
         )
         self.assertEqual(rl_job.get_workload(RLRoleType.ROLLOUT.name).total, 4)
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ROLLOUT.name).per_node, 2
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).per_group, 2
         )
         self.assertEqual(
             rl_job.get_workload(RLRoleType.ROLLOUT.name).env, {"e2": "v2"}
@@ -217,7 +217,7 @@ class ApiTest(BaseTest):
         # a minimum valid rl
         RLJobBuilder().node_num(1).device_per_node(1).config(
             {"k1": "v1"}
-        ).trainer("m0", "c0").actor("m1", "c1").total(1).per_node(1).build()
+        ).trainer("m0", "c0").actor("m1", "c1").total(1).per_group(1).build()
 
     def test_collocation_all(self):
         rl_job = (
@@ -228,10 +228,10 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(1)
-            .per_node(1)
+            .per_group(1)
             .rollout("m2", "c2")
             .total(1)
-            .per_node(1)
+            .per_group(1)
             .with_collocation_all()
             .build()
         )
@@ -251,11 +251,11 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .env({"e1": "v1"})
             .rollout("m2", "c2")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .env({"e2": "v2"})
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
@@ -289,15 +289,15 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .env({"e1": "v1"})
             .rollout("m2", "c2")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .env({"e2": "v2"})
             .reference("m3", "c3")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .with_collocation(
                 RLRoleType.ACTOR.name,
                 RLRoleType.ROLLOUT.name,
@@ -343,18 +343,18 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .env({"e1": "v1"})
             .rollout("m2", "c2")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .env({"e2": "v2"})
             .reference("m3", "c3")
             .total(12)
-            .per_node(6)
+            .per_group(6)
             .reward("m4", "c4")
             .total(4)
-            .per_node(2)
+            .per_group(2)
             .with_collocation(RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name)
             .with_collocation(
                 RLRoleType.REWARD.name, RLRoleType.REFERENCE.name
@@ -398,7 +398,7 @@ class ApiTest(BaseTest):
             == 0.5
         )
 
-    def test_enable_ray_auto_visible_device(self):
+    def test_disable_ray_auto_visible_device(self):
         rl_job = (
             RLJobBuilder()
             .node_num(2)
@@ -408,13 +408,13 @@ class ApiTest(BaseTest):
             .trainer("m0", "c0")
             .actor("m1", "c1")
             .total(4)
-            .per_node(4)
+            .per_group(4)
             .env({"e1": "v1"})
             .rollout("m2", "c2")
             .total(4)
-            .enable_ray_auto_visible_device()
+            .disable_ray_auto_visible_device()
             .env({"e2": "v2"})
-            .per_node(4)
+            .per_group(4)
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
@@ -424,7 +424,7 @@ class ApiTest(BaseTest):
             rl_config.workloads[RLRoleType.ROLLOUT.name].envs[
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
             ]
-            == "false"
+            == "true"
         )
 
     def test_elastic(self):
@@ -461,7 +461,7 @@ class ApiTest(BaseTest):
         self.assertEqual(workload_builder._sub_stage, [1])
         self.assertFalse(workload_builder._validate())
         workload_builder.total(1)
-        workload_builder.per_node(1)
+        workload_builder.per_group(1)
         self.assertTrue(workload_builder._validate())
 
         dlrover_run_builder = DLRoverRunBuilder(DLJobBuilder(), "test")

@@ -60,7 +60,7 @@ class RLJobBuilder(DLJobBuilder):
 
         # default property
         builder.total(1)
-        builder.per_node(1)
+        builder.per_group(1)
         builder.resource(cpu=4, mem=8192)
 
         return builder
@@ -121,6 +121,16 @@ class RLJobBuilder(DLJobBuilder):
         """
 
         return self.workload(RLJobBuilder.CRITIC_ROLE, module_name, class_name)
+
+    def with_collocation_all(self):
+        """
+        Set a collocation strategy for all roles.
+
+        Notice: can be used after role definition only
+        """
+
+        super().with_collocation_all(RLRoleType.TRAINER.name)
+        return self
 
     def validate(self) -> bool:
         if not super(RLJobBuilder, self).validate():

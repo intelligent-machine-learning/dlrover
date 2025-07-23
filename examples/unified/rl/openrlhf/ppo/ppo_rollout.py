@@ -20,16 +20,15 @@ import queue
 from collections import defaultdict
 
 import ray
-from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
-    BasePPORole,
-)
 from vllm import LLM
+
+from ppo_base import BasePPORole
 
 
 @ray.remote
 class RolloutRayActor(BasePPORole):
-    def __init__(self, master_handle, config):
-        super().__init__(master_handle, config)
+    def __init__(self, job_info, actor_info):
+        super().__init__(job_info, actor_info)
 
         self.num_actors = 0
         self.actor_counter = 0

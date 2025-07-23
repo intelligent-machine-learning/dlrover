@@ -79,6 +79,10 @@ class ActorBase:
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
 
+    @property
+    def name(self) -> str:
+        return self.actor_info.name
+
     # Hook methods for subclasses to implement
     def _setup(self):
         """Setup the actor/node."""

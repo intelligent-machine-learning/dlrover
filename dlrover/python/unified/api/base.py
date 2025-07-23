@@ -21,7 +21,7 @@ from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLWorkloadRole,
 )
-from dlrover.python.unified.common.enums import DLStreamType, RLRoleType
+from dlrover.python.unified.common.enums import DLStreamType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.common.workload_desc import (
     CustomWorkloadDesc,
@@ -61,7 +61,7 @@ class DLWorkloadConfig(DLRoleConfig):
         super().__init__(role_name, module_name, class_name, **kwargs)
 
         self._num = 1
-        self._per_node = 1
+        self._per_group = 1
         self._env = {}
         self._resource = {}
         self._sub_stage = []
@@ -71,8 +71,8 @@ class DLWorkloadConfig(DLRoleConfig):
         return self._num
 
     @property
-    def per_node(self) -> int:
-        return self._per_node
+    def per_group(self) -> int:
+        return self._per_group
 
     @property
     def env(self) -> Dict[str, str]:
@@ -89,8 +89,8 @@ class DLWorkloadConfig(DLRoleConfig):
     def set_num(self, num):
         self._num = num
 
-    def set_per_node(self, per_node):
-        self._per_node = per_node
+    def set_per_group(self, per_group):
+        self._per_group = per_group
 
     def set_env(self, env):
         self._env = env
@@ -172,7 +172,7 @@ class DLJob(object):
                     envs=role_config.env,
                     resource=ResourceDesc.get_or_default(role_config.resource),
                     entry_point=role_config.others["entrypoint"],
-                    per_group=role_config.per_node,
+                    per_group=role_config.per_group,
                 )
             else:
                 workloads[role] = CustomWorkloadDesc(
@@ -181,7 +181,7 @@ class DLJob(object):
                     module_name=role_config.module_class[0],
                     class_name=role_config.module_class[1],
                     resource=ResourceDesc.get_or_default(role_config.resource),
-                    per_group=role_config.per_node,
+                    per_group=role_config.per_group,
                 )
 
         for i, collocation in enumerate(self.collocations):
@@ -275,7 +275,7 @@ class RoleBuilder(ABC):
         pass
 
     @abstractmethod
-    def _get_per_node(self):
+    def _get_per_group(self):
         return 1
 
     @abstractmethod
@@ -288,7 +288,7 @@ class WorkloadBuilder(RoleBuilder):
         super().__init__(job_builder, role, module_name, class_name)
 
         self._num = 0
-        self._per_node = 0
+        self._per_group = 1
         self._env = {}
         self._resource = {}
         self._sub_stage = []
@@ -304,16 +304,16 @@ class WorkloadBuilder(RoleBuilder):
         self._num = num
         return self
 
-    def per_node(self, num=1):
+    def per_group(self, num=1):
         """
-        How many current role per node.
+        How many current role per group.
 
         Args:
-            num (int): The number of current role per node.
+            num (int): The number of current role per group.
                 Default is 1.
         """
 
-        self._per_node = num
+        self._per_group = num
         return self
 
     def env(self, env=None):
@@ -351,12 +351,12 @@ class WorkloadBuilder(RoleBuilder):
         self._resource.update(kwargs)
         return self
 
-    def enable_ray_auto_visible_device(self):
+    def disable_ray_auto_visible_device(self):
         """
-        Enable to let ray set visible device automatically.
+        Disable to let ray set visible device automatically.
         """
 
-        self._env.update(DLWorkloadEnv.RAY_SET_VISIBLE_DEVICES_ENVS)
+        self._env.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
         return self
 
     def sub_stage(self, sub_stage=None):
@@ -373,8 +373,8 @@ class WorkloadBuilder(RoleBuilder):
         self._sub_stage = sub_stage
         return self
 
-    def _get_per_node(self):
-        return self._per_node
+    def _get_per_group(self):
+        return self._per_group
 
     def _get_total(self):
         return self._num
@@ -384,12 +384,12 @@ class WorkloadBuilder(RoleBuilder):
             return False
 
         if self._num < 1:
-            logger.error(f"{self._role}: total number must be greater than 1.")
+            logger.error(f"{self._role}: total number must be greater than 0.")
             return False
 
-        if self._per_node < 1:
+        if self._per_group < 1:
             logger.error(
-                f"{self._role}: per node number must be greater than 1."
+                f"{self._role}: per group number must be greater than 0."
             )
             return False
         return True
@@ -398,7 +398,7 @@ class WorkloadBuilder(RoleBuilder):
         workload = self._create_workload_role()
 
         workload.set_num(self._num)
-        workload.set_per_node(self._per_node)
+        workload.set_per_group(self._per_group)
         workload.set_env(self._env)
         workload.set_resource(self._resource)
         workload.set_sub_stage(self._sub_stage)
@@ -450,7 +450,7 @@ class DLRoverRunBuilder(WorkloadBuilder):
             entrypoint=self._entrypoint,
         )
         elastic_workload.set_num(self._num)
-        elastic_workload.set_per_node(self._per_node)
+        elastic_workload.set_per_group(self._per_node)
 
         return {
             self._role: elastic_workload,
@@ -555,7 +555,7 @@ class DLJobBuilder(object):
                         )
                         return False
 
-                    process_num_sum += role_builder._get_per_node()
+                    process_num_sum += role_builder._get_per_group()
 
                     if role not in collocations_set:
                         collocations_set.add(role)
@@ -564,22 +564,6 @@ class DLJobBuilder(object):
                             "The same role can only be defined once in 'collocation'."
                         )
                         return False
-
-                # maximum of 5 roles are supported for single device affinity
-                if (
-                    process_num_sum != self._device_per_node
-                    and process_num_sum != 2 * self._device_per_node
-                    and process_num_sum != 3 * self._device_per_node
-                    and process_num_sum != 4 * self._device_per_node
-                    and process_num_sum != 5 * self._device_per_node
-                ):
-                    logger.error(
-                        "The collocation is invalid due to the device "
-                        "per node not satisfied the per_node "
-                        "number of role for collocation."
-                    )
-                    return False
-
         return True
 
     def SFT_type(self):
@@ -756,7 +740,7 @@ class DLJobBuilder(object):
         self._collocations.append(set(roles))
         return self
 
-    def with_collocation_all(self):
+    def with_collocation_all(self, *exclude_roles):
         """
         Set a collocation strategy for all roles.
 
@@ -765,7 +749,7 @@ class DLJobBuilder(object):
 
         roles = set()
         for role in list(self._role_builders.keys()):
-            if role == RLRoleType.TRAINER.name:
+            if role in exclude_roles:
                 continue
             roles.add(role)
         self._collocations.append(roles)

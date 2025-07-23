@@ -100,6 +100,12 @@ class Scheduler:
                     envs={
                         **role_envs,
                         DLWorkloadEnv.NAME: worker.name,
+                        DLWorkloadEnv.RANK: str(worker.rank),
+                        DLWorkloadEnv.WORLD_SIZE: str(worker.world_size),
+                        DLWorkloadEnv.LOCAL_RANK: str(worker.local_rank),
+                        DLWorkloadEnv.LOCAL_WORLD_SIZE: str(
+                            worker.local_world_size
+                        ),
                     },
                     scheduling_strategy=PlacementGroupSchedulingStrategy(
                         placement_group=self._pg,
@@ -111,22 +117,30 @@ class Scheduler:
                         "actor_info": worker.to_actor_info(),
                     },
                 )
+                logger.info(
+                    f"Creating worker actor: {worker.to_actor_info()} "
+                    f"with bundle: {worker.bundle_index}"
+                )
                 self.create_actor(spec)
             if role.sub_master is not None:
                 # Create sub-master node if it exists
+                sub_master = role.sub_master
                 spec = RayActorSpec(
-                    name=role.sub_master.name,
+                    name=sub_master.name,
                     # resource=role.spec.instance_resource,
                     cls=role.spec.get_master_cls(),  # type: ignore[assignment]
                     envs={
                         **role_envs,
-                        DLWorkloadEnv.NAME: role.sub_master.name,
+                        DLWorkloadEnv.NAME: sub_master.name,
                     },
                     scheduling_strategy=None,  # no scheduling strategy for now
                     options={
                         "job_info": job_info,
-                        "actor_info": role.sub_master.to_actor_info(),
+                        "actor_info": sub_master.to_actor_info(),
                     },
+                )
+                logger.info(
+                    f"Creating sub-master actor: {sub_master.to_actor_info()} with bundle: {sub_master.bundle_index}"
                 )
                 self.create_actor(spec)
         logger.info("Finished creating actors for the job.")
@@ -143,7 +157,17 @@ class Scheduler:
         if DLWorkloadEnv.WORKING_DIR in actor.envs:
             runtime_env["working_dir"] = actor.envs[DLWorkloadEnv.WORKING_DIR]
 
-        logger.info(f"Creating actor: {actor}")
+        if self._config.dl_config.accelerator_type == ACCELERATOR_TYPE.CPU:
+            num_gpus = 0.0
+        else:
+            num_gpus = actor.resource.accelerator
+
+        logger.debug(
+            f"Creating actor: {actor}, "
+            f"with num_gpus: {num_gpus},"
+            f"with runtime env: {runtime_env}"
+        )
+
         actor.cls.options(
             name=actor.name,
             lifetime="detached",
@@ -151,7 +175,7 @@ class Scheduler:
             get_if_exists=True,
             num_cpus=actor.resource.cpu,
             memory=actor.resource.memory,
-            # num_gpus=node.resource.gpu, # use bundle resource instead
+            num_gpus=num_gpus,  # use bundle resource instead
             resources=actor.resource.user_defined,
             runtime_env=runtime_env,
             scheduling_strategy=actor.scheduling_strategy,
@@ -177,8 +201,10 @@ class Scheduler:
             return {k: v for k, v in ret.items() if v != 0}
 
         logger.info(
-            f"Creating placement group for job {self._config.job_name} "
-            f"with resource: {sum(bundles, ResourceDesc())} "
+            "Creating placement group "
+            f"with bundle size: {len(bundles)} "
+            f"with total resource: {sum(bundles, ResourceDesc())}. "
+            f"All bundles: {bundles}."
         )
         return placement_group(
             bundles=[_to_bundle(bundle) for bundle in bundles],

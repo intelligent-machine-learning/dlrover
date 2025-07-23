@@ -284,10 +284,13 @@ class BaseRLTrainer(ActorBase, ABC):
                 value - tuple with: class-type, device
     """
 
-    _workload_workers: Dict[str, List[ActorInfo]] = {}
-    _actor_handles: Dict[str, List[ActorHandle]] = {}
-    _actor_metas: Dict[str, Tuple[type, float]] = {}
-    __role_group_proxy: Dict[str, RoleGroupProxy] = {}
+    def __init__(self, job_info, actor_info) -> None:
+        super().__init__(job_info, actor_info)
+
+        self._workload_workers: Dict[str, List[ActorInfo]] = {}
+        self._actor_handles: Dict[str, List[ActorHandle]] = {}
+        self._actor_metas: Dict[str, Tuple[type, float]] = {}
+        self.__role_group_proxy: Dict[str, RoleGroupProxy] = {}
 
     async def start(self):
         # Initialize the elastic client here

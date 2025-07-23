@@ -33,14 +33,45 @@ def test_mock_rl_training_basic():
         .resource(cpu=1)
         .actor("dlrover.python.unified.tests.test_class", "TestActor")
         .total(2)
-        .per_node(1)
+        .per_group(1)
         .env({"e1": "v1"})
         .rollout("dlrover.python.unified.tests.test_class", "TestRollout")
         .total(2)
-        .per_node(1)
+        .per_group(1)
         .reference("dlrover.python.unified.tests.test_class", "TestReference")
         .total(2)
-        .per_node(1)
+        .per_group(1)
+        .build()
+    )
+
+    rl_job.submit("test", master_cpu=1, master_memory=128)
+
+
+@pytest.mark.usefixtures("tmp_ray")
+def test_mock_rl_training_collocation_all():
+    rl_job = (
+        RLJobBuilder()
+        .node_num(3)
+        .device_per_node(1)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
+        .trainer(
+            "dlrover.python.unified.tests.test_class",
+            "TestInteractiveTrainer",
+        )
+        .resource(cpu=1)
+        .actor("dlrover.python.unified.tests.test_class", "TestActor")
+        .total(2)
+        .per_group(1)
+        .env({"e1": "v1"})
+        .rollout("dlrover.python.unified.tests.test_class", "TestRollout")
+        .total(2)
+        .per_group(1)
+        .reference("dlrover.python.unified.tests.test_class", "TestReference")
+        .total(2)
+        .per_group(1)
+        .with_collocation_all()
         .build()
     )
 
