@@ -14,6 +14,7 @@
 from __future__ import absolute_import, division, print_function
 
 import importlib
+from typing import Callable
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -109,9 +110,37 @@ def new_instance(module_class, *args, **kwargs):
         kwargs: passed to contructor of class
     """
     ImportedClass, _ = Importer.import_module_content(module_class)
+    if not callable(ImportedClass):
+        raise ValueError(
+            f"Imported {module_class} is not callable. Ensure it is a class."
+        )
     return ImportedClass(*args, **kwargs)
 
 
 def get_class(module_class):
     """Get the class"""
     return Importer.import_module_content(module_class)[0]
+
+
+def import_callable(module_callable) -> Callable:
+    """Import a callable object (function or class) from a module.
+
+    Args:
+        module_callable: Full path to the callable, e.g., "module.ClassName" or "module.function_name".
+
+    Returns:
+        The imported callable object.
+    """
+    try:
+        imported_callable, _ = Importer.import_module_content(module_callable)
+    except (ImportError, AttributeError) as e:
+        raise ValueError(
+            f"Failed to import {module_callable}. "
+            "Ensure the module and callable exist."
+        ) from e
+    if not callable(imported_callable):
+        raise ValueError(
+            f"Imported {module_callable} is not callable. "
+            "Ensure it is a function or a class."
+        )
+    return imported_callable

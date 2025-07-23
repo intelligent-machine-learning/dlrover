@@ -15,7 +15,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal, Optional, Union
 
 import ray
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator, \
+    field_validator
 from ray.actor import ActorClass
 from typing_extensions import TypeAlias
 
@@ -128,7 +129,7 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
 
     backend: Literal["elastic"] = Field(default="elastic")
     entry_point: str = Field(
-        description="The entry point for the elastic workload. cls::func"
+        description="The entry point for the elastic workload in `module.func` pattern"
     )
     comm_backend: str = Field(
         default="gloo",
@@ -142,6 +143,11 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     )
     # TODO node_min,max,unit when supporting scaling
     # TODO numa_affinity,exclude_straggler,network_check,comm_perf_test,auto_tunning,save_at_breakpoint,
+
+    @field_validator("entry_point", mode="after")
+    def validate_entry_point(cls, entry_point: str) -> str:
+        return entry_point.replace("::",".")
+
 
     def get_worker_cls(self) -> ActorClass:
         from dlrover.python.unified.backend import ElasticWorker

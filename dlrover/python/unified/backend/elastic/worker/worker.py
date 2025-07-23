@@ -11,12 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import os
 from contextlib import contextmanager
 from datetime import timedelta
 from threading import Thread
-from typing import Callable
 
 import ray
 import ray.train.torch as ray_train
@@ -25,6 +23,7 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.unified.util.os_util import get_free_port
+from dlrover.python.util.reflect_util import import_callable
 
 
 @ray.remote
@@ -175,44 +174,11 @@ class ElasticWorker(ActorBase):
             daemon=True,
         ).start()
 
-    def _load_user_func(self, entry_point: str) -> Callable[..., object]:
-        """Load the user function from the entry point specified in the workload spec."""
-
-        if not entry_point or "::" not in entry_point:
-            raise ValueError(
-                "Entry point is not specified in the workload spec. "
-                "It should be in the format 'module::function'."
-            )
-        module_name, func = entry_point.split("::", 1)
-        logger.info(
-            f"Running elastic job with entry point: {module_name}.{func}. "
-        )
-
-        try:
-            module = importlib.import_module(module_name)
-            func = getattr(module, func)
-            if not callable(func):
-                raise ValueError(
-                    f"Entry point {entry_point} is not a callable function."
-                )
-            return func
-        except ImportError:
-            logger.error(
-                f"Failed to import module {module_name} for elastic job.",
-            )
-            raise
-        except AttributeError:
-            logger.error(
-                f"Failed to get function {func} from module {module_name} for "
-                f"elastic job.",
-            )
-            raise
-
     def _run_agent(self):
         """Run the elastic agent."""
         assert self.actor_info.spec.backend == "elastic"
 
-        run_user_func = self._load_user_func(self.actor_info.spec.entry_point)
-        run_user_func()
+        user_func = import_callable(self.actor_info.spec.entry_point)
+        user_func()
 
         logger.info("Done elastic training.")
