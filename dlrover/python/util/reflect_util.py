@@ -135,7 +135,7 @@ def import_callable(module_callable) -> Callable:
         imported_callable, _ = Importer.import_module_content(module_callable)
     except (ImportError, AttributeError) as e:
         raise ValueError(
-            f"Failed to import {module_callable}. "
+            f"Failed to import '{module_callable}'. "
             "Ensure the module and callable exist."
         ) from e
     if not callable(imported_callable):

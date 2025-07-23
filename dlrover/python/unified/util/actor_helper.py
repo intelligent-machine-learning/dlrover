@@ -29,8 +29,6 @@ from typing import (
 import ray
 from ray.actor import ActorClass, ActorHandle
 from ray.exceptions import (
-    ActorDiedError,
-    ActorUnavailableError,
     RayActorError,
     RayTaskError,
 )
@@ -113,18 +111,13 @@ class ActorInvocation(Generic[T]):
         assert isinstance(self._result, ray.ObjectRef)
         try:
             self._result = cast(T, ray.get(self._result))
+        except RayActorError as e:
+            self._result = e  # known error,handle in _check_result
         except RayTaskError as e:
             self._result = RuntimeError(
                 f"Error executing {self.method_name} on {self.actor_name}: {e}"
             )
         except Exception as e:
-            if (
-                isinstance(e, ActorDiedError)
-                and self.method_name == "__ray_terminate__"
-            ):
-                # Special case for actor termination, we consider it a success.
-                self._result = cast(T, None)
-                return
             logger.error(
                 f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
             )
@@ -137,13 +130,15 @@ class ActorInvocation(Generic[T]):
 
         try:
             self._result = cast(T, await self._result)
+        except RayActorError as e:
+            self._result = e  # known error,handle in _check_result
         except RayTaskError as e:
             self._result = RuntimeError(
                 f"Error executing {self.method_name} on {self.actor_name}: {e}"
             )
         except Exception as e:
             logger.error(
-                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
+                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {type(e)}"
             )
             self._result = e
         self._check_result()
@@ -151,9 +146,7 @@ class ActorInvocation(Generic[T]):
     def _check_result(self):
         """Check if the invocation should be retried."""
         # retry for actor restart or unavailable errors
-        if self._retry_count > 0 and isinstance(
-            self._result, (RayActorError, ActorUnavailableError)
-        ):
+        if self._retry_count > 0 and isinstance(self._result, RayActorError):
             if (
                 self.method_name == "__ray_terminate__"
                 or self.method_name == "shutdown"
@@ -325,6 +318,26 @@ def kill_actors(actors: List[str]):
             continue
     for node in actors:
         __actors_cache.pop(node, None)
+
+
+async def restart_actors(actors: List[str]):
+    """Restart Ray actors by their names."""
+    logger.info(f"Restarting actors: {actors}")
+    for actor in actors:
+        try:
+            ray.kill(get_actor_with_cache(actor), no_restart=False)
+        except ValueError:
+            raise ValueError(f"Actor {actor} not found for restart.")
+    for actor in actors:
+        while True:
+            try:
+                refresh_actor_cache(actor)
+                break  # Successfully refreshed the actor
+            except ValueError:
+                logger.debug(
+                    f"Actor {actor} not found, retrying to refresh cache..."
+                )
+                await asyncio.sleep(1)
 
 
 async def invoke_actor_async(

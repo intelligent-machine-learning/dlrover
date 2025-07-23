@@ -12,8 +12,13 @@
 # limitations under the License.
 
 
+import os
+from pathlib import Path
+from unittest.mock import patch
+
 from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.controller.master import PrimeMaster
+from dlrover.python.unified.tests.fixtures._ray_setup_hooks import inject_hook
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
@@ -34,7 +39,7 @@ def test_elastic_training(tmp_ray):
 
 
 @timeout(30)
-def test_elastic_training_api_full(tmp_ray):
+def test_api_full(tmp_ray):
     dl_job = (
         DLJobBuilder()
         .SFT_type()
@@ -56,7 +61,7 @@ def test_elastic_training_api_full(tmp_ray):
 
 
 @timeout(30)
-def test_elastic_training_with_error(tmp_ray):
+def test_api_full_with_error(tmp_ray):
     dl_job = (
         DLJobBuilder()
         .SFT_type()
@@ -82,4 +87,48 @@ def test_elastic_training_with_error(tmp_ray):
     assert ret != 0, "Job should fail due to error in workload"
 
 
-# TODO abnormal test cases
+def _inject_comm_fault():
+    import ray
+
+    from dlrover.python.unified.backend.elastic.worker.node_check import (
+        run_comm_check as raw_comm_check,
+    )
+
+    def run_comm_check():
+        """
+        Mocked function to simulate communication check failure.
+        """
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            patcher.stop()
+            return raw_comm_check()
+        res_file = Path(os.environ["TMP_PATH"]) / "comm_fault"
+        res_file.write_text("triggered comm fault")
+        raise RuntimeError("Mocked comm_check_error")
+
+    patcher = patch(
+        "dlrover.python.unified.backend.elastic.worker.node_check.run_comm_check",
+        side_effect=run_comm_check,
+    )
+    patcher.start()
+
+
+@timeout(30)
+def test_comm_fault(tmp_ray, tmp_path: Path):
+    job = elastic_training_job()
+    job.dl_config.workloads["training"].envs.update(
+        {
+            **inject_hook(
+                "dlrover.python.unified.tests.integration_test.elastic_training_test._inject_comm_fault"
+            ),
+            "TMP_PATH": tmp_path.as_posix(),
+        }
+    )
+    master = PrimeMaster.create(job)
+    assert master.get_status().stage == "INIT"
+    master.start()
+    assert (tmp_path / "comm_fault").exists(), (
+        "Subprocess triggered comm fault"
+    )
+    master.wait()
+    assert master.get_status().stage == "STOPPED"
+    assert master.get_status().exit_code == 0, "Success expected"

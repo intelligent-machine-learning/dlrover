@@ -1,10 +1,13 @@
-import json
 import os
 from pathlib import Path
+from typing import Callable, Dict
 
 from dlrover.python.unified.util.test_hooks import coverage_enabled
+from dlrover.python.util.reflect_util import import_callable
 
-_PARAM_ENV = "DLROVER_TEST_SETUP_HOOKS_ARGS"
+_ENV_PREFIX = "DLROVER_TEST_HOOKS_"
+_ENV_COVERAGE = _ENV_PREFIX + "COVERAGE"
+_ENV_CUSTOM_HOOKS = _ENV_PREFIX + "CUSTOM_HOOKS"
 
 
 def _setup_coverage():
@@ -18,16 +21,48 @@ def _setup_coverage():
         pass
 
 
+def _setup_custom_hooks():
+    """Set up custom hooks for testing."""
+    custom_hooks = os.environ.get(_ENV_CUSTOM_HOOKS, "")
+    if custom_hooks:
+        for hook in custom_hooks.split(","):
+            if not hook.strip():
+                continue
+            print(f"Executing custom hook: {hook}")
+            try:
+                hook = import_callable(hook)
+                hook()
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to execute custom hook: {hook}"
+                ) from e
+
+
 def get_args():
     module = str(get_args.__module__)
-    params = {
-        "setup_coverage": coverage_enabled(),
+    return f"{module}.hook", {
+        _ENV_COVERAGE: ("1" if coverage_enabled() else "0")
     }
-    return f"{module}.hook", {_PARAM_ENV: json.dumps(params)}
+
+
+def inject_hook(*hooks: str | Callable) -> Dict[str, str]:
+    """Inject a custom hook callable into the environment."""
+
+    def to_str(hook: Callable | str) -> str:
+        if isinstance(hook, str):
+            return hook
+        """Convert a callable to its string representation."""
+        if "." in hook.__qualname__:
+            raise ValueError("Hook should be a module-level function.")
+        return f"{hook.__module__}.{hook.__name__}"
+
+    hook_ids = map(to_str, hooks)
+    return {_ENV_CUSTOM_HOOKS: ",".join(hook_ids)}
 
 
 def hook():
     """Main function to set up coverage."""
-    params = json.loads(os.environ.get(_PARAM_ENV, "{}"))
-    if params.get("setup_coverage", False):
+    if os.environ.get(_ENV_PREFIX + "COVERAGE", "0") == "1":
+        # If coverage is enabled, set up the coverage environment.
         _setup_coverage()
+    _setup_custom_hooks()

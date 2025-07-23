@@ -21,6 +21,7 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
     NodeCheckManager,
 )
 from dlrover.python.unified.common.workload_base import ActorInfo
+from dlrover.python.unified.util.actor_helper import restart_actors
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actors_t,
 )
@@ -38,7 +39,18 @@ class ElasticManager:
     def _prepare(self):
         pass
 
-    async def check_workers(self):
+    async def _restart_nodes(self, nodes: List[ActorInfo]):
+        """
+        Restart the specified nodes.
+        This is a placeholder for actual restart logic.
+        """
+        await restart_actors([node.name for node in nodes])
+        res = await invoke_actors_t(
+            remote_call.status, [node.name for node in nodes]
+        )
+        print(f"Restarted nodes status: {res.as_dict()}")
+
+    async def check_workers(self, retry_count: int = 3):
         logger.info("Do node-check for all nodes...")
         delays = await self.node_check_manager.check_nodes(self.workers)
         abnormal_nodes = self.node_check_manager.find_abnormal_nodes(
@@ -49,6 +61,9 @@ class ElasticManager:
                 f"Node-check found {len(abnormal_nodes)} abnormal nodes: "
                 f"{', '.join(str(node) for node in abnormal_nodes)}"
             )
+            if retry_count > 0:
+                await self._restart_nodes(abnormal_nodes)
+                return await self.check_workers(retry_count - 1)
             raise Exception(
                 "Node-check failed, some nodes are not ready to start the job."
             )
