@@ -90,9 +90,7 @@ def submit(args):
             rl_job_builder.rollout(
                 "examples.unified.rl.openrlhf.ppo.ppo_rollout",
                 "RolloutRayActor",
-            )
-            .total(rollout_total)
-            .enable_ray_auto_visible_device()
+            ).total(rollout_total)
         )
 
     if has_ref:
