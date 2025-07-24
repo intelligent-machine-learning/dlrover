@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Protocol
+from typing import List
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
@@ -28,8 +28,10 @@ class MasterStatus:
     exit_code: int = 0
 
 
-class PrimeMasterRemote(Protocol):
+class PrimeMasterApi(ActorProxy):
     """Stub for Remote interface for PrimeMaster."""
+
+    ACTOR_NAME = MASTER_ACTOR_NAME
 
     @staticmethod
     def get_status() -> MasterStatus:  # program: no cover

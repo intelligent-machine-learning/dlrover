@@ -14,12 +14,13 @@
 from dataclasses import dataclass
 from functools import wraps
 from typing import (
+    Any,
     Callable,
+    ClassVar,
     Optional,
     ParamSpec,
     Protocol,
     Sequence,
-    Type,
     TypeVar,
     Union,
 )
@@ -27,7 +28,6 @@ from typing import (
 from .actor_helper import (
     ActorBatchInvocation,
     ActorInvocation,
-    get_actor_with_cache,
 )
 
 
@@ -105,35 +105,59 @@ def invoke_actors_t(
     )
 
 
-T_Stub = TypeVar("T_Stub", covariant=True)
+def _proxy_wrapper(method: Callable[..., Any], actor_name: Optional[str]):
+    print(method, actor_name)
+    method = getattr(method, "__origin__", method)
+
+    @wraps(method)
+    def remote_call(*args, **kwargs):
+        if not actor_name:
+            raise TypeError(
+                "ACTOR_NAME not defined, you must use bind(actor_name)."
+            )
+        ref = invoke_actor_t(method, actor_name, *args, **kwargs)
+        return ref.wait()
+
+    setattr(remote_call, "__origin__", method)
+
+    return remote_call
+
+
+T = TypeVar("T", bound="type")
 
 
 class ActorProxy:
     """A proxy class to interact with Ray actors as if they were local objects."""
 
-    def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
-        self.actor = actor
-        self.stub_cls = stub_cls
-        if warmup:
-            get_actor_with_cache(actor)  # warmup actor
+    ACTOR_NAME: ClassVar[str]
 
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in actor {self.actor}."
-            )
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        actor_name = getattr(cls, "ACTOR_NAME", None)
+        print(f"ActorProxy: {cls.__name__} with actor name {actor_name}")
+        cls2 = cls
+        while cls2 != ActorProxy:
+            for name, method in cls2.__dict__.items():
+                if not callable(method) or name.startswith("__"):
+                    continue
+                if not isinstance(method, staticmethod):
+                    raise TypeError(
+                        f"Method {method} must be a static method."
+                    )
+                setattr(
+                    cls,
+                    name,
+                    staticmethod(_proxy_wrapper(method.__func__, actor_name)),
+                )
+            cls2 = cls2.__base__
 
-        @wraps(method)
-        def remote_call(*args, **kwargs):
-            ref = invoke_actor_t(method, self.actor, *args, **kwargs)
-            return ref.wait()
+        print(f"ActorProxyEND: {cls.__name__} with actor name {actor_name}")
 
-        return remote_call
+    @classmethod
+    def bind(cls: T, actor_name: str) -> T:
+        """Bind the actor name to the class."""
 
-    @staticmethod
-    def wrap(
-        actor_name: str, cls: Type[T_Stub], lazy: bool = False
-    ) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
+        class BoundActorProxy(cls):
+            ACTOR_NAME = actor_name
+
+        return BoundActorProxy

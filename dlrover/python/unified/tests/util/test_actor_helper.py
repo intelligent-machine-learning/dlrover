@@ -13,7 +13,7 @@
 
 import asyncio
 import random
-from typing import Any, Protocol
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -50,7 +50,7 @@ class SimpleActor:
         return ray.get_runtime_context().was_current_actor_reconstructed
 
 
-class Stub(Protocol):
+class Stub(ActorProxy):
     @staticmethod
     def some_method() -> str: ...
     @staticmethod
@@ -190,11 +190,11 @@ def test_restart_actor(tmp_actor1):
 
 
 def test_actor_proxy(tmp_actor1):
-    actor = ActorProxy.wrap(tmp_actor1, Stub)
+    actor = Stub.bind(tmp_actor1)
     assert actor.some_method() == "ok"
     assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
-        actor.non_existent_method()  # type: ignore[union-attr]
+        actor.not_existent_method()
 
 
 def test_batch_invoke_result():
