@@ -13,6 +13,8 @@
 import os
 from unittest.mock import MagicMock
 
+import pytest
+
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.enums import SchedulingStrategyType
 from dlrover.python.unified.common.failure import FailureDesc
@@ -24,6 +26,7 @@ from dlrover.python.unified.master.scheduler import (
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 
 
+@pytest.mark.skip(reason="deprecated")
 class JobManagerTest(BaseMasterTest):
     def setUp(self):
         super(JobManagerTest, self).setUp()

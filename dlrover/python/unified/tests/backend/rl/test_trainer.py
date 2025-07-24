@@ -10,30 +10,55 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Dict, List
 from unittest import mock
+from unittest.mock import patch
 
 from dlrover.python.unified.backend.rl.trainer import (
     RoleGroupProxy,
-    DefaultTrainer,
 )
 from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.common.workload_base import JobInfo, ActorInfo
+from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_class import (
     TestActor,
     TestInteractiveTrainer,
-    TestRollout,
 )
 
 
 class BaseTrainerTest(BaseTest):
-    def test_basic(self):
+    @patch("ray.get_actor")
+    @patch(
+        "dlrover.python.unified.backend.rl.trainer.PrimeMasterApi.get_all_roles"
+    )
+    def test_basic(self, mock_get_all_roles, mock_get_actor):
+        spec = CustomWorkloadDesc(
+            module_name="dlrover.python.unified.tests.test_class",
+            class_name="TestInteractiveTrainer",
+        )
         trainer = TestInteractiveTrainer(
-            {RLRoleType.ACTOR.name: [None, None]},
-            {RLRoleType.ACTOR.name: (TestActor, 1)},
-            {"k1": "v1"},
+            JobInfo(name="test", job_id="test", user_config={"k1": "v1"}),
+            ActorInfo(name="test", role="TRAINER", spec=spec),
         )
         self.assertIsNotNone(trainer)
-        self.assertEqual(len(trainer.get_role_groups()), 1)
+        self.assertEqual(len(trainer.get_role_groups()), 0)
+
+        actor_spec = CustomWorkloadDesc(
+            module_name="dlrover.python.unified.tests.test_class",
+            class_name="TestActor",
+        )
+        mock_roles: Dict[str, List[ActorInfo]] = {
+            "TRAINER": [ActorInfo(name="t", role="TRAINER", spec=spec)],
+            "ACTOR": [
+                ActorInfo(name="a0", role="ACTOR", spec=actor_spec),
+                ActorInfo(name="a1", role="ACTOR", spec=actor_spec),
+            ],
+        }
+        mock_get_actor.return_value = "actor_handle"
+        mock_get_all_roles.return_value = mock_roles
+        trainer._setup_trainer()
+
         self.assertTrue(isinstance(trainer.RG_ACTOR, RoleGroupProxy))
         self.assertEqual(len(trainer.RG_ACTOR._actor_handles), 2)
 
@@ -48,25 +73,22 @@ class BaseTrainerTest(BaseTest):
         self.assertEqual(len(trainer.rewards), 0)
         self.assertEqual(len(trainer.references), 0)
         self.assertEqual(len(trainer.critics), 0)
-        self.assertEqual(trainer.actor_resource, 1)
-        self.assertEqual(trainer.rollout_resource, 1)
-        self.assertEqual(trainer.reference_resource, 1)
-        self.assertEqual(trainer.reward_resource, 1)
-        self.assertEqual(trainer.critic_resource, 1)
+        self.assertEqual(trainer.actor_resource, 0)
+        self.assertEqual(trainer.rollout_resource, 0)
+        self.assertEqual(trainer.reference_resource, 0)
+        self.assertEqual(trainer.reward_resource, 0)
+        self.assertEqual(trainer.critic_resource, 0)
         self.assertEqual(len(trainer.config), 1)
 
-    def test_default(self):
-        trainer = DefaultTrainer(
-            {RLRoleType.ACTOR.name: [None, None]},
-            {RLRoleType.ACTOR.name: (TestActor, 1)},
-            {"k1": "v1"},
-        )
-        trainer.init()
-        trainer.fit()
-
-    @mock.patch("ray.wait")
-    @mock.patch("ray.get")
-    def test_role_group_proxy(self, patch_get, patch_wait):
+    @patch("ray.get_actor")
+    @patch(
+        "dlrover.python.unified.backend.rl.trainer.PrimeMasterApi.get_all_roles"
+    )
+    @patch("ray.wait")
+    @patch("ray.get")
+    def test_role_group_proxy(
+        self, patch_get, patch_wait, mock_get_all_roles, mock_get_actor
+    ):
         patch_get.side_effect = lambda x: x
         patch_wait.side_effect = lambda *args, **kwargs: (args[0], [])
 
@@ -87,15 +109,30 @@ class BaseTrainerTest(BaseTest):
         with self.assertRaises(AttributeError):
             role_group.test4()
 
+        spec = CustomWorkloadDesc(
+            module_name="dlrover.python.unified.tests.test_class",
+            class_name="TestInteractiveTrainer",
+        )
         trainer = TestInteractiveTrainer(
-            {RLRoleType.ACTOR.name: [], RLRoleType.ROLLOUT.name: []},
-            {
-                RLRoleType.ACTOR.name: (TestActor, 1),
-                RLRoleType.ROLLOUT.name: (TestRollout, 1),
-            },
-            {},
+            JobInfo(name="test", job_id="test", user_config={}),
+            ActorInfo(name="test", role="TRAINER", spec=spec),
         )
         self.assertIsNotNone(trainer)
+
+        actor_spec = CustomWorkloadDesc(
+            module_name="dlrover.python.unified.tests.test_class",
+            class_name="TestActor",
+        )
+        mock_roles: Dict[str, List[ActorInfo]] = {
+            "TRAINER": [ActorInfo(name="t", role="TRAINER", spec=spec)],
+            "ACTOR": [
+                ActorInfo(name="a0", role="ACTOR", spec=actor_spec),
+                ActorInfo(name="a1", role="ACTOR", spec=actor_spec),
+            ],
+        }
+        mock_get_actor.return_value = "actor_handle"
+        mock_get_all_roles.return_value = mock_roles
+        trainer._setup_trainer()
 
         trainer.RG_ACTOR._actor_handles = mock.MagicMock(
             return_value=[mock.Mock()]

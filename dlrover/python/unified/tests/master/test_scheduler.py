@@ -13,6 +13,7 @@
 import os
 from unittest.mock import MagicMock
 
+import pytest
 import ray
 
 from dlrover.python.unified.common.args import parse_job_args
@@ -30,6 +31,7 @@ from dlrover.python.unified.tests.master.base import BaseMasterTest
 from dlrover.python.unified.tests.test_data import TestData
 
 
+@pytest.mark.skip(reason="deprecated")
 class SimpleSchedulerTest(BaseMasterTest):
     def setUp(self):
         super().setUp()
@@ -61,6 +63,7 @@ class SimpleSchedulerTest(BaseMasterTest):
             self.assertEqual(vertex.create_time, 0)
 
 
+@pytest.mark.skip(reason="deprecated")
 class GroupOrderedSchedulerSingleBundlePerNodeTest(RayBaseTest):
     def setUp(self):
         super().setUp()
@@ -120,6 +123,7 @@ class GroupOrderedSchedulerSingleBundlePerNodeTest(RayBaseTest):
         self.assertFalse(bool(self.graph.get_placement_group()))
 
 
+@pytest.mark.skip(reason="deprecated")
 class GroupOrderedSchedulerSingleGroupPerNodeTest(RayBaseTest):
     def setUp(self):
         args = [

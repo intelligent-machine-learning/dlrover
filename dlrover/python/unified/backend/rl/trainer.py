@@ -515,7 +515,7 @@ class BaseRLTrainer(ActorBase, ABC):
         """Return the workload's resource by role type."""
         if role_type in self._actor_metas:
             return self._actor_metas[role_type][1]
-        return 1
+        return 0
 
     def get_actor_handles(self, role_type: str) -> List[ActorHandle]:
         """Return the actor handles by role type."""
