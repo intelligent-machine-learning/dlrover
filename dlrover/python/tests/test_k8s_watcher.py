@@ -251,7 +251,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(worker0.type, NodeType.WORKER)
         self.assertEqual(worker0.group, 0)
         self.assertEqual(worker0.group_size, 4)
-        self.assertEqual(worker0.gropu_id, "rack-1234")
+        self.assertEqual(worker0.group_id, "rack-1234")
         self.assertEqual(worker0.rank_index, 0)
         self.assertEqual(worker0.status, NodeStatus.RUNNING)
         self.assertEqual(worker0.relaunch_count, 0)
