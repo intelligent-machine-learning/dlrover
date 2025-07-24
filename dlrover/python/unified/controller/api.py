@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List, Protocol
 
@@ -32,33 +31,36 @@ class MasterStatus:
 class PrimeMasterRemote(Protocol):
     """Stub for Remote interface for PrimeMaster."""
 
-    @abstractmethod
-    def get_status(self) -> MasterStatus:
+    @staticmethod
+    def get_status() -> MasterStatus:  # program: no cover
         """Get the status of the master."""
+        ...
 
-    @abstractmethod
-    def start(self) -> None:
+    @staticmethod
+    def start() -> None:  # program: no cover
         """Start the master."""
 
-    @abstractmethod
-    def wait(self) -> None:
+    @staticmethod
+    def wait() -> None:  # program: no cover
         """Wait for the job to finish."""
 
-    @abstractmethod
-    def stop(self) -> None:
+    @staticmethod
+    def stop() -> None:  # program: no cover
         """Stop the master."""
 
-    @abstractmethod
-    def shutdown(self) -> None:
+    @staticmethod
+    def shutdown() -> None:  # program: no cover
         """Force shutdown the master."""
 
-    @abstractmethod
-    def get_actor_info(self, name: str) -> ActorInfo:
+    @staticmethod
+    def get_actor_info(name: str) -> ActorInfo:  # program: no cover
         """Get a actor by name."""
+        ...
 
-    @abstractmethod
-    def get_workers_by_role(self, role: str) -> List[ActorInfo]:
+    @staticmethod
+    def get_workers_by_role(role: str) -> List[ActorInfo]:  # program: no cover
         """Get all actors by role."""
+        ...
 
 
 PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(

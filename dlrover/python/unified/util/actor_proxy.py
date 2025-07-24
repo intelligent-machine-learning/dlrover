@@ -13,7 +13,7 @@
 
 import asyncio
 from dataclasses import dataclass
-from functools import partial
+from functools import partial, wraps
 from typing import (
     Callable,
     List,
@@ -30,8 +30,6 @@ from .actor_helper import (
     ActorBatchInvocation,
     ActorInvocation,
     get_actor_with_cache,
-    invoke_actor,
-    invoke_actor_async,
     invoke_actors,
     invoke_actors_async,
 )
@@ -129,11 +127,13 @@ class ActorProxy:
             raise AttributeError(
                 f"Method {name} not found in actor {self.actor}."
             )
-        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actor_async, self.actor, meta.name or name)
-        else:
-            return partial(invoke_actor, self.actor, meta.name or name)
+
+        @wraps(method)
+        def remote_call(*args, **kwargs):
+            ref = invoke_actor_t(method, self.actor, *args, **kwargs)
+            return ref.wait()
+
+        return remote_call
 
     @staticmethod
     def wrap(
