@@ -196,9 +196,9 @@ class Node(object):
         host_ip=None,
         paral_config=ParallelConfig(),
         restart_training=False,
-        rack_group=None,
-        rack_group_size=None,
-        rack_id=None,
+        node_group=None,
+        node_group_size=None,
+        node_group_id=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -230,9 +230,9 @@ class Node(object):
         self.unrecoverable_failure_msg = ""
         self.heartbeat_time = 0
         self.reported_status: Tuple = ("", 0)
-        self.rack_group = rack_group
-        self.rack_group_size = rack_group_size
-        self.rack_id = rack_id
+        self.group = node_group
+        self.group_size = node_group_size
+        self.group_id = node_group_id
 
     def exited(self):
         return self.status in [

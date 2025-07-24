@@ -105,22 +105,22 @@ def _convert_pod_yaml_to_node(pod):
     metadata: client.V1ObjectMeta = pod.metadata
     pod_name = metadata.name
     pod_type = metadata.labels[replica_type_key]
-    rack_group = None
-    rack_group_size = None
-    rack_id = None
+    node_group = None
+    node_group_size = None
+    node_group_id = None
     if pod_type == NodeType.DLROVER_MASTER:
         return None
     elif pod_type == NodeType.WORKER:
         try:
-            rack_group = int(metadata.labels[SchedulingLabel.RACK_GROUP])
-            rack_group_size = int(
-                metadata.labels[SchedulingLabel.RACK_GROUP_SIZE]
+            node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
+            node_group_size = int(
+                metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
             )
-            rack_id = metadata.labels[SchedulingLabel.RACK_ID]
+            node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
         except (KeyError, ValueError):
-            rack_group = None
-            rack_group_size = None
-            rack_id = None
+            node_group = None
+            node_group_size = None
+            node_group_id = None
 
     pod_id = int(metadata.labels[replica_index_key])
     rank_id = int(metadata.labels[rank_index_key])
@@ -152,9 +152,9 @@ def _convert_pod_yaml_to_node(pod):
         host_ip=host_ip,
         restart_training=restart_training,
         relaunch_count=relaunch_count,
-        rack_group=rack_group,
-        rack_group_size=rack_group_size,
-        rack_id=rack_id,
+        node_group=node_group,
+        node_group_size=node_group_size,
+        node_group_id=node_group_id,
     )
     node.create_time = metadata.creation_timestamp
     if NodeStatus.is_terminal_status(status):

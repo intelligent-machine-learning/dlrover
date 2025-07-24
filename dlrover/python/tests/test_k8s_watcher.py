@@ -106,9 +106,9 @@ class PodWatcherTest(unittest.TestCase):
                             ElasticJobLabel.REPLICA_INDEX_KEY: "0",
                             ElasticJobLabel.RANK_INDEX_KEY: "0",
                             ElasticJobLabel.RELAUNCH_COUNT: "0",
-                            SchedulingLabel.RACK_GROUP: "0",
-                            SchedulingLabel.RACK_GROUP_SIZE: "4",
-                            SchedulingLabel.RACK_ID: "rack-1234",
+                            SchedulingLabel.NODE_GROUP: "0",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-1234",
                         },
                         "creationTimestamp": "2025-07-21T10:13:11Z",
                     },
@@ -154,9 +154,9 @@ class PodWatcherTest(unittest.TestCase):
                             ElasticJobLabel.REPLICA_INDEX_KEY: "1",
                             ElasticJobLabel.RANK_INDEX_KEY: "1",
                             ElasticJobLabel.RELAUNCH_COUNT: "0",
-                            SchedulingLabel.RACK_GROUP: "1",
-                            SchedulingLabel.RACK_GROUP_SIZE: "4",
-                            SchedulingLabel.RACK_ID: "rack-5678",
+                            SchedulingLabel.NODE_GROUP: "1",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-5678",
                         },
                         "deletionTimestamp": "2025-07-22T06:32:06Z",
                     },
@@ -249,9 +249,9 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(worker0.name, "test-edljob-0")
         self.assertEqual(worker0.id, 0)
         self.assertEqual(worker0.type, NodeType.WORKER)
-        self.assertEqual(worker0.rack_group, 0)
-        self.assertEqual(worker0.rack_group_size, 4)
-        self.assertEqual(worker0.rack_id, "rack-1234")
+        self.assertEqual(worker0.group, 0)
+        self.assertEqual(worker0.group_size, 4)
+        self.assertEqual(worker0.gropu_id, "rack-1234")
         self.assertEqual(worker0.rank_index, 0)
         self.assertEqual(worker0.status, NodeStatus.RUNNING)
         self.assertEqual(worker0.relaunch_count, 0)
@@ -267,9 +267,9 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(worker1.name, "test-edljob-1")
         self.assertEqual(worker1.id, 1)
         self.assertEqual(worker1.type, NodeType.PS)
-        self.assertEqual(worker1.rack_group, None)
-        self.assertEqual(worker1.rack_group_size, None)
-        self.assertEqual(worker1.rack_id, None)
+        self.assertEqual(worker1.group, None)
+        self.assertEqual(worker1.group_size, None)
+        self.assertEqual(worker1.group_id, None)
         self.assertEqual(worker1.rank_index, 1)
         self.assertEqual(worker1.status, NodeStatus.DELETED)
 
@@ -297,9 +297,9 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
-        self.assertEqual(node_event.node.rack_group, 0)
-        self.assertEqual(node_event.node.rack_group_size, 4)
-        self.assertEqual(node_event.node.rack_id, "rack-1234")
+        self.assertEqual(node_event.node.group, 0)
+        self.assertEqual(node_event.node.group_size, 4)
+        self.assertEqual(node_event.node.group_id, "rack-1234")
         self.assertEqual(node_event.node.rank_index, 0)
         self.assertEqual(node_event.node.status, NodeStatus.RUNNING)
         self.assertEqual(node_event.node.relaunch_count, 0)
