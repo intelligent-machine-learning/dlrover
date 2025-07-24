@@ -64,9 +64,7 @@ class PrimeMasterApi(ActorProxy):
         """Get all actors by role."""
         ...
 
-
-PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
-    MASTER_ACTOR_NAME,
-    cls=PrimeMasterRemote,  # type:ignore[type-abstract]
-    lazy=True,
-)
+    @staticmethod
+    def restart_actors(actors: List[str]) -> None:  # program: no cover
+        """Restart the specified actors."""
+        ...

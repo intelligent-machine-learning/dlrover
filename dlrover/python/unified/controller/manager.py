@@ -13,7 +13,7 @@
 
 import asyncio
 from threading import Thread
-from typing import Optional
+from typing import List, Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import MasterStage
@@ -21,6 +21,7 @@ from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.controller.api import MasterStatus
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
+    restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
@@ -104,10 +105,10 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        if self.stage != MasterStage.INIT:
+        if self.stage != MasterStage.READY:
             raise RuntimeError(
                 f"Cannot start job in stage {self.stage}. "
-                "Expected stage is INIT."
+                "Expected stage is READY."
             )
         nodes = [node.name for node in self.graph.vertices]
         res = await invoke_actors_t(remote_call.start, nodes)
@@ -149,6 +150,15 @@ class PrimeManager:
         logger.info("Job stopped successfully.")
         self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
+
+    async def restart_actors(self, actors: List[str]) -> None:
+        """Restart the specified actors."""
+        assert all(actor in self.graph.by_name for actor in actors), (
+            f"Some actors {actors} not found in the graph."
+        )
+        await restart_actors(actors)
+        res = await invoke_actors_t(remote_call.status, actors)
+        print(f"Restarted nodes status: {res.as_dict()}")
 
     def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""

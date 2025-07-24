@@ -22,13 +22,12 @@ from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from .api import (
     MASTER_ACTOR_NAME,
     PrimeMasterApi,
-    PrimeMasterRemote,
 )
 from .config import JobConfig
 from .manager import PrimeManager
 
 
-class PrimeMaster(PrimeMasterRemote):
+class PrimeMaster:
     """The master actor for managing the job execution."""
 
     def __init__(self, config: JobConfig):
@@ -82,10 +81,15 @@ class PrimeMaster(PrimeMasterRemote):
             raise ValueError(f"Role {role} not found.")
         return [node.to_actor_info() for node in role_info.instances]
 
+    async def restart_actors(self, actors: List[str]) -> None:
+        """Restart the specified actors."""
+        await self.manager.restart_actors(actors)
+
+    # endregion
     @staticmethod
     def create(
         config: JobConfig, detached: bool = True, timeout: float = 10.0
-    ) -> "PrimeMasterRemote":
+    ) -> "type[PrimeMasterApi]":
         """Create a PrimeMaster instance."""
         ref = (
             ray.remote(PrimeMaster)
@@ -101,5 +105,3 @@ class PrimeMaster(PrimeMasterRemote):
         )
         ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
         return PrimeMasterApi
-
-    # endregion
