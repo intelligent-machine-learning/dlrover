@@ -135,8 +135,8 @@ class ActorProxy:
         super().__init_subclass__()
         actor_name = getattr(cls, "ACTOR_NAME", None)
         print(f"ActorProxy: {cls.__name__} with actor name {actor_name}")
-        cls2 = cls
-        while cls2 != ActorProxy:
+        cls2: Optional[type] = cls
+        while cls2 is not None and cls2 != ActorProxy:
             for name, method in cls2.__dict__.items():
                 if not callable(method) or name.startswith("__"):
                     continue
@@ -157,7 +157,7 @@ class ActorProxy:
     def bind(cls: T, actor_name: str) -> T:
         """Bind the actor name to the class."""
 
-        class BoundActorProxy(cls):
+        class BoundActorProxy(cls):  # type: ignore[misc,valid-type]
             ACTOR_NAME = actor_name
 
-        return BoundActorProxy
+        return BoundActorProxy  # type: ignore[return-value]

@@ -52,24 +52,24 @@ class SimpleActor:
 
 class Stub(ActorProxy):
     @staticmethod
-    def some_method() -> str: ...
+    def some_method() -> str: ...  # type: ignore[empty-body]
     @staticmethod
-    def some_method_with_arg(a: int, b: str) -> str: ...
+    def some_method_with_arg(a: int, b: str) -> str: ...  # type: ignore[empty-body]
     @staticmethod
-    def method_relaunch() -> str: ...
+    def method_relaunch() -> str: ...  # type: ignore[empty-body]
     @staticmethod
-    def method_exception() -> str: ...
+    def method_exception() -> str: ...  # type: ignore[empty-body]
     @staticmethod
-    def is_restarted() -> bool: ...
+    def is_restarted() -> bool: ...  # type: ignore[empty-body]
 
     @staticmethod
-    def not_existent_method() -> str: ...
+    def not_existent_method() -> str: ...  # type: ignore[empty-body]
     @staticmethod
     @invoke_meta(name="some_method")
-    def some_method_alias() -> str: ...
+    def some_method_alias() -> str: ...  # type: ignore[empty-body]
     @staticmethod
     @invoke_meta(name="__ray_terminate__")
-    def terminate() -> None: ...
+    def terminate() -> None: ...  # type: ignore[empty-body]
 
 
 @pytest.fixture

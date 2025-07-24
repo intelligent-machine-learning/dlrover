@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dlrover.python.unified.common.workload_base import MasterStage
-from dlrover.python.unified.controller.api import PrimeMasterRemote
+from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.controller.config import JobConfig
 from dlrover.python.unified.driver.main import main, submit
 from dlrover.python.unified.tests.fixtures.example_jobs import (
@@ -25,7 +25,7 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 
 
 def test_submit():
-    fake_master = MagicMock(PrimeMasterRemote)
+    fake_master = MagicMock(PrimeMasterApi)
     fake_master.get_status.return_value.stage = MasterStage.STOPPED
 
     job = elastic_training_job()
@@ -44,7 +44,7 @@ def test_submit():
 
 
 def test_submit_init():
-    fake_master = MagicMock(PrimeMasterRemote)
+    fake_master = MagicMock(PrimeMasterApi)
     fake_master.get_status.return_value.stage = MasterStage.STOPPED
 
     job = elastic_training_job()

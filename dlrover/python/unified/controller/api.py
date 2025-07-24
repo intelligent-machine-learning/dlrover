@@ -34,7 +34,7 @@ class PrimeMasterApi(ActorProxy):
     ACTOR_NAME = MASTER_ACTOR_NAME
 
     @staticmethod
-    def get_status() -> MasterStatus:  # program: no cover
+    def get_status() -> MasterStatus:  # type: ignore[empty-body] # program: no cover
         """Get the status of the master."""
         ...
 
@@ -55,16 +55,22 @@ class PrimeMasterApi(ActorProxy):
         """Force shutdown the master."""
 
     @staticmethod
-    def get_actor_info(name: str) -> ActorInfo:  # program: no cover
+    def get_actor_info(  # type: ignore[empty-body]
+        name: str,
+    ) -> ActorInfo:  # program: no cover
         """Get a actor by name."""
         ...
 
     @staticmethod
-    def get_workers_by_role(role: str) -> List[ActorInfo]:  # program: no cover
+    def get_workers_by_role(  # type: ignore[empty-body]
+        role: str,
+    ) -> List[ActorInfo]:  # program: no cover
         """Get all actors by role."""
         ...
 
     @staticmethod
-    def restart_actors(actors: List[str]) -> None:  # program: no cover
+    def restart_actors(
+        actors: List[str],
+    ) -> None:  # program: no cover
         """Restart the specified actors."""
         ...
