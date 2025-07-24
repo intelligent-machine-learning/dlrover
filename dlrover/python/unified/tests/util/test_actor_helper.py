@@ -23,7 +23,6 @@ from ray.actor import ActorClass
 import dlrover.python.unified.util.actor_helper as ah
 from dlrover.python.unified.util.actor_proxy import (
     ActorProxy,
-    BatchActorProxy,
     invoke_actor_t,
     invoke_actors_t,
     invoke_meta,
@@ -47,23 +46,30 @@ class SimpleActor:
             ray.kill(ray.get_runtime_context().current_actor, no_restart=False)
         return "restarted"
 
+    def is_restarted(self):
+        return ray.get_runtime_context().was_current_actor_reconstructed
 
-class SimpleActorStub(Protocol):
+
+class Stub(Protocol):
     @staticmethod
     def some_method() -> str: ...
     @staticmethod
     def some_method_with_arg(a: int, b: str) -> str: ...
+    @staticmethod
+    def method_relaunch() -> str: ...
+    @staticmethod
+    def method_exception() -> str: ...
+    @staticmethod
+    def is_restarted() -> bool: ...
 
+    @staticmethod
+    def not_existent_method() -> str: ...
     @staticmethod
     @invoke_meta(name="some_method")
     def some_method_alias() -> str: ...
-
-
-class SimpleActorBatchStub(Protocol):
-    def some_method(self) -> ah.BatchInvokeResult[str]: ...
-
-    @invoke_meta(name="some_method")
-    async def some_method_async(self) -> ah.BatchInvokeResult[str]: ...
+    @staticmethod
+    @invoke_meta(name="__ray_terminate__")
+    def terminate() -> None: ...
 
 
 @pytest.fixture
@@ -111,55 +117,60 @@ def test_as_actor_class():
 
 
 def test_invoke_actor(tmp_actor1):
-    assert ah.invoke_actor(tmp_actor1, "some_method") == "ok"
+    with pytest.raises(ValueError):
+        invoke_actor_t(Stub.some_method, "non_existent_actor").wait()
+    assert invoke_actor_t(Stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor_t(Stub.some_method_alias, tmp_actor1).wait() == "ok"
     assert (
-        ah.invoke_actor(tmp_actor1, "some_method_with_arg", 1, b="b") == "ok"
+        invoke_actor_t(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        == "ok"
     )
 
     with pytest.raises(AttributeError):
-        ah.invoke_actor(tmp_actor1, "non_existent_method")
-
-    assert ah.invoke_actor(tmp_actor1, "method_relaunch") == "restarted"
-    with pytest.raises(Exception, match="This is a test exception"):
-        ah.invoke_actor(tmp_actor1, "method_exception")
-
+        invoke_actor_t(Stub.not_existent_method, tmp_actor1).wait()
     assert (
-        ah.invoke_actor(tmp_actor1, "__ray_terminate__") is None
-    )  # No ActorDieError when shutdown
+        invoke_actor_t(Stub.method_relaunch, tmp_actor1).wait() == "restarted"
+    )
+    with pytest.raises(Exception, match="This is a test exception"):
+        invoke_actor_t(Stub.method_exception, tmp_actor1).wait()
+
+    # No ActorDieError when shutdown
+    assert invoke_actor_t(Stub.terminate, tmp_actor1).wait() is None
 
 
 def test_invoke_actor_async(tmp_actor1):
-    assert (
-        asyncio.run(ah.invoke_actor_async(tmp_actor1, "some_method")) == "ok"
-    )
+    def async_wait(invoke: ah.ActorInvocation):
+        return asyncio.run(invoke.async_wait())
+
+    with pytest.raises(ValueError):
+        async_wait(invoke_actor_t(Stub.some_method, "non_existent_actor"))
+    assert async_wait(invoke_actor_t(Stub.some_method, tmp_actor1)) == "ok"
     with pytest.raises(AttributeError):
-        assert asyncio.run(
-            ah.invoke_actor_async(tmp_actor1, "non_existent_method")
-        )
+        async_wait(invoke_actor_t(Stub.not_existent_method, tmp_actor1))
 
     assert (
-        asyncio.run(ah.invoke_actor_async(tmp_actor1, "method_relaunch"))
+        async_wait(invoke_actor_t(Stub.method_relaunch, tmp_actor1))
         == "restarted"
     )
     with pytest.raises(Exception, match="This is a test exception"):
-        assert asyncio.run(
-            ah.invoke_actor_async(tmp_actor1, "method_exception")
-        )
+        async_wait(invoke_actor_t(Stub.method_exception, tmp_actor1))
 
 
 def test_invoke_actors(tmp_actor1, tmp_actor2):
-    result = ah.invoke_actors([tmp_actor1, tmp_actor2], "some_method")
+    result = invoke_actors_t(Stub.some_method, [tmp_actor1, tmp_actor2]).wait()
     assert result.is_all_successful
     assert result[0] == "ok"
     assert result[1] == "ok"
     result2 = asyncio.run(
-        ah.invoke_actors_async([tmp_actor1, tmp_actor2], "some_method")
+        invoke_actors_t(
+            Stub.some_method, [tmp_actor1, tmp_actor2]
+        ).async_wait()
     )
     assert result.results == result2.results
 
 
 def test_kill_actors(tmp_actor1, tmp_actor2):
-    ah.invoke_actor(tmp_actor2, "__ray_terminate__")  # Already died
+    invoke_actor_t(Stub.terminate, tmp_actor1).wait()  # Already died
 
     ah.kill_actors([tmp_actor1, tmp_actor2])
     assert tmp_actor1 not in ah.__actors_cache
@@ -169,28 +180,21 @@ def test_kill_actors(tmp_actor1, tmp_actor2):
     ah.kill_actors([tmp_actor1, tmp_actor2])
 
 
+def test_restart_actor(tmp_actor1):
+    assert invoke_actor_t(Stub.is_restarted, tmp_actor1).wait() is False
+    asyncio.run(ah.restart_actors([tmp_actor1]))
+    assert invoke_actor_t(Stub.is_restarted, tmp_actor1).wait() is True
+
+    with pytest.raises(ValueError):
+        asyncio.run(ah.restart_actors(["non_existent_actor"]))
+
+
 def test_actor_proxy(tmp_actor1):
-    actor = ActorProxy.wrap(tmp_actor1, SimpleActorStub)
+    actor = ActorProxy.wrap(tmp_actor1, Stub)
     assert actor.some_method() == "ok"
     assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
         actor.non_existent_method()  # type: ignore[union-attr]
-
-
-def test_batch_actor_proxy(tmp_actor1, tmp_actor2):
-    actors = BatchActorProxy.wrap(
-        [tmp_actor1, tmp_actor2], SimpleActorBatchStub
-    )
-    result = actors.some_method()
-    assert result.is_all_successful
-    assert result.results == ["ok", "ok"]
-
-    result_async = asyncio.run(actors.some_method_async())
-    assert result_async.is_all_successful
-    assert result_async.results == ["ok", "ok"]
-
-    with pytest.raises(AttributeError):
-        actors.non_existent_method()  # type: ignore[union-attr]
 
 
 def test_batch_invoke_result():
@@ -238,16 +242,15 @@ def test_batch_invoke_result_with_failure():
 
 
 def test_static_stub_invoke(tmp_actor1, tmp_actor2):
-    stub = SimpleActorStub
-    assert invoke_actor_t(stub.some_method, tmp_actor1).wait() == "ok"
-    assert invoke_actor_t(stub.some_method_alias, tmp_actor2).wait() == "ok"
+    assert invoke_actor_t(Stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor_t(Stub.some_method_alias, tmp_actor2).wait() == "ok"
     assert (
-        invoke_actor_t(stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        invoke_actor_t(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
         == "ok"
     )
 
     assert invoke_actors_t(
-        stub.some_method, [tmp_actor1, tmp_actor2]
+        Stub.some_method, [tmp_actor1, tmp_actor2]
     ).wait().results == [
         "ok",
         "ok",

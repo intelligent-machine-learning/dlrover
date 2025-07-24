@@ -11,12 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from dataclasses import dataclass
-from functools import partial, wraps
+from functools import wraps
 from typing import (
     Callable,
-    List,
     Optional,
     ParamSpec,
     Protocol,
@@ -30,8 +28,6 @@ from .actor_helper import (
     ActorBatchInvocation,
     ActorInvocation,
     get_actor_with_cache,
-    invoke_actors,
-    invoke_actors_async,
 )
 
 
@@ -141,34 +137,3 @@ class ActorProxy:
     ) -> "T_Stub":
         """Wraps the actor proxy to return an instance of the class."""
         return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
-
-
-class BatchActorProxy:
-    """
-    A proxy class to interact with multiple Ray actors as if they were local objects.
-
-    All return values in Stub should be BatchInvokeResult.
-    """
-
-    def __init__(self, actors: List[str], stub_cls: type):
-        self.actors = actors
-        # Optionally filter methods if a class is provided
-        self.stub_cls = stub_cls
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in class {self.stub_cls.__name__}."
-            )
-        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
-
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actors_async, self.actors, meta.name or name)
-        else:
-            return partial(invoke_actors, self.actors, meta.name or name)
-
-    @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]
