@@ -674,8 +674,8 @@ try:
             # no need to get config from master
             return {}
 
-except ImportError:
-    logger.warning("Ray is not installed.")
+except (ImportError, TypeError):
+    logger.warning("Ray is not installed or deps not satisfied.")
 
 
 def build_master_client(
