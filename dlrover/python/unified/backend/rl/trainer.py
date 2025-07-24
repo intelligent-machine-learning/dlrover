@@ -34,7 +34,10 @@ from dlrover.python.unified.common.workload_base import (
 )
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_helper import ActorBatchInvocation
-from dlrover.python.unified.util.actor_proxy import invoke_actor_t
+from dlrover.python.unified.util.actor_proxy import (
+    invoke_actor_t,
+    invoke_actors_t,
+)
 from dlrover.python.util.common_util import (
     get_methods_by_class,
     get_class_by_module_and_class_name,
@@ -378,13 +381,15 @@ class BaseRLTrainer(ActorBase, ABC):
 
                 invocations = ActorBatchInvocation(
                     [
-                        invoke_actor_t(
+                        invoke_actors_t(
                             remote_call.update_rl_workload_stage,
-                            actor_info.name,
+                            [
+                                actor.name
+                                for actor in list(
+                                    chain(*self._workload_workers.values())
+                                )
+                            ],
                             WorkerStage.FINISHED,
-                        )
-                        for actor_info in list(
-                            chain(*self._workload_workers.values())
                         )
                     ]
                 )
@@ -401,13 +406,15 @@ class BaseRLTrainer(ActorBase, ABC):
 
                 invocations = ActorBatchInvocation(
                     [
-                        invoke_actor_t(
+                        invoke_actors_t(
                             remote_call.update_rl_workload_stage,
-                            actor_info.name,
+                            [
+                                actor.name
+                                for actor in list(
+                                    chain(*self._workload_workers.values())
+                                )
+                            ],
                             WorkerStage.FAILED,
-                        )
-                        for actor_info in list(
-                            chain(*self._workload_workers.values())
                         )
                     ]
                 )

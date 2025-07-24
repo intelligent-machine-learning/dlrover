@@ -41,7 +41,7 @@ class ResourceDesc(BaseModel):
 
     @classmethod
     def get_or_default(cls, resource: Dict[str, Union[int, float]]):
-        desc = cls(**{k: v for k, v in resource.items()})
+        desc = cls.model_validate(resource)
 
         if desc.is_empty():
             return ResourceDesc(accelerator=1)

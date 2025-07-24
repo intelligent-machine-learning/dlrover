@@ -13,10 +13,9 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional
 
 import ray.actor
-from omegaconf import DictConfig
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
@@ -53,7 +52,7 @@ class JobInfo:
 
     name: str
     job_id: str
-    user_config: Union[dict, DictConfig]
+    user_config: dict
 
 
 @dataclass
