@@ -79,7 +79,7 @@ class ElasticManager:
         asyncio.create_task(self._monitor(), name="monitor_nodes")
 
     async def setup_workloads(self):
-        logger.info("Start setup all workloads...")
+        logger.info("Start setup all elastic workloads...")
         start = time.time()
 
         await self.node_check_manager._setup_rendezvous_group(self.workers)

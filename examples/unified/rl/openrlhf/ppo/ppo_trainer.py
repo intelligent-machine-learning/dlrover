@@ -23,7 +23,7 @@ from openrlhf.cli.train_ppo_ray import reward_fn
 from openrlhf.utils import get_strategy
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.trainer.rl_trainer import BaseRLTrainer
+from dlrover.python.unified.backend.rl.trainer import BaseRLTrainer
 from dlrover.python.unified.util.config_util import (
     convert_str_values,
     omega_conf_2_args,
@@ -32,7 +32,7 @@ from dlrover.python.unified.util.config_util import (
 
 class PPOTrainer(BaseRLTrainer):
     def init(self):
-        config = self._config
+        config = self.config
         convert_str_values(config, convert_digit=False)
 
         args = omega_conf_2_args(config)

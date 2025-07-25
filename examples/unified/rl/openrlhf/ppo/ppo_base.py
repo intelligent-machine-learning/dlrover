@@ -24,13 +24,11 @@ from openrlhf.models import Actor, get_llm_for_sequence_regression
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
-from dlrover.python.unified.trainer.workload import (
-    trainer_invocation,
-)
+from dlrover.python.unified.backend.rl.worker import BaseRLWorker
+from dlrover.python.unified.backend.rl.trainer import trainer_invocation
 
 
-class BasePPORole(BaseRLWorkload):
+class BasePPORole(BaseRLWorker):
     @staticmethod
     def _get_current_node_ip():
         address = ray._private.services.get_node_ip_address()

@@ -38,11 +38,18 @@ class InternalRoleType(Enum):
 
 
 class RLRoleType(Enum):
+    TRAINER = "TRAINER"
     ACTOR = "ACTOR"
     ROLLOUT = "ROLLOUT"
     REFERENCE = "REFERENCE"
     REWARD = "REWARD"
     CRITIC = "CRITIC"
+
+    @classmethod
+    def is_rl_role(cls, role: str) -> bool:
+        return role.upper() in {item.name for item in cls} or role.upper() in {
+            item.value for item in cls
+        }
 
 
 class MasterStateBackendType(Enum):

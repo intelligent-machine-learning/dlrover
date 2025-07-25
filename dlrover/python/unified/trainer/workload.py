@@ -10,10 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import functools
 import os
 import time
-import types
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
@@ -26,73 +24,6 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.remote.call_obj import RuntimeInfo
-from dlrover.python.unified.trainer.trainer import MethodInvocationMeta
-
-
-def trainer_invocation(
-    blocking=True,
-    is_async=False,
-    timeout=10,
-    target="ALL",
-    auto_shard=True,
-    pre_func=None,
-    post_func=None,
-):
-    """
-    Decorator for timeout controlled function using.
-
-    Args:
-        blocking (bool, optional): Whether block until the remote result
-            return. Default is True.
-        is_async (bool, optional): Whether invoke by ray.wait(),
-            when 'get_ref=' is False. Default is False.
-        timeout (int, optional): The timeout(seconds) set for ray.wait(),
-            when 'get_ref=' is False. Default is 10(seconds).
-        target (str, optional): The remote invocation target.
-            Support:
-                ALL: All the remote actors should invoke.
-                RANK0: Only the 1st actor should invoke.
-            Default is 'ALL'.
-        auto_shard (bool, optional): Whether enable sharding invocation when
-            the length of the input parameter matches the number of target
-            workloads. Default is True.
-            i.e.
-            split the n pieces of data, distribute them to n workloads,
-            and have each workload process one part.
-        pre_func (function, optional): The function will be invoked before the
-            remote function.
-        post_func (function, optional): The function will be invoked after the
-            remote function.
-    """
-
-    assert timeout > 0
-    assert target in ["ALL", "RANK0"]
-    if pre_func:
-        assert isinstance(pre_func, types.FunctionType)
-    if post_func:
-        assert isinstance(post_func, types.FunctionType)
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapped(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        setattr(
-            wrapped,
-            "_trainer_invocation",
-            MethodInvocationMeta(
-                blocking=blocking,
-                is_async=is_async,
-                timeout=timeout,
-                target=target,
-                auto_shard=auto_shard,
-                pre_func=pre_func,
-                post_func=post_func,
-            ),
-        )
-        return wrapped
-
-    return decorator
 
 
 class BaseWorkload(ABC):

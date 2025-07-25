@@ -36,6 +36,7 @@ class WorkerStage(str, Enum):
 
     INIT = "INIT"
     PENDING = "PENDING"  # Checking
+    READY = "READY"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -77,6 +78,10 @@ class ActorBase:
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
 
+    @property
+    def name(self) -> str:
+        return self.actor_info.name
+
     # Hook methods for subclasses to implement
     def _setup(self):
         """Setup the actor/node."""
@@ -97,6 +102,11 @@ class ActorBase:
 
         This method should be overridden by subMaster or trainer,
         depending on the usage pattern.
+
+        Noticed:
+        1. The worker stage must be 'RUNNING' after the method invocation.
+        2. Main processing need to be defined in a async thread under the
+           worker actor.
         """
 
     def shutdown(self):

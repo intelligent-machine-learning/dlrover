@@ -23,10 +23,10 @@ from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
 from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
-from dlrover.python.unified.trainer.workload import (
+from dlrover.python.unified.backend.rl.trainer import (
     trainer_invocation,
 )
-from .decorator import Dispatch, Execute, register
+from decorator import Dispatch, Execute, register
 
 
 @dataclass

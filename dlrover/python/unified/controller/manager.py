@@ -63,15 +63,16 @@ class PrimeManager:
         res.raise_for_errors()
         logger.info("All nodes self-checked successfully.")
 
-        # let masters pre-check nodes
-        masters = [
+        # let sub-masters pre-check nodes
+        sub_masters = [
             role.sub_master.name
             for role in self.graph.roles.values()
             if role.sub_master is not None
         ]
-        res = await invoke_actors_t(remote_call.check_workers, masters)
-        res.raise_for_errors()
-        logger.info("Masters checked all workers successfully.")
+        if sub_masters:
+            res = await invoke_actors_t(remote_call.check_workers, sub_masters)
+            res.raise_for_errors()
+            logger.info("Masters checked all workers successfully.")
 
     async def start(self):
         """Execute the job. Start tracking the job status."""

@@ -9,7 +9,6 @@ coverage:
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
     - "dlrover/proto"  # protobuf auto generated
-    - "dlrover/python/unified/trainer/example"  # example codes
     # ray.remote class can not be covered
     - "dlrover/python/unified/**/master.py"
     - "dlrover/python/unified/**/*workload.py"
