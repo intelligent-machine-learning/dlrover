@@ -102,7 +102,7 @@ def _inject_comm_fault():
             patcher.stop()
             return raw_comm_check()
         res_file = Path(os.environ["TMP_PATH"]) / "comm_fault"
-        res_file.write_text("triggered comm fault")
+        res_file.write_text("triggered")
         raise RuntimeError("Mocked comm_check_error")
 
     patcher = patch(
@@ -112,14 +112,18 @@ def _inject_comm_fault():
     patcher.start()
 
 
+# __module__ is not accurate in pytest, so we set it manually
+MODULE_NAME = (
+    "dlrover.python.unified.tests.integration_test.elastic_training_test"
+)
+
+
 @timeout(30)
 def test_comm_fault(tmp_ray, tmp_path: Path):
     job = elastic_training_job()
     job.dl_config.workloads["training"].envs.update(
         {
-            **inject_hook(
-                "dlrover.python.unified.tests.integration_test.elastic_training_test._inject_comm_fault"
-            ),
+            **inject_hook(f"{MODULE_NAME}._inject_comm_fault"),
             "TMP_PATH": tmp_path.as_posix(),
         }
     )
@@ -131,4 +135,38 @@ def test_comm_fault(tmp_ray, tmp_path: Path):
     )
     master.wait()
     assert master.get_status().stage == "STOPPED"
+    assert master.get_status().exit_code == 0, "Success expected"
+
+
+def _mock_node_crash_when_training():
+    import time
+
+    import ray
+
+    time.sleep(1)
+    if ray.get_runtime_context().was_current_actor_reconstructed:
+        return
+
+    res_file = Path(os.environ["TMP_PATH"]) / "training_crash"
+    res_file.write_text("triggered")
+    ray.kill(ray.get_runtime_context().current_actor, no_restart=False)
+
+
+@timeout(30)
+def test_failover_training(tmp_ray, tmp_path: Path):
+    job = elastic_training_job()
+    workload = job.dl_config.workloads["training"]
+    assert workload.backend == "elastic"
+    workload.envs["TMP_PATH"] = tmp_path.as_posix()
+    workload.entry_point = f"{MODULE_NAME}._mock_node_crash_when_training"
+    master = PrimeMaster.create(job)
+    assert master.get_status().stage == "INIT"
+    master.start()
+    assert master.get_status().stage == "RUNNING"
+    master.wait()
+    assert master.get_status().stage == "STOPPED"
+
+    assert (tmp_path / "training_crash").exists(), (
+        "Subprocess triggered training crash"
+    )
     assert master.get_status().exit_code == 0, "Success expected"

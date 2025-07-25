@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
+from dlrover.python.unified.common.workload_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
 from .manager import ElasticManager
@@ -23,27 +23,22 @@ class ElasticMaster(ActorBase):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
 
-        self.manager._prepare()
-        self._update_stage_force(WorkerStage.READY)
-
     # Lifecycle Hooks
 
     def status(self):
-        if self.manager.finished:
-            self._update_stage_force(WorkerStage.FINISHED)
-        return super().status()
+        return self.manager.stage
 
     async def check_workers(self):
         await self.manager.check_workers()
 
     async def start(self):
-        assert self.stage == WorkerStage.READY, (
-            f"Cannot start ElasticMaster in stage {self.stage}, expected READY."
-        )
         await self.manager.start()
-        self._update_stage_force(WorkerStage.RUNNING)
 
     # RPC methods for Workers
+
+    async def report_actor_restarted(self, name: str):
+        """Report that an actor has been restarted."""
+        await self.manager.handle_worker_restarted(name)
 
     # TODO metric rpc: AtorchEvent, Event
     # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)

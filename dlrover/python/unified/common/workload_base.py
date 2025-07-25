@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -19,8 +20,6 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
-from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.actor_proxy import invoke_actor_t
 
 
 class MasterStage(str, Enum):
@@ -83,12 +82,19 @@ class ActorBase:
         self._setup()
         # Report restart to sub-master/master if this actor was reconstructed.
         if ray.get_runtime_context().was_current_actor_reconstructed:
-            master = actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
-            invoke_actor_t(
-                PrimeMasterApi.report_actor_restarted,
-                master,
-                name=actor_info.name,
-            ).wait()
+            threading.Thread(target=self._report_restart).start()
+
+    def _report_restart(self):
+        """Report that the actor has been restarted."""
+        from dlrover.python.unified.controller.api import PrimeMasterApi
+        from dlrover.python.unified.util.actor_proxy import invoke_actor_t
+
+        master = self.actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
+        invoke_actor_t(
+            PrimeMasterApi.report_actor_restarted,
+            master,
+            name=self.actor_info.name,
+        ).wait()
 
     # Hook methods for subclasses to implement
     def _setup(self):
@@ -133,6 +139,9 @@ class ActorBase:
 
     def report_actor_restarted(self, name: str):
         """Report that the actor has been restarted."""
+
+        from dlrover.python.unified.controller.api import PrimeMasterApi
+
         # default delegate to master
         PrimeMasterApi.report_actor_restarted(name)
 
