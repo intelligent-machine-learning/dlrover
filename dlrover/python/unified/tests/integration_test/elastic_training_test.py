@@ -170,3 +170,19 @@ def test_failover_training(tmp_ray, tmp_path: Path):
         "Subprocess triggered training crash"
     )
     assert master.get_status().exit_code == 0, "Success expected"
+
+
+@timeout(30)
+def test_failover_entire_job(tmp_ray):
+    job = elastic_training_job()
+    master = PrimeMaster.create(job)
+    assert master.get_status().stage == "INIT"
+    master.start()
+    assert master.get_status().stage == "RUNNING"
+    master.restart()
+
+    master.wait()
+    assert master.get_status().stage == "STOPPED"
+
+    assert master.get_status().job_start_count == 1
+    assert master.get_status().exit_code == 0, "Success expected"

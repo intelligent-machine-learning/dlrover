@@ -139,7 +139,7 @@ class ElasticManager:
                 f"Current stage is {self.stage}, skipping failover handling."
             )
             return
-        await self.restart_job()
+        asyncio.create_task(self.restart_job())
 
     async def restart_job(self):
         """Restart the elastic job due to worker restart."""

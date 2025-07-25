@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from typing import List
 
 import ray
@@ -85,9 +86,18 @@ class PrimeMaster:
         """Restart the specified actors."""
         await self.manager.restart_actors(actors)
 
+    async def restart(self):
+        logger.info("Restarting the entire job by request.")
+        await self.manager.restart_job()
+
     async def report_actor_restarted(self, name: str):
-        """Report an actor restarted, do failover if needed."""
-        pass
+        actor = self.manager.graph.by_name.get(name)
+        if actor is None:
+            raise ValueError(f"Actor {name} not found.")
+        if actor.restarting:
+            return  # Actor is already restarting, no need to handle it again.
+        logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
+        asyncio.create_task(self.manager.restart_job())
 
     # endregion
     @staticmethod

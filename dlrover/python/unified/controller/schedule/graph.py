@@ -34,6 +34,7 @@ class DLExecutionVertex(ABC, BaseModel):
 
     bundle_index: int = -1
     restart_count: int = 0
+    restarting: bool = False
 
     @property
     @abstractmethod

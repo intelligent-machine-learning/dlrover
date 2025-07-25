@@ -26,6 +26,7 @@ class MasterStatus:
 
     stage: MasterStage
     exit_code: int = 0
+    job_start_count: int = 0
 
 
 class PrimeMasterApi(ActorProxy):
@@ -41,6 +42,11 @@ class PrimeMasterApi(ActorProxy):
     @staticmethod
     def start() -> None:  # program: no cover
         """Start the master."""
+
+    @staticmethod
+    def restart() -> None:  # program: no cover
+        """Restart the entire job, mainly used for failover."""
+        ...
 
     @staticmethod
     def wait() -> None:  # program: no cover

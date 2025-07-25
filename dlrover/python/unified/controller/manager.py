@@ -72,8 +72,10 @@ class PrimeManager:
         await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
-        await self._nodes_check()
+        # Wait for all nodes to be ready
+        await self._wait_ready([node.name for node in self.graph.vertices])
         self._update_stage(MasterStage.READY)
+        await self._nodes_check()
 
     async def _wait_ready(self, actors: List[str]):
         """Wait for all actors to be ready."""
@@ -93,10 +95,6 @@ class PrimeManager:
             await asyncio.sleep(5)
 
     async def _nodes_check(self):
-        # Wait for all nodes to be ready
-        nodes = [node.name for node in self.graph.vertices]
-        await self._wait_ready(nodes)
-
         # let masters pre-check nodes
         masters = [
             role.sub_master.name
@@ -127,7 +125,7 @@ class PrimeManager:
             raise Exception(f"Some nodes failed to start the job. {statusMap}")
 
         logger.info("Job started successfully.")
-        asyncio.create_task(self._main_loop(), name="job_monitor")
+        self._task = asyncio.create_task(self._main_loop(), name="job_monitor")
         self._update_stage(MasterStage.RUNNING)
 
     async def _main_loop(self):
@@ -160,7 +158,7 @@ class PrimeManager:
         assert all(actor in self.graph.by_name for actor in actor_names), (
             f"Some actors {actor_names} not found in the graph."
         )
-        actors = map(lambda name: self.graph.by_name[name], actor_names)
+        actors = [self.graph.by_name[name] for name in actor_names]
         for actor in actors:
             actor.restart_count += 1
             if actor.restart_count > actor.spec.max_restart:
@@ -168,9 +166,37 @@ class PrimeManager:
                     f"Actor {actor.name} has exceeded the maximum restart count: {actor.restart_count}."
                 )
                 return
+        for actor in actors:
+            actor.restarting = True
         await restart_actors(actor_names)
+        logger.info({n.name: n.restarting for n in self.graph.vertices})
         await self._wait_ready(actor_names)
+        logger.info({n.name: n.restarting for n in self.graph.vertices})
+        for actor in actors:
+            actor.restarting = False
         logger.info(f"Restarted actors: {actor_names}")
+
+    async def restart_job(self):
+        """Restart the job execution."""
+        if self.stage != MasterStage.RUNNING:
+            raise RuntimeError(
+                f"Cannot restart job in stage {self.stage}. "
+                "Expected stage is RUNNING."
+            )
+        self.status.job_start_count += 1
+        logger.info("Restarting the job execution.")
+        self._task.cancel()
+        self._update_stage(MasterStage.READY)
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            logger.info("Monitor task cancelled, proceeding with restart.")
+        logger.info("Restarting all actors...")
+        await self.restart_actors([node.name for node in self.graph.vertices])
+        logger.info("Restarted actors, re-checking their status.")
+        await self._nodes_check()
+        await self.start()
+        logger.info("Job restarted successfully.")
 
     def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""

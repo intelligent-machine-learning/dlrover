@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -79,10 +78,10 @@ class ActorBase:
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
-        self._setup()
         # Report restart to sub-master/master if this actor was reconstructed.
         if ray.get_runtime_context().was_current_actor_reconstructed:
-            threading.Thread(target=self._report_restart).start()
+            self._report_restart()
+        self._setup()
 
     def _report_restart(self):
         """Report that the actor has been restarted."""
