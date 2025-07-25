@@ -19,6 +19,8 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
+from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.actor_proxy import invoke_actor_t
 
 
 class MasterStage(str, Enum):
@@ -64,6 +66,7 @@ class ActorInfo:
     name: str
     role: str
     spec: WorkloadDesc
+    sub_master: Optional[str] = None
 
     # common rank information, may be used in rendezvous
     rank: int = 0  # global rank in role
@@ -78,6 +81,14 @@ class ActorBase:
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
         self._setup()
+        # Report restart to sub-master/master if this actor was reconstructed.
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            master = actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
+            invoke_actor_t(
+                PrimeMasterApi.report_actor_restarted,
+                master,
+                name=actor_info.name,
+            ).wait()
 
     # Hook methods for subclasses to implement
     def _setup(self):
@@ -119,6 +130,11 @@ class ActorBase:
             )
             return
         pass
+
+    def report_actor_restarted(self, name: str):
+        """Report that the actor has been restarted."""
+        # default delegate to master
+        PrimeMasterApi.report_actor_restarted(name)
 
     # Helper methods for subclasses to use
 

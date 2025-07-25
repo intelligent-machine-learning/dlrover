@@ -377,15 +377,18 @@ class BatchInvokeResult(Generic[T]):
             if isinstance(result, Exception)
         ]
 
-    def raise_for_errors(self):
-        """Raise an exception if any actor failed."""
-        if self.is_all_successful:
-            return
-
+    def log_errors(self):
+        """Log errors for all failed actors."""
         for actor, exc in self.all_failed():
             logger.error(
                 f"Actor {actor} failed executing {self.method}", exc_info=exc
             )
+
+    def raise_for_errors(self):
+        """Raise an exception if any actor failed."""
+        if self.is_all_successful:
+            return
+        self.log_errors()
         raise Exception(
             f"Some actors failed executing {self.method}: "
             f"{[actor for actor, _ in self.all_failed()]}"

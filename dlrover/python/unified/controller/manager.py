@@ -75,14 +75,13 @@ class PrimeManager:
         await self._nodes_check()
         self._update_stage(MasterStage.READY)
 
-    async def _nodes_check(self):
-        # Wait for all nodes to be ready
-        nodes = [node.name for node in self.graph.vertices]
+    async def _wait_ready(self, actors: List[str]):
+        """Wait for all actors to be ready."""
         while True:
-            res = await invoke_actors_t(remote_call.status, nodes)
+            res = await invoke_actors_t(remote_call.status, actors)
             not_ready = {
                 node: status
-                for node, status in zip(nodes, res.results)
+                for node, status in zip(actors, res.results)
                 if status != "READY"
             }
             if len(not_ready) == 0:
@@ -92,6 +91,11 @@ class PrimeManager:
                 f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
             )
             await asyncio.sleep(5)
+
+    async def _nodes_check(self):
+        # Wait for all nodes to be ready
+        nodes = [node.name for node in self.graph.vertices]
+        await self._wait_ready(nodes)
 
         # let masters pre-check nodes
         masters = [
@@ -151,14 +155,22 @@ class PrimeManager:
         self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
 
-    async def restart_actors(self, actors: List[str]) -> None:
+    async def restart_actors(self, actor_names: List[str]) -> None:
         """Restart the specified actors."""
-        assert all(actor in self.graph.by_name for actor in actors), (
-            f"Some actors {actors} not found in the graph."
+        assert all(actor in self.graph.by_name for actor in actor_names), (
+            f"Some actors {actor_names} not found in the graph."
         )
-        await restart_actors(actors)
-        res = await invoke_actors_t(remote_call.status, actors)
-        print(f"Restarted nodes status: {res.as_dict()}")
+        actors = map(lambda name: self.graph.by_name[name], actor_names)
+        for actor in actors:
+            actor.restart_count += 1
+            if actor.restart_count > actor.spec.max_restart:
+                self.request_stop(
+                    f"Actor {actor.name} has exceeded the maximum restart count: {actor.restart_count}."
+                )
+                return
+        await restart_actors(actor_names)
+        await self._wait_ready(actor_names)
+        logger.info(f"Restarted actors: {actor_names}")
 
     def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""

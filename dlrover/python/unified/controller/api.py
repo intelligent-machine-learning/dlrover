@@ -74,3 +74,8 @@ class PrimeMasterApi(ActorProxy):
     ) -> None:  # program: no cover
         """Restart the specified actors."""
         ...
+
+    @staticmethod
+    def report_actor_restarted(name: str):  # program: no cover
+        """Report an actor restarted, do failover if needed."""
+        pass

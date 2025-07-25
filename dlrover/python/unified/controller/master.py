@@ -85,6 +85,10 @@ class PrimeMaster:
         """Restart the specified actors."""
         await self.manager.restart_actors(actors)
 
+    async def report_actor_restarted(self, name: str):
+        """Report an actor restarted, do failover if needed."""
+        pass
+
     # endregion
     @staticmethod
     def create(
