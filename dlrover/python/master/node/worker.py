@@ -596,17 +596,11 @@ class WorkerManager(TrainingNodeManager):
     def is_all_workers_succeeded_exited(self):
         # check if all ranks already succeeded and exited
         succeeded_exited_ranks = set()
-        actual_max_rank = 0  # for condition when min != max
         nodes = self._get_nodes()
-        for i in range(self.get_max_nodes_required()):
-            for _, node in nodes.items():
-                if node.rank_index == i:
-                    if i > actual_max_rank:
-                        actual_max_rank = i
-                    if node.is_succeeded_and_exited():
-                        succeeded_exited_ranks.add(i)
-                        break
+        actual_max_rank = max(node.rank_index for node in list(nodes.values()))
 
-        if self.get_max_nodes_required() != self.get_min_nodes_required():
-            return len(succeeded_exited_ranks) == (actual_max_rank + 1)
-        return len(succeeded_exited_ranks) == self.get_max_nodes_required()
+        for _, node in nodes.items():
+            if node.is_succeeded_and_exited():
+                succeeded_exited_ranks.add(node.rank_index)
+
+        return len(succeeded_exited_ranks) == (actual_max_rank + 1)
