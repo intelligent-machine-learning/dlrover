@@ -383,12 +383,7 @@ class BaseRLTrainer(ActorBase, ABC):
                     [
                         invoke_actors_t(
                             remote_call.update_rl_workload_stage,
-                            [
-                                actor.name
-                                for actor in list(
-                                    chain(*self._workload_workers.values())
-                                )
-                            ],
+                            list(chain(*self._workload_workers.values())),
                             WorkerStage.FINISHED,
                         )
                     ]
@@ -408,12 +403,7 @@ class BaseRLTrainer(ActorBase, ABC):
                     [
                         invoke_actors_t(
                             remote_call.update_rl_workload_stage,
-                            [
-                                actor.name
-                                for actor in list(
-                                    chain(*self._workload_workers.values())
-                                )
-                            ],
+                            list(chain(*self._workload_workers.values())),
                             WorkerStage.FAILED,
                         )
                     ]
@@ -562,15 +552,3 @@ class BaseRLTrainer(ActorBase, ABC):
         """
         Requires user implementation: the core training logic.
         """
-
-
-class DefaultTrainer(BaseRLTrainer):
-    """
-    Internal default trainer, such as: for elastic training case.
-    """
-
-    def init(self):
-        pass
-
-    def fit(self):
-        pass
