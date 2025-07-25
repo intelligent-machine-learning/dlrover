@@ -77,23 +77,23 @@ RAY_MONITOR_INTERVAL = 5.0  # Interval for monitoring actor invocations
 class InvocationRef(Generic[T], ABC):
     @property
     @abc.abstractmethod
-    def pending(self) -> bool: #program: no-cover
+    def pending(self) -> bool:  # program: no-cover
         """Check if the invocation is still pending."""
         ...
 
     @property
     @abc.abstractmethod
-    def result(self) -> T: #program: no-cover
+    def result(self) -> T:  # program: no-cover
         """Get the result of the invocation, raising an exception if it failed."""
         ...
 
     @abc.abstractmethod
-    def wait(self) -> T: #program: no-cover
+    def wait(self) -> T:  # program: no-cover
         """Wait for the result of the invocation, blocking until it is ready."""
         ...
 
     @abc.abstractmethod
-    async def async_wait(self) -> T: #program: no-cover
+    async def async_wait(self) -> T:  # program: no-cover
         """Wait for the result of the invocation asynchronously."""
         ...
 
@@ -172,7 +172,7 @@ class ActorInvocation(InvocationRef[T]):
         try:
             co = asyncio.shield(self._result)
             if timeout is not None:
-                co = asyncio.wait_for(co, timeout=timeout)
+                co = asyncio.wait_for(co, timeout=timeout)  # type: ignore[assignment]
             self._result = cast(T, await co)
         except TimeoutError:
             return
