@@ -71,6 +71,12 @@ class ElasticJobLabel(object):
     RELAUNCH_COUNT = "elasticjob.dlrover/relaunch-count"
 
 
+class SchedulingLabel(object):
+    NODE_GROUP = "scheduling/rack-group"  # int
+    NODE_GROUP_SIZE = "scheduling/rack-group-size"  # int
+    NODE_GROUP_ID = "scheduling/rack-id"  # str
+
+
 class ScalePlanLabel(object):
     SCALE_TYPE_KEY = "scale-type"
     MANUAL_SCALE = "manual"
