@@ -106,7 +106,6 @@ def invoke_actors_t(
 
 
 def _proxy_wrapper(method: Callable[..., Any], actor_name: Optional[str]):
-    print(method, actor_name)
     method = getattr(method, "__origin__", method)
 
     @wraps(method)
@@ -134,7 +133,6 @@ class ActorProxy:
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         actor_name = getattr(cls, "ACTOR_NAME", None)
-        print(f"ActorProxy: {cls.__name__} with actor name {actor_name}")
         cls2: Optional[type] = cls
         while cls2 is not None and cls2 != ActorProxy:
             for name, method in cls2.__dict__.items():
@@ -150,8 +148,6 @@ class ActorProxy:
                     staticmethod(_proxy_wrapper(method.__func__, actor_name)),
                 )
             cls2 = cls2.__base__
-
-        print(f"ActorProxyEND: {cls.__name__} with actor name {actor_name}")
 
     @classmethod
     def bind(cls: T, actor_name: str) -> T:

@@ -41,6 +41,13 @@ class SimpleActor:
     def method_exception(self):
         raise Exception("This is a test exception")
 
+    def slow_method(self, time: float):
+        """A method that simulates a slow operation."""
+        import time as time_module
+
+        time_module.sleep(time)
+        return "done"
+
     def method_relaunch(self):
         if not ray.get_runtime_context().was_current_actor_reconstructed:
             ray.kill(ray.get_runtime_context().current_actor, no_restart=False)
@@ -55,6 +62,8 @@ class Stub(ActorProxy):
     def some_method() -> str: ...  # type: ignore[empty-body]
     @staticmethod
     def some_method_with_arg(a: int, b: str) -> str: ...  # type: ignore[empty-body]
+    @staticmethod
+    def slow_method(time: float) -> str: ...  # type: ignore[empty-body]
     @staticmethod
     def method_relaunch() -> str: ...  # type: ignore[empty-body]
     @staticmethod
@@ -190,6 +199,8 @@ def test_restart_actor(tmp_actor1):
 
 
 def test_actor_proxy(tmp_actor1):
+    with pytest.raises(TypeError):
+        Stub.some_method()
     actor = Stub.bind(tmp_actor1)
     assert actor.some_method() == "ok"
     assert actor.some_method_with_arg(1, b="b") == "ok"
@@ -255,3 +266,26 @@ def test_static_stub_invoke(tmp_actor1, tmp_actor2):
         "ok",
         "ok",
     ]
+
+
+def test_slow_invoke(tmp_actor1, tmp_actor2):
+    # Test that the slow method can be invoked and returns the expected result
+    assert invoke_actors_t(
+        Stub.slow_method, [tmp_actor1, tmp_actor2], 0.5
+    ).wait(0.1).results == ["done", "done"]
+    assert asyncio.run(
+        invoke_actors_t(
+            Stub.slow_method, [tmp_actor1, tmp_actor2], 0.5
+        ).async_wait(0.1)
+    ).results == ["done", "done"]
+
+    async def async_cancel_test():
+        ref = invoke_actor_t(Stub.slow_method, tmp_actor1, 1.0)
+        task = asyncio.create_task(ref.async_wait())
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return ref.wait()
+
+    assert asyncio.run(async_cancel_test()) == "done"
