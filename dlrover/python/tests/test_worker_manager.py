@@ -15,6 +15,7 @@ import time
 import unittest
 from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import MagicMock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -684,3 +685,34 @@ class WorkerManagerTest(unittest.TestCase):
                 is_insufficient += 1
             time.sleep(0.5)
         self.assertTrue(is_insufficient >= 2)
+
+    def test_is_all_workers_succeeded_exited(self):
+        worker_manager = WorkerManager(
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+
+        # all succeeded exited
+        for _, node in self.job_context.job_nodes()[NodeType.WORKER].items():
+            node.reported_status = (NodeEventType.SUCCEEDED_EXITED, 1)
+        worker_manager.get_max_nodes_required = MagicMock(
+            return_value=len(self.job_context.job_nodes()[NodeType.WORKER])
+        )
+        self.assertTrue(worker_manager.is_all_workers_succeeded_exited())
+        worker_manager.get_min_nodes_required = MagicMock(
+            return_value=len(self.job_context.job_nodes()[NodeType.WORKER])
+        )
+        self.assertTrue(worker_manager.is_all_workers_succeeded_exited())
+
+        # some succeeded exited
+        for node_id, node in self.job_context.job_nodes()[
+            NodeType.WORKER
+        ].items():
+            if node_id < 2:
+                node.reported_status = (NodeEventType.FAILED_EXITED, 1)
+        worker_manager.get_max_nodes_required = MagicMock(
+            return_value=len(self.job_context.job_nodes()[NodeType.WORKER])
+        )
+        self.assertFalse(worker_manager.is_all_workers_succeeded_exited())
