@@ -204,8 +204,16 @@ class CheckpointEngine(metaclass=ABCMeta):
                 name=CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0),
                 create=False,
             )
+            self._notify_queue = SharedQueue(
+                name=CheckpointSharedObjPrefix.SAVE_STEP_QNAME
+                + str(0)
+                + "_notify",
+                create=False,
+            )
         else:
             self._event_queue = None  # type: ignore
+            self._notify_queue = None  # type: ignore
+        self._checkpoint_event_step = -1
         self._update_saver_config()
 
         # lock for shared memory
