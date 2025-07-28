@@ -18,19 +18,19 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 
 def status() -> WorkerStage:
     """Get the status of the elastic training job."""
-    raise NotImplementedError("stub")
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def get_master_addr() -> str:
     """Get the master address."""
-    raise NotImplementedError("stub")
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def setup_rl_workload(env_dict: dict) -> str:
     """Setup basic env deps."""
-    raise NotImplementedError("stub")
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def update_rl_workload_stage(worker_stage: WorkerStage):
     """Update workloads' worker-stage."""
-    raise NotImplementedError("stub")
+    raise NotImplementedError("stub")  # pragma: no cover

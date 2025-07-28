@@ -37,60 +37,60 @@ class PrimeMasterApi(ActorProxy):
     @staticmethod
     def get_status() -> MasterStatus:
         """Get the status of the master."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def start() -> None:
         """Start the master."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def restart() -> None:
         """Restart the entire job, mainly used for failover."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def wait() -> None:
         """Wait for the job to finish."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def stop() -> None:
         """Stop the master."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def shutdown() -> None:
         """Force shutdown the master."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def get_actor_info(
         name: str,
     ) -> ActorInfo:
         """Get a actor by name."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def get_workers_by_role(
         role: str,
     ) -> List[ActorInfo]:
         """Get all actors by role."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def get_all_roles() -> Dict[str, List[ActorInfo]]:
         """Get all roles."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def restart_actors(
         actors: List[str],
     ) -> None:
         """Restart the specified actors."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
     def report_actor_restarted(name: str):
         """Report an actor restarted, do failover if needed."""
-        raise NotImplementedError("stub")
+        raise NotImplementedError("stub")  # pragma: no cover

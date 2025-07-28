@@ -18,16 +18,14 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 
 def check_workers() -> None:
     """For SubMaster to check the status of workers."""
-    raise NotImplementedError("stub")
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def status() -> WorkerStage:
     """Get the status of the elastic training job."""
-    raise NotImplementedError("stub")
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def start() -> None:
     """Start the elastic training job."""
-    raise NotImplementedError("stub")
+    raise NotImplementedError("stub")  # pragma: no cover
