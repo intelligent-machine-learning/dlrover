@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import Dict, List
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
@@ -35,58 +35,62 @@ class PrimeMasterApi(ActorProxy):
     ACTOR_NAME = MASTER_ACTOR_NAME
 
     @staticmethod
-    def get_status() -> MasterStatus:  # type: ignore[empty-body] # program: no cover
+    def get_status() -> MasterStatus:
         """Get the status of the master."""
-        ...
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def start() -> None:  # program: no cover
+    def start() -> None:
         """Start the master."""
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def restart() -> None:  # program: no cover
+    def restart() -> None:
         """Restart the entire job, mainly used for failover."""
-        ...
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def wait() -> None:  # program: no cover
+    def wait() -> None:
         """Wait for the job to finish."""
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def stop() -> None:  # program: no cover
+    def stop() -> None:
         """Stop the master."""
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def shutdown() -> None:  # program: no cover
+    def shutdown() -> None:
         """Force shutdown the master."""
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def get_actor_info(  # type: ignore[empty-body]
+    def get_actor_info(
         name: str,
-    ) -> ActorInfo:  # program: no cover
+    ) -> ActorInfo:
         """Get a actor by name."""
-        ...
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def get_workers_by_role(  # type: ignore[empty-body]
+    def get_workers_by_role(
         role: str,
-    ) -> List[ActorInfo]:  # program: no cover
+    ) -> List[ActorInfo]:
         """Get all actors by role."""
-        ...
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def get_all_roles() -> Dict[str, List[ActorInfo]]:  # type: ignore[empty-body]
+    def get_all_roles() -> Dict[str, List[ActorInfo]]:
         """Get all roles."""
-        ...  # program: no cover
+        raise NotImplementedError("stub")
 
     @staticmethod
     def restart_actors(
         actors: List[str],
-    ) -> None:  # program: no cover
+    ) -> None:
         """Restart the specified actors."""
-        ...
+        raise NotImplementedError("stub")
 
     @staticmethod
-    def report_actor_restarted(name: str):  # program: no cover
+    def report_actor_restarted(name: str):
         """Report an actor restarted, do failover if needed."""
-        pass
+        raise NotImplementedError("stub")
