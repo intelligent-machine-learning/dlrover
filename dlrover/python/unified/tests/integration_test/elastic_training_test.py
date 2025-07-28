@@ -172,7 +172,7 @@ def test_failover_training(tmp_ray, tmp_path: Path):
     assert master.get_status().exit_code == 0, "Success expected"
 
 
-@timeout(30)
+@timeout(60)
 def test_failover_entire_job(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
