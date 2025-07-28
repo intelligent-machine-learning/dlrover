@@ -14,7 +14,7 @@ import os
 
 from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_base import JobInfo, ActorInfo
+from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.base import BaseTest
 
@@ -45,10 +45,9 @@ class RLWorkerTest(BaseTest):
         self.assertFalse(workload.is_reward_role())
         self.assertFalse(workload.is_critic_role())
 
-        self.assertIsNone(workload.get_device_collocation())
+        self.assertEqual(workload.get_device_collocation(), "")
         self.assertFalse(workload.has_device_collocation())
         self.assertFalse(workload.is_actor_or_rollout_device_collocation())
 
-        with self.assertRaises(RuntimeError):
-            workload.setup_rl_workload({"k2": "v2"})
-            self.assertEqual(os.environ["k2"], "v2")
+        workload.setup_rl_workload({"k2": "v2"})
+        self.assertEqual(os.environ["k2"], "v2")

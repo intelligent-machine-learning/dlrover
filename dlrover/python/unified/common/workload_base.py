@@ -79,7 +79,10 @@ class ActorBase:
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
         # Report restart to sub-master/master if this actor was reconstructed.
-        if ray.get_runtime_context().was_current_actor_reconstructed:
+        if (
+            ray.is_initialized()
+            and ray.get_runtime_context().was_current_actor_reconstructed
+        ):
             self._report_restart()
         self._setup()
 

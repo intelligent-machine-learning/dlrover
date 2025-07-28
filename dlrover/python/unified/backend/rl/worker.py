@@ -61,16 +61,14 @@ class BaseRLWorker(ActorBase, ABC):
             return int(os.environ[DLWorkloadEnv.MASTER_PORT])
         return -1
 
-    def get_device_collocation(self):
-        return env_utils.get_env(DLWorkloadEnv.DEVICE_COLLOCATION_GROUP)
+    def get_device_collocation(self) -> str:
+        return env_utils.get_env(DLWorkloadEnv.DEVICE_COLLOCATION_GROUP) or ""
 
     def has_device_collocation(self):
-        if (
+        return (
             self.get_device_collocation()
             and self.role in self.get_device_collocation()
-        ):
-            return True
-        return False
+        )
 
     def is_actor_role(self):
         return self.role == RLRoleType.ACTOR.name
@@ -88,16 +86,11 @@ class BaseRLWorker(ActorBase, ABC):
         return self.role == RLRoleType.CRITIC.name
 
     def is_actor_or_rollout_device_collocation(self):
-        try:
-            if (
-                (self.is_actor_role() or self.is_rollout_role())
-                and RLRoleType.ACTOR.name in self.get_device_collocation()
-                and RLRoleType.ROLLOUT.name in self.get_device_collocation()
-            ):
-                return True
-        except TypeError:
-            return False
-        return False
+        return (
+            (self.is_actor_role() or self.is_rollout_role())
+            and RLRoleType.ACTOR.name in self.get_device_collocation()
+            and RLRoleType.ROLLOUT.name in self.get_device_collocation()
+        )
 
     # ray.remote
 

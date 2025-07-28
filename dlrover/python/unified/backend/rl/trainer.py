@@ -29,18 +29,17 @@ from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import RLRoleType
 from dlrover.python.unified.common.workload_base import (
     ActorBase,
-    WorkerStage,
     ActorInfo,
+    WorkerStage,
 )
 from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.actor_helper import ActorBatchInvocation
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
     invoke_actors_t,
 )
 from dlrover.python.util.common_util import (
-    get_methods_by_class,
     get_class_by_module_and_class_name,
+    get_methods_by_class,
 )
 
 
@@ -48,7 +47,7 @@ def trainer_invocation(
     blocking=True,
     is_async=False,
     timeout=10,
-    target="ALL",
+    target: Literal["ALL", "RANK0"] = "ALL",
     auto_shard=True,
     pre_func=None,
     post_func=None,
@@ -320,15 +319,8 @@ class BaseRLTrainer(ActorBase, ABC):
                 DLWorkloadEnv.MASTER_PORT: str(master_addr[1]),
             }
 
-            res = await ActorBatchInvocation(
-                [
-                    invoke_actor_t(
-                        remote_call.setup_rl_workload,
-                        node.name,
-                        env_dict=envs,
-                    )
-                    for i, node in enumerate(group)
-                ]
+            res = await invoke_actors_t(
+                remote_call.setup_rl_workload, group, env_dict=envs
             )
             res.raise_for_errors()
 
@@ -346,6 +338,7 @@ class BaseRLTrainer(ActorBase, ABC):
             if role not in self._actor_handles:
                 self._actor_handles[role] = []
             if role not in self._actor_metas:
+                assert actors_info[0].spec.backend == "custom"
                 clz = get_class_by_module_and_class_name(
                     actors_info[0].spec.module_name,
                     actors_info[0].spec.class_name,
@@ -379,16 +372,11 @@ class BaseRLTrainer(ActorBase, ABC):
                     WorkerStage.FINISHED, WorkerStage.RUNNING
                 )
 
-                invocations = ActorBatchInvocation(
-                    [
-                        invoke_actors_t(
-                            remote_call.update_rl_workload_stage,
-                            list(chain(*self._workload_workers.values())),
-                            WorkerStage.FINISHED,
-                        )
-                    ]
-                )
-                invocations.wait()
+                invoke_actors_t(
+                    remote_call.update_rl_workload_stage,
+                    list(chain(*self._workload_workers.values())),
+                    WorkerStage.FINISHED,
+                ).wait()
 
             except Exception:
                 logger.error(
@@ -399,16 +387,11 @@ class BaseRLTrainer(ActorBase, ABC):
                     WorkerStage.FAILED, WorkerStage.RUNNING
                 )
 
-                invocations = ActorBatchInvocation(
-                    [
-                        invoke_actors_t(
-                            remote_call.update_rl_workload_stage,
-                            list(chain(*self._workload_workers.values())),
-                            WorkerStage.FAILED,
-                        )
-                    ]
-                )
-                invocations.wait()
+                invoke_actors_t(
+                    remote_call.update_rl_workload_stage,
+                    list(chain(*self._workload_workers.values())),
+                    WorkerStage.FAILED,
+                ).wait()
 
         Thread(
             target=wrap_run()(self.__execute),
