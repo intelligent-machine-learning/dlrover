@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+import psutil
 import pytest
 import ray
 
@@ -42,13 +44,22 @@ def disable_ray_auto_init():
 @pytest.fixture(scope="session", autouse=True)
 def coverage_combine():
     yield
+    # Wait for all child processes to finish
+    psutil.wait_procs(psutil.Process().children(), timeout=10)
+    time.sleep(1)  # Give some time for processes to finish
     if coverage_enabled():
         logger.info("Combining coverage data...")
         import coverage
 
-        cur = coverage.Coverage.current()
-        assert cur is not None
-        cur.combine()
+        cov = coverage.Coverage.current()
+        assert cov is not None
+        cov.config.paths = {
+            "source": [
+                "dlrover",
+                "*/_ray_pkg_*/dlrover",
+            ]
+        }
+        cov.combine()
 
 
 @contextmanager
@@ -68,7 +79,7 @@ def _setup_ray(**kwargs):
         **kwargs,
         runtime_env={
             "env_vars": {**setup_envs},
-            "worker_process_setup_hook": setup_hook,
+            "worker_process_setup_hook": _ray_setup_hooks.hook,
             "py_modules": [
                 Path(
                     __file__
