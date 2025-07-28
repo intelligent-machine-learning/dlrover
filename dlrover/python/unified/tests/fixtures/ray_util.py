@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -68,6 +69,11 @@ def _setup_ray(**kwargs):
         runtime_env={
             "env_vars": {**setup_envs},
             "worker_process_setup_hook": setup_hook,
+            "py_modules": [
+                Path(
+                    __file__
+                ).parent.parent.parent.parent.parent.as_posix()  # dlrover
+            ],
             **kwargs.get("runtime_env", {}),
         },
     )
