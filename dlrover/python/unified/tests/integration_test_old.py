@@ -18,7 +18,6 @@ import ray
 
 from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.common.enums import JobStage
-from dlrover.python.unified.master.mpmd.master import MPMDMaster
 from dlrover.python.unified.tests.base import RayBaseTest
 
 try:

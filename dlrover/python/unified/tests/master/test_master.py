@@ -15,10 +15,9 @@ import ray
 
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.config import JobConfig
-from dlrover.python.unified.common.dl_context import DLContext, RLContext
+from dlrover.python.unified.common.dl_context import DLContext
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.master.elastic.master import ElasticMaster
-from dlrover.python.unified.master.mpmd.master import MPMDMaster
 from dlrover.python.unified.tests.base import RayBaseTest
 from dlrover.python.unified.tests.test_data import TestData
 
@@ -33,24 +32,6 @@ class DLMasterTest(RayBaseTest):
         super().tearDown()
 
     def test_master_actor(self):
-        args = [
-            "--job_name",
-            "test",
-            "--dl_type",
-            "RL",
-            "--dl_config",
-            f"{TestData.UD_SIMPLE_TEST_RL_CONF_0}",
-        ]
-        rl_context = RLContext.build_from_args(parse_job_args(args))
-        job_config = JobConfig.build_from_args(parse_job_args(args))
-
-        master = MPMDMaster.remote(
-            job_config.serialize(), rl_context.serialize()
-        )
-        self.assertIsNotNone(master)
-        self.assertEqual(ray.get(master.get_job_stage.remote()), JobStage.INIT)
-        self.assertFalse(ray.get(master.is_job_started.remote()))
-
         args = [
             "--job_name",
             "test",
