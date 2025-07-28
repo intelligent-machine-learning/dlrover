@@ -13,12 +13,15 @@
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from dlrover.python.unified.common.failure import FailureDesc
 from dlrover.python.unified.master.mpmd.failover import MPMDFailoverCoordinator
 from dlrover.python.unified.master.mpmd.job_manager import MPMDJobManager
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 
 
+@pytest.mark.skip(reason="deprecated")
 class MPMDFailoverCoordinatorTest(BaseMasterTest):
     def test_handle_failures(self):
         job_manager = MPMDJobManager()

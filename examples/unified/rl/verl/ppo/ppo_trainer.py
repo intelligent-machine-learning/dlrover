@@ -57,7 +57,7 @@ from verl.utils.seqlen_balancing import (
 )
 from verl.utils.tracking import ValidationGenerationsLogger
 
-from dlrover.python.unified.trainer.rl_trainer import BaseRLTrainer
+from dlrover.python.unified.backend.rl.trainer import BaseRLTrainer
 
 WorkerType = Type[Worker]
 

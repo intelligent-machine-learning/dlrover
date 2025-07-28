@@ -13,6 +13,7 @@
 
 import importlib.metadata
 import inspect
+import os
 import random
 import re
 import socket
@@ -73,6 +74,32 @@ def is_port_in_use(port=0) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         result = sock.connect_ex(("localhost", int(port)))
         return result == 0
+
+
+def find_free_port_from_env(
+    default_env_ports="", default_range_start=20000
+) -> int:
+    """
+    Find a free port from the HOST_PORTS in env.
+
+    Will return port from default_range_start~default_range_start+10000 if
+    there is no port env.
+    """
+    free_port = None
+    host_ports = os.getenv("HOST_PORTS", default_env_ports)
+    if host_ports:
+        ports = []
+        for port in host_ports.split(","):
+            ports.append(int(port))
+        try:
+            free_port = find_free_port_in_set(ports)
+        except RuntimeError as e:
+            logger.warning(e)
+    if not free_port:
+        free_port = find_free_port_in_range(
+            default_range_start, default_range_start + 10000
+        )
+    return free_port
 
 
 def find_free_port(port=0):

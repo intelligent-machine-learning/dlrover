@@ -95,7 +95,7 @@ class ElasticManager:
         logger.info("Elastic job started, monitoring nodes...")
 
     async def setup_workloads(self):
-        logger.info("Start setup all workloads...")
+        logger.info("Start setup all elastic workloads...")
         start = time.time()
 
         await self.node_check_manager._setup_rendezvous_group(self.workers)

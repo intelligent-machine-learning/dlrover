@@ -22,7 +22,7 @@ import torch
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
-from dlrover.python.unified.util.os_util import get_free_port
+from dlrover.python.util.common_util import find_free_port_from_env
 from dlrover.python.util.reflect_util import import_callable
 
 
@@ -69,7 +69,7 @@ class ElasticWorker(ActorBase):
     def get_master_addr(self):
         """Get a master address for distributed training."""
         addr = ray.util.get_node_ip_address()
-        port = get_free_port()
+        port = find_free_port_from_env()
 
         return f"tcp://{addr}:{port}"
 

@@ -19,32 +19,23 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.trainer.rl_trainer import BaseRLTrainer
-from dlrover.python.unified.trainer.trainer import BaseTrainer
-from dlrover.python.unified.trainer.workload import (
-    BaseWorkload,
+from dlrover.python.unified.backend.rl.trainer import (
+    BaseRLTrainer,
     trainer_invocation,
 )
-
-
-class TestTrainer(BaseTrainer):
-    def init(self):
-        logger.info("TestTrainer init called")
-        time.sleep(0.1)
-
-    def fit(self):
-        logger.info("TestTrainer fit called")
-        time.sleep(0.1)
+from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 
 
 class TestInteractiveTrainer(BaseRLTrainer):
     def init(self):
+        logger.info("TestInteractiveTrainer init called")
         self.RG_ACTOR.init()
         self.RG_ROLLOUT.init()
         self.RG_REFERENCE.init()
         time.sleep(0.1)
 
     def fit(self):
+        logger.info("TestInteractiveTrainer fit called")
         self.RG_ACTOR.compute(1)
         self.RG_ROLLOUT.generate(2)
         self.RG_REFERENCE.compute(3)
@@ -72,7 +63,7 @@ class TestInteractiveActorErrorTrainer(BaseRLTrainer):
 
 
 @ray.remote
-class TestActor(BaseWorkload):
+class TestActor(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestActor init called")
@@ -124,7 +115,7 @@ class TestActor(BaseWorkload):
 
 
 @ray.remote
-class TestErrorActor(BaseWorkload):
+class TestErrorActor(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestErrorActor init called")
@@ -143,7 +134,7 @@ class TestErrorActor(BaseWorkload):
 
 
 @ray.remote
-class TestRollout(BaseWorkload):
+class TestRollout(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestRollout init called")
@@ -155,7 +146,7 @@ class TestRollout(BaseWorkload):
 
 
 @ray.remote
-class TestReference(BaseWorkload):
+class TestReference(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestReference init called")
@@ -166,7 +157,7 @@ class TestReference(BaseWorkload):
 
 
 @ray.remote
-class TestReward(BaseWorkload):
+class TestReward(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestReward init called")
@@ -177,7 +168,7 @@ class TestReward(BaseWorkload):
         logger.info("TestReward reward called")
 
 
-class TestInteractiveTorchTrainer(BaseTrainer):
+class TestInteractiveTorchTrainer(BaseRLTrainer):
     def init(self):
         self.RG_ACTOR.init()
         self.RG_ROLLOUT.init()
@@ -198,7 +189,7 @@ class TestInteractiveTorchTrainer(BaseTrainer):
 
 
 @ray.remote
-class TestTorchActor(BaseWorkload):
+class TestTorchActor(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestTorchActor init called")
@@ -230,7 +221,7 @@ class TestTorchActor(BaseWorkload):
 
 
 @ray.remote
-class TestElasticWorkload(BaseWorkload):
+class TestElasticWorkload(BaseRLWorker):
     def run(self):
         time.sleep(1)
         logger.info(f"TestElasticWorkload-{self.name} run called")

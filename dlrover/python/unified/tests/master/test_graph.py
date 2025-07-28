@@ -14,6 +14,8 @@ import os
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from dlrover.python.unified.common.args import parse_job_args
 from dlrover.python.unified.common.constant import DLMasterConstant
 from dlrover.python.unified.common.dl_context import DLContext, RLContext
@@ -30,6 +32,7 @@ from dlrover.python.unified.tests.test_class import TestActor, TestRollout
 from dlrover.python.unified.tests.test_data import TestData
 
 
+@pytest.mark.skip(reason="deprecated")
 class ExecutionGraphTest(RayBaseTest):
     def setUp(self):
         super().setUp()

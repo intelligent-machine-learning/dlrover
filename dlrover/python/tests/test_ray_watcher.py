@@ -19,7 +19,6 @@ from dlrover.python.master.watcher.ray_watcher import (
     parse_from_actor_name,
 )
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.tests.test_class import TestElasticWorkload
 
 
 class RayWatcherTest(unittest.TestCase):
@@ -32,6 +31,12 @@ class RayWatcherTest(unittest.TestCase):
         )
 
 
+@ray.remote
+class TestWorkload(object):
+    def ping(self):
+        return
+
+
 class ActorWatcherTest(unittest.TestCase):
     def setUp(self):
         ray.init()
@@ -41,7 +46,7 @@ class ActorWatcherTest(unittest.TestCase):
 
     def test_list(self):
         watcher = ActorWatcher("test", "default")
-        nodes = watcher.list(actor_class="TestElasticWorkload")
+        nodes = watcher.list(actor_class="TestWorkload")
         self.assertEqual(len(nodes), 0)
 
         actor_name = "ELASTIC_1-0_1-0"
@@ -56,10 +61,10 @@ class ActorWatcherTest(unittest.TestCase):
                 DLWorkloadEnv.LOCAL_WORLD_SIZE: "1",
             }
         }
-        workload_handle = TestElasticWorkload.options(
+        workload_handle = TestWorkload.options(
             name=actor_name, runtime_env=runtime_env
-        ).remote(None, None)
+        ).remote()
         ray.get(workload_handle.ping.remote())
 
-        nodes = watcher.list(actor_class="TestElasticWorkload")
+        nodes = watcher.list(actor_class="TestWorkload")
         self.assertEqual(len(nodes), 1)

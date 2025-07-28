@@ -12,11 +12,14 @@
 # limitations under the License.
 from unittest.mock import MagicMock
 
+import pytest
+
 from dlrover.python.unified.master.graph import DLExecutionGraph
 from dlrover.python.unified.master.mpmd.executor import MPMDTrainerExecutor
 from dlrover.python.unified.tests.master.base import BaseMasterTest
 
 
+@pytest.mark.skip(reason="deprecated")
 class ExecutorTest(BaseMasterTest):
     def test_execute(self):
         graph = DLExecutionGraph(self._job_context.dl_context)

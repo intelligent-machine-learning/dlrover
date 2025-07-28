@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
@@ -73,6 +73,11 @@ class PrimeMasterApi(ActorProxy):
     ) -> List[ActorInfo]:  # program: no cover
         """Get all actors by role."""
         ...
+
+    @staticmethod
+    def get_all_roles() -> Dict[str, List[ActorInfo]]:  # type: ignore[empty-body]
+        """Get all roles."""
+        ...  # program: no cover
 
     @staticmethod
     def restart_actors(

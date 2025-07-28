@@ -33,7 +33,6 @@ def submit(args):
 
     has_rollout = False
     rollout_total = 0
-    rollout_per_node = 0
     if args.vllm_num_engines is not None and args.vllm_num_engines > 0:
         if args.colocate_all_models:
             assert (
@@ -47,11 +46,9 @@ def submit(args):
             )
         has_rollout = True
         rollout_total = args.vllm_num_engines
-        rollout_per_node = args.vllm_num_engines // args.node_num
 
     has_ref = False
     ref_total = 0
-    ref_per_node = 0
     if args.init_kl_coef != 0:
         has_ref = True
         ref_per_node = args.ref_num_gpus_per_node
@@ -59,7 +56,6 @@ def submit(args):
 
     has_critic = False
     critic_total = 0
-    critic_per_node = 0
     if args.critic_pretrain:
         has_critic = True
         critic_per_node = args.critic_num_gpus_per_node
@@ -67,7 +63,6 @@ def submit(args):
 
     has_reward = False
     reward_total = 0
-    reward_per_node = 0
     if not args.remote_rm_url:
         has_reward = True
         # support only 1 reward pretrain for now
@@ -80,56 +75,46 @@ def submit(args):
         .device_per_node(args.device_per_node)
         .config(args_2_omega_conf(args))
         .trainer(
-            "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_trainer",
+            "examples.unified.rl.openrlhf.ppo.ppo_trainer",
             "PPOTrainer",
         )
         .actor(
-            "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_actor",
+            "examples.unified.rl.openrlhf.ppo.ppo_actor",
             "ActorModelRayActor",
         )
         .total(actor_total)
-        .per_node(actor_per_node)
     )
 
     if has_rollout:
         (
             rl_job_builder.rollout(
-                "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_rollout",
+                "examples.unified.rl.openrlhf.ppo.ppo_rollout",
                 "RolloutRayActor",
-            )
-            .total(rollout_total)
-            .per_node(rollout_per_node)
-            .enable_ray_auto_visible_device()
+            ).total(rollout_total)
         )
 
     if has_ref:
         (
             rl_job_builder.reference(
-                "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_base",
+                "ppo.ppo_base",
                 "ReferenceModelRayActor",
-            )
-            .total(ref_total)
-            .per_node(ref_per_node)
+            ).total(ref_total)
         )
 
     if has_critic:
         (
             rl_job_builder.critic(
-                "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_critic",
+                "examples.unified.rl.openrlhf.ppo.ppo_critic",
                 "CriticModelRayActor",
-            )
-            .total(critic_total)
-            .per_node(critic_per_node)
+            ).total(critic_total)
         )
 
     if has_reward:
         (
             rl_job_builder.reward(
-                "dlrover.python.rl.trainer.default.openrlhf.ppo.ppo_base",
+                "examples.unified.rl.openrlhf.ppo.ppo_base",
                 "RewardModelRayActor",
-            )
-            .total(reward_total)
-            .per_node(reward_per_node)
+            ).total(reward_total)
         )
 
     if args.colocate_all_models:

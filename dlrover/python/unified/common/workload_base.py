@@ -83,6 +83,10 @@ class ActorBase:
             self._report_restart()
         self._setup()
 
+    @property
+    def name(self) -> str:
+        return self.actor_info.name
+
     def _report_restart(self):
         """Report that the actor has been restarted."""
         from dlrover.python.unified.controller.api import PrimeMasterApi
@@ -118,8 +122,10 @@ class ActorBase:
         This method should be overridden by subMaster or trainer,
         depending on the usage pattern.
 
-        It should update the stage of self and all workers to RUNNING when the actor/node is started.
-        And ensure that stage update to FINISHED or FAILED when the job is done.
+        Noticed:
+        1. The worker stage must be 'RUNNING' after the method invocation.
+        2. Main processing need to be defined in an async thread under the
+           worker actor, and ensure that stage updated to FINISHED or FAILED when done.
         """
 
     def shutdown(self):

@@ -21,9 +21,6 @@ from typing import List, Optional, Union
 
 import ray
 import torch
-from dlrover.python.unified.trainer.default.openrlhf.ppo.ppo_base import (
-    BasePPORole,
-)
 from openrlhf.models import get_llm_for_sequence_regression
 from openrlhf.trainer.ray.ppo_critic import CriticPPOTrainer
 from openrlhf.utils import get_tokenizer
@@ -34,7 +31,8 @@ from openrlhf.utils.deepspeed.deepspeed_utils import (
 )
 from transformers.trainer import get_scheduler
 
-from dlrover.python.unified.trainer.workload import trainer_invocation
+from dlrover.python.unified.backend.rl.trainer import trainer_invocation
+from ppo_base import BasePPORole
 
 
 @ray.remote

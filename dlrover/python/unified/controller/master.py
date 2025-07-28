@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import asyncio
-from typing import List
+from typing import List, Dict
 
 import ray
 import ray.actor
@@ -81,6 +81,13 @@ class PrimeMaster:
         if role_info is None:
             raise ValueError(f"Role {role} not found.")
         return [node.to_actor_info() for node in role_info.instances]
+
+    def get_all_roles(self) -> Dict[str, List[ActorInfo]]:
+        """Get all roles."""
+        return {
+            role: [node.to_actor_info() for node in role_info.instances]
+            for role, role_info in self.manager.graph.roles.items()
+        }
 
     async def restart_actors(self, actors: List[str]) -> None:
         """Restart the specified actors."""
