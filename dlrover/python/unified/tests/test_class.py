@@ -15,8 +15,6 @@ import threading
 import time
 
 import ray
-import torch
-import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.rl.trainer import (
@@ -27,6 +25,10 @@ from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 
 
 class TestInteractiveTrainer(BaseRLTrainer):
+    def trainer_run(self):
+        self.init()
+        self.fit()
+
     def init(self):
         logger.info("TestInteractiveTrainer init called")
         self.RG_ACTOR.init()
@@ -186,38 +188,6 @@ class TestInteractiveTorchTrainer(BaseRLTrainer):
         time.sleep(0.5)
 
         self.RG_ACTOR.close()
-
-
-@ray.remote
-class TestTorchActor(BaseRLWorker):
-    @trainer_invocation()
-    def init(self):
-        logger.info("TestTorchActor init called")
-
-        dist.init_process_group(
-            backend="gloo",
-            init_method="env://",
-            rank=self.rank,
-            world_size=self.world_size,
-        )
-        self.matrix = torch.randn(1024, 1024)
-
-    @trainer_invocation()
-    def compute(self):
-        logger.info("TestTorchActor compute called")
-
-        local_result = torch.mm(self.matrix, self.matrix.t())
-        torch.distributed.all_reduce(
-            local_result, op=torch.distributed.ReduceOp.SUM
-        )
-
-        logger.info("TestTorchActor compute done")
-        return local_result
-
-    @trainer_invocation()
-    def close(self):
-        logger.info("TestTorchActor close called")
-        dist.destroy_process_group()
 
 
 @ray.remote

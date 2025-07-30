@@ -13,12 +13,12 @@
 import functools
 import time
 import types
-from abc import ABC, abstractmethod
+from abc import ABC
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain
 from threading import Thread
-from typing import Callable, Dict, List, Literal, Optional, Tuple
+from typing import Callable, Dict, List, Literal, Optional
 
 import ray
 from ray.actor import ActorHandle
@@ -33,6 +33,7 @@ from dlrover.python.unified.common.workload_base import (
     WorkerStage,
 )
 from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.actor_helper import get_actor_with_cache
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
     invoke_actors_t,
@@ -126,7 +127,6 @@ class RoleGroupProxy(object):
         role: str,
         world_size: int,
         role_cls: type,
-        role_methods: Dict[str, MethodInvocationMeta],
         actor_handles: List[ActorHandle],
     ):
         """
@@ -149,8 +149,16 @@ class RoleGroupProxy(object):
         self._role = role
         self._world_size = world_size
         self._role_cls = role_cls
-        self._role_methods = role_methods
         self._actor_handles = actor_handles
+
+        # get methods by class
+        invocation_methods: Dict[str, MethodInvocationMeta] = {}
+        for name, method in get_methods_by_class(role_cls):
+            if hasattr(method, "_trainer_invocation"):
+                attr = getattr(method, "_trainer_invocation")
+                assert isinstance(attr, MethodInvocationMeta)
+                invocation_methods[name] = attr
+        self._role_methods = invocation_methods
 
         logger.info(
             f"Initiate role-group-proxy with role: {role}, world_size: {world_size}"
@@ -286,42 +294,54 @@ class BaseRLTrainer(ActorBase, ABC):
                 value - tuple with: class-type, device
     """
 
-    def __init__(self, job_info, actor_info) -> None:
-        super().__init__(job_info, actor_info)
+    def _setup(self):
+        all_workers = {}
+        for role in RLRoleType:
+            if role == RLRoleType.TRAINER:
+                continue
+            try:
+                workers = PrimeMasterApi.get_workers_by_role(role.name)
+            except ValueError:
+                continue
+            all_workers[role] = workers
 
-        self._workload_workers: Dict[str, List[ActorInfo]] = {}
-        self._actor_handles: Dict[str, List[ActorHandle]] = {}
-        self._actor_metas: Dict[str, Tuple[type, float]] = {}
-        self.__role_group_proxy: Dict[str, RoleGroupProxy] = {}
+        self._workers: Dict[str, List[ActorInfo]] = all_workers
+        worker_size = {
+            role: len(workers) for role, workers in all_workers.items()
+        }
+        logger.info(
+            f"Trainer initiated with workloads: {worker_size}, config: {self.config}"
+        )
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
-    async def start(self):
+    def start(self):
         # Initialize the elastic client here
         logger.info("Start job execution.")
-        await self._setup_workloads()
+        self._setup_workloads()
 
         self._start_execution()
 
-    async def _setup_workloads(self):
+    def _setup_workloads(self):
         start = time.time()
 
         # setup trainer itself
-        self._setup_trainer()
+        self.__init_role_group_proxy()
 
         # setup other workloads
-        for role, group in self._workload_workers.items():
+        for role, group in self._workers.items():
             logger.info(f"Setting up workload: {role}...")
-            master_addr = await invoke_actor_t(
+            master_addr = invoke_actor_t(
                 remote_call.get_master_addr, group[0].name
-            )
+            ).wait()
 
             envs = {
                 DLWorkloadEnv.MASTER_ADDR: master_addr[0],
                 DLWorkloadEnv.MASTER_PORT: str(master_addr[1]),
             }
 
-            res = await invoke_actors_t(
+            res = invoke_actors_t(
                 remote_call.setup_rl_workload, group, env_dict=envs
-            )
+            ).wait()
             res.raise_for_errors()
 
         elapsed = time.time() - start
@@ -329,37 +349,23 @@ class BaseRLTrainer(ActorBase, ABC):
             f"Finish setup all rl workloads, cost: {elapsed / 1000:.2f}ms"
         )
 
-    def _setup_trainer(self):
-        all_workers = PrimeMasterApi.get_all_roles()
-        del all_workers[RLRoleType.TRAINER.name]
-        self._workload_workers = all_workers
+    def __init_role_group_proxy(self):
+        for role, workers in self._workers.items():
+            workload_group_name = "RG_" + role
+            assert workers[0].spec.backend == "custom"
+            clz = get_class_by_module_and_class_name(
+                workers[0].spec.module_name,
+                workers[0].spec.class_name,
+            )
+            assert isinstance(clz, type)
 
-        for role, actors_info in self._workload_workers.items():
-            if role not in self._actor_handles:
-                self._actor_handles[role] = []
-            if role not in self._actor_metas:
-                assert actors_info[0].spec.backend == "custom"
-                clz = get_class_by_module_and_class_name(
-                    actors_info[0].spec.module_name,
-                    actors_info[0].spec.class_name,
-                )
-                self._actor_metas[role] = (
-                    clz,
-                    actors_info[0].spec.resource.accelerator,
-                )
-
-            for actor_info in actors_info:
-                self._actor_handles[role].append(
-                    ray.get_actor(actor_info.name)
-                )
-
-        self.__init_role_group_proxy()
-        self._update_stage_force(WorkerStage.READY)
-        logger.info(
-            f"Trainer initiated with workloads: {self._get_workloads_size()}, "
-            f"role actor metas: {self._actor_metas}, "
-            f"config: {self.config}"
-        )
+            role_group_proxy = RoleGroupProxy(
+                role,
+                len(workers),
+                clz,
+                self.get_actor_handles(role),
+            )
+            setattr(self, workload_group_name, role_group_proxy)
 
     def _start_execution(self):
         self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
@@ -374,7 +380,7 @@ class BaseRLTrainer(ActorBase, ABC):
 
                 invoke_actors_t(
                     remote_call.update_rl_workload_stage,
-                    list(chain(*self._workload_workers.values())),
+                    list(chain(*self._workers.values())),
                     WorkerStage.FINISHED,
                 ).wait()
 
@@ -389,53 +395,17 @@ class BaseRLTrainer(ActorBase, ABC):
 
                 invoke_actors_t(
                     remote_call.update_rl_workload_stage,
-                    list(chain(*self._workload_workers.values())),
+                    list(chain(*self._workers.values())),
                     WorkerStage.FAILED,
                 ).wait()
 
         Thread(
-            target=wrap_run()(self.__execute),
+            target=wrap_run()(self.trainer_run),
             daemon=True,
         ).start()
 
-    def __execute(self):
-        logger.info("Trainer init invocation.")
-        self.init()
-        logger.info("Trainer fit invocation.")
-        self.fit()
-
-    def _get_workloads_size(self) -> Dict[str, int]:
-        return {
-            role: len(handles) for role, handles in self._actor_handles.items()
-        }
-
-    def __init_role_group_proxy(self):
-        for role, handles in self._actor_handles.items():
-            workload_group_name = "RG_" + role
-            cls = self._actor_metas[role][0]
-
-            # get methods by class
-            invocation_methods = {}
-            for name, method in get_methods_by_class(cls):
-                if hasattr(method, "_trainer_invocation"):
-                    attr = getattr(method, "_trainer_invocation")
-                    assert isinstance(attr, MethodInvocationMeta)
-                    invocation_methods[name] = attr
-
-            role_group_proxy = RoleGroupProxy(
-                role,
-                len(self._actor_handles[role]),
-                cls,
-                invocation_methods,
-                handles,
-            )
-            setattr(self, workload_group_name, role_group_proxy)
-            self.__role_group_proxy[workload_group_name] = role_group_proxy
-
-    @property
-    def actor_handles(self) -> Dict[str, List[ActorHandle]]:
-        """Return all the actor handles"""
-        return self._actor_handles
+    def trainer_run(self):
+        pass
 
     @property
     def config(self):
@@ -447,19 +417,9 @@ class BaseRLTrainer(ActorBase, ABC):
         return self.get_actor_handles(RLRoleType.ACTOR.name)
 
     @property
-    def actor_resource(self):
-        """Get resource used(occupied) for ACTOR."""
-        return self.get_workload_resource(RLRoleType.ACTOR.name)
-
-    @property
     def references(self) -> List[ActorHandle]:
         """Get all references' actor handle."""
         return self.get_actor_handles(RLRoleType.REFERENCE.name)
-
-    @property
-    def reference_resource(self):
-        """Get resource used(occupied) for REFERENCE."""
-        return self.get_workload_resource(RLRoleType.REFERENCE.name)
 
     @property
     def rollouts(self) -> List[ActorHandle]:
@@ -467,71 +427,20 @@ class BaseRLTrainer(ActorBase, ABC):
         return self.get_actor_handles(RLRoleType.ROLLOUT.name)
 
     @property
-    def rollout_resource(self):
-        """Get resource used(occupied) for ROLLOUT."""
-        return self.get_workload_resource(RLRoleType.ROLLOUT.name)
-
-    @property
     def rewards(self) -> List[ActorHandle]:
         """Get all rewards' actor handle."""
         return self.get_actor_handles(RLRoleType.REWARD.name)
-
-    @property
-    def reward_resource(self):
-        """Get resource used(occupied) for REWARD."""
-        return self.get_workload_resource(RLRoleType.REWARD.name)
 
     @property
     def critics(self) -> List[ActorHandle]:
         """Get all critics' actor handle."""
         return self.get_actor_handles(RLRoleType.CRITIC.name)
 
-    @property
-    def critic_resource(self):
-        """Get resource used(occupied) for CRITIC."""
-        return self.get_workload_resource(RLRoleType.CRITIC.name)
-
-    def get_workload_resource(self, role_type: str):
-        """Return the workload's resource by role type."""
-        if role_type in self._actor_metas:
-            return self._actor_metas[role_type][1]
-        return 0
-
     def get_actor_handles(self, role_type: str) -> List[ActorHandle]:
         """Return the actor handles by role type."""
-        if role_type in self._actor_handles:
-            return self._actor_handles[role_type]
+        if role_type in self._workers:
+            return [
+                get_actor_with_cache(it.name)
+                for it in self._workers[role_type]
+            ]
         return []
-
-    def get_role_groups(self):
-        return list(self.__role_group_proxy.keys())
-
-    def is_recoverable(self):
-        """
-        Indicates whether the current trainer process (or thread)
-        can be directly resumed. Default is False, can override by user.
-
-        False: Indicates that it cannot be directly resumed. If the trainer
-        exits abnormally, upon restarting, a global reset will be triggered,
-        meaning all workloads will be rebuilt and the trainer
-        logic (init + fit) will be re-executed.
-
-        True: Indicates that it can be directly resumed. If the trainer exits
-        abnormally, upon restarting, as long as there are no other workload
-        exceptions, only the trainer logic (init + fit) will be re-executed.
-
-        """
-        return False
-
-    @abstractmethod
-    def init(self):
-        """
-        Requires user implementation: for initializing all workers,
-        such as loading the dataloader, loading the model, etc.
-        """
-
-    @abstractmethod
-    def fit(self):
-        """
-        Requires user implementation: the core training logic.
-        """

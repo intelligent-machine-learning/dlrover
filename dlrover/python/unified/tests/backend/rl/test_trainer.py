@@ -18,7 +18,7 @@ from dlrover.python.unified.backend.rl.trainer import (
     RoleGroupProxy,
 )
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_base import JobInfo, ActorInfo
+from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.tests.test_class import (
@@ -42,7 +42,6 @@ class BaseTrainerTest(BaseTest):
             ActorInfo(name="test", role="TRAINER", spec=spec),
         )
         self.assertIsNotNone(trainer)
-        self.assertEqual(len(trainer.get_role_groups()), 0)
 
         actor_spec = CustomWorkloadDesc(
             module_name="dlrover.python.unified.tests.test_class",
@@ -64,20 +63,11 @@ class BaseTrainerTest(BaseTest):
 
         self.assertEqual(len(trainer.actors), 2)
         self.assertEqual(len(trainer.rollouts), 0)
-        self.assertEqual(len(trainer.get_role_groups()), 1)
-        self.assertFalse(trainer.is_recoverable())
-        self.assertEqual(len(trainer.actor_handles), 1)
-        self.assertEqual(len(trainer.actor_handles[RLRoleType.ACTOR.name]), 2)
         self.assertEqual(len(trainer.actors), 2)
         self.assertEqual(len(trainer.rollouts), 0)
         self.assertEqual(len(trainer.rewards), 0)
         self.assertEqual(len(trainer.references), 0)
         self.assertEqual(len(trainer.critics), 0)
-        self.assertEqual(trainer.actor_resource, 0)
-        self.assertEqual(trainer.rollout_resource, 0)
-        self.assertEqual(trainer.reference_resource, 0)
-        self.assertEqual(trainer.reward_resource, 0)
-        self.assertEqual(trainer.critic_resource, 0)
         self.assertEqual(len(trainer.config), 1)
 
     @patch("ray.get_actor")
