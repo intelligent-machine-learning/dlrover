@@ -109,10 +109,6 @@ def _convert_pod_yaml_to_node(pod):
     node_group_size = None
     node_group_id = None
 
-    logger.debug(
-        f"Convert yaml meta: {pod_name} {pod_type} with {metadata.labels}"
-    )
-
     if pod_type == NodeType.DLROVER_MASTER:
         return None
     elif pod_type == NodeType.WORKER:
@@ -178,6 +174,7 @@ def _convert_pod_yaml_to_node(pod):
         f"type {pod_type}, id {pod_id}, name {pod_name} "
         f"rank {rank_id}, status {status} "
         f"group {node_group} node_group_size {node_group_size} "
+        f"with meta {metadata.labels}"
     )
 
     node.create_time = metadata.creation_timestamp
