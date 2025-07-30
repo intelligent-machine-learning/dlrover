@@ -109,7 +109,9 @@ def _convert_pod_yaml_to_node(pod):
     node_group_size = None
     node_group_id = None
 
-    logger.debug(f"Convert yaml meta: {pod_name} {pod_type} with {metadata.labels}")
+    logger.debug(
+        f"Convert yaml meta: {pod_name} {pod_type} with {metadata.labels}"
+    )
 
     if pod_type == NodeType.DLROVER_MASTER:
         return None
