@@ -621,6 +621,16 @@ class DistributedJobManager(JobManager):
                     new_node = copy.deepcopy(node)
                     self._job_context.update_job_node(new_node)
 
+                # update node group info if necessary
+                if (
+                    node_type == NodeType.WORKER
+                    and node_id in job_nodes[node_type]
+                    and job_nodes[node_type][node_id].group != node.group
+                ):
+                    job_nodes[node_type][node_id].group = node.group
+                    job_nodes[node_type][node_id].group_size = node.group_size
+                    job_nodes[node_type][node_id].group_id = node.group_id
+
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
                 else:

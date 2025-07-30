@@ -543,6 +543,36 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertListEqual(ps_ids, [0, 1, 2])
         self.assertTrue(4 in self.job_context.job_nodes()[NodeType.WORKER])
 
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id
+        )
+        new_node = Node(
+            node_type=NodeType.WORKER,
+            node_id=4,
+            status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
+            max_relaunch_count=1,
+            node_group=1024,
+            node_group_size=1,
+            node_group_id="rack-0",
+        )
+        manager._process_list_nodes([new_node])
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group, 1024
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size, 1
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id, "rack-0"
+        )
+
     @patch.object(DistributedJobManager, "_process_event")
     def test_process_list_nodes_for_empty_case(self, mock_method):
         params = MockK8sPSJobArgs()
