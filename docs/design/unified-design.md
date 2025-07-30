@@ -43,31 +43,41 @@ while the
 The architecture is designed to be modular and extensible, allowing for the integration of various training strategies
 and workloads. The key components include:
 
-**Controller/PrimeMaster:**
+#### Controller/PrimeMaster
 
 - Oversees the lifecycle management of hybrid training jobs.
 - Schedules and monitors various training/processing workloads.
 - Maintains a registry of all actors and their assigned roles.
 - Stores and manages the global state of the training process.
 
-**ElasticMaster (one example of SubMasters):**
+#### Backend
+
+One backend consists of `Worker` components and, optionally, `SubMaster` components, which are responsible for executing
+specific workloads.
+
+##### Worker
+
+The actual processing nodes executing the `WorkLoad`. Workers could run independently or collectively.
+
+##### SubMaster
+
+- Optional, but recommended for scenarios with complex orchestration needs.
+- Manages a group of `Worker` instances, providing additional orchestration and management capabilities.
+- Handles job-specific logic, such as dynamic resource allocation and workload balancing.
+
+#### ElasticBackend (example for Backend)
+
+##### ElasticMaster
 
 - Manages one elastic training process with lots of `ElasticWorker` instances.
 - Performs node health checks for the elastic training.
 - Provides rendezvous services for worker coordination.
 - Monitors training progress and collects relevant metrics.
 
-**ElasticWorker (specialized Worker for elastic training):**
+##### ElasticWorker (specialized Worker for elastic training)
 
 - The worker nodes that execute elastic training workloads.
 - Created by the `PrimeMaster` and managed by the `ElasticMaster`.
-
-**Worker:**
-
-- Represents general processing nodes. Could execute various workloads, such as data preprocessing, training trainer, or
-  custom compute operations.
-
-**Actor**: Conceptually, both `SubMaster` and `Worker` are treated as `Actor`, instantiated via `ray.Actor`.
 
 ### Sequence Diagram
 
@@ -94,34 +104,34 @@ sequenceDiagram
     activate PrimeManager
     PrimeManager ->> Scheduler: allocate_placement_group()
     PrimeManager ->> Scheduler: create_actors()
-    create participant Actors
-    Scheduler ->> Actors: create()
-    note over Actors: INIT
-    Scheduler ->> Actors: status() [Ping]
-    Actors -->> PrimeMaster: get_nodes_by_role()
+    create participant Workers
+    Scheduler ->> Workers: create()
+    note over Workers: INIT
+    Scheduler ->> Workers: status() [Ping]
+    Workers -->> PrimeMaster: get_nodes_by_role()
     loop Wait all actors Ready
-        PrimeManager -->> Actors: status()
+        PrimeManager -->> Workers: status()
     end
-    note over Actors: READY
-    PrimeManager ->> Actors: check_child() [SubMaster]
+    note over Workers: READY
+    PrimeManager ->> Workers: check_child() [SubMaster]
     note over PrimeManager: READY
   
     PrimeMaster ->> PrimeManager: start()
-    PrimeManager ->> Actors: start() [Trainer/SubMaster]
-    note over Actors: RUNNING
+    PrimeManager ->> Workers: start() [Trainer/SubMaster]
+    note over Workers: RUNNING
     note over PrimeManager: RUNNING
     PrimeMaster -->> Driver: 
     note right of Driver: Running
 
     loop Monitor() while RUNNING
-        PrimeManager ->> Actors: status()
+        PrimeManager ->> Workers: status()
     end
-    note over Actors: FINISH/FAILED
+    note over Workers: FINISH/FAILED
 
     note over PrimeManager: STOPPING
     deactivate PrimeManager
     PrimeManager ->> PrimeManager: stop()
-    PrimeManager ->> Actors: stop()
+    PrimeManager ->> Workers: stop()
     note over PrimeManager: STOPPED
 %% @formatter:on
 ```
@@ -141,7 +151,8 @@ accommodate diverse workloads. Key extension points include:
   workflows. This supports fine-grained control over elastic workload management and enables backend customization for
   specialized use cases.
 
-The `Worker` and `SubMaster` components are orchestrated by the `PrimeManager` via stages and lifecycle hooks, which govern the
+The `Worker` and `SubMaster` components are orchestrated by the `PrimeManager` via stages and lifecycle hooks, which
+govern the
 initialization, execution, and monitoring of each workload. This hook-based design empowers users to extend the
 framework with new processing paradigms—without altering the core architecture.
 
@@ -166,26 +177,40 @@ stateDiagram-v2
     READY --> RUNNING: check_workers, rendezvous, ...
     RUNNING --> FINISH: 
     RUNNING --> FAILED: task error
-    FINISH --> [*]
-    FAILED --> [*]
+FINISH --> [*]
+FAILED --> [*]
 ```
 
-### 稳定性
+### Stability
 
-#### Pre check
+#### Pre-Check
+
+- Each worker performs a self-check before entering the READY state to ensure it can handle assigned tasks.
+- The SubMaster (e.g., `ElasticMaster`) runs `check_workers` to verify that all workers are prepared before starting the
+  training process. For example, the `ElasticMaster` conducts a rendezvous and communication check prior to launching
+  elastic training.
 
 #### Fault Tolerance
 
-The hybrid training framework incorporates fault tolerance mechanisms to ensure robustness and reliability during
-training. Key features include:
+The hybrid training framework is designed with robust fault tolerance to maintain reliability throughout the training
+lifecycle. Key mechanisms include:
 
-- **Node Health Checks:** Regular health checks are performed on all nodes to detect failures early. If a node becomes
-  unresponsive, the framework can reallocate tasks to healthy nodes.
-- **Dynamic Node Management:** The framework can dynamically add or remove nodes based on workload requirements. If a
-  node fails, the `PrimeManager` can reassign its tasks to other available nodes, ensuring continuous operation.
-- **Transactional State Management:** The global state of the training process is managed in a transactional manner by
-  `PrimeManager`, allowing for recovery from failures without losing progress. `PrimeMaster` could failover to another
-  `PrimeMaster` if needed. `Node` is designed to be stateless, could recover by reloading its state from `PrimeManager`.
+- **Node Health Monitoring:** All nodes undergo regular health checks to promptly detect failures. If a node becomes
+  unresponsive, the framework reallocates its tasks to healthy nodes.
+- **Dynamic Node Management:** Nodes can be added or removed dynamically based on workload demands. Upon node failure,
+  the `PrimeManager` reassigns tasks to available nodes, ensuring uninterrupted operation.
+- **Transactional State Management:** The global training state is managed transactionally by the `PrimeManager`,
+  enabling recovery from failures without loss of progress. The `PrimeMaster` can fail over to a backup if necessary.
+  Nodes are stateless and can recover by reloading their state from the `PrimeManager`.
+
+#### Failover
+
+The framework provides comprehensive failover strategies to ensure operational continuity:
+
+- If an `ElasticWorker` fails during `node_check`, the `ElasticMaster` restarts all abnormal workers and retries
+  `node_check` until all workers are ready.
+- If an `ElasticWorker` fails during elastic training, the `ElasticMaster` stops all running workers, performs
+  `node_check`, and restarts the training process.
 
 ## Usage Patterns
 
@@ -337,13 +362,11 @@ flowchart TD
     Source[(Source)]
     DataChannel1[(DataChannel1)]
     DataChannel2[(DataChannel2)]
-
     Source --> B1
     B3 --> DataChannel1
     DataChannel1 --> D1
     D3 --> DataChannel2
     DataChannel2 --> F1
-
     Start((Start)) --> Tokenizer
     Start --> Sampler
     Start --> Training
