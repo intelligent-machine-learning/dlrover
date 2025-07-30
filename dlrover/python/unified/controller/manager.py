@@ -184,7 +184,7 @@ class PrimeManager:
                 f"Cannot restart job in stage {self.stage}. "
                 "Expected stage is RUNNING."
             )
-        self.status.job_start_count += 1
+        self.status.job_restart_count += 1
         logger.info("Restarting the job execution.")
         self._task.cancel()
         self._update_stage(MasterStage.READY)

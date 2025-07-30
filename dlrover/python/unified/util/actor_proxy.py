@@ -126,21 +126,32 @@ T = TypeVar("T", bound="type")
 
 
 class ActorProxy:
-    """A proxy class to interact with Ray actors as if they were local objects."""
+    """A proxy class to interact with Ray actors as if they were local objects.
+
+    Inherit from this class to create an actor proxy.
+    - ACTOR_NAME could be defined in the subclass,
+      which is used to bind the actor name to the class.
+    - All public static methods are replaced with remote_call,
+      binding them to the ACTOR_NAME class variable.
+    - All class methods remain unchanged, for non-rpc methods.
+    """
 
     ACTOR_NAME: ClassVar[str]
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         actor_name = getattr(cls, "ACTOR_NAME", None)
+        # Replace all public static methods with remote_call, binding them to ACTOR_NAME.
         cls2: Optional[type] = cls
         while cls2 is not None and cls2 != ActorProxy:
             for name, method in cls2.__dict__.items():
                 if not callable(method) or name.startswith("__"):
                     continue
+                if isinstance(method, classmethod):
+                    continue  # allow classmethod to remain unchanged, for non-rpc methods
                 if not isinstance(method, staticmethod):
                     raise TypeError(
-                        f"Method {method} must be a static method."
+                        f"Rpc Method {method} must be a static method. or classmethod for non-rpc methods."
                     )
                 setattr(
                     cls,
@@ -151,7 +162,7 @@ class ActorProxy:
 
     @classmethod
     def bind(cls: T, actor_name: str) -> T:
-        """Bind the actor name to the class."""
+        """Create a new bound proxy class with the given actor name."""
 
         class BoundActorProxy(cls):  # type: ignore[misc,valid-type]
             ACTOR_NAME = actor_name

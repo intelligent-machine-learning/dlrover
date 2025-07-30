@@ -140,6 +140,9 @@ class ElasticManager:
             )
             return
         asyncio.create_task(self.restart_job())
+        # The stage is synchronously set to READY by restart_job，
+        # so it's safe to invoke handle_worker_restarted multiple times.
+        assert self.stage == WorkerStage.READY
 
     async def restart_job(self):
         """Restart the elastic job due to worker restart."""

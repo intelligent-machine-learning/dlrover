@@ -26,7 +26,7 @@ class MasterStatus:
 
     stage: MasterStage
     exit_code: int = 0
-    job_start_count: int = 0
+    job_restart_count: int = 0
 
 
 class PrimeMasterApi(ActorProxy):

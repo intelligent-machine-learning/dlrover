@@ -184,5 +184,5 @@ def test_failover_entire_job(tmp_ray):
     master.wait()
     assert master.get_status().stage == "STOPPED"
 
-    assert master.get_status().job_start_count == 1
+    assert master.get_status().job_restart_count == 1
     assert master.get_status().exit_code == 0, "Success expected"
