@@ -196,22 +196,7 @@ class TrainingNodeManager(object):
         self._lock = threading.Lock()
         self._node_id_iter = None
         self._node_rank_iter = None
-        self._pending_nodes: List[Node] = []
         self.update_nodes_iter()
-
-    @property
-    def pending_nodes(self):
-        return [node.name for node in self._pending_nodes]
-
-    @property
-    def first_pending_node(self):
-        if len(self._pending_nodes) == 0:
-            return ""
-        first_pending_node = min(
-            self._pending_nodes,
-            key=lambda x: x.create_time,  # type: ignore
-        )
-        return first_pending_node.name
 
     @property
     def cur_nodes(self):
