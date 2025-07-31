@@ -8,5 +8,21 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: easydl/dlrover:ci
+
     steps:
-      - run: echo "Container started successfully"
+      - run: echo "test0"
+
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - run: echo "test1"
+
+      - name: Install Build Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - run: echo "test2"
+
+      - name: Build Package
+        run: sh scripts/build_wheel.sh
