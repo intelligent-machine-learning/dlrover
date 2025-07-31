@@ -324,7 +324,7 @@ class DistributedJobManager(JobManager):
                 self.get_worker_num(), self.get_job_type()
             )
         )
-        if first_pending_node:
+        if first_pending_node is not None:
             msg = (
                 "Stop the training early because 1) there is node pending "
                 "2) alive nodes number consistently less than the min "
