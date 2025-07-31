@@ -19,6 +19,7 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
+from dlrover.python.unified.util.async_helper import init_main_loop
 
 
 class MasterStage(str, Enum):
@@ -78,6 +79,8 @@ class ActorBase:
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
+        init_main_loop()
+
         # Report restart to sub-master/master if this actor was reconstructed.
         if (
             ray.is_initialized()

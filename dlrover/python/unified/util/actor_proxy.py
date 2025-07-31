@@ -105,23 +105,6 @@ def invoke_actors_t(
     )
 
 
-def _proxy_wrapper(method: Callable[..., Any], actor_name: Optional[str]):
-    method = getattr(method, "__origin__", method)
-
-    @wraps(method)
-    def remote_call(*args, **kwargs):
-        if not actor_name:
-            raise TypeError(
-                "ACTOR_NAME not defined, you must use bind(actor_name)."
-            )
-        ref = invoke_actor_t(method, actor_name, *args, **kwargs)
-        return ref.wait()
-
-    setattr(remote_call, "__origin__", method)
-
-    return remote_call
-
-
 T = TypeVar("T", bound="type")
 
 
@@ -138,9 +121,30 @@ class ActorProxy:
 
     ACTOR_NAME: ClassVar[str]
 
+    @classmethod
+    def _wrap(cls, method: Callable[..., Any]):
+        actor_name = getattr(cls, "ACTOR_NAME", None)
+
+        def remote_call(*args, **kwargs):
+            if not actor_name:
+                raise TypeError(
+                    "ACTOR_NAME not defined, you must use bind(actor_name)."
+                )
+            ref = invoke_actor_t(method, actor_name, *args, **kwargs)
+            return ref.wait()
+
+        return remote_call
+
+    @classmethod
+    def _do_wrap(cls, method: Callable[..., Any]):
+        method = getattr(method, "__origin__", method)
+        wrapped = cls._wrap(method)
+        wrapped = wraps(method)(wrapped)
+        setattr(wrapped, "__origin__", method)
+        return wrapped
+
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        actor_name = getattr(cls, "ACTOR_NAME", None)
         # Replace all public static methods with remote_call, binding them to ACTOR_NAME.
         cls2: Optional[type] = cls
         while cls2 is not None and cls2 != ActorProxy:
@@ -156,7 +160,7 @@ class ActorProxy:
                 setattr(
                     cls,
                     name,
-                    staticmethod(_proxy_wrapper(method.__func__, actor_name)),
+                    staticmethod(cls._do_wrap(method.__func__)),
                 )
             cls2 = cls2.__base__
 
