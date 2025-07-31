@@ -452,14 +452,11 @@ class ParameterServerManager(TrainingNodeManager):
                 pending_ps,
                 key=lambda x: x.create_time,  # type:ignore #notnull
             )
-            if not first_pending_ps or not first_pending_ps.create_time:
-                logger.debug(
-                    "Skip for no pending ps or pending ps's "
-                    f"create time is None: {first_pending_ps}."
-                )
-                return None
 
-            if now - first_pending_ps.create_time.timestamp() > timeout:
+            if (
+                first_pending_ps.create_time
+                and now - first_pending_ps.create_time.timestamp() > timeout
+            ):
                 logger.warning(
                     f"Node {first_pending_ps.name} "
                     f"exceeded pending timeout: {timeout}s, "

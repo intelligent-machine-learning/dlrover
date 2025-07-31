@@ -431,17 +431,12 @@ class WorkerManager(TrainingNodeManager):
                 pending_workers,
                 key=lambda x: x.create_time,  # type: ignore
             )
-            if (
-                not first_pending_worker
-                or not first_pending_worker.create_time
-            ):
-                logger.debug(
-                    "Skip for no pending workers or pending worker's "
-                    f"create time is None: {first_pending_worker}."
-                )
-                return None
 
-            if now - first_pending_worker.create_time.timestamp() > timeout:
+            if (
+                first_pending_worker.create_time
+                and now - first_pending_worker.create_time.timestamp()
+                > timeout
+            ):
                 logger.warning(
                     f"Node {first_pending_worker.name} "
                     f"exceeded pending timeout: {timeout}s, "
