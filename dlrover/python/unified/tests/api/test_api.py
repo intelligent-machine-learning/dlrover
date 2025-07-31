@@ -447,7 +447,7 @@ class ApiTest(BaseTest):
         assert "ELASTIC" in dl_config.workloads
         workload = dl_config.workloads["ELASTIC"]
         assert workload.backend == "elastic"
-        assert workload.entry_point == "test::main"
+        assert workload.entry_point == "test.main"
         assert workload.total == 4
         assert workload.resource.accelerator == 1
 

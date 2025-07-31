@@ -13,13 +13,15 @@
 
 import asyncio
 from threading import Thread
-from typing import Optional
+from typing import List, Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import MasterStage
 from dlrover.python.unified.controller import remote_call
+from dlrover.python.unified.controller.api import MasterStatus
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
+    restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
@@ -40,12 +42,28 @@ class PrimeManager:
         self.thread: Optional[Thread] = None
 
         # Runtime state
-        self.stage: MasterStage = MasterStage.INIT
-        self.exit_code: int = 0
-        logger.info(f"PrimeManager initialized with config: {config}")
+        self._stage: MasterStage = MasterStage.INIT
         self._stopped_event = asyncio.Event()
+        # Exposed state for status detail
+        self.status = MasterStatus(
+            self._stage,
+        )
 
+        logger.info(f"PrimeManager initialized with config: {config}")
         self.INSTANCE = self  # Singleton instance
+
+    @property
+    def stage(self) -> MasterStage:
+        """Get the current stage of the job."""
+        return self._stage
+
+    def _update_stage(self, stage: MasterStage):
+        """Update the stage of the job."""
+        if self._stage != stage:
+            logger.info(f"Updating job stage from {self._stage} to {stage}")
+            self._stage = stage
+            self.status.stage = stage
+            self.save()
 
     async def prepare(self):
         """Prepare all for the job execution.
@@ -54,15 +72,29 @@ class PrimeManager:
         await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
+        # Wait for all nodes to be ready
+        await self._wait_ready([node.name for node in self.graph.vertices])
+        self._update_stage(MasterStage.READY)
         await self._nodes_check()
 
-    async def _nodes_check(self):
-        # check all nodes itself
-        nodes = [node.name for node in self.graph.vertices]
-        res = await invoke_actors_t(remote_call.self_check, nodes)
-        res.raise_for_errors()
-        logger.info("All nodes self-checked successfully.")
+    async def _wait_ready(self, actors: List[str]):
+        """Wait for all actors to be ready."""
+        while True:
+            res = await invoke_actors_t(remote_call.status, actors)
+            not_ready = {
+                node: status
+                for node, status in zip(actors, res.results)
+                if status != "READY"
+            }
+            if len(not_ready) == 0:
+                logger.info("All nodes are ready.")
+                break
+            logger.warning(
+                f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
+            )
+            await asyncio.sleep(5)
 
+    async def _nodes_check(self):
         # let sub-masters pre-check nodes
         sub_masters = [
             role.sub_master.name
@@ -76,8 +108,11 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        self.stage = MasterStage.RUNNING
-        self.save()
+        if self.stage != MasterStage.READY:
+            raise RuntimeError(
+                f"Cannot start job in stage {self.stage}. "
+                "Expected stage is READY."
+            )
         nodes = [node.name for node in self.graph.vertices]
         res = await invoke_actors_t(remote_call.start, nodes)
         res.raise_for_errors()
@@ -91,7 +126,8 @@ class PrimeManager:
             raise Exception(f"Some nodes failed to start the job. {statusMap}")
 
         logger.info("Job started successfully.")
-        asyncio.create_task(self._main_loop(), name="job_monitor")
+        self._task = asyncio.create_task(self._main_loop(), name="job_monitor")
+        self._update_stage(MasterStage.RUNNING)
 
     async def _main_loop(self):
         """Monitor the nodes' status."""
@@ -104,7 +140,7 @@ class PrimeManager:
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
                 else:
-                    self.exit_code = 1
+                    self.status.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
@@ -115,9 +151,53 @@ class PrimeManager:
         )
         kill_actors([node.name for node in self.graph.vertices])
         logger.info("Job stopped successfully.")
-        self.stage = MasterStage.STOPPED
-        self.save()
+        self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
+
+    async def restart_actors(self, actor_names: List[str]) -> None:
+        """Restart the specified actors."""
+        assert all(actor in self.graph.by_name for actor in actor_names), (
+            f"Some actors {actor_names} not found in the graph."
+        )
+        actors = [self.graph.by_name[name] for name in actor_names]
+        for actor in actors:
+            actor.restart_count += 1
+            if actor.restart_count > actor.spec.max_restart:
+                self.request_stop(
+                    f"Actor {actor.name} has exceeded the maximum restart count: {actor.restart_count}."
+                )
+                return
+        for actor in actors:
+            actor.restarting = True
+        await restart_actors(actor_names)
+        logger.info({n.name: n.restarting for n in self.graph.vertices})
+        await self._wait_ready(actor_names)
+        logger.info({n.name: n.restarting for n in self.graph.vertices})
+        for actor in actors:
+            actor.restarting = False
+        logger.info(f"Restarted actors: {actor_names}")
+
+    async def restart_job(self):
+        """Restart the job execution."""
+        if self.stage != MasterStage.RUNNING:
+            raise RuntimeError(
+                f"Cannot restart job in stage {self.stage}. "
+                "Expected stage is RUNNING."
+            )
+        self.status.job_restart_count += 1
+        logger.info("Restarting the job execution.")
+        self._task.cancel()
+        self._update_stage(MasterStage.READY)
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            logger.info("Monitor task cancelled, proceeding with restart.")
+        logger.info("Restarting all actors...")
+        await self.restart_actors([node.name for node in self.graph.vertices])
+        logger.info("Restarted actors, re-checking their status.")
+        await self._nodes_check()
+        await self.start()
+        logger.info("Job restarted successfully.")
 
     def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""
@@ -127,7 +207,13 @@ class PrimeManager:
         ):
             return
         logger.info(f"Requesting to stop the job: {reason}")
-        self.stage = MasterStage.STOPPING
+        if self.stage == MasterStage.RUNNING:
+            self._update_stage(MasterStage.STOPPING)
+        else:
+            # No running job, terminate
+            kill_actors([node.name for node in self.graph.vertices])
+            self._update_stage(MasterStage.STOPPED)
+            self._stopped_event.set()
 
     async def wait(self):
         """Wait for the job to finish."""

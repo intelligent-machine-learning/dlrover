@@ -11,17 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from dataclasses import dataclass
-from functools import partial
+from functools import wraps
 from typing import (
+    Any,
     Callable,
-    List,
+    ClassVar,
     Optional,
     ParamSpec,
     Protocol,
     Sequence,
-    Type,
     TypeVar,
     Union,
 )
@@ -29,11 +28,6 @@ from typing import (
 from .actor_helper import (
     ActorBatchInvocation,
     ActorInvocation,
-    get_actor_with_cache,
-    invoke_actor,
-    invoke_actor_async,
-    invoke_actors,
-    invoke_actors_async,
 )
 
 
@@ -111,64 +105,66 @@ def invoke_actors_t(
     )
 
 
-T_Stub = TypeVar("T_Stub", covariant=True)
+def _proxy_wrapper(method: Callable[..., Any], actor_name: Optional[str]):
+    method = getattr(method, "__origin__", method)
+
+    @wraps(method)
+    def remote_call(*args, **kwargs):
+        if not actor_name:
+            raise TypeError(
+                "ACTOR_NAME not defined, you must use bind(actor_name)."
+            )
+        ref = invoke_actor_t(method, actor_name, *args, **kwargs)
+        return ref.wait()
+
+    setattr(remote_call, "__origin__", method)
+
+    return remote_call
+
+
+T = TypeVar("T", bound="type")
 
 
 class ActorProxy:
-    """A proxy class to interact with Ray actors as if they were local objects."""
+    """A proxy class to interact with Ray actors as if they were local objects.
 
-    def __init__(self, actor: str, stub_cls: type, warmup: bool = True):
-        self.actor = actor
-        self.stub_cls = stub_cls
-        if warmup:
-            get_actor_with_cache(actor)  # warmup actor
-
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in actor {self.actor}."
-            )
-        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actor_async, self.actor, meta.name or name)
-        else:
-            return partial(invoke_actor, self.actor, meta.name or name)
-
-    @staticmethod
-    def wrap(
-        actor_name: str, cls: Type[T_Stub], lazy: bool = False
-    ) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return ActorProxy(actor_name, cls, warmup=not lazy)  # type: ignore
-
-
-class BatchActorProxy:
-    """
-    A proxy class to interact with multiple Ray actors as if they were local objects.
-
-    All return values in Stub should be BatchInvokeResult.
+    Inherit from this class to create an actor proxy.
+    - ACTOR_NAME could be defined in the subclass,
+      which is used to bind the actor name to the class.
+    - All public static methods are replaced with remote_call,
+      binding them to the ACTOR_NAME class variable.
+    - All class methods remain unchanged, for non-rpc methods.
     """
 
-    def __init__(self, actors: List[str], stub_cls: type):
-        self.actors = actors
-        # Optionally filter methods if a class is provided
-        self.stub_cls = stub_cls
+    ACTOR_NAME: ClassVar[str]
 
-    def __getattr__(self, name):
-        method = getattr(self.stub_cls, name, None)
-        if method is None:
-            raise AttributeError(
-                f"Method {name} not found in class {self.stub_cls.__name__}."
-            )
-        meta: ActorInvocationMeta = getattr(method, META_ATTR_NAME, EMPTY_META)
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        actor_name = getattr(cls, "ACTOR_NAME", None)
+        # Replace all public static methods with remote_call, binding them to ACTOR_NAME.
+        cls2: Optional[type] = cls
+        while cls2 is not None and cls2 != ActorProxy:
+            for name, method in cls2.__dict__.items():
+                if not callable(method) or name.startswith("__"):
+                    continue
+                if isinstance(method, classmethod):
+                    continue  # allow classmethod to remain unchanged, for non-rpc methods
+                if not isinstance(method, staticmethod):
+                    raise TypeError(
+                        f"Rpc Method {method} must be a static method. or classmethod for non-rpc methods."
+                    )
+                setattr(
+                    cls,
+                    name,
+                    staticmethod(_proxy_wrapper(method.__func__, actor_name)),
+                )
+            cls2 = cls2.__base__
 
-        if asyncio.iscoroutinefunction(method):
-            return partial(invoke_actors_async, self.actors, meta.name or name)
-        else:
-            return partial(invoke_actors, self.actors, meta.name or name)
+    @classmethod
+    def bind(cls: T, actor_name: str) -> T:
+        """Create a new bound proxy class with the given actor name."""
 
-    @staticmethod
-    def wrap(actor_name: List[str], cls: Type[T_Stub]) -> "T_Stub":
-        """Wraps the actor proxy to return an instance of the class."""
-        return BatchActorProxy(actor_name, cls)  # type: ignore[return-value]
+        class BoundActorProxy(cls):  # type: ignore[misc,valid-type]
+            ACTOR_NAME = actor_name
+
+        return BoundActorProxy  # type: ignore[return-value]

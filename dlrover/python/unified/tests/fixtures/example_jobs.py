@@ -28,8 +28,8 @@ def elastic_training_job():
     dl_config = DLConfig(
         workloads={
             "training": ElasticWorkloadDesc(
-                num=2,
-                entry_point="dlrover.trainer.torch.node_check.nvidia_gpu::run",
+                total=2,
+                entry_point="dlrover.trainer.torch.node_check.nvidia_gpu.run",
                 resource=ResourceDesc(accelerator=1),
             )
         },

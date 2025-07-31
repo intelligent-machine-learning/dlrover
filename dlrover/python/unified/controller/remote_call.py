@@ -15,24 +15,17 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 
 """Remote Call define for controller to invoke backends."""
 
-# mypy: disable-error-code=empty-body
 
-
-def self_check() -> None:  # pragma: no cover
-    """Run self check before starting the job."""
-    ...
-
-
-def check_workers() -> None:  # pragma: no cover
+def check_workers() -> None:
     """For SubMaster to check the status of workers."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def status() -> WorkerStage:  # pragma: no cover
+def status() -> WorkerStage:
     """Get the status of the elastic training job."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def start() -> None:  # pragma: no cover
+def start() -> None:
     """Start the elastic training job."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover

@@ -92,7 +92,7 @@ def test_graph(demo_config: DLConfig):
 
         assert len(role_in_graph.instances) == role_in_graph.instance_number
         for instance in role_in_graph.instances:
-            assert instance.role == name
+            assert instance.role == role_in_graph
             assert instance.spec == workload
             assert instance.world_size == role_in_graph.instance_number
         assert [instance.rank for instance in role_in_graph.instances] == list(
@@ -112,9 +112,10 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
     bundles: List[ResourceDesc] = tmp_scheduler._create_pg.call_args[0][0]
     assert len(bundles) == 12  # 3 groups: actor_rollout, reference, elastic
 
-    for worker in graph.roles["reference"].instances:
+    ref_role = graph.roles["reference"]
+    for worker in ref_role.instances:
         assert worker.bundle_index >= 0
-        assert bundles[worker.bundle_index].cpu == worker.spec.resource.cpu
+        assert bundles[worker.bundle_index].cpu == ref_role.spec.resource.cpu
     for i in range(4):
         assert (
             graph.roles["actor"].instances[i].bundle_index

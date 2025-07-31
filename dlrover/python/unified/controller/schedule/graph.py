@@ -30,10 +30,11 @@ class DLExecutionVertex(ABC, BaseModel):
     resource: Resource the vertex required.
     """
 
-    role: str
-    spec: WorkloadDesc
+    role: "DLWorkloadRole"
 
     bundle_index: int = -1
+    restart_count: int = 0
+    restarting: bool = False
 
     @property
     @abstractmethod
@@ -44,6 +45,11 @@ class DLExecutionVertex(ABC, BaseModel):
         Returns:
             The name of the vertex.
         """
+
+    @property
+    def spec(self) -> WorkloadDesc:
+        """Get the workload specification of the vertex."""
+        return self.role.spec
 
     @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
@@ -64,15 +70,18 @@ class DLExecutionWorkerVertex(DLExecutionVertex):
     @property
     def name(self):
         return (
-            f"{self.role}_{self.world_size}-{self.rank}"
+            f"{self.role.name}_{self.world_size}-{self.rank}"
             f"_{self.local_world_size}-{self.local_rank}"
         )
 
     def to_actor_info(self) -> "ActorInfo":
         return ActorInfo(
             name=self.name,
-            role=self.role,
-            spec=self.spec,
+            role=self.role.name,
+            spec=self.role.spec,
+            sub_master=(
+                self.role.sub_master.name if self.role.sub_master else None
+            ),
             node_rank=self.node_rank,
             rank=self.rank,
             local_rank=self.local_rank,
@@ -89,12 +98,12 @@ class DLExecutionMasterVertex(DLExecutionVertex):
 
     @property
     def name(self):
-        return f"{self.role}-master"
+        return f"{self.role.name}-master"
 
     def to_actor_info(self) -> "ActorInfo":
         return ActorInfo(
             name=self.name,
-            role=self.role,
+            role=self.role.name,
             spec=self.spec,
         )
 
@@ -127,8 +136,7 @@ class DLWorkloadRole:
     def __post_init__(self):
         self.instances = [
             DLExecutionWorkerVertex(
-                role=self.name,
-                spec=self.spec,
+                role=self,
                 node_rank=i // self.spec.per_group,
                 world_size=self.instance_number,
                 rank=i,
@@ -140,8 +148,7 @@ class DLWorkloadRole:
         self.sub_master: Optional[DLExecutionMasterVertex] = None
         if self.spec.get_master_cls() is not None:
             self.sub_master = DLExecutionMasterVertex(
-                role=self.name,
-                spec=self.spec,
+                role=self,
             )
 
 

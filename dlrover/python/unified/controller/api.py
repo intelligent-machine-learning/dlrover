@@ -11,9 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List, Protocol, Dict
+from typing import Dict, List
 
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
@@ -27,46 +26,71 @@ class MasterStatus:
 
     stage: MasterStage
     exit_code: int = 0
+    job_restart_count: int = 0
 
 
-class PrimeMasterRemote(Protocol):
+class PrimeMasterApi(ActorProxy):
     """Stub for Remote interface for PrimeMaster."""
 
-    @abstractmethod
-    def get_status(self) -> MasterStatus:
+    ACTOR_NAME = MASTER_ACTOR_NAME
+
+    @staticmethod
+    def get_status() -> MasterStatus:
         """Get the status of the master."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def start(self) -> None:
+    @staticmethod
+    def start() -> None:
         """Start the master."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def wait(self) -> None:
+    @staticmethod
+    def restart() -> None:
+        """Restart the entire job, mainly used for failover."""
+        raise NotImplementedError("stub")  # pragma: no cover
+
+    @staticmethod
+    def wait() -> None:
         """Wait for the job to finish."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def stop(self) -> None:
+    @staticmethod
+    def stop() -> None:
         """Stop the master."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def shutdown(self) -> None:
+    @staticmethod
+    def shutdown() -> None:
         """Force shutdown the master."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def get_actor_info(self, name: str) -> ActorInfo:
+    @staticmethod
+    def get_actor_info(
+        name: str,
+    ) -> ActorInfo:
         """Get a actor by name."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def get_workers_by_role(self, role: str) -> List[ActorInfo]:
+    @staticmethod
+    def get_workers_by_role(
+        role: str,
+    ) -> List[ActorInfo]:
         """Get all actors by role."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-    @abstractmethod
-    def get_all_roles(self) -> Dict[str, List[ActorInfo]]:
+    @staticmethod
+    def get_all_roles() -> Dict[str, List[ActorInfo]]:
         """Get all roles."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
+    @staticmethod
+    def restart_actors(
+        actors: List[str],
+    ) -> None:
+        """Restart the specified actors."""
+        raise NotImplementedError("stub")  # pragma: no cover
 
-PrimeMasterApi: PrimeMasterRemote = ActorProxy.wrap(
-    MASTER_ACTOR_NAME,
-    cls=PrimeMasterRemote,  # type:ignore[type-abstract]
-    lazy=True,
-)
+    @staticmethod
+    def report_actor_restarted(name: str):
+        """Report an actor restarted, do failover if needed."""
+        raise NotImplementedError("stub")  # pragma: no cover

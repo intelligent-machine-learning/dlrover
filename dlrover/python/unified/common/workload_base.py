@@ -19,13 +19,11 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
-from dlrover.python.unified.util.test_hooks import init_coverage
-
-init_coverage()  # support coverage for workers actor
 
 
 class MasterStage(str, Enum):
     INIT = "INIT"
+    READY = "READY"
     RUNNING = "RUNNING"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
@@ -34,9 +32,13 @@ class MasterStage(str, Enum):
 class WorkerStage(str, Enum):
     """Stages of a worker actor."""
 
+    # CALL __init__
     INIT = "INIT"
-    PENDING = "PENDING"  # Checking
+    # _setup
+    # _self_check(optional)
     READY = "READY"
+    # CALL check_workers(optional)
+    # CALL start
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -62,6 +64,7 @@ class ActorInfo:
     name: str
     role: str
     spec: WorkloadDesc
+    sub_master: Optional[str] = None
 
     # common rank information, may be used in rendezvous
     rank: int = 0  # global rank in role
@@ -72,30 +75,49 @@ class ActorInfo:
 class ActorBase:
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
-        init_coverage()
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
+        # Report restart to sub-master/master if this actor was reconstructed.
+        if (
+            ray.is_initialized()
+            and ray.get_runtime_context().was_current_actor_reconstructed
+        ):
+            self._report_restart()
         self._setup()
 
     @property
     def name(self) -> str:
         return self.actor_info.name
 
+    def _report_restart(self):
+        """Report that the actor has been restarted."""
+        from dlrover.python.unified.controller.api import PrimeMasterApi
+        from dlrover.python.unified.util.actor_proxy import invoke_actor_t
+
+        master = self.actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
+        invoke_actor_t(
+            PrimeMasterApi.report_actor_restarted,
+            master,
+            name=self.actor_info.name,
+        ).wait()
+
     # Hook methods for subclasses to implement
     def _setup(self):
-        """Setup the actor/node."""
-        pass
+        """Setup the actor/node.
+
+        This method is called during initialization and should be overridden
+        by subclasses to perform any necessary setup before the actor/node
+        is ready to run.
+
+        Could be asynchronous, but must keep stage not READY until all setup is done.
+        And it must update the stage to READY when setup is complete.
+        """
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def status(self):
         """Get the state of the actor/node."""
         return self.stage
-
-    def self_check(self):
-        """Check the actor/node itself."""
-        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
-            return  # already in the expected stage
-        logger.info(f"[{self.actor_info.name}] Running self check.")
 
     def start(self):
         """Start the actor/node. If already started, do nothing.
@@ -105,8 +127,8 @@ class ActorBase:
 
         Noticed:
         1. The worker stage must be 'RUNNING' after the method invocation.
-        2. Main processing need to be defined in a async thread under the
-           worker actor.
+        2. Main processing need to be defined in an async thread under the
+           worker actor, and ensure that stage updated to FINISHED or FAILED when done.
         """
 
     def shutdown(self):
@@ -116,7 +138,20 @@ class ActorBase:
     # for sub-master
     def check_workers(self):
         """Check the workers of the master."""
+        if self.stage != WorkerStage.READY:
+            logger.error(
+                f"Only READY stage can perform check_workers. current: {self.stage}"
+            )
+            return
         pass
+
+    def report_actor_restarted(self, name: str):
+        """Report that the actor has been restarted."""
+
+        from dlrover.python.unified.controller.api import PrimeMasterApi
+
+        # default delegate to master
+        PrimeMasterApi.report_actor_restarted(name)
 
     # Helper methods for subclasses to use
 

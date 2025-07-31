@@ -18,40 +18,40 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 # mypy: disable-error-code=empty-body
 
 
-def status() -> WorkerStage:  # pragma: no cover
+def status() -> WorkerStage:
     """Get the status of the elastic training job."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def get_master_addr() -> str:  # pragma: no cover
+def get_master_addr() -> str:
     """Get the master address."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def setup_torch_process_group(
     master_addr: str, world_size: int, rank: int
-) -> None:  # pragma: no cover
+) -> None:
     """Setup the torch process group."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def destroy_torch_process_group() -> None:  # pragma: no cover
+def destroy_torch_process_group() -> None:
     """Destroy the torch process group."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def get_ray_node_id() -> str:  # pragma: no cover
+def get_ray_node_id() -> str:
     """Get the Ray node ID."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def run_network_check() -> float:  # pragma: no cover
+def run_network_check() -> float:
     """Run network check before starting the job.
     Returns the time taken for the check.
     """
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
-def start_elastic_job() -> None:  # pragma: no cover
+def start_elastic_job() -> None:
     """Start the elastic training job."""
-    ...
+    raise NotImplementedError("stub")  # pragma: no cover

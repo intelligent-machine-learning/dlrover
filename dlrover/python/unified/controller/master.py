@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from typing import List, Dict
 
 import ray
@@ -18,21 +19,16 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
-from dlrover.python.unified.util.test_hooks import init_coverage
 
 from .api import (
     MASTER_ACTOR_NAME,
-    MasterStatus,
     PrimeMasterApi,
-    PrimeMasterRemote,
 )
 from .config import JobConfig
 from .manager import PrimeManager
 
-init_coverage()  # support coverage for master actor
 
-
-class PrimeMaster(PrimeMasterRemote):
+class PrimeMaster:
     """The master actor for managing the job execution."""
 
     def __init__(self, config: JobConfig):
@@ -47,9 +43,7 @@ class PrimeMaster(PrimeMasterRemote):
 
     def get_status(self):
         """Get the current status of the job."""
-        return MasterStatus(
-            stage=self.manager.stage, exit_code=self.manager.exit_code
-        )
+        return self.manager.status
 
     async def start(self):
         """Start the job execution."""
@@ -95,10 +89,28 @@ class PrimeMaster(PrimeMasterRemote):
             for role, role_info in self.manager.graph.roles.items()
         }
 
+    async def restart_actors(self, actors: List[str]) -> None:
+        """Restart the specified actors."""
+        await self.manager.restart_actors(actors)
+
+    async def restart(self):
+        logger.info("Restarting the entire job by request.")
+        await self.manager.restart_job()
+
+    async def report_actor_restarted(self, name: str):
+        actor = self.manager.graph.by_name.get(name)
+        if actor is None:
+            raise ValueError(f"Actor {name} not found.")
+        if actor.restarting:
+            return  # Actor is already restarting, no need to handle it again.
+        logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
+        asyncio.create_task(self.manager.restart_job())
+
+    # endregion
     @staticmethod
     def create(
         config: JobConfig, detached: bool = True, timeout: float = 10.0
-    ) -> "PrimeMasterRemote":
+    ) -> "type[PrimeMasterApi]":
         """Create a PrimeMaster instance."""
         ref = (
             ray.remote(PrimeMaster)
@@ -114,5 +126,3 @@ class PrimeMaster(PrimeMasterRemote):
         )
         ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
         return PrimeMasterApi
-
-    # endregion

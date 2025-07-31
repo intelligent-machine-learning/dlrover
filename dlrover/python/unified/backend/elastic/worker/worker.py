@@ -11,12 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import os
 from contextlib import contextmanager
 from datetime import timedelta
 from threading import Thread
-from typing import Callable
 
 import ray
 import ray.train.torch as ray_train
@@ -25,6 +23,7 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.util.common_util import find_free_port_from_env
+from dlrover.python.util.reflect_util import import_callable
 
 
 @ray.remote
@@ -39,9 +38,10 @@ class ElasticWorker(ActorBase):
         assert self.actor_info.spec.backend == "elastic"
 
         self._process_group_setup = False
-
         self._setup_envs()
-        # RayMasterClient.register_master_actor(f"{self.actor_info.role}-master")
+
+        self._self_check()
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
@@ -59,13 +59,10 @@ class ElasticWorker(ActorBase):
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)
 
-    def self_check(self):
+    def _self_check(self):
         """Check the worker itself."""
-        if not self._update_stage_if(WorkerStage.PENDING, WorkerStage.INIT):
-            return  # already in the expected stage
 
         logger.info(f"[{self.actor_info.name}] Running self check.")
-        return "Self check passed"
 
     # region Rendezvous and process group setup
 
@@ -150,8 +147,10 @@ class ElasticWorker(ActorBase):
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
-        if not self._update_stage_if(WorkerStage.RUNNING, WorkerStage.PENDING):
-            return  # already in the expected stage
+        assert self.stage == WorkerStage.READY, (
+            f"Cannot start elastic worker {self.actor_info.name} in stage {self.stage}. "
+            "Expected stage is READY."
+        )
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
 
         @contextmanager
@@ -174,45 +173,13 @@ class ElasticWorker(ActorBase):
             target=wrap_run()(self._run_agent),
             daemon=True,
         ).start()
-
-    def _load_user_func(self, entry_point: str) -> Callable[..., object]:
-        """Load the user function from the entry point specified in the workload spec."""
-
-        if not entry_point or "::" not in entry_point:
-            raise ValueError(
-                "Entry point is not specified in the workload spec. "
-                "It should be in the format 'module::function'."
-            )
-        module_name, func = entry_point.split("::", 1)
-        logger.info(
-            f"Running elastic job with entry point: {module_name}.{func}. "
-        )
-
-        try:
-            module = importlib.import_module(module_name)
-            func = getattr(module, func)
-            if not callable(func):
-                raise ValueError(
-                    f"Entry point {entry_point} is not a callable function."
-                )
-            return func
-        except ImportError:
-            logger.error(
-                f"Failed to import module {module_name} for elastic job.",
-            )
-            raise
-        except AttributeError:
-            logger.error(
-                f"Failed to get function {func} from module {module_name} for "
-                f"elastic job.",
-            )
-            raise
+        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
 
     def _run_agent(self):
         """Run the elastic agent."""
         assert self.actor_info.spec.backend == "elastic"
 
-        run_user_func = self._load_user_func(self.actor_info.spec.entry_point)
-        run_user_func()
+        user_func = import_callable(self.actor_info.spec.entry_point)
+        user_func()
 
         logger.info("Done elastic training.")
