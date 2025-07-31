@@ -96,11 +96,11 @@ class PrimeMasterApi(ActorProxy):
         raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
-    def register_data_queue(name: str, master_actor: str, size: int):
+    def register_data_queue(name: str, owner_actor: str, size: int):
         """Register a data queue."""
         raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
-    def get_data_queue_master(name: str) -> str:
-        """Get the master actor of a data queue. Waits if not available."""
+    def get_data_queue_owner(name: str) -> str:
+        """Get the owner actor of a data queue. Waits if not available."""
         raise NotImplementedError("stub")  # pragma: no cover

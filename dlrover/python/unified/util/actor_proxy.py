@@ -66,6 +66,10 @@ def invoke_meta(
 P = ParamSpec("P")
 R = TypeVar("R")
 
+# Used to replace `self` in type hints for non-static methods.
+# Will be ignored when passed as an argument.
+SELF: Any = object()
+
 
 class IActorInfo(Protocol):
     """Common interface for actor information, for extracting name."""
@@ -80,6 +84,9 @@ def invoke_actor_t(
     """Type Safe wrapper for invoking a method on a Ray actor."""
     meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
     name = meta.name or func.__name__
+    # Remove `self` if it's the first argument.
+    if args and args[0] is SELF:
+        args = args[1:]  # type: ignore[assignment]
     return ActorInvocation[R](actor_name, name, *args, **kwargs)
 
 
@@ -92,6 +99,9 @@ def invoke_actors_t(
     """Type Safe wrapper for invoking a method on a Ray actor."""
     meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
     name = meta.name or func.__name__
+    # Remove `self` if it's the first argument.
+    if args and args[0] is SELF:
+        args = args[1:]  # type: ignore[assignment]
     return ActorBatchInvocation[R](
         [
             ActorInvocation[R](
