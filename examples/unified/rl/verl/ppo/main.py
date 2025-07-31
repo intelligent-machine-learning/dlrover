@@ -21,7 +21,7 @@ import hydra
 import ray
 from verl.trainer.ppo.ray_trainer import AdvantageEstimator
 
-from dlrover.python.unified.api.rl import RLJobBuilder
+from dlrover.python.unified.api.builder import RLJobBuilder
 
 
 @hydra.main(config_path="config", config_name="ppo_trainer", version_base=None)

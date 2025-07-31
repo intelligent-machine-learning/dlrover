@@ -1,19 +1,22 @@
 # Unified API Guide[Experimental]
 
 ## Background
-DLRover provides a unified control plane operation tailored for different type 
+
+DLRover provides a unified control plane operation tailored for different type
 of training, aimed at enhancing runtime stability and performance.
-For more details, refer to the: [Proposal doc](../design/unified-mpmd-control-proposal). 
+For more details, refer to the: [Proposal doc](../design/unified-mpmd-control-proposal).
 
 ## Instruction
-Users rely on the following two steps to express any type of Deep Learning job 
-through DLRover:   
+
+Users rely on the following two steps to express any type of Deep Learning job
+through DLRover:
 
 - Step1. Implement the user workload.
 
 - Step2. Use API to express and submit job.
+
     ```python
-    from dlrover.python.unified.api.base import DLJobBuilder
+    from dlrover.python.unified.api.builder import DLJobBuilder
     
     dl_job = (
         DLJobBuilder()
@@ -29,23 +32,26 @@ through DLRover:
     ```
 
 ### Workload Implementation
-For different types of scenarios, the content that users need to implement 
-varies alot. So please refer to the [next chapter](#process-instruction-with-different-types-of-deeplearning) 
-for each scenario for details. 
+
+For different types of scenarios, the content that users need to implement
+varies alot. So please refer to the [next chapter](#process-instruction-with-different-types-of-deeplearning)
+for each scenario for details.
 
 ### Job Submitting Basic API
-Regardless of the scenario, users need to use the following APIs to define and 
+
+Regardless of the scenario, users need to use the following APIs to define and
 submit job.  
 
 - DLJobBuilder Usage
+
     ```python
-    dlrover.python.unified.api.base::DLJobBuilder
+    dlrover.python.unified.api.builder::DLJobBuilder
     ```
 
 - Configuration: use following to setup unified deep learning job
 
   - Job Level
-      
+
       | Method Name          | Mandatory | Type              | Format and Default                     | Description                                |
       |----------------------|-----------|-------------------|----------------------------------------|--------------------------------------------|
       | dl_type              | yes       | str               | "PRE","SFT","RL","MULTIMODAL" / SFT    | deep learning type                         |
@@ -58,7 +64,7 @@ submit job.
       | with_collocation_all | no        | n/a               | not enabled by default                 | collocate all roles                        |
 
   - Workload Level
-      
+
       | Method Name                     | Mandatory  | Type | Format and Default     | Description                                                |
       |---------------------------------|------------|------|------------------------|------------------------------------------------------------|
       | total                           | yes        | int  | int greater than 0 / 0 | instances number for current(role) workload                |
@@ -67,8 +73,8 @@ submit job.
       | resource                        | no         | dict | None                   | resource for current(role) workload                        |
       | disable_ray_auto_visible_device | no         | n/a  | enabled by default     | whether to disable Ray's device visibility auto-assignment |
 
-
 - Build: build the job
+
 ```python
 dl_job = (
     DLJobBuilder()
@@ -77,12 +83,14 @@ dl_job = (
 ```
 
 - Submit: submit the job
+
 ```python
 dl_job.submit()
 ```
 
 ### Process Instruction with Different Types of DeepLearning
-The upcoming relevant documentation will provide specific practical 
+
+The upcoming relevant documentation will provide specific practical
 introductions tailored to different deep learning scenarios.  
 
 - how to implement a simple training(PRE-TRAIN / SFT): TODO

@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.base import DLJobBuilder
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
     RLRoleType,
 )
+
+from .base import DLJobBuilder
 
 
 class RLJobBuilder(DLJobBuilder):

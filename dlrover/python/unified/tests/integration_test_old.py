@@ -16,7 +16,7 @@ import time
 import pytest
 import ray
 
-from dlrover.python.unified.api.rl import RLJobBuilder
+from dlrover.python.unified.api.builder import RLJobBuilder
 from dlrover.python.unified.common.enums import JobStage
 from dlrover.python.unified.tests.base import RayBaseTest
 

@@ -1,11 +1,13 @@
 # Reinforcement Learning Integration Guide[Experimental]
 
 ## Background
-This article primarily provides an extended guidance of the RL scenario. 
-For the background and other general sections, please refer to: 
-[doc](./unified_api_guide.md). 
+
+This article primarily provides an extended guidance of the RL scenario.
+For the background and other general sections, please refer to:
+[doc](./unified_api_guide.md).
 
 To be noticed:
+
 ```
 DLRover itself is not an algorithm framework, and therefore does not natively 
 support any specific RL algorithm implementation. As a result, a complete RL 
@@ -14,6 +16,7 @@ by DLRover to implement the corresponding algorithm and ensure its execution.
 ```
 
 ## Instruction
+
 ### Process Instruction
 
 - use 'BaseRLWorker' to implement the core computation(training or inference or something else)
@@ -23,7 +26,9 @@ by DLRover to implement the corresponding algorithm and ensure its execution.
 ### SDK Instruction
 
 #### BaseRLWorkload
+
 - Abstraction Class
+
 ```python
 dlrover.python.unified.backend.rl.worker::BaseRLWorker
 ```
@@ -42,7 +47,6 @@ Property
 | torch_master_addr | int                | master address for torch rendezvous       |
 | torch_master_port | int                | master port for torch rendezvous          |
 
-
 - Method
 
 | Method Name                            | Is Abstract   | Input Type | Output Type | Description                                                                                                 |
@@ -55,9 +59,10 @@ Property
 | is_actor_or_rollout_device_collocation | no            | n/a        | str         | is actor and rollout in deivce collocation                                                                  |
 | get_device_collocation                 | no            | n/a        | str         | get current device collocation group if current role is in a device collocation group. e.g. 'ACTOR,ROLLOUT' |
 
-
 #### BaseRLTrainer
+
 - Abstraction class
+
 ```python
 dlrover.python.unified.backend.rl.trainer::BaseRLTrainer
 ```
@@ -73,7 +78,6 @@ dlrover.python.unified.backend.rl.trainer::BaseRLTrainer
 | rewards       | List[ActorHandle]  | get all the actor handles for reward                                              |
 | critics       | List[ActorHandle]  | get all the actor handles for critic                                              |
 
-
 - Method
 
 | Method Name            | Is Abstract | Input Type | Output Type  | Description                                         |
@@ -85,9 +89,9 @@ dlrover.python.unified.backend.rl.trainer::BaseRLTrainer
 
 - Trainer-Invocation Usage
 
-  To enable flexible method invocation between the trainer and workloads, the 
-  decorator `@trainer_invocation` has been implemented. Methods decorated with 
-  `@trainer_invocation` support the following features during remote invocation.   
+  To enable flexible method invocation between the trainer and workloads, the
+  decorator `@trainer_invocation` has been implemented. Methods decorated with
+  `@trainer_invocation` support the following features during remote invocation.
 
   - Usage
 
@@ -101,27 +105,29 @@ dlrover.python.unified.backend.rl.trainer::BaseRLTrainer
 | pre_func       | function  | Default: None                                                     | A pre-execution method for the remote method. The return value of this method serves as an argument to the remote method.                                                                                                            |
 | post_func      | function  | Default: None                                                     | A post-execution method for the remote method. The return value of the remote method is input to this method, and the final result is the return value of this method.                                                               |
 
+- Example
 
-  - Example
-      
-      e.g. The actor has a method `a`, which can be invoked completely 
+      e.g. The actor has a method `a`, which can be invoked completely
            asynchronously without waiting for the result:  
+
       ```python
       @trainer_invocation(blocking=False)
       def a(xxx):
             xxx
       ```
-      
-      e.g. The actor has a method `b`, which requires using the `wait` 
-           non-blocking mode to wait for the result, with a timeout of 30 
+
+      e.g. The actor has a method `b`, which requires using the `wait`
+           non-blocking mode to wait for the result, with a timeout of 30
            seconds:  
+
       ```python
       @trainer_invocation(is_async=True,timeout=30)
       def a(xxx):
             xxx
       ```
-      
+
       e.g. When using method `b`, it also requires a pre-filtering method:  
+
       ```python
       def filter_func(input: int):
             if input < -1:
@@ -135,51 +141,53 @@ dlrover.python.unified.backend.rl.trainer::BaseRLTrainer
 
 - Role-Group Usage
 
-    Considering that calling a specific method of a certain type of workload under 
-    the trainer is the most common usage scenario, a runtime binding for the 
-    `RoleGroup` object has been implemented for convenience. Specifically, after 
-    the trainer object is constructed, `RoleGroup` objects are dynamically bound 
-    to the trainer based on the types of workloads present for the current task. 
-    Users can directly call remote methods of all workloads of a target type 
+    Considering that calling a specific method of a certain type of workload under
+    the trainer is the most common usage scenario, a runtime binding for the
+    `RoleGroup` object has been implemented for convenience. Specifically, after
+    the trainer object is constructed, `RoleGroup` objects are dynamically bound
+    to the trainer based on the types of workloads present for the current task.
+    Users can directly call remote methods of all workloads of a target type
     through these `RoleGroup` objects.  
 
-    - Usage
-        
-        - Format: self.{ROLE_GROUP}.{remote_method}
+  - Usage
 
-        - For example:
-          - actor -> RG_ACTOR
-          - R0 -> RG_RO
-          - udf_1 -> RG_UDF_1
+    - Format: self.{ROLE_GROUP}.{remote_method}
 
-    - Example
+    - For example:
+      - actor -> RG_ACTOR
+      - R0 -> RG_RO
+      - udf_1 -> RG_UDF_1
 
-        e.g. There are 4 actors with the method implementation: `update`. 
-             Invoke the `update` method of all 4 actors simultaneously under 
+  - Example
+
+        e.g. There are 4 actors with the method implementation: `update`.
+             Invoke the `update` method of all 4 actors simultaneously under
              the trainer.  
+
         ```python
         self.RG_ACTOR.update(parameter_x)
         ```
-      
-        e.g. There are 2 rollouts with the method implementation: `generate`. 
-             Invoke the `generate` method of all 2 rollouts simultaneously 
+
+        e.g. There are 2 rollouts with the method implementation: `generate`.
+             Invoke the `generate` method of all 2 rollouts simultaneously
              under the trainer.  
+
         ```python
         self.RG_ROLLOUT.generate(parameter_0, parameter_1)
         ```
 
-
-
 #### Job Submitting API
 
 - RLJobBuilder Usage
+
 ```python
-dlrover.python.unified.api.rl::RLJobBuilder
+dlrover.python.unified.api.builder::RLJobBuilder
 ```
+
 - Extended Configuration
 
   - Job Level
-    
+
       | Method Name | Mandatory  | Type  | Format and Default                      | Description                   |
       |-------------|------------|-------|-----------------------------------------|-------------------------------|
       | actor       | yes        | tuple | (${module_name}, ${class_name}) / None  | setup actor workload info     |
@@ -187,10 +195,9 @@ dlrover.python.unified.api.rl::RLJobBuilder
       | reference   | no         | tuple | (${module_name}, ${class_name}) / None  | setup reference workload info |
       | reward      | no         | tuple | (${module_name}, ${class_name}) / None  | setup reward workload info    |
       | critic      | no         | tuple | (${module_name}, ${class_name}) / None  | setup critic workload info    |
-      
-    
 
 ## Example
+
 The following examples primarily provides examples for adapting to
 different open-source frameworks.
 
@@ -199,11 +206,13 @@ All implementations below is based on a history version of each framework and
 not guarantee compatibility with the latest code.
 
 - With OpenRLHF PPO(Deepspeed):
+
 ```
 example codes in examples/unified/rl/openrlhf
 ```
 
 - With Verl PPO(Megatron):
+
 ```
 example codes in examples/unified/rl/verl
 ```
