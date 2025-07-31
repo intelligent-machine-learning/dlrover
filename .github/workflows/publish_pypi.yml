@@ -24,9 +24,9 @@ jobs:
       - name: Build Package
         run: sh scripts/build_wheel.sh
 
-#      - name: Publish to PyPI
-#        env:
-#          TWINE_USERNAME: dlrover
-#          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-#        run: |
-#          python -m twine upload dist/dlrover*
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: dlrover
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          python -m twine upload dist/dlrover*
