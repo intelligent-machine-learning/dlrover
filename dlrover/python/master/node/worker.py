@@ -13,7 +13,7 @@
 
 import copy
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -341,7 +341,9 @@ class WorkerManager(TrainingNodeManager):
             self._update_node(worker)
         return restart
 
-    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
+    def is_training_hang_by_pending(
+        self, total_node_num, job_type
+    ) -> Optional[str]:
         """
         To prevent training hang by pending workers. Should exit when there
         is inextricable pending issue.
@@ -366,7 +368,7 @@ class WorkerManager(TrainingNodeManager):
                 ParameterServerStrategy for now.
 
         Return:
-            bool
+            str: return worker name if has pending
         """
 
         # fail strategy
@@ -379,7 +381,7 @@ class WorkerManager(TrainingNodeManager):
             f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
         )
         if timeout <= 0 or skip_pending_judgement(strategy):
-            return False
+            return None
 
         # collect pending and running nodes
         cur_nodes = list(self._get_nodes().values())
@@ -399,7 +401,7 @@ class WorkerManager(TrainingNodeManager):
             logger.debug(
                 "Skip for no required nodes info and not all nodes pending."
             )
-            return False
+            return None
 
         if job_type == DistributionStrategy.ALLREDUCE or (
             job_type == DistributionStrategy.PS
@@ -421,7 +423,7 @@ class WorkerManager(TrainingNodeManager):
                         f"than the min workers "
                         f"required: {self.get_min_nodes_required()}."
                     )
-                    return False
+                    return None
 
             # with condition 3
             now = time.time()
@@ -437,7 +439,7 @@ class WorkerManager(TrainingNodeManager):
                     "Skip for no pending workers or pending worker's "
                     f"create time is None: {first_pending_worker}."
                 )
-                return False
+                return None
 
             if now - first_pending_worker.create_time.timestamp() > timeout:
                 logger.warning(
@@ -451,7 +453,7 @@ class WorkerManager(TrainingNodeManager):
                     "min required nodes size"
                     f": {self.get_min_nodes_required()}."
                 )
-                return True
+                return first_pending_worker.name
         elif (
             job_type == DistributionStrategy.PS
             and is_key_nodes_pending_judgement(strategy)
@@ -467,7 +469,7 @@ class WorkerManager(TrainingNodeManager):
                     "Skip for no pending worker0 or pending worker's "
                     f"create time is None: {pending_worker_0}."
                 )
-                return False
+                return None
 
             now = time.time()
             if now - pending_worker_0.create_time.timestamp() > timeout:
@@ -480,8 +482,8 @@ class WorkerManager(TrainingNodeManager):
                     f"pending workers(size:{len(pending_workers)})"
                     f": {pending_workers}."
                 )
-                return True
-        return False
+                return pending_worker_0.name
+        return None
 
     def _get_insufficient_timeout(self):
         timeout = int(self.get_nodes_timeout() * 1.5)
