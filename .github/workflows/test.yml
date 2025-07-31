@@ -1,0 +1,12 @@
+name: Test Container
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-container:
+    runs-on: ubuntu-latest
+    container:
+      image: easydl/dlrover:ci
+    steps:
+      - run: echo "Container started successfully"
