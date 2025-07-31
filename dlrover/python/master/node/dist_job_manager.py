@@ -316,10 +316,13 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # ps/worker pending judgement:
-        first_pending_node = self._ps_manager.is_training_hang_by_pending(
-            self.get_ps_num(), self.get_job_type()
-        ) or self._worker_manager.is_training_hang_by_pending(
-            self.get_worker_num(), self.get_job_type()
+        first_pending_node = (
+            self._ps_manager.find_pending_node_caused_training_hang(
+                self.get_ps_num(), self.get_job_type()
+            )
+            or self._worker_manager.find_pending_node_caused_training_hang(
+                self.get_worker_num(), self.get_job_type()
+            )
         )
         if first_pending_node:
             msg = (

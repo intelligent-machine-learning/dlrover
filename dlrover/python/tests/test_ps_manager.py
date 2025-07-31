@@ -229,12 +229,14 @@ class PSManagerTest(unittest.TestCase):
             self._elastic_job.get_node_name,
         )
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 4, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(4, DistributionStrategy.PS)
+            ps_manager.find_pending_node_caused_training_hang(
+                4, DistributionStrategy.PS
+            )
         )
 
         mock_nodes = {}
@@ -257,12 +259,12 @@ class PSManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self._job_context.update_job_node(mock_node)
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.PS
             )
         )
@@ -287,12 +289,12 @@ class PSManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self._job_context.update_job_node(mock_node)
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.PS
             )
         )
@@ -316,12 +318,12 @@ class PSManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self._job_context.update_job_node(mock_node)
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.PS
             )
         )
@@ -340,12 +342,12 @@ class PSManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self._job_context.update_job_node(mock_node)
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            ps_manager.is_training_hang_by_pending(
+            ps_manager.find_pending_node_caused_training_hang(
                 ps_num, DistributionStrategy.PS
             )
         )

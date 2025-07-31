@@ -877,11 +877,11 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._init_nodes()
 
         # ps normal + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=None
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value="worker0"
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
@@ -889,31 +889,31 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(msg)
 
         # ps normal + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=None
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=None
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
 
         # ps pending + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value="worker0"
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=None
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
 
         # ps pending + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value="worker0"
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value="worker0"
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)

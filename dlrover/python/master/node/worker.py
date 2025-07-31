@@ -341,7 +341,7 @@ class WorkerManager(TrainingNodeManager):
             self._update_node(worker)
         return restart
 
-    def is_training_hang_by_pending(
+    def find_pending_node_caused_training_hang(
         self, total_node_num, job_type
     ) -> Optional[str]:
         """
