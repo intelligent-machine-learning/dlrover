@@ -110,6 +110,14 @@ class PrimeMaster:
         logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
         asyncio.create_task(self.manager.restart_job())
 
+    def register_data_queue(self, name: str, master_actor: str, size: int):
+        """Register a data queue."""
+        self.manager.sync.register_data_queue(name, master_actor, size)
+
+    async def get_data_queue_master(self, name: str) -> str:
+        """Get the master actor of a data queue. Waits if not available."""
+        return await self.manager.sync.get_data_queue_master(name)
+
     # endregion
     @staticmethod
     def create(

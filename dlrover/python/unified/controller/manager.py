@@ -12,22 +12,22 @@
 # limitations under the License.
 
 import asyncio
-from threading import Thread
-from typing import List, Optional
+from typing import List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import MasterStage
-from dlrover.python.unified.controller import remote_call
-from dlrover.python.unified.controller.api import MasterStatus
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
+from . import remote_call
+from .api import MasterStatus
 from .config import JobConfig
 from .schedule.graph import DLExecutionGraph
 from .schedule.scheduler import Scheduler
+from .sync_manager import SyncManager
 
 
 class PrimeManager:
@@ -39,7 +39,7 @@ class PrimeManager:
         # Create all components
         self.graph = DLExecutionGraph.create(config.dl_config)
         self.scheduler: Scheduler = Scheduler(config)
-        self.thread: Optional[Thread] = None
+        self.sync = SyncManager()
 
         # Runtime state
         self._stage: MasterStage = MasterStage.INIT

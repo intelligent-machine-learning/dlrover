@@ -94,3 +94,13 @@ class PrimeMasterApi(ActorProxy):
     def report_actor_restarted(name: str):
         """Report an actor restarted, do failover if needed."""
         raise NotImplementedError("stub")  # pragma: no cover
+
+    @staticmethod
+    def register_data_queue(name: str, master_actor: str, size: int):
+        """Register a data queue."""
+        raise NotImplementedError("stub")  # pragma: no cover
+
+    @staticmethod
+    def get_data_queue_master(name: str) -> str:
+        """Get the master actor of a data queue. Waits if not available."""
+        raise NotImplementedError("stub")  # pragma: no cover
