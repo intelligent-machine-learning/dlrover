@@ -4,7 +4,6 @@ from typing import Generic, List, Sequence
 
 import ray
 from gguf import TypeVar
-from ray import ObjectRef
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.api.runtime.rpc import (
@@ -16,13 +15,15 @@ from dlrover.python.unified.api.runtime.worker import current_worker
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.async_helper import as_future, wait
 
+T = TypeVar("T")
 
-class DataQueueImpl:
-    """Core implementation of the data queue."""
+
+class DataQueueImpl(Generic[T]):
+    """Core implementation of the data queue. Runs on the owner actor."""
 
     def __init__(self, name: str, size: int):
         self.name = name
-        self._queue = asyncio.Queue[ObjectRef](size)
+        self._queue = asyncio.Queue[T](size)
         self._fifo_lock = asyncio.Lock()
 
     @rpc()
@@ -31,7 +32,7 @@ class DataQueueImpl:
         return self._queue.qsize()
 
     @rpc()
-    async def put(self, objs: Sequence[ObjectRef]):
+    async def put(self, objs: Sequence[T]):
         """Put an object into the queue. Waits if the queue is full."""
         if self._queue.full():
             logger.debug(
@@ -41,7 +42,7 @@ class DataQueueImpl:
             await self._queue.put(obj)
 
     @rpc()
-    async def get(self, batch_size: int) -> List[ObjectRef]:
+    async def get(self, batch_size: int) -> List[T]:
         """Get a batch of objects from the queue."""
         # Let the first user get all needed objects first
         async with self._fifo_lock:
@@ -51,7 +52,7 @@ class DataQueueImpl:
             ]
 
     @rpc()
-    def get_nowait(self, max_size: int = 1) -> List[ObjectRef]:
+    def get_nowait(self, max_size: int = 1) -> List[T]:
         """
         Get a batch of objects from the queue without waiting.
         If the queue is empty, it returns an empty list.
@@ -64,9 +65,6 @@ class DataQueueImpl:
         ]
 
 
-T = TypeVar("T")
-
-
 class DataQueue(Generic[T]):
     """
     Distributed data queue interface.
@@ -75,7 +73,7 @@ class DataQueue(Generic[T]):
     def __init__(self, name: str, is_master: bool, size: int = 1000):
         self._is_master = is_master
         if self._is_master:
-            self._impl = DataQueueImpl(name, size)
+            self._impl = DataQueueImpl[ray.ObjectRef[T]](name, size)
             export_rpc_instance(f"{DataQueue.__name__}.{name}", self._impl)
             PrimeMasterApi.register_data_queue(
                 name, current_worker().actor_info.name, size
@@ -83,7 +81,9 @@ class DataQueue(Generic[T]):
         else:
             owner = PrimeMasterApi.get_data_queue_owner(name)
             self._impl = create_rpc_proxy(
-                owner, f"{DataQueue.__name__}.{name}", DataQueueImpl
+                owner,
+                f"{DataQueue.__name__}.{name}",
+                DataQueueImpl[ray.ObjectRef[T]],
             )
 
     def qsize(self) -> int:
