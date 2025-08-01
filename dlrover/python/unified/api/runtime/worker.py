@@ -2,8 +2,8 @@ from concurrent.futures import Future
 from typing import Callable, List, ParamSpec, Protocol, TypeVar
 
 from dlrover.python.unified.api.runtime.rpc import rpc_call_arbitrary
+from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import (
-    ActorBase,
     ActorInfo,
     JobInfo,
 )
@@ -27,7 +27,7 @@ class Worker(Protocol):
 
 
 def current_worker() -> Worker:
-    return ActorBase.CURRENT
+    return BaseWorker.CURRENT
 
 
 P = ParamSpec("P")

@@ -35,10 +35,7 @@ class ElasticWorker(BaseWorker):
         assert self.actor_info.spec.backend == "elastic"
 
         self._process_group_setup = False
-        self._setup_envs()
-
-        self._self_check()
-        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
+        super()._setup()
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""

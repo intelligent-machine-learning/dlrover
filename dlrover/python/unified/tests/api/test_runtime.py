@@ -11,14 +11,19 @@ from dlrover.python.unified.api.runtime.rpc import (
     rpc,
     rpc_call_t,
 )
-from dlrover.python.unified.common.workload_base import ActorBase, ActorInfo
+from dlrover.python.unified.backend.common.base_worker import BaseWorker
+from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
 
 
 def mock_rpc_call(actor_name, method, is_async, args, kwargs):
-    actor = Mock(ActorBase)
+    actor = Mock(BaseWorker)
     actor.actor_info = Mock(ActorInfo)
     actor.actor_info.name = actor_name
-    ret = ActorBase._user_rpc_call(actor, method, *args, **kwargs)
+    actor._arbitrary_remote_call = BaseWorker._arbitrary_remote_call.__get__(
+        actor
+    )
+    actor.stage = WorkerStage.RUNNING
+    ret = BaseWorker._user_rpc_call(actor, method, *args, **kwargs)
     if not is_async:
         return asyncio.run(ret)
     return ret
@@ -40,11 +45,11 @@ def test_rpc(mocker):
     RPC_REGISTRY.clear()
 
     # Need export explicitly, as it's not top-level.
-    @rpc(name="some_method", export=True)
+    @rpc(export=True)
     def some_method():
         return "test1"
 
-    @rpc(name="some_async_method", export=True)
+    @rpc(export=True)
     async def some_async_method():
         return "test2"
 
@@ -94,17 +99,17 @@ def test_queue(mocker):
         "dlrover.python.unified.api.runtime.queue.wait",
         asyncio.run,
     )
-    ActorBase.CURRENT = Mock()
+    BaseWorker.CURRENT = Mock()
     # Mock ray.put, ray.get, not to actually use Ray.
     mocker.patch("ray.put", side_effect=lambda x: x)
     mocker.patch("ray.get", side_effect=lambda x: x)
 
-    ActorBase.CURRENT.actor_info.name = "actor1"
+    BaseWorker.CURRENT.actor_info.name = "actor1"
     queue_master = DataQueue[str]("test_queue", size=10, is_master=True)
     assert register_data_queue.called_once_with("test_queue", "actor1", 10)
     assert "DataQueue.test_queue.qsize" in RPC_REGISTRY
 
-    ActorBase.CURRENT.actor_info.rank = 1
+    BaseWorker.CURRENT.actor_info.rank = 1
     queue_client = DataQueue[str]("test_queue", size=10, is_master=False)
 
     assert queue_client.qsize() == 0

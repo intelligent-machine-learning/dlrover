@@ -25,12 +25,11 @@ class UserRpcMethodMeta:
 
     name: str
     isAsync: bool
-    export: bool = True
 
     ATTR_KEY: ClassVar[str] = "_rpc_meta_"
 
 
-def rpc(name: Optional[str] = None, export: Optional[bool] = None):
+def rpc(name: Optional[str] = None, export: bool = False):
     """Decorator to mark a method as an RPC method.
 
     Args:
@@ -42,12 +41,9 @@ def rpc(name: Optional[str] = None, export: Optional[bool] = None):
         meta = UserRpcMethodMeta(
             name=name or func.__name__,
             isAsync=asyncio.iscoroutinefunction(func),
-            export=export
-            if export is not None
-            else (func.__name__ == func.__qualname__),
         )
         setattr(func, UserRpcMethodMeta.ATTR_KEY, meta)
-        if meta.export:
+        if export:
             export_rpc_method(meta.name, func)
         return func
 
@@ -65,13 +61,14 @@ def export_rpc_method(name: str, func: Callable[..., Any]):
     RPC_REGISTRY[name] = func
 
 
-def export_rpc_instance(name: str, instance: Any):
+def export_rpc_instance(ns: Optional[str], instance: Any):
     """Export an instance's RPC methods."""
     for attr_name in dir(instance):
         func = getattr(instance, attr_name)
         if callable(func) and hasattr(func, UserRpcMethodMeta.ATTR_KEY):
             meta: UserRpcMethodMeta = getattr(func, UserRpcMethodMeta.ATTR_KEY)
-            export_rpc_method(f"{name}.{meta.name}", func)
+            name = f"{ns}.{meta.name}" if ns else meta.name
+            export_rpc_method(name, func)
 
 
 @invoke_meta("_arbitrary_remote_call")

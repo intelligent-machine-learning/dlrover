@@ -13,7 +13,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar, Optional
+from typing import Optional
 
 import ray.actor
 
@@ -76,8 +76,6 @@ class ActorInfo:
 class ActorBase:
     """Base class for all actors in the DLRover system."""
 
-    CURRENT: ClassVar["ActorBase"]
-
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
         self.job_info = job_info
@@ -91,7 +89,6 @@ class ActorBase:
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
             self._report_restart()
-        ActorBase.CURRENT = self
         self._setup()
 
     @property
