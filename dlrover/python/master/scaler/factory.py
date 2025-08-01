@@ -29,3 +29,7 @@ def new_job_scaler(platform, job_name, namespace):
         return ActorScaler(job_name, namespace)
     elif platform == PlatformType.LOCAL:
         return None
+    elif platform == PlatformType.PY_VOLCANO:
+        from dlrover.python.master.scaler.volcano_scaler import VolcanoScaler
+
+        return VolcanoScaler(job_name, namespace)
