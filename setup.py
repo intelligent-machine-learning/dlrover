@@ -14,10 +14,8 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio>=1.58.0",
     "psutil",
     "pynvml",
-    "urllib3<1.27,>=1.21.1",
     "deprecated",
     "requests",
     "packaging",
@@ -25,12 +23,10 @@ install_requires = [
 
 
 extra_require = {
-    "master": ["tornado", "ray", "kubernetes", "omegaconf"],
-    "k8s": ["kubernetes"],
-    "ray": ["ray"],
+    "k8s": ["kubernetes", "tornado", "grpcio"],
+    "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
-    "rl": ["ray"],
 }
 
 

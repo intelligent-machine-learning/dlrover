@@ -434,7 +434,7 @@ DLRover provides examples to train GPT-2 using [DDP](../../examples/pytorch/nano
 Firstly, we need to install dlrover.
 
 ```bash
-pip install dlrover[torch] -U
+pip install dlrover[k8s, torch] -U
 ```
 
 Then, we can start the training using `dlrover-run`.

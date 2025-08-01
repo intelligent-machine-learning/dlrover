@@ -88,7 +88,6 @@ class MegatronCheckpointTest(unittest.TestCase):
             momentum=0.001,
         )
         with tempfile.TemporaryDirectory() as tmpdirname:
-
             suffix = "model_optim_rng.pt"
 
             def get_args():

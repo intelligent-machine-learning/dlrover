@@ -32,12 +32,11 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
 )
 
-# isort: off
+
 from dlrover.python.master.node.job_context import (
     get_job_context as get_elastic_context,
 )
 
-# isort: on
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.unified.common.enums import InternalRoleType
 from dlrover.python.unified.common.failure import FailureDesc
@@ -125,8 +124,7 @@ class ElasticJobManager(JobManager):
                             self.elastic_context.update_job_node(current_node)
                         else:
                             logger.warning(
-                                f"Node {node_id} not exists "
-                                "during monitoring."
+                                f"Node {node_id} not exists during monitoring."
                             )
             except Exception as e:
                 logger.warning(e)
@@ -223,8 +221,7 @@ class ElasticJobManager(JobManager):
             target_node = self.elastic_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported "
-                    f"status to {event_type}."
+                    f"Node {node_id}({node_type}) reported status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self.elastic_context.update_job_node(target_node)

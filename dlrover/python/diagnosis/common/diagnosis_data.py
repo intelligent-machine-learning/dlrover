@@ -14,7 +14,7 @@
 import json
 from abc import ABCMeta
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from dlrover.python.common import env_utils
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
@@ -152,7 +152,7 @@ class TrainingLog(DiagnosisData):
     def __init__(
         self,
         timestamp: int = 0,
-        logs: List[str] = None,
+        logs: Optional[List[str]] = None,
         node_id=env_utils.get_node_id(),
         node_type=env_utils.get_node_type(),
         node_rank=env_utils.get_node_rank(),

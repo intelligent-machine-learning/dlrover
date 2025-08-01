@@ -30,6 +30,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     ScalePlanLabel,
+    SchedulingLabel,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import (
@@ -95,6 +96,94 @@ def _get_pod_exit_reason(pod):
     return ""
 
 
+def _convert_pod_yaml_to_node(pod):
+    replica_type_key = ElasticJobLabel.REPLICA_TYPE_KEY
+    replica_index_key = ElasticJobLabel.REPLICA_INDEX_KEY
+    rank_index_key = ElasticJobLabel.RANK_INDEX_KEY
+    relaunch_count_key = ElasticJobLabel.RELAUNCH_COUNT
+
+    metadata: client.V1ObjectMeta = pod.metadata
+    pod_name = metadata.name
+    pod_type = metadata.labels[replica_type_key]
+    node_group = None
+    node_group_size = None
+    node_group_id = None
+
+    if pod_type == NodeType.DLROVER_MASTER:
+        return None
+    elif pod_type == NodeType.WORKER:
+        try:
+            if SchedulingLabel.NODE_GROUP in metadata.labels:
+                node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
+                node_group_size = int(
+                    metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
+                )
+                node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
+                logger.debug(
+                    f"Parse {metadata.labels[SchedulingLabel.NODE_GROUP]} "
+                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]} "
+                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_ID]} "
+                    f"to {node_group} {node_group_size} {node_group_id}"
+                )
+        except Exception as e:
+            logger.error(
+                f"Unexpected exception {e} on parsing {metadata} "
+                f"with {pod_name} {pod_type}"
+            )
+            node_group = None
+            node_group_size = None
+            node_group_id = None
+
+    pod_id = int(metadata.labels[replica_index_key])
+    rank_id = int(metadata.labels[rank_index_key])
+    relaunch_count = int(metadata.labels[relaunch_count_key])
+    resource = _parse_container_resource(pod.spec.containers[0])
+    host_name = pod.spec.node_name
+    host_ip = pod.status.host_ip
+
+    # if pod has 'deletion_timestamp', set as deleted status directly
+    # because the deletion has low probability of failure will affect
+    # node status judgement
+    if metadata.deletion_timestamp:
+        status = NodeStatus.DELETED
+    else:
+        status = pod.status.phase
+
+    start_time = _get_start_timestamp(pod.status)
+    restart_training = _verify_restarting_training(pod)
+
+    node = Node(
+        node_type=pod_type,
+        node_id=pod_id,
+        name=pod_name,
+        rank_index=rank_id,
+        status=status,
+        start_time=start_time,
+        config_resource=resource,
+        host_name=host_name,
+        host_ip=host_ip,
+        restart_training=restart_training,
+        relaunch_count=relaunch_count,
+        node_group=node_group,
+        node_group_size=node_group_size,
+        node_group_id=node_group_id,
+    )
+
+    logger.debug(
+        f"convert yaml to node: {node} "
+        f"type {pod_type}, id {pod_id}, name {pod_name} "
+        f"rank {rank_id}, status {status} "
+        f"group {node_group} node_group_size {node_group_size} "
+        f"with meta {metadata.labels}"
+    )
+
+    node.create_time = metadata.creation_timestamp
+    if NodeStatus.is_terminal_status(status):
+        node.set_exit_reason(_get_pod_exit_reason(pod))
+
+    return node
+
+
 def _convert_pod_event_to_node_event(event):
     pod = event.get("object")
     evt_type = event.get("type")
@@ -106,52 +195,18 @@ def _convert_pod_event_to_node_event(event):
         # We only care about pod related events
         return None
 
-    metadata: client.V1ObjectMeta = pod.metadata
-
-    # Skip events of dlrover mater Pod
-    pod_type = metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-    if pod_type == NodeType.DLROVER_MASTER:
+    node = _convert_pod_yaml_to_node(pod)
+    if node is None:
         return None
 
-    rank = int(metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
-    pod_id = int(metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
-    pod_name = metadata.name
-    host_name = pod.spec.node_name
-    host_ip = pod.status.host_ip
-
-    status = pod.status.phase
-    if metadata.deletion_timestamp:
-        status = NodeStatus.DELETED
-
     logger.debug(
-        f"Got monitor event for pod: {pod_name}, "
-        f"node: {host_name}, ip: {host_ip}, status: {status}."
+        f"Got monitor event for pod: {node.name}, "
+        f"node: {node.host_name}, ip: {node.host_ip}, "
+        f"status: {node.status}."
     )
+    if node.restart_training:
+        logger.info(f"{node.name} need to restart.")
 
-    restart = _verify_restarting_training(pod)
-    if restart:
-        logger.info(f"{pod.metadata.name} need to restart.")
-
-    resource = _parse_container_resource(pod.spec.containers[0])
-
-    relaunch_count = int(metadata.labels[ElasticJobLabel.RELAUNCH_COUNT])
-    node = Node(
-        node_type=pod_type,
-        node_id=pod_id,
-        name=pod_name,
-        rank_index=rank,
-        status=status,
-        start_time=_get_start_timestamp(pod.status),
-        config_resource=resource,
-        host_name=host_name,
-        host_ip=host_ip,
-        restart_training=restart,
-        relaunch_count=relaunch_count,
-    )
-    node.create_time = metadata.creation_timestamp
-
-    if NodeStatus.is_terminal_status(status):
-        node.set_exit_reason(_get_pod_exit_reason(pod))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
 
@@ -234,60 +289,19 @@ class PodWatcher(NodeWatcher):
         if not pod_list.items:
             return nodes
 
-        replica_type_key = ElasticJobLabel.REPLICA_TYPE_KEY
-        replica_index_key = ElasticJobLabel.REPLICA_INDEX_KEY
-        rank_index_key = ElasticJobLabel.RANK_INDEX_KEY
-        relaunch_count_key = ElasticJobLabel.RELAUNCH_COUNT
-
         for pod in pod_list.items:
-            metadata: client.V1ObjectMeta = pod.metadata
-            pod_name = metadata.name
-            pod_type = metadata.labels[replica_type_key]
-            if pod_type == NodeType.DLROVER_MASTER:
+            node = _convert_pod_yaml_to_node(pod)
+            if node is None:
                 continue
-            pod_id = int(metadata.labels[replica_index_key])
-            task_id = int(metadata.labels[rank_index_key])
-            relaunch_count = int(metadata.labels[relaunch_count_key])
-            resource = _parse_container_resource(pod.spec.containers[0])
-            host_name = pod.spec.node_name
-            host_ip = pod.status.host_ip
-
-            # if pod has 'deletion_timestamp', set as deleted status directly
-            # because the deletion has low probability of failure will affect
-            # node status judgement
-            if metadata.deletion_timestamp:
-                status = NodeStatus.DELETED
-            else:
-                status = pod.status.phase
-            start_time = _get_start_timestamp(pod.status)
-            restart_training = _verify_restarting_training(pod)
-            node = Node(
-                node_type=pod_type,
-                node_id=pod_id,
-                name=pod_name,
-                rank_index=task_id,
-                status=status,
-                start_time=start_time,
-                config_resource=resource,
-                host_name=host_name,
-                host_ip=host_ip,
-                restart_training=restart_training,
-                relaunch_count=relaunch_count,
-            )
-
-            if NodeStatus.is_terminal_status(status):
-                node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
 
             # delete pod if pod already succeeded(no need for failed pod,
             # cuz the deletion will be done in relaunch operation)
             if pod.status.phase == NodeStatus.SUCCEEDED:
-                logger.info(f"Delete succeeded pod: {pod_name}")
-                self._k8s_client.delete_pod(pod_name)
+                logger.info(f"Delete succeeded pod: {node.name}")
+                self._k8s_client.delete_pod(node.name)
             else:
-                node_type = pod_type
-                node_id = pod_id
-                target_node = job_ctx.job_node(node_type, node_id)
+                target_node = job_ctx.job_node(node.type, node.id)
                 now = int(datetime.now().timestamp())
                 if target_node:
                     status, ts = target_node.reported_status
@@ -297,11 +311,11 @@ class PodWatcher(NodeWatcher):
                         > JobConstant.SUCCEEDED_POD_TERMINATING_TIMEOUT
                     ):
                         logger.info(
-                            f"Delete target pod {pod_name} due to "
+                            f"Delete target pod {node.name} due to "
                             f"report status {status} from {ts} to {now} "
                             f"has exceeded 600s"
                         )
-                        self._k8s_client.delete_pod(pod_name)
+                        self._k8s_client.delete_pod(node.name)
 
         return nodes
 

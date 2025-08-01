@@ -126,8 +126,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
             if not first_pending_wk:
                 first_pending_wk = min(
                     pending_workers,
-                    key=lambda x: x.create_time,
-                )  # type: ignore
+                    key=lambda x: x.create_time,  # type:ignore #notnull
+                )
 
             if (
                 first_pending_wk
@@ -171,7 +171,8 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         # 1st: judge ps
         if pending_ps:
             first_pending_ps = min(
-                pending_ps, key=lambda x: x.create_time  # type: ignore
+                pending_ps,
+                key=lambda x: x.create_time,  # type: ignore
             )
             if (
                 first_pending_ps
@@ -218,8 +219,9 @@ class SchedulingPreCheckOperator(PreCheckOperator):
                 return True, None
             else:
                 first_pending_wk = min(
-                    pending_workers, key=lambda x: x.create_time
-                )  # type: ignore
+                    pending_workers,
+                    key=lambda x: x.create_time,  # type:ignore #notnull
+                )
                 if (
                     first_pending_wk
                     and first_pending_wk.create_time
@@ -276,10 +278,7 @@ class SchedulingPreCheckOperator(PreCheckOperator):
         )
 
         if timeout <= 0 or strategy == PendingTimeoutStrategyType.SKIP:
-            msg = (
-                f"Skip {self.__class__.__name__} for "
-                "'skip' pending timeout strategy."
-            )
+            msg = f"Skip {self.__class__.__name__} for 'skip' pending timeout strategy."
             logger.info(msg)
             return PreCheckResult(result_msg=msg)
 
@@ -392,8 +391,7 @@ class ConnectionPreCheckOperator(PreCheckOperator):
                         != NodeEventType.WAIT_PRE_CHECK
                     ):
                         logger.debug(
-                            f"Node {node.id} failed connection check, "
-                            f"retry time: {i}."
+                            f"Node {node.id} failed connection check, retry time: {i}."
                         )
                         abnormal_nodes.append(node)
 

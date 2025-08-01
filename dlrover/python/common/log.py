@@ -25,8 +25,7 @@ _DEFAULT_LOGGER = "dlrover.logger"
 _LOGGER_LEVEL_RANGE = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 _DEFAULT_FORMATTER = logging.Formatter(
-    "[%(asctime)s] [%(levelname)s] "
-    "[%(filename)s:%(lineno)d:%(funcName)s] %(message)s"
+    "[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d:%(funcName)s] %(message)s"
 )
 
 _ch = logging.StreamHandler(stream=sys.stderr)

@@ -62,11 +62,9 @@ class ActorScaler(Scaler):
                     self._scale_down_actors(type, plan, cur_actors)
 
     def _stats_alive_actors(self) -> Dict[str, List[Node]]:
-
         job_pods: Dict[str, List[Node]] = {}
 
         for name, status in self._ray_client.list_actor():
-
             actor_type, actor_index = parse_type_id_from_actor_name(name)
             if actor_type not in job_pods:
                 job_pods[actor_type] = []

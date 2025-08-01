@@ -20,7 +20,7 @@ from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -112,8 +112,7 @@ def get_critical_worker_index(params: JobArgs):
         return critical_worker_index
     except Exception as e:
         logger.warning(
-            f"Invalid worker params: {worker_params.__dict__}, "
-            f"error: {str(e)}"
+            f"Invalid worker params: {worker_params.__dict__}, error: {str(e)}"
         )
         return {}
 
@@ -146,8 +145,7 @@ def reduce_timeout_pending_node_resource(node: Node):
     if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
         node.config_resource.cpu = new_cpu
         logger.info(
-            "Pod %s pending time %s beyonds %s."
-            "Delete and relaunch it with CPU %s",
+            "Pod %s pending time %s beyonds %s.Delete and relaunch it with CPU %s",
             node.name,
             pending_time,
             pending_timeout,
@@ -160,8 +158,7 @@ def reduce_timeout_pending_node_resource(node: Node):
     if new_memory > NodeResourceLimit.MIN_MEMORY:
         node.config_resource.memory = new_memory
         logger.info(
-            "Pod %s pending time %s beyonds %s."
-            "Delete and relaunch it with memory %s",
+            "Pod %s pending time %s beyonds %s.Delete and relaunch it with memory %s",
             node.name,
             pending_time,
             pending_timeout,
@@ -199,21 +196,7 @@ class TrainingNodeManager(object):
         self._lock = threading.Lock()
         self._node_id_iter = None
         self._node_rank_iter = None
-        self._pending_nodes: List[Node] = []
         self.update_nodes_iter()
-
-    @property
-    def pending_nodes(self):
-        return [node.name for node in self._pending_nodes]
-
-    @property
-    def first_pending_node(self):
-        if len(self._pending_nodes) == 0:
-            return ""
-        first_pending_node = min(
-            self._pending_nodes, key=lambda x: x.create_time  # type: ignore
-        )
-        return first_pending_node.name
 
     @property
     def cur_nodes(self):
@@ -282,6 +265,8 @@ class TrainingNodeManager(object):
                 service_addr=node.service_addr,
                 relaunch_count=relaunch_node.relaunch_count,
                 max_relaunch_count=relaunch_node.max_relaunch_count,
+                node_group=node.group,
+                node_group_size=node.group_size,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
@@ -480,7 +465,7 @@ class ExternalConfig(metaclass=ABCMeta):
 
 
 class TrainingNodeConfig:
-    def __init__(self, external_config: ExternalConfig = None):
+    def __init__(self, external_config: Optional[ExternalConfig] = None):
         self._lock = Lock()
         self._recv_node_training_ports: Dict[int, int] = {}
         self._node_training_port = 0

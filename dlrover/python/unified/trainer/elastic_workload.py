@@ -19,12 +19,12 @@ import ray
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
+    CommunicationType,
     NodeEnv,
     NodeType,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import RayMasterClient
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLConfig,
@@ -65,6 +65,13 @@ class ElasticWorkload(BaseWorkload):
         env_utils.set_env(NodeEnv.NODE_RANK, self.rank)
         env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
         env_utils.set_env(NodeEnv.POD_NAME, self.name)
+        env_utils.set_env(
+            NodeEnv.DLROVER_MASTER_ADDR, self.master_handle._actor_id.hex()
+        )
+        env_utils.set_env(
+            NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
+            CommunicationType.COMM_SERVICE_RAY,
+        )
 
         logger.info(
             f"Run dlrover command in elastic workload: {run_cmd} "
@@ -75,16 +82,12 @@ class ElasticWorkload(BaseWorkload):
 
     def _run_agent(self, run_cmd):
         try:
-            # set master handle's actor id as master address
-            RayMasterClient.register_master_actor(self.master_handle)
-
             main(self.extract_args_from_cmd(run_cmd))
 
             logger.info("Done elastic training.")
         except Exception as e:
             logger.error(
-                "Failed to run elastic agent for training by "
-                f"unexpected error: {e}",
+                f"Failed to run elastic agent for training by unexpected error: {e}",
                 exc_info=True,
             )
             raise RuntimeError("Agent run failed")

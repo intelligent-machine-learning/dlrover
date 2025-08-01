@@ -28,6 +28,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    SchedulingLabel,
     EventReportConstants,
     NodeEnv,
     NodeStatus,
@@ -209,8 +210,7 @@ class PodScaler(Scaler):
         if not self._elasticjob_exists():
             plan_json = plan.to_json()
             logger.info(
-                f"Skip the scaleplan {plan_json} "
-                "because the job does not exist."
+                f"Skip the scaleplan {plan_json} because the job does not exist."
             )
             return
 
@@ -585,6 +585,12 @@ class PodScaler(Scaler):
             labels=labels,
         )
         pod_meta: client.V1ObjectMeta = pod.metadata
+
+        logger.debug(
+            f"Add pod {pod_name} info into meta: {node.type} "
+            f"{node.id} {node.rank_index} {node.relaunch_count} "
+            f"{node.group} {node.group_size}"
+        )
         # Add replica type and index
         pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
         pod_meta.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
@@ -592,6 +598,8 @@ class PodScaler(Scaler):
         pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
             node.relaunch_count
         )
+        if node.group is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP] = str(node.group)
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
@@ -629,8 +637,7 @@ class PodScaler(Scaler):
                 time.sleep(1)
 
         logger.warning(
-            f"Master service check {host}:{port} "
-            f"failed after {timeout} retries."
+            f"Master service check {host}:{port} failed after {timeout} retries."
         )
         return False
 

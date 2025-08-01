@@ -27,8 +27,7 @@ class BaseTest(unittest.TestCase):
 
     def tearDown(self):
         logger.info(
-            f"========= {self.__class__.__name__}-"
-            f"{self._testMethodName} end ========="
+            f"========= {self.__class__.__name__}-{self._testMethodName} end ========="
         )
 
 
@@ -41,8 +40,7 @@ class AsyncBaseTest(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self):
         logger.info(
-            f"========= {self.__class__.__name__}-"
-            f"{self._testMethodName} end ========="
+            f"========= {self.__class__.__name__}-{self._testMethodName} end ========="
         )
 
 

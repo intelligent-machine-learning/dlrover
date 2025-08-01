@@ -303,8 +303,7 @@ class JobManager(metaclass=ABCMeta):
         if restart_count not in self._restart_errors:
             self._restart_errors[restart_count] = error_data
             logger.error(
-                f"{node.type}-{node.id} restart {restart_count} "
-                f"fails: {error_data}"
+                f"{node.type}-{node.id} restart {restart_count} fails: {error_data}"
             )
         return False
 

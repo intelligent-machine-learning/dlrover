@@ -14,6 +14,7 @@
 import threading
 import time
 from datetime import datetime
+from typing import Optional
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -73,7 +74,7 @@ class DiagnosisMaster(DiagnosisManager):
     DiagnosisMaster is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_args: JobArgs = None):
+    def __init__(self, job_args: Optional[JobArgs] = None):
         self._is_observing_started = False
         self._is_observing_paused = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
@@ -243,8 +244,7 @@ class DiagnosisMaster(DiagnosisManager):
                         pre_check_op.__class__.__name__,
                     )
                     logger.error(
-                        f"{pre_check_op.__class__.__name__} "
-                        f"got unexpected error: {e}",
+                        f"{pre_check_op.__class__.__name__} got unexpected error: {e}",
                         exc_info=True,
                     )
                     if is_last_op:
@@ -407,15 +407,13 @@ class DiagnosisMaster(DiagnosisManager):
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _metric_diagnose thread: "
-                    f"{self._is_observing_started}"
+                    f"Stop _metric_diagnose thread: {self._is_observing_started}"
                 )
                 break
 
             if self._is_observing_paused:
                 logger.info(
-                    f"Pause _metric_diagnose thread: "
-                    f"{self._is_observing_paused}"
+                    f"Pause _metric_diagnose thread: {self._is_observing_paused}"
                 )
                 time.sleep(DiagnosisConstant.METRIC_COLLECT_INTERVAL_SECS)
                 continue
@@ -465,8 +463,7 @@ class DiagnosisMaster(DiagnosisManager):
         while True:
             if not self._is_observing_started:
                 logger.info(
-                    f"Stop _diagnose thread due to "
-                    f"{self._is_observing_started}"
+                    f"Stop _diagnose thread due to {self._is_observing_started}"
                 )
                 break
 

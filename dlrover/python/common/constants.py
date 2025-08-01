@@ -71,6 +71,14 @@ class ElasticJobLabel(object):
     RELAUNCH_COUNT = "elasticjob.dlrover/relaunch-count"
 
 
+class SchedulingLabel(object):
+    NODE_GROUP = "scheduling/rack-group"  # int, the node group index
+    NODE_GROUP_SIZE = (
+        "scheduling/rack-group-num"  # int, the total node group numbers
+    )
+    NODE_GROUP_ID = "scheduling/rack-id"  # str, node group name
+
+
 class ScalePlanLabel(object):
     SCALE_TYPE_KEY = "scale-type"
     MANUAL_SCALE = "manual"
@@ -165,10 +173,7 @@ class NodeExitReason(object):
 
 
 class NodeExitDescription(object):
-    CHECK_FAILED_MSG = (
-        "This node failed the node-check "
-        "procedure(mat-mul + comm) before training."
-    )
+    CHECK_FAILED_MSG = "This node failed the node-check procedure(mat-mul + comm) before training."
 
 
 class JobExitReason(object):

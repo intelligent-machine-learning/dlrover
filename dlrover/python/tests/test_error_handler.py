@@ -37,7 +37,6 @@ def test_singleton():
 
 
 def test_register_unregister(exception_handler):
-
     exception_handler.unregister()
 
     original_excepthook = sys.excepthook

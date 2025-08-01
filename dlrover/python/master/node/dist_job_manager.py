@@ -20,6 +20,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -126,9 +127,9 @@ class DistributedJobManager(JobManager):
         self._remove_exited_node = job_args.remove_exited_node
         node_restart_count: Dict[str, int] = {}
         for type, node_args in job_args.node_args.items():
-            self._job_resource.node_group_resources[
-                type
-            ] = node_args.group_resource
+            self._job_resource.node_group_resources[type] = (
+                node_args.group_resource
+            )
             node_restart_count[type] = node_args.restart_count
 
         self._ps_is_critical = False
@@ -315,11 +316,15 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # ps/worker pending judgement:
-        if self._ps_manager.is_training_hang_by_pending(
-            self.get_ps_num(), self.get_job_type()
-        ) or self._worker_manager.is_training_hang_by_pending(
-            self.get_worker_num(), self.get_job_type()
-        ):
+        first_pending_node = (
+            self._ps_manager.find_pending_node_caused_training_hang(
+                self.get_ps_num(), self.get_job_type()
+            )
+            or self._worker_manager.find_pending_node_caused_training_hang(
+                self.get_worker_num(), self.get_job_type()
+            )
+        )
+        if first_pending_node is not None:
             msg = (
                 "Stop the training early because 1) there is node pending "
                 "2) alive nodes number consistently less than the min "
@@ -328,11 +333,6 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-
-            if self._ps_manager.first_pending_node:
-                first_pending_node = self._ps_manager.first_pending_node
-            else:
-                first_pending_node = self._worker_manager.first_pending_node
 
             self._report_event(
                 EventReportConstants.TYPE_INFO,
@@ -621,6 +621,16 @@ class DistributedJobManager(JobManager):
                     new_node = copy.deepcopy(node)
                     self._job_context.update_job_node(new_node)
 
+                # update node group info if necessary
+                if (
+                    node_type == NodeType.WORKER
+                    and node_id in job_nodes[node_type]
+                    and job_nodes[node_type][node_id].group != node.group
+                ):
+                    job_nodes[node_type][node_id].group = node.group
+                    job_nodes[node_type][node_id].group_size = node.group_size
+                    job_nodes[node_type][node_id].group_id = node.group_id
+
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
                 else:
@@ -640,8 +650,7 @@ class DistributedJobManager(JobManager):
                     not in [node.id for node in exist_nodes[node_type]]
                 ):
                     logger.info(
-                        f"Node {node_type} {node.id} is deleted "
-                        "without the event"
+                        f"Node {node_type} {node.id} is deleted without the event"
                     )
                     new_node = copy.deepcopy(node)
                     new_node.is_released = True
@@ -911,8 +920,7 @@ class DistributedJobManager(JobManager):
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
                 logger.warning(
-                    f"Disable {node.name}/{node.id} relaunch "
-                    f"when job is stopping."
+                    f"Disable {node.name}/{node.id} relaunch when job is stopping."
                 )
             elif (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
@@ -961,10 +969,7 @@ class DistributedJobManager(JobManager):
                         f"has been exhausted for node: {node.name}."
                     )
                     should_relaunch = False
-                    msg = (
-                        f"{node.relaunch_count} "
-                        f"exhausted {node.max_relaunch_count}"
-                    )
+                    msg = f"{node.relaunch_count} exhausted {node.max_relaunch_count}"
 
         if should_relaunch:
             node.relaunch_count += 1
@@ -1139,16 +1144,20 @@ class DistributedJobManager(JobManager):
             return
         node.update_resource_usage(cpu, memory, gpu_stats)
         if node.config_resource.cpu:
-            cpu_percent = node.used_resource.cpu / node.config_resource.cpu
-            if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
-                if node.start_hang_time == 0:
-                    now = datetime.now()
-                    node.start_hang_time = now.timestamp()
+            if node.config_resource.gpu_num:
+                # skip cpu hang for gpu case for now
+                logger.debug("CPU hang calculation is skipped when gpu > 0.")
             else:
-                if node.start_hang_time > 0:
-                    now = datetime.now()
-                node.start_hang_time = 0
-            self._job_context.update_job_node(node)
+                cpu_percent = node.used_resource.cpu / node.config_resource.cpu
+                if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+                    if node.start_hang_time == 0:
+                        now = datetime.now()
+                        node.start_hang_time = now.timestamp()
+                else:
+                    if node.start_hang_time > 0:
+                        now = datetime.now()
+                    node.start_hang_time = 0
+                self._job_context.update_job_node(node)
         else:
             logger.warning(
                 "CPU requests not configure "
@@ -1334,8 +1343,7 @@ class DistributedJobManager(JobManager):
             target_node = self._job_context.job_node(node_type, node_id)
             if target_node:
                 logger.info(
-                    f"Node {node_id}({node_type}) reported "
-                    f"status to {event_type}."
+                    f"Node {node_id}({node_type}) reported status to {event_type}."
                 )
                 target_node.update_reported_status(event_type)
                 self._job_context.update_job_node(target_node)
@@ -1355,8 +1363,7 @@ class DistributedJobManager(JobManager):
 
     def _handle_node_error(self, node: Node, error_data: str):
         logger.info(
-            f"{node.name} on {node.host_name} is down. "
-            f"Reason: {error_data}"
+            f"{node.name} on {node.host_name} is down. Reason: {error_data}"
         )
         if self._job_args.cordon_fault_node:
             succeed = self._k8s_client.cordon_node(node.host_name)

@@ -116,8 +116,7 @@ class BatchDatasetManager(DatasetManger):
         else:
             self._update_completed_step(doing_task.task)
             logger.info(
-                "Task:%d completed, %d doing tasks and %d todo "
-                "tasks of dataset %s",
+                "Task:%d completed, %d doing tasks and %d todo tasks of dataset %s",
                 task_id,
                 len(self.doing),
                 len(self.todo),
