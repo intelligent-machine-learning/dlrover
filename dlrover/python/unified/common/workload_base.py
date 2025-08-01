@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from dataclasses import dataclass
 from enum import Enum
 from typing import ClassVar, Optional
@@ -19,7 +18,6 @@ from typing import ClassVar, Optional
 import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.runtime.rpc import RPC_REGISTRY
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 
@@ -178,39 +176,3 @@ class ActorBase:
         logger.info(
             f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
-
-    def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
-        """Update the stage of the actor/node
-        if the current stage matches the expected stage.
-        """
-        if self.stage != expected:
-            logger.warning(
-                f"Actor {self.actor_info.name} is not in expected stage: "
-                f"{expected}, current stage: {self.stage}"
-            )
-            return False  # not in the expected stage
-        self.stage = stage
-        logger.info(
-            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
-        )
-        return True
-
-    # rpc
-    async def _user_rpc_call(self, fn_name: str, *args, **kwargs):
-        """Call a user-defined RPC method."""
-        if fn_name not in RPC_REGISTRY:
-            raise ValueError(
-                f"RPC method {fn_name} not registered in {self.actor_info.name}."
-            )
-        func = RPC_REGISTRY[fn_name]
-        ret = func(*args, **kwargs)
-        if asyncio.iscoroutine(ret):
-            return await ret
-        return ret
-
-    async def _arbitrary_remote_call(self, fn, *args, **kwargs):
-        """Handle an arbitrary remote call."""
-        ret = fn(*args, **kwargs)
-        if asyncio.iscoroutine(ret):
-            return await ret
-        return ret

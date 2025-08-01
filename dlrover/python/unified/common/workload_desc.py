@@ -121,6 +121,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
         description="The number of this workload instances "
         "per workload group.",
     )
+    entry_point: str = Field(
+        description="The entry point for the elastic workload in `module.func` pattern"
+    )
+    config: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="The configuration for the workload. "
+        "This is used to pass additional parameters to the workload.",
+    )
 
     @model_validator(mode="after")
     def validate(self):
@@ -143,9 +151,6 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     """
 
     backend: Literal["elastic"] = Field(default="elastic")
-    entry_point: str = Field(
-        description="The entry point for the elastic workload in `module.func` pattern"
-    )
     comm_backend: str = Field(
         default="gloo",
         description="Communication backend for the elastic workload. "
@@ -166,23 +171,39 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     def get_worker_cls(self) -> ActorClass:
         from dlrover.python.unified.backend import ElasticWorker
 
-        return ElasticWorker  # type: ignore[return-value]
+        return as_actor_class(ElasticWorker)
 
     def get_master_cls(self) -> ActorClass:
         from dlrover.python.unified.backend.elastic.master import ElasticMaster
 
-        return as_actor_class(ElasticMaster)  # type: ignore[return-value]
+        return as_actor_class(ElasticMaster)
+
+
+class SimpleWorkloadDesc(BaseWorkloadDesc):
+    """Description of a simple workload.
+    This is used for workloads that do not require elastic scaling.
+    """
+
+    backend: Optional[Literal["simple"]] = Field(default="simple")
+
+    def get_worker_cls(self) -> ActorClass:
+        from dlrover.python.unified.backend.common.base_worker import (
+            BaseWorker,
+        )
+
+        return as_actor_class(BaseWorker)
 
 
 class CustomWorkloadDesc(BaseWorkloadDesc):
     """
-    Description of a custom type workload.
+    Description of a workload with custom backend.
+
+    Not recommended to use this workload unless other options are not suitable.
     """
 
     backend: Literal["custom"] = Field(default="custom")
     module_name: str = Field(alias="module_name")
     class_name: str = Field(alias="class_name")
-    config: Dict[str, Any] = Field(default_factory=dict)
 
     def get_worker_cls(self) -> ActorClass:
         cls = get_class_by_module_and_class_name(
@@ -199,5 +220,6 @@ class CustomWorkloadDesc(BaseWorkloadDesc):
 # Union type for workload descriptions, discriminating by `kind`.
 WorkloadDesc: TypeAlias = Union[
     ElasticWorkloadDesc,
+    SimpleWorkloadDesc,
     CustomWorkloadDesc,
 ]  # type: ignore[valid-type, assignment]

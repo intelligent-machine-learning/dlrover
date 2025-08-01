@@ -12,22 +12,19 @@
 # limitations under the License.
 
 import os
-from contextlib import contextmanager
 from datetime import timedelta
-from threading import Thread
 
 import ray
 import ray.train.torch as ray_train
 import torch
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
+from dlrover.python.unified.backend.common.base_worker import BaseWorker
+from dlrover.python.unified.common.workload_base import WorkerStage
 from dlrover.python.util.common_util import find_free_port_from_env
-from dlrover.python.util.reflect_util import import_callable
 
 
-@ray.remote
-class ElasticWorker(ActorBase):
+class ElasticWorker(BaseWorker):
     """ElasticWorker is a Ray actor that runs an elastic training job.
 
     This is different from "worker", which run old elastic agent.
@@ -58,11 +55,6 @@ class ElasticWorker(ActorBase):
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)
-
-    def _self_check(self):
-        """Check the worker itself."""
-
-        logger.info(f"[{self.actor_info.name}] Running self check.")
 
     # region Rendezvous and process group setup
 
@@ -140,10 +132,8 @@ class ElasticWorker(ActorBase):
             )
             return float("inf")  # return inf to indicate failure
 
-    def run_node_check(self):
-        """TODO Implement node check. Before starting."""
-        logger.info(f"[{self.actor_info.name}] Running node check.")
-        logger.info("SKIP, node check is not implemented yet.")
+    def start(self):
+        "Noop, controlled by sub-master."
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
@@ -152,34 +142,4 @@ class ElasticWorker(ActorBase):
             "Expected stage is READY."
         )
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
-
-        @contextmanager
-        def wrap_run():
-            try:
-                yield
-                self._update_stage_force(
-                    WorkerStage.FINISHED, WorkerStage.RUNNING
-                )
-            except Exception:
-                logger.error(
-                    "Unexpected error occurred while running elastic agent for training",
-                    exc_info=True,
-                )
-                self._update_stage_force(
-                    WorkerStage.FAILED, WorkerStage.RUNNING
-                )
-
-        Thread(
-            target=wrap_run()(self._run_agent),
-            daemon=True,
-        ).start()
-        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
-
-    def _run_agent(self):
-        """Run the elastic agent."""
-        assert self.actor_info.spec.backend == "elastic"
-
-        user_func = import_callable(self.actor_info.spec.entry_point)
-        user_func()
-
-        logger.info("Done elastic training.")
+        super().start()
