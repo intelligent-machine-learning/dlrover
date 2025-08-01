@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import Future
 from threading import Thread
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from dlrover.python.unified.api.runtime.queue import DataQueue
 from dlrover.python.unified.api.runtime.rpc import (
@@ -12,24 +12,16 @@ from dlrover.python.unified.api.runtime.rpc import (
     rpc_call_t,
 )
 from dlrover.python.unified.common.workload_base import ActorBase, ActorInfo
-from dlrover.python.unified.util.actor_helper import ActorInvocation
 
 
-def mock_invocation(result):
-    ret = AsyncMock(ActorInvocation)
-    ret.return_value = result
-    ret.async_wait.return_value = result
-    ret.wait.return_value = result
+def mock_rpc_call(actor_name, method, is_async, args, kwargs):
+    actor = Mock(ActorBase)
+    actor.actor_info = Mock(ActorInfo)
+    actor.actor_info.name = actor_name
+    ret = ActorBase._user_rpc_call(actor, method, *args, **kwargs)
+    if not is_async:
+        return asyncio.run(ret)
     return ret
-
-
-def mock_invoke_actor_t(method, actor_name, *args, **kwargs):
-    if method.__name__ == "_user_rpc_call":
-        actor = Mock(ActorBase)
-        actor.actor_info = Mock(ActorInfo)
-        actor.actor_info.name = actor_name
-        ret = asyncio.run(ActorBase._user_rpc_call(actor, *args, **kwargs))
-        return mock_invocation(ret)
 
 
 def mock_as_future(co):
@@ -42,8 +34,8 @@ def mock_as_future(co):
 
 def test_rpc(mocker):
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc.invoke_actor_t",
-        mock_invoke_actor_t,
+        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        mock_rpc_call,
     )
     RPC_REGISTRY.clear()
 
@@ -65,8 +57,8 @@ def test_rpc(mocker):
 
 def test_rpc_proxy(mocker):
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc.invoke_actor_t",
-        mock_invoke_actor_t,
+        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        mock_rpc_call,
     )
 
     class SimpleClass:
@@ -91,8 +83,8 @@ def test_queue(mocker):
         return_value="actor",
     )
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc.invoke_actor_t",
-        mock_invoke_actor_t,
+        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        mock_rpc_call,
     )
     mocker.patch(
         "dlrover.python.unified.api.runtime.queue.as_future",

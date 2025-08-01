@@ -9,7 +9,6 @@ from typing import (
     Optional,
     ParamSpec,
     Type,
-    cast,
 )
 
 from gguf import TypeVar
@@ -89,6 +88,14 @@ P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
 
 
+def _rpc_call(actor: str, method: str, is_async: bool, args, kwargs) -> Any:
+    ref = invoke_actor_t(_user_rpc_call, actor, method, *args, **kwargs)
+    if is_async:
+        return ref.async_wait()
+    else:
+        return ref.wait()
+
+
 def rpc_call_t(
     actor: str, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
 ) -> R:
@@ -98,11 +105,7 @@ def rpc_call_t(
             f"Method {method.__name__} is not decorated with @rpc."
         )
     meta: UserRpcMethodMeta = getattr(method, UserRpcMethodMeta.ATTR_KEY)
-    ref = invoke_actor_t(_user_rpc_call, actor, meta.name, *args, **kwargs)
-    if meta.isAsync:
-        return cast(R, ref.async_wait())
-    else:
-        return ref.wait()
+    return _rpc_call(actor, meta.name, meta.isAsync, args, kwargs)
 
 
 def rpc_call_arbitrary(
@@ -129,11 +132,7 @@ class UserRpcProxy:
     def _rpc_call(self, meta: UserRpcMethodMeta, *args, **kwargs):
         """Call a method on the remote actor."""
         name = f"{self.name}.{meta.name}"
-        ref = invoke_actor_t(_user_rpc_call, self.owner, name, *args, **kwargs)
-        if meta.isAsync:
-            return ref.async_wait()
-        else:
-            return ref.wait()
+        return _rpc_call(self.owner, name, meta.isAsync, args, kwargs)
 
 
 def create_rpc_proxy(owner: str, name: str, cls: Type[R]) -> R:
