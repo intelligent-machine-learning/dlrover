@@ -6,11 +6,17 @@ on:
     types:
       - published
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     container:
       image: easydl/dlrover:ci
+    environment:
+      name: pypi
 
     steps:
       - name: Checkout Repo
