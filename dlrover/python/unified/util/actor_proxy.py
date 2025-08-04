@@ -16,6 +16,7 @@ from functools import partial, wraps
 from typing import (
     Any,
     Callable,
+    Iterable,
     Optional,
     ParamSpec,
     Protocol,
@@ -101,22 +102,22 @@ def invoke_actors_t(
     # Remove `self` if it's the first argument.
     if args and args[0] is SELF:
         args = args[1:]  # type: ignore[assignment]
-    return ActorBatchInvocation[R](
-        [
-            ActorInvocation[R](
-                actor if isinstance(actor, str) else actor.name,
-                name,
-                *args,
-                **kwargs,
-            )
-            for actor in actors
-        ]
+    return invoke_actors(
+        ActorInvocation[R](
+            actor if isinstance(actor, str) else actor.name,
+            name,
+            *args,
+            **kwargs,
+        )
+        for actor in actors
     )
 
 
-def invoke_batch(*ref: ActorInvocation[R]) -> ActorBatchInvocation[R]:
+def invoke_actors(
+    refs: Iterable[ActorInvocation[R]],
+) -> ActorBatchInvocation[R]:
     """Create a batch invocation from multiple ActorInvocation instances."""
-    return ActorBatchInvocation[R](list(ref))
+    return ActorBatchInvocation[R](list(refs))
 
 
 T = TypeVar("T", bound="type")
