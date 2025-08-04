@@ -48,12 +48,20 @@ class RoleGroup:
             ref = rpc_call_arbitrary(self.name, method, *args, **kwargs)
             return as_future(ref.async_wait())
 
-    def __init__(self, role: str):
+    def __init__(self, role: str, optional: bool = False):
         """Get the role group for a specific role."""
-        self.actors: List["RoleGroup.Actor"] = [
-            self.Actor(actor.name, actor.rank)
-            for actor in PrimeMasterApi.get_workers_by_role(role)
-        ]
+        try:
+            self.actors: List["RoleGroup.Actor"] = [
+                self.Actor(actor.name, actor.rank)
+                for actor in PrimeMasterApi.get_workers_by_role(role)
+            ]
+        except ValueError as e:
+            if optional:
+                self.actors = []
+            else:
+                raise e
+        if not optional and len(self.actors) == 0:
+            raise ValueError(f"No actors found for role '{role}'.")
 
     def call(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
