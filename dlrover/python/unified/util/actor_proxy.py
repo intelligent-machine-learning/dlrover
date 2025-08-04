@@ -12,11 +12,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from functools import wraps
+from functools import partial, wraps
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Optional,
     ParamSpec,
     Protocol,
@@ -115,6 +114,11 @@ def invoke_actors_t(
     )
 
 
+def invoke_batch(*ref: ActorInvocation[R]) -> ActorBatchInvocation[R]:
+    """Create a batch invocation from multiple ActorInvocation instances."""
+    return ActorBatchInvocation[R](list(ref))
+
+
 T = TypeVar("T", bound="type")
 
 
@@ -129,32 +133,43 @@ class ActorProxy:
     - All class methods remain unchanged, for non-rpc methods.
     """
 
-    ACTOR_NAME: ClassVar[str]
+    ACTOR_NAME: str
+
+    def __init__(self, actor_name: str) -> None:
+        self.ACTOR_NAME = actor_name
+        self._replace_rpc_methods(
+            self, lambda m: partial(self._invoke, actor_name, m)
+        )
 
     @classmethod
-    def _wrap(cls, method: Callable[..., Any]):
-        actor_name = getattr(cls, "ACTOR_NAME", None)
+    def _make_unbound_invoke(cls, method: Callable[..., Any]):
+        def unbound_invoke(*args, **kwargs):
+            raise TypeError(f"ACTOR_NAME not defined, can't invoke {method}.")
 
-        def remote_call(*args, **kwargs):
-            if not actor_name:
-                raise TypeError(
-                    "ACTOR_NAME not defined, you must use bind(actor_name)."
-                )
-            ref = invoke_actor_t(method, actor_name, *args, **kwargs)
-            return ref.wait()
-
-        return remote_call
+        return unbound_invoke
 
     @classmethod
-    def _do_wrap(cls, method: Callable[..., Any]):
-        method = getattr(method, "__origin__", method)
-        wrapped = cls._wrap(method)
-        wrapped = wraps(method)(wrapped)
-        setattr(wrapped, "__origin__", method)
-        return wrapped
+    def _invoke(
+        cls, actor_name: str, method: Callable[..., Any], *args, **kwargs
+    ):
+        """Invoke a method on the actor with the given name."""
+        ref = invoke_actor_t(method, actor_name, *args, **kwargs)
+        return ref.wait()
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+        actor_name = getattr(cls, "ACTOR_NAME", None)
+        if actor_name is None:
+            cls._replace_rpc_methods(cls, cls._make_unbound_invoke)
+        else:
+            cls._replace_rpc_methods(
+                cls, lambda m: partial(cls._invoke, actor_name, m)
+            )
+        for name, method in cls.__dict__.items():
+            print(f"ActorProxy: {name} -> {method}")
+
+    @classmethod
+    def _replace_rpc_methods(cls, target, wrap_method) -> None:
         # Replace all public static methods with remote_call, binding them to ACTOR_NAME.
         cls2: Optional[type] = cls
         while cls2 is not None and cls2 != ActorProxy:
@@ -167,18 +182,12 @@ class ActorProxy:
                     raise TypeError(
                         f"Rpc Method {method} must be a static method. or classmethod for non-rpc methods."
                     )
-                setattr(
-                    cls,
-                    name,
-                    staticmethod(cls._do_wrap(method.__func__)),
-                )
+
+                method = method.__func__
+                method = getattr(method, "__origin__", method)
+                wrapped = wrap_method(method)
+                wrapped = wraps(method)(wrapped)
+                setattr(wrapped, "__origin__", method)
+
+                setattr(target, name, staticmethod(wrapped))
             cls2 = cls2.__base__
-
-    @classmethod
-    def bind(cls: T, actor_name: str) -> T:
-        """Create a new bound proxy class with the given actor name."""
-
-        class BoundActorProxy(cls):  # type: ignore[misc,valid-type]
-            ACTOR_NAME = actor_name
-
-        return BoundActorProxy  # type: ignore[return-value]

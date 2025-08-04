@@ -201,7 +201,7 @@ def test_restart_actor(tmp_actor1):
 def test_actor_proxy(tmp_actor1):
     with pytest.raises(TypeError):
         Stub.some_method()
-    actor = Stub.bind(tmp_actor1)
+    actor = Stub(tmp_actor1)
     assert actor.some_method() == "ok"
     assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
