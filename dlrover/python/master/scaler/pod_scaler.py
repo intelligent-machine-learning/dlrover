@@ -589,7 +589,7 @@ class PodScaler(Scaler):
         logger.debug(
             f"Add pod {pod_name} info into meta: {node.type} "
             f"{node.id} {node.rank_index} {node.relaunch_count} "
-            f"{node.group} {node.group_size}"
+            f"{node.group} {node.group_size} {node.group_id}"
         )
         # Add replica type and index
         pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
@@ -618,6 +618,8 @@ class PodScaler(Scaler):
                 "",
                 {},
             )
+
+        logger.debug(f"Creating pod: {pod}")
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):

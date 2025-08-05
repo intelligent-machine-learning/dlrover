@@ -115,10 +115,14 @@ def _convert_pod_yaml_to_node(pod):
         try:
             if SchedulingLabel.NODE_GROUP in metadata.labels:
                 node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
-                node_group_size = int(
-                    metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
-                )
-                node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
+                if SchedulingLabel.NODE_GROUP_SIZE in metadata.labels:
+                    node_group_size = int(
+                        metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
+                    )
+                if SchedulingLabel.NODE_GROUP_ID in metadata.labels:
+                    node_group_id = metadata.labels[
+                        SchedulingLabel.NODE_GROUP_ID
+                    ]
                 logger.debug(
                     f"Parse {metadata.labels[SchedulingLabel.NODE_GROUP]} "
                     f"{metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]} "
@@ -173,8 +177,8 @@ def _convert_pod_yaml_to_node(pod):
         f"convert yaml to node: {node} "
         f"type {pod_type}, id {pod_id}, name {pod_name} "
         f"rank {rank_id}, status {status} "
-        f"group {node_group} node_group_size {node_group_size} "
-        f"with meta {metadata.labels}"
+        f"group {node_group} group_size {node_group_size} "
+        f"group_id {node_group_id} with meta {metadata.labels}"
     )
 
     node.create_time = metadata.creation_timestamp

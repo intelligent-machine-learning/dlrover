@@ -275,8 +275,8 @@ class JobContext(Singleton):
                 )
                 self._job_node_groups[node.group] = {}
             logger.debug(
-                f"Update node group {node.group} with Node {node.name} "
-                f"id {node.id} rank {node.rank_index} "
+                f"Update node group {node.group}/{node.group_id} with "
+                f"Node {node.name} id {node.id} rank {node.rank_index}"
             )
             self._job_node_groups[node.group][node.rank_index] = copy.deepcopy(
                 node
