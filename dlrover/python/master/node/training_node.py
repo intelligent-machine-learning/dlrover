@@ -267,6 +267,7 @@ class TrainingNodeManager(object):
                 max_relaunch_count=relaunch_node.max_relaunch_count,
                 node_group=node.group,
                 node_group_size=node.group_size,
+                node_group_id=node.group_id,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
