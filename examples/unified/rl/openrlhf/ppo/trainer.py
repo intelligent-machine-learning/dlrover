@@ -339,10 +339,13 @@ class BasePPOTrainer:
             futures.wait(
                 [
                     remote_call.actor_save_model(
+                        os.path.join(args.ckpt_path, "_actor"),
                         tag=tag,
-                        client_states=client_states,
+                        ext_states=client_states,
                     ),
-                    remote_call.critic_save_model(tag=tag),
+                    remote_call.critic_save_model(
+                        os.path.join(args.ckpt_path, "_critic"), tag=tag
+                    ),
                 ]
             )
 

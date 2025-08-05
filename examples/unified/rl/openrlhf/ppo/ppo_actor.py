@@ -1,62 +1,54 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This package includes code from [https://github.com/OpenRLHF/OpenRLHF]
-# licensed under the Apache License 2.0. See [https://github.com/OpenRLHF/
-# OpenRLHF] for details.
-
-
-import itertools
 import math
 import os
-from typing import Optional, Callable, List
+from typing import Optional
 
-import ray
 import torch
 import torch.distributed
-from openrlhf.datasets import PromptDataset, SFTDataset
+from git import TYPE_CHECKING
+from omegaconf import DictConfig
 from openrlhf.models import Actor
-from openrlhf.trainer.ray.ppo_actor import ActorPPOTrainer
-from openrlhf.trainer.ray.vllm_engine import batch_vllm_engine_call
-from openrlhf.utils import blending_datasets, get_tokenizer
+from openrlhf.trainer.ppo_utils.experience_maker import Experience
+from openrlhf.utils import get_tokenizer
 from openrlhf.utils.deepspeed import DeepspeedStrategy
-from openrlhf.utils.deepspeed.deepspeed_utils import offload_deepspeed_states
+from openrlhf.utils.deepspeed.deepspeed_utils import (
+    offload_deepspeed_states,
+    reload_deepspeed_states,
+)
+from openrlhf.utils.distributed_util import (
+    torch_dist_barrier_and_cuda_sync,
+)
+from openrlhf.utils.logging_utils import init_logger
 from transformers.trainer import get_scheduler
 
-from dlrover.python.unified.backend.rl.trainer import trainer_invocation
-from ppo_base import BasePPORole
+from examples.unified.rl.openrlhf2.ray.ppo_actor import ActorPPOTrainer
+
+logger = init_logger(__name__)
+
+from .launcher import BaseModelActor
 
 
-@ray.remote
-class ActorModelRayActor(BasePPORole):
-    def __init__(self, job_info, actor_info):
-        super().__init__(job_info, actor_info)
-        self.vllm_engines = None
-
-    @trainer_invocation(blocking=False)
-    def init_model_from_pretrained(
-        self, strategy: DeepspeedStrategy, pretrain
+class PolicyModelActor(BaseModelActor):
+    def init(
+        self, strategy: DeepspeedStrategy, model_path: str, /, max_steps: int
     ):
-        args = strategy.args
+        self.strategy = strategy
+        strategy.setup_distributed()
+
+        assert isinstance(strategy.args, DictConfig)
+        args = self.args = strategy.args
+        self.save_hf_ckpt = args.save_hf_ckpt
+        self.disable_ds_ckpt = args.disable_ds_ckpt
+        self.vllm_engines = vllm_engines
+        self.max_steps = max_steps
 
         if getattr(args, "vllm_num_engines", 0) > 0:
+            # To prevent hanging during NCCL synchronization of weights between DeepSpeed and vLLM.
+            # see https://github.com/vllm-project/vllm/blob/c6b0a7d3ba03ca414be1174e9bd86a97191b7090/vllm/worker/worker_base.py#L445
             if getattr(args, "vllm_sync_backend", "nccl") == "nccl":
                 os.environ["NCCL_CUMEM_ENABLE"] = "0"
 
-        self._setup_distributed(strategy)
-
         actor = Actor(
-            pretrain,
+            model_path,
             use_flash_attention_2=strategy.args.flash_attn,
             bf16=strategy.args.bf16,
             load_in_4bit=strategy.args.load_in_4bit,
@@ -73,7 +65,7 @@ class ActorModelRayActor(BasePPORole):
 
         # configure tokenizer
         self.tokenizer = get_tokenizer(
-            pretrain,
+            model_path,
             actor.model,
             "left",
             strategy,
@@ -82,13 +74,14 @@ class ActorModelRayActor(BasePPORole):
 
         if args.enable_ema:
             ema_model = Actor(
-                pretrain,
+                model_path,
                 use_flash_attention_2=strategy.args.flash_attn,
                 bf16=strategy.args.bf16,
                 load_in_4bit=strategy.args.load_in_4bit,
                 ds_config=strategy.get_ds_eval_config(offload=True),
                 packing_samples=strategy.args.packing_samples,
             )
+            ema_model._offload = True
         else:
             ema_model = None
 
@@ -100,23 +93,8 @@ class ActorModelRayActor(BasePPORole):
             weight_decay=args.l2,
         )
 
-        # prepare_datasets
-        self.prepare_datasets()
-
-        # configure scheduler
-        self.num_update_steps_per_episodes = (
-            len(self.prompts_dataset)
-            * args.n_samples_per_prompt
-            // args.train_batch_size
-            * args.max_epochs
-        )
-        max_steps = math.ceil(
-            args.num_episodes * self.num_update_steps_per_episodes
-        )
-        self._max_steps = max_steps
-
         actor_scheduler = get_scheduler(
-            "cosine_with_min_lr",
+            args.lr_scheduler,
             actor_optim,
             num_warmup_steps=math.ceil(max_steps * args.lr_warmup_ratio),
             num_training_steps=max_steps,
@@ -133,206 +111,110 @@ class ActorModelRayActor(BasePPORole):
             )
 
         # prepare models/optimizers...
-        self.actor, self.actor_optim, self.actor_scheduler = strategy.prepare(
-            (actor, actor_optim, actor_scheduler),
-            is_rlhf=True,
-        )
-
-        if ema_model:
-            ema_model._offload = True
-            self.ema_model = strategy.prepare(ema_model, is_rlhf=True)
+        if TYPE_CHECKING:
+            self.actor = actor
+            self.actor_optim = actor_optim
+            self.actor_scheduler = actor_scheduler
+            self.ema_model = ema_model
         else:
-            self.ema_model = None
+            self.actor, self.actor_optim, self.actor_scheduler = (
+                strategy.prepare(
+                    (actor, actor_optim, actor_scheduler),
+                    is_rlhf=True,
+                )
+            )
+            self.ema_model = strategy.prepare(ema_model, is_rlhf=True)
 
         # load checkpoint
-        self.consumed_samples = 0
+        self.checkpoint_states = {}
         ckpt_path = os.path.join(args.ckpt_path, "_actor")
         if args.load_checkpoint and os.path.exists(ckpt_path):
+            strategy.print(f"Loading the checkpoint: {ckpt_path}")
             _, states = strategy.load_ckpt(self.actor.model, ckpt_path)
-            self.consumed_samples = states["consumed_samples"]
-            strategy.print(
-                f"Loaded the checkpoint: {ckpt_path}, "
-                f"consumed_samples: {self.consumed_samples}"
-            )
+            self.checkpoint_states["global_step"] = states["global_step"]
+            self.checkpoint_states["episode"] = states["episode"]
+            self.checkpoint_states["data_loader_state_dict"] = states[
+                "data_loader_state_dict"
+            ]
 
         # initial offload
         if strategy.args.deepspeed_enable_sleep:
             offload_deepspeed_states(self.actor.model)
 
-    def prepare_datasets(self):
-        strategy = self.strategy
-        args = self.strategy.args
-
-        # prepare datasets
-        prompts_data = blending_datasets(
-            args.prompt_data,
-            args.prompt_data_probs,
-            strategy,
-            args.seed,
-            max_count=args.max_samples,
-            return_eval=False,
-            train_split=args.prompt_split,
-        )
-        prompts_data = prompts_data.select(
-            range(min(args.max_samples, len(prompts_data)))
-        )
-        self.prompts_dataset = PromptDataset(
-            prompts_data,
-            self.tokenizer,
-            strategy,
-            input_template=args.input_template,
-        )
-        self.prompts_dataloader = strategy.setup_dataloader(
-            self.prompts_dataset,
-            args.rollout_batch_size
-            // (strategy.world_size // strategy.ring_attn_size),
-            True,
-            True,
-        )
-
-        if args.pretrain_data:
-            pretrain_data = blending_datasets(
-                args.pretrain_data,
-                args.pretrain_data_probs,
-                strategy,
-                args.seed,
-                return_eval=False,
-                train_split=args.pretrain_split,
-            )
-            pretrain_max_len = (
-                args.max_len
-                if args.max_len
-                else args.prompt_max_len + args.generate_max_len
-            )
-            pretrain_dataset = SFTDataset(
-                pretrain_data.select(
-                    range(
-                        min(
-                            len(pretrain_data),
-                            args.max_epochs
-                            * len(self.prompts_dataset)
-                            * args.n_samples_per_prompt,
-                        )
-                    )
-                ),
-                self.tokenizer,
-                pretrain_max_len,
-                strategy,
-                pretrain_mode=True,
-            )
-            self.pretrain_dataloader = itertools.cycle(
-                iter(
-                    strategy.setup_dataloader(
-                        pretrain_dataset,
-                        args.micro_train_batch_size,
-                        True,
-                        True,
-                        pretrain_dataset.collate_fn,
-                    )
-                )
-            )
-        else:
-            self.pretrain_dataloader = None
-
-    def max_steps(self):
-        """Return the maximum number of steps."""
-        return self._max_steps
-
-    @trainer_invocation(blocking=False)
-    def fit(
-        self,
-        critic_model: ray.actor.ActorHandle,
-        initial_model: ray.actor.ActorHandle,
-        reward_model: List[ray.actor.ActorHandle],
-        remote_rm_url: Optional[List[str]] = None,
-        reward_fn: Optional[
-            Callable[[List[torch.Tensor]], torch.Tensor]
-        ] = None,
-        vllm_engines: Optional[List[ray.actor.ActorHandle]] = None,
-        critic_train_remote: bool = False,
-    ):
-        """Train actor model with prompt datasets."""
-        strategy = self.strategy
-        args = self.strategy.args
-
         # configure Trainer
-        trainer = ActorPPOTrainer(
+        self.trainer = ActorPPOTrainer(
             strategy,
             self.actor,
-            critic_model,
-            reward_model,
-            initial_model,
             ema_model=self.ema_model,
-            actor_optim=None,
-            critic_optim=None,
+            actor_optim=self.actor_optim,
             actor_scheduler=self.actor_scheduler,
-            critic_scheduler=None,
-            remote_rm_url=remote_rm_url,
-            reward_fn=reward_fn,
-            vllm_engines=vllm_engines,
-            max_epochs=args.max_epochs,
             micro_train_batch_size=args.micro_train_batch_size,
-            micro_rollout_batch_size=args.micro_rollout_batch_size,
-            gradient_checkpointing=args.gradient_checkpointing,
-            critic_train_remote=critic_train_remote,
             tokenizer=self.tokenizer,
-            prompt_max_len=args.prompt_max_len,
-            value_clip=args.value_clip,
             eps_clip=args.eps_clip,
-            gamma=args.gamma,
-            lambd=args.lambd,
-            init_kl_coef=args.init_kl_coef,
-            kl_target=args.kl_target,
-            ema_beta=0.992,
-            ptx_coef=args.ptx_coef,
-            max_norm=args.max_norm,
-            # for GPT generation
-            do_sample=True,
-            max_new_tokens=args.generate_max_len,
-            max_length=args.max_len,
-            temperature=args.temperature,
-            top_p=args.top_p,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            save_hf_ckpt=args.save_hf_ckpt,
-            disable_ds_ckpt=args.disable_ds_ckpt,
+            ema_beta=args.ema_beta,
+            vllm_engines=self.vllm_engines,
         )
 
-        # broadcast checkpoint
-        ckpt_path = os.path.join(args.ckpt_path, "_actor")
-        if (
-            args.load_checkpoint
-            and os.path.exists(ckpt_path)
-            and vllm_engines is not None
-        ):
-            # vLLM wakeup when vllm_enable_sleep
-            if self.strategy.args.vllm_enable_sleep:
-                batch_vllm_engine_call(self.vllm_engines, "wake_up")
-            torch.distributed.barrier()
-            torch.cuda.synchronize()
+    def fit(self, kl_ctl: float = 0):
+        """Train actor model with the replay buffer."""
+        if self.args.deepspeed_enable_sleep:
+            reload_deepspeed_states(self.actor.model)
+        torch.cuda.empty_cache()
+        self.actor.train()
+        status = self.trainer.ppo_train(kl_ctl)
+        self.trainer.replay_buffer.clear()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        if self.args.deepspeed_enable_sleep:
+            offload_deepspeed_states(self.actor.model)
+        return status
 
-            trainer._broadcast_to_vllm()
+    def forward(
+        self,
+        sequences: torch.LongTensor,
+        action_mask: torch.BoolTensor,
+        attention_mask: torch.LongTensor,
+    ) -> torch.Tensor:
+        """Generates actor values."""
+        device = torch.cuda.current_device()
+        self.actor.eval()
+        with torch.no_grad():
+            action_log_probs = self.actor(
+                sequences.to(device),
+                action_mask.to(device),
+                attention_mask.to(device),
+                ring_attn_group=self.strategy.ring_attn_group,
+            )
+        self.actor.train()  # reset model state
+        return action_log_probs.to("cpu")
 
-            # vLLM offload when vllm_enable_sleep
-            if self.strategy.args.vllm_enable_sleep:
-                batch_vllm_engine_call(self.vllm_engines, "sleep")
-                torch.distributed.barrier()
-                torch.cuda.synchronize()
+    def broadcast_to_vllm(self):
+        self.trainer._broadcast_to_vllm()
 
-        trainer.fit(
-            args,
-            self.prompts_dataloader,
-            self.pretrain_dataloader,
-            self.consumed_samples,
-            self.num_update_steps_per_episodes,
+    def get_checkpoint_states(self):
+        return self.checkpoint_states
+
+    def append(self, experience: Experience):
+        self.trainer.replay_buffer.append(experience)
+
+    def save_checkpoint(
+        self, save_path: str, tag: Optional[str], ext_states: Optional[dict]
+    ):
+        args = self.args
+        self.strategy.save_ckpt(
+            self.actor.model,
+            save_path,
+            tag,
+            args.max_ckpt_num,
+            args.max_ckpt_mem,
+            ext_states,
         )
-
-    def save_model(self):
-        args = self.strategy.args
-
-        # save model checkpoint after fitting on only rank0
-        self.strategy.save_model(
-            self.ema_model if args.enable_ema else self.actor,
-            self.tokenizer,
-            args.save_path,
-        )
+        if self.save_hf_ckpt:
+            save_path = os.path.join(args.ckpt_path, f"{tag}_hf")
+            self.strategy.save_model(
+                self.ema_model if args.enable_ema else self.actor,
+                self.tokenizer,
+                save_path,
+            )
+        # wait
+        torch_dist_barrier_and_cuda_sync()

@@ -21,7 +21,7 @@ from dlrover.python.unified.api.runtime.worker import current_worker
 from examples.unified.rl.openrlhf.ppo.trainer import BasePPOTrainer
 
 
-class PPOTrainer(BasePPOTrainer):
+class PPOTrainerActor(BasePPOTrainer):
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         self.config = config
