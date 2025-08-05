@@ -72,9 +72,11 @@ class ElasticJobLabel(object):
 
 
 class SchedulingLabel(object):
-    NODE_GROUP = "scheduling/rack-group"  # int
-    NODE_GROUP_SIZE = "scheduling/rack-group-size"  # int
-    NODE_GROUP_ID = "scheduling/rack-id"  # str
+    NODE_GROUP = "scheduling/rack-group"  # int, the node group index
+    NODE_GROUP_SIZE = (
+        "scheduling/rack-group-num"  # int, the total node group numbers
+    )
+    NODE_GROUP_ID = "scheduling/rack-id"  # str, node group name
 
 
 class ScalePlanLabel(object):

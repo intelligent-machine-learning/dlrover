@@ -275,24 +275,24 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_name,
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 4, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 4, DistributionStrategy.PS
             )
         )
 
         worker_manager.update_node_required_info((4, 8, 600))
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 4, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 4, DistributionStrategy.PS
             )
         )
@@ -321,12 +321,41 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
+                worker_num, DistributionStrategy.PS
+            )
+        )
+        mock_nodes.clear()
+        self.job_context.clear_job_nodes()
+
+        # mock with 3 running + 1 pending no time
+        worker_num = 4
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+        self.assertFalse(
+            worker_manager.find_pending_node_caused_training_hang(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -351,12 +380,12 @@ class WorkerManagerTest(unittest.TestCase):
             self.job_context.update_job_node(mock_node)
 
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -381,12 +410,12 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -411,12 +440,12 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -444,12 +473,12 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -468,12 +497,12 @@ class WorkerManagerTest(unittest.TestCase):
             self.job_context.update_job_node(mock_node)
 
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -492,12 +521,12 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -518,12 +547,12 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
@@ -542,17 +571,17 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
             self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )
 
-        # with strategy 1
+        # with strategy 1 + 1 pending
         worker_manager._get_pending_timeout = mock.MagicMock(return_value=5)
         worker_manager.update_node_required_info((2, 4, 1))
         _dlrover_ctx.pending_fail_strategy = 1
@@ -570,14 +599,42 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.status = NodeStatus.PENDING
             mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
-        worker_manager._nodes = mock_nodes
+            self.job_context.update_job_node(mock_node)
         self.assertFalse(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.ALLREDUCE
             )
         )
         self.assertTrue(
-            worker_manager.is_training_hang_by_pending(
+            worker_manager.find_pending_node_caused_training_hang(
+                worker_num, DistributionStrategy.PS
+            )
+        )
+
+        # with strategy 1 + all running
+        worker_manager._get_pending_timeout = mock.MagicMock(return_value=5)
+        worker_manager.update_node_required_info((2, 4, 1))
+        _dlrover_ctx.pending_fail_strategy = 1
+        worker_num = 4
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+                rank_index=index,
+            )
+            mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+        self.assertFalse(
+            worker_manager.find_pending_node_caused_training_hang(
+                worker_num, DistributionStrategy.ALLREDUCE
+            )
+        )
+        self.assertFalse(
+            worker_manager.find_pending_node_caused_training_hang(
                 worker_num, DistributionStrategy.PS
             )
         )

@@ -108,16 +108,28 @@ def _convert_pod_yaml_to_node(pod):
     node_group = None
     node_group_size = None
     node_group_id = None
+
     if pod_type == NodeType.DLROVER_MASTER:
         return None
     elif pod_type == NodeType.WORKER:
         try:
-            node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
-            node_group_size = int(
-                metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
+            if SchedulingLabel.NODE_GROUP in metadata.labels:
+                node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
+                node_group_size = int(
+                    metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
+                )
+                node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
+                logger.debug(
+                    f"Parse {metadata.labels[SchedulingLabel.NODE_GROUP]} "
+                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]} "
+                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_ID]} "
+                    f"to {node_group} {node_group_size} {node_group_id}"
+                )
+        except Exception as e:
+            logger.error(
+                f"Unexpected exception {e} on parsing {metadata} "
+                f"with {pod_name} {pod_type}"
             )
-            node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
-        except (KeyError, ValueError):
             node_group = None
             node_group_size = None
             node_group_id = None
@@ -156,6 +168,15 @@ def _convert_pod_yaml_to_node(pod):
         node_group_size=node_group_size,
         node_group_id=node_group_id,
     )
+
+    logger.debug(
+        f"convert yaml to node: {node} "
+        f"type {pod_type}, id {pod_id}, name {pod_name} "
+        f"rank {rank_id}, status {status} "
+        f"group {node_group} node_group_size {node_group_size} "
+        f"with meta {metadata.labels}"
+    )
+
     node.create_time = metadata.creation_timestamp
     if NodeStatus.is_terminal_status(status):
         node.set_exit_reason(_get_pod_exit_reason(pod))

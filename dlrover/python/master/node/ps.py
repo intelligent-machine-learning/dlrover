@@ -16,7 +16,7 @@ import copy
 import itertools
 import threading
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -392,7 +392,9 @@ class ParameterServerManager(TrainingNodeManager):
         ]
         return len(running_ps) == self._job_resource.ps_num
 
-    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
+    def find_pending_node_caused_training_hang(
+        self, total_node_num, job_type
+    ) -> Optional[str]:
         """
         To prevent training hang by pending ps. Should exit when there
         is inextricable pending issue.
@@ -413,7 +415,7 @@ class ParameterServerManager(TrainingNodeManager):
                 ParameterServerStrategy for now.
 
         Return:
-            bool
+            str: return worker name if has pending
         """
 
         # fail strategy
@@ -430,7 +432,7 @@ class ParameterServerManager(TrainingNodeManager):
             or skip_pending_judgement(strategy)
             or job_type != DistributionStrategy.PS
         ):
-            return False
+            return None
 
         # collect pending and running nodes
         cur_nodes = list(self._get_nodes().values())
@@ -450,14 +452,11 @@ class ParameterServerManager(TrainingNodeManager):
                 pending_ps,
                 key=lambda x: x.create_time,  # type:ignore #notnull
             )
-            if not first_pending_ps or not first_pending_ps.create_time:
-                logger.debug(
-                    "Skip for no pending ps or pending ps's "
-                    f"create time is None: {first_pending_ps}."
-                )
-                return False
 
-            if now - first_pending_ps.create_time.timestamp() > timeout:
+            if (
+                first_pending_ps.create_time
+                and now - first_pending_ps.create_time.timestamp() > timeout
+            ):
                 logger.warning(
                     f"Node {first_pending_ps.name} "
                     f"exceeded pending timeout: {timeout}s, "
@@ -468,5 +467,5 @@ class ParameterServerManager(TrainingNodeManager):
                     f": {pending_ps}, "
                     f"min required nodes size: {total_node_num}."
                 )
-                return True
-        return False
+                return first_pending_ps.name
+        return None

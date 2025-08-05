@@ -6,11 +6,17 @@ on:
     types:
       - published
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     container:
       image: easydl/dlrover:ci
+    environment:
+      name: pypi
 
     steps:
       - name: Checkout Repo
@@ -25,8 +31,5 @@ jobs:
         run: sh scripts/build_wheel.sh
 
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: dlrover
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           python -m twine upload dist/dlrover*

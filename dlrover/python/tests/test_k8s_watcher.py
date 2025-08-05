@@ -180,6 +180,41 @@ class PodWatcherTest(unittest.TestCase):
                         "phase": "Running",
                     },
                 },
+                {
+                    "kind": "Pod",
+                    "apiVersion": "v1",
+                    "metadata": {
+                        "name": "test-edljob-2",
+                        "labels": {
+                            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+                            ElasticJobLabel.REPLICA_INDEX_KEY: "2",
+                            ElasticJobLabel.RANK_INDEX_KEY: "2",
+                            ElasticJobLabel.RELAUNCH_COUNT: "0",
+                            SchedulingLabel.NODE_GROUP: "abc",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-5678",
+                        },
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-worker:latest",
+                                "resources": {
+                                    "requests": {
+                                        "cpu": "4",
+                                        "memory": "512Mi",
+                                    },
+                                    "limits": {},
+                                },
+                            }
+                        ],
+                        "nodeName": "host-2",
+                    },
+                    "status": {
+                        "phase": "Running",
+                    },
+                },
             ],
         }
 
@@ -272,6 +307,16 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(worker1.group_id, None)
         self.assertEqual(worker1.rank_index, 1)
         self.assertEqual(worker1.status, NodeStatus.DELETED)
+
+        worker2 = _convert_pod_yaml_to_node(pod_list.items[3])
+        self.assertEqual(worker2.name, "test-edljob-2")
+        self.assertEqual(worker2.id, 2)
+        self.assertEqual(worker2.type, NodeType.WORKER)
+        self.assertEqual(worker2.group, None)
+        self.assertEqual(worker2.group_size, None)
+        self.assertEqual(worker2.group_id, None)
+        self.assertEqual(worker2.rank_index, 2)
+        self.assertEqual(worker2.status, NodeStatus.RUNNING)
 
     def test_convert_pod_event_to_node_event(self):
         event = {"object": None, "type": None}

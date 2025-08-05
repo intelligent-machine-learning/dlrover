@@ -628,6 +628,36 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertListEqual(ps_ids, [0, 1, 2])
         self.assertTrue(4 in self.job_context.job_nodes()[NodeType.WORKER])
 
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id
+        )
+        new_node = Node(
+            node_type=NodeType.WORKER,
+            node_id=4,
+            status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
+            max_relaunch_count=1,
+            node_group=1024,
+            node_group_size=1,
+            node_group_id="rack-0",
+        )
+        manager._process_list_nodes([new_node])
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group, 1024
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size, 1
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id, "rack-0"
+        )
+
     @patch.object(DistributedJobManager, "_process_event")
     def test_process_list_nodes_for_empty_case(self, mock_method):
         params = MockK8sPSJobArgs()
@@ -932,11 +962,11 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._init_nodes()
 
         # ps normal + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
@@ -944,31 +974,31 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(msg)
 
         # ps normal + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
 
         # ps pending + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
 
         # ps pending + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)

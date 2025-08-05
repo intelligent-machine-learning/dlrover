@@ -20,6 +20,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -315,11 +316,15 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # ps/worker pending judgement:
-        if self._ps_manager.is_training_hang_by_pending(
-            self.get_ps_num(), self.get_job_type()
-        ) or self._worker_manager.is_training_hang_by_pending(
-            self.get_worker_num(), self.get_job_type()
-        ):
+        first_pending_node = (
+            self._ps_manager.find_pending_node_caused_training_hang(
+                self.get_ps_num(), self.get_job_type()
+            )
+            or self._worker_manager.find_pending_node_caused_training_hang(
+                self.get_worker_num(), self.get_job_type()
+            )
+        )
+        if first_pending_node is not None:
             msg = (
                 "Stop the training early because 1) there is node pending "
                 "2) alive nodes number consistently less than the min "
@@ -328,11 +333,6 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-
-            if self._ps_manager.first_pending_node:
-                first_pending_node = self._ps_manager.first_pending_node
-            else:
-                first_pending_node = self._worker_manager.first_pending_node
 
             self._report_event(
                 EventReportConstants.TYPE_INFO,
@@ -637,6 +637,16 @@ class DistributedJobManager(JobManager):
                     )
                     new_node = copy.deepcopy(node)
                     self._job_context.update_job_node(new_node)
+
+                # update node group info if necessary
+                if (
+                    node_type == NodeType.WORKER
+                    and node_id in job_nodes[node_type]
+                    and job_nodes[node_type][node_id].group != node.group
+                ):
+                    job_nodes[node_type][node_id].group = node.group
+                    job_nodes[node_type][node_id].group_size = node.group_size
+                    job_nodes[node_type][node_id].group_id = node.group_id
 
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED

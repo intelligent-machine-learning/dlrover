@@ -585,6 +585,12 @@ class PodScaler(Scaler):
             labels=labels,
         )
         pod_meta: client.V1ObjectMeta = pod.metadata
+
+        logger.debug(
+            f"Add pod {pod_name} info into meta: {node.type} "
+            f"{node.id} {node.rank_index} {node.relaunch_count} "
+            f"{node.group} {node.group_size}"
+        )
         # Add replica type and index
         pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
         pod_meta.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
