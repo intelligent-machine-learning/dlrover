@@ -303,10 +303,9 @@ class RemoteExperienceMaker(ABC):
         if samples_list[0].rewards is not None:
             pass
         else:
-            r_refs = remote_call.reward_forward_batch(
+            r_refs = remote_call.reward_forward(
                 sequences=sequences_list,
                 attention_mask=attention_mask_list,
-                pad_sequence=True,
             )
 
         # Batch call actor model

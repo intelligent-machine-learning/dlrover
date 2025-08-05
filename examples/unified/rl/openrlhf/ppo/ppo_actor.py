@@ -1,13 +1,16 @@
 import math
 import os
+from functools import partial
 from typing import Optional
 
+import deepspeed
 import torch
 import torch.distributed
 from git import TYPE_CHECKING
 from omegaconf import DictConfig
 from openrlhf.models import Actor
 from openrlhf.trainer.ppo_utils.experience_maker import Experience
+from openrlhf.trainer.ray.ppo_actor import ActorPPOTrainer
 from openrlhf.utils import get_tokenizer
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 from openrlhf.utils.deepspeed.deepspeed_utils import (
@@ -18,16 +21,14 @@ from openrlhf.utils.distributed_util import (
     torch_dist_barrier_and_cuda_sync,
 )
 from openrlhf.utils.logging_utils import init_logger
-from transformers.trainer import get_scheduler
+from transformers.optimization import get_scheduler
 
-from examples.unified.rl.openrlhf2.ray.ppo_actor import ActorPPOTrainer
+from examples.unified.rl.openrlhf.ppo import remote_call
 
 logger = init_logger(__name__)
 
-from .launcher import BaseModelActor
 
-
-class PolicyModelActor(BaseModelActor):
+class PolicyModelActor:
     def init(
         self, strategy: DeepspeedStrategy, model_path: str, /, max_steps: int
     ):
@@ -38,7 +39,6 @@ class PolicyModelActor(BaseModelActor):
         args = self.args = strategy.args
         self.save_hf_ckpt = args.save_hf_ckpt
         self.disable_ds_ckpt = args.disable_ds_ckpt
-        self.vllm_engines = vllm_engines
         self.max_steps = max_steps
 
         if getattr(args, "vllm_num_engines", 0) > 0:
@@ -152,8 +152,10 @@ class PolicyModelActor(BaseModelActor):
             tokenizer=self.tokenizer,
             eps_clip=args.eps_clip,
             ema_beta=args.ema_beta,
-            vllm_engines=self.vllm_engines,
+            vllm_engines=None,
         )
+
+        self.init_vllm_sync_group()
 
     def fit(self, kl_ctl: float = 0):
         """Train actor model with the replay buffer."""
@@ -188,8 +190,67 @@ class PolicyModelActor(BaseModelActor):
         self.actor.train()  # reset model state
         return action_log_probs.to("cpu")
 
+    def init_vllm_sync_group(self):
+        self.sync_use_ray = self.args.get("vllm_sync_with_ray", False)
+
+        vllm_num_engines, vllm_tensor_parallel_size = (
+            self.args.vllm_num_engines,
+            self.args.vllm_tensor_parallel_size,
+        )
+        world_size = vllm_num_engines * vllm_tensor_parallel_size + 1
+        backend = self.args.vllm_sync_backend
+        group_name = "vllm_sync_group"
+        import ray.util.collective as collective
+
+        ref = remote_call.vllm_sync_setup_process_group(
+            world_size, backend, group_name
+        )
+        collective.init_collective_group(
+            world_size=world_size,
+            rank=0,
+            backend=backend,
+            group_name=group_name,
+        )
+        ref.result()  # wait for vllm engines to finish
+        broadcast = partial(
+            collective.broadcast, src_rank=0, group_name=group_name
+        )
+        self._broadcast_to_vllm_one = broadcast
+
     def broadcast_to_vllm(self):
-        self.trainer._broadcast_to_vllm()
+        """Broadcast actor model to vLLM engines."""
+        torch.cuda.empty_cache()
+        model: torch.nn.Module = self.actor.model.module  # type: ignore[assignment]
+        count, num_params = 0, len(list(model.named_parameters()))
+
+        def _broadcast_param(param, count, num_params):
+            if torch.distributed.get_rank() != 0:
+                return
+            # Fire all vllm engines for broadcast
+            shape = (
+                param.shape if self.args.zero_stage != 3 else param.ds_shape
+            )
+            ref = remote_call.vllm_sync_weight(name, param.dtype, shape)
+            self._broadcast_to_vllm_one(param.data)
+            ref.result()  # wait for vllm engines to finish
+
+        for name, param in model.named_parameters():
+            count += 1  # empty_cache at last param
+
+            # For ZeRO-3, allgather sharded parameter and broadcast to all vllm engines by rank 0
+            if self.args.ds_tensor_parallel_size > 1:
+                with deepspeed.module_inject.layers.GatherReplacedLayerParams(
+                    [param], model, enabled=True
+                ):
+                    _broadcast_param(param, count, num_params)
+            else:
+                with deepspeed.zero.GatheredParameters(
+                    [param], enabled=self.args.zero_stage == 3
+                ):
+                    _broadcast_param(param, count, num_params)
+
+        torch.cuda.empty_cache()
+        torch_dist_barrier_and_cuda_sync()
 
     def get_checkpoint_states(self):
         return self.checkpoint_states
