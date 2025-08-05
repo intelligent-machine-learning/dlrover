@@ -404,6 +404,8 @@ class Node(object):
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
             f"priority:{self.config_resource.priority};"
+            f"group:{self.group};"
+            f"group_size:{self.group_size};"
         )
 
     def to_dict(self):

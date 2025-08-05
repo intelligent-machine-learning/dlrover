@@ -600,6 +600,10 @@ class PodScaler(Scaler):
         )
         if node.group is not None:
             pod_meta.labels[SchedulingLabel.NODE_GROUP] = str(node.group)
+        if node.group_size is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP_SIZE] = str(
+                node.group_size
+            )
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
