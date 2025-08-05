@@ -28,6 +28,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    SchedulingLabel,
     EventReportConstants,
     NodeEnv,
     NodeStatus,
@@ -591,6 +592,8 @@ class PodScaler(Scaler):
         pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
             node.relaunch_count
         )
+        if node.group is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP] = str(node.group)
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )

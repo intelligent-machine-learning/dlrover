@@ -22,7 +22,10 @@ from dlrover.python.common.constants import (
     NodeType,
     PreCheckStatus,
 )
-from dlrover.python.common.global_context import Context
+from dlrover.python.common.global_context import (
+    Context,
+    DefaultValues,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.common.singleton import Singleton
@@ -54,6 +57,11 @@ class JobContext(Singleton):
         self._locker = threading.Lock()
         self._job_stage: str = JobStage.JOB_INIT
         self._job_pre_status: str = JobStage.JOB_INIT
+
+        # job node groups are different groups of WORKER node
+        self._group_locker = threading.Lock()
+        self._job_node_groups: Dict[int, Dict[int, Node]] = {}
+        self.max_group_idx = DefaultValues.FIRST_GROUP_IDX
 
     def get_job_stage(self):
         with self._locker:
@@ -204,6 +212,31 @@ class JobContext(Singleton):
                 return None
             return copy.deepcopy(self._job_nodes[node_type][node_id])
 
+    def job_node_groups(self) -> Dict[int, Dict[int, Node]]:
+        with self._group_locker:
+            return self._job_node_groups
+
+    def job_node_groups_keys(self):
+        with self._group_locker:
+            return self._job_node_groups.keys()
+
+    def job_node_group(self, node_group: int) -> Dict[int, Node]:
+        with self._group_locker:
+            if node_group not in self._job_node_groups:
+                return {}
+            return self._job_node_groups[node_group]
+
+    def job_group_node_by_rank(
+        self, node_group: int, node_rank: int
+    ) -> Optional[Node]:
+        with self._group_locker:
+            if (
+                node_group not in self._job_node_groups
+                or node_rank not in self._job_node_groups[node_group]
+            ):
+                return None
+            return self._job_node_groups[node_group][node_rank]
+
     def _preprocess(self, node_type: str) -> str:
         if node_type == NodeType.CHIEF and node_type not in self._job_nodes:
             return NodeType.MASTER
@@ -232,6 +265,26 @@ class JobContext(Singleton):
     def clear_job_nodes(self):
         with self._locker:
             self._job_nodes = {}
+
+    def update_job_node_by_group(self, node: Node):
+        with self._group_locker:
+            if node.group not in self._job_node_groups:
+                logger.info(
+                    f"New node group {node.group} with size {node.group_size}"
+                    f" by Node {node.name} {node.id} {node.rank_index}"
+                )
+                self._job_node_groups[node.group] = {}
+            logger.debug(
+                f"Update node group {node.group} with Node {node.name} "
+                f"id {node.id} rank {node.rank_index} "
+            )
+            self._job_node_groups[node.group][node.rank_index] = copy.deepcopy(
+                node
+            )
+
+    def clear_job_node_groups(self):
+        with self._group_locker:
+            self._job_node_groups = {}
 
     def report_failed_node(self, node_id: Optional[Union[int, str]] = None):
         if node_id is None:

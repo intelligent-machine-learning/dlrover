@@ -582,6 +582,136 @@ class WorkerManagerTest(unittest.TestCase):
             )
         )
 
+    def test_is_training_hang_by_pending_group(self):
+        self.job_context.clear_job_nodes()
+        _dlrover_ctx.group_schedule = False
+        _dlrover_ctx.pending_fail_strategy = 0
+        _dlrover_ctx.seconds_to_wait_group_pending_pod = 0
+        worker_manager = WorkerManager(
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [],
+        )
+
+        _dlrover_ctx.seconds_to_wait_group_pending_pod = 120
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [],
+        )
+
+        _dlrover_ctx.pending_fail_strategy = 2
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [],
+        )
+
+        _dlrover_ctx.group_schedule = True
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.PS
+            ),
+            [],
+        )
+
+        # 20min > 5min, should relaunch node_group 0
+        mock_nodes = {}
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                name="test-" + str(index),
+                status=NodeStatus.RUNNING,
+                node_group=0,
+                node_group_size=1,
+            )
+            if index == 0:
+                mock_node.relaunch_count = 1
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+            self.job_context.update_job_node_by_group(mock_node)
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [0],
+        )
+        mock_nodes.clear()
+        self.job_context.clear_job_nodes()
+        self.job_context.clear_job_node_groups()
+
+        # lack of node group info, won't relaunch group
+        mock_nodes = {}
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                name="test-" + str(index),
+                status=NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.relaunch_count = 1
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+            self.job_context.update_job_node_by_group(mock_node)
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [],
+        )
+        mock_nodes.clear()
+        self.job_context.clear_job_nodes()
+        self.job_context.clear_job_node_groups()
+
+        # not timeout, won't relaunch group
+        mock_nodes = {}
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                name="test-" + str(index),
+                status=NodeStatus.RUNNING,
+                node_group=0,
+                node_group_size=1,
+            )
+            if index == 0:
+                mock_node.relaunch_count = 1
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-2)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+            self.job_context.update_job_node(mock_node)
+            self.job_context.update_job_node_by_group(mock_node)
+        self.assertEqual(
+            worker_manager.is_training_hang_by_node_group_pending(
+                DistributionStrategy.ALLREDUCE
+            ),
+            [],
+        )
+        mock_nodes.clear()
+        self.job_context.clear_job_nodes()
+        self.job_context.clear_job_node_groups()
+
     def test_is_training_hang_by_insufficient_worker(self):
         self.job_context.clear_job_nodes()
         worker_manager = WorkerManager(

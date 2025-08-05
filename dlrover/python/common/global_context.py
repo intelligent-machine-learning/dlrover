@@ -57,6 +57,7 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
+    SEC_TO_WAIT_GROUP_PENDING_POD = 300  # 5min
     PENDING_FAIL_STRATEGY = PendingTimeoutStrategyType.NECESSARY
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
@@ -79,6 +80,7 @@ class DefaultValues(object):
     MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
     MAX_CKPT_THRESHOLD = 900  # seconds
     MAX_AVG_STEPS = 50
+    FIRST_GROUP_IDX = 1000
 
 
 class Context(Singleton):
@@ -114,6 +116,9 @@ class Context(Singleton):
         self.seconds_to_wait_pending_pod = (
             DefaultValues.SEC_TO_WAIT_PENDING_POD
         )
+        self.seconds_to_wait_group_pending_pod = (
+            DefaultValues.SEC_TO_WAIT_GROUP_PENDING_POD
+        )
         self.pending_fail_strategy = DefaultValues.PENDING_FAIL_STRATEGY
         self.seconds_huge_training_threshold = (
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
@@ -138,6 +143,8 @@ class Context(Singleton):
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
+        # group schedule
+        self.group_schedule = False
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
