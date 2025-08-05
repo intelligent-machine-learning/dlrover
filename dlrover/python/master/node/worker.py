@@ -496,8 +496,7 @@ class WorkerManager(TrainingNodeManager):
         strategy = _dlrover_context.pending_fail_strategy
         timeout = self._get_group_pending_timeout()
         logger.debug(
-            f"Is training hang by group pending: {timeout} {strategy} "
-            f"{job_type} {_dlrover_context.group_schedule}."
+            f"Is training hang by group pending: {timeout} {strategy} {job_type}."
         )
 
         pending_workers: List[Node] = []
@@ -506,7 +505,6 @@ class WorkerManager(TrainingNodeManager):
             timeout <= 0
             or skip_pending_judgement(strategy)
             or job_type != DistributionStrategy.ALLREDUCE
-            or _dlrover_context.group_schedule is False
         ):
             return []
 

@@ -641,7 +641,6 @@ class WorkerManagerTest(unittest.TestCase):
 
     def test_is_training_hang_by_pending_group(self):
         self.job_context.clear_job_nodes()
-        _dlrover_ctx.group_schedule = False
         _dlrover_ctx.pending_fail_strategy = 0
         _dlrover_ctx.seconds_to_wait_group_pending_pod = 0
         worker_manager = WorkerManager(
@@ -673,7 +672,6 @@ class WorkerManagerTest(unittest.TestCase):
             [],
         )
 
-        _dlrover_ctx.group_schedule = True
         self.assertEqual(
             worker_manager.is_training_hang_by_node_group_pending(
                 DistributionStrategy.PS

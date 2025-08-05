@@ -1044,12 +1044,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._worker_manager.is_training_hang_by_insufficient_worker = (
             mock.MagicMock(return_value=False)
         )
-        _dlrover_context.group_schedule = True
         manager._worker_manager.is_training_hang_by_node_group_pending = (
             mock.MagicMock(return_value=[])
         )
-        result, reason, msg = manager.should_early_stop()
-        self.assertFalse(result)
+        manager.handle_node_group_pending()
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()

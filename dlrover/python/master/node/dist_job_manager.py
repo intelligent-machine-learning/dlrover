@@ -367,22 +367,18 @@ class DistributedJobManager(JobManager):
             )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
-        # Check if we need relaunch node groups
-        if (
-            self.is_all_reduce_type_job()
-            and _dlrover_context.group_schedule is True
-        ):
-            pending_groups = (
-                self._worker_manager.is_training_hang_by_node_group_pending(
-                    self.get_job_type()
-                )
-            )
-            for node_group in pending_groups:
-                if self._should_relaunch_node_group(node_group):
-                    self._relaunch_node_group(node_group)
-
         # no need to early stop
         return False, "", ""
+
+    def handle_node_group_pending(self):
+        pending_groups = (
+            self._worker_manager.is_training_hang_by_node_group_pending(
+                self.get_job_type()
+            )
+        )
+        for node_group in pending_groups:
+            if self._should_relaunch_node_group(node_group):
+                self._relaunch_node_group(node_group)
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:
