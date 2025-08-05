@@ -123,15 +123,9 @@ def _convert_pod_yaml_to_node(pod):
                     node_group_id = metadata.labels[
                         SchedulingLabel.NODE_GROUP_ID
                     ]
-                logger.debug(
-                    f"Parse {metadata.labels[SchedulingLabel.NODE_GROUP]} "
-                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]} "
-                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_ID]} "
-                    f"to {node_group} {node_group_size} {node_group_id}"
-                )
         except Exception as e:
             logger.error(
-                f"Unexpected exception {e} on parsing {metadata} "
+                f"Unexpected exception {e} on parsing {metadata.labels} "
                 f"with {pod_name} {pod_type}"
             )
             node_group = None
