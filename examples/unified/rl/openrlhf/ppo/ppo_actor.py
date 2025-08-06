@@ -1,7 +1,7 @@
 import math
 import os
 from functools import partial
-from typing import Optional
+from typing import List, Optional, Sequence
 
 import deepspeed
 import torch
@@ -23,12 +23,14 @@ from openrlhf.utils.distributed_util import (
 from openrlhf.utils.logging_utils import init_logger
 from transformers.optimization import get_scheduler
 
+from dlrover.python.unified.api.runtime.rpc import rpc
 from examples.unified.rl.openrlhf.ppo import remote_call
 
 logger = init_logger(__name__)
 
 
 class PolicyModelActor:
+    @rpc(remote_call.actor_init)
     def init(
         self, strategy: DeepspeedStrategy, model_path: str, /, max_steps: int
     ):
@@ -157,6 +159,7 @@ class PolicyModelActor:
 
         self.init_vllm_sync_group()
 
+    @rpc(remote_call.actor_train)
     def fit(self, kl_ctl: float = 0):
         """Train actor model with the replay buffer."""
         if self.args.deepspeed_enable_sleep:
@@ -173,7 +176,7 @@ class PolicyModelActor:
 
     def forward(
         self,
-        sequences: torch.LongTensor,
+        sequences: torch.Tensor,
         action_mask: torch.BoolTensor,
         attention_mask: torch.LongTensor,
     ) -> torch.Tensor:
@@ -189,6 +192,18 @@ class PolicyModelActor:
             )
         self.actor.train()  # reset model state
         return action_log_probs.to("cpu")
+
+    @rpc(remote_call.actor_forward)
+    def batch_forward(
+        self,
+        sequences: Sequence[torch.Tensor],
+        action_mask: Sequence[torch.BoolTensor],
+        attention_mask: Sequence[torch.LongTensor],
+    ) -> List[torch.Tensor]:
+        return [
+            self.forward(*args)
+            for args in zip(sequences, action_mask, attention_mask)
+        ]
 
     def init_vllm_sync_group(self):
         self.sync_use_ray = self.args.get("vllm_sync_with_ray", False)
@@ -217,6 +232,7 @@ class PolicyModelActor:
         )
         self._broadcast_to_vllm_one = broadcast
 
+    @rpc(remote_call.actor_sync_to_vllm)
     def broadcast_to_vllm(self):
         """Broadcast actor model to vLLM engines."""
         torch.cuda.empty_cache()
@@ -263,9 +279,11 @@ class PolicyModelActor:
     def get_checkpoint_states(self):
         return self.checkpoint_states
 
+    @rpc(remote_call.actor_append_experience)
     def append(self, experience: Experience):
         self.trainer.replay_buffer.append(experience)
 
+    @rpc(remote_call.actor_save_model)
     def save_checkpoint(
         self, save_path: str, tag: Optional[str], ext_states: Optional[dict]
     ):

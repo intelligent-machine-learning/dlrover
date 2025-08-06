@@ -262,3 +262,10 @@ class FutureSequence(Sequence[T]):
 
     def __repr__(self) -> str:
         return f"FutureSequence(lens={self._lens})"
+
+    def wait(self) -> List[T]:
+        """Wait for all futures to complete and return the results."""
+        results = []
+        for future in self._futures:
+            results.extend(future.result())
+        return results

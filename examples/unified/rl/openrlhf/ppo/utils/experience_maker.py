@@ -329,24 +329,25 @@ class RemoteExperienceMaker(ABC):
             attention_mask=attention_mask_list,
         )
 
+        # TODO 应该中remote_call内部处理分配/去重
         # Wait for all remote calls to complete and flatten the results
         # Note: the results duplicated ring_attn_size * ds_tensor_parallel_size times
         # This is because the actors in ring group and tp group will return the same output
         duplicate_factor = args.ring_attn_size * args.ds_tensor_parallel_size
         action_log_probs_list = sum(
-            action_log_probs_ref.result()[::duplicate_factor], []
+            action_log_probs_ref[::duplicate_factor], []
         )
         base_action_log_probs_list = sum(
-            base_action_log_probs_ref.result()[::duplicate_factor], []
+            base_action_log_probs_ref[::duplicate_factor], []
         )
-        value_list = sum(value_ref.result()[::duplicate_factor], [])
+        value_list = sum(value_ref[::duplicate_factor], [])
 
         # Process rewards based on source
         if samples_list[0].rewards is not None:
             pass
         else:
             # Reward Model
-            rewards_list = sum(r_refs.result()[::duplicate_factor], [])
+            rewards_list = sum(r_refs[::duplicate_factor], [])
             for i, samples in enumerate(samples_list):
                 samples.rewards = rewards_list[i]
                 samples.info["reward"] = rewards_list[i]

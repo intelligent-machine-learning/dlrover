@@ -15,15 +15,19 @@
 # licensed under the Apache License 2.0. See [https://github.com/OpenRLHF/
 # OpenRLHF] for details.
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Sequence
 
 import torch
 from omegaconf import DictConfig
 from openrlhf.models import get_llm_for_sequence_regression
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 
+from dlrover.python.unified.api.runtime.rpc import rpc
+from examples.unified.rl.openrlhf.ppo import remote_call
+
 
 class RewardModelRayActor:
+    @rpc(remote_call.reward_init)
     def init(self, strategy: DeepspeedStrategy, model_path: str):
         self.strategy = strategy
         strategy.setup_distributed()
@@ -61,7 +65,7 @@ class RewardModelRayActor:
 
     def forward(
         self,
-        sequences: torch.LongTensor,
+        sequences: torch.Tensor,
         attention_mask: torch.Tensor,
         packed_seq_lens=None,
     ) -> torch.Tensor:
@@ -75,6 +79,18 @@ class RewardModelRayActor:
                 packed_seq_lens=packed_seq_lens,
             )
         return reward.to("cpu")
+
+    @rpc(remote_call.reward_forward)
+    def batch_forward(
+        self,
+        sequences: Sequence[torch.Tensor],
+        attention_mask: Sequence[torch.Tensor],
+        packed_seq_lens=None,
+    ) -> List[torch.Tensor]:
+        return [
+            self.forward(*args, packed_seq_lens=packed_seq_lens)
+            for args in zip(sequences, attention_mask)
+        ]
 
     def empty_cache(self) -> None:
         torch.cuda.empty_cache()

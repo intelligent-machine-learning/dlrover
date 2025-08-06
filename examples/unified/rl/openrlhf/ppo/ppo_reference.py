@@ -15,15 +15,19 @@
 # licensed under the Apache License 2.0. See [https://github.com/OpenRLHF/
 # OpenRLHF] for details.
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Sequence
 
 import torch
 from omegaconf import DictConfig
 from openrlhf.models import Actor
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 
+from dlrover.python.unified.api.runtime.rpc import rpc
+from examples.unified.rl.openrlhf.ppo import remote_call
+
 
 class PPOReferenceActor:
+    @rpc(remote_call.reference_init)
     def init(self, strategy: DeepspeedStrategy, model_path: str):
         self.strategy = strategy
         strategy.setup_distributed()
@@ -69,6 +73,19 @@ class PPOReferenceActor:
                 packed_seq_lens=packed_seq_lens,
             )
         return log_probs.to("cpu")
+
+    @rpc(remote_call.reference_forward)
+    def batch_forward(
+        self,
+        sequences: Sequence[torch.LongTensor],
+        action_mask: Sequence[torch.Tensor],
+        attention_mask: Sequence[torch.Tensor],
+        packed_seq_lens: Optional[List[int]] = None,
+    ) -> List[torch.Tensor]:
+        return [
+            self.forward(*args, packed_seq_lens=packed_seq_lens)
+            for args in zip(sequences, action_mask, attention_mask)
+        ]
 
     def empty_cache(self) -> None:
         torch.cuda.empty_cache()

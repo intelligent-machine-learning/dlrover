@@ -17,9 +17,8 @@
 
 import math
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
-import ray
 import torch
 from omegaconf import DictConfig
 from openrlhf.models import get_llm_for_sequence_regression
@@ -32,9 +31,12 @@ from openrlhf.utils.deepspeed.deepspeed_utils import (
 )
 from transformers.optimization import get_scheduler
 
+from dlrover.python.unified.api.runtime.rpc import rpc
+from examples.unified.rl.openrlhf.ppo import remote_call
 
-@ray.remote
+
 class CriticModelRayActor:
+    @rpc(remote_call.critic_init)
     def init(
         self,
         strategy: DeepspeedStrategy,
@@ -166,10 +168,24 @@ class CriticModelRayActor:
         self.critic.train()  # reset model state
         return value.to("cpu")
 
+    @rpc(remote_call.critic_forward)
+    def batch_forward(
+        self,
+        sequences: Sequence[torch.LongTensor],
+        action_mask: Sequence[torch.BoolTensor],
+        attention_mask: Sequence[torch.LongTensor],
+    ) -> list[torch.Tensor]:
+        return [
+            self.forward(*args)
+            for args in zip(sequences, action_mask, attention_mask)
+        ]
+
+    @rpc(remote_call.critic_append_experience)
     def append(self, experience):
         """Append experience to replay buffer."""
         self.trainer.replay_buffer.append(experience)
 
+    @rpc(remote_call.critic_train)
     def fit(self):
         """Train critic model with the replay buffer."""
         if self.args.deepspeed_enable_sleep:
@@ -184,6 +200,7 @@ class CriticModelRayActor:
             offload_deepspeed_states(self.critic)
         return status
 
+    @rpc(remote_call.critic_save_model)
     def save_checkpoint(self, save_path: str, tag):
         args = self.args
         self.strategy.save_ckpt(

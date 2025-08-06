@@ -1,17 +1,16 @@
 from concurrent.futures import Future
 from contextlib import contextmanager
 from functools import lru_cache
-from itertools import chain
-from typing import TYPE_CHECKING, List, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
-from vllm import RequestOutput
+from git import List
 
-from dlrover.python.unified.api.runtime.rpc import RoleGroup
+from dlrover.python.unified.api.runtime.rpc import FutureSequence, RoleGroup
 from dlrover.python.unified.common.enums import RLRoleType
 
 if TYPE_CHECKING:
     import torch
-    from vllm import SamplingParams
+    from vllm import RequestOutput, SamplingParams
 
 # region Rollout
 
@@ -26,19 +25,13 @@ def vllm_sleep() -> None:
 
 def vllm_generate(
     prompt_token_ids: Sequence[List[int]], params: "SamplingParams"
-) -> List[RequestOutput]:
-    g = group(RLRoleType.ROLLOUT)
-    sub_prompt_token_ids = g.split_param(prompt_token_ids)
-    futures = [
-        actor.call(
-            vllm_generate,
-            sub_prompt_token_ids[rank],
-            params,
-        )
-        for rank, actor in enumerate(g)
-    ]
-
-    return list(chain(*(f.result() for f in futures)))
+) -> FutureSequence["RequestOutput"]:
+    return group(RLRoleType.ROLLOUT).call_batch(
+        vllm_generate,
+        len(prompt_token_ids),
+        prompt_token_ids,
+        params,
+    )
 
 
 def vllm_sync_setup_process_group(
@@ -66,17 +59,24 @@ def vllm_sync_weight_end():
 
 
 def reference_init(strategy, model_path: str) -> Future:
-    return group(RLRoleType.REFERENCE).call("init", strategy, model_path)
+    return group(RLRoleType.REFERENCE).call(
+        reference_init, strategy, model_path
+    )
 
 
 def reference_forward(
-    sequences: torch.LongTensor,
-    action_mask: torch.Tensor,
-    attention_mask: torch.Tensor,
-    packed_seq_lens: Optional[List[int]] = None,
-) -> Future[torch.Tensor]:
-    return group(RLRoleType.REFERENCE).call(
-        "forward", sequences, action_mask, attention_mask, packed_seq_lens
+    sequences: Sequence[torch.Tensor],
+    action_mask: Sequence[torch.Tensor],
+    attention_mask: Sequence[torch.Tensor],
+    packed_seq_lens: Optional[Sequence[int]] = None,
+) -> Sequence[torch.Tensor]:
+    return group(RLRoleType.REFERENCE).call_batch(
+        reference_forward,
+        len(sequences),
+        sequences,
+        action_mask,
+        attention_mask,
+        packed_seq_lens,
     )
 
 
@@ -89,12 +89,16 @@ def reward_init(strategy, model_path: str) -> Future:
 
 
 def reward_forward(
-    sequences: torch.LongTensor,
-    attention_mask: torch.Tensor,
+    sequences: Sequence[torch.Tensor],
+    attention_mask: Sequence[torch.Tensor],
     packed_seq_lens=None,
-) -> Future[torch.Tensor]:
-    return group(RLRoleType.REWARD).call(
-        "forward", sequences, attention_mask, packed_seq_lens
+) -> Sequence[torch.Tensor]:
+    return group(RLRoleType.REWARD).call_batch(
+        reward_forward,
+        len(sequences),
+        sequences,
+        attention_mask,
+        packed_seq_lens,
     )
 
 
@@ -114,12 +118,12 @@ def actor_init(
 
 
 def actor_forward(
-    sequences: torch.LongTensor,
-    action_mask: torch.BoolTensor,
-    attention_mask: torch.LongTensor,
-) -> Future[torch.Tensor]:
-    return group(RLRoleType.ACTOR).call(
-        "forward", sequences, action_mask, attention_mask
+    sequences: Sequence[torch.Tensor],
+    action_mask: Sequence[torch.BoolTensor],
+    attention_mask: Sequence[torch.LongTensor],
+) -> Sequence[torch.Tensor]:
+    return group(RLRoleType.ACTOR).call_batch(
+        actor_forward, len(sequences), sequences, action_mask, attention_mask
     )
 
 
@@ -164,12 +168,12 @@ def critic_init(
 
 
 def critic_forward(
-    sequences: torch.LongTensor,
-    action_mask: torch.BoolTensor,
-    attention_mask: torch.LongTensor,
-) -> Future[torch.Tensor]:
-    return group(RLRoleType.CRITIC).call(
-        "forward", sequences, action_mask, attention_mask
+    sequences: Sequence[torch.Tensor],
+    action_mask: Sequence[torch.BoolTensor],
+    attention_mask: Sequence[torch.LongTensor],
+) -> Sequence[torch.Tensor]:
+    return group(RLRoleType.CRITIC).call_batch(
+        critic_forward, len(sequences), sequences, action_mask, attention_mask
     )
 
 
