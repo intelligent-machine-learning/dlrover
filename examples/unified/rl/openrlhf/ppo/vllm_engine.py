@@ -4,7 +4,10 @@ import vllm
 from omegaconf import DictConfig
 from openrlhf.utils.logging_utils import init_logger
 
+from dlrover.python.unified.api.runtime.rpc import rpc
 from dlrover.python.unified.api.runtime.worker import current_worker
+
+from . import remote_call
 
 logger = init_logger(__name__)
 
@@ -72,6 +75,7 @@ class VLLMActor:
         if config.vllm_enable_sleep:
             self.sleep()
 
+    @rpc(remote_call.vllm_sync_setup_process_group)
     def init_process_group(
         self,
         world_size,
@@ -88,24 +92,30 @@ class VLLMActor:
             args=(rank_start, world_size, backend, group_name),
         )
 
+    @rpc(remote_call.vllm_sync_weight_begin)
+    def sync_weight_begin(self):
+        if self.config.get("enable_prefix_caching", False):
+            self.llm.llm_engine.reset_prefix_cache()
+
+    @rpc(remote_call.vllm_sync_weight)
     def update_weight(self, name, dtype, shape):
         return self.llm.collective_rpc(
             _vllm_update_weight, args=(name, dtype, shape)
         )
 
-    def sync_weight_begin(self):
-        if self.config.get("enable_prefix_caching", False):
-            self.llm.llm_engine.reset_prefix_cache()
-
+    @rpc(remote_call.vllm_sync_weight_end)
     def sync_weight_end(self):
         pass
 
+    @rpc(remote_call.vllm_sleep)
     def sleep(self, level=1):
         self.llm.sleep(level=level)
 
+    @rpc(remote_call.vllm_wakeup)
     def wake_up(self):
         self.llm.wake_up()
 
+    @rpc(remote_call.vllm_generate)
     def generate(self, prompt_token_ids, params):
         """
         Generate responses for the given prompt token IDs using the provided sampling parameters.

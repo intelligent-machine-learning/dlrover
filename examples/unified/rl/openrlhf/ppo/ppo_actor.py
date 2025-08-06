@@ -223,8 +223,10 @@ class PolicyModelActor:
         model: torch.nn.Module = self.actor.model.module  # type: ignore[assignment]
         count, num_params = 0, len(list(model.named_parameters()))
 
+        is_rank0 = torch.distributed.get_rank() == 0
+
         def _broadcast_param(param, count, num_params):
-            if torch.distributed.get_rank() != 0:
+            if not is_rank0:
                 return
             # Fire all vllm engines for broadcast
             shape = (
@@ -233,6 +235,9 @@ class PolicyModelActor:
             ref = remote_call.vllm_sync_weight(name, param.dtype, shape)
             self._broadcast_to_vllm_one(param.data)
             ref.result()  # wait for vllm engines to finish
+
+        if is_rank0:
+            remote_call.vllm_sync_weight_begin()
 
         for name, param in model.named_parameters():
             count += 1  # empty_cache at last param
@@ -248,6 +253,9 @@ class PolicyModelActor:
                     [param], enabled=self.args.zero_stage == 3
                 ):
                     _broadcast_param(param, count, num_params)
+
+        if is_rank0:
+            remote_call.vllm_sync_weight_end()
 
         torch.cuda.empty_cache()
         torch_dist_barrier_and_cuda_sync()

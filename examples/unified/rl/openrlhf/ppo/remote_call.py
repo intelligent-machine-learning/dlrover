@@ -1,36 +1,105 @@
 from concurrent.futures import Future
 from contextlib import contextmanager
-from typing import Any, List, Optional
+from functools import lru_cache
+from itertools import chain
+from typing import TYPE_CHECKING, List, Optional, Sequence
 
-import torch
+from vllm import RequestOutput
+
+from dlrover.python.unified.api.runtime.rpc import RoleGroup
+from dlrover.python.unified.common.enums import RLRoleType
+
+if TYPE_CHECKING:
+    import torch
+    from vllm import SamplingParams
+
+# region Rollout
 
 
-def vllm_wakeup(): ...
-def vllm_sleep(): ...
-def vllm_generate(prompt_token_ids, params) -> Any: ...
+def vllm_wakeup() -> None:
+    group(RLRoleType.ROLLOUT).call(vllm_wakeup).result()
+
+
+def vllm_sleep() -> None:
+    group(RLRoleType.ROLLOUT).call(vllm_sleep).result()
+
+
+def vllm_generate(
+    prompt_token_ids: Sequence[List[int]], params: "SamplingParams"
+) -> List[RequestOutput]:
+    g = group(RLRoleType.ROLLOUT)
+    sub_prompt_token_ids = g.split_param(prompt_token_ids)
+    futures = [
+        actor.call(
+            vllm_generate,
+            sub_prompt_token_ids[rank],
+            params,
+        )
+        for rank, actor in enumerate(g)
+    ]
+
+    return list(chain(*(f.result() for f in futures)))
+
+
 def vllm_sync_setup_process_group(
     world_size: int, backend: str, group_name: str
-) -> Future: ...
-def vllm_sync_weight_begin(): ...
-def vllm_sync_weight(name: str, dtype, shape) -> Future: ...
-def vllm_sync_weight_end(): ...
+) -> Future:
+    return group(RLRoleType.ROLLOUT).call(
+        vllm_sync_setup_process_group, world_size, backend, group_name
+    )
 
 
-def reference_init(strategy, model_path: str) -> Future: ...
+def vllm_sync_weight_begin():
+    group(RLRoleType.ROLLOUT).call(vllm_sync_weight_begin).result()
+
+
+def vllm_sync_weight(name: str, dtype, shape) -> Future:
+    return group(RLRoleType.ROLLOUT).call(vllm_sync_weight, name, dtype, shape)
+
+
+def vllm_sync_weight_end():
+    group(RLRoleType.ROLLOUT).call(vllm_sync_weight_end).result()
+
+
+# endregion
+# region Reference
+
+
+def reference_init(strategy, model_path: str) -> Future:
+    return group(RLRoleType.REFERENCE).call("init", strategy, model_path)
+
+
 def reference_forward(
     sequences: torch.LongTensor,
     action_mask: torch.Tensor,
     attention_mask: torch.Tensor,
     packed_seq_lens: Optional[List[int]] = None,
-) -> Future[torch.Tensor]: ...
+) -> Future[torch.Tensor]:
+    return group(RLRoleType.REFERENCE).call(
+        "forward", sequences, action_mask, attention_mask, packed_seq_lens
+    )
 
 
-def reward_init(strategy, model_path: str) -> Future: ...
+# endregion
+# region Reward
+
+
+def reward_init(strategy, model_path: str) -> Future:
+    return group(RLRoleType.REWARD).call("init", strategy, model_path)
+
+
 def reward_forward(
     sequences: torch.LongTensor,
     attention_mask: torch.Tensor,
     packed_seq_lens=None,
-) -> Future[torch.Tensor]: ...
+) -> Future[torch.Tensor]:
+    return group(RLRoleType.REWARD).call(
+        "forward", sequences, attention_mask, packed_seq_lens
+    )
+
+
+# endregion
+# region Actor
 
 
 def actor_init(
@@ -38,20 +107,49 @@ def actor_init(
     model_path: str,
     /,
     max_steps: int,
-) -> Future: ...
+) -> Future:
+    return group(RLRoleType.ACTOR).call(
+        "init", strategy, model_path, max_steps=max_steps
+    )
+
+
 def actor_forward(
     sequences: torch.LongTensor,
     action_mask: torch.BoolTensor,
     attention_mask: torch.LongTensor,
-) -> Future[torch.Tensor]: ...
-def actor_append_experience(experience) -> Future: ...
-def actor_train(kl_ctl: float = 0) -> Future: ...
-def actor_sync_to_vllm(): ...
+) -> Future[torch.Tensor]:
+    return group(RLRoleType.ACTOR).call(
+        "forward", sequences, action_mask, attention_mask
+    )
+
+
+def actor_append_experience(experience) -> Future:
+    return group(RLRoleType.ACTOR).call("append_experience", experience)
+
+
+def actor_train(kl_ctl: float = 0) -> Future:
+    """Train the actor with the given KL control value."""
+    return group(RLRoleType.ACTOR).call("train", kl_ctl)
+
+
+def actor_sync_to_vllm() -> None:
+    """Synchronize the actor's weights to vLLM."""
+    group(RLRoleType.ACTOR).call("sync_to_vllm").result()
+
+
 def actor_save_model(
     save_path: str,
     tag: Optional[str] = None,
     ext_states: Optional[dict] = None,
-) -> Future: ...
+) -> Future:
+    """Save the actor's model to the specified path."""
+    return group(RLRoleType.ACTOR).call(
+        "save_model", save_path, tag, ext_states
+    )
+
+
+# endregion
+# region Critic
 
 
 def critic_init(
@@ -59,15 +157,44 @@ def critic_init(
     model_path: str,
     /,
     max_steps: int,
-) -> Future: ...
+) -> Future:
+    return group(RLRoleType.CRITIC).call(
+        "init", strategy, model_path, max_steps=max_steps
+    )
+
+
 def critic_forward(
     sequences: torch.LongTensor,
     action_mask: torch.BoolTensor,
     attention_mask: torch.LongTensor,
-) -> Future[torch.Tensor]: ...
-def critic_append_experience(experience) -> Future: ...
-def critic_train() -> Future: ...
-def critic_save_model(save_path: str, tag: Optional[str] = None) -> Future: ...
+) -> Future[torch.Tensor]:
+    return group(RLRoleType.CRITIC).call(
+        "forward", sequences, action_mask, attention_mask
+    )
+
+
+def critic_append_experience(experience) -> Future:
+    return group(RLRoleType.CRITIC).call("append_experience", experience)
+
+
+def critic_train() -> Future:
+    """Train the critic."""
+    return group(RLRoleType.CRITIC).call("train")
+
+
+def critic_save_model(save_path: str, tag: Optional[str] = None) -> Future:
+    """Save the critic's model to the specified path."""
+    return group(RLRoleType.CRITIC).call("save_model", save_path, tag)
+
+
+# endregion
+# region Utility
+
+
+@lru_cache(maxsize=None)
+def group(role: RLRoleType) -> RoleGroup:
+    """Get the role group for the given role."""
+    return RoleGroup(role.name)
 
 
 @contextmanager

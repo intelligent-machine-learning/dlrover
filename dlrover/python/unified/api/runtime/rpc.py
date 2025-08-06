@@ -13,6 +13,7 @@ from typing import (
     ParamSpec,
     Sequence,
     Type,
+    Union,
 )
 
 from gguf import TypeVar
@@ -39,13 +40,17 @@ class UserRpcMethodMeta:
     ATTR_KEY: ClassVar[str] = "_rpc_meta_"
 
 
-def rpc(name: Optional[str] = None, export: bool = False):
+def rpc(name: Optional[Union[str, Callable]] = None, export: bool = False):
     """Decorator to mark a method as an RPC method.
 
     Args:
         name: The name of the RPC method, default func.__name__.
         export: Whether to export the method as an RPC method, default True if top-level function.
     """
+
+    # use stub function name if provided
+    if callable(name):
+        name = name.__name__
 
     def decorator(func):
         meta = UserRpcMethodMeta(
