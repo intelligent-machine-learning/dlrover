@@ -366,6 +366,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.job_context.update_job_node_by_group(node)
         self.assertTrue(manager._should_relaunch_node_group(0))
 
+        self.job_context.clear_job_node_groups()
+        node = Node(
+            NodeType.WORKER,
+            0,
+            rank_index=0,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            relaunchable=True,
+        )
+        self.job_context.update_job_node_by_group(node)
+        manager._relaunched_groups.append(0)
+        self.assertFalse(manager._should_relaunch_node_group(0))
+        manager._relaunched_groups.clear()
+
         node = Node(
             NodeType.WORKER,
             1,
@@ -412,6 +427,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.job_context.update_job_stage(JobStage.JOB_RUNNING)
 
         plan = manager._relaunch_node_group(0)
+        self.assertEqual(manager._relaunched_groups, [0])
         self.assertEqual(plan.launch_nodes[0].id, 2)
         self.assertEqual(plan.launch_nodes[0].rank_index, 0)
         self.assertEqual(plan.launch_nodes[0].group, 1001)

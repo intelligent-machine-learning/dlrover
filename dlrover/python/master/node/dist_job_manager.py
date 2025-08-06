@@ -194,6 +194,7 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
+        self._relaunched_groups: List[int] = []
 
     def start(self):
         self._scaler.start()
@@ -920,6 +921,13 @@ class DistributedJobManager(JobManager):
         If node relaunch pending in node group happened, check if we
         need to relaunch the whole node group
         """
+        if node_group in self._relaunched_groups:
+            logger.info(
+                f"Skip node group {node_group} due to "
+                f"already relaunched: {self._relaunched_groups}"
+            )
+            return False
+
         node_check = all(
             node.relaunchable
             for node in job_ctx.job_node_group(node_group).values()
@@ -1091,6 +1099,7 @@ class DistributedJobManager(JobManager):
             f"remove_nodes: {plan.remove_nodes} "
         )
 
+        self._relaunched_groups.append(node_group)
         self._scaler.scale(plan)
         return plan
 

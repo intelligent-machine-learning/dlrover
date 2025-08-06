@@ -550,7 +550,7 @@ class WorkerManager(TrainingNodeManager):
                 continue
 
             logger.info(
-                f"Check fist pending node {first_pending_worker.id} with "
+                f"Check first pending node {first_pending_worker.id} with "
                 f"rank {first_pending_worker.rank_index} "
                 f"and group {first_pending_worker.group}"
             )
