@@ -9,7 +9,6 @@ from dlrover.python.unified.api.runtime.rpc import (
     create_rpc_proxy,
     export_rpc_instance,
     rpc,
-    rpc_call_t,
 )
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
@@ -55,9 +54,6 @@ def test_rpc(mocker):
 
     assert RPC_REGISTRY["some_method"] == some_method
     assert RPC_REGISTRY["some_async_method"] == some_async_method
-
-    assert rpc_call_t("actor", some_method) == "test1"
-    assert asyncio.run(rpc_call_t("actor", some_async_method)) == "test2"
 
 
 def test_rpc_proxy(mocker):
