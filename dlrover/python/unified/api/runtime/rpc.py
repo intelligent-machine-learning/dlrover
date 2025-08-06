@@ -14,6 +14,7 @@ from typing import (
     Sequence,
     Type,
     Union,
+    overload,
 )
 
 from gguf import TypeVar
@@ -141,9 +142,13 @@ class RoleActor:
         self.rank = info.rank
         self.info = info
 
+    @overload
     def call(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[R]:
+    ) -> Future[R]: ...
+    @overload
+    def call(self, method: str, *args: Any, **kwargs: Any) -> Future[Any]: ...
+    def call(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the actor."""
         return as_future(
             _rpc_call(self.name, method.__name__, args, kwargs).async_wait()
@@ -173,9 +178,15 @@ class RoleGroup(Sequence["RoleActor"]):
         """Get the number of actors in the role group."""
         return len(self.actors)
 
+    @overload
     def call(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[List[R]]:
+    ) -> Future[List[R]]: ...
+    @overload
+    def call(
+        self, method: str, *args: Any, **kwargs: Any
+    ) -> Future[List[Any]]: ...
+    def call(self, method, *args, **kwargs) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
         ref = invoke_actors(
@@ -196,12 +207,58 @@ class RoleGroup(Sequence["RoleActor"]):
             raise ValueError("No actors in the role group.")
         return self.actors[0].call(method, *args, **kwargs)
 
-    def split_param(self, param: Sequence[T]) -> List[Sequence[T]]:
-        """Split the parameter into sub-batches for each actor."""
-        sub_batch_size = math.ceil(len(param) / len(self.actors))
-        return [
-            param[
-                i * sub_batch_size : min((i + 1) * sub_batch_size, len(param))
+    def call_batch(
+        self,
+        method: Callable[P, Sequence[R]],
+        size: int,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> "FutureSequence[R]":
+        """Invoke a method on all actors in the role group with batched arguments."""
+        if not self.actors:
+            raise ValueError("No actors in the role group.")
+        assert all(
+            len(arg) == size for arg in args if isinstance(arg, Sequence)
+        ) and all(len(v) == size for v in kwargs if isinstance(v, Sequence)), (
+            "All Sequence arguments must have the same length as size."
+        )
+        sub_batch_size = math.ceil(size / len(self.actors))
+        futures = []
+        lens = []
+        for i in range(len(self.actors)):
+            start = i * sub_batch_size
+            end = min((i + 1) * sub_batch_size, size)
+            lens.append(end - start)
+            sub_args = [
+                arg[start:end] if isinstance(arg, Sequence) else arg
+                for arg in args
             ]
-            for i in range(len(self.actors))
-        ]
+            sub_kwargs = {
+                k: v[start:end] if isinstance(v, Sequence) else v
+                for k, v in kwargs.items()
+            }
+            futures.append(
+                self.actors[i].call(method, *sub_args, **sub_kwargs)  # type: ignore
+            )
+        return FutureSequence(futures, lens)
+
+
+class FutureSequence(Sequence[T]):
+    """A wrapper for futures, providing a sequence-like interface."""
+
+    def __init__(self, futures: List[Future[Sequence[T]]], lens: List[int]):
+        self._lens = lens
+        self._futures = futures
+
+    def __getitem__(self, index: int) -> T:
+        future_index = 0
+        while index >= self._lens[future_index]:
+            index -= self._lens[future_index]
+            future_index += 1
+        return self._futures[future_index].result()[index]
+
+    def __len__(self) -> int:
+        return sum(self._lens)
+
+    def __repr__(self) -> str:
+        return f"FutureSequence(lens={self._lens})"
