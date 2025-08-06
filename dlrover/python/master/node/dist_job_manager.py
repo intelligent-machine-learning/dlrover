@@ -922,7 +922,7 @@ class DistributedJobManager(JobManager):
         need to relaunch the whole node group
         """
         if node_group in self._relaunched_groups:
-            logger.info(
+            logger.debug(
                 f"Skip node group {node_group} due to "
                 f"already relaunched: {self._relaunched_groups}"
             )
@@ -1082,8 +1082,9 @@ class DistributedJobManager(JobManager):
                 continue
 
             # update node.group to max_group_idx
-            node.group = self._job_context.max_group_idx
-            launch_nodes.append(node)
+            old_node = copy.deepcopy(node)
+            old_node.group = self._job_context.max_group_idx
+            launch_nodes.append(old_node)
 
         plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
 
