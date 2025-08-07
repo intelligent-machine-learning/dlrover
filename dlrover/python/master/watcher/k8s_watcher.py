@@ -105,6 +105,7 @@ def _convert_pod_yaml_to_node(pod):
     metadata: client.V1ObjectMeta = pod.metadata
     pod_name = metadata.name
     pod_type = metadata.labels[replica_type_key]
+    labels = metadata.labels
     node_group = None
     node_group_size = None
     node_group_id = None
@@ -113,19 +114,17 @@ def _convert_pod_yaml_to_node(pod):
         return None
     elif pod_type == NodeType.WORKER:
         try:
-            if SchedulingLabel.NODE_GROUP in metadata.labels:
-                node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
-                if SchedulingLabel.NODE_GROUP_SIZE in metadata.labels:
+            if SchedulingLabel.NODE_GROUP in labels:
+                node_group = int(labels[SchedulingLabel.NODE_GROUP])
+                if SchedulingLabel.NODE_GROUP_SIZE in labels:
                     node_group_size = int(
-                        metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
+                        labels[SchedulingLabel.NODE_GROUP_SIZE]
                     )
-                if SchedulingLabel.NODE_GROUP_ID in metadata.labels:
-                    node_group_id = metadata.labels[
-                        SchedulingLabel.NODE_GROUP_ID
-                    ]
+                if SchedulingLabel.NODE_GROUP_ID in labels:
+                    node_group_id = labels[SchedulingLabel.NODE_GROUP_ID]
         except Exception as e:
             logger.error(
-                f"Unexpected exception {e} on parsing {metadata.labels} "
+                f"Unexpected exception {e} on parsing {labels} "
                 f"with {pod_name} {pod_type}"
             )
             node_group = None

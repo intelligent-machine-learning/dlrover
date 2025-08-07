@@ -372,10 +372,8 @@ class DistributedJobManager(JobManager):
         return False, "", ""
 
     def handle_node_group_pending(self):
-        pending_groups = (
-            self._worker_manager.is_training_hang_by_node_group_pending(
-                self.get_job_type()
-            )
+        pending_groups = self._worker_manager.get_pending_node_groups(
+            self.get_job_type()
         )
         for node_group in pending_groups:
             if self._should_relaunch_node_group(node_group):
@@ -620,7 +618,7 @@ class DistributedJobManager(JobManager):
                 node_id = node.id
                 exist_nodes[node_type].append(node)
 
-                if node.group is not None and node.group_size is not None:
+                if node.has_group():
                     self._job_context.update_job_node_by_group(node)
 
                 # for nodes not in current 'job_nodes' obj, re add it
@@ -1069,26 +1067,30 @@ class DistributedJobManager(JobManager):
         so we use max_group_idx to keep it in record
 
         """
-        self._job_context.max_group_idx += 1
+        self._job_context.next_group_idx()
         logger.info(
             f"Relaunch node group {node_group} with "
-            f"group_idx {self._job_context.max_group_idx}"
+            f"group_idx {self._job_context.get_group_idx()}"
         )
 
         launch_nodes: List[Node] = []
-        for node in self._job_context.job_node_group(node_group).values():
+        for node in list(
+            self._job_context.job_node_group(node_group).values()
+        ):
             if node.type != NodeType.WORKER:
-                logger.error(f"Fatal error: {node.name} is not worker node")
+                logger.warning(f"{node.name} is not worker node")
                 continue
 
             # update node.group to max_group_idx
             old_node = copy.deepcopy(node)
-            old_node.group = self._job_context.max_group_idx
+            old_node.group = self._job_context.get_group_idx()
             launch_nodes.append(old_node)
 
         plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
 
-        for node in self._job_context.job_node_group(node_group).values():
+        for node in list(
+            self._job_context.job_node_group(node_group).values()
+        ):
             plan.remove_nodes.append(node)
             node.relaunchable = False
             self._job_context.update_job_node(node)

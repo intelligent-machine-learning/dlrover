@@ -278,38 +278,11 @@ class TrainingNodeManager(object):
 
     def relaunch_nodes(self, nodes: List[Node], remove_exited_node=False):
         plan = ScalePlan()
+
         for node in nodes:
-            with self._lock:
-                new_id = self.get_next_node_id()
-                relaunch_node = node.get_relaunch_node_info(new_id)
-                self._update_node(relaunch_node)
-            logger.info(
-                f"Relaunch node {node.name} to {new_id} with "
-                f"group {node.group} group_size {node.group_size} "
-                f"rank {node.rank_index}"
-            )
-            plan.launch_nodes.append(
-                Node(
-                    node.type,
-                    new_id,
-                    copy.deepcopy(relaunch_node.config_resource),
-                    rank_index=node.rank_index,
-                    name=self._new_node_name_fn(node.type, new_id),
-                    service_addr=node.service_addr,
-                    relaunch_count=relaunch_node.relaunch_count,
-                    max_relaunch_count=relaunch_node.max_relaunch_count,
-                    node_group=node.group,
-                    node_group_size=node.group_size,
-                )
-            )
-            if remove_exited_node and not node.is_released and node.exited():
-                logger.info(
-                    f"Update node {node.name} is_released to True with "
-                    f"status {node.status} and {node.is_released}"
-                )
-                node.is_released = True
-                self._update_node(node)
-                plan.remove_nodes.append(node)
+            sub_plan = self.relaunch_node(node, remove_exited_node)
+            plan.launch_nodes.extend(sub_plan.launch_nodes)
+            plan.remove_nodes.extend(sub_plan.remove_nodes)
 
         return plan
 

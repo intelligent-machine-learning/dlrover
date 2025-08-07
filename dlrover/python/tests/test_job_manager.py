@@ -1060,8 +1060,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._worker_manager.is_training_hang_by_insufficient_worker = (
             mock.MagicMock(return_value=False)
         )
-        manager._worker_manager.is_training_hang_by_node_group_pending = (
-            mock.MagicMock(return_value=[])
+        manager._worker_manager.get_pending_node_groups = mock.MagicMock(
+            return_value=[]
         )
         manager.handle_node_group_pending()
 

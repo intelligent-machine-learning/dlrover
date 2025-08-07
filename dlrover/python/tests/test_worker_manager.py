@@ -650,7 +650,7 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_name,
         )
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [],
@@ -658,7 +658,7 @@ class WorkerManagerTest(unittest.TestCase):
 
         _dlrover_ctx.seconds_to_wait_group_pending_pod = 120
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [],
@@ -666,16 +666,14 @@ class WorkerManagerTest(unittest.TestCase):
 
         _dlrover_ctx.pending_fail_strategy = 2
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [],
         )
 
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
-                DistributionStrategy.PS
-            ),
+            worker_manager.get_pending_node_groups(DistributionStrategy.PS),
             [],
         )
 
@@ -700,7 +698,7 @@ class WorkerManagerTest(unittest.TestCase):
             self.job_context.update_job_node(mock_node)
             self.job_context.update_job_node_by_group(mock_node)
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [0],
@@ -728,7 +726,7 @@ class WorkerManagerTest(unittest.TestCase):
             self.job_context.update_job_node(mock_node)
             self.job_context.update_job_node_by_group(mock_node)
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [],
@@ -758,7 +756,7 @@ class WorkerManagerTest(unittest.TestCase):
             self.job_context.update_job_node(mock_node)
             self.job_context.update_job_node_by_group(mock_node)
         self.assertEqual(
-            worker_manager.is_training_hang_by_node_group_pending(
+            worker_manager.get_pending_node_groups(
                 DistributionStrategy.ALLREDUCE
             ),
             [],

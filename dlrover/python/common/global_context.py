@@ -80,7 +80,7 @@ class DefaultValues(object):
     MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
     MAX_CKPT_THRESHOLD = 900  # seconds
     MAX_AVG_STEPS = 50
-    FIRST_GROUP_IDX = 1000
+    FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
 
 
 class Context(Singleton):

@@ -60,8 +60,18 @@ class JobContext(Singleton):
 
         # job node groups are different groups of WORKER node
         self._group_locker = threading.Lock()
+        # _job_node_groups is a dict with group id as key
+        # the value is a dict with rank_index as key
         self._job_node_groups: Dict[int, Dict[int, Node]] = {}
-        self.max_group_idx = DefaultValues.FIRST_GROUP_IDX
+        self._max_group_idx = DefaultValues.FIRST_GROUP_IDX
+
+    def next_group_idx(self):
+        with self._locker:
+            self._max_group_idx += 1
+
+    def get_group_idx(self):
+        with self._locker:
+            return self._max_group_idx
 
     def get_job_stage(self):
         with self._locker:

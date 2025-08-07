@@ -480,7 +480,7 @@ class WorkerManager(TrainingNodeManager):
                 return pending_worker_0.name
         return None
 
-    def is_training_hang_by_node_group_pending(self, job_type):
+    def get_pending_node_groups(self, job_type):
         """
         Check if pod pending happened in a node group, only for torch
         training fail-over.
@@ -523,6 +523,7 @@ class WorkerManager(TrainingNodeManager):
 
                 logger.debug(f"Recheck node {node} for node group pending...")
 
+                # ignore first startup, only check after node relaunch
                 if node.relaunch_count > 0 and node.status in [
                     NodeStatus.PENDING,
                     NodeStatus.INITIAL,
