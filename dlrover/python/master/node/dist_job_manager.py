@@ -1067,37 +1067,35 @@ class DistributedJobManager(JobManager):
         so we use max_group_idx to keep it in record
 
         """
-        self._job_context.next_group_idx()
+        group_idx = self._job_context.next_group_idx()
         logger.info(
-            f"Relaunch node group {node_group} with "
-            f"group_idx {self._job_context.get_group_idx()}"
+            f"Relaunch node group {node_group} with group_idx {group_idx}"
         )
 
         launch_nodes: List[Node] = []
-        for node in list(
+        group_nodes = list(
             self._job_context.job_node_group(node_group).values()
-        ):
+        )
+        for node in group_nodes:
             if node.type != NodeType.WORKER:
                 logger.warning(f"{node.name} is not worker node")
                 continue
 
             # update node.group to max_group_idx
             old_node = copy.deepcopy(node)
-            old_node.group = self._job_context.get_group_idx()
+            old_node.group = group_idx
             launch_nodes.append(old_node)
 
         plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
 
-        for node in list(
-            self._job_context.job_node_group(node_group).values()
-        ):
+        for node in group_nodes:
             plan.remove_nodes.append(node)
             node.relaunchable = False
             self._job_context.update_job_node(node)
 
         logger.info(
             f"Finish scale plan for node group {node_group} relaunch "
-            f"node_group: {self._job_context.job_node_group(node_group)} "
+            f"group_nodes: {group_nodes} "
             f"launch_nodes: {plan.launch_nodes} "
             f"remove_nodes: {plan.remove_nodes} "
         )

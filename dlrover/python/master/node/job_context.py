@@ -68,9 +68,6 @@ class JobContext(Singleton):
     def next_group_idx(self):
         with self._locker:
             self._max_group_idx += 1
-
-    def get_group_idx(self):
-        with self._locker:
             return self._max_group_idx
 
     def get_job_stage(self):
