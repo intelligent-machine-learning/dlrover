@@ -151,6 +151,10 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     """
 
     backend: Literal["elastic"] = Field(default="elastic")
+    comm_pre_check: bool = Field(
+        default=True,
+        description="Whether to perform communication pre_check before starting the workload.",
+    )
     comm_backend: str = Field(
         default="gloo",
         description="Communication backend for the elastic workload. "

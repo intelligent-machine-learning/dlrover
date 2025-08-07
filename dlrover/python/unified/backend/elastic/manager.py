@@ -21,6 +21,7 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
     NodeCheckManager,
 )
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
@@ -30,6 +31,8 @@ from dlrover.python.unified.util.actor_proxy import (
 
 class ElasticManager:
     def __init__(self, workers: List[ActorInfo]):
+        assert workers[0].spec.backend == "elastic"
+        self.spec: ElasticWorkloadDesc = workers[0].spec
         self.workers: List[ActorInfo] = workers
         self.finished = False
 
@@ -39,6 +42,11 @@ class ElasticManager:
         self.stage = WorkerStage.READY
 
     async def check_workers(self, retry_count: int = 3):
+        if not self.spec.comm_pre_check:
+            logger.info(
+                "Communication pre-check is disabled, skipping node-check."
+            )
+            return
         logger.info("Do node-check for all nodes...")
         delays = await self.node_check_manager.check_nodes(self.workers)
         abnormal_nodes = self.node_check_manager.find_abnormal_nodes(
