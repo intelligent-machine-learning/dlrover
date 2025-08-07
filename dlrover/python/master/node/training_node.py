@@ -262,6 +262,16 @@ class TrainingNodeManager(object):
             plan.remove_nodes.append(node)
         return plan
 
+    def relaunch_nodes(self, nodes: List[Node], remove_exited_node=False):
+        plan = ScalePlan()
+
+        for node in nodes:
+            sub_plan = self.relaunch_node(node, remove_exited_node)
+            plan.launch_nodes.extend(sub_plan.launch_nodes)
+            plan.remove_nodes.extend(sub_plan.remove_nodes)
+
+        return plan
+
     def reduce_pending_node_resource(self):
         """Cut down CPU cores of pending PS Pods"""
         plan = ScalePlan()
@@ -432,6 +442,15 @@ class TrainingNodeManager(object):
             return 0
         if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
             timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
+    def _get_group_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_group_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.GROUP_PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.GROUP_PENDING_NODE_TIMEOUT_DEFAULT_MIN
 
         return timeout
 

@@ -415,6 +415,7 @@ class Node(object):
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
             f"priority:{self.config_resource.priority};"
+            f"group:{self.group};"
         )
 
     def to_dict(self):
@@ -434,6 +435,9 @@ class Node(object):
             return f"{self.id}"
         else:
             return self.name
+
+    def has_group(self):
+        return self.group is not None and self.group_size is not None
 
 
 class NodeEvent(object):
