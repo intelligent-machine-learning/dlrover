@@ -89,25 +89,16 @@ class ParameterServerManager(TrainingNodeManager):
         with self._lock:
             node.is_released = True
             new_id = self.get_next_node_id()
-            new_node = node.get_relaunch_node_info(new_id)
-            self._update_node(new_node)
+            new_name = self._new_node_name_fn(node.type, new_id)
+            relaunch_node = node.generate_relaunch_node(new_id, new_name)
+            self._update_node(relaunch_node)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._get_mutable_nodes()[
-                    new_node.id
+                    relaunch_node.id
                 ]
-        logger.info("Relaunch node %s to %s", node.name, new_id)
-        plan.launch_nodes.append(
-            Node(
-                node.type,
-                new_id,
-                copy.deepcopy(node.config_resource),
-                rank_index=node.rank_index,
-                name=self._new_node_name_fn(node.type, new_id),
-                service_addr=node.service_addr,
-                relaunch_count=node.relaunch_count,
-            )
-        )
+        logger.info(f"Relaunch node {node.name} to {new_id}")
+        plan.launch_nodes.append(relaunch_node)
         self._ps_cluster_changed = True
         if remove_exited_node and not node.is_released and node.exited():
             plan.remove_nodes.append(node)
