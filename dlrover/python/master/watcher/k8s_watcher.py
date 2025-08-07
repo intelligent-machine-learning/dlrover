@@ -105,6 +105,7 @@ def _convert_pod_yaml_to_node(pod):
     metadata: client.V1ObjectMeta = pod.metadata
     pod_name = metadata.name
     pod_type = metadata.labels[replica_type_key]
+    labels = metadata.labels
     node_group = None
     node_group_size = None
     node_group_id = None
@@ -113,21 +114,17 @@ def _convert_pod_yaml_to_node(pod):
         return None
     elif pod_type == NodeType.WORKER:
         try:
-            if SchedulingLabel.NODE_GROUP in metadata.labels:
-                node_group = int(metadata.labels[SchedulingLabel.NODE_GROUP])
-                node_group_size = int(
-                    metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]
-                )
-                node_group_id = metadata.labels[SchedulingLabel.NODE_GROUP_ID]
-                logger.debug(
-                    f"Parse {metadata.labels[SchedulingLabel.NODE_GROUP]} "
-                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_SIZE]} "
-                    f"{metadata.labels[SchedulingLabel.NODE_GROUP_ID]} "
-                    f"to {node_group} {node_group_size} {node_group_id}"
-                )
+            if SchedulingLabel.NODE_GROUP in labels:
+                node_group = int(labels[SchedulingLabel.NODE_GROUP])
+                if SchedulingLabel.NODE_GROUP_SIZE in labels:
+                    node_group_size = int(
+                        labels[SchedulingLabel.NODE_GROUP_SIZE]
+                    )
+                if SchedulingLabel.NODE_GROUP_ID in labels:
+                    node_group_id = labels[SchedulingLabel.NODE_GROUP_ID]
         except Exception as e:
             logger.error(
-                f"Unexpected exception {e} on parsing {metadata} "
+                f"Unexpected exception {e} on parsing {labels} "
                 f"with {pod_name} {pod_type}"
             )
             node_group = None
@@ -173,8 +170,8 @@ def _convert_pod_yaml_to_node(pod):
         f"convert yaml to node: {node} "
         f"type {pod_type}, id {pod_id}, name {pod_name} "
         f"rank {rank_id}, status {status} "
-        f"group {node_group} node_group_size {node_group_size} "
-        f"with meta {metadata.labels}"
+        f"group {node_group} group_size {node_group_size} "
+        f"group_id {node_group_id} with meta {metadata.labels}"
     )
 
     node.create_time = metadata.creation_timestamp
