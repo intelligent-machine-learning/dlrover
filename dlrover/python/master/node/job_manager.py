@@ -208,6 +208,12 @@ class JobManager(metaclass=ABCMeta):
             return self._job_context.job_nodes()
         return self._job_context.job_nodes_by_type(node_type)
 
+    def get_job_node_groups(self):
+        return self._job_context.job_node_groups()
+
+    def get_job_node_group(self, group):
+        return self._job_context.job_node_group(group)
+
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         return self._training_node_config.sync_node_training_port(
             node_id, port
