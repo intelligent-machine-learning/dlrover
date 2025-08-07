@@ -42,7 +42,6 @@ def test_elastic_training(tmp_ray):
 def test_api_full(tmp_ray):
     dl_job = (
         DLJobBuilder()
-        .SFT_type()
         .node_num(2)
         .device_per_node(2)
         .device_type("CPU")
@@ -64,7 +63,6 @@ def test_api_full(tmp_ray):
 def test_api_full_with_error(tmp_ray):
     dl_job = (
         DLJobBuilder()
-        .SFT_type()
         .node_num(3)
         .device_per_node(2)
         .device_type("CPU")

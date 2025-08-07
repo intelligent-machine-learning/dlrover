@@ -22,7 +22,6 @@ from dlrover.python.unified.api.builder import (
 )
 from dlrover.python.unified.common.enums import (
     DLStreamType,
-    DLType,
     RLRoleType,
 )
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
@@ -34,7 +33,7 @@ class ApiTest(BaseTest):
     def test_basic(self):
         conf = OmegaConf.create({"k1": "v1"})
 
-        rl_job = (
+        rl_job: DLJob = (
             RLJobBuilder()
             .node_num(2)
             .device_per_node(4)
@@ -64,7 +63,6 @@ class ApiTest(BaseTest):
 
         self.assertIsNotNone(rl_job)
         self.assertTrue(isinstance(rl_job, DLJob))
-        self.assertEqual(rl_job.dl_type, "RL")
         self.assertEqual(rl_job.stream_type, DLStreamType.TASK_STREAM)
         self.assertEqual(rl_job.node_num, 2)
         self.assertEqual(rl_job.device_per_node, 4)
@@ -72,49 +70,39 @@ class ApiTest(BaseTest):
         self.assertEqual(rl_job.config, {"k1": "v1"})
         self.assertEqual(rl_job.env, {"e0": "v0"})
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.TRAINER.name).module_class,
-            ("m0", "c0"),
+            rl_job.get_workload(RLRoleType.TRAINER.name).entry_point, "m0.c0"
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ACTOR.name).module_class,
-            ("m1", "c1"),
-        )
-        self.assertEqual(
-            rl_job._components[RLRoleType.ACTOR.name].role_name,
-            RLRoleType.ACTOR.name,
+            rl_job.get_workload(RLRoleType.ACTOR.name).entry_point, "m1.c1"
         )
         self.assertEqual(rl_job.get_workload(RLRoleType.ACTOR.name).total, 4)
         self.assertEqual(
             rl_job.get_workload(RLRoleType.ACTOR.name).per_group, 2
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ACTOR.name).env, {"e1": "v1"}
+            rl_job.get_workload(RLRoleType.ACTOR.name).envs, {"e1": "v1"}
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ACTOR.name).sub_stage, []
-        )
-        self.assertEqual(
-            rl_job.get_workload(RLRoleType.ROLLOUT.name).module_class,
-            ("m2", "c2"),
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).entry_point, "m2.c2"
         )
         self.assertEqual(rl_job.get_workload(RLRoleType.ROLLOUT.name).total, 4)
         self.assertEqual(
             rl_job.get_workload(RLRoleType.ROLLOUT.name).per_group, 2
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.ROLLOUT.name).env, {"e2": "v2"}
+            rl_job.get_workload(RLRoleType.ROLLOUT.name).envs, {"e2": "v2"}
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.REWARD.name).module_class,
-            ("m3", "c3"),
+            rl_job.get_workload(RLRoleType.REWARD.name).entry_point,
+            "m3.c3",
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.REFERENCE.name).module_class,
-            ("m4", "c4"),
+            rl_job.get_workload(RLRoleType.REFERENCE.name).entry_point,
+            "m4.c4",
         )
         self.assertEqual(
-            rl_job.get_workload(RLRoleType.CRITIC.name).module_class,
-            ("m5", "c5"),
+            rl_job.get_workload(RLRoleType.CRITIC.name).entry_point,
+            "m5.c5",
         )
         self.assertEqual(len(rl_job.collocations), 1)
         self.assertTrue(RLRoleType.ACTOR.name in rl_job.collocations[0])
@@ -124,43 +112,6 @@ class ApiTest(BaseTest):
         self.assertIsNotNone(rl_config)
         self.assertEqual(len(rl_config.workloads), 6)
 
-    def test_dl_type(self):
-        dl_job = (
-            DLJobBuilder()
-            .as_data_stream()
-            .SFT_type()
-            .node_num(2)
-            .device_per_node(4)
-            .config({"k1": "v1"})
-            .build()
-        )
-
-        self.assertEqual(dl_job.dl_type, DLType.SFT.name)
-
-        dl_job = (
-            DLJobBuilder()
-            .as_data_stream()
-            .PRE_type()
-            .node_num(2)
-            .device_per_node(4)
-            .config({"k1": "v1"})
-            .build()
-        )
-
-        self.assertEqual(dl_job.dl_type, DLType.PRE.name)
-
-        dl_job = (
-            DLJobBuilder()
-            .as_data_stream()
-            .MULTIMODAL_type()
-            .node_num(2)
-            .device_per_node(4)
-            .config({"k1": "v1"})
-            .build()
-        )
-
-        self.assertEqual(dl_job.dl_type, DLType.MULTIMODAL.name)
-
     def test_validation(self):
         # without dl type
         with self.assertRaises(InvalidDLConfiguration):
@@ -168,21 +119,21 @@ class ApiTest(BaseTest):
 
         # without node num
         with self.assertRaises(InvalidDLConfiguration):
-            DLJobBuilder().dl_type().build()
+            DLJobBuilder().build()
 
         # without device per node
         with self.assertRaises(InvalidDLConfiguration):
-            DLJobBuilder().dl_type().node_num(1).build()
+            DLJobBuilder().node_num(1).build()
 
         # invalid device type
         with self.assertRaises(InvalidDLConfiguration):
-            DLJobBuilder().dl_type().node_num(1).device_per_node(
-                1
-            ).device_type("mem").build()
+            DLJobBuilder().node_num(1).device_per_node(1).device_type(
+                "mem"
+            ).build()
 
         # without config
         with self.assertRaises(InvalidDLConfiguration):
-            DLJobBuilder().dl_type().node_num(1).device_per_node(1).build()
+            DLJobBuilder().node_num(1).device_per_node(1).build()
 
         # rl without trainer
         with self.assertRaises(InvalidDLConfiguration):
@@ -430,7 +381,6 @@ class ApiTest(BaseTest):
     def test_elastic(self):
         dl_job = (
             DLJobBuilder()
-            .SFT_type()
             .node_num(2)
             .device_per_node(2)
             .device_type("CPU")
