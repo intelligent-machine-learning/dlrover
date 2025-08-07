@@ -18,115 +18,62 @@ import argparse
 import time
 from datetime import datetime
 
-from openrlhf.cli.train_ppo_ray import _validate_args
-
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.builder import RLJobBuilder
+from dlrover.python.unified.common.enums import RLRoleType
+from dlrover.python.unified.common.workload_desc import (
+    ElasticWorkloadDesc,
+    ResourceDesc,
+    SimpleWorkloadDesc,
+)
+from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.util.config_util import args_2_omega_conf
 
 
 def submit(args):
-    _validate_args(args)
-
-    actor_per_node = args.actor_num_gpus_per_node
-    actor_total = args.actor_num_nodes * actor_per_node
-
-    has_rollout = False
-    rollout_total = 0
-    if args.vllm_num_engines is not None and args.vllm_num_engines > 0:
-        if args.colocate_all_models:
-            assert (
-                args.actor_num_nodes * args.actor_num_gpus_per_node
-                == args.vllm_num_engines * args.vllm_tensor_parallel_size
-            ), (
-                f"actor_num_nodes * actor_num_gpus_per_node must be equal to "
-                "vllm_num_engines * vllm_tensor_parallel_size, "
-                f"got {args.actor_num_nodes * args.actor_num_gpus_per_node} "
-                f"and {args.vllm_num_engines * args.vllm_tensor_parallel_size}"
-            )
-        has_rollout = True
-        rollout_total = args.vllm_num_engines
-
-    has_ref = False
-    ref_total = 0
+    workloads = {}
+    workloads[RLRoleType.ACTOR.name] = ElasticWorkloadDesc(
+        total=2,
+        resource=ResourceDesc(accelerator=0.1),
+        entry_point=f"{__package__}.ppo_actor.PolicyModelActor",
+    )
+    workloads[RLRoleType.CRITIC.name] = ElasticWorkloadDesc(
+        total=1,
+        resource=ResourceDesc(accelerator=0.1),
+        entry_point=f"{__package__}.ppo_critic.CriticModelRayActor",
+    )
+    workloads[RLRoleType.ROLLOUT.name] = SimpleWorkloadDesc(
+        total=1,
+        resource=ResourceDesc(accelerator=0.1),
+        entry_point=f"{__package__}.vllm_engine.VLLMActor",
+    )
     if args.init_kl_coef != 0:
-        has_ref = True
-        ref_per_node = args.ref_num_gpus_per_node
-        ref_total = args.ref_num_nodes * ref_per_node
-
-    has_critic = False
-    critic_total = 0
-    if args.critic_pretrain:
-        has_critic = True
-        critic_per_node = args.critic_num_gpus_per_node
-        critic_total = args.critic_num_nodes * critic_per_node
-
-    has_reward = False
-    reward_total = 0
-    if not args.remote_rm_url:
-        has_reward = True
-        # support only 1 reward pretrain for now
-        reward_per_node = args.reward_num_gpus_per_node
-        reward_total = args.reward_num_nodes * reward_per_node
-
-    rl_job_builder = (
-        RLJobBuilder()
-        .node_num(args.node_num)
-        .device_per_node(args.device_per_node)
-        .config(args_2_omega_conf(args))
-        .trainer(
-            "examples.unified.rl.openrlhf.ppo.ppo_trainer",
-            "PPOTrainer",
+        workloads[RLRoleType.REFERENCE.name] = ElasticWorkloadDesc(
+            total=1,
+            resource=ResourceDesc(accelerator=0.1),
+            entry_point=f"{__package__}.ppo_reference.PPOReferenceActor",
         )
-        .actor(
-            "examples.unified.rl.openrlhf.ppo.ppo_actor",
-            "ActorModelRayActor",
-        )
-        .total(actor_total)
+    workloads[RLRoleType.REWARD.name] = ElasticWorkloadDesc(
+        total=1,
+        resource=ResourceDesc(accelerator=0.1),
+        entry_point=f"{__package__}.ppo_reward.RewardModelRayActor",
+    )
+    workloads["trainer"] = SimpleWorkloadDesc(
+        resource=ResourceDesc(cpu=1),
+        entry_point=f"{__package__}.ppo_trainer.PPOTrainerActor",
+    )
+    config = DLConfig(
+        user_config=args_2_omega_conf(args),
+        workloads=workloads,
     )
 
-    if has_rollout:
-        (
-            rl_job_builder.rollout(
-                "examples.unified.rl.openrlhf.ppo.ppo_rollout",
-                "RolloutRayActor",
-            ).total(rollout_total)
-        )
-
-    if has_ref:
-        (
-            rl_job_builder.reference(
-                "ppo.ppo_base",
-                "ReferenceModelRayActor",
-            ).total(ref_total)
-        )
-
-    if has_critic:
-        (
-            rl_job_builder.critic(
-                "examples.unified.rl.openrlhf.ppo.ppo_critic",
-                "CriticModelRayActor",
-            ).total(critic_total)
-        )
-
-    if has_reward:
-        (
-            rl_job_builder.reward(
-                "examples.unified.rl.openrlhf.ppo.ppo_base",
-                "RewardModelRayActor",
-            ).total(reward_total)
-        )
-
-    if args.colocate_all_models:
-        rl_job_builder.with_collocation_all()
-    else:
-        if args.colocate_actor_ref:
-            rl_job_builder.with_collocation("actor", "reference")
-        if args.colocate_critic_reward:
-            rl_job_builder.with_collocation("critic", "reward")
-
-    rl_job = rl_job_builder.build()
-    rl_job.submit(job_name=args.job_name)
+    master = PrimeMaster.create(
+        JobConfig(job_name="openrlhf_demo", dl_config=config)
+    )
+    master.start()
+    master.wait()
+    print(master.get_status())
+    master.shutdown()
 
 
 if __name__ == "__main__":
