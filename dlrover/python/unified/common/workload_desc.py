@@ -155,6 +155,11 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         default=True,
         description="Whether to perform communication pre_check before starting the workload.",
     )
+    comm_auto_setup_process_group: bool = Field(
+        default=True,
+        description="Whether to automatically setup process group for communication. "
+        "Or just set MASTER_ADDR and MASTER_PORT envs.",
+    )
     comm_backend: str = Field(
         default="gloo",
         description="Communication backend for the elastic workload. "

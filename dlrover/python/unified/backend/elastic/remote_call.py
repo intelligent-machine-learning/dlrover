@@ -29,9 +29,12 @@ def get_master_addr() -> str:
 
 
 def setup_torch_process_group(
-    master_addr: str, world_size: int, rank: int
+    master_addr: str, world_size: int, rank: int, only_envs: bool = False
 ) -> None:
-    """Setup the torch process group."""
+    """Setup the torch process group.
+
+    If `only_envs` is True, only set the environment variables MASTER_ADDR and MASTER_PORT.
+    """
     raise NotImplementedError("stub")  # pragma: no cover
 
 

@@ -158,7 +158,9 @@ class NodeCheckManager:
             groups.append((sorted_nodes[left],))  # odd one
         return groups
 
-    async def _setup_rendezvous_group(self, group: List[ActorInfo]):
+    async def _setup_rendezvous_group(
+        self, group: List[ActorInfo], only_envs: bool = False
+    ):
         master_addr = await invoke_actor_t(
             remote_call.get_master_addr, group[0].name
         )
@@ -170,6 +172,7 @@ class NodeCheckManager:
                 master_addr=master_addr,
                 world_size=len(group),
                 rank=i,
+                only_envs=only_envs,
             )
             for i, node in enumerate(group)
         )

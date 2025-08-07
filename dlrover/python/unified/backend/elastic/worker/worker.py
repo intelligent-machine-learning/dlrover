@@ -63,7 +63,11 @@ class ElasticWorker(BaseWorker):
         return f"tcp://{addr}:{port}"
 
     def setup_torch_process_group(
-        self, master_addr: str, world_size: int, rank: int
+        self,
+        master_addr: str,
+        world_size: int,
+        rank: int,
+        only_envs: bool = False,
     ):
         """Setup the torch process group for distributed training."""
         assert self.actor_info.spec.backend == "elastic"
@@ -74,6 +78,16 @@ class ElasticWorker(BaseWorker):
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"
         )
         # TODO backend specific setup
+        if only_envs:
+            addr, port = master_addr.split("://")[1].split(":")
+            os.environ["MASTER_ADDR"] = addr
+            os.environ["MASTER_PORT"] = str(port)
+            os.environ["RANK"] = str(rank)
+            os.environ["WORLD_SIZE"] = str(world_size)
+            logger.info(
+                f"Set MASTER_ADDR={addr}, MASTER_PORT={port} for torch distributed training."
+            )
+            return
 
         assert not self._process_group_setup, (
             "Torch process group is already set up. "

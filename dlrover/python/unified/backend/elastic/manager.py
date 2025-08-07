@@ -106,7 +106,9 @@ class ElasticManager:
         logger.info("Start setup all elastic workloads...")
         start = time.time()
 
-        await self.node_check_manager._setup_rendezvous_group(self.workers)
+        await self.node_check_manager._setup_rendezvous_group(
+            self.workers, only_envs=not self.spec.comm_auto_setup_process_group
+        )
         logger.info("Setup torch process group for all nodes.")
 
         elapsed = time.time() - start
