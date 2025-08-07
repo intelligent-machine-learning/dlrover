@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import ray
 import ray.actor
+from ray.exceptions import GetTimeoutError
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
@@ -124,6 +125,9 @@ class PrimeMaster:
         config: JobConfig, detached: bool = True, timeout: float = 10.0
     ) -> "type[PrimeMasterApi]":
         """Create a PrimeMaster instance."""
+        if not ray.is_initialized():
+            logger.info("Ray is not initialized, initializing now.")
+            ray.init()
         ref = (
             ray.remote(PrimeMaster)
             .options(
@@ -136,5 +140,10 @@ class PrimeMaster:
             )
             .remote(config)
         )
-        ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
+        try:
+            ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
+        except GetTimeoutError:
+            raise TimeoutError(
+                f"Timeout waiting for PrimeMaster to be ready after {timeout} seconds."
+            )
         return PrimeMasterApi

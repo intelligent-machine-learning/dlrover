@@ -45,7 +45,7 @@ class DLConfig(BaseModel):
     This class defines the configurations for algorithm users.
     """
 
-    user_config: Dict[str, Any] = Field(
+    user_config: Any = Field(
         default_factory=dict,
         description="User-defined configuration for the deep learning job.",
     )

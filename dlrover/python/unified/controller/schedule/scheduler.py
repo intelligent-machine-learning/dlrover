@@ -203,7 +203,7 @@ class Scheduler:
         logger.info(
             "Creating placement group "
             f"with bundle size: {len(bundles)} "
-            f"with total resource: {sum(bundles, ResourceDesc())}. "
+            f"with total resource: {sum(bundles, ResourceDesc())}. \n"
             f"All bundles: {bundles}."
         )
         return placement_group(

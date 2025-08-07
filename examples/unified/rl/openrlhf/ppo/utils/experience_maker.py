@@ -127,6 +127,8 @@ class SamplesGenerator:
             prompt = all_prompts[i]
             label = all_labels[i]
 
+            assert output.prompt_token_ids is not None
+
             # Concatenate prompt and output tokens
             input_ids = list(output.prompt_token_ids) + list(
                 output.outputs[0].token_ids
