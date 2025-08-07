@@ -73,7 +73,7 @@ class DataQueue(Generic[T]):
     def __init__(self, name: str, is_master: bool, size: int = 1000):
         self._is_master = is_master
         if self._is_master:
-            self._impl = DataQueueImpl[ray.ObjectRef[T]](name, size)
+            self._impl = DataQueueImpl["ray.ObjectRef[T]"](name, size)
             export_rpc_instance(f"{DataQueue.__name__}.{name}", self._impl)
             PrimeMasterApi.register_data_queue(
                 name, current_worker().actor_info.name, size
@@ -83,7 +83,7 @@ class DataQueue(Generic[T]):
             self._impl = create_rpc_proxy(
                 owner,
                 f"{DataQueue.__name__}.{name}",
-                DataQueueImpl[ray.ObjectRef[T]],
+                DataQueueImpl["ray.ObjectRef[T]"],
             )
 
     def qsize(self) -> int:

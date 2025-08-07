@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import Future
 from threading import Thread
-from unittest.mock import Mock
+from unittest.mock import Mock, AsyncMock
 
 from dlrover.python.unified.api.runtime.queue import DataQueue
 from dlrover.python.unified.api.runtime.rpc import (
@@ -12,9 +12,10 @@ from dlrover.python.unified.api.runtime.rpc import (
 )
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.util.actor_helper import ActorInvocation
 
 
-def mock_rpc_call(actor_name, method, is_async, args, kwargs):
+def mock_rpc_call(actor_name, method, args, kwargs):
     actor = Mock(BaseWorker)
     actor.actor_info = Mock(ActorInfo)
     actor.actor_info.name = actor_name
@@ -23,8 +24,11 @@ def mock_rpc_call(actor_name, method, is_async, args, kwargs):
     )
     actor.stage = WorkerStage.RUNNING
     ret = BaseWorker._user_rpc_call(actor, method, *args, **kwargs)
-    if not is_async:
-        return asyncio.run(ret)
+    v = asyncio.run(ret)
+    ret = Mock(ActorInvocation)
+    ret.pending = False
+    ret.wait.return_value = v
+    ret.async_wait = AsyncMock(return_value=v)
     return ret
 
 
