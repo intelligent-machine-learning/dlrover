@@ -166,8 +166,6 @@ class ActorProxy:
             cls._replace_rpc_methods(
                 cls, lambda m: partial(cls._invoke, actor_name, m)
             )
-        for name, method in cls.__dict__.items():
-            print(f"ActorProxy: {name} -> {method}")
 
     @classmethod
     def _replace_rpc_methods(cls, target, wrap_method) -> None:
