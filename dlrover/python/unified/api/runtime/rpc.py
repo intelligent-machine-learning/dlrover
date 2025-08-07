@@ -1,3 +1,16 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 import math
 from concurrent.futures import Future
@@ -13,11 +26,10 @@ from typing import (
     ParamSpec,
     Sequence,
     Type,
+    TypeVar,
     Union,
     overload,
 )
-
-from gguf import TypeVar
 
 from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.controller.api import PrimeMasterApi
@@ -170,7 +182,11 @@ class RoleGroup(Sequence["RoleActor"]):
             raise ValueError(f"No actors found for role '{role}'.")
         self.actors = [RoleActor(actor) for actor in actor_infos]
 
-    def __getitem__(self, index: int) -> "RoleActor":
+    @overload
+    def __getitem__(self, index: int) -> "RoleActor": ...
+    @overload
+    def __getitem__(self, index: slice) -> Sequence["RoleActor"]: ...
+    def __getitem__(self, index):
         """Get an actor by index."""
         return self.actors[index]
 
@@ -250,7 +266,13 @@ class FutureSequence(Sequence[T]):
         self._lens = lens
         self._futures = futures
 
-    def __getitem__(self, index: int) -> T:
+    @overload
+    def __getitem__(self, index: int) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[T]: ...
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
         future_index = 0
         while index >= self._lens[future_index]:
             index -= self._lens[future_index]
@@ -265,7 +287,7 @@ class FutureSequence(Sequence[T]):
 
     def wait(self) -> List[T]:
         """Wait for all futures to complete and return the results."""
-        results = []
+        results: List[T] = []
         for future in self._futures:
             results.extend(future.result())
         return results
