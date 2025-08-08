@@ -39,7 +39,7 @@ from openrlhf.utils.seqlen_balancing import (
 )
 from openrlhf.utils.utils import remove_pad_token
 
-from examples.unified.rl.openrlhf.ppo import remote_call
+from .. import remote_call
 
 
 class SamplesGenerator:

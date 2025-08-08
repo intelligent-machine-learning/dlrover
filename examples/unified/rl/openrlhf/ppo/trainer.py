@@ -33,7 +33,7 @@ from openrlhf.utils.logging_utils import init_logger
 from openrlhf.utils.utils import get_tokenizer
 from tqdm import tqdm
 
-from examples.unified.rl.openrlhf.ppo import remote_call
+from . import remote_call
 
 logger = init_logger(__name__)
 

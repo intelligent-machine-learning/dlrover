@@ -16,15 +16,17 @@
 # OpenRLHF] for details.
 
 import os
+from dataclasses import dataclass
+from typing import Optional
 
 import vllm
-from omegaconf import DictConfig
+from omegaconf import OmegaConf
 from openrlhf.utils.logging_utils import init_logger
 
-from dlrover.python.unified.api.runtime.rpc import rpc
 from dlrover.python.unified.api.runtime.worker import current_worker
 
 from . import remote_call
+from .common import BaseActor, rpc
 
 logger = init_logger(__name__)
 
@@ -57,11 +59,35 @@ def _vllm_update_weight(self, name, dtype, shape):
     del weight
 
 
-class VLLMActor:
+@dataclass(kw_only=True)
+class VLLMActorConfig:
+    pretrain: str
+    full_determinism: bool = False
+    enforce_eager: bool = False
+    vllm_tensor_parallel_size: int = 1
+    seed: int = 0
+    max_len: Optional[int] = 2048
+    prompt_max_len: int
+    generate_max_len: int
+    enable_prefix_caching: bool = False
+    vllm_gpu_memory_utilization: float = 0.9
+    vllm_enable_sleep: bool = True
+
+
+class VLLMActor(BaseActor):
     def __init__(self):
-        config = DictConfig(current_worker().job_info.user_config)
-        rank = current_worker().actor_info.rank
+        super().__init__()
+        config: VLLMActorConfig = OmegaConf.structured(VLLMActorConfig)
+        OmegaConf.unsafe_merge(
+            config,
+            OmegaConf.masked_copy(
+                OmegaConf.create(current_worker().job_info.user_config),
+                dir(config),
+            ),
+        )
         self.config = config
+
+        rank = current_worker().actor_info.rank
 
         if config.full_determinism:
             # https://github.com/vllm-project/vllm/blob/effc5d24fae10b29996256eb7a88668ff7941aed/examples/offline_inference/reproduciblity.py#L11
@@ -86,7 +112,7 @@ class VLLMActor:
             enable_prefix_caching=config.enable_prefix_caching,
             dtype="bfloat16",
             trust_remote_code=True,
-            gpu_memory_utilization=config.gpu_memory_utilization,
+            gpu_memory_utilization=config.vllm_gpu_memory_utilization,
         )
 
         if config.vllm_enable_sleep:
@@ -111,7 +137,7 @@ class VLLMActor:
 
     @rpc(remote_call.vllm_sync_weight_begin)
     def sync_weight_begin(self):
-        if self.config.get("enable_prefix_caching", False):
+        if self.config.enable_prefix_caching:
             self.llm.llm_engine.reset_prefix_cache()
 
     @rpc(remote_call.vllm_sync_weight)

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from concurrent import futures
 from concurrent.futures import Future
 from contextlib import contextmanager
 from functools import lru_cache
@@ -25,6 +26,25 @@ if TYPE_CHECKING:
     import torch
     from vllm import RequestOutput, SamplingParams
 
+
+# region Common
+def end_job() -> None:
+    """End the job by calling the end_job method on the group."""
+    futures.wait(
+        [
+            group(role).call(end_job)
+            for role in [
+                RLRoleType.ROLLOUT,
+                RLRoleType.REFERENCE,
+                RLRoleType.REWARD,
+                RLRoleType.ACTOR,
+                RLRoleType.CRITIC,
+            ]
+        ]
+    )
+
+
+# endregion
 # region Rollout
 
 
@@ -78,11 +98,11 @@ def reference_init(strategy, model_path: str) -> Future:
 
 
 def reference_forward(
-    sequences: Sequence[torch.Tensor],
-    action_mask: Sequence[torch.Tensor],
-    attention_mask: Sequence[torch.Tensor],
+    sequences: Sequence["torch.Tensor"],
+    action_mask: Sequence["torch.Tensor"],
+    attention_mask: Sequence["torch.Tensor"],
     packed_seq_lens: Optional[Sequence[int]] = None,
-) -> Sequence[torch.Tensor]:
+) -> Sequence["torch.Tensor"]:
     return group(RLRoleType.REFERENCE).call_batch(
         reference_forward,
         len(sequences),
@@ -98,14 +118,14 @@ def reference_forward(
 
 
 def reward_init(strategy, model_path: str) -> Future:
-    return group(RLRoleType.REWARD).call("init", strategy, model_path)
+    return group(RLRoleType.REWARD).call(reward_init, strategy, model_path)
 
 
 def reward_forward(
-    sequences: Sequence[torch.Tensor],
-    attention_mask: Sequence[torch.Tensor],
+    sequences: Sequence["torch.Tensor"],
+    attention_mask: Sequence["torch.Tensor"],
     packed_seq_lens=None,
-) -> Sequence[torch.Tensor]:
+) -> Sequence["torch.Tensor"]:
     return group(RLRoleType.REWARD).call_batch(
         reward_forward,
         len(sequences),
@@ -126,32 +146,32 @@ def actor_init(
     max_steps: int,
 ) -> Future:
     return group(RLRoleType.ACTOR).call(
-        "init", strategy, model_path, max_steps=max_steps
+        actor_init, strategy, model_path, max_steps=max_steps
     )
 
 
 def actor_forward(
-    sequences: Sequence[torch.Tensor],
-    action_mask: Sequence[torch.BoolTensor],
-    attention_mask: Sequence[torch.LongTensor],
-) -> Sequence[torch.Tensor]:
+    sequences: Sequence["torch.Tensor"],
+    action_mask: Sequence["torch.BoolTensor"],
+    attention_mask: Sequence["torch.LongTensor"],
+) -> Sequence["torch.Tensor"]:
     return group(RLRoleType.ACTOR).call_batch(
         actor_forward, len(sequences), sequences, action_mask, attention_mask
     )
 
 
 def actor_append_experience(experience) -> Future:
-    return group(RLRoleType.ACTOR).call("append_experience", experience)
+    return group(RLRoleType.ACTOR).call(actor_append_experience, experience)
 
 
 def actor_train(kl_ctl: float = 0) -> Future:
     """Train the actor with the given KL control value."""
-    return group(RLRoleType.ACTOR).call("train", kl_ctl)
+    return group(RLRoleType.ACTOR).call(actor_train, kl_ctl)
 
 
 def actor_sync_to_vllm() -> None:
     """Synchronize the actor's weights to vLLM."""
-    group(RLRoleType.ACTOR).call("sync_to_vllm").result()
+    group(RLRoleType.ACTOR).call(actor_sync_to_vllm).result()
 
 
 def actor_save_model(
@@ -161,7 +181,7 @@ def actor_save_model(
 ) -> Future:
     """Save the actor's model to the specified path."""
     return group(RLRoleType.ACTOR).call(
-        "save_model", save_path, tag, ext_states
+        actor_save_model, save_path, tag, ext_states
     )
 
 
@@ -176,32 +196,32 @@ def critic_init(
     max_steps: int,
 ) -> Future:
     return group(RLRoleType.CRITIC).call(
-        "init", strategy, model_path, max_steps=max_steps
+        critic_init, strategy, model_path, max_steps=max_steps
     )
 
 
 def critic_forward(
-    sequences: Sequence[torch.Tensor],
-    action_mask: Sequence[torch.BoolTensor],
-    attention_mask: Sequence[torch.LongTensor],
-) -> Sequence[torch.Tensor]:
+    sequences: Sequence["torch.Tensor"],
+    action_mask: Sequence["torch.BoolTensor"],
+    attention_mask: Sequence["torch.LongTensor"],
+) -> Sequence["torch.Tensor"]:
     return group(RLRoleType.CRITIC).call_batch(
         critic_forward, len(sequences), sequences, action_mask, attention_mask
     )
 
 
 def critic_append_experience(experience) -> Future:
-    return group(RLRoleType.CRITIC).call("append_experience", experience)
+    return group(RLRoleType.CRITIC).call(critic_append_experience, experience)
 
 
 def critic_train() -> Future:
     """Train the critic."""
-    return group(RLRoleType.CRITIC).call("train")
+    return group(RLRoleType.CRITIC).call(critic_train)
 
 
 def critic_save_model(save_path: str, tag: Optional[str] = None) -> Future:
     """Save the critic's model to the specified path."""
-    return group(RLRoleType.CRITIC).call("save_model", save_path, tag)
+    return group(RLRoleType.CRITIC).call(critic_save_model, save_path, tag)
 
 
 # endregion

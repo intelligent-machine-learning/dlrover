@@ -18,7 +18,9 @@
 from omegaconf import DictConfig
 
 from dlrover.python.unified.api.runtime.worker import current_worker
-from examples.unified.rl.openrlhf.ppo.trainer import BasePPOTrainer
+
+from . import remote_call
+from .trainer import BasePPOTrainer
 
 
 class PPOTrainerActor(BasePPOTrainer):
@@ -33,3 +35,4 @@ class PPOTrainerActor(BasePPOTrainer):
         self._init_wandb()
 
         self.fit()
+        remote_call.end_job()

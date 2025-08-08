@@ -22,11 +22,11 @@ from omegaconf import DictConfig
 from openrlhf.models import Actor
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 
-from dlrover.python.unified.api.runtime.rpc import rpc
-from examples.unified.rl.openrlhf.ppo import remote_call
+from . import remote_call
+from .common import BaseActor, rpc
 
 
-class PPOReferenceActor:
+class PPOReferenceActor(BaseActor):
     @rpc(remote_call.reference_init)
     def init(self, strategy: DeepspeedStrategy, model_path: str):
         self.strategy = strategy

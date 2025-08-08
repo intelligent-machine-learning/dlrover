@@ -31,11 +31,11 @@ from openrlhf.utils.deepspeed.deepspeed_utils import (
 )
 from transformers.optimization import get_scheduler
 
-from dlrover.python.unified.api.runtime.rpc import rpc
-from examples.unified.rl.openrlhf.ppo import remote_call
+from . import remote_call
+from .common import BaseActor, rpc
 
 
-class CriticModelRayActor:
+class CriticModelRayActor(BaseActor):
     @rpc(remote_call.critic_init)
     def init(
         self,

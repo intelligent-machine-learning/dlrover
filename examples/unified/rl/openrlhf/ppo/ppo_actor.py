@@ -40,13 +40,13 @@ from openrlhf.utils.distributed_util import (
 from openrlhf.utils.logging_utils import init_logger
 from transformers.optimization import get_scheduler
 
-from dlrover.python.unified.api.runtime.rpc import rpc
-from examples.unified.rl.openrlhf.ppo import remote_call
+from . import remote_call
+from .common import BaseActor, rpc
 
 logger = init_logger(__name__)
 
 
-class PolicyModelActor:
+class PolicyModelActor(BaseActor):
     @rpc(remote_call.actor_init)
     def init(
         self, strategy: DeepspeedStrategy, model_path: str, /, max_steps: int

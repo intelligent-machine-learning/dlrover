@@ -31,16 +31,20 @@ from dlrover.python.unified.util.config_util import args_2_omega_conf
 
 
 def submit(args):
+    comm_pre_check = not args.skip_node_check
+
     workloads = {}
     workloads[RLRoleType.ACTOR.name] = ElasticWorkloadDesc(
         total=2,
         resource=ResourceDesc(accelerator=0.1),
         entry_point=f"{__package__}.ppo_actor.PolicyModelActor",
+        comm_pre_check=comm_pre_check,
     )
     workloads[RLRoleType.CRITIC.name] = ElasticWorkloadDesc(
         total=1,
         resource=ResourceDesc(accelerator=0.1),
         entry_point=f"{__package__}.ppo_critic.CriticModelRayActor",
+        comm_pre_check=comm_pre_check,
     )
     workloads[RLRoleType.ROLLOUT.name] = SimpleWorkloadDesc(
         total=1,
@@ -52,11 +56,13 @@ def submit(args):
             total=1,
             resource=ResourceDesc(accelerator=0.1),
             entry_point=f"{__package__}.ppo_reference.PPOReferenceActor",
+            comm_pre_check=comm_pre_check,
         )
     workloads[RLRoleType.REWARD.name] = ElasticWorkloadDesc(
         total=1,
         resource=ResourceDesc(accelerator=0.1),
         entry_point=f"{__package__}.ppo_reward.RewardModelRayActor",
+        comm_pre_check=comm_pre_check,
     )
     workloads["trainer"] = SimpleWorkloadDesc(
         resource=ResourceDesc(cpu=1),
@@ -88,6 +94,12 @@ if __name__ == "__main__":
     parser.add_argument("--node_num", type=int, default=1, help="node number")
     parser.add_argument(
         "--device_per_node", type=int, default=8, help="device number per node"
+    )
+    parser.add_argument(
+        "--skip_node_check",
+        action="store_true",
+        default=False,
+        help="skip node communication check",
     )
 
     # Ray and vLLM
@@ -204,6 +216,12 @@ if __name__ == "__main__":
         type=float,
         default=0.9,
         help="vLLM gpu_memory_utilization",
+    )
+    parser.add_argument(
+        "--vllm_generate_batch_size",
+        type=int,
+        default=128,
+        help="Batch size for vLLM generation",
     )
 
     # Checkpoints
@@ -608,4 +626,7 @@ if __name__ == "__main__":
         # Patch hub to download models from modelscope to speed up.
         patch_hub()
 
+    args.vllm_generate_batch_size = 128
+    args.use_dynamic_batch = False
+    args.ds_tensor_parallel_size = 1
     submit(args)
