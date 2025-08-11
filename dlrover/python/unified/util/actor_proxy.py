@@ -170,9 +170,8 @@ class ActorProxy:
     @classmethod
     def _replace_rpc_methods(cls, target, wrap_method) -> None:
         # Replace all public static methods with remote_call, binding them to ACTOR_NAME.
-        cls2: Optional[type] = cls
-        while cls2 is not None and cls2 != ActorProxy:
-            for name, method in cls2.__dict__.items():
+        for base in cls.__mro__:
+            for name, method in base.__dict__.items():
                 if not callable(method) or name.startswith("__"):
                     continue
                 if isinstance(method, classmethod):
@@ -189,4 +188,3 @@ class ActorProxy:
                 setattr(wrapped, "__origin__", method)
 
                 setattr(target, name, staticmethod(wrapped))
-            cls2 = cls2.__base__
