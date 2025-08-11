@@ -15,7 +15,10 @@ import asyncio
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_base import MasterStage
+from dlrover.python.unified.common.workload_base import (
+    MasterStage,
+    WorkerStage,
+)
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
@@ -118,12 +121,14 @@ class PrimeManager:
         res.raise_for_errors()
 
         res = await invoke_actors_t(remote_call.status, nodes)
-        if any(it != "RUNNING" for it in res.results):
-            statusMap = {
-                node: node_status
-                for node, node_status in zip(nodes, res.results)
-            }
-            raise Exception(f"Some nodes failed to start the job. {statusMap}")
+        # Assert Running, or finished if not running thread.
+        if any(
+            it not in [WorkerStage.RUNNING, WorkerStage.FINISHED]
+            for it in res.results
+        ):
+            raise Exception(
+                f"Some nodes failed to start the job. {res.as_dict()}"
+            )
 
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(self._main_loop(), name="job_monitor")

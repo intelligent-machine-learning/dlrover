@@ -82,10 +82,9 @@ class ElasticManager:
 
     async def start(self):
         """Start the elastic training job."""
-        if self.stage != WorkerStage.READY:
-            raise Exception(
-                f"Cannot start ElasticManager in stage {self.stage}, expected READY."
-            )
+        assert self.stage == WorkerStage.READY, (
+            f"Cannot start ElasticManager in stage {self.stage}, expected READY."
+        )
 
         logger.info("Start job execution.")
         await self.setup_workloads()
@@ -96,8 +95,14 @@ class ElasticManager:
         res = await invoke_actors_t(
             remote_call.status, [node.name for node in self.workers]
         )
-        if any(it != "RUNNING" for it in res.results):
-            raise Exception("Some nodes failed to start the job.")
+        # Assert Running, or finished if not running thread.
+        if any(
+            it not in [WorkerStage.RUNNING, WorkerStage.FINISHED]
+            for it in res.results
+        ):
+            logger.fatal(f"Some nodes stages not READY: {res.as_dict()}")
+            self.stage = WorkerStage.FAILED
+            return
         self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
         self.stage = WorkerStage.RUNNING
         logger.info("Elastic job started, monitoring nodes...")

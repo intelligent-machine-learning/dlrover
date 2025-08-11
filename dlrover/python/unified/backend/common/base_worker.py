@@ -72,16 +72,16 @@ class BaseWorker(ActorBase):
                 ) from e
             export_rpc_instance(None, inst)
             if not hasattr(inst, "run"):
-                logger.warning(
+                logger.error(
                     f"User class {user_func} does not have a 'run' method, "
-                    "assert FINISH."
+                    "assert FINISH. This may cause job state inconsistency."
                 )
                 self._update_stage_force(
                     WorkerStage.FINISHED, WorkerStage.READY
                 )
                 return
 
-            user_func = inst.start
+            user_func = inst.run
 
         Thread(
             target=self._execute_user_function, args=(user_func,), daemon=True
