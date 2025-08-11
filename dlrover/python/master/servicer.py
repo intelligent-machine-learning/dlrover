@@ -344,7 +344,7 @@ class MasterServicer(ABC):
                 self._job_metric_collector.collect_custom_data(metrics)
             # Finish elastic training rendezvous so we continue diagnosis
             self._diagnosis_manager.continue_observing()
-        logger.debug(f"_get_comm_world: {res}")
+        logger.debug(f"_get_comm_world: {request} {res}")
         return res
 
     def _kv_store_get(self, request: comm.KeyValuePair):
