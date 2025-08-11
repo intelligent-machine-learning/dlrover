@@ -1671,7 +1671,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         if succeed:
             elapsed_time = self._get_node_check_time(time_record_dir)
         else:
-            elapsed_time = timeout
+            elapsed_time = 3600
         return succeed, elapsed_time
 
     def _check_finished(self, result_dir):

@@ -15,9 +15,10 @@ import datetime
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
-from dlrover.python.common.constants import NetworkFailureReason
+from dlrover.python.common.constants import NetworkFailureReason, NodeEventType
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -359,6 +360,25 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         )
         for i in rdzv_manager._waiting_nodes.keys():
             self.assertTrue(900 <= i <= 999)
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_check_rdzv_completed_with_failed_node_before_relaunch(
+        self, mock_job_ctx
+    ):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager.update_rdzv_params(2, 2, 60, 1)
+
+        # without node exit
+        rdzv_manager._alive_nodes = [0, 1]
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
+        self.assertTrue(rdzv_manager._check_rdzv_completed())
+
+        # with node exit
+        node = Node("worker", 1, name="worker-1", rank_index=1)
+        node.reported_status = (NodeEventType.FAILED_EXITED, 1)
+        mock_job_ctx.job_node.return_value = node
+        self.assertFalse(rdzv_manager._check_rdzv_completed())
 
 
 class NetworkCheckRendezvousManagerTest(unittest.TestCase):
