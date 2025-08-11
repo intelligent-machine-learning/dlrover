@@ -22,6 +22,7 @@ from dlrover.python.common.constants import (
     EventReportConstants,
     NetworkFailureReason,
     RendezvousName,
+    NodeType,
 )
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
@@ -153,6 +154,17 @@ class RendezvousManager(metaclass=ABCMeta):
                 )
 
     def _check_rdzv_completed(self):
+        # check node aliveness according to reported status because the actual
+        # pod status might be delayed after node exiting
+        waiting_nodes_id = [
+            node_topo.node_id
+            for node_topo in list(self._waiting_nodes.values())
+        ]
+        for waiting_node_id in waiting_nodes_id:
+            target_node = job_ctx.job_node(NodeType.WORKER, waiting_node_id)
+            if target_node and target_node.is_failed_and_exited():
+                self.remove_alive_node(target_node)
+
         rdzv_completed = False
         waiting_num = len(self._waiting_nodes)
         if waiting_num == self._rdzv_params.max_nodes:
