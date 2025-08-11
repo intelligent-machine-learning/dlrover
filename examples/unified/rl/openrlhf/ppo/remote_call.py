@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     import torch
     from vllm import RequestOutput, SamplingParams
 
+    from .utils.experience_maker import Experience
+
 
 # region Common
 def end_job() -> None:
@@ -160,7 +162,7 @@ def actor_forward(
     )
 
 
-def actor_append_experience(experience) -> Future:
+def actor_append_experience(experience: List["Experience"]) -> Future:
     return group(RLRoleType.ACTOR).call(actor_append_experience, experience)
 
 
@@ -210,7 +212,7 @@ def critic_forward(
     )
 
 
-def critic_append_experience(experience) -> Future:
+def critic_append_experience(experience: List["Experience"]) -> Future:
     return group(RLRoleType.CRITIC).call(critic_append_experience, experience)
 
 

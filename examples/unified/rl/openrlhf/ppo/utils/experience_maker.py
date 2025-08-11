@@ -322,51 +322,33 @@ class RemoteExperienceMaker(ABC):
         if samples_list[0].rewards is not None:
             pass
         else:
-            r_refs = remote_call.reward_forward(
+            rewards_list = remote_call.reward_forward(
                 sequences=sequences_list,
                 attention_mask=attention_mask_list,
             )
 
-        # Batch call actor model
-        action_log_probs_ref = remote_call.actor_forward(
+        action_log_probs_list = remote_call.actor_forward(
             sequences=sequences_list,
             action_mask=action_mask_list,
             attention_mask=attention_mask_list,
         )
 
-        # Batch call critic model
-        value_ref = remote_call.critic_forward(
+        value_list = remote_call.critic_forward(
             sequences=sequences_list,
             action_mask=action_mask_list,
             attention_mask=attention_mask_list,
         )
 
-        # Batch call initial model
-        base_action_log_probs_ref = remote_call.reference_forward(
+        base_action_log_probs_list = remote_call.reference_forward(
             sequences=sequences_list,
             action_mask=action_mask_list,
             attention_mask=attention_mask_list,
         )
-
-        # TODO 应该中remote_call内部处理分配/去重
-        # Wait for all remote calls to complete and flatten the results
-        # Note: the results duplicated ring_attn_size * ds_tensor_parallel_size times
-        # This is because the actors in ring group and tp group will return the same output
-        duplicate_factor = args.ring_attn_size * args.ds_tensor_parallel_size
-        action_log_probs_list = sum(
-            action_log_probs_ref[::duplicate_factor], []
-        )
-        base_action_log_probs_list = sum(
-            base_action_log_probs_ref[::duplicate_factor], []
-        )
-        value_list = sum(value_ref[::duplicate_factor], [])
 
         # Process rewards based on source
         if samples_list[0].rewards is not None:
             pass
         else:
-            # Reward Model
-            rewards_list = sum(r_refs[::duplicate_factor], [])
             for i, samples in enumerate(samples_list):
                 samples.rewards = rewards_list[i]
                 samples.info["reward"] = rewards_list[i]

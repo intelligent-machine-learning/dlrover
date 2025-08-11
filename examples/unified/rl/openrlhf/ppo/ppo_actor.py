@@ -297,8 +297,9 @@ class PolicyModelActor(BaseActor):
         return self.checkpoint_states
 
     @rpc(remote_call.actor_append_experience)
-    def append(self, experience: Experience):
-        self.trainer.replay_buffer.append(experience)
+    def append(self, experience: List[Experience]):
+        for it in experience:
+            self.trainer.replay_buffer.append(it)
 
     @rpc(remote_call.actor_save_model)
     def save_checkpoint(

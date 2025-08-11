@@ -17,7 +17,7 @@
 
 import math
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, List, Sequence
 
 import torch
 from omegaconf import DictConfig
@@ -181,9 +181,9 @@ class CriticModelRayActor(BaseActor):
         ]
 
     @rpc(remote_call.critic_append_experience)
-    def append(self, experience):
-        """Append experience to replay buffer."""
-        self.trainer.replay_buffer.append(experience)
+    def append(self, experience: List["Experience"]):
+        for it in experience:
+            self.trainer.replay_buffer.append(it)
 
     @rpc(remote_call.critic_train)
     def fit(self):

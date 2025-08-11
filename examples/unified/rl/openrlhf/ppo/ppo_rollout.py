@@ -16,6 +16,7 @@
 # OpenRLHF] for details.
 
 import os
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -102,7 +103,7 @@ class VLLMActor(BaseActor):
             if config.max_len
             else config.prompt_max_len + config.generate_max_len
         )
-        self.llm = vllm.LLM(
+        self.llm_factory = lambda: vllm.LLM(
             config.pretrain,
             enforce_eager=config.enforce_eager,
             tensor_parallel_size=tp,
@@ -115,8 +116,18 @@ class VLLMActor(BaseActor):
             gpu_memory_utilization=config.vllm_gpu_memory_utilization,
         )
 
-        if config.vllm_enable_sleep:
-            self.sleep()
+    def run(self):
+        _llm = self.llm_factory()
+        if self.config.vllm_enable_sleep:
+            _llm.sleep()
+        self._llm = _llm
+        return super().run()
+
+    def llm(self):
+        while not hasattr(self, "_llm"):
+            logger.info("Waiting for VLLM to be initialized...")
+            time.sleep(1)
+        return self._llm
 
     @rpc(remote_call.vllm_sync_setup_process_group)
     def init_process_group(
@@ -130,7 +141,7 @@ class VLLMActor(BaseActor):
             f"world_size {world_size} mismatch with total {current_worker().actor_info.spec.total} and vllm_tensor_parallel_size {tp}"
         )
         rank_start = current_worker().actor_info.rank * tp + 1
-        return self.llm.collective_rpc(
+        return self.llm().collective_rpc(
             _vllm_setup_process_group,
             args=(rank_start, world_size, backend, group_name),
         )
@@ -138,11 +149,11 @@ class VLLMActor(BaseActor):
     @rpc(remote_call.vllm_sync_weight_begin)
     def sync_weight_begin(self):
         if self.config.enable_prefix_caching:
-            self.llm.llm_engine.reset_prefix_cache()
+            self.llm().llm_engine.reset_prefix_cache()
 
     @rpc(remote_call.vllm_sync_weight)
     def update_weight(self, name, dtype, shape):
-        return self.llm.collective_rpc(
+        return self.llm().collective_rpc(
             _vllm_update_weight, args=(name, dtype, shape)
         )
 
@@ -152,11 +163,11 @@ class VLLMActor(BaseActor):
 
     @rpc(remote_call.vllm_sleep)
     def sleep(self, level=1):
-        self.llm.sleep(level=level)
+        self.llm().sleep(level=level)
 
     @rpc(remote_call.vllm_wakeup)
     def wake_up(self):
-        self.llm.wake_up()
+        self.llm().wake_up()
 
     @rpc(remote_call.vllm_generate)
     def generate(self, prompt_token_ids, params):
@@ -167,5 +178,5 @@ class VLLMActor(BaseActor):
         requests = [
             vllm.TokensPrompt(prompt_token_ids=r) for r in prompt_token_ids
         ]
-        responses = self.llm.generate(requests, sampling_params=params)
+        responses = self.llm().generate(requests, sampling_params=params)
         return responses
