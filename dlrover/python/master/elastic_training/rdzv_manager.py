@@ -15,7 +15,7 @@ import math
 import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from threading import Lock
+from threading import RLock
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
@@ -66,7 +66,7 @@ class RendezvousParameters(object):
 
 class RendezvousManager(metaclass=ABCMeta):
     def __init__(self):
-        self._lock = Lock()
+        self._lock = RLock()
         self._alive_nodes = set()
         self._released_workers = []
         # for both '_waiting_nodes' and '_rdzv_nodes', key is the node rank.
