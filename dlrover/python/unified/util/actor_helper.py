@@ -107,9 +107,16 @@ class ActorInvocation(InvocationRef[T]):
     wraps ObjectRef and handles retries for actor errors.
     """
 
-    def __init__(self, actor_name: str, method_name: str, *args, **kwargs):
+    def __init__(
+        self,
+        actor_name: str,
+        method_name: str,
+        *args,
+        **kwargs,
+    ):
         self.actor_name = actor_name
         self.method_name = method_name
+        self.display_name: str = kwargs.pop("_display_name", method_name)
         self.args = args
         self.kwargs = kwargs
 
@@ -123,7 +130,7 @@ class ActorInvocation(InvocationRef[T]):
         try:
             actor = get_actor_with_cache(self.actor_name)
             self._result = getattr(actor, self.method_name).remote(
-                *self.args, **self.kwargs
+                *self.args, **self.kwargs, name=self.display_name
             )
         except ValueError as e:
             # already logged by get_actor_with_cache
@@ -136,7 +143,7 @@ class ActorInvocation(InvocationRef[T]):
             self._result = e
         except Exception as e:
             logger.error(
-                f"Fail to submit task {self.method_name} to {self.actor_name}: {e}"
+                f"Fail to submit task {self.display_name} to {self.actor_name}: {e}"
             )
             self._result = e
         self._check_result()
@@ -154,11 +161,11 @@ class ActorInvocation(InvocationRef[T]):
             self._result = e  # known error,handle in _check_result
         except RayTaskError as e:
             self._result = RuntimeError(
-                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+                f"Error executing {self.display_name} on {self.actor_name}: {e}"
             )
         except Exception as e:
             logger.error(
-                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {e}"
+                f"Unexpected exception executing {self.display_name} on {self.actor_name}: {e}"
             )
             self._result = e
         self._check_result()
@@ -180,11 +187,11 @@ class ActorInvocation(InvocationRef[T]):
             self._result = e  # known error,handle in _check_result
         except RayTaskError as e:
             self._result = RuntimeError(
-                f"Error executing {self.method_name} on {self.actor_name}: {e}"
+                f"Error executing {self.display_name} on {self.actor_name}: {e}"
             )
         except Exception as e:
             logger.error(
-                f"Unexpected exception executing {self.method_name} on {self.actor_name}: {type(e)}"
+                f"Unexpected exception executing {self.display_name} on {self.actor_name}: {type(e)}"
             )
             self._result = e
         self._check_result()
@@ -202,7 +209,7 @@ class ActorInvocation(InvocationRef[T]):
 
             self._retry_count -= 1
             logger.warning(
-                f"ActorError when executing {self.method_name} on {self.actor_name},"
+                f"ActorError when executing {self.display_name} on {self.actor_name},"
                 f" retrying ({self._retry_count} retries left); {self._result}"
             )
             reset_actor_cache(self.actor_name)
@@ -249,7 +256,7 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
     def __init__(self, refs: List[ActorInvocation[T]]):
         assert len(refs) > 0, "At least one actor must be specified."
         self.refs = refs
-        self.method_name = refs[0].method_name
+        self.display_name = refs[0].display_name
 
     @property
     def pending(self) -> bool:
@@ -278,7 +285,7 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
         if not_ready:
             stragglers = [ref.actor_name for ref in not_ready]
             logger.info(
-                f"Waiting completing {self.method_name} ...: {stragglers}"
+                f"Waiting completing {self.display_name} ...: {stragglers}"
             )
 
     def wait(
@@ -303,7 +310,7 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
                     ref.actor_name for ref in self.refs if ref.pending
                 ]
                 logger.info(
-                    f"Waiting completing {self.method_name} ...: {stragglers}"
+                    f"Waiting completing {self.display_name} ...: {stragglers}"
                 )
 
         monitor_task = asyncio.create_task(monitor())
@@ -320,7 +327,7 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
         results = [ref.result_or_exception for ref in self.refs]
         return BatchInvokeResult(
             [ref.actor_name for ref in self.refs],
-            self.method_name,
+            self.display_name,
             results,
         )
 

@@ -100,7 +100,14 @@ T = TypeVar("T", covariant=True)
 
 
 def _rpc_call(actor: str, method: str, args, kwargs) -> Any:
-    return invoke_actor_t(_user_rpc_call, actor, method, *args, **kwargs)
+    return invoke_actor_t(
+        _user_rpc_call,
+        actor,
+        method,
+        *args,
+        **kwargs,
+        _display_name=f"user_rpc({method})",
+    )
 
 
 # region UserRpcProxy
