@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from concurrent import futures
 from concurrent.futures import Future
 from contextlib import contextmanager
 from functools import lru_cache
@@ -30,18 +29,18 @@ if TYPE_CHECKING:
 # region Common
 def end_job() -> None:
     """End the job by calling the end_job method on the group."""
-    futures.wait(
-        [
-            group(role).call(end_job)
-            for role in [
-                RLRoleType.ROLLOUT,
-                RLRoleType.REFERENCE,
-                RLRoleType.REWARD,
-                RLRoleType.ACTOR,
-                RLRoleType.CRITIC,
-            ]
+    futures = [
+        group(role).call(end_job)
+        for role in [
+            RLRoleType.ROLLOUT,
+            RLRoleType.REFERENCE,
+            RLRoleType.REWARD,
+            RLRoleType.ACTOR,
+            RLRoleType.CRITIC,
         ]
-    )
+    ]
+    for future in futures:
+        future.result()
 
 
 # endregion

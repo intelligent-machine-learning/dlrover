@@ -17,7 +17,6 @@
 
 import os
 import time
-from concurrent import futures
 from contextlib import contextmanager
 from datetime import timedelta
 
@@ -101,22 +100,22 @@ class BasePPOTrainer:
         args = self.args
 
         # TODO vllm init itself
-        futures.wait(
-            [
-                remote_call.reference_init(strategy, args.pretrain),
-                remote_call.reward_init(
-                    strategy, args.reward_pretrain.split(",")[0]
-                ),
-                remote_call.actor_init(
-                    strategy, args.pretrain, max_steps=self.max_steps
-                ),
-                remote_call.critic_init(
-                    strategy,
-                    args.critic_pretrain,
-                    max_steps=self.max_steps,
-                ),
-            ]
-        )
+        futures = [
+            remote_call.reference_init(strategy, args.pretrain),
+            remote_call.reward_init(
+                strategy, args.reward_pretrain.split(",")[0]
+            ),
+            remote_call.actor_init(
+                strategy, args.pretrain, max_steps=self.max_steps
+            ),
+            remote_call.critic_init(
+                strategy,
+                args.critic_pretrain,
+                max_steps=self.max_steps,
+            ),
+        ]
+        for future in futures:
+            future.result()
         logger.info("Done all model init")
 
     def _init_wandb(self):
@@ -220,12 +219,12 @@ class BasePPOTrainer:
                     experiences = balance_experiences(experiences, args)
 
                 # append experiences to remote actor and critic
-                futures.wait(
-                    [
-                        remote_call.actor_append_experience(experiences),
-                        remote_call.critic_append_experience(experiences),
-                    ]
-                )
+                futures = [
+                    remote_call.actor_append_experience(experiences),
+                    remote_call.critic_append_experience(experiences),
+                ]
+                [it.result() for it in futures]  # wait
+
                 status = self.ppo_train(steps)
 
                 if "kl" in status:
@@ -353,18 +352,17 @@ class BasePPOTrainer:
         # TODO: save best model on dev, use loss/perplexity/others on whole dev dataset as metric
         if global_step % args.save_steps == 0:
             tag = f"global_step{global_step}"
-            futures.wait(
-                [
-                    remote_call.actor_save_model(
-                        os.path.join(args.ckpt_path, "_actor"),
-                        tag=tag,
-                        ext_states=client_states,
-                    ),
-                    remote_call.critic_save_model(
-                        os.path.join(args.ckpt_path, "_critic"), tag=tag
-                    ),
-                ]
-            )
+            futures = [
+                remote_call.actor_save_model(
+                    os.path.join(args.ckpt_path, "_actor"),
+                    tag=tag,
+                    ext_states=client_states,
+                ),
+                remote_call.critic_save_model(
+                    os.path.join(args.ckpt_path, "_critic"), tag=tag
+                ),
+            ]
+            [it.result() for it in futures]  # wait
 
     def evaluate(
         self,
