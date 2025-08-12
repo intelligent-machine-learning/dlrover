@@ -10,22 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
 
+from .base import DLJob, DLJobBuilder, DLRoverRunBuilder, WorkloadBuilder
+from .rl import RLJobBuilder, RLRoleType
 
-@dataclass
-class RuntimeInfo(object):
-    """
-    Runtime info for workload reporting.
-
-    Attributes:
-        name (str): The unique actor name.
-        create_time (int): The current creation time.
-        hostname (str): The hostname of current actor.
-        host_ip (str): The ip address of current actor.
-    """
-
-    name: str = ""
-    create_time: int = 0
-    hostname: str = ""
-    host_ip: str = ""
+__all__ = [
+    "DLJob",
+    "DLJobBuilder",
+    "DLRoverRunBuilder",
+    "WorkloadBuilder",
+    "RLJobBuilder",
+    "RLRoleType",
+]

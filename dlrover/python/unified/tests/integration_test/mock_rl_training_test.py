@@ -14,7 +14,7 @@
 
 import pytest
 
-from dlrover.python.unified.api.rl import RLJobBuilder
+from dlrover.python.unified.api.builder import RLJobBuilder
 
 
 @pytest.mark.usefixtures("tmp_ray")

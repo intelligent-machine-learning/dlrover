@@ -14,6 +14,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import List, Tuple
 
 import ray
@@ -34,7 +35,24 @@ from dlrover.python.unified.common.job_context import (
 from dlrover.python.unified.master.state_backend import (
     MasterStateBackendFactory,
 )
-from dlrover.python.unified.remote.call_obj import RuntimeInfo
+
+
+@dataclass
+class RuntimeInfo(object):
+    """
+    Runtime info for workload reporting.
+
+    Attributes:
+        name (str): The unique actor name.
+        create_time (int): The current creation time.
+        hostname (str): The hostname of current actor.
+        host_ip (str): The ip address of current actor.
+    """
+
+    name: str = ""
+    create_time: int = 0
+    hostname: str = ""
+    host_ip: str = ""
 
 
 class BaseMaster(ABC):

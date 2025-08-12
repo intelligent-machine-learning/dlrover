@@ -13,13 +13,13 @@
 
 from omegaconf import OmegaConf
 
-from dlrover.python.unified.api.base import (
+from dlrover.python.unified.api.builder import (
     DLJob,
     DLJobBuilder,
     DLRoverRunBuilder,
+    RLJobBuilder,
     WorkloadBuilder,
 )
-from dlrover.python.unified.api.rl import RLJobBuilder
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,

@@ -21,7 +21,7 @@ from datetime import datetime
 from openrlhf.cli.train_ppo_ray import _validate_args
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.rl import RLJobBuilder
+from dlrover.python.unified.api.builder import RLJobBuilder
 from dlrover.python.unified.util.config_util import args_2_omega_conf
 
 

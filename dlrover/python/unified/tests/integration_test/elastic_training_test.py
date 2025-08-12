@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from dlrover.python.unified.api.base import DLJobBuilder
+from dlrover.python.unified.api.builder import DLJobBuilder
 from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.tests.fixtures._ray_setup_hooks import inject_hook
 from dlrover.python.unified.tests.fixtures.example_jobs import (
