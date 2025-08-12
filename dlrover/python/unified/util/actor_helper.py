@@ -129,8 +129,10 @@ class ActorInvocation(InvocationRef[T]):
         # Return ObjectRef or Exception that occurs during invocation.
         try:
             actor = get_actor_with_cache(self.actor_name)
-            self._result = getattr(actor, self.method_name).remote(
-                *self.args, **self.kwargs, name=self.display_name
+            self._result = (
+                getattr(actor, self.method_name)
+                .options(name=self.display_name)
+                .remote(*self.args, **self.kwargs)
             )
         except ValueError as e:
             # already logged by get_actor_with_cache
