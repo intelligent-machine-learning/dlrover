@@ -480,6 +480,97 @@ class WorkerManager(TrainingNodeManager):
                 return pending_worker_0.name
         return None
 
+    def get_pending_node_groups(self, job_type):
+        """
+        Check if pod pending happened in a node group, only for torch
+        training fail-over.
+        If it happened, we should relaunch the node group
+
+        Args:
+            job_type: job type
+
+        Returns:
+            list of node group index
+
+        """
+        strategy = _dlrover_context.pending_fail_strategy
+        timeout = self._get_group_pending_timeout()
+        logger.debug(
+            f"Is training hang by group pending: {timeout} {strategy} {job_type}."
+        )
+
+        pending_workers: List[Node] = []
+        pending_groups: List[int] = []
+        if (
+            timeout <= 0
+            or skip_pending_judgement(strategy)
+            or job_type != DistributionStrategy.ALLREDUCE
+        ):
+            return []
+
+        for group_key in self._job_context.job_node_groups_keys():
+            node_group = self._job_context.job_node_group(group_key)
+            for node in node_group.values():
+                if (
+                    node is None
+                    or node.is_released
+                    or node.create_time is None
+                    or node.group_size is None
+                    or node.group is None
+                ):
+                    logger.debug(f"Skip invalid node {node}")
+                    continue
+
+                logger.debug(f"Recheck node {node} for node group pending...")
+
+                # ignore first startup, only check after node relaunch
+                if node.relaunch_count > 0 and node.status in [
+                    NodeStatus.PENDING,
+                    NodeStatus.INITIAL,
+                ]:
+                    logger.info(
+                        f"Detect pending node {node.id} with "
+                        f"rank {node.rank_index} and group {node.group}: "
+                        f"relaunch {node.relaunch_count}, status {node.status}"
+                    )
+                    pending_workers.append(node)
+
+            if pending_workers:
+                first_pending_worker = min(
+                    pending_workers,
+                    key=lambda x: x.create_time,  # type: ignore
+                )
+            else:
+                first_pending_worker = None
+
+            if (
+                not first_pending_worker
+                or not first_pending_worker.create_time
+            ):
+                logger.debug(f"Skip pending worker {first_pending_worker}")
+                continue
+
+            logger.info(
+                f"Check first pending node {first_pending_worker.id} with "
+                f"rank {first_pending_worker.rank_index} "
+                f"and group {first_pending_worker.group}"
+            )
+            now = time.time()
+            if now - first_pending_worker.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {first_pending_worker.name} with "
+                    f"id {first_pending_worker.id} "
+                    f"rank {first_pending_worker.rank_index} "
+                    f"exceeded group pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"group: {first_pending_worker.group}, "
+                    f"group_size: {first_pending_worker.group_size}, "
+                    f"group_id: {first_pending_worker.group_id}."
+                )
+                pending_groups.append(first_pending_worker.group)
+
+        return pending_groups
+
     def _get_insufficient_timeout(self):
         timeout = int(self.get_nodes_timeout() * 1.5)
         if timeout < JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN:

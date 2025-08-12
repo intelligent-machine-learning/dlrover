@@ -1606,8 +1606,8 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 timeout=self._get_check_node_timeout()
             )
             logger.info(
-                f"Fault nodes are: {fault_nodes} with {fault_reason} "
-                f" and stragglers are: {stragglers} with {straggler_reason}"
+                f"Fault nodes are: {fault_nodes} with reason: {fault_reason}, "
+                f"and stragglers are: {stragglers} with reason: {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
             if fault_nodes or (stragglers and self._config.exclude_straggler):

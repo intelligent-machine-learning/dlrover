@@ -120,3 +120,14 @@ class NodeTest(unittest.TestCase):
         node.name = "node"
         name = node.get_name()
         self.assertEqual(name, "node")
+
+    def test_group(self):
+        node = Node("worker", 0)
+        self.assertFalse(node.has_group())
+
+        node = Node("worker", 0, node_group=0, node_group_size=1)
+        self.assertTrue(node.has_group())
+        node = Node("worker", 0, node_group=0, node_group_size=None)
+        self.assertFalse(node.has_group())
+        node = Node("worker", 0, node_group=None, node_group_size=None)
+        self.assertFalse(node.has_group())

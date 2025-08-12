@@ -589,7 +589,7 @@ class PodScaler(Scaler):
         logger.debug(
             f"Add pod {pod_name} info into meta: {node.type} "
             f"{node.id} {node.rank_index} {node.relaunch_count} "
-            f"{node.group} {node.group_size}"
+            f"{node.group} {node.group_size} {node.group_id}"
         )
         # Add replica type and index
         pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
@@ -600,6 +600,12 @@ class PodScaler(Scaler):
         )
         if node.group is not None:
             pod_meta.labels[SchedulingLabel.NODE_GROUP] = str(node.group)
+        if node.group_size is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP_SIZE] = str(
+                node.group_size
+            )
+        if node.group_id is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP_ID] = str(node.group_id)
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
@@ -612,6 +618,7 @@ class PodScaler(Scaler):
                 "",
                 {},
             )
+
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
