@@ -227,7 +227,7 @@ def test_role_group_no_actors(mocker):
         return_value=[],
     )
 
-    def f(x) -> Sequence: ...  # any
+    def f(x) -> Sequence: ...  # type: ignore
 
     with pytest.raises(ValueError, match="No actors found for role 'empty'"):
         RoleGroup("empty")
