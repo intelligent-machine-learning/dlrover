@@ -254,11 +254,9 @@ class PolicyModelActor(BaseActor):
         """Broadcast actor model to vLLM engines."""
         torch.cuda.empty_cache()
         model: torch.nn.Module = self.actor.model.module  # type: ignore[assignment]
-        count, num_params = 0, len(list(model.named_parameters()))
-
         is_rank0 = torch.distributed.get_rank() == 0
 
-        def _broadcast_param(param, count, num_params):
+        def _broadcast_param(param):
             if not is_rank0:
                 return
             # Fire all vllm engines for broadcast
@@ -273,19 +271,17 @@ class PolicyModelActor(BaseActor):
             remote_call.vllm_sync_weight_begin()
 
         for name, param in model.named_parameters():
-            count += 1  # empty_cache at last param
-
             # For ZeRO-3, allgather sharded parameter and broadcast to all vllm engines by rank 0
             if self.args.ds_tensor_parallel_size > 1:
                 with deepspeed.module_inject.layers.GatherReplacedLayerParams(
                     [param], model, enabled=True
                 ):
-                    _broadcast_param(param, count, num_params)
+                    _broadcast_param(param)
             else:
                 with deepspeed.zero.GatheredParameters(
                     [param], enabled=self.args.zero_stage == 3
                 ):
-                    _broadcast_param(param, count, num_params)
+                    _broadcast_param(param)
 
         if is_rank0:
             remote_call.vllm_sync_weight_end()

@@ -15,9 +15,7 @@ from concurrent import futures
 from concurrent.futures import Future
 from contextlib import contextmanager
 from functools import lru_cache
-from typing import TYPE_CHECKING, Optional, Sequence
-
-from git import List
+from typing import TYPE_CHECKING, List, Optional, Sequence
 
 from dlrover.python.unified.api.runtime.rpc import FutureSequence, RoleGroup
 from dlrover.python.unified.common.enums import RLRoleType

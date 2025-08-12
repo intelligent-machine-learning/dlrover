@@ -34,41 +34,45 @@ def submit(args):
 
     workloads = {}
     workloads[RLRoleType.ACTOR.name] = ElasticWorkloadDesc(
-        total=1,
+        total=args.actor_num_nodes * args.actor_num_gpus_per_node,
+        per_group=args.actor_num_gpus_per_node,
         resource=ResourceDesc(accelerator=1),
         entry_point=f"{__package__}.ppo_actor.PolicyModelActor",
         comm_pre_check=comm_pre_check,
         comm_backend="nccl",
     )
     workloads[RLRoleType.CRITIC.name] = ElasticWorkloadDesc(
-        total=1,
+        total=args.critic_num_nodes * args.critic_num_gpus_per_node,
+        per_group=args.critic_num_gpus_per_node,
         resource=ResourceDesc(accelerator=0.4),
         entry_point=f"{__package__}.ppo_critic.CriticModelRayActor",
         comm_pre_check=comm_pre_check,
         comm_backend="nccl",
     )
     workloads[RLRoleType.ROLLOUT.name] = SimpleWorkloadDesc(
-        total=1,
+        total=args.vllm_num_engines,
         resource=ResourceDesc(accelerator=1),
         entry_point=f"{__package__}.ppo_rollout.VLLMActor",
     )
     if args.init_kl_coef != 0:
         workloads[RLRoleType.REFERENCE.name] = ElasticWorkloadDesc(
-            total=1,
+            total=args.ref_num_nodes * args.ref_num_gpus_per_node,
+            per_group=args.ref_num_gpus_per_node,
             resource=ResourceDesc(accelerator=0.4),
             entry_point=f"{__package__}.ppo_reference.PPOReferenceActor",
             comm_pre_check=comm_pre_check,
             comm_backend="nccl",
         )
     workloads[RLRoleType.REWARD.name] = ElasticWorkloadDesc(
-        total=1,
+        total=args.reward_num_nodes * args.reward_num_gpus_per_node,
+        per_group=args.reward_num_gpus_per_node,
         resource=ResourceDesc(accelerator=0.4),
         entry_point=f"{__package__}.ppo_reward.RewardModelRayActor",
         comm_pre_check=comm_pre_check,
         comm_backend="nccl",
     )
     workloads["trainer"] = SimpleWorkloadDesc(
-        resource=ResourceDesc(cpu=1),
+        resource=ResourceDesc(cpu=4),
         entry_point=f"{__package__}.ppo_trainer.PPOTrainerActor",
     )
     config = DLConfig(

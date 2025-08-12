@@ -1,7 +1,8 @@
 if [ $INSTALL_DEPS ]; then
     pip install .[torch,ray] #dlrover
     pip install flash-attn==2.8.2 --no-build-isolation
-    pip install openrlhf
+    pip install openrlhf	
+    pip install cupy-cuda12x #ray collective
 fi
 
 if [ $USE_MS ]; then
@@ -13,15 +14,15 @@ fi
 
 python3 -m rl.openrlhf.ppo.main \
    --ref_num_nodes 1 \
-   --ref_num_gpus_per_node 2 \
+   --ref_num_gpus_per_node 1 \
    --reward_num_nodes 1 \
-   --reward_num_gpus_per_node 2 \
+   --reward_num_gpus_per_node 1 \
    --critic_num_nodes 1 \
-   --critic_num_gpus_per_node 2 \
+   --critic_num_gpus_per_node 1 \
    --actor_num_nodes 1 \
-   --actor_num_gpus_per_node 2 \
-   --vllm_num_engines 2 \
-   --vllm_tensor_parallel_size 2 \
+   --actor_num_gpus_per_node 1 \
+   --vllm_num_engines 1 \
+   --vllm_tensor_parallel_size 1 \
    --colocate_critic_reward \
    --colocate_actor_ref \
    --pretrain OpenRLHF/Llama-3-8b-sft-mixture \
@@ -35,7 +36,7 @@ python3 -m rl.openrlhf.ppo.main \
    --max_epochs 1 \
    --prompt_max_len 1024 \
    --generate_max_len 1024 \
-   --zero_stage 3 \
+   --zero_stage 1 \
    --bf16 \
    --actor_learning_rate 5e-7 \
    --critic_learning_rate 9e-6 \
