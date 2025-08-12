@@ -19,7 +19,8 @@ from dlrover.python.unified.tests.base import BaseTest
 
 
 class RLWorkerTest(BaseTest):
-    def test_basic(self):
+    # ActorBase.__init__ expects an event loop to be running.
+    async def test_basic(self):
         os.environ["NAME"] = "test"
         os.environ["ROLE"] = "ACTOR"
         os.environ["RANK"] = "0"

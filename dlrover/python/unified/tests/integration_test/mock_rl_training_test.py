@@ -17,6 +17,7 @@ import pytest
 from dlrover.python.unified.api.builder import RLJobBuilder
 
 
+@pytest.mark.skip(reason="RL master is deprecated")
 @pytest.mark.usefixtures("tmp_ray")
 def test_mock_rl_training_basic():
     rl_job = (
@@ -47,6 +48,7 @@ def test_mock_rl_training_basic():
     rl_job.submit("test", master_cpu=1, master_memory=128)
 
 
+@pytest.mark.skip(reason="RL master is deprecated")
 @pytest.mark.usefixtures("tmp_ray")
 def test_mock_rl_training_collocation_all():
     rl_job = (
