@@ -72,6 +72,8 @@ class ElasticWorker(BaseWorker):
         """Setup the torch process group for distributed training."""
         assert self.actor_info.spec.backend == "elastic"
         backend = self.actor_info.spec.comm_backend
+        if backend == "auto":
+            backend = "nccl" if torch.cuda.is_available() else "gloo"
         timeout = timedelta(seconds=self.actor_info.spec.comm_timeout_s)
         logger.info(
             f"Setting up torch process group with backend={backend}, "

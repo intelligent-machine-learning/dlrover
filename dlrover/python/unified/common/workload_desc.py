@@ -161,9 +161,9 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         "Or just set MASTER_ADDR and MASTER_PORT envs.",
     )
     comm_backend: str = Field(
-        default="gloo",
+        default="auto",
         description="Communication backend for the elastic workload. "
-        "Supported backends: 'gloo', 'nccl', 'mpi'.",
+        "Supported backends: 'auto', 'gloo', 'nccl', 'mpi'.",
     )
     comm_timeout_s: int = Field(
         default=30,
