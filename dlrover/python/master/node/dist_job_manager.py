@@ -953,8 +953,9 @@ class DistributedJobManager(JobManager):
         msg = ""
         if should_relaunch:
             logger.info(
-                f"Recheck should_relaunch with {node} {node.config_resource}: "
-                f"{job_ctx.get_job_stage()}"
+                f"Recheck should_relaunch with {node}, "
+                f"resource: {node.config_resource.to_resource_dict()}, "
+                f"job_stage: {job_ctx.get_job_stage()}"
             )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
