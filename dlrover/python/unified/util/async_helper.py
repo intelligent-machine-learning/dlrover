@@ -15,6 +15,13 @@ import asyncio
 from concurrent.futures import Future
 from typing import Any, Coroutine, TypeVar
 
+"""Utility functions for asynchronous operations in DLRover.
+
+Provides functions to bridge between synchronous and asynchronous code,
+allowing for running coroutines in a thread-safe manner and managing the main event loop.
+"""
+
+
 T = TypeVar("T")
 
 __main_loop = None
