@@ -49,10 +49,10 @@ class BaseTrainerTest(BaseTest):
             ],
         }
 
-        def get_workers_by_role(role: str) -> List[ActorInfo]:
-            if role not in mock_roles:
+        def get_workers_by_role(role: str, optional=False) -> List[ActorInfo]:
+            if role not in mock_roles and not optional:
                 raise ValueError(f"Role {role} not found")
-            return mock_roles[role]
+            return mock_roles.get(role, [])
 
         mock_get_actor.return_value = "actor_handle"
         mock_get_workers_by_role.side_effect = get_workers_by_role
@@ -121,10 +121,10 @@ class BaseTrainerTest(BaseTest):
             ],
         }
 
-        def get_workers_by_role(role: str) -> List[ActorInfo]:
-            if role not in mock_roles:
+        def get_workers_by_role(role: str, optional=False) -> List[ActorInfo]:
+            if role not in mock_roles and not optional:
                 raise ValueError(f"Role {role} not found")
-            return mock_roles[role]
+            return mock_roles.get(role, [])
 
         mock_get_actor.return_value = "actor_handle"
         mock_get_workers_by_role.side_effect = get_workers_by_role
