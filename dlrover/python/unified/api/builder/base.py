@@ -12,7 +12,7 @@
 # limitations under the License.
 import re
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set
 
 from omegaconf import DictConfig
 
@@ -31,75 +31,6 @@ from dlrover.python.unified.common.workload_desc import (
 )
 from dlrover.python.unified.controller.config import DLConfig, JobConfig
 from dlrover.python.unified.driver.main import submit
-
-
-class DLRoleConfig(object):
-    def __init__(self, role_name, module_name, class_name, **kwargs):
-        self._role_name = role_name
-        self._module_name = module_name
-        self._class_name = class_name
-        self._kwargs = kwargs
-
-    @property
-    def role_name(self):
-        return self._role_name
-
-    @property
-    def module_class(self) -> Tuple[str, str]:
-        return self._module_name, self._class_name
-
-    @property
-    def others(self):
-        return self._kwargs
-
-
-class DLWorkloadConfig(DLRoleConfig):
-    """
-    Configuration for all different types' workload.
-    """
-
-    def __init__(self, role_name, module_name, class_name, **kwargs):
-        super().__init__(role_name, module_name, class_name, **kwargs)
-
-        self._num = 1
-        self._per_group = 1
-        self._env = {}
-        self._resource = {}
-
-    @property
-    def total(self) -> int:
-        return self._num
-
-    @property
-    def per_group(self) -> int:
-        return self._per_group
-
-    @property
-    def env(self) -> Dict[str, str]:
-        return self._env
-
-    @property
-    def resource(self) -> Dict[str, Union[int, float]]:
-        return self._resource
-
-    @property
-    def sub_stage(self) -> list:
-        return self._sub_stage
-
-    def set_num(self, num):
-        self._num = num
-
-    def set_per_group(self, per_group):
-        self._per_group = per_group
-
-    def set_env(self, env):
-        self._env = env
-
-    def set_resource(self, resource):
-        self._resource = resource
-
-    def set_sub_stage(self, sub_stage):
-        self._sub_stage = sub_stage
 
 
 class DLJob(object):
