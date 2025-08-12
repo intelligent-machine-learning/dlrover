@@ -619,7 +619,6 @@ class PodScaler(Scaler):
                 {},
             )
 
-        logger.debug(f"Creating pod: {pod}")
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
