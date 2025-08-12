@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import asyncio
-from typing import List, Dict
+from typing import Dict, List
 
 import ray
 import ray.actor
@@ -75,10 +75,14 @@ class PrimeMaster:
             raise ValueError(f"Actor {name} not found.")
         return actor.to_actor_info()
 
-    def get_workers_by_role(self, role: str) -> List[ActorInfo]:
+    def get_workers_by_role(
+        self, role: str, optional: bool = False
+    ) -> List[ActorInfo]:
         """Get all actors by role."""
         role_info = self.manager.graph.roles.get(role)
         if role_info is None:
+            if optional:
+                return []
             raise ValueError(f"Role {role} not found.")
         return [node.to_actor_info() for node in role_info.instances]
 

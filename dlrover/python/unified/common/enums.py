@@ -37,7 +37,7 @@ class InternalRoleType(Enum):
     ELASTIC = "ELASTIC"
 
 
-class RLRoleType(Enum):
+class RLRoleType(str, Enum):
     TRAINER = "TRAINER"
     ACTOR = "ACTOR"
     ROLLOUT = "ROLLOUT"

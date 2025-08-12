@@ -299,10 +299,11 @@ class BaseRLTrainer(ActorBase, ABC):
         for role in RLRoleType:
             if role == RLRoleType.TRAINER:
                 continue
-            try:
-                workers = PrimeMasterApi.get_workers_by_role(role.name)
-            except ValueError:
-                continue
+            workers = PrimeMasterApi.get_workers_by_role(
+                role.name, optional=True
+            )
+            if len(workers) == 0:
+                continue  # skip if no workers for this role
             all_workers[role] = workers
 
         self._workers: Dict[str, List[ActorInfo]] = all_workers
@@ -325,7 +326,7 @@ class BaseRLTrainer(ActorBase, ABC):
         start = time.time()
 
         # setup trainer itself
-        self.__init_role_group_proxy()
+        self._init_role_group_proxy()
 
         # setup other workloads
         for role, group in self._workers.items():
@@ -349,7 +350,7 @@ class BaseRLTrainer(ActorBase, ABC):
             f"Finish setup all rl workloads, cost: {elapsed / 1000:.2f}ms"
         )
 
-    def __init_role_group_proxy(self):
+    def _init_role_group_proxy(self):
         for role, workers in self._workers.items():
             workload_group_name = "RG_" + role
             assert workers[0].spec.backend == "custom"
@@ -357,7 +358,6 @@ class BaseRLTrainer(ActorBase, ABC):
                 workers[0].spec.module_name,
                 workers[0].spec.class_name,
             )
-            assert isinstance(clz, type)
 
             role_group_proxy = RoleGroupProxy(
                 role,

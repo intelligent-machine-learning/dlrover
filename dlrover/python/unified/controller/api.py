@@ -73,7 +73,7 @@ class PrimeMasterApi(ActorProxy):
 
     @staticmethod
     def get_workers_by_role(
-        role: str,
+        role: str, optional: bool = False
     ) -> List[ActorInfo]:
         """Get all actors by role."""
         raise NotImplementedError("stub")  # pragma: no cover
