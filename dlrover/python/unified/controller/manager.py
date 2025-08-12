@@ -121,14 +121,10 @@ class PrimeManager:
         res.raise_for_errors()
 
         res = await invoke_actors_t(remote_call.status, nodes)
-        # Assert Running, or finished if not running thread.
-        if any(
-            it not in [WorkerStage.RUNNING, WorkerStage.FINISHED]
-            for it in res.results
-        ):
-            raise Exception(
-                f"Some nodes failed to start the job. {res.as_dict()}"
-            )
+        # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
+        assert not any(it == WorkerStage.READY for it in res.results), (
+            f"Start should update stage, not READY. {res.as_dict()}"
+        )
 
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(self._main_loop(), name="job_monitor")

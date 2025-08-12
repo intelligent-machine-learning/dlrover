@@ -95,14 +95,7 @@ class ElasticManager:
         res = await invoke_actors_t(
             remote_call.status, [node.name for node in self.workers]
         )
-        # Assert Running, or finished if not running thread.
-        if any(
-            it not in [WorkerStage.RUNNING, WorkerStage.FINISHED]
-            for it in res.results
-        ):
-            logger.fatal(f"Some nodes stages not READY: {res.as_dict()}")
-            self.stage = WorkerStage.FAILED
-            return
+        res.raise_for_errors()
         self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
         self.stage = WorkerStage.RUNNING
         logger.info("Elastic job started, monitoring nodes...")
