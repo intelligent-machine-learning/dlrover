@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -82,49 +81,44 @@ class ActorBase:
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
-        # Expect AsyncActor, there are a running event loop.
-        asyncio.create_task(self.__init())
+        init_main_loop()
 
-    async def __init(self):
-        await init_main_loop()
         # Report restart to sub-master/master if this actor was reconstructed.
         if (
             ray.is_initialized()
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
-            await self._report_restart()
-        ret = self._setup()
-        if asyncio.iscoroutine(ret):
-            await ret
-        if self.stage == WorkerStage.INIT:
-            self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
+            self._report_restart()
+        self._setup()
 
     @property
     def name(self) -> str:
         return self.actor_info.name
 
-    async def _report_restart(self):
+    def _report_restart(self):
         """Report that the actor has been restarted."""
         from dlrover.python.unified.controller.api import PrimeMasterApi
         from dlrover.python.unified.util.actor_proxy import invoke_actor_t
 
         master = self.actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
-        await invoke_actor_t(
+        invoke_actor_t(
             PrimeMasterApi.report_actor_restarted,
             master,
             name=self.actor_info.name,
-        )
+        ).wait()
 
     # Hook methods for subclasses to implement
-    async def _setup(self):
+    def _setup(self):
         """Setup the actor/node.
 
         This method is called during initialization and should be overridden
         by subclasses to perform any necessary setup before the actor/node
         is ready to run.
 
-        Could be synchronous or asynchronous.
+        Could be asynchronous, but must keep stage not READY until all setup is done.
+        And it must update the stage to READY when setup is complete.
         """
+        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def status(self):
         """Get the state of the actor/node."""
