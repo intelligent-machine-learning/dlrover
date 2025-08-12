@@ -28,11 +28,12 @@ from dlrover.python.unified.tests.test_class import (
 
 
 class BaseTrainerTest(BaseTest):
+    # Must be async, as ActorBase.__init__ expects an event loop to be running.
     @patch("ray.get_actor")
     @patch(
         "dlrover.python.unified.backend.rl.trainer.PrimeMasterApi.get_workers_by_role"
     )
-    def test_basic(self, mock_get_workers_by_role, mock_get_actor):
+    async def test_basic(self, mock_get_workers_by_role, mock_get_actor):
         spec = CustomWorkloadDesc(
             module_name="dlrover.python.unified.tests.test_class",
             class_name="TestInteractiveTrainer",
@@ -82,7 +83,7 @@ class BaseTrainerTest(BaseTest):
     )
     @patch("ray.wait")
     @patch("ray.get")
-    def test_role_group_proxy(
+    async def test_role_group_proxy(
         self, patch_get, patch_wait, mock_get_workers_by_role, mock_get_actor
     ):
         patch_get.side_effect = lambda x: x

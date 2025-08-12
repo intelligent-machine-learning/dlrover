@@ -213,6 +213,8 @@ class CustomWorkloadDesc(BaseWorkloadDesc):
     backend: Literal["custom"] = Field(default="custom")
     module_name: str = Field(alias="module_name")
     class_name: str = Field(alias="class_name")
+    # Not used for custom workload, kept for compatibility
+    entry_point: str = ""
 
     def get_worker_cls(self) -> ActorClass:
         cls = get_class_by_module_and_class_name(

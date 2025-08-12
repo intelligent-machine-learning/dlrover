@@ -27,7 +27,7 @@ T = TypeVar("T")
 __main_loop = None
 
 
-def init_main_loop():
+async def init_main_loop():
     global __main_loop
     try:
         __main_loop = asyncio.get_running_loop()
