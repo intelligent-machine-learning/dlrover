@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [ $INSTALL_DEPS ]; then
-    pip install .[torch,ray] #dlrover
+if [ "$INSTALL_DEPS" ]; then
+    pip install ".[torch,ray]" #dlrover
     pip install flash-attn==2.8.2 --no-build-isolation
     pip install openrlhf	
     pip install cupy-cuda12x #ray collective
 fi
 
-if [ $USE_MS ]; then
+if [ "$USE_MS" ]; then
     pip install modelscope
     modelscope download AI-ModelScope/Llama-3-8b-sft-mixture
     modelscope download AI-ModelScope/Llama-3-8b-rm-mixture
