@@ -80,12 +80,8 @@ def rpc(name: Optional[Union[str, Callable]] = None, export: bool = False):
 
 def export_rpc_method(name: str, func: Callable[..., Any]):
     """Export a method as an RPC method."""
-    if not hasattr(func, UserRpcMethodMeta.ATTR_KEY):
-        raise ValueError(
-            f"Function {func.__name__} is not decorated with @rpc."
-        )
     if name in RPC_REGISTRY:
-        raise ValueError(f"RPC method {name} already registered.")
+        raise ValueError(f"RPC method '{name}' already registered.")
     RPC_REGISTRY[name] = func
 
 

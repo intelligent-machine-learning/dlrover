@@ -14,17 +14,23 @@
 import asyncio
 from concurrent.futures import Future
 from threading import Thread
-from unittest.mock import Mock, AsyncMock
+from typing import Sequence
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from dlrover.python.unified.api.runtime.queue import DataQueue
 from dlrover.python.unified.api.runtime.rpc import (
     RPC_REGISTRY,
+    RoleGroup,
     create_rpc_proxy,
     export_rpc_instance,
+    export_rpc_method,
     rpc,
 )
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.util import async_helper
 from dlrover.python.unified.util.actor_helper import ActorInvocation
 
 
@@ -69,8 +75,21 @@ def test_rpc(mocker):
     async def some_async_method():
         return "test2"
 
+    # stub
+    def foo_method(x, y=0): ...
+
+    @rpc(foo_method, export=True)
+    def foo_method_impl(x, y=0):
+        return f"{x}-{y}"
+
     assert RPC_REGISTRY["some_method"] == some_method
     assert RPC_REGISTRY["some_async_method"] == some_async_method
+    assert RPC_REGISTRY["foo_method"] == foo_method_impl
+    with pytest.raises(
+        ValueError, match="RPC method 'some_method' already registered."
+    ):
+        export_rpc_method("some_method", some_method)
+    RPC_REGISTRY.clear()
 
 
 def test_rpc_proxy(mocker):
@@ -131,3 +150,122 @@ def test_queue(mocker):
     assert queue_client.get(1) == ["item1"]
     queue_client.put("item2")
     assert queue_master.get_nowait(1) == ["item2"]
+
+
+def make_actor_info(name, rank):
+    info: ActorInfo = Mock(ActorInfo)
+    info.name = name
+    info.rank = rank
+    return info
+
+
+@pytest.fixture
+def setup_async_helper():
+    loop = asyncio.new_event_loop()
+    thread = Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    async_helper.__main_loop = loop
+    yield
+    async_helper.__main_loop = None
+    loop.call_soon_threadsafe(loop.stop)
+    thread.join()
+    loop.close()
+
+
+def test_role_group_basic(mocker, setup_async_helper):
+    def fake_rpc_call(actor, method, args, kwargs):
+        ret = Mock()
+        ret.pending = False
+        ret.result_or_exception = f"{actor}-{method}"
+        ret.async_wait = AsyncMock(return_value=f"{actor}-{method}")
+        return ret
+
+    # Mock PrimeMasterApi.get_workers_by_role
+    mocker.patch(
+        "dlrover.python.unified.controller.api.PrimeMasterApi.get_workers_by_role",
+        return_value=[
+            make_actor_info("actorA", 0),
+            make_actor_info("actorB", 1),
+        ],
+    )
+    # Mock _rpc_call to return a mock with async_wait/wait
+    mocker.patch(
+        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        fake_rpc_call,
+    )
+
+    group = RoleGroup("worker")
+    assert len(group) == 2
+    assert group[0].name == "actorA"
+
+    # Test call with method name
+    fut = group.call("foo_method")
+    assert fut.result() == ["actorA-foo_method", "actorB-foo_method"]
+
+    # stub
+    def foo_method(x, y=0): ...
+
+    fut2 = group.call(foo_method, 5, y=10)
+    assert fut2.result() == ["actorA-foo_method", "actorB-foo_method"]
+    # Test call_rank0
+    fut3 = group.call_rank0(foo_method, 3, y=4)
+    assert fut3.result() == "actorA-foo_method"
+
+
+def test_role_group_optional(mocker):
+    mocker.patch(
+        "dlrover.python.unified.controller.api.PrimeMasterApi.get_workers_by_role",
+        side_effect=ValueError("not found"),
+    )
+    group = RoleGroup("not_exist", optional=True)
+    assert len(group) == 0
+
+
+def test_role_group_no_actors(mocker):
+    mocker.patch(
+        "dlrover.python.unified.controller.api.PrimeMasterApi.get_workers_by_role",
+        return_value=[],
+    )
+
+    def f(x) -> Sequence: ...  # any
+
+    with pytest.raises(ValueError, match="No actors found for role 'empty'"):
+        RoleGroup("empty")
+    with pytest.raises(ValueError, match="No actors in the role group."):
+        RoleGroup("empty", optional=True).call_batch(f, 4, [1, 2, 3, 4])
+    with pytest.raises(ValueError, match="No actors in the role group."):
+        RoleGroup("empty", optional=True).call_rank0(f, [])
+
+
+def test_rolegroup_call_batch(mocker, setup_async_helper):
+    mocker.patch(
+        "dlrover.python.unified.controller.api.PrimeMasterApi.get_workers_by_role",
+        return_value=[
+            make_actor_info("actorA", 0),
+            make_actor_info("actorB", 1),
+        ],
+    )
+
+    def fake_rpc_call(actor, method, args, kwargs):
+        v = [f"{actor}-{it}" for it in args[0]]
+
+        ret = Mock()
+        ret.pending = False
+        ret.result_or_exception = v
+        ret.async_wait = AsyncMock(return_value=v)
+        return ret
+
+    mocker.patch(
+        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        fake_rpc_call,
+    )
+    group = RoleGroup("worker")
+    # 2 actors, batch size 4, args is a sequence
+    fut_seq = group.call_batch(lambda x: x, 4, [1, 2, 3, 4])
+    # Should split into 2 batches of 2
+    assert len(fut_seq) == 4
+    # Each result should be from the corresponding actor
+    results = fut_seq.wait()
+    assert results == ["actorA-1", "actorA-2", "actorB-3", "actorB-4"]
+    assert list(fut_seq) == results
+    assert list(fut_seq[1:2]) == results[1:2]
