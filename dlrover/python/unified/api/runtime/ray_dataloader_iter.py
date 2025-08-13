@@ -32,12 +32,18 @@ class RayDataLoaderIter(_BaseDataLoaderIter):
             self._collate_fn,
             self._drop_last,
         )
-        self._prefetch_factor = loader.prefetch_factor or 128
+        self._prefetch_factor = loader.prefetch_factor or 0
         logger.info(
             f"Use RayDataLoaderIter with "
             f"dataset_kind={self._dataset_kind}, "
             f"prefetch_factor={self._prefetch_factor}"
         )
+        if self._prefetch_factor == 0:
+            logger.warning(
+                "prefetch_factor is set to 0, which may lead to lower performance. "
+                "set it to a higher value for better performance. "
+                "(you may need to set num_workers>0 as well)"
+            )
         self._prefetch_cache = []
         self._actor = ray.remote(RemoteDatasetFetcher).remote(
             self._dataset_fetcher
