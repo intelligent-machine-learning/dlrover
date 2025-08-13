@@ -38,6 +38,7 @@ pip install -q pytest-cov
 pip install -q pytest-ordering
 pip install -q pytest-async
 pip install -q pytest-mock
+pip install -q pytest-timeout
 pip install -q packaging
 pip install -q tensorflow==2.13.0
 pip install -q torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html

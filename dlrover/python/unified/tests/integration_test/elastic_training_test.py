@@ -16,16 +16,17 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from dlrover.python.unified.api.builder import DLJobBuilder
 from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.tests.fixtures._ray_setup_hooks import inject_hook
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
-from dlrover.python.util.function_util import timeout
 
 
-@timeout(30)
+@pytest.mark.timeout(30)
 def test_elastic_training(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
@@ -38,7 +39,7 @@ def test_elastic_training(tmp_ray):
     master.shutdown()
 
 
-@timeout(30)
+@pytest.mark.timeout(30)
 def test_api_full(tmp_ray):
     dl_job = (
         DLJobBuilder()
@@ -59,7 +60,7 @@ def test_api_full(tmp_ray):
     assert ret == 0, "Job should succeed"
 
 
-@timeout(30)
+@pytest.mark.timeout(30)
 def test_api_full_with_error(tmp_ray):
     dl_job = (
         DLJobBuilder()
@@ -116,7 +117,7 @@ MODULE_NAME = (
 )
 
 
-@timeout(30)
+@pytest.mark.timeout(30)
 def test_comm_fault(tmp_ray, tmp_path: Path):
     job = elastic_training_job()
     job.dl_config.workloads["training"].envs.update(
@@ -150,7 +151,7 @@ def _mock_node_crash_when_training():
     ray.kill(ray.get_runtime_context().current_actor, no_restart=False)
 
 
-@timeout(30)
+@pytest.mark.timeout(30)
 def test_failover_training(tmp_ray, tmp_path: Path):
     job = elastic_training_job()
     workload = job.dl_config.workloads["training"]
@@ -170,7 +171,7 @@ def test_failover_training(tmp_ray, tmp_path: Path):
     assert master.get_status().exit_code == 0, "Success expected"
 
 
-@timeout(60)
+@pytest.mark.timeout(60)
 def test_failover_entire_job(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
