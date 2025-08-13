@@ -628,7 +628,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
             monitor = TorchTrainingMonitor(config_file)
-            monitor.start()
             monitor.report_step()
             self.assertEqual(self._master.perf_monitor._global_step, 0)
             record = {"step": 100, "timestamp": time.time()}

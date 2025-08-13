@@ -4,7 +4,16 @@ The DLRover project follows the semantic versioning scheme and maintains a separ
 
 For laset news about DLRover you can check as following link: https://github.com/intelligent-machine-learning/dlrover?tab=readme-ov-file#latest-news=
 
-##  Release 0.3.7 on May 13
+## Release 0.5.0 on Jul 7, 2025
+Please refer to [release 0.5.0](https://github.com/intelligent-machine-learning/dlrover/releases/tag/v0.5.0)
+
+## Release 0.4.0 on Jan 20, 2025
+Please refer to [release 0.4.0](https://github.com/intelligent-machine-learning/dlrover/releases/tag/v0.4.0)
+
+## Release 0.3.8 on Sep 29, 2024
+Please refer to [release 0.3.8](https://github.com/intelligent-machine-learning/dlrover/releases/tag/v0.3.8)
+
+## Release 0.3.7 on May 13, 2024
 
 Features:
 * Flash Checkpoint suppors deleting old checkpoints.
@@ -13,7 +22,7 @@ BugFix:
 * Save/load the non-params-related variables of dist optimizer in Megatron-LM models.
 * The agent waits for async saving checkpoint finishes before exiting.
 
-## Release 0.3.6 on Apr 24
+## Release 0.3.6 on Apr 24, 2024
 
 Features:
 * Flash checkpoint provides FlashCkptTrainer to support HuggingFace transforemers.Trainer.
@@ -24,7 +33,7 @@ Flash Checkpoint supports saving and loading FSDP checkpoint with full state dic
 BugFix:
 * Fix the segment fault when restarting the training process.
 
-## Release 0.3.5 on Mar 29
+## Release 0.3.5 on Mar 29, 2024
 
 Features:
 * Flash checkpoint supports saving and loading Megatron-LM MOE models. #1042
@@ -35,7 +44,7 @@ BugFix:
 * Fix the DDP example of mnist to save and load checkpoint. #1051
 * Fix the checkpoint name of DDP. #1034
 
-## Release 0.3.4 on Feb 21
+## Release 0.3.4 on Feb 21, 2024
 
 Features:
 * Flash checkpoint enables saving and loading Megatron-LM models from multiple ranks in parallel.
@@ -46,7 +55,7 @@ Features:
 BugFix:
 * The shared memory does not exist if the size of the checkpoint changes.
 
-## Release 0.3.3 on Jan 25
+## Release 0.3.3 on Jan 25, 2024
 
 Features:
 * Support Python > 3.10.
@@ -58,7 +67,7 @@ BugFix:
 * Fix the bug to asynchronously save the Megatron-LM checkpoint of the job with multi-GPUs on multi-nodes.
 * Fix the bug to load the Megatron-LM checkpoint.
 
-## Release 0.3.1 on Jan 10
+## Release 0.3.1 on Jan 10, 2024
 
 Feature:
 * Users can use flash checkpoint using torchrun or python -m torch.distributed.launch.
@@ -66,7 +75,7 @@ Feature:
 Bugfix:
 * The dlrover master cannot print the error message of the fault node in a kubeflow/PytorchJob.
 
-## Release 0.3.0 on Jan 3
+## Release 0.3.0 on Jan 3, 2024
 
 Features:
 * Flash Checkpoint to asynchronously persist checkpoint to storage.
