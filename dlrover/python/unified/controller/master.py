@@ -122,7 +122,7 @@ class PrimeMaster:
     # endregion
     @staticmethod
     def create(
-        config: JobConfig, detached: bool = True, timeout: float = 10.0
+        config: JobConfig, detached: bool = True
     ) -> "type[PrimeMasterApi]":
         """Create a PrimeMaster instance."""
         if not ray.is_initialized():
@@ -141,9 +141,12 @@ class PrimeMaster:
             .remote(config)
         )
         try:
-            ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
+            ray.get(
+                ref.__ray_ready__.remote(),
+                timeout=config.master_create_timeout,
+            )  # type: ignore
         except GetTimeoutError:
             raise TimeoutError(
-                f"Timeout waiting for PrimeMaster to be ready after {timeout} seconds."
+                f"Timeout waiting for PrimeMaster to be ready after {config.master_create_timeout} seconds."
             )
         return PrimeMasterApi

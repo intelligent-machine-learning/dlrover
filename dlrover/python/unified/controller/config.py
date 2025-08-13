@@ -115,6 +115,11 @@ class JobConfig(BaseModel):
         description="Memory (in MB) for the master actor.",
         validation_alias=AliasChoices("master_memory", "master_mem"),
     )
+    master_create_timeout: float = Field(
+        default=600.0,
+        description="Timeout for creating the master actor.",
+        validation_alias=AliasChoices("master_create_timeout", "timeout"),
+    )
     master_state_backend_type: MasterStateBackendType = Field(
         default=MasterStateBackendType.RAY_INTERNAL,
         description="The type of the master state backend.",
