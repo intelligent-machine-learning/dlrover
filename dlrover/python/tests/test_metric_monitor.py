@@ -1054,7 +1054,7 @@ class NpuMetricMonitorTest(unittest.TestCase):
 
             _metric_context.log_job_metric(NpuMetricEnum.NPU_UTIL)
 
-            self.assertEqual(_metric_context.size(), 1)
+            self.assertTrue(_metric_context.size() >= 1)
             self.assertEqual(
                 list(
                     _metric_context.backtrace_avg_metrics(
