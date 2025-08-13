@@ -107,6 +107,13 @@ class ActorBase:
             name=self.actor_info.name,
         ).wait()
 
+    def __repr__(self):
+        # ActorClass, not instance
+        if not hasattr(self, "actor_info"):
+            return super().__repr__()
+        # We display the actor name in ray logging
+        return self.name
+
     # Hook methods for subclasses to implement
     def _setup(self):
         """Setup the actor/node.
