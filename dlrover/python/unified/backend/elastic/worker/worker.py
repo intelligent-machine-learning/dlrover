@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import socket
 from datetime import timedelta
 
 import ray
@@ -34,6 +35,7 @@ class ElasticWorker(BaseWorker):
     def _setup(self):
         assert self.actor_info.spec.backend == "elastic"
 
+        self._master_socket = None
         self._process_group_setup = False
         super()._setup()
 
@@ -58,9 +60,38 @@ class ElasticWorker(BaseWorker):
     def get_master_addr(self):
         """Get a master address for distributed training."""
         addr = ray.util.get_node_ip_address()
-        port = find_free_port_from_env()
 
-        return f"tcp://{addr}:{port}"
+        # Release old master socket if exists
+        self._release_master_socket()
+        tries = 10
+        while True:
+            port = find_free_port_from_env()
+            try:
+                # Bind a free port
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind((addr, port))
+                self._master_socket = s
+                break
+            except OSError:
+                # Already in use, try next port
+                if tries > 0:
+                    tries -= 1
+                    continue
+                logger.error(
+                    f"Failed to bind a free port on node {addr} after multiple attempts."
+                )
+                raise RuntimeError(
+                    f"Failed to bind a free port on node {addr}."
+                )
+
+        ret = f"tcp://{addr}:{port}"
+        logger.info(f"Master address for distributed training: {ret}")
+        return ret
+
+    def _release_master_socket(self):
+        if self._master_socket:
+            self._master_socket.close()
+            self._master_socket = None
 
     def setup_torch_process_group(
         self,
@@ -79,6 +110,10 @@ class ElasticWorker(BaseWorker):
             f"Setting up torch process group with backend={backend}, "
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"
         )
+
+        # Release the port to let torch use it.
+        self._release_master_socket()
+
         # TODO backend specific setup
         if only_envs:
             addr, port = master_addr.split("://")[1].split(":")
