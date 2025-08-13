@@ -1085,6 +1085,7 @@ class DistributedJobManager(JobManager):
             # update node.group to max_group_idx
             old_node = copy.deepcopy(node)
             old_node.group = group_idx
+            old_node.group_id = ""
             launch_nodes.append(old_node)
 
         plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
