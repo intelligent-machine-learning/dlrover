@@ -35,6 +35,10 @@ class RemoteDatasetFetcher:
 
 
 class RayDataLoaderIter(_BaseDataLoaderIter):
+    """RayDataLoaderIter is a custom DataLoader iterator that uses Ray actors
+    to fetch data from the dataset. It is designed to work with Ray's distributed
+    data loading capabilities."""
+
     def __init__(self, loader):
         super().__init__(loader)
 
