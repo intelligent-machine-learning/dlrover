@@ -18,6 +18,7 @@ import os
 import time
 
 import torch
+from gguf import Any
 from omegaconf import DictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -429,7 +430,13 @@ def save_checkpoint(model_params, ckpt_params):
 
 
 def run():
-    args = current_worker().job_info.user_config
+    args: Any = current_worker().job_info.user_config
+    if args.use_ray_dataloader:
+        from dlrover.python.unified.api.runtime.ray_dataloader_iter import (
+            patch_dataloader_ray,
+        )
+
+        patch_dataloader_ray()
     train_params = setup_train_params(args)
     train(args, train_params)
 
@@ -437,6 +444,11 @@ def run():
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
     add_train_args(parser)
+    parser.add_argument(
+        "--use_ray_dataloader",
+        action="store_true",
+        help="Use DLRover Ray DataLoader for distributed data loading.",
+    )
     return parser.parse_args()
 
 
