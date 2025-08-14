@@ -13,7 +13,6 @@
 
 from typing import Protocol
 
-from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import (
     ActorInfo,
     JobInfo,
@@ -33,4 +32,6 @@ class Worker(Protocol):
 
 
 def current_worker() -> Worker:
+    from dlrover.python.unified.backend.common.base_worker import BaseWorker
+
     return BaseWorker.CURRENT
