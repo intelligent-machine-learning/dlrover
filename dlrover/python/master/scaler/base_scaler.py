@@ -20,8 +20,8 @@ from dlrover.python.common.serialize import JsonSerializable
 
 class ScalePlan(JsonSerializable):
     """The plan to scaler to adjust nodes.
-    Attrbutes:
-        ndoe_group_resource: the resoruce configuration of a group node.
+    Attributes:
+        node_group_resources: the resource configuration of a group node.
         launch_nodes: a scaler to launch nodes.
         remove_nodes: a scaler to remove nodes.
         ps_addrs: all add addresses of PS nodes.

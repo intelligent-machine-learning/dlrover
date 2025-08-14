@@ -392,7 +392,6 @@ class DistributedJobManager(JobManager):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-
         self._chief_manager = ChiefManager(
             self._job_resource,
             self._relaunch_on_worker_failure,

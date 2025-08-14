@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import itertools
 import math
 import threading
@@ -252,24 +251,11 @@ class TrainingNodeManager(object):
         plan = ScalePlan()
         with self._lock:
             new_id = self.get_next_node_id()
-            relaunch_node = node.get_relaunch_node_info(new_id)
+            new_name = self._new_node_name_fn(node.type, new_id)
+            relaunch_node = node.generate_relaunch_node(new_id, new_name)
             self._update_node(relaunch_node)
-        logger.info("Relaunch node %s to %s", node.name, new_id)
-        plan.launch_nodes.append(
-            Node(
-                node.type,
-                new_id,
-                copy.deepcopy(relaunch_node.config_resource),
-                rank_index=node.rank_index,
-                name=self._new_node_name_fn(node.type, new_id),
-                service_addr=node.service_addr,
-                relaunch_count=relaunch_node.relaunch_count,
-                max_relaunch_count=relaunch_node.max_relaunch_count,
-                node_group=node.group,
-                node_group_size=node.group_size,
-                node_group_id=node.group_id,
-            )
-        )
+        logger.info(f"Relaunch node {node.name} to {new_id}")
+        plan.launch_nodes.append(relaunch_node)
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True
             self._update_node(node)
