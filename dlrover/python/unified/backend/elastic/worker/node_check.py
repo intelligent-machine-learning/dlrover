@@ -13,7 +13,6 @@
 
 import os
 import time
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -51,56 +50,6 @@ def log_execution_time(func):
         return t
 
     return wrapper
-
-
-@log_execution_time
-def init_process_group(
-    protocol: str, timeout: timedelta = timedelta(seconds=180)
-):
-    start = time.time()
-    dist.init_process_group(protocol, timeout=timeout)
-    elapsed_time = time.time() - start
-    return elapsed_time
-
-
-def get_network_check_timeout() -> timedelta:
-    default_timeout_seconds = 180
-    timeout = int(
-        os.environ.get("NETWORK_CHECK_TIMEOUT", default_timeout_seconds)
-    )
-    if timeout <= 0:
-        timeout = default_timeout_seconds
-
-    return timedelta(seconds=timeout)
-
-
-@log_execution_time
-def bm_allgather(shape, use_gpu):
-    world_size = dist.get_world_size()
-    local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device("cuda" if use_gpu else "cpu")
-    data = torch.randn(shape, dtype=torch.float32).to(device)
-    tensor_list = [
-        torch.zeros_like(data).to(device) for _ in range(world_size)
-    ]
-
-    if use_gpu:
-        elapsed_time = _execute_nccl_comm(dist.all_gather, tensor_list, data)
-    else:
-        elapsed_time = _execute_cpu_comm(dist.all_gather, tensor_list, data)
-
-    gb_unit = 1024 * 1024 * 1024
-    algobw = shape * 4 / gb_unit / (elapsed_time / 1000)
-    busbw = algobw * (world_size - 1) / world_size
-    algobw = round(algobw, 2)
-    busbw = round(busbw, 2)
-    elapsed_time = round(elapsed_time, 3)
-    if local_rank == 0:
-        logger.info(
-            f"AllGather Perf: world size = {world_size}, "
-            f"algobw={algobw} GB/s, busbw={busbw} GB/s."
-        )
-    return elapsed_time
 
 
 @log_execution_time
