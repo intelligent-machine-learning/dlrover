@@ -15,11 +15,16 @@ import asyncio
 from concurrent.futures import Future
 from threading import Thread
 from typing import Sequence
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+import ray
+from torch.utils.data import Dataset
 
 from dlrover.python.unified.api.runtime.queue import DataQueue
+from dlrover.python.unified.api.runtime.ray_dataloader_iter import (
+    patch_dataloader_ray,
+)
 from dlrover.python.unified.api.runtime.rpc import (
     RPC_REGISTRY,
     RoleGroup,
@@ -269,3 +274,27 @@ def test_rolegroup_call_batch(mocker, setup_async_helper):
     assert results == ["actorA-1", "actorA-2", "actorB-3", "actorB-4"]
     assert list(fut_seq) == results
     assert list(fut_seq[1:2]) == results[1:2]
+
+
+def test_ray_dataloader(shared_ray):
+    class SimpleDataset(Dataset):
+        def __init__(self, data):
+            self.data = data
+
+        def __len__(self):
+            return len(self.data)
+
+        def __getitem__(self, idx):
+            assert ray.get_runtime_context().current_actor is not None, (
+                "Dataset must be used in a Ray actor."
+            )
+            return self.data[idx]
+
+    # Auto recover
+    with patch("torch.utils.data.DataLoader._get_iterator"):
+        patch_dataloader_ray()
+        dataset = SimpleDataset(list(range(100)))
+        from torch.utils.data import DataLoader
+
+        ret = list(DataLoader(dataset, batch_size=10))
+        assert len(ret) == 10 and all(len(batch) == 10 for batch in ret)
