@@ -16,7 +16,7 @@ from threading import Thread
 from typing import ClassVar
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.runtime.rpc import (
+from dlrover.python.unified.api.runtime.rpc_helper import (
     RPC_REGISTRY,
     export_rpc_instance,
 )

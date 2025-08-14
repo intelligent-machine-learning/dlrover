@@ -13,7 +13,7 @@
 
 import threading
 
-from dlrover.python.unified.api.runtime.rpc import rpc
+from dlrover.python.unified.api.runtime import rpc
 
 from . import remote_call
 

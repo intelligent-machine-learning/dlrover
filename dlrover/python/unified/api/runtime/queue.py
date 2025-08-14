@@ -18,14 +18,15 @@ from typing import Generic, List, Sequence, TypeVar
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.api.runtime.rpc import (
+from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.async_helper import as_future, wait
+
+from .rpc_helper import (
     create_rpc_proxy,
     export_rpc_instance,
     rpc,
 )
-from dlrover.python.unified.api.runtime.worker import current_worker
-from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.async_helper import as_future, wait
+from .worker import current_worker
 
 T = TypeVar("T")
 

@@ -25,7 +25,7 @@ from dlrover.python.unified.api.runtime.queue import DataQueue
 from dlrover.python.unified.api.runtime.ray_dataloader_iter import (
     patch_dataloader_ray,
 )
-from dlrover.python.unified.api.runtime.rpc import (
+from dlrover.python.unified.api.runtime.rpc_helper import (
     RPC_REGISTRY,
     RoleGroup,
     create_rpc_proxy,
@@ -66,7 +66,7 @@ def mock_as_future(co):
 
 def test_rpc(mocker):
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        "dlrover.python.unified.api.runtime.rpc_helper._rpc_call",
         mock_rpc_call,
     )
     RPC_REGISTRY.clear()
@@ -99,7 +99,7 @@ def test_rpc(mocker):
 
 def test_rpc_proxy(mocker):
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        "dlrover.python.unified.api.runtime.rpc_helper._rpc_call",
         mock_rpc_call,
     )
 
@@ -125,7 +125,7 @@ def test_queue(mocker):
         return_value="actor",
     )
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        "dlrover.python.unified.api.runtime.rpc_helper._rpc_call",
         mock_rpc_call,
     )
     mocker.patch(
@@ -195,7 +195,7 @@ def test_role_group_basic(mocker, setup_async_helper):
     )
     # Mock _rpc_call to return a mock with async_wait/wait
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        "dlrover.python.unified.api.runtime.rpc_helper._rpc_call",
         fake_rpc_call,
     )
 
@@ -261,7 +261,7 @@ def test_rolegroup_call_batch(mocker, setup_async_helper):
         return ret
 
     mocker.patch(
-        "dlrover.python.unified.api.runtime.rpc._rpc_call",
+        "dlrover.python.unified.api.runtime.rpc_helper._rpc_call",
         fake_rpc_call,
     )
     group = RoleGroup("worker")
