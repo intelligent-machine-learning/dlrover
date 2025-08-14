@@ -4,6 +4,17 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.0%2B-green)](https://developer.nvidia.com/cuda-toolkit)
 
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Project Goals](#project-goals)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Core Agents](#core-agents)
+- [Development Roadmap](#development-roadmap)
+- [Getting Started](#getting-started)
+- [Development Workflow](#development-workflow)
+
 ## Project Overview
 
 ATunner is an intelligent CUDA operator automatic optimization system based on LLM Agent technology. It leverages multi-agent collaboration to achieve:
@@ -147,4 +158,112 @@ pip install -e .[all]         # For all features
 ```bash
 # Basic usage example (coming soon)
 atunner optimize --operator conv2d --input-shape 1,3,224,224 --target-gpu A100
+```
+
+## Development Workflow
+
+### Setting Up Development Environment
+
+```bash
+# 1. Initial setup
+make install-dev           # Install development dependencies
+make pre-commit-install    # Install git pre-commit hooks
+
+# 2. Verify CUDA environment (if needed)
+make cuda-info             # Check CUDA environment
+make test-cuda-compile     # Test CUDA kernel compilation
+```
+
+### Daily Development Workflow
+
+```bash
+# 1. Before making changes
+git checkout -b feature/your-feature-name
+
+# 2. During development
+make pre-commit-staged     # Check staged files before commit
+# or
+make pre-commit           # Check all files
+
+# 3. Before committing
+make check                # Run comprehensive quality checks
+# This includes: type-check, lint, and pre-commit
+
+# 4. Code formatting (if needed)
+make format               # Auto-format code with black and isort
+```
+
+### Testing Workflow
+
+```bash
+# Basic testing
+make test                 # Run all tests
+make test-cov            # Run tests with coverage report
+
+# CUDA-specific testing
+make test-cuda           # Run CUDA unit tests
+make test-cuda-toolchain # Test CUDA toolchain integration
+make test-cuda-full      # Complete CUDA test suite
+
+# CLI testing
+make test-cli            # Test command-line interface
+make run-example         # Run basic usage examples
+```
+
+### Quality Assurance
+
+```bash
+# Code quality checks
+make lint                # Run linting (flake8, black, isort)
+make type-check          # Run type checking with mypy
+make pre-commit          # Run all pre-commit hooks
+
+# Comprehensive checks
+make check               # Run all quality checks at once
+```
+
+### Build and Documentation
+
+```bash
+# Build package
+make build               # Build distribution packages
+
+# Documentation
+make docs                # Build documentation
+
+# Cleanup
+make clean               # Clean build artifacts
+make clean-cuda          # Clean CUDA compilation cache
+```
+
+### Available Make Commands
+
+Run `make help` to see all available commands:
+
+- **Setup**: `install`, `install-dev`, `pre-commit-install`
+- **Testing**: `test`, `test-cuda`, `test-cuda-full`, `test-cov`
+- **Quality**: `lint`, `format`, `type-check`, `pre-commit`, `check`
+- **Build**: `build`, `docs`, `clean`
+- **Utils**: `cuda-info`, `cli-help`, `run-example`
+
+### Git Workflow Best Practices
+
+1. **Always use pre-commit hooks**: They ensure code quality before commits
+2. **Run tests before pushing**: Use `make test` or `make test-cuda-full`
+3. **Check code quality**: Use `make check` before creating pull requests
+4. **Follow conventional commits**: Use descriptive commit messages
+5. **Keep changes atomic**: Make small, focused commits
+
+### Troubleshooting
+
+```bash
+# If CUDA tests fail
+make cuda-info           # Check CUDA environment
+make clean-cuda          # Clean CUDA cache
+make test-cuda-compile   # Test compilation only
+
+# If pre-commit fails
+make format              # Auto-fix formatting issues
+make lint                # Check remaining issues
+make pre-commit          # Re-run pre-commit checks
 ```
