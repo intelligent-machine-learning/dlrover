@@ -93,10 +93,7 @@ class BaseWorker(ActorBase):
 
         try:
             logger.info(f"Executing: {user_func}")
-            inst = user_func()
-            # If user function is a class, export all rpc methods.
-            if isinstance(user_func, type) and inst is not None:
-                export_rpc_instance(None, inst)
+            user_func()
         except Exception:
             logger.error(
                 "Unexpected error occurred while executing user function.",

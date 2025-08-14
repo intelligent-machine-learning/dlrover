@@ -77,25 +77,25 @@ RAY_MONITOR_INTERVAL = 5.0  # Interval for monitoring actor invocations
 class InvocationRef(Generic[T], ABC):
     @property
     @abc.abstractmethod
-    def pending(self) -> bool:
+    def pending(self) -> bool:  # pragma: no-cover
         """Check if the invocation is still pending."""
-        ...  # program: no-cover
+        ...
 
     @property
     @abc.abstractmethod
-    def result(self) -> T:
+    def result(self) -> T:  # pragma: no-cover
         """Get the result of the invocation, raising an exception if it failed."""
-        ...  # program: no-cover
+        ...
 
     @abc.abstractmethod
-    def wait(self) -> T:
+    def wait(self) -> T:  # pragma: no-cover
         """Wait for the result of the invocation, blocking until it is ready."""
-        ...  # program: no-cover
+        ...
 
     @abc.abstractmethod
-    async def async_wait(self) -> T:
+    async def async_wait(self) -> T:  # pragma: no-cover
         """Wait for the result of the invocation asynchronously."""
-        ...  # program: no-cover
+        ...
 
     def __await__(self) -> Generator[None, None, T]:
         """Await the result of the invocation."""
