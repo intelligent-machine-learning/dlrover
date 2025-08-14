@@ -9,5 +9,8 @@ pydantic>=2.0.0
 click>=8.1.0
 rich>=13.0.0
 
-# Note: For development dependencies, use: pip install -e .[dev]
-# Note: For CUDA support, use: pip install -e .[cuda]
+# Development Environment Setup:
+# 1. Install dev dependencies: pip install -r requirements-dev.txt
+# 2. Or use optional dependencies: pip install -e .[dev]
+# 3. For CUDA support: pip install -e .[cuda]
+# 4. Setup pre-commit: pre-commit install

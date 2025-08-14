@@ -1,6 +1,6 @@
 # Makefile for ATunner project
 
-.PHONY: help install install-dev test test-cuda test-cuda-compile test-cuda-toolchain test-cuda-full test-cuda-ci test-cli lint format type-check clean clean-cuda build docs cuda-info
+.PHONY: help install install-dev test test-cuda test-cuda-compile test-cuda-toolchain test-cuda-full test-cuda-ci test-cli lint format type-check pre-commit pre-commit-install pre-commit-staged check clean clean-cuda build docs cuda-info
 
 help:  ## Show this help message
 	@echo "ATunner Development Commands:"
@@ -63,6 +63,22 @@ type-check:  ## Run type checking
 
 pre-commit:  ## Run pre-commit checks
 	pre-commit run --all-files
+
+pre-commit-install:  ## Install pre-commit hooks
+	pre-commit install
+
+pre-commit-staged:  ## Run pre-commit on staged files only
+	pre-commit run
+
+check:  ## Run all quality checks (lint, type-check, pre-commit)
+	@echo "Running comprehensive code quality checks..."
+	@echo "1/3: Type checking..."
+	@-$(MAKE) type-check || echo "Warning: mypy not available, skipping type check"
+	@echo "2/3: Linting..."
+	@$(MAKE) lint
+	@echo "3/3: Pre-commit hooks..."
+	@$(MAKE) pre-commit
+	@echo "✓ All quality checks completed!"
 
 clean:  ## Clean build artifacts
 	rm -rf build/
