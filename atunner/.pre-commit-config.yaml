@@ -1,0 +1,38 @@
+# Pre-commit configuration for ATunner
+# See https://pre-commit.com for more information
+
+repos:
+  - repo: local
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        entry: bash -c 'for file in "$@"; do sed -i "s/[[:space:]]*$//" "$file"; done' --
+        language: system
+        files: ^atunner/.*\.(py|yaml|yml|md|txt)$
+
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        entry: bash -c 'for file in "$@"; do if [ -s "$file" ] && [ "$(tail -c1 "$file" | wc -l)" -eq 0 ]; then echo >> "$file"; fi; done' --
+        language: system
+        files: ^atunner/.*\.(py|yaml|yml|md|txt)$
+
+      - id: black
+        name: Black Code Formatter
+        entry: black
+        language: system
+        args: ["--line-length=100"]
+        files: ^atunner/.*\.py$
+
+      - id: isort
+        name: Sort Imports
+        entry: isort
+        language: system
+        args: ["--profile", "black", "--line-length=100"]
+        files: ^atunner/.*\.py$
+
+      - id: flake8
+        name: Flake8 Linting
+        entry: flake8
+        language: system
+        args: ["--max-line-length=100"]
+        files: ^atunner/.*\.py$

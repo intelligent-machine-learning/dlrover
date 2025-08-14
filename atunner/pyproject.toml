@@ -1,0 +1,243 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atunner"
+version = "0.1.0"
+description = "LLM Agent-based Automatic CUDA Operator Optimization System"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "ATunner Team", email = "atunner@example.com"}
+]
+maintainers = [
+    {name = "ATunner Team", email = "atunner@example.com"}
+]
+keywords = [
+    "CUDA", "optimization", "LLM", "agent", "deep learning",
+    "performance", "compiler", "GPU"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: System :: Hardware :: Symmetric Multi-processing",
+]
+requires-python = ">=3.10"
+dependencies = [
+    # Workflow Framework
+    "langgraph>=0.1.0",
+
+    # Core functionality
+    "pydantic>=2.0.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "flake8-pyproject>=1.2.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
+]
+
+cuda = [
+    "cupy-cuda12x>=12.0.0",
+    "pynvml>=11.0.0",
+    "nvidia-ml-py>=11.0.0",
+    "torch>=2.0.0",  # For CUDAExtension support
+]
+
+profiling = [
+    "nsight-systems-cli",
+    "nsight-compute-cli",
+    "py-spy>=0.3.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.1.0",
+    "psutil>=5.9.0",
+]
+
+data = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "polars>=0.20.0",
+    "pyarrow>=14.0.0",
+]
+
+config = [
+    "pydantic-settings>=2.0.0",
+    "omegaconf>=2.3.0",
+    "hydra-core>=1.3.0",
+    "jsonschema>=4.19.0",
+]
+
+async = [
+    "aiofiles>=23.0.0",
+    "uvloop>=0.19.0",
+]
+
+logging = [
+    "loguru>=0.7.0",
+    "prometheus-client>=0.19.0",
+    "structlog>=23.0.0",
+]
+
+utils = [
+    "tqdm>=4.66.0",
+    "requests>=2.31.0",
+    "jinja2>=3.1.0",
+    "typer>=0.9.0",
+]
+
+web = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "streamlit>=1.28.0",
+    "gradio>=4.0.0",
+]
+
+all = [
+    "atunner[dev,cuda,profiling,data,config,async,logging,utils,web]",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/intelligent-machine-learning/dlrover/tree/main/atunner"
+"Repository" = "https://github.com/intelligent-machine-learning/dlrover"
+"Documentation" = "https://github.com/intelligent-machine-learning/dlrover/tree/main/atunner/docs"
+"Bug Tracker" = "https://github.com/intelligent-machine-learning/dlrover/issues"
+
+[project.scripts]
+atunner = "atunner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["atunner*"]
+exclude = ["tests*", "docs*"]
+
+# CUDA extension configuration (when needed)
+[tool.setuptools.package-data]
+atunner = ["kernels/*.cu", "kernels/*.cuh"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["atunner"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = [
+    "tests",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "cuda: marks tests that require CUDA",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["atunner"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = [
+    "E203",  # whitespace before ':'
+    "W503",  # line break before binary operator
+    "F401",  # imported but unused
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".env",
+    "env",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".coverage",
+    "htmlcov",
+]
+per-file-ignores = [
+    "__init__.py:F401",
+    "**/test_*.py:D100,D101,D102,D103,D104",
+    "tests/*:D100,D101,D102,D103,D104",
+    "examples/*:D100",
+    "**/kernels/**/*.py:F401",
+]
+docstring-convention = "google"
