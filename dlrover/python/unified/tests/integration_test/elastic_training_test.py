@@ -26,7 +26,7 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 )
 
 
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(40, func_only=True)  # 20s in ci
 def test_elastic_training(tmp_ray):
     job = elastic_training_job()
     master = PrimeMaster.create(job)
@@ -39,7 +39,7 @@ def test_elastic_training(tmp_ray):
     master.shutdown()
 
 
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(40, func_only=True)  # 25s in ci
 def test_api_full(tmp_ray):
     dl_job = (
         DLJobBuilder()
@@ -60,13 +60,14 @@ def test_api_full(tmp_ray):
     assert ret == 0, "Job should succeed"
 
 
-@pytest.mark.timeout(40)
+@pytest.mark.timeout(40, func_only=True)  # 25s in ci
 def test_api_full_with_error(tmp_ray):
     dl_job = (
         DLJobBuilder()
         .node_num(3)
         .device_per_node(2)
         .device_type("CPU")
+        .config({"c1": "v1"})
         .dlrover_run(
             "dlrover.python.unified.tests.test_class::elastic_workload_run_error",
             nnodes=1,
@@ -115,7 +116,7 @@ MODULE_NAME = (
 )
 
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(40, func_only=True)  # 20s in ci
 def test_comm_fault(tmp_ray, tmp_path: Path):
     job = elastic_training_job()
     job.dl_config.workloads["training"].envs.update(
@@ -149,7 +150,7 @@ def _mock_node_crash_when_training():
     ray.kill(ray.get_runtime_context().current_actor, no_restart=False)
 
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(60, func_only=True)  # 26s in ci
 def test_failover_training(tmp_ray, tmp_path: Path):
     job = elastic_training_job()
     workload = job.dl_config.workloads["training"]
