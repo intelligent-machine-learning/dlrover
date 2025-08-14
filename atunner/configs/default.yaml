@@ -1,0 +1,61 @@
+# ATunner Configuration
+# Default configuration for the ATunner optimization system
+
+system:
+  log_level: "INFO"
+  max_workers: 4
+  timeout: 300  # seconds
+
+llm:
+  provider: "openai"  # openai, anthropic
+  model: "gpt-4"
+  temperature: 0.1
+  max_tokens: 4096
+
+agents:
+  operator_analysis:
+    enabled: true
+    timeout: 60
+
+  hardware_analysis:
+    enabled: true
+    timeout: 30
+
+  performance_analysis:
+    enabled: true
+    timeout: 120
+
+  fusion_optimization:
+    enabled: true
+    timeout: 90
+
+  code_generation:
+    enabled: true
+    timeout: 180
+    max_iterations: 5
+
+  evaluation:
+    enabled: true
+    timeout: 240
+    benchmark_runs: 3
+
+cuda:
+  compute_capability: "8.0"
+  optimization_flags:
+    - "-O3"
+    - "-use_fast_math"
+    - "-maxrregcount=64"
+
+optimization:
+  max_iterations: 5
+  convergence_threshold: 0.05  # 5% improvement threshold
+  target_improvement: 0.30     # 30% target improvement
+
+profiling:
+  nsight_systems:
+    enabled: false
+    output_dir: "./profiles"
+
+  nsight_compute:
+    enabled: false
+    output_dir: "./profiles"
