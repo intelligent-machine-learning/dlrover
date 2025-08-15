@@ -30,6 +30,7 @@ from typing import (
 import ray
 from ray.actor import ActorClass, ActorHandle
 from ray.exceptions import (
+    ActorUnavailableError,
     GetTimeoutError,
     RayActorError,
     RayTaskError,
@@ -368,6 +369,30 @@ async def restart_actors(actors: List[str]):
             refresh_actor_cache(actor)
         except ValueError:
             raise ValueError(f"Actor {actor} not found for restart.")
+    await wait_ready(actors.copy())
+    logger.info(f"Actors restarted: {actors}")
+
+
+async def wait_ready(actors: List[str]):
+    """Wait for all actors to be ready."""
+
+    async def wait_one(actor_name: str):
+        """Handle the actor readiness."""
+        try:
+            # Not use cache here
+            actor = ray.get_actor(actor_name)  # must keep ref
+            await actor.__ray_ready__.remote()
+            actors.remove(actor_name)
+        except ActorUnavailableError:
+            return  # expected for restarting
+
+    while actors:
+        logger.info(f"Waiting for actors to be ready: {actors}")
+        await asyncio.gather(
+            *[wait_one(actor_name) for actor_name in actors.copy()]
+        )
+        if actors:
+            await asyncio.sleep(RAY_MONITOR_INTERVAL)
 
 
 class BatchInvokeResult(Generic[T]):
