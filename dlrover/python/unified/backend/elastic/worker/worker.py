@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import socket
 from datetime import timedelta
 
 import ray
@@ -22,7 +21,9 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import WorkerStage
-from dlrover.python.util.common_util import find_free_port_from_env
+from dlrover.python.util.common_util import (
+    find_free_port_from_env_and_bind,
+)
 
 
 class ElasticWorker(BaseWorker):
@@ -63,26 +64,8 @@ class ElasticWorker(BaseWorker):
 
         # Release old master socket if exists
         self._release_master_socket()
-        tries = 10
-        while True:
-            port = find_free_port_from_env()
-            try:
-                # Bind a free port
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.bind((addr, port))
-                self._master_socket = s
-                break
-            except OSError:
-                # Already in use, try next port
-                if tries > 0:
-                    tries -= 1
-                    continue
-                logger.error(
-                    f"Failed to bind a free port on node {addr} after multiple attempts."
-                )
-                raise RuntimeError(
-                    f"Failed to bind a free port on node {addr}."
-                )
+        port, socket = find_free_port_from_env_and_bind(addr)
+        self._master_socket = socket
 
         ret = f"tcp://{addr}:{port}"
         logger.info(f"Master address for distributed training: {ret}")

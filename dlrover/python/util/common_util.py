@@ -76,6 +76,30 @@ def is_port_in_use(port=0) -> bool:
         return result == 0
 
 
+def find_free_port_from_env_and_bind(addr: str, **kwargs):
+    """Find a free port by find_free_port_from_env and create a socket to bind it.
+    Returns:
+        (port, socket): A tuple containing the free port and the bound socket.
+    """
+    tries = 10
+    while True:
+        port = find_free_port_from_env(**kwargs)
+        try:
+            # Bind a free port
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind((addr, port))
+            break
+        except OSError:
+            # Already in use, try next port
+            if tries > 0:
+                tries -= 1
+                continue
+            raise RuntimeError(
+                f"Failed to bind a free port on {addr} after multiple attempts."
+            )
+    return port, s
+
+
 def find_free_port_from_env(
     default_env_ports="", default_range_start=20000
 ) -> int:
