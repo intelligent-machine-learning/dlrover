@@ -457,11 +457,14 @@ def launch():
     Launch the training process.
     """
     args = arg_parser()
+    device = (
+        ACCELERATOR_TYPE.GPU
+        if torch.cuda.is_available()
+        else ACCELERATOR_TYPE.CPU
+    )
     config = DLConfig(
         user_config=args,
-        accelerator_type=ACCELERATOR_TYPE.GPU
-        if torch.cuda.is_available()
-        else ACCELERATOR_TYPE.CPU,
+        accelerator_type=device,
         workloads={
             "train": ElasticWorkloadDesc(
                 total=2,
@@ -475,11 +478,10 @@ def launch():
             job_name="nanogpt",
             dl_config=config,
         ),
-        timeout=600,
     )
     master.start()
     master.wait()
-    master.stop()
+    master.shutdown()
 
 
 def launch_use_api():
@@ -488,7 +490,7 @@ def launch_use_api():
         DLJobBuilder()
         .config(DictConfig(args.__dict__))
         .dlrover_run(
-            "examples.unified.elastic.nanogpt.0_base_train.run",
+            "examples.unified.elastic.nanogpt.train.run",
             nnodes=2,
             nproc_per_node=1,
         )
