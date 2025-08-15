@@ -21,6 +21,7 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
     NodeCheckManager,
 )
 from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
@@ -30,6 +31,8 @@ from dlrover.python.unified.util.actor_proxy import (
 
 class ElasticManager:
     def __init__(self, workers: List[ActorInfo]):
+        assert workers[0].spec.backend == "elastic"
+        self.spec: ElasticWorkloadDesc = workers[0].spec
         self.workers: List[ActorInfo] = workers
         self.finished = False
 
@@ -39,6 +42,11 @@ class ElasticManager:
         self.stage = WorkerStage.READY
 
     async def check_workers(self, retry_count: int = 3):
+        if not self.spec.comm_pre_check:
+            logger.info(
+                "Communication pre-check is disabled, skipping node-check."
+            )
+            return
         logger.info("Do node-check for all nodes...")
         delays = await self.node_check_manager.check_nodes(self.workers)
         abnormal_nodes = self.node_check_manager.find_abnormal_nodes(
@@ -74,10 +82,9 @@ class ElasticManager:
 
     async def start(self):
         """Start the elastic training job."""
-        if self.stage != WorkerStage.READY:
-            raise Exception(
-                f"Cannot start ElasticManager in stage {self.stage}, expected READY."
-            )
+        assert self.stage == WorkerStage.READY, (
+            f"Cannot start ElasticManager in stage {self.stage}, expected READY."
+        )
 
         logger.info("Start job execution.")
         await self.setup_workloads()
@@ -88,8 +95,7 @@ class ElasticManager:
         res = await invoke_actors_t(
             remote_call.status, [node.name for node in self.workers]
         )
-        if any(it != "RUNNING" for it in res.results):
-            raise Exception("Some nodes failed to start the job.")
+        res.raise_for_errors()
         self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
         self.stage = WorkerStage.RUNNING
         logger.info("Elastic job started, monitoring nodes...")
@@ -98,7 +104,9 @@ class ElasticManager:
         logger.info("Start setup all elastic workloads...")
         start = time.time()
 
-        await self.node_check_manager._setup_rendezvous_group(self.workers)
+        await self.node_check_manager._setup_rendezvous_group(
+            self.workers, only_envs=not self.spec.comm_auto_setup_process_group
+        )
         logger.info("Setup torch process group for all nodes.")
 
         elapsed = time.time() - start

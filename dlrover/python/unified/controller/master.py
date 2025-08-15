@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import ray
 import ray.actor
+from ray.exceptions import GetTimeoutError
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
@@ -110,12 +111,23 @@ class PrimeMaster:
         logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
         asyncio.create_task(self.manager.restart_job())
 
+    def register_data_queue(self, name: str, owner_actor: str, size: int):
+        """Register a data queue."""
+        self.manager.sync.register_data_queue(name, owner_actor, size)
+
+    async def get_data_queue_owner(self, name: str) -> str:
+        """Get the owner actor of a data queue. Waits if not available."""
+        return await self.manager.sync.get_data_queue_owner(name)
+
     # endregion
     @staticmethod
     def create(
-        config: JobConfig, detached: bool = True, timeout: float = 10.0
+        config: JobConfig, detached: bool = True
     ) -> "type[PrimeMasterApi]":
         """Create a PrimeMaster instance."""
+        if not ray.is_initialized():
+            logger.info("Ray is not initialized, initializing now.")
+            ray.init()
         ref = (
             ray.remote(PrimeMaster)
             .options(
@@ -128,5 +140,13 @@ class PrimeMaster:
             )
             .remote(config)
         )
-        ray.get(ref.__ray_ready__.remote(), timeout=timeout)  # type: ignore
+        try:
+            ray.get(
+                ref.__ray_ready__.remote(),
+                timeout=config.master_create_timeout,
+            )  # type: ignore
+        except GetTimeoutError:
+            raise TimeoutError(
+                f"Timeout waiting for PrimeMaster to be ready after {config.master_create_timeout} seconds."
+            )
         return PrimeMasterApi

@@ -12,7 +12,7 @@
 # limitations under the License.
 import re
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set, Tuple, Union
+from typing import Dict, List, Optional, Set
 
 from omegaconf import DictConfig
 
@@ -24,88 +24,18 @@ from dlrover.python.unified.common.constant import (
 from dlrover.python.unified.common.enums import DLStreamType
 from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.common.workload_desc import (
-    CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,
+    SimpleWorkloadDesc,
+    WorkloadDesc,
 )
 from dlrover.python.unified.controller.config import DLConfig, JobConfig
 from dlrover.python.unified.driver.main import submit
 
 
-class DLRoleConfig(object):
-    def __init__(self, role_name, module_name, class_name, **kwargs):
-        self._role_name = role_name
-        self._module_name = module_name
-        self._class_name = class_name
-        self._kwargs = kwargs
-
-    @property
-    def role_name(self):
-        return self._role_name
-
-    @property
-    def module_class(self) -> Tuple[str, str]:
-        return self._module_name, self._class_name
-
-    @property
-    def others(self):
-        return self._kwargs
-
-
-class DLWorkloadConfig(DLRoleConfig):
-    """
-    Configuration for all different types' workload.
-    """
-
-    def __init__(self, role_name, module_name, class_name, **kwargs):
-        super().__init__(role_name, module_name, class_name, **kwargs)
-
-        self._num = 1
-        self._per_group = 1
-        self._env = {}
-        self._resource = {}
-        self._sub_stage = []
-
-    @property
-    def total(self) -> int:
-        return self._num
-
-    @property
-    def per_group(self) -> int:
-        return self._per_group
-
-    @property
-    def env(self) -> Dict[str, str]:
-        return self._env
-
-    @property
-    def resource(self) -> Dict[str, Union[int, float]]:
-        return self._resource
-
-    @property
-    def sub_stage(self) -> list:
-        return self._sub_stage
-
-    def set_num(self, num):
-        self._num = num
-
-    def set_per_group(self, per_group):
-        self._per_group = per_group
-
-    def set_env(self, env):
-        self._env = env
-
-    def set_resource(self, resource):
-        self._resource = resource
-
-    def set_sub_stage(self, sub_stage):
-        self._sub_stage = sub_stage
-
-
 class DLJob(object):
     def __init__(
         self,
-        dl_type,
         stream_type,
         node_num,
         device_per_node,
@@ -115,19 +45,14 @@ class DLJob(object):
         components,
         collocations,
     ):
-        self._dl_type = dl_type
         self._stream_type = stream_type
         self._node_num = node_num
         self._device_per_node = device_per_node
         self._device_type = device_type
         self._config = config
         self._env = env
-        self._components: Dict[str, Union[None, DLWorkloadConfig]] = components
+        self._components: Dict[str, Optional[WorkloadDesc]] = components
         self._collocations: List[Set[str]] = collocations
-
-    @property
-    def dl_type(self):
-        return self._dl_type
 
     @property
     def stream_type(self):
@@ -166,23 +91,7 @@ class DLJob(object):
         for role, role_config in self._components.items():
             if not role_config:
                 continue
-            if role == InternalDLWorkloadRole.ELASTIC_ROLE:
-                workloads[role] = ElasticWorkloadDesc(
-                    total=role_config.total,
-                    envs=role_config.env,
-                    resource=ResourceDesc.get_or_default(role_config.resource),
-                    entry_point=role_config.others["entrypoint"],
-                    per_group=role_config.per_group,
-                )
-            else:
-                workloads[role] = CustomWorkloadDesc(
-                    total=role_config.total,
-                    envs=role_config.env,
-                    module_name=role_config.module_class[0],
-                    class_name=role_config.module_class[1],
-                    resource=ResourceDesc.get_or_default(role_config.resource),
-                    per_group=role_config.per_group,
-                )
+            workloads[role] = role_config
 
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
@@ -271,7 +180,7 @@ class RoleBuilder(ABC):
         return True
 
     @abstractmethod
-    def _build_role(self) -> Dict[str, DLRoleConfig]:
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
         pass
 
     @abstractmethod
@@ -394,28 +303,23 @@ class WorkloadBuilder(RoleBuilder):
             return False
         return True
 
-    def _build_role(self) -> Dict[str, DLRoleConfig]:
-        workload = self._create_workload_role()
-
-        workload.set_num(self._num)
-        workload.set_per_group(self._per_group)
-        workload.set_env(self._env)
-        workload.set_resource(self._resource)
-        workload.set_sub_stage(self._sub_stage)
-
-        return {self._role: workload}
-
-    def _create_workload_role(self, **kwargs):
-        return DLWorkloadConfig(
-            self._role, self._module_name, self._class_name, **kwargs
-        )
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
+        return {
+            self._role: SimpleWorkloadDesc(
+                entry_point=f"{self._module_name}.{self._class_name}",
+                total=self._num,
+                per_group=self._per_group,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
+            )
+        }
 
     def build(self) -> "DLJob":
         return self._job_builder.build()
 
 
 class DLRoverRunBuilder(WorkloadBuilder):
-    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+::[a-zA-Z0-9_]+$"
+    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+(::|\.)[a-zA-Z0-9_]+$"
 
     def __init__(
         self,
@@ -444,22 +348,20 @@ class DLRoverRunBuilder(WorkloadBuilder):
             return False
         return True
 
-    def _build_role(self) -> Dict[str, DLRoleConfig]:
-        # build elastic workload
-        elastic_workload = self._create_workload_role(
-            entrypoint=self._entrypoint,
-        )
-        elastic_workload.set_num(self._num)
-        elastic_workload.set_per_group(self._per_node)
-
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
         return {
-            self._role: elastic_workload,
+            self._role: ElasticWorkloadDesc(
+                entry_point=self._entrypoint,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
+                total=self._num,
+                per_group=self._per_node,
+            ),
         }
 
 
 class DLJobBuilder(object):
     def __init__(self):
-        self._dl_type = ""
         self._node_num = 0
         self._device_per_node = 0
         self._device_type = "GPU"
@@ -499,7 +401,6 @@ class DLJobBuilder(object):
                     components[role_name] = role_config
 
         return DLJob(
-            dl_type=self._dl_type,
             stream_type=self._stream_type,
             node_num=self._node_num,
             device_per_node=self._device_per_node,
@@ -510,18 +411,7 @@ class DLJobBuilder(object):
             collocations=self._collocations,
         )
 
-    def has_elastic_training(self):
-        if InternalDLWorkloadRole.ELASTIC_ROLE in list(
-            self._role_builders.keys()
-        ):
-            return True
-        return False
-
     def validate(self) -> bool:
-        if not self._dl_type:
-            logger.error("'dl_type' must be set.")
-            return False
-
         if self._node_num < 1:
             logger.error("'node_num' must be greater than 0.")
             return False
@@ -565,46 +455,6 @@ class DLJobBuilder(object):
                         )
                         return False
         return True
-
-    def SFT_type(self):
-        """
-        Set the deep learning type as SFT.
-        """
-
-        return self.dl_type()
-
-    def PRE_type(self):
-        """
-        Set the deep learning type as PreTrain.
-        """
-
-        return self.dl_type("PRE")
-
-    def RL_type(self):
-        """
-        Set the deep learning type as RL.
-        """
-
-        return self.dl_type("RL")
-
-    def MULTIMODAL_type(self):
-        """
-        Set the deep learning type as MULTIMODAL.
-        """
-
-        return self.dl_type("MULTIMODAL")
-
-    def dl_type(self, dl_type="SFT"):
-        """
-        Set the deep learning type.
-
-        Args:
-            dl_type (str): The type of deep learning. Default is SFT.
-                Supported: SFT, PRE, RL, MULTIMODAL
-        """
-
-        self._dl_type = dl_type
-        return self
 
     def as_task_stream(self):
         """

@@ -19,6 +19,7 @@ import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
+from dlrover.python.unified.util.async_helper import init_main_loop
 
 
 class MasterStage(str, Enum):
@@ -73,11 +74,15 @@ class ActorInfo:
 
 
 class ActorBase:
+    """Base class for all actors in the DLRover system."""
+
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
         self.job_info = job_info
         self.actor_info = actor_info
         self.stage: WorkerStage = WorkerStage.INIT
+        init_main_loop()
+
         # Report restart to sub-master/master if this actor was reconstructed.
         if (
             ray.is_initialized()
@@ -101,6 +106,13 @@ class ActorBase:
             master,
             name=self.actor_info.name,
         ).wait()
+
+    def __repr__(self):
+        # ActorClass, not instance
+        if not hasattr(self, "actor_info"):
+            return super().__repr__()
+        # We display the actor name in ray logging
+        return self.name
 
     # Hook methods for subclasses to implement
     def _setup(self):
@@ -168,19 +180,3 @@ class ActorBase:
         logger.info(
             f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )
-
-    def _update_stage_if(self, stage: WorkerStage, expected: WorkerStage):
-        """Update the stage of the actor/node
-        if the current stage matches the expected stage.
-        """
-        if self.stage != expected:
-            logger.warning(
-                f"Actor {self.actor_info.name} is not in expected stage: "
-                f"{expected}, current stage: {self.stage}"
-            )
-            return False  # not in the expected stage
-        self.stage = stage
-        logger.info(
-            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
-        )
-        return True

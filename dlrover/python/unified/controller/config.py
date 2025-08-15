@@ -45,7 +45,7 @@ class DLConfig(BaseModel):
     This class defines the configurations for algorithm users.
     """
 
-    user_config: Dict[str, Any] = Field(
+    user_config: Any = Field(
         default_factory=dict,
         description="User-defined configuration for the deep learning job.",
     )
@@ -114,6 +114,11 @@ class JobConfig(BaseModel):
         default=128,
         description="Memory (in MB) for the master actor.",
         validation_alias=AliasChoices("master_memory", "master_mem"),
+    )
+    master_create_timeout: float = Field(
+        default=600.0,
+        description="Timeout for creating the master actor.",
+        validation_alias=AliasChoices("master_create_timeout", "timeout"),
     )
     master_state_backend_type: MasterStateBackendType = Field(
         default=MasterStateBackendType.RAY_INTERNAL,

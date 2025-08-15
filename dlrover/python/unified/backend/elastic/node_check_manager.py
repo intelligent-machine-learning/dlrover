@@ -18,11 +18,11 @@ from typing import Collection, List, OrderedDict, Sequence, Tuple
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.workload_base import ActorInfo
 from dlrover.python.unified.util.actor_helper import (
-    ActorBatchInvocation,
     BatchInvokeResult,
 )
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
+    invoke_actors,
     invoke_actors_t,
 )
 
@@ -158,22 +158,23 @@ class NodeCheckManager:
             groups.append((sorted_nodes[left],))  # odd one
         return groups
 
-    async def _setup_rendezvous_group(self, group: List[ActorInfo]):
+    async def _setup_rendezvous_group(
+        self, group: List[ActorInfo], only_envs: bool = False
+    ):
         master_addr = await invoke_actor_t(
             remote_call.get_master_addr, group[0].name
         )
 
-        res = await ActorBatchInvocation(
-            [
-                invoke_actor_t(
-                    remote_call.setup_torch_process_group,
-                    node.name,
-                    master_addr=master_addr,
-                    world_size=len(group),
-                    rank=i,
-                )
-                for i, node in enumerate(group)
-            ]
+        res = await invoke_actors(
+            invoke_actor_t(
+                remote_call.setup_torch_process_group,
+                node.name,
+                master_addr=master_addr,
+                world_size=len(group),
+                rank=i,
+                only_envs=only_envs,
+            )
+            for i, node in enumerate(group)
         )
         res.raise_for_errors()
 

@@ -12,22 +12,21 @@
 # limitations under the License.
 
 import os
-from contextlib import contextmanager
 from datetime import timedelta
-from threading import Thread
 
 import ray
 import ray.train.torch as ray_train
 import torch
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
-from dlrover.python.util.common_util import find_free_port_from_env
-from dlrover.python.util.reflect_util import import_callable
+from dlrover.python.unified.backend.common.base_worker import BaseWorker
+from dlrover.python.unified.common.workload_base import WorkerStage
+from dlrover.python.util.common_util import (
+    find_free_port_from_env_and_bind,
+)
 
 
-@ray.remote
-class ElasticWorker(ActorBase):
+class ElasticWorker(BaseWorker):
     """ElasticWorker is a Ray actor that runs an elastic training job.
 
     This is different from "worker", which run old elastic agent.
@@ -37,11 +36,9 @@ class ElasticWorker(ActorBase):
     def _setup(self):
         assert self.actor_info.spec.backend == "elastic"
 
+        self._master_socket = None
         self._process_group_setup = False
-        self._setup_envs()
-
-        self._self_check()
-        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
+        super()._setup()
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
@@ -59,32 +56,58 @@ class ElasticWorker(ActorBase):
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)
 
-    def _self_check(self):
-        """Check the worker itself."""
-
-        logger.info(f"[{self.actor_info.name}] Running self check.")
-
     # region Rendezvous and process group setup
 
     def get_master_addr(self):
         """Get a master address for distributed training."""
         addr = ray.util.get_node_ip_address()
-        port = find_free_port_from_env()
 
-        return f"tcp://{addr}:{port}"
+        # Release old master socket if exists
+        self._release_master_socket()
+        port, socket = find_free_port_from_env_and_bind(addr)
+        self._master_socket = socket
+
+        ret = f"tcp://{addr}:{port}"
+        logger.info(f"Master address for distributed training: {ret}")
+        return ret
+
+    def _release_master_socket(self):
+        if self._master_socket:
+            self._master_socket.close()
+            self._master_socket = None
 
     def setup_torch_process_group(
-        self, master_addr: str, world_size: int, rank: int
+        self,
+        master_addr: str,
+        world_size: int,
+        rank: int,
+        only_envs: bool = False,
     ):
         """Setup the torch process group for distributed training."""
         assert self.actor_info.spec.backend == "elastic"
         backend = self.actor_info.spec.comm_backend
+        if backend == "auto":
+            backend = "nccl" if torch.cuda.is_available() else "gloo"
         timeout = timedelta(seconds=self.actor_info.spec.comm_timeout_s)
         logger.info(
             f"Setting up torch process group with backend={backend}, "
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"
         )
+
+        # Release the port to let torch use it.
+        self._release_master_socket()
+
         # TODO backend specific setup
+        if only_envs:
+            addr, port = master_addr.split("://")[1].split(":")
+            os.environ["MASTER_ADDR"] = addr
+            os.environ["MASTER_PORT"] = str(port)
+            os.environ["RANK"] = str(rank)
+            os.environ["WORLD_SIZE"] = str(world_size)
+            logger.info(
+                f"Set MASTER_ADDR={addr}, MASTER_PORT={port} for torch distributed training."
+            )
+            return
 
         assert not self._process_group_setup, (
             "Torch process group is already set up. "
@@ -140,10 +163,8 @@ class ElasticWorker(ActorBase):
             )
             return float("inf")  # return inf to indicate failure
 
-    def run_node_check(self):
-        """TODO Implement node check. Before starting."""
-        logger.info(f"[{self.actor_info.name}] Running node check.")
-        logger.info("SKIP, node check is not implemented yet.")
+    def start(self):
+        "Noop, controlled by sub-master."
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
@@ -152,34 +173,4 @@ class ElasticWorker(ActorBase):
             "Expected stage is READY."
         )
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
-
-        @contextmanager
-        def wrap_run():
-            try:
-                yield
-                self._update_stage_force(
-                    WorkerStage.FINISHED, WorkerStage.RUNNING
-                )
-            except Exception:
-                logger.error(
-                    "Unexpected error occurred while running elastic agent for training",
-                    exc_info=True,
-                )
-                self._update_stage_force(
-                    WorkerStage.FAILED, WorkerStage.RUNNING
-                )
-
-        Thread(
-            target=wrap_run()(self._run_agent),
-            daemon=True,
-        ).start()
-        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
-
-    def _run_agent(self):
-        """Run the elastic agent."""
-        assert self.actor_info.spec.backend == "elastic"
-
-        user_func = import_callable(self.actor_info.spec.entry_point)
-        user_func()
-
-        logger.info("Done elastic training.")
+        super().start()

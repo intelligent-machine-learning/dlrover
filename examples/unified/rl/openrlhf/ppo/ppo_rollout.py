@@ -16,122 +16,167 @@
 # OpenRLHF] for details.
 
 import os
-import queue
-from collections import defaultdict
+import time
+from dataclasses import dataclass
+from typing import Optional
 
-import ray
-from vllm import LLM
+import vllm
+from omegaconf import OmegaConf
+from openrlhf.utils.logging_utils import init_logger
 
-from ppo_base import BasePPORole
+from dlrover.python.unified.api.runtime.worker import current_worker
+
+from . import remote_call
+from .common import BaseActor, rpc
+
+logger = init_logger(__name__)
 
 
-@ray.remote
-class RolloutRayActor(BasePPORole):
-    def __init__(self, job_info, actor_info):
-        super().__init__(job_info, actor_info)
+def _vllm_setup_process_group(
+    self, rank_start, world_size, backend, group_name
+):
+    import ray.util.collective as collective
+    import torch
 
-        self.num_actors = 0
-        self.actor_counter = 0
-        self.requests = {}
-        self.response_queues = defaultdict(queue.Queue)
-        self.llm = None
+    collective.init_collective_group(
+        world_size=world_size,
+        rank=rank_start + torch.distributed.get_rank(),
+        backend=backend,
+        group_name=group_name,
+    )
+    self._model_update_group = group_name
 
-    def init(self, *args, **kwargs):
-        os.environ["VLLM_RAY_BUNDLE_INDICES"] = str(self.local_rank)
-        os.environ["VLLM_RAY_PER_WORKER_GPUS"] = str(kwargs.pop("num_gpus"))
 
-        # Number of actors that will send prompt to this engine
-        self.num_actors = kwargs.pop("num_actors")
-        self.actor_counter = 0
-        self.requests = {}
-        self.response_queues = defaultdict(queue.Queue)
-        self.llm = LLM(*args, **kwargs)
+def _vllm_update_weight(self, name, dtype, shape):
+    import ray.util.collective as collective
+    import torch
 
-        if kwargs.pop("enable_sleep_mode"):
-            self.sleep()
+    assert dtype == self.model_config.dtype, (
+        f"mismatch dtype: src {dtype}, dst {self.model_config.dtype}"
+    )
+    weight = torch.empty(shape, dtype=dtype, device="cuda")
+    collective.broadcast(weight, 0, group_name=self._model_update_group)
+    self.model_runner.model.load_weights(weights=[(name, weight)])
+    del weight
 
-    def init_process_group(
-        self,
-        master_address,
-        master_port,
-        rank_offset,
-        world_size,
-        group_name,
-        backend,
-        use_ray,
-    ):
-        return self.llm.collective_rpc(
-            "init_process_group",
-            args=(
-                master_address,
-                master_port,
-                rank_offset,
-                world_size,
-                group_name,
-                backend,
-                use_ray,
+
+@dataclass(kw_only=True)
+class VLLMActorConfig:
+    pretrain: str
+    full_determinism: bool = False
+    enforce_eager: bool = False
+    vllm_tensor_parallel_size: int = 1
+    seed: int = 0
+    max_len: Optional[int] = 2048
+    prompt_max_len: int
+    generate_max_len: int
+    enable_prefix_caching: bool = False
+    vllm_gpu_memory_utilization: float = 0.9
+    vllm_enable_sleep: bool = True
+
+
+class VLLMActor(BaseActor):
+    def __init__(self):
+        super().__init__()
+        config: VLLMActorConfig = OmegaConf.structured(VLLMActorConfig)
+        OmegaConf.unsafe_merge(
+            config,
+            OmegaConf.masked_copy(
+                OmegaConf.create(current_worker().job_info.user_config),
+                dir(config),
             ),
         )
+        self.config = config
 
-    def update_weight(self, name, dtype, shape, empty_cache=False):
-        return self.llm.collective_rpc(
-            "update_weight", args=(name, dtype, shape, empty_cache)
+        rank = current_worker().actor_info.rank
+
+        if config.full_determinism:
+            # https://github.com/vllm-project/vllm/blob/effc5d24fae10b29996256eb7a88668ff7941aed/examples/offline_inference/reproduciblity.py#L11
+            os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+
+        if vllm.__version__ >= "0.9.0":
+            os.environ["VLLM_ALLOW_INSECURE_SERIALIZATION"] = "1"
+
+        tp = config.vllm_tensor_parallel_size
+        max_len = (
+            config.max_len
+            if config.max_len
+            else config.prompt_max_len + config.generate_max_len
+        )
+        self.llm_factory = lambda: vllm.LLM(
+            config.pretrain,
+            enforce_eager=config.enforce_eager,
+            tensor_parallel_size=tp,
+            seed=config.seed + rank,
+            distributed_executor_backend="uni" if tp == 1 else "ray",
+            max_model_len=max_len,
+            enable_prefix_caching=config.enable_prefix_caching,
+            dtype="bfloat16",
+            trust_remote_code=True,
+            gpu_memory_utilization=config.vllm_gpu_memory_utilization,
         )
 
-    def update_weight_cuda_ipc(
-        self, name, dtype, shape, ipc_handles, empty_cache=False
+    def run(self):
+        _llm = self.llm_factory()
+        if self.config.vllm_enable_sleep:
+            _llm.sleep()
+        self._llm = _llm
+        return super().run()
+
+    def llm(self):
+        while not hasattr(self, "_llm"):
+            logger.info("Waiting for VLLM to be initialized...")
+            time.sleep(1)
+        return self._llm
+
+    @rpc(remote_call.vllm_sync_setup_process_group)
+    def init_process_group(
+        self,
+        world_size,
+        backend,
+        group_name,
     ):
-        return self.llm.collective_rpc(
-            "update_weight_cuda_ipc",
-            args=(name, dtype, shape, ipc_handles, empty_cache),
+        tp = self.config.vllm_tensor_parallel_size
+        assert world_size == current_worker().actor_info.spec.total * tp + 1, (
+            f"world_size {world_size} mismatch with total {current_worker().actor_info.spec.total} and vllm_tensor_parallel_size {tp}"
+        )
+        rank_start = current_worker().actor_info.rank * tp + 1
+        return self.llm().collective_rpc(
+            _vllm_setup_process_group,
+            args=(rank_start, world_size, backend, group_name),
         )
 
-    def reset_prefix_cache(self):
-        self.llm.llm_engine.reset_prefix_cache()
+    @rpc(remote_call.vllm_sync_weight_begin)
+    def sync_weight_begin(self):
+        if self.config.enable_prefix_caching:
+            self.llm().llm_engine.reset_prefix_cache()
 
+    @rpc(remote_call.vllm_sync_weight)
+    def update_weight(self, name, dtype, shape):
+        return self.llm().collective_rpc(
+            _vllm_update_weight, args=(name, dtype, shape)
+        )
+
+    @rpc(remote_call.vllm_sync_weight_end)
+    def sync_weight_end(self):
+        pass
+
+    @rpc(remote_call.vllm_sleep)
     def sleep(self, level=1):
-        self.llm.sleep(level=level)
+        self.llm().sleep(level=level)
 
+    @rpc(remote_call.vllm_wakeup)
     def wake_up(self):
-        self.llm.wake_up()
+        self.llm().wake_up()
 
-    def add_requests(self, actor_rank, *, sampling_params, prompt_token_ids):
+    @rpc(remote_call.vllm_generate)
+    def generate(self, prompt_token_ids, params):
         """
-        Save the requests from actors and generate responses when all actors
-        have sent their requests
+        Generate responses for the given prompt token IDs using the provided sampling parameters.
         """
-        self.requests[actor_rank] = prompt_token_ids
-        self.actor_counter += 1
-        if self.actor_counter == self.num_actors:
-            assert len(self.requests) == self.num_actors
-            num_requests = []
-            requests = []
-            for actor_rank, request in self.requests.items():
-                num_requests.append((actor_rank, len(request)))
-                requests.extend(request)
 
-            if len(requests) > 0:
-                # For now we assume that all requests have the same sampling
-                # params
-                responses = self.llm.generate(
-                    sampling_params=sampling_params, prompt_token_ids=requests
-                )
-            else:
-                responses = []
-
-            offset = 0
-            self.responses = {}
-            for actor_rank, num in num_requests:
-                self.response_queues[actor_rank].put(
-                    responses[offset : offset + num]
-                )
-                offset += num
-
-            self.actor_counter = 0
-            self.requests = {}
-
-    def get_responses(self, actor_rank):
-        """
-        Return the responses for the actor with the given rank
-        """
-        return self.response_queues[actor_rank].get()
+        requests = [
+            vllm.TokensPrompt(prompt_token_ids=r) for r in prompt_token_ids
+        ]
+        responses = self.llm().generate(requests, sampling_params=params)
+        return responses

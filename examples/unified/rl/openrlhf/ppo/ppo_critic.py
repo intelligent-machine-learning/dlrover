@@ -17,10 +17,10 @@
 
 import math
 import os
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Sequence
 
-import ray
 import torch
+from omegaconf import DictConfig
 from openrlhf.models import get_llm_for_sequence_regression
 from openrlhf.trainer.ray.ppo_critic import CriticPPOTrainer
 from openrlhf.utils import get_tokenizer
@@ -29,23 +29,29 @@ from openrlhf.utils.deepspeed.deepspeed_utils import (
     offload_deepspeed_states,
     reload_deepspeed_states,
 )
-from transformers.trainer import get_scheduler
+from transformers.optimization import get_scheduler
 
-from dlrover.python.unified.backend.rl.trainer import trainer_invocation
-from ppo_base import BasePPORole
+from . import remote_call
+from .common import BaseActor, rpc
 
 
-@ray.remote
-class CriticModelRayActor(BasePPORole):
-    @trainer_invocation(blocking=False)
-    def init_model_from_pretrained(
-        self, strategy: DeepspeedStrategy, pretrain, max_steps
+class CriticModelRayActor(BaseActor):
+    @rpc(remote_call.critic_init)
+    def init(
+        self,
+        strategy: DeepspeedStrategy,
+        model_path: str,
+        /,
+        max_steps: int,
     ):
+        self.strategy = strategy
+        strategy.setup_distributed()
+        assert isinstance(strategy.args, DictConfig)
         args = strategy.args
+        self.args = args
 
-        self._setup_distributed(strategy)
         critic = get_llm_for_sequence_regression(
-            pretrain,
+            model_path,
             "critic",
             normalize_reward=strategy.args.normalize_reward,
             use_flash_attention_2=strategy.args.flash_attn,
@@ -72,7 +78,7 @@ class CriticModelRayActor(BasePPORole):
         # configure tokenizer
         if strategy.args.save_value_network:
             self.tokenizer = get_tokenizer(
-                pretrain,
+                model_path,
                 critic,
                 "left",
                 strategy,
@@ -89,7 +95,7 @@ class CriticModelRayActor(BasePPORole):
 
         # configure scheduler
         critic_scheduler = get_scheduler(
-            "cosine_with_min_lr",
+            args.lr_scheduler,
             critic_optim,
             num_warmup_steps=math.ceil(max_steps * args.lr_warmup_ratio),
             num_training_steps=max_steps,
@@ -103,59 +109,50 @@ class CriticModelRayActor(BasePPORole):
                 gradient_checkpointing_kwargs={
                     "use_reentrant": args.gradient_checkpointing_use_reentrant
                 }
-            )
+            )  # type: ignore[call-arg]
 
         # prepare models/optimizers...
-        (
-            self.critic,
-            self.critic_optim,
-            self.critic_scheduler,
-        ) = strategy.prepare(
-            (critic, critic_optim, critic_scheduler),
-            is_rlhf=True,
-        )
+        if TYPE_CHECKING:
+            self.critic, self.critic_optim, self.critic_scheduler = (
+                critic,
+                critic_optim,
+                critic_scheduler,
+            )
+        else:
+            self.critic, self.critic_optim, self.critic_scheduler = (
+                strategy.prepare(
+                    (critic, critic_optim, critic_scheduler),
+                    is_rlhf=True,
+                )
+            )
 
         # load checkpoint
         if args.load_checkpoint and os.path.exists(
             os.path.join(args.ckpt_path, "_actor")
         ):
             ckpt_path = os.path.join(args.ckpt_path, "_critic")
+            strategy.print(f"Loading the checkpoint: {ckpt_path}")
             strategy.load_ckpt(self.critic, ckpt_path)
-            strategy.print(f"Loaded the checkpoint: {ckpt_path}")
 
         # initial offload
         if strategy.args.deepspeed_enable_sleep:
-            self.offload_states()
+            offload_deepspeed_states(self.critic)
 
         # configure Trainer
-        # only use wandb at actor model
-        strategy.args.use_wandb = False
         self.trainer = CriticPPOTrainer(
             strategy,
-            actor=None,
             critic=self.critic,
-            reward_model=None,
-            initial_model=None,
-            ema_model=None,
-            actor_optim=None,
             critic_optim=self.critic_optim,
-            actor_scheduler=None,
             critic_scheduler=self.critic_scheduler,
-            max_epochs=args.max_epochs,
             micro_train_batch_size=args.micro_train_batch_size,
-            micro_rollout_batch_size=args.micro_rollout_batch_size,
-            gradient_checkpointing=args.gradient_checkpointing,
-            prompt_max_len=args.prompt_max_len,
             value_clip=args.value_clip,
-            eps_clip=args.eps_clip,
         )
 
     def forward(
         self,
         sequences: torch.LongTensor,
-        num_actions: Optional[Union[int, List[int]]] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        packed_seq_lens=None,
+        action_mask: torch.BoolTensor,
+        attention_mask: torch.LongTensor,
     ) -> torch.Tensor:
         """Generates critic values."""
         device = torch.cuda.current_device()
@@ -163,53 +160,53 @@ class CriticModelRayActor(BasePPORole):
         with torch.no_grad():
             value = self.critic(
                 sequences.to(device),
-                num_actions,
+                action_mask.to(device),
                 attention_mask.to(device),
                 ring_attn_group=self.strategy.ring_attn_group,
                 values_allgather=True,
-                packed_seq_lens=packed_seq_lens,
             )
         self.critic.train()  # reset model state
         return value.to("cpu")
 
-    def append(self, experience):
-        """Append experience to replay buffer."""
-        self.trainer.replay_buffer.append(experience)
+    @rpc(remote_call.critic_forward)
+    def batch_forward(
+        self,
+        sequences: Sequence[torch.LongTensor],
+        action_mask: Sequence[torch.BoolTensor],
+        attention_mask: Sequence[torch.LongTensor],
+    ) -> list[torch.Tensor]:
+        return [
+            self.forward(*args)
+            for args in zip(sequences, action_mask, attention_mask)
+        ]
 
+    @rpc(remote_call.critic_append_experience)
+    def append(self, experience: List["Experience"]):
+        for it in experience:
+            self.trainer.replay_buffer.append(it)
+
+    @rpc(remote_call.critic_train)
     def fit(self):
         """Train critic model with the replay buffer."""
+        if self.args.deepspeed_enable_sleep:
+            reload_deepspeed_states(self.critic)
         torch.cuda.empty_cache()
         self.critic.train()
         status = self.trainer.ppo_train()
         self.trainer.replay_buffer.clear()
         torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        if self.args.deepspeed_enable_sleep:
+            offload_deepspeed_states(self.critic)
         return status
 
-    def empty_cache(self) -> None:
-        torch.cuda.empty_cache()
-
-    def save_model(self):
-        args = self.strategy.args
-
-        # save model checkpoint after fitting on only rank0
-        self.strategy.save_model(
-            self.critic,
-            self.tokenizer,
-            args.save_path + "_critic",
-        )
-
-    def save_checkpoint(self, tag):
-        args = self.strategy.args
+    @rpc(remote_call.critic_save_model)
+    def save_checkpoint(self, save_path: str, tag):
+        args = self.args
         self.strategy.save_ckpt(
             self.critic,
-            os.path.join(args.ckpt_path, "_critic"),
+            save_path,
             tag,
             args.max_ckpt_num,
             args.max_ckpt_mem,
         )
-
-    def reload_states(self):
-        reload_deepspeed_states(self.critic)
-
-    def offload_states(self):
-        offload_deepspeed_states(self.critic)
