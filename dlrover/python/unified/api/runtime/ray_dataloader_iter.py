@@ -82,6 +82,12 @@ class RayDataLoaderIter(_BaseDataLoaderIter):
 
 
 def patch_dataloader_ray():
+    """Patch the DataLoader to use RayDataLoaderIter.
+
+    This allows DataLoader to use Ray actors for data fetching, enabling
+    distributed data loading in Ray clusters.
+    """
+
     @wraps(DataLoader._get_iterator)
     def get_iterator(self, *args, **kwargs):
         return RayDataLoaderIter(self)

@@ -32,6 +32,8 @@ class Worker(Protocol):
 
 
 def current_worker() -> Worker:
+    """Get the information for the current worker."""
+
     from dlrover.python.unified.backend.common.base_worker import BaseWorker
 
     return BaseWorker.CURRENT
