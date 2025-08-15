@@ -212,7 +212,7 @@ The framework provides comprehensive failover strategies to ensure operational c
 - If an `ElasticWorker` fails during elastic training, the `ElasticMaster` stops all running workers, performs
   `node_check`, and restarts the training process.
 
-## Usage Patterns
+## Driving Patterns
 
 There are three different driving patterns for the hybrid training framework:
 
