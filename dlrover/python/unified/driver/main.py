@@ -29,10 +29,11 @@ def submit(config: JobConfig, blocking=True):
         working_dir_env = config.dl_config.global_envs.get(
             DLWorkloadEnv.WORKING_DIR, os.getcwd()
         )
-        logger.info(
-            f"Using specified working dir: {working_dir_env} "
-            f"instead of current working dir: {os.getcwd()}."
-        )
+        if working_dir_env != os.getcwd():
+            logger.info(
+                f"Using specified working dir: {working_dir_env} "
+                f"instead of current working dir: {os.getcwd()}."
+            )
         ray.init(runtime_env={"working_dir": working_dir_env})
         logger.info("Ray initialized.")
 

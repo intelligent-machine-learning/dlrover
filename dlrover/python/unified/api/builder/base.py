@@ -12,7 +12,7 @@
 # limitations under the License.
 import re
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
 from omegaconf import DictConfig
 
@@ -86,12 +86,7 @@ class DLJob(object):
         return self._components[role]
 
     def _to_dl_config(self) -> DLConfig:
-        workloads = {}
-
-        for role, role_config in self._components.items():
-            if not role_config:
-                continue
-            workloads[role] = role_config
+        workloads = {role: v for role, v in self._components.items() if v}
 
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
@@ -145,10 +140,8 @@ class DLJob(object):
             master_mem=master_memory,
             job_max_restart=job_max_restart,
             dl_config=self._to_dl_config(),
+            **kwargs,
         )
-
-        if kwargs:
-            logger.warning("Ignoring extra arguments: %s", kwargs)
 
         return submit(config, blocking)
 
