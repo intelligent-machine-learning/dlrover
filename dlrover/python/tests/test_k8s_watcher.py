@@ -24,6 +24,7 @@ from kubernetes import client
 
 from dlrover.python.common.constants import (
     ElasticJobLabel,
+    SchedulingLabel,
     JobStage,
     NodeEventType,
     NodeExitReason,
@@ -39,6 +40,7 @@ from dlrover.python.master.watcher.k8s_watcher import (
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
     _verify_restarting_training,
+    _convert_pod_yaml_to_node,
 )
 from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.tests.test_utils import (
@@ -65,6 +67,156 @@ def _mock_pod_labels():
 class PodWatcherTest(unittest.TestCase):
     def setUp(self) -> None:
         self.k8s_client = mock_k8s_client()
+        self.api_client = client.ApiClient()
+        self.pod_list_dict = {
+            "kind": "PodList",
+            "apiVersion": "v1",
+            "items": [
+                {
+                    "kind": "Pod",
+                    "apiVersion": "v1",
+                    "metadata": {
+                        "name": "test-master",
+                        "labels": {
+                            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+                        },
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-master:latest",
+                                "resources": {
+                                    "requests": {"cpu": "4", "memory": "1024"},
+                                    "limits": {},
+                                },
+                            }
+                        ],
+                        "nodeName": "host-0",
+                    },
+                    "status": {"phase": "Running"},
+                },
+                {
+                    "kind": "Pod",
+                    "apiVersion": "v1",
+                    "metadata": {
+                        "name": "test-edljob-0",
+                        "labels": {
+                            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+                            ElasticJobLabel.REPLICA_INDEX_KEY: "0",
+                            ElasticJobLabel.RANK_INDEX_KEY: "0",
+                            ElasticJobLabel.RELAUNCH_COUNT: "0",
+                            SchedulingLabel.NODE_GROUP: "0",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-1234",
+                        },
+                        "creationTimestamp": "2025-07-21T10:13:11Z",
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-worker:latest",
+                                "resources": {
+                                    "requests": {"cpu": "4", "memory": "1Gi"},
+                                    "limits": {},
+                                },
+                            }
+                        ],
+                        "nodeName": "host-0",
+                    },
+                    "status": {
+                        "phase": "Running",
+                        "hostIP": "1.1.1.1",
+                        "containerStatuses": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-worker:latest",
+                                "imageID": "dlrover-worker@sha256:abcdef",
+                                "state": {
+                                    "running": {
+                                        "startedAt": "2025-07-21T10:15:06Z"
+                                    },
+                                },
+                                "ready": "true",
+                                "restartCount": "0",
+                            },
+                        ],
+                    },
+                },
+                {
+                    "kind": "Pod",
+                    "apiVersion": "v1",
+                    "metadata": {
+                        "name": "test-edljob-1",
+                        "labels": {
+                            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
+                            ElasticJobLabel.REPLICA_INDEX_KEY: "1",
+                            ElasticJobLabel.RANK_INDEX_KEY: "1",
+                            ElasticJobLabel.RELAUNCH_COUNT: "0",
+                            SchedulingLabel.NODE_GROUP: "1",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-5678",
+                        },
+                        "deletionTimestamp": "2025-07-22T06:32:06Z",
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-worker:latest",
+                                "resources": {
+                                    "requests": {
+                                        "cpu": "4",
+                                        "memory": "512Mi",
+                                    },
+                                    "limits": {},
+                                },
+                            }
+                        ],
+                        "nodeName": "host-1",
+                    },
+                    "status": {
+                        "phase": "Running",
+                    },
+                },
+                {
+                    "kind": "Pod",
+                    "apiVersion": "v1",
+                    "metadata": {
+                        "name": "test-edljob-2",
+                        "labels": {
+                            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+                            ElasticJobLabel.REPLICA_INDEX_KEY: "2",
+                            ElasticJobLabel.RANK_INDEX_KEY: "2",
+                            ElasticJobLabel.RELAUNCH_COUNT: "0",
+                            SchedulingLabel.NODE_GROUP: "abc",
+                            SchedulingLabel.NODE_GROUP_SIZE: "4",
+                            SchedulingLabel.NODE_GROUP_ID: "rack-5678",
+                        },
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "image": "dlrover-worker:latest",
+                                "resources": {
+                                    "requests": {
+                                        "cpu": "4",
+                                        "memory": "512Mi",
+                                    },
+                                    "limits": {},
+                                },
+                            }
+                        ],
+                        "nodeName": "host-2",
+                    },
+                    "status": {
+                        "phase": "Running",
+                    },
+                },
+            ],
+        }
 
     def test_list(self):
         # set env
@@ -121,7 +273,89 @@ class PodWatcherTest(unittest.TestCase):
         except Exception as e:
             self.assertEqual(e.args[0], "test123")
 
+    def test_convert_pod_to_node(self):
+        pod_list = self.api_client._ApiClient__deserialize(
+            self.pod_list_dict, "V1PodList"
+        )
+        master_node = _convert_pod_yaml_to_node(pod_list.items[0])
+        self.assertEqual(master_node, None)
+
+        worker0 = _convert_pod_yaml_to_node(pod_list.items[1])
+        self.assertEqual(worker0.name, "test-edljob-0")
+        self.assertEqual(worker0.id, 0)
+        self.assertEqual(worker0.type, NodeType.WORKER)
+        self.assertEqual(worker0.group, 0)
+        self.assertEqual(worker0.group_size, 4)
+        self.assertEqual(worker0.group_id, "rack-1234")
+        self.assertEqual(worker0.rank_index, 0)
+        self.assertEqual(worker0.status, NodeStatus.RUNNING)
+        self.assertEqual(worker0.relaunch_count, 0)
+        self.assertEqual(worker0.host_name, "host-0")
+        self.assertEqual(worker0.host_ip, "1.1.1.1")
+        self.assertEqual(worker0.config_resource.cpu, 4)
+        self.assertEqual(worker0.config_resource.memory, 1024)
+        self.assertIsNotNone(worker0.start_time)
+        self.assertFalse(worker0.restart_training)
+        self.assertIsNotNone(worker0.create_time)
+
+        worker1 = _convert_pod_yaml_to_node(pod_list.items[2])
+        self.assertEqual(worker1.name, "test-edljob-1")
+        self.assertEqual(worker1.id, 1)
+        self.assertEqual(worker1.type, NodeType.PS)
+        self.assertEqual(worker1.group, None)
+        self.assertEqual(worker1.group_size, None)
+        self.assertEqual(worker1.group_id, None)
+        self.assertEqual(worker1.rank_index, 1)
+        self.assertEqual(worker1.status, NodeStatus.DELETED)
+
+        worker2 = _convert_pod_yaml_to_node(pod_list.items[3])
+        self.assertEqual(worker2.name, "test-edljob-2")
+        self.assertEqual(worker2.id, 2)
+        self.assertEqual(worker2.type, NodeType.WORKER)
+        self.assertEqual(worker2.group, None)
+        self.assertEqual(worker2.group_size, None)
+        self.assertEqual(worker2.group_id, None)
+        self.assertEqual(worker2.rank_index, 2)
+        self.assertEqual(worker2.status, NodeStatus.RUNNING)
+
     def test_convert_pod_event_to_node_event(self):
+        event = {"object": None, "type": None}
+        self.assertIsNone(_convert_pod_event_to_node_event(event))
+
+        labels = _mock_pod_labels()
+        pod = create_pod(labels)
+        pod.kind = "Dummy"
+        event_type = NodeEventType.MODIFIED
+        event = {"object": pod, "type": event_type}
+        self.assertIsNone(_convert_pod_event_to_node_event(event))
+
+        pod_list = self.api_client._ApiClient__deserialize(
+            self.pod_list_dict, "V1PodList"
+        )
+        event_type = NodeEventType.MODIFIED
+        event = {"object": pod_list.items[0], "type": event_type}
+        self.assertIsNone(_convert_pod_event_to_node_event(event))
+
+        event_type = NodeEventType.MODIFIED
+        event = {"object": pod_list.items[1], "type": event_type}
+        node_event: NodeEvent = _convert_pod_event_to_node_event(event)
+        self.assertEqual(node_event.event_type, event_type)
+        self.assertEqual(node_event.node.id, 0)
+        self.assertEqual(node_event.node.type, NodeType.WORKER)
+        self.assertEqual(node_event.node.group, 0)
+        self.assertEqual(node_event.node.group_size, 4)
+        self.assertEqual(node_event.node.group_id, "rack-1234")
+        self.assertEqual(node_event.node.rank_index, 0)
+        self.assertEqual(node_event.node.status, NodeStatus.RUNNING)
+        self.assertEqual(node_event.node.relaunch_count, 0)
+        self.assertEqual(node_event.node.host_name, "host-0")
+        self.assertEqual(node_event.node.host_ip, "1.1.1.1")
+        self.assertEqual(node_event.node.config_resource.cpu, 4)
+        self.assertEqual(node_event.node.config_resource.memory, 1024)
+        self.assertIsNotNone(node_event.node.start_time)
+        self.assertFalse(node_event.node.restart_training)
+        self.assertIsNotNone(node_event.node.create_time)
+
         labels = _mock_pod_labels()
         pod = create_pod(labels)
         event_type = NodeEventType.MODIFIED

@@ -196,22 +196,7 @@ class TrainingNodeManager(object):
         self._lock = threading.Lock()
         self._node_id_iter = None
         self._node_rank_iter = None
-        self._pending_nodes: List[Node] = []
         self.update_nodes_iter()
-
-    @property
-    def pending_nodes(self):
-        return [node.name for node in self._pending_nodes]
-
-    @property
-    def first_pending_node(self):
-        if len(self._pending_nodes) == 0:
-            return ""
-        first_pending_node = min(
-            self._pending_nodes,
-            key=lambda x: x.create_time,  # type: ignore
-        )
-        return first_pending_node.name
 
     @property
     def cur_nodes(self):
@@ -280,12 +265,25 @@ class TrainingNodeManager(object):
                 service_addr=node.service_addr,
                 relaunch_count=relaunch_node.relaunch_count,
                 max_relaunch_count=relaunch_node.max_relaunch_count,
+                node_group=node.group,
+                node_group_size=node.group_size,
+                node_group_id=node.group_id,
             )
         )
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True
             self._update_node(node)
             plan.remove_nodes.append(node)
+        return plan
+
+    def relaunch_nodes(self, nodes: List[Node], remove_exited_node=False):
+        plan = ScalePlan()
+
+        for node in nodes:
+            sub_plan = self.relaunch_node(node, remove_exited_node)
+            plan.launch_nodes.extend(sub_plan.launch_nodes)
+            plan.remove_nodes.extend(sub_plan.remove_nodes)
+
         return plan
 
     def reduce_pending_node_resource(self):
@@ -458,6 +456,15 @@ class TrainingNodeManager(object):
             return 0
         if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
             timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
+    def _get_group_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_group_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.GROUP_PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.GROUP_PENDING_NODE_TIMEOUT_DEFAULT_MIN
 
         return timeout
 

@@ -20,6 +20,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
+
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -193,6 +194,7 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
+        self._relaunched_groups: List[int] = []
 
     def start(self):
         self._scaler.start()
@@ -229,12 +231,6 @@ class DistributedJobManager(JobManager):
             name="node_heartbeat_monitor",
             daemon=True,
         ).start()
-        if os.getenv("KUBERNETES_SERVICE_HOST"):
-            threading.Thread(
-                target=self._monitor_scale_plan_crd,
-                name="scaleplan_monitor",
-                daemon=True,
-            ).start()
 
     def _has_running_workers(self):
         nodes = self._node_watcher.list()
@@ -315,11 +311,15 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # ps/worker pending judgement:
-        if self._ps_manager.is_training_hang_by_pending(
-            self.get_ps_num(), self.get_job_type()
-        ) or self._worker_manager.is_training_hang_by_pending(
-            self.get_worker_num(), self.get_job_type()
-        ):
+        first_pending_node = (
+            self._ps_manager.find_pending_node_caused_training_hang(
+                self.get_ps_num(), self.get_job_type()
+            )
+            or self._worker_manager.find_pending_node_caused_training_hang(
+                self.get_worker_num(), self.get_job_type()
+            )
+        )
+        if first_pending_node is not None:
             msg = (
                 "Stop the training early because 1) there is node pending "
                 "2) alive nodes number consistently less than the min "
@@ -328,11 +328,6 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-
-            if self._ps_manager.first_pending_node:
-                first_pending_node = self._ps_manager.first_pending_node
-            else:
-                first_pending_node = self._worker_manager.first_pending_node
 
             self._report_event(
                 EventReportConstants.TYPE_INFO,
@@ -369,6 +364,14 @@ class DistributedJobManager(JobManager):
 
         # no need to early stop
         return False, "", ""
+
+    def handle_node_group_pending(self):
+        pending_groups = self._worker_manager.get_pending_node_groups(
+            self.get_job_type()
+        )
+        for node_group in pending_groups:
+            if self._should_relaunch_node_group(node_group):
+                self._relaunch_node_group(node_group)
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:
@@ -571,29 +574,6 @@ class DistributedJobManager(JobManager):
 
         return result
 
-    def _monitor_scale_plan_crd(self):
-        """Monitor the Scaler CRD from users to adjust the job resource"""
-        logger.info("Start to monitor Scaler CRD")
-        while True:
-            try:
-                if self._stopped:
-                    logger.info("Stop monitoring Scaler CRDs.")
-                    break
-                for plan in self._scaler_watcher.watch():
-                    try:
-                        self._job_autoscaler.execute_job_optimization_plan(
-                            plan
-                        )
-                    except Exception as e:
-                        logger.warning(e)
-                        detail_trace_back = traceback.format_exc()
-                        logger.warning(detail_trace_back)
-            except Exception as e:
-                logger.warning(e)
-                detail_trace_back = traceback.format_exc()
-                logger.warning(detail_trace_back)
-                time.sleep(5)
-
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
 
@@ -609,6 +589,9 @@ class DistributedJobManager(JobManager):
                 node_id = node.id
                 exist_nodes[node_type].append(node)
 
+                if node.has_group():
+                    self._job_context.update_job_node_by_group(node)
+
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
                     node_id not in job_nodes[node_type]
@@ -620,6 +603,16 @@ class DistributedJobManager(JobManager):
                     )
                     new_node = copy.deepcopy(node)
                     self._job_context.update_job_node(new_node)
+
+                # update node group info if necessary
+                if (
+                    node_type == NodeType.WORKER
+                    and node_id in job_nodes[node_type]
+                    and job_nodes[node_type][node_id].group != node.group
+                ):
+                    job_nodes[node_type][node_id].group = node.group
+                    job_nodes[node_type][node_id].group_size = node.group_size
+                    job_nodes[node_type][node_id].group_id = node.group_id
 
                 if node.status == NodeStatus.DELETED:
                     event_type = NodeEventType.DELETED
@@ -892,6 +885,34 @@ class DistributedJobManager(JobManager):
                 for callback in self._node_event_callbacks
             ]
 
+    def _should_relaunch_node_group(self, node_group: int) -> bool:
+        """
+        If node relaunch pending in node group happened, check if we
+        need to relaunch the whole node group
+        """
+        if node_group in self._relaunched_groups:
+            logger.debug(
+                f"Skip node group {node_group} due to "
+                f"already relaunched: {self._relaunched_groups}"
+            )
+            return False
+
+        node_check = all(
+            node.relaunchable
+            for node in job_ctx.job_node_group(node_group).values()
+        )
+        should_relaunch = (
+            self._enable_relaunch_node
+            and node_check
+            and job_ctx.get_job_stage() != JobStage.JOB_STOPPING
+        )
+        logger.info(
+            f"Recheck node_group {node_group} can relaunch: {should_relaunch} with "
+            f"{self._enable_relaunch_node}, {node_check}, {job_ctx.get_job_stage()}"
+        )
+
+        return should_relaunch
+
     def _should_relaunch(
         self, node: Node, status_change_flow: NodeStateFlow
     ) -> object:
@@ -903,8 +924,9 @@ class DistributedJobManager(JobManager):
         msg = ""
         if should_relaunch:
             logger.info(
-                f"Recheck should_relaunch with {node} {node.config_resource}: "
-                f"{job_ctx.get_job_stage()}"
+                f"Recheck should_relaunch with {node}, "
+                f"resource: {node.config_resource.to_resource_dict()}, "
+                f"job_stage: {job_ctx.get_job_stage()}"
             )
             if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
                 should_relaunch = False
@@ -1008,6 +1030,52 @@ class DistributedJobManager(JobManager):
 
         self._job_context.update_job_node(node)
         self._scaler.scale(plan)
+
+    def _relaunch_node_group(self, node_group: int):
+        """
+        Relaunch all nodes in the node_group group, no matter it is
+        running or pending.
+        The group index should be different with all existing group,
+        so we use max_group_idx to keep it in record
+
+        """
+        group_idx = self._job_context.next_group_idx()
+        logger.info(
+            f"Relaunch node group {node_group} with group_idx {group_idx}"
+        )
+
+        launch_nodes: List[Node] = []
+        group_nodes = list(
+            self._job_context.job_node_group(node_group).values()
+        )
+        for node in group_nodes:
+            if node.type != NodeType.WORKER:
+                logger.warning(f"{node.name} is not worker node")
+                continue
+
+            # update node.group to max_group_idx
+            old_node = copy.deepcopy(node)
+            old_node.group = group_idx
+            old_node.group_id = ""
+            launch_nodes.append(old_node)
+
+        plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
+
+        for node in group_nodes:
+            plan.remove_nodes.append(node)
+            node.relaunchable = False
+            self._job_context.update_job_node(node)
+
+        logger.info(
+            f"Finish scale plan for node group {node_group} relaunch "
+            f"group_nodes: {group_nodes} "
+            f"launch_nodes: {plan.launch_nodes} "
+            f"remove_nodes: {plan.remove_nodes} "
+        )
+
+        self._relaunched_groups.append(node_group)
+        self._scaler.scale(plan)
+        return plan
 
     def clear_exited_nodes(self):
         if not self._remove_exited_node:

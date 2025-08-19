@@ -28,6 +28,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    SchedulingLabel,
     EventReportConstants,
     NodeEnv,
     NodeStatus,
@@ -584,6 +585,12 @@ class PodScaler(Scaler):
             labels=labels,
         )
         pod_meta: client.V1ObjectMeta = pod.metadata
+
+        logger.debug(
+            f"Add pod {pod_name} info into meta: {node.type} "
+            f"{node.id} {node.rank_index} {node.relaunch_count} "
+            f"{node.group} {node.group_size} {node.group_id}"
+        )
         # Add replica type and index
         pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
         pod_meta.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
@@ -591,6 +598,14 @@ class PodScaler(Scaler):
         pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
             node.relaunch_count
         )
+        if node.group is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP] = str(node.group)
+        if node.group_size is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP_SIZE] = str(
+                node.group_size
+            )
+        if node.group_id is not None:
+            pod_meta.labels[SchedulingLabel.NODE_GROUP_ID] = str(node.group_id)
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
@@ -603,6 +618,7 @@ class PodScaler(Scaler):
                 "",
                 {},
             )
+
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):

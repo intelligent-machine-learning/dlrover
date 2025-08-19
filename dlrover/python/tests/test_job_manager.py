@@ -346,6 +346,117 @@ class DistributedJobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.RELAUNCHED
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
 
+    def test_relaunch_node_group(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+
+        self.job_context.clear_job_node_groups()
+        node = Node(
+            NodeType.WORKER,
+            0,
+            rank_index=0,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            relaunchable=True,
+        )
+        self.job_context.update_job_node_by_group(node)
+        self.assertTrue(manager._should_relaunch_node_group(0))
+
+        self.job_context.clear_job_node_groups()
+        node = Node(
+            NodeType.WORKER,
+            0,
+            rank_index=0,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            relaunchable=True,
+        )
+        self.job_context.update_job_node_by_group(node)
+        manager._relaunched_groups.append(0)
+        self.assertFalse(manager._should_relaunch_node_group(0))
+        manager._relaunched_groups.clear()
+
+        node = Node(
+            NodeType.WORKER,
+            1,
+            rank_index=1,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            relaunchable=False,
+        )
+        self.job_context.update_job_node_by_group(node)
+        self.assertFalse(manager._should_relaunch_node_group(0))
+
+        self.job_context.clear_job_node_groups()
+        self.job_context.clear_job_nodes()
+
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            rank_index=0,
+            status=NodeStatus.RUNNING,
+            node_group=0,
+            node_group_size=1,
+            node_group_id="rack0",
+            relaunchable=True,
+            name="test-0",
+        )
+        node1 = Node(
+            NodeType.WORKER,
+            1,
+            rank_index=1,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            node_group_id="rack0",
+            relaunchable=True,
+            name="test-1",
+        )
+        self.job_context.update_job_node(node0)
+        self.job_context.update_job_node(node1)
+        self.job_context.update_job_node_by_group(node0)
+        self.job_context.update_job_node_by_group(node1)
+        self.assertTrue(manager._should_relaunch_node_group(0))
+
+        self.job_context.update_job_stage(JobStage.JOB_STOPPING)
+        self.assertFalse(manager._should_relaunch_node_group(0))
+        self.job_context.update_job_stage(JobStage.JOB_RUNNING)
+
+        plan = manager._relaunch_node_group(0)
+        self.assertEqual(manager._relaunched_groups, [0])
+        self.assertEqual(plan.launch_nodes[0].id, 2)
+        self.assertEqual(plan.launch_nodes[0].rank_index, 0)
+        self.assertEqual(plan.launch_nodes[0].group, 1001)
+        self.assertEqual(plan.launch_nodes[0].group_size, 1)
+        self.assertEqual(plan.launch_nodes[0].group_id, "")
+
+        self.assertEqual(plan.launch_nodes[1].id, 3)
+        self.assertEqual(plan.launch_nodes[1].rank_index, 1)
+        self.assertEqual(plan.launch_nodes[1].group, 1001)
+        self.assertEqual(plan.launch_nodes[1].group_size, 1)
+        self.assertEqual(plan.launch_nodes[1].group_id, "")
+
+        self.assertEqual(plan.remove_nodes[0].id, 0)
+        self.assertEqual(plan.remove_nodes[0].rank_index, 0)
+        self.assertEqual(plan.remove_nodes[0].group, 0)
+        self.assertEqual(plan.remove_nodes[0].group_size, 1)
+        self.assertEqual(plan.remove_nodes[0].group_id, "rack0")
+
+        self.assertEqual(plan.remove_nodes[1].id, 1)
+        self.assertEqual(plan.remove_nodes[1].rank_index, 1)
+        self.assertEqual(plan.remove_nodes[1].group, 0)
+        self.assertEqual(plan.remove_nodes[1].group_size, 1)
+        self.assertEqual(plan.remove_nodes[1].group_id, "rack0")
+
+        self.job_context.clear_job_node_groups()
+        self.job_context.clear_job_nodes()
+
     def test_relaunch_under_deleted_event(self):
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -542,6 +653,36 @@ class DistributedJobManagerTest(unittest.TestCase):
         ps_ids = list(job_nodes[NodeType.PS].keys())
         self.assertListEqual(ps_ids, [0, 1, 2])
         self.assertTrue(4 in self.job_context.job_nodes()[NodeType.WORKER])
+
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size
+        )
+        self.assertIsNone(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id
+        )
+        new_node = Node(
+            node_type=NodeType.WORKER,
+            node_id=4,
+            status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
+            max_relaunch_count=1,
+            node_group=1024,
+            node_group_size=1,
+            node_group_id="rack-0",
+        )
+        manager._process_list_nodes([new_node])
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group, 1024
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_size, 1
+        )
+        self.assertEqual(
+            self.job_context.job_nodes()[NodeType.WORKER][4].group_id, "rack-0"
+        )
 
     @patch.object(DistributedJobManager, "_process_event")
     def test_process_list_nodes_for_empty_case(self, mock_method):
@@ -847,11 +988,11 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._init_nodes()
 
         # ps normal + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
@@ -859,31 +1000,31 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(msg)
 
         # ps normal + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertFalse(result)
 
         # ps pending + worker normal
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=False
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value=None)
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
 
         # ps pending + worker pending
-        manager._ps_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._ps_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
-            return_value=True
+        manager._worker_manager.find_pending_node_caused_training_hang = (
+            mock.MagicMock(return_value="worker0")
         )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
@@ -919,6 +1060,20 @@ class DistributedJobManagerTest(unittest.TestCase):
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
         self.assertEqual(reason, JobExitReason.NODE_CHECK_FAILED)
+
+        manager._worker_manager.is_all_initial_workers_node_check_failed = (
+            mock.MagicMock(return_value=False)
+        )
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=False
+        )
+        manager._worker_manager.is_training_hang_by_insufficient_worker = (
+            mock.MagicMock(return_value=False)
+        )
+        manager._worker_manager.get_pending_node_groups = mock.MagicMock(
+            return_value=[]
+        )
+        manager.handle_node_group_pending()
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()
@@ -1080,6 +1235,72 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(forth_event.event_type, NodeEventType.DELETED)
         self.assertEqual(forth_event.node.id, 1)
         self.assertEqual(forth_event.node.rank_index, 1)
+
+
+class JobContextTest(unittest.TestCase):
+    def setUp(self):
+        self.job_ctx = get_job_context()
+
+    def tearDown(self):
+        self.job_ctx.clear_job_node_groups()
+
+    def test_node_group(self):
+        self.assertEqual(self.job_ctx.job_node_groups(), {})
+        self.assertEqual(list(self.job_ctx.job_node_groups_keys()), [])
+        self.assertEqual(self.job_ctx.job_node_group(1), {})
+        self.assertIsNone(self.job_ctx.job_group_node_by_rank(1, 0))
+
+        node = Node(
+            NodeType.WORKER,
+            100,
+            rank_index=0,
+            status=NodeStatus.INITIAL,
+            node_group=0,
+            node_group_size=2,
+            node_group_id="rack0",
+        )
+        self.job_ctx.update_job_node_by_group(node)
+        self.assertEqual(list(self.job_ctx.job_node_groups_keys()), [0])
+        self.assertEqual(list(self.job_ctx.job_node_group(0).keys()), [0])
+        self.assertEqual(self.job_ctx.job_group_node_by_rank(0, 0).id, 100)
+
+        node = Node(
+            NodeType.WORKER,
+            101,
+            rank_index=1,
+            status=NodeStatus.INITIAL,
+            node_group=0,
+            node_group_size=2,
+            node_group_id="rack0",
+        )
+        self.job_ctx.update_job_node_by_group(node)
+        self.assertEqual(list(self.job_ctx.job_node_groups_keys()), [0])
+        self.assertEqual(list(self.job_ctx.job_node_group(0).keys()), [0, 1])
+        self.assertEqual(self.job_ctx.job_group_node_by_rank(0, 1).id, 101)
+
+        node = Node(
+            NodeType.WORKER,
+            200,
+            rank_index=2,
+            status=NodeStatus.INITIAL,
+            node_group=1,
+            node_group_size=2,
+            node_group_id="rack1",
+        )
+        self.job_ctx.update_job_node_by_group(node)
+        node = Node(
+            NodeType.WORKER,
+            201,
+            rank_index=3,
+            status=NodeStatus.INITIAL,
+            node_group=1,
+            node_group_size=2,
+            node_group_id="rack1",
+        )
+        self.job_ctx.update_job_node_by_group(node)
+        self.assertEqual(list(self.job_ctx.job_node_groups_keys()), [0, 1])
+        self.assertEqual(list(self.job_ctx.job_node_group(0).keys()), [0, 1])
+        self.assertEqual(list(self.job_ctx.job_node_group(1).keys()), [2, 3])
 
 
 class LocalJobManagerTest(unittest.TestCase):

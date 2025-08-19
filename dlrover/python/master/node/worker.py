@@ -13,7 +13,7 @@
 
 import copy
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -341,7 +341,9 @@ class WorkerManager(TrainingNodeManager):
             self._update_node(worker)
         return restart
 
-    def is_training_hang_by_pending(self, total_node_num, job_type) -> bool:
+    def find_pending_node_caused_training_hang(
+        self, total_node_num, job_type
+    ) -> Optional[str]:
         """
         To prevent training hang by pending workers. Should exit when there
         is inextricable pending issue.
@@ -366,7 +368,7 @@ class WorkerManager(TrainingNodeManager):
                 ParameterServerStrategy for now.
 
         Return:
-            bool
+            str: return worker name if has pending
         """
 
         # fail strategy
@@ -379,7 +381,7 @@ class WorkerManager(TrainingNodeManager):
             f"num: {total_node_num}, timeout: {timeout}, strategy: {strategy}."
         )
         if timeout <= 0 or skip_pending_judgement(strategy):
-            return False
+            return None
 
         # collect pending and running nodes
         cur_nodes = list(self._get_nodes().values())
@@ -399,7 +401,7 @@ class WorkerManager(TrainingNodeManager):
             logger.debug(
                 "Skip for no required nodes info and not all nodes pending."
             )
-            return False
+            return None
 
         if job_type == DistributionStrategy.ALLREDUCE or (
             job_type == DistributionStrategy.PS
@@ -421,7 +423,7 @@ class WorkerManager(TrainingNodeManager):
                         f"than the min workers "
                         f"required: {self.get_min_nodes_required()}."
                     )
-                    return False
+                    return None
 
             # with condition 3
             now = time.time()
@@ -429,17 +431,12 @@ class WorkerManager(TrainingNodeManager):
                 pending_workers,
                 key=lambda x: x.create_time,  # type: ignore
             )
-            if (
-                not first_pending_worker
-                or not first_pending_worker.create_time
-            ):
-                logger.debug(
-                    "Skip for no pending workers or pending worker's "
-                    f"create time is None: {first_pending_worker}."
-                )
-                return False
 
-            if now - first_pending_worker.create_time.timestamp() > timeout:
+            if (
+                first_pending_worker.create_time
+                and now - first_pending_worker.create_time.timestamp()
+                > timeout
+            ):
                 logger.warning(
                     f"Node {first_pending_worker.name} "
                     f"exceeded pending timeout: {timeout}s, "
@@ -451,7 +448,7 @@ class WorkerManager(TrainingNodeManager):
                     "min required nodes size"
                     f": {self.get_min_nodes_required()}."
                 )
-                return True
+                return first_pending_worker.name
         elif (
             job_type == DistributionStrategy.PS
             and is_key_nodes_pending_judgement(strategy)
@@ -467,7 +464,7 @@ class WorkerManager(TrainingNodeManager):
                     "Skip for no pending worker0 or pending worker's "
                     f"create time is None: {pending_worker_0}."
                 )
-                return False
+                return None
 
             now = time.time()
             if now - pending_worker_0.create_time.timestamp() > timeout:
@@ -480,8 +477,99 @@ class WorkerManager(TrainingNodeManager):
                     f"pending workers(size:{len(pending_workers)})"
                     f": {pending_workers}."
                 )
-                return True
-        return False
+                return pending_worker_0.name
+        return None
+
+    def get_pending_node_groups(self, job_type):
+        """
+        Check if pod pending happened in a node group, only for torch
+        training fail-over.
+        If it happened, we should relaunch the node group
+
+        Args:
+            job_type: job type
+
+        Returns:
+            list of node group index
+
+        """
+        strategy = _dlrover_context.pending_fail_strategy
+        timeout = self._get_group_pending_timeout()
+        logger.debug(
+            f"Is training hang by group pending: {timeout} {strategy} {job_type}."
+        )
+
+        pending_workers: List[Node] = []
+        pending_groups: List[int] = []
+        if (
+            timeout <= 0
+            or skip_pending_judgement(strategy)
+            or job_type != DistributionStrategy.ALLREDUCE
+        ):
+            return []
+
+        for group_key in self._job_context.job_node_groups_keys():
+            node_group = self._job_context.job_node_group(group_key)
+            for node in node_group.values():
+                if (
+                    node is None
+                    or node.is_released
+                    or node.create_time is None
+                    or node.group_size is None
+                    or node.group is None
+                ):
+                    logger.debug(f"Skip invalid node {node}")
+                    continue
+
+                logger.debug(f"Recheck node {node} for node group pending...")
+
+                # ignore first startup, only check after node relaunch
+                if node.relaunch_count > 0 and node.status in [
+                    NodeStatus.PENDING,
+                    NodeStatus.INITIAL,
+                ]:
+                    logger.info(
+                        f"Detect pending node {node.id} with "
+                        f"rank {node.rank_index} and group {node.group}: "
+                        f"relaunch {node.relaunch_count}, status {node.status}"
+                    )
+                    pending_workers.append(node)
+
+            if pending_workers:
+                first_pending_worker = min(
+                    pending_workers,
+                    key=lambda x: x.create_time,  # type: ignore
+                )
+            else:
+                first_pending_worker = None
+
+            if (
+                not first_pending_worker
+                or not first_pending_worker.create_time
+            ):
+                logger.debug(f"Skip pending worker {first_pending_worker}")
+                continue
+
+            logger.info(
+                f"Check first pending node {first_pending_worker.id} with "
+                f"rank {first_pending_worker.rank_index} "
+                f"and group {first_pending_worker.group}"
+            )
+            now = time.time()
+            if now - first_pending_worker.create_time.timestamp() > timeout:
+                logger.warning(
+                    f"Node {first_pending_worker.name} with "
+                    f"id {first_pending_worker.id} "
+                    f"rank {first_pending_worker.rank_index} "
+                    f"exceeded group pending timeout: {timeout}s, "
+                    f"job-type: {job_type}, strategy: {strategy}, "
+                    f"group: {first_pending_worker.group}, "
+                    f"group_size: {first_pending_worker.group_size}, "
+                    f"group_id: {first_pending_worker.group_id}."
+                )
+                pending_groups.append(first_pending_worker.group)
+
+        return pending_groups
 
     def _get_insufficient_timeout(self):
         timeout = int(self.get_nodes_timeout() * 1.5)
@@ -592,3 +680,15 @@ class WorkerManager(TrainingNodeManager):
         return len(nodes) > 0 and all(
             [node.is_node_check_failed() for node in nodes]
         )
+
+    def is_all_workers_succeeded_exited(self):
+        # check if all ranks already succeeded and exited
+        succeeded_exited_ranks = set()
+        nodes = self._get_nodes()
+        actual_max_rank = max(node.rank_index for node in list(nodes.values()))
+
+        for _, node in nodes.items():
+            if node.is_succeeded_and_exited():
+                succeeded_exited_ranks.add(node.rank_index)
+
+        return len(succeeded_exited_ranks) == (actual_max_rank + 1)

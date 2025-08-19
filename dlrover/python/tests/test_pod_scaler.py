@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     NodeStatus,
     NodeType,
+    SchedulingLabel,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
@@ -129,6 +130,9 @@ class PodScalerTest(unittest.TestCase):
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
+        node.group = 1024
+        node.group_size = 1
+        node.group_id = "rack-0"
 
         # mock field
         scaler._pod_stats = {
@@ -145,6 +149,10 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(
             pod.metadata.name, "elasticjob-sample-edljob-worker-0"
         )
+        self.assertEqual(
+            pod.metadata.labels[SchedulingLabel.NODE_GROUP], str(node.group)
+        )
+
         main_container = pod.spec.containers[0]
         self.assertEqual(main_container.resources.limits["cpu"], 4)
         self.assertEqual(main_container.resources.limits["memory"], "8192Mi")

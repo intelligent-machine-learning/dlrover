@@ -71,6 +71,14 @@ class ElasticJobLabel(object):
     RELAUNCH_COUNT = "elasticjob.dlrover/relaunch-count"
 
 
+class SchedulingLabel(object):
+    NODE_GROUP = "scheduling/rack-group"  # int, the node group index
+    NODE_GROUP_SIZE = (
+        "scheduling/rack-group-num"  # int, the total node group numbers
+    )
+    NODE_GROUP_ID = "scheduling/rack-id"  # str, node group name
+
+
 class ScalePlanLabel(object):
     SCALE_TYPE_KEY = "scale-type"
     MANUAL_SCALE = "manual"
@@ -386,6 +394,7 @@ class JobConstant(object):
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN = 600
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 3600
     PENDING_NODE_TIMEOUT_DEFAULT_MIN = 600
+    GROUP_PENDING_NODE_TIMEOUT_DEFAULT_MIN = 300
     NODE_CHECK_TIMEOUT = 300
     SUCCEEDED_POD_TERMINATING_TIMEOUT = 1200
 
