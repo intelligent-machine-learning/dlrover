@@ -90,7 +90,11 @@ class ElasticWorker(BaseWorker):
         backend = self.actor_info.spec.comm_backend
         if backend == "auto":
             backend = "nccl" if torch.cuda.is_available() else "gloo"
-        timeout = timedelta(seconds=self.actor_info.spec.comm_timeout_s)
+        timeout = (
+            timedelta(seconds=self.actor_info.spec.comm_timeout_s)
+            if self.actor_info.spec.comm_timeout_s
+            else None
+        )
         logger.info(
             f"Setting up torch process group with backend={backend}, "
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"

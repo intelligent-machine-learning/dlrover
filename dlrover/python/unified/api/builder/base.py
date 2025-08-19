@@ -12,7 +12,7 @@
 # limitations under the License.
 import re
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from omegaconf import DictConfig
 
