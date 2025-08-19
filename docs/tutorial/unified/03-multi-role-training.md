@@ -59,6 +59,11 @@ key concepts and patterns used in this multi-role training job.
 You can use DLRover to submit your own multi-role jobs
 by following the same patterns.
 
+> DLRover itself is not an algorithm framework, and therefore does not natively
+support any specific RL algorithm implementation. As a result, a complete RL
+computation requires users to leverage the fundamental capabilities provided
+by DLRover to implement the corresponding algorithm and ensure its execution.
+
 ### Directory Structure
 
 - `main.py`: The entrypoint to submit the multi-role job.

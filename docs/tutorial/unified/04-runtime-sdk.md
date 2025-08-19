@@ -14,9 +14,41 @@ and is where most user code starts.
   function must accept no arguments and runs in a blocking manner until
   the job completes. Use this for simple scripts or synchronous jobs.
 
+  Example:
+
+  ```python
+  from dlrover.python.unified.api.runtime.worker import current_worker
+
+  def run():
+      args = current_worker().job_info.user_config
+      # prepare data, model, optimizer using args
+      train(args)
+  ```
+
 - Class entrypoint
   
   Advanced entrypoint, mainly for complex jobs with multiple roles. During `start`, the framework will synchronously construct the class (constructor must be no-arg), and auto export all `@rpc` methods in this class. After construction, the framework calls the instance `run()` method which contains the main execution loop.
+
+  Example:
+
+  ```python
+  from dlrover.python.unified.api.runtime import rpc
+  from dlrover.python.unified.api.runtime.worker import current_worker
+
+  class TrainerService:
+      def __init__(self):
+          self.state = {}
+
+      @rpc()#Auto export
+      def get_status(self):
+          return self.state
+
+      def run(self):
+          args = current_worker().job_info.user_config
+          # main training loop
+          while not done():
+              step()
+  ```
 
 ### How to choose
 
