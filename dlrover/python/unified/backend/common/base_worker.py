@@ -83,10 +83,13 @@ class BaseWorker(ActorBase):
 
             user_func = inst.run
 
-        Thread(
-            target=self._execute_user_function, args=(user_func,), daemon=True
-        ).start()
         self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
+        Thread(
+            target=self._execute_user_function,
+            args=(user_func,),
+            daemon=True,
+            name="user_main_thread",
+        ).start()
 
     def _execute_user_function(self, user_func):
         """Execute the user function."""
@@ -95,9 +98,8 @@ class BaseWorker(ActorBase):
             logger.info(f"Executing: {user_func}")
             user_func()
         except Exception:
-            logger.error(
-                "Unexpected error occurred while executing user function.",
-                exc_info=True,
+            logger.exception(
+                "Unexpected error occurred while executing user function."
             )
             self._update_stage_force(WorkerStage.FAILED, WorkerStage.RUNNING)
         else:

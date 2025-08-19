@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import asyncio
+import threading
 from unittest.mock import Mock
 
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
@@ -32,9 +33,9 @@ async def test_start_base():
 
     assert worker.stage == "READY"
     worker.start()
-    assert worker.stage == "RUNNING"
+    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     while worker.stage != "FINISHED":
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
     assert _entrypoint.call_count == 1
 
 
@@ -47,22 +48,27 @@ async def test_start_class():
     worker = BaseWorker(Mock(JobInfo), info)
 
     init_called = False
+    run_called = False
 
     class entrypoint_class:
         def __init__(self) -> None:
             nonlocal init_called
             init_called = True
 
-        run = staticmethod(Mock())
+        def run(self):
+            nonlocal run_called
+            assert worker.stage == "RUNNING"
+            assert threading.current_thread().name == "user_main_thread"
+            run_called = True
 
     global _entrypoint
     _entrypoint = entrypoint_class
 
     assert worker.stage == "READY"
     worker.start()
-    assert worker.stage == "RUNNING"
+    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     assert init_called
-    assert _entrypoint.run.call_count == 0
+
     while worker.stage != "FINISHED":
-        await asyncio.sleep(0.1)
-    assert _entrypoint.run.call_count == 1
+        await asyncio.sleep(0)
+    assert run_called
