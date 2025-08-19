@@ -73,6 +73,7 @@ from dlrover.python.common.constants import (
     NodeExitDescription,
     RendezvousName,
     TrainingExceptionLevel,
+    EventReportConstants,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -94,6 +95,7 @@ from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.elastic_agent.monitor.resource import get_gpu_stats
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
@@ -1621,7 +1623,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                         "check because the nodes is less than 3."
                     )
                     raise NodeCheckFailedError(
-                        NodeExitDescription.CHECK_FAILED_MSG
+                        NodeExitDescription.NODE_FAILED_MSG
                     )
                 else:
                     # Run the next round check to detect the fault node.
@@ -1635,12 +1637,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise NodeCheckFailedError(NodeExitDescription.CHECK_FAILED_MSG)
+            raise NodeCheckFailedError(NodeExitDescription.NODE_FAILED_MSG)
         elif self._node_rank in stragglers:
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise NodeCheckFailedError(
-                    "The node is a straggler and exits."
+                    NodeExitDescription.NODE_STRAGGLE_MSG
                 )
         return success
 
@@ -1793,7 +1795,51 @@ def comm_perf_check(
     return result
 
 
+def _check_gpu_basic(client) -> Optional[int]:
+    for gpu_stat in get_gpu_stats():
+        index = gpu_stat.index
+
+        # to avoid memory leak
+        if gpu_stat.used_memory_mb / gpu_stat.total_memory_mb >= 0.3:
+            logger.error(
+                f"GPU check[{index}] failed: occupied memory detected."
+            )
+            return index
+
+    logger.info("GPU check succeeded.")
+    return None
+
+
+def _check_npu_basic(client) -> Optional[int]:
+    # TODO
+    logger.info("NPU check succeeded.")
+    return None
+
+
+def _check_device(config: ElasticLaunchConfig):
+    client = MasterClient.singleton_instance()
+    result = None
+
+    if config.accelerator == Accelerators.NVIDIA_GPU:
+        result = _check_gpu_basic(client)
+    elif config.accelerator == Accelerators.ASCEND_NPU:
+        result = _check_npu_basic(client)
+
+    if result is not None:
+        client.report_event(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=env_utils.get_hostname_and_ip()[0],
+            action=EventReportConstants.ACTION_DEVICE_WARNING,
+            msg="Device check failed",
+            labels={"device": result},
+        )
+        raise NodeCheckFailedError(NodeExitDescription.GPU_INVALID_MSG)
+
+
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
+    _check_device(config)
+
+    # matmul + comm check
     if config.accelerator == Accelerators.NVIDIA_GPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:

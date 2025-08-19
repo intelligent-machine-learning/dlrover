@@ -40,6 +40,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.comm import GPUStats
 from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
@@ -95,6 +96,7 @@ from dlrover.python.elastic_agent.torch.training import (
     comm_perf_check,
     launch_agent,
     node_health_check,
+    _check_device,
 )
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.utils import version_less_than_230
@@ -1378,6 +1380,29 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         )
         with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
+
+    @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
+    def test_check_device(self, mock_get_gpu_stats):
+        config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
+        config.accelerator = Accelerators.ASCEND_NPU
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = []
+        config.accelerator = Accelerators.NVIDIA_GPU
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            _check_device(config)
 
 
 if __name__ == "__main__":
