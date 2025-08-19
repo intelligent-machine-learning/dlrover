@@ -1,14 +1,14 @@
 ## Background
 
-As machine learning workloads become increasingly complex, there is a growing need to support hybrid training paradigms
+As machine learning workloads become increasingly complex, there is a growing need to support unified training paradigms
 that combine elastic training with other processing strategies. Traditional elastic training frameworks are optimized
 for scaling model training dynamically, but often lack the flexibility to integrate with heterogeneous tasks such as
 data preprocessing, reinforcement learning environments, or custom compute-intensive operations.
 
-Hybrid training addresses these challenges by enabling the orchestration of diverse workloads within a unified
+Unified training addresses these challenges by enabling the orchestration of diverse workloads within a unified
 framework. This approach allows for seamless coordination between elastic model training and auxiliary tasks, such as
 large-scale data transformation, environment simulation, or multi-stage pipelines. By managing the lifecycle and
-resource allocation for both elastic and non-elastic components, hybrid training frameworks can maximize resource
+resource allocation for both elastic and non-elastic components, unified training frameworks can maximize resource
 utilization, improve throughput, and simplify the development of complex machine learning systems.
 
 Typical scenarios include:
@@ -19,10 +19,10 @@ Typical scenarios include:
   transformation tasks must be performed alongside or prior to training, often involving different computation patterns
   and resource requirements.
 
-By supporting these hybrid scenarios, the framework enables users to build more flexible, efficient, and scalable
+By supporting these unified scenarios, the framework enables users to build more flexible, efficient, and scalable
 machine learning pipelines that can adapt to a wide range of real-world requirements.
 
-This document outlines the design and architecture of a hybrid training framework that integrates elastic training with
+This document outlines the design and architecture of a unified training framework that integrates elastic training with
 other processing paradigms, providing a comprehensive solution for complex machine learning workloads.
 
 > This is also an architecture design for [Unified MPMD Control](./unified-mpmd-control-proposal.md)
@@ -31,10 +31,10 @@ other processing paradigms, providing a comprehensive solution for complex machi
 
 ### Architecture Overview
 
-![General Architecture Diagram](../figures/hybrid/architecture.excalidraw.svg)
+![General Architecture Diagram](../figures/unified/architecture.excalidraw.svg)
 
-The hybrid training framework integrates both elastic and non-elastic training paradigms to support diverse workloads.
-In this architecture, the `Controller/PrimeMaster` is responsible for orchestrating the entire hybrid training process,
+The unified training framework integrates both elastic and non-elastic training paradigms to support diverse workloads.
+In this architecture, the `Controller/PrimeMaster` is responsible for orchestrating the entire unified training process,
 while the
 `Backend`(including `ElasticMaster` and `ElasticWorker`) components focus on elastic training tasks.
 > The `ElasticMaster` and `ElasticWorker` represent the original elastic training architecture, while the `PrimeMaster`
@@ -45,7 +45,7 @@ and workloads. The key components include:
 
 #### Controller/PrimeMaster
 
-- Oversees the lifecycle management of hybrid training jobs.
+- Oversees the lifecycle management of unified training jobs.
 - Schedules and monitors various training/processing workloads.
 - Maintains a registry of all actors and their assigned roles.
 - Stores and manages the global state of the training process.
@@ -138,15 +138,15 @@ sequenceDiagram
 
 ### Extension Points
 
-The hybrid training framework is designed with extensibility in mind, enabling users to tailor its functionality to
+The unified training framework is designed with extensibility in mind, enabling users to tailor its functionality to
 accommodate diverse workloads. Key extension points include:
 
 - **Worker Customization:**  
   Users can implement custom `WorkerLoad` classes to handle specialized tasks such as data preprocessing, reinforcement
   learning, or other domain-specific operations. This flexibility allows seamless integration of varied processing
-  strategies within the hybrid training pipeline.
+  strategies within the unified training pipeline.
 
-- **Custom Backend:**  
+- **Custom Backend(Advanced):**  
   Users may define their own `SubMaster` and corresponding `Worker` implementations to orchestrate specific training
   workflows. This supports fine-grained control over elastic workload management and enables backend customization for
   specialized use cases.
@@ -192,7 +192,7 @@ FAILED --> [*]
 
 #### Fault Tolerance
 
-The hybrid training framework is designed with robust fault tolerance to maintain reliability throughout the training
+The unified training framework is designed with robust fault tolerance to maintain reliability throughout the training
 lifecycle. Key mechanisms include:
 
 - **Node Health Monitoring:** All nodes undergo regular health checks to promptly detect failures. If a node becomes
@@ -214,7 +214,7 @@ The framework provides comprehensive failover strategies to ensure operational c
 
 ## Driving Patterns
 
-There are three different driving patterns for the hybrid training framework:
+There are three different driving patterns for the unified training framework:
 
 - SubMaster Driven: The `PrimeManager` drives the `SubMaster` and its workers, which are specialized for elastic
   training.
@@ -226,7 +226,7 @@ There are three different driving patterns for the hybrid training framework:
 ### Elastic Training (SubMaster Driven)
 
 Elastic training is a core feature of the DLRover framework, enabling dynamic scaling of training resources based on
-workload demands. Within the hybrid training architecture, elastic training is seamlessly integrated and managed by the
+workload demands. Within the unified training architecture, elastic training is seamlessly integrated and managed by the
 `PrimeMaster`, which oversees the orchestration and lifecycle management of all elastic workloads.
 
 The `PrimeMaster` coordinates the creation, preparation, and execution of elastic training jobs, delegating the
@@ -237,9 +237,9 @@ is responsible for:
 - Providing rendezvous services to facilitate coordination and communication among elastic workers.
 - Monitoring training progress and collecting relevant metrics for adaptive scaling and fault tolerance.
 
-The sequence diagram below illustrates the flow of elastic training within the hybrid framework:
+The sequence diagram below illustrates the flow of elastic training within the unified framework:
 > Communication between the `ElasticMaster` and `ElasticWorker` remains consistent with previous designs. This document
-> focuses primarily on the hybrid architecture and simplifies the communication details.
+> focuses primarily on the unified architecture and simplifies the communication details.
 
 ```mermaid
 %% @formatter:off
@@ -374,7 +374,7 @@ flowchart TD
 
 ### Reinforcement Learning (Trainer Driven)
 
-In reinforcement learning (RL) scenarios, the hybrid framework supports multiple specialized roles such as `Actor`,
+In reinforcement learning (RL) scenarios, the unified framework supports multiple specialized roles such as `Actor`,
 `Critic`, and `Rollout`. The `Actor` and `Critic` are typically managed as elastic training tasks, while `Rollout` nodes
 handle inference or environment simulation. The overall training process is orchestrated by a dedicated `Trainer` or by
 the `Actor` itself, which coordinates the interactions among all roles. This design enables flexible scaling and
@@ -425,3 +425,16 @@ flowchart TD
     actor_weight -.-> T5 -.-> R1
     critic -.-> T3
 ```
+
+## FAQ
+
+### What is the difference between `Trainer` , `PrimeMaster` and `SubMaster`?
+
+- The `Trainer` is the main orchestrator for the entire training process, coordinating interactions among various roles such as
+`Actor`, `Critic`, and `Rollout`. It manages the overall training logic, including data collection, model updates, and
+performance monitoring.
+- The `PrimeMaster` is a higher-level orchestrator that manages the lifecycle of the entire unified training job, but it does not
+directly handle the training logic. Instead, it oversees the `SubMaster` and its workers, which are specialized for elastic
+training tasks. The `PrimeMaster` is responsible for job scheduling, resource allocation, and global state management.
+- The `SubMaster`, on the other hand, is a specialized component that manages one role, providing
+additional orchestration and management capabilities, like rendezvousing and fault tolerance.

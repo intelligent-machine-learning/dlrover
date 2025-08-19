@@ -40,7 +40,7 @@ python -m examples.unified.elastic.nanogpt.train \
 ### 1) Submit Job
 
 The submission script parses arguments, builds a job using the Builder API,
-and submits it. DLRover starts the PrimeMaster which performs node checks
+and submits it. DLRover starts the PrimeMaster which manages the core lifecycle of job
 and creates Worker processes.
 
 A typical Builder API usage:

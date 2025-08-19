@@ -24,6 +24,17 @@ Recommend function entrypoint for SFT or simple workload, no need handle RPC cal
 If you need shared state between multiple `@rpc` methods, you can use class entrypoint.
 Whatever you choose, all `@rpc` in top-level will also be exposed as RPC endpoints automatically. And you can use all Runtime API in any time.
 
+## Workload Types
+
+Currently, two workload types are supported:
+
+- **Elastic Workload**: Designed for elastic training scenarios, this type leverages `ElasticMaster` and `ElasticWorker` to enable dynamic node management. It performs node health checks, GPU setup, and rendezvous coordination before executing the entrypoint.
+  - It will set environment variables including `LOCAL_RANK`, `RANK`, `LOCAL_WORLD_SIZE`, `WORLD_SIZE`, and `NODE_RANK` to help you write distributed code.
+  - Also, by default, it will execute `torch.distributed.init_process_group` automatically, set `torch.cuda.set_device`, and `destroy_process_group` when the job is done.
+  - If you need customize the distributed setup, you can set `comm_auto_setup_process_group` to `False` in the workload description, and it will only set `MASTER_ADDR` and `MASTER_PORT`.
+
+- **Simple Workload**: The default type, suitable for `Trainer` or inference roles. It simply runs the entrypoint function or class without additional orchestration.
+
 ## Get Runtime Information: current_worker()
 
 As entrypoint is a no-argument function, or class you define, we provide `current_worker()` to get runtime information.
