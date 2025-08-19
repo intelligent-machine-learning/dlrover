@@ -45,12 +45,14 @@ class ElasticWorker(BaseWorker):
 
         # referenced ray.train.torch.config.py
 
+        # NAME?
         os.environ["LOCAL_RANK"] = str(self.actor_info.local_rank)
         os.environ["RANK"] = str(self.actor_info.rank)
         os.environ["LOCAL_WORLD_SIZE"] = str(self.actor_info.spec.per_group)
         os.environ["WORLD_SIZE"] = str(self.actor_info.spec.total)
         os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
+        # RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES?
         device = ray_train.get_device()
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
         if torch.cuda.is_available() and device.type == "cuda":

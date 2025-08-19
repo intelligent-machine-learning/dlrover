@@ -22,15 +22,13 @@ from ray.experimental.internal_kv import (
 )
 
 from dlrover.python.unified.common.enums import MasterStateBackendType
-from dlrover.python.unified.common.job_context import get_job_context
-
-_job_ctx = get_job_context()
 
 
 class MasterStateBackendFactory(object):
     @classmethod
-    def get_state_backend(cls):
-        backend_type = _job_ctx.job_config.master_state_backend_type
+    def get_state_backend(
+        cls, backend_type: MasterStateBackendType
+    ) -> "MasterStateBackend":
         if backend_type == MasterStateBackendType.HDFS:
             # TODO: impl hdfs state backend
             raise NotImplementedError()
