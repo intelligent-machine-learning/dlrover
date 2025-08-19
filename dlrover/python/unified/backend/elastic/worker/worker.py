@@ -92,7 +92,7 @@ class ElasticWorker(BaseWorker):
             backend = "nccl" if torch.cuda.is_available() else "gloo"
         timeout = (
             timedelta(seconds=self.actor_info.spec.comm_timeout_s)
-            if self.actor_info.spec.comm_timeout_s
+            if self.actor_info.spec.comm_timeout_s is not None
             else None
         )
         logger.info(
@@ -125,7 +125,9 @@ class ElasticWorker(BaseWorker):
             init_method=master_addr,
             rank=rank,
             world_size=world_size,
-            timeout=timeout,
+            **(
+                {"timeout": timeout} if timeout else {}  # type:ignore
+            ),  # old version torch<2.1 does not support timeout=None
         )
         self._process_group_setup = True
 
