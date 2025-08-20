@@ -147,16 +147,11 @@ class ElasticManager:
                 f"Current stage is {self.stage}, skipping failover handling."
             )
             return
-        asyncio.create_task(self.restart_job())
-        # The stage is synchronously set to READY by restart_job，
-        # so it's safe to invoke handle_worker_restarted multiple times.
-        assert self.stage == WorkerStage.READY
+        self.request_restart()
 
-    async def restart_job(self):
+    async def _restart_job(self):
         """Restart the elastic job due to worker restart."""
-        assert self.stage == WorkerStage.RUNNING, (
-            f"Cannot restart job in stage {self.stage}, expected RUNNING."
-        )
+        assert self.stage == WorkerStage.RUNNING
         logger.info("Restarting the elastic job due to worker restart.")
         self._task.cancel()
         self.stage = WorkerStage.READY  # Reset stage to READY for restart
@@ -175,3 +170,19 @@ class ElasticManager:
         await self.check_workers()
         await self.start()
         logger.info("Restarted elastic job successfully.")
+
+    def request_restart(self):
+        assert self.stage == WorkerStage.RUNNING, (
+            f"Cannot restart job in stage {self.stage}, expected RUNNING."
+        )
+        if self._restarting:
+            logger.warning("Job is already restarting, ignoring this request.")
+            return
+
+        def reset_restarting(future):
+            self._restarting = False
+
+        self._restarting = True
+        asyncio.create_task(self._restart_job()).add_done_callback(
+            reset_restarting
+        )
