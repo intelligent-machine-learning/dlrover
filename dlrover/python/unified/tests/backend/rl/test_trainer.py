@@ -20,11 +20,11 @@ from dlrover.python.unified.backend.rl.trainer import (
 from dlrover.python.unified.common.enums import RLRoleType
 from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
-from dlrover.python.unified.tests.base import BaseTest
-from dlrover.python.unified.tests.test_class import (
+from dlrover.python.unified.tests.backend.rl.classes import (
     TestActor,
     TestInteractiveTrainer,
 )
+from dlrover.python.unified.tests.base import BaseTest
 
 
 class BaseTrainerTest(BaseTest):
@@ -35,11 +35,11 @@ class BaseTrainerTest(BaseTest):
     )
     async def test_basic(self, mock_get_workers_by_role, mock_get_actor):
         spec = CustomWorkloadDesc(
-            module_name="dlrover.python.unified.tests.test_class",
+            module_name=f"{__package__}.classes",
             class_name="TestInteractiveTrainer",
         )
         actor_spec = CustomWorkloadDesc(
-            module_name="dlrover.python.unified.tests.test_class",
+            module_name=f"{__package__}.classes",
             class_name="TestActor",
         )
         mock_roles: Dict[str, List[ActorInfo]] = {

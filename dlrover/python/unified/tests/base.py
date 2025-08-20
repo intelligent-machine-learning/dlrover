@@ -15,7 +15,6 @@ import unittest
 
 import pytest
 import ray
-from ray._private.test_utils import wait_for_condition
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -39,29 +38,3 @@ class BaseTest(unittest.TestCase):
         os.environ.update(self._bak_environ)
 
         assert not ray.is_initialized(), "Ray is still initialized after test."
-
-
-class AsyncBaseTest(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        logger.info(
-            f"========= {self.__class__.__name__}-"
-            f"{self._testMethodName} start ========="
-        )
-
-    def tearDown(self):
-        logger.info(
-            f"========= {self.__class__.__name__}-{self._testMethodName} end ========="
-        )
-
-
-class RayBaseTest(BaseTest):
-    @classmethod
-    def init_ray_safely(cls, **kwargs):
-        if ray.is_initialized():
-            cls.close_ray_safely()
-        ray.init(**kwargs)
-
-    @classmethod
-    def close_ray_safely(cls):
-        ray.shutdown()
-        wait_for_condition(lambda: not ray.is_initialized())

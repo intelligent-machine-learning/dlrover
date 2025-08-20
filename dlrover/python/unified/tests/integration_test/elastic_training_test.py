@@ -13,6 +13,7 @@
 
 
 import os
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,6 +25,15 @@ from dlrover.python.unified.tests.fixtures._ray_setup_hooks import inject_hook
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
+
+
+def elastic_workload_run():
+    time.sleep(1)
+    print("elastic_workload_run run called")
+
+
+def elastic_workload_run_error():
+    raise Exception("elastic_workload_run_error run failed")
 
 
 @pytest.mark.timeout(40, func_only=True)  # 20s in ci
@@ -49,7 +59,7 @@ def test_api_full(tmp_ray):
         .config({"c1": "v1"})
         .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
         .dlrover_run(
-            "dlrover.python.unified.tests.test_class::elastic_workload_run",
+            f"{__name__}.elastic_workload_run",
             nnodes=2,
             nproc_per_node=2,
         )
@@ -69,7 +79,7 @@ def test_api_full_with_error(tmp_ray):
         .device_type("CPU")
         .config({"c1": "v1"})
         .dlrover_run(
-            "dlrover.python.unified.tests.test_class::elastic_workload_run_error",
+            f"{__name__}.elastic_workload_run_error",
             nnodes=1,
             nproc_per_node=2,
         )
