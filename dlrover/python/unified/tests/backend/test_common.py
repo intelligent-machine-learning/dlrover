@@ -15,12 +15,19 @@ import asyncio
 import threading
 from unittest.mock import Mock
 
+from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 
+@rpc()
+def module_level_rpc():
+    pass
+
+
 async def test_start_base():
+    RPC_REGISTRY.clear()
     info = ActorInfo(
         name="worker1",
         role="worker",
@@ -30,16 +37,20 @@ async def test_start_base():
 
     global _entrypoint
     _entrypoint = Mock()
+    _entrypoint.__module__ = __name__
 
     assert worker.stage == "READY"
     worker.start()
     assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
+    assert module_level_rpc.__name__ in RPC_REGISTRY
+
     while worker.stage != "FINISHED":
         await asyncio.sleep(0)
     assert _entrypoint.call_count == 1
 
 
 async def test_start_class():
+    RPC_REGISTRY.clear()
     info = ActorInfo(
         name="worker1",
         role="worker",
@@ -55,6 +66,10 @@ async def test_start_class():
             nonlocal init_called
             init_called = True
 
+        @rpc()
+        def class_level_rpc(self):
+            pass
+
         def run(self):
             nonlocal run_called
             assert worker.stage == "RUNNING"
@@ -63,11 +78,13 @@ async def test_start_class():
 
     global _entrypoint
     _entrypoint = entrypoint_class
+    _entrypoint.__module__ = __name__
 
     assert worker.stage == "READY"
     worker.start()
     assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     assert init_called
+    assert entrypoint_class.class_level_rpc.__name__ in RPC_REGISTRY
 
     while worker.stage != "FINISHED":
         await asyncio.sleep(0)
