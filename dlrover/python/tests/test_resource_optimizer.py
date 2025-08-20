@@ -59,6 +59,11 @@ class MockStub(object):
         return res
 
 
+class MockErrorStub(object):
+    def optimize(self, request):
+        return None
+
+
 class ResourceOptimizerTest(unittest.TestCase):
     def test_brain_optimizer(self):
         optimizer = BrainResoureOptimizer("1111", ResourceLimits(100, 102400))
@@ -74,6 +79,24 @@ class ResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.count, 2)
         self.assertEqual(ps.node_resource.cpu, 16)
         self.assertEqual(ps.node_resource.memory, _MEMORY)
+
+        # test error case
+        optimizer._brain_client._brain_stub = MockErrorStub()
+
+        try:
+            optimizer.generate_opt_plan("", {})
+        except Exception as e:
+            self.fail(f"The exception {e} is not handled")
+
+        try:
+            optimizer.generate_oom_recovery_plan([], "", {})
+        except Exception as e:
+            self.fail(f"The exception {e} is not handled")
+
+        try:
+            optimizer.generate_resource_plan_with_optimizer({})
+        except Exception as e:
+            self.fail(f"The exception {e} is not handled")
 
     def test_limit_resource_plan(self):
         plan = ResourcePlan()
