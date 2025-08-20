@@ -99,7 +99,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
             _BASE_CONFIG_RETRIEVER,
             config,
         )
-        if not res.job_optimize_plans:
+        if not res or not res.job_optimize_plans:
             logger.info("No any optimization plan for PS")
             return
 

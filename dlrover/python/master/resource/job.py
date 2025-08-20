@@ -362,7 +362,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         )
 
     def _adjust_oom_ps_resource(self, node: Node):
-        """Adjust PS resource if there is a OOM PS"""
+        """Adjust PS resource if there is an OOM PS"""
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
         )
