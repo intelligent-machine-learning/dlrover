@@ -403,6 +403,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             status=NodeStatus.RUNNING,
             node_group=0,
             node_group_size=1,
+            node_group_id="rack0",
             relaunchable=True,
             name="test-0",
         )
@@ -413,6 +414,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             status=NodeStatus.PENDING,
             node_group=0,
             node_group_size=1,
+            node_group_id="rack0",
             relaunchable=True,
             name="test-1",
         )
@@ -432,17 +434,25 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(plan.launch_nodes[0].rank_index, 0)
         self.assertEqual(plan.launch_nodes[0].group, 1001)
         self.assertEqual(plan.launch_nodes[0].group_size, 1)
+        self.assertEqual(plan.launch_nodes[0].group_id, "")
 
         self.assertEqual(plan.launch_nodes[1].id, 3)
         self.assertEqual(plan.launch_nodes[1].rank_index, 1)
         self.assertEqual(plan.launch_nodes[1].group, 1001)
         self.assertEqual(plan.launch_nodes[1].group_size, 1)
+        self.assertEqual(plan.launch_nodes[1].group_id, "")
 
         self.assertEqual(plan.remove_nodes[0].id, 0)
         self.assertEqual(plan.remove_nodes[0].rank_index, 0)
+        self.assertEqual(plan.remove_nodes[0].group, 0)
+        self.assertEqual(plan.remove_nodes[0].group_size, 1)
+        self.assertEqual(plan.remove_nodes[0].group_id, "rack0")
 
         self.assertEqual(plan.remove_nodes[1].id, 1)
         self.assertEqual(plan.remove_nodes[1].rank_index, 1)
+        self.assertEqual(plan.remove_nodes[1].group, 0)
+        self.assertEqual(plan.remove_nodes[1].group_size, 1)
+        self.assertEqual(plan.remove_nodes[1].group_id, "rack0")
 
         self.job_context.clear_job_node_groups()
         self.job_context.clear_job_nodes()
