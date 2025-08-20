@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -61,6 +61,10 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+from dlrover.python.elastic_agent.monitor.resource import (
+    get_gpu_stats,
+    get_hpu_stats,
+)
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -95,7 +99,6 @@ from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.elastic_agent.monitor.resource import get_gpu_stats
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
@@ -1795,45 +1798,44 @@ def comm_perf_check(
     return result
 
 
-def _check_gpu_basic(client) -> Optional[int]:
-    for gpu_stat in get_gpu_stats():
-        index = gpu_stat.index
-
-        # to avoid memory leak
-        if gpu_stat.used_memory_mb / gpu_stat.total_memory_mb >= 0.3:
-            logger.error(
-                f"GPU check[{index}] failed: occupied memory detected."
-            )
-            return index
-
-    logger.info("GPU check succeeded.")
-    return None
-
-
-def _check_npu_basic(client) -> Optional[int]:
-    # TODO
-    logger.info("NPU check succeeded.")
-    return None
-
-
 def _check_device(config: ElasticLaunchConfig):
-    client = MasterClient.singleton_instance()
-    result = None
+    check_result = True, -1
 
     if config.accelerator == Accelerators.NVIDIA_GPU:
-        result = _check_gpu_basic(client)
+        device_stats = get_gpu_stats()
     elif config.accelerator == Accelerators.ASCEND_NPU:
-        result = _check_npu_basic(client)
+        device_stats = get_hpu_stats()
+    else:
+        logger.debug(
+            f"Device type {config.accelerator} is not supported for checking."
+        )
+        return
 
-    if result is not None:
+    logger.debug(f"Device stats: {device_stats}")
+    for device_stat in device_stats:
+        index = device_stat.index
+
+        # to avoid memory leak
+        if device_stat.used_memory_mb / device_stat.total_memory_mb >= 0.3:
+            logger.error(
+                f"Device[{config.accelerator}] check[{index}] "
+                "failed: occupied memory detected."
+            )
+            check_result = False, index
+            break
+
+    if not check_result[0]:
+        client = MasterClient.singleton_instance()
         client.report_event(
             event_type=EventReportConstants.TYPE_WARN,
             instance=env_utils.get_hostname_and_ip()[0],
             action=EventReportConstants.ACTION_DEVICE_WARNING,
             msg="Device check failed",
-            labels={"device": result},
+            labels={"device": check_result[1]},
         )
         raise NodeCheckFailedError(NodeExitDescription.GPU_INVALID_MSG)
+
+    logger.info(f"Device[{config.accelerator}] check succeeded.")
 
 
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
