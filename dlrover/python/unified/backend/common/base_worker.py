@@ -59,7 +59,9 @@ class BaseWorker(ActorBase):
             ) from e
 
         # Export all module-level RPC methods.
-        export_rpc_instance(None, user_func.__module__)
+        import inspect
+
+        export_rpc_instance(None, inspect.getmodule(user_func))
         if isinstance(user_func, type):
             logger.info(
                 f"Instantiating user class {user_func} for actor {self.actor_info.name}."
@@ -82,11 +84,15 @@ class BaseWorker(ActorBase):
                 return
 
             user_func = inst.run
+        logger.info(f"Exported RPC methods: {list(RPC_REGISTRY.keys())}")
 
-        Thread(
-            target=self._execute_user_function, args=(user_func,), daemon=True
-        ).start()
         self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
+        Thread(
+            target=self._execute_user_function,
+            args=(user_func,),
+            daemon=True,
+            name="user_main_thread",
+        ).start()
 
     def _execute_user_function(self, user_func):
         """Execute the user function."""
@@ -95,9 +101,8 @@ class BaseWorker(ActorBase):
             logger.info(f"Executing: {user_func}")
             user_func()
         except Exception:
-            logger.error(
-                "Unexpected error occurred while executing user function.",
-                exc_info=True,
+            logger.exception(
+                "Unexpected error occurred while executing user function."
             )
             self._update_stage_force(WorkerStage.FAILED, WorkerStage.RUNNING)
         else:

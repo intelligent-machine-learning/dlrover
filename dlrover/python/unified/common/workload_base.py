@@ -88,7 +88,10 @@ class ActorBase:
             ray.is_initialized()
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
-            self._report_restart()
+            try:
+                self._report_restart()
+            except Exception:
+                logger.exception("Unexpected error when reporting restart.")
         self._setup()
 
     @property

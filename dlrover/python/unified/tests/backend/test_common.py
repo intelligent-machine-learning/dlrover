@@ -12,14 +12,22 @@
 # limitations under the License.
 
 import asyncio
+import threading
 from unittest.mock import Mock
 
+from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 
+@rpc()
+def module_level_rpc():
+    pass
+
+
 async def test_start_base():
+    RPC_REGISTRY.clear()
     info = ActorInfo(
         name="worker1",
         role="worker",
@@ -29,16 +37,20 @@ async def test_start_base():
 
     global _entrypoint
     _entrypoint = Mock()
+    _entrypoint.__module__ = __name__
 
     assert worker.stage == "READY"
     worker.start()
-    assert worker.stage == "RUNNING"
+    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
+    assert module_level_rpc.__name__ in RPC_REGISTRY
+
     while worker.stage != "FINISHED":
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
     assert _entrypoint.call_count == 1
 
 
 async def test_start_class():
+    RPC_REGISTRY.clear()
     info = ActorInfo(
         name="worker1",
         role="worker",
@@ -47,22 +59,33 @@ async def test_start_class():
     worker = BaseWorker(Mock(JobInfo), info)
 
     init_called = False
+    run_called = False
 
     class entrypoint_class:
         def __init__(self) -> None:
             nonlocal init_called
             init_called = True
 
-        run = staticmethod(Mock())
+        @rpc()
+        def class_level_rpc(self):
+            pass
+
+        def run(self):
+            nonlocal run_called
+            assert worker.stage == "RUNNING"
+            assert threading.current_thread().name == "user_main_thread"
+            run_called = True
 
     global _entrypoint
     _entrypoint = entrypoint_class
+    _entrypoint.__module__ = __name__
 
     assert worker.stage == "READY"
     worker.start()
-    assert worker.stage == "RUNNING"
+    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     assert init_called
-    assert _entrypoint.run.call_count == 0
+    assert entrypoint_class.class_level_rpc.__name__ in RPC_REGISTRY
+
     while worker.stage != "FINISHED":
-        await asyncio.sleep(0.1)
-    assert _entrypoint.run.call_count == 1
+        await asyncio.sleep(0)
+    assert run_called

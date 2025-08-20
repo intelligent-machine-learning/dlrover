@@ -10,23 +10,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
 
-from tensordict import TensorDict
-
-
-class DataTransfer(object):
-    def __init__(self, tensor=None, user_data=None):
-        self._tensor: TensorDict = tensor
-        self._user_data: Dict[str, object] = user_data
-
-    @property
-    def tensor(self):
-        return self._tensor
-
-    @property
-    def user_data(self):
-        return self._user_data
-
-    def get_data(self, key):
-        return self._user_data[key]

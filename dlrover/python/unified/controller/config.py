@@ -109,9 +109,9 @@ class JobConfig(BaseModel):
 
     job_name: str = Field(description="Name of the job.")
     dl_config: DLConfig = Field()
-    master_cpu: int = 1  # in cores
+    master_cpu: int = 2  # in cores
     master_mem: int = Field(
-        default=128,
+        default=4096,
         description="Memory (in MB) for the master actor.",
         validation_alias=AliasChoices("master_memory", "master_mem"),
     )

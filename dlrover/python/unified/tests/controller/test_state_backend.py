@@ -11,22 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
+from dlrover.python.unified.controller.state_backend import (
+    RayInternalMasterStateBackend,
+)
 
-from dlrover.python.unified.common.transfer import DataTransfer
-from dlrover.python.unified.tests.base import BaseTest
 
+def test_basic(shared_ray):
+    key_prefix = "ut_test_"
+    backend = RayInternalMasterStateBackend()
 
-class DataTransferTest(BaseTest):
-    def test_basic(self):
-        data = DataTransfer(
-            {
-                "tensor_a": torch.zeros(3, 3),
-                "tensor_b": torch.ones(2, 2),
-            },
-            {"k1": "v1"},
-        )
-
-        self.assertIsNotNone(data.tensor)
-        self.assertEqual(data.user_data, {"k1": "v1"})
-        self.assertEqual(data.get_data("k1"), "v1")
+    test_key = key_prefix + "k1"
+    test_key_b = test_key.encode()
+    backend.set(test_key_b, b"v1")
+    assert backend.get(test_key_b) == b"v1"
+    assert backend.exists(test_key_b)
+    backend.delete(test_key_b)
+    assert not backend.exists(test_key_b)
+    backend.reset(key_prefix)

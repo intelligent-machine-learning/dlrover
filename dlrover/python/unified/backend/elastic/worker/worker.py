@@ -45,12 +45,14 @@ class ElasticWorker(BaseWorker):
 
         # referenced ray.train.torch.config.py
 
+        os.environ["NAME"] = self.actor_info.name
         os.environ["LOCAL_RANK"] = str(self.actor_info.local_rank)
         os.environ["RANK"] = str(self.actor_info.rank)
         os.environ["LOCAL_WORLD_SIZE"] = str(self.actor_info.spec.per_group)
         os.environ["WORLD_SIZE"] = str(self.actor_info.spec.total)
         os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
+        # TODO RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES
         device = ray_train.get_device()
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
         if torch.cuda.is_available() and device.type == "cuda":
@@ -88,7 +90,11 @@ class ElasticWorker(BaseWorker):
         backend = self.actor_info.spec.comm_backend
         if backend == "auto":
             backend = "nccl" if torch.cuda.is_available() else "gloo"
-        timeout = timedelta(seconds=self.actor_info.spec.comm_timeout_s)
+        timeout = (
+            timedelta(seconds=self.actor_info.spec.comm_timeout_s)
+            if self.actor_info.spec.comm_timeout_s is not None
+            else None
+        )
         logger.info(
             f"Setting up torch process group with backend={backend}, "
             f"world_rank={rank}, world_size={world_size}, by {master_addr}"
@@ -119,7 +125,9 @@ class ElasticWorker(BaseWorker):
             init_method=master_addr,
             rank=rank,
             world_size=world_size,
-            timeout=timeout,
+            **(
+                {"timeout": timeout} if timeout else {}  # type:ignore
+            ),  # old version torch<2.1 does not support timeout=None
         )
         self._process_group_setup = True
 

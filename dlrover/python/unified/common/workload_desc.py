@@ -165,8 +165,8 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         description="Communication backend for the elastic workload. "
         "Supported backends: 'auto', 'gloo', 'nccl', 'mpi'.",
     )
-    comm_timeout_s: int = Field(
-        default=30,
+    comm_timeout_s: Optional[int] = Field(
+        default=None,
         ge=0,
         description="Timeout for communication operations in seconds.",
     )

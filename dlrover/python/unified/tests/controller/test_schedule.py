@@ -18,9 +18,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from dlrover.python.unified.common.workload_desc import (
-    CustomWorkloadDesc,
     ElasticWorkloadDesc,
     ResourceDesc,
+    SimpleWorkloadDesc,
 )
 from dlrover.python.unified.controller.config import (
     ACCELERATOR_TYPE,
@@ -37,29 +37,26 @@ from dlrover.python.unified.util.actor_helper import BatchInvokeResult
 def demo_config():
     return DLConfig(
         workloads={
-            "actor": CustomWorkloadDesc(
+            "actor": SimpleWorkloadDesc(
                 total=4,
-                module_name="dlrover.python.unified.tests.test_class",
-                class_name="TestActor",
+                entry_point="FakeActor",
                 resource=ResourceDesc(cpu=0.31),
                 group="actor_rollout",
             ),
-            "reference": CustomWorkloadDesc(
+            "reference": SimpleWorkloadDesc(
                 total=4,
-                module_name="dlrover.python.unified.tests.test_class",
-                class_name="TestReference",
+                entry_point="FakeReference",
                 resource=ResourceDesc(cpu=0.32),
             ),
-            "rollout": CustomWorkloadDesc(
+            "rollout": SimpleWorkloadDesc(
                 total=4,
-                module_name="dlrover.python.unified.tests.test_class",
-                class_name="TestRollout",
+                entry_point="FakeRollout",
                 resource=ResourceDesc(cpu=0.33),
                 group="actor_rollout",
             ),
             "elastic": ElasticWorkloadDesc(
                 total=4,
-                entry_point="training_script:run",
+                entry_point="fake_train:run",
             ),
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,
