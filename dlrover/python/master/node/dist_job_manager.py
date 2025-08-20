@@ -231,12 +231,6 @@ class DistributedJobManager(JobManager):
             name="node_heartbeat_monitor",
             daemon=True,
         ).start()
-        if os.getenv("KUBERNETES_SERVICE_HOST"):
-            threading.Thread(
-                target=self._monitor_scale_plan_crd,
-                name="scaleplan_monitor",
-                daemon=True,
-            ).start()
 
     def _has_running_workers(self):
         nodes = self._node_watcher.list()
@@ -579,29 +573,6 @@ class DistributedJobManager(JobManager):
                 result[node.id] = result_dict
 
         return result
-
-    def _monitor_scale_plan_crd(self):
-        """Monitor the Scaler CRD from users to adjust the job resource"""
-        logger.info("Start to monitor Scaler CRD")
-        while True:
-            try:
-                if self._stopped:
-                    logger.info("Stop monitoring Scaler CRDs.")
-                    break
-                for plan in self._scaler_watcher.watch():
-                    try:
-                        self._job_autoscaler.execute_job_optimization_plan(
-                            plan
-                        )
-                    except Exception as e:
-                        logger.warning(e)
-                        detail_trace_back = traceback.format_exc()
-                        logger.warning(detail_trace_back)
-            except Exception as e:
-                logger.warning(e)
-                detail_trace_back = traceback.format_exc()
-                logger.warning(detail_trace_back)
-                time.sleep(5)
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
@@ -1085,6 +1056,7 @@ class DistributedJobManager(JobManager):
             # update node.group to max_group_idx
             old_node = copy.deepcopy(node)
             old_node.group = group_idx
+            old_node.group_id = ""
             launch_nodes.append(old_node)
 
         plan = self._worker_manager.relaunch_nodes(launch_nodes, True)
