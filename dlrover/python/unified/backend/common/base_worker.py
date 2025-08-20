@@ -59,7 +59,9 @@ class BaseWorker(ActorBase):
             ) from e
 
         # Export all module-level RPC methods.
-        export_rpc_instance(None, user_func.__module__)
+        import inspect
+
+        export_rpc_instance(None, inspect.getmodule(user_func))
         if isinstance(user_func, type):
             logger.info(
                 f"Instantiating user class {user_func} for actor {self.actor_info.name}."
@@ -82,6 +84,7 @@ class BaseWorker(ActorBase):
                 return
 
             user_func = inst.run
+        logger.info(f"Exported RPC methods: {list(RPC_REGISTRY.keys())}")
 
         self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
         Thread(
