@@ -404,8 +404,7 @@ class BaseRLTrainer(ActorBase, ABC):
             daemon=True,
         ).start()
 
-    def trainer_run(self):
-        pass
+    def trainer_run(self): ...
 
     @property
     def config(self):
