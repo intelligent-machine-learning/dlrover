@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from omegaconf import OmegaConf
+from pydantic import ValidationError
 
 from dlrover.python.unified.api.builder import (
     DLJob,
@@ -20,11 +21,11 @@ from dlrover.python.unified.api.builder import (
     RLJobBuilder,
     WorkloadBuilder,
 )
+from dlrover.python.unified.api.builder.rl import RLJob
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     RLRoleType,
 )
-from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.controller.config import DLConfig
 from dlrover.python.unified.tests.base import BaseTest
 
@@ -61,8 +62,7 @@ class ApiTest(BaseTest):
             .build()
         )
 
-        self.assertIsNotNone(rl_job)
-        self.assertTrue(isinstance(rl_job, DLJob))
+        assert isinstance(rl_job, RLJob)
         self.assertEqual(rl_job.stream_type, DLStreamType.TASK_STREAM)
         self.assertEqual(rl_job.node_num, 2)
         self.assertEqual(rl_job.device_per_node, 4)
@@ -108,53 +108,51 @@ class ApiTest(BaseTest):
         self.assertTrue(RLRoleType.ACTOR.name in rl_job.collocations[0])
         self.assertTrue(RLRoleType.ROLLOUT.name in rl_job.collocations[0])
 
-        rl_config = rl_job._to_dl_config()
-        self.assertIsNotNone(rl_config)
-        self.assertEqual(len(rl_config.workloads), 6)
+        self.assertEqual(len(rl_job.workloads), 6)
 
     def test_validation(self):
         # without dl type
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             DLJobBuilder().build()
 
         # without node num
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             DLJobBuilder().build()
 
         # without device per node
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             DLJobBuilder().node_num(1).build()
 
         # invalid device type
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             DLJobBuilder().node_num(1).device_per_node(1).device_type(
                 "mem"
             ).build()
 
         # without config
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             DLJobBuilder().node_num(1).device_per_node(1).build()
 
         # rl without trainer
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).build()
 
         # rl without actor
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).trainer("m0", "c0").build()
 
         # invalid trainer
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).trainer("", "").build()
 
         # invalid collocation
-        with self.assertRaises(InvalidDLConfiguration):
+        with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
             ).trainer("m0", "c0").actor("m1", "c1").rollout("m2", "c2").reward(
@@ -171,7 +169,7 @@ class ApiTest(BaseTest):
         ).trainer("m0", "c0").actor("m1", "c1").total(1).per_group(1).build()
 
     def test_collocation_all(self):
-        rl_job = (
+        rl_job: DLJob = (
             RLJobBuilder()
             .node_num(1)
             .device_per_node(1)
@@ -187,13 +185,13 @@ class ApiTest(BaseTest):
             .build()
         )
         self.assertEqual(
-            rl_job._collocations[0],
+            rl_job.collocations[0],
             {RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name},
         )
 
     def test_to_dl_config(self):
         # collocation: 4: 4+4
-        rl_job = (
+        rl_job: DLJob = (
             RLJobBuilder()
             .node_num(2)
             .device_per_node(4)
@@ -211,23 +209,21 @@ class ApiTest(BaseTest):
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
-        rl_config = rl_job._to_dl_config()
-        assert isinstance(rl_config, DLConfig)
-        assert len(rl_config.workloads.keys()) == 3
+        assert isinstance(rl_job, DLConfig)
+        assert len(rl_job.workloads.keys()) == 3
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].group
-            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
+            rl_job.workloads[RLRoleType.ACTOR.name].group
+            == rl_job.workloads[RLRoleType.ROLLOUT.name].group
         )
-        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 4
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 4
-        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert rl_job.workloads[RLRoleType.ACTOR.name].per_group == 4
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].per_group == 4
+        assert rl_job.workloads[RLRoleType.ACTOR.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
-            == 0.5
+            rl_job.workloads[RLRoleType.ACTOR.name].resource.accelerator == 0.5
         )
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            rl_job.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
             == 0.5
         )
         # collocation: 4: 4+4+4
@@ -256,31 +252,30 @@ class ApiTest(BaseTest):
             )
             .build()
         )
-        rl_config = rl_job._to_dl_config()
-        assert isinstance(rl_config, DLConfig)
-        assert len(rl_config.workloads.keys()) == 4
+        assert isinstance(rl_job, DLConfig)
+        assert len(rl_job.workloads.keys()) == 4
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].group
-            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
-            == rl_config.workloads[RLRoleType.REFERENCE.name].group
+            rl_job.workloads[RLRoleType.ACTOR.name].group
+            == rl_job.workloads[RLRoleType.ROLLOUT.name].group
+            == rl_job.workloads[RLRoleType.REFERENCE.name].group
         )
-        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 4
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 4
-        assert rl_config.workloads[RLRoleType.REFERENCE.name].per_group == 4
+        assert rl_job.workloads[RLRoleType.ACTOR.name].per_group == 4
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].per_group == 4
+        assert rl_job.workloads[RLRoleType.REFERENCE.name].per_group == 4
 
-        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert rl_job.workloads[RLRoleType.ACTOR.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
+            rl_job.workloads[RLRoleType.ACTOR.name].resource.accelerator
             == 0.33
         )
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            rl_job.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
             == 0.33
         )
-        assert rl_config.workloads[RLRoleType.REFERENCE.name].total == 4
+        assert rl_job.workloads[RLRoleType.REFERENCE.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.REFERENCE.name].resource.accelerator
+            rl_job.workloads[RLRoleType.REFERENCE.name].resource.accelerator
             == 0.33
         )
 
@@ -312,40 +307,38 @@ class ApiTest(BaseTest):
             )
             .build()
         )
-        rl_config = rl_job._to_dl_config()
-        assert isinstance(rl_config, DLConfig)
-        assert len(rl_config.workloads.keys()) == 5
+        assert isinstance(rl_job, DLConfig)
+        assert len(rl_job.workloads.keys()) == 5
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].group
-            == rl_config.workloads[RLRoleType.ROLLOUT.name].group
+            rl_job.workloads[RLRoleType.ACTOR.name].group
+            == rl_job.workloads[RLRoleType.ROLLOUT.name].group
         )
         assert (
-            rl_config.workloads[RLRoleType.REWARD.name].group
-            == rl_config.workloads[RLRoleType.REFERENCE.name].group
+            rl_job.workloads[RLRoleType.REWARD.name].group
+            == rl_job.workloads[RLRoleType.REFERENCE.name].group
         )
-        assert rl_config.workloads[RLRoleType.ACTOR.name].per_group == 2
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].per_group == 2
-        assert rl_config.workloads[RLRoleType.REWARD.name].per_group == 2
-        assert rl_config.workloads[RLRoleType.REFERENCE.name].per_group == 6
+        assert rl_job.workloads[RLRoleType.ACTOR.name].per_group == 2
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].per_group == 2
+        assert rl_job.workloads[RLRoleType.REWARD.name].per_group == 2
+        assert rl_job.workloads[RLRoleType.REFERENCE.name].per_group == 6
 
-        assert rl_config.workloads[RLRoleType.ACTOR.name].total == 4
+        assert rl_job.workloads[RLRoleType.ACTOR.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.ACTOR.name].resource.accelerator
+            rl_job.workloads[RLRoleType.ACTOR.name].resource.accelerator == 0.5
+        )
+        assert rl_job.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert (
+            rl_job.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
             == 0.5
         )
-        assert rl_config.workloads[RLRoleType.ROLLOUT.name].total == 4
+        assert rl_job.workloads[RLRoleType.REFERENCE.name].total == 12
         assert (
-            rl_config.workloads[RLRoleType.ROLLOUT.name].resource.accelerator
+            rl_job.workloads[RLRoleType.REFERENCE.name].resource.accelerator
             == 0.5
         )
-        assert rl_config.workloads[RLRoleType.REFERENCE.name].total == 12
+        assert rl_job.workloads[RLRoleType.REWARD.name].total == 4
         assert (
-            rl_config.workloads[RLRoleType.REFERENCE.name].resource.accelerator
-            == 0.5
-        )
-        assert rl_config.workloads[RLRoleType.REWARD.name].total == 4
-        assert (
-            rl_config.workloads[RLRoleType.REWARD.name].resource.accelerator
+            rl_job.workloads[RLRoleType.REWARD.name].resource.accelerator
             == 0.5
         )
 
@@ -369,10 +362,9 @@ class ApiTest(BaseTest):
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
-        rl_config = rl_job._to_dl_config()
-        assert isinstance(rl_config, DLConfig)
+        assert isinstance(rl_job, DLConfig)
         assert (
-            rl_config.workloads[RLRoleType.ROLLOUT.name].envs[
+            rl_job.workloads[RLRoleType.ROLLOUT.name].envs[
                 "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES"
             ]
             == "true"
@@ -391,11 +383,10 @@ class ApiTest(BaseTest):
         )
 
         self.assertIsNotNone(dl_job)
-        dl_config = dl_job._to_dl_config()
-        assert isinstance(dl_config, DLConfig)
-        assert len(dl_config.workloads) == 1
-        assert "ELASTIC" in dl_config.workloads
-        workload = dl_config.workloads["ELASTIC"]
+        assert isinstance(dl_job, DLConfig)
+        assert len(dl_job.workloads) == 1
+        assert "ELASTIC" in dl_job.workloads
+        workload = dl_job.workloads["ELASTIC"]
         assert workload.backend == "elastic"
         assert workload.entry_point == "test.main"
         assert workload.total == 4
@@ -409,19 +400,18 @@ class ApiTest(BaseTest):
         self.assertEqual(workload_builder._sub_stage, [])
         workload_builder.sub_stage([1])
         self.assertEqual(workload_builder._sub_stage, [1])
-        self.assertFalse(workload_builder._validate())
-        workload_builder.total(1)
-        workload_builder.per_group(1)
-        self.assertTrue(workload_builder._validate())
+        workload_builder.build()  # success
 
         dlrover_run_builder = DLRoverRunBuilder(DLJobBuilder(), "test")
-        self.assertFalse(dlrover_run_builder._validate())
+        with self.assertRaises(ValidationError):
+            dlrover_run_builder.build()
         dlrover_run_builder._entrypoint = "tset::main"
-        self.assertTrue(dlrover_run_builder._validate())
+        dlrover_run_builder.build()  # success
         dlrover_run_builder.total(-1)
-        self.assertFalse(dlrover_run_builder._validate())
+        with self.assertRaises(ValidationError):
+            dlrover_run_builder.build()
 
         dlrover_run_builder = DLRoverRunBuilder(
             DLJobBuilder(), "test::main"
         ).total(1)
-        self.assertTrue(dlrover_run_builder._validate())
+        dlrover_run_builder.build()  # success

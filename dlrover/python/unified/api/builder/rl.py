@@ -10,14 +10,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.python.common.log import default_logger as logger
+from pydantic import model_validator
+
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
     RLRoleType,
 )
 
-from .base import DLJobBuilder
+from .base import DLJob, DLJobBuilder
+
+
+class RLJob(DLJob):
+    @model_validator(mode="after")
+    def validate(self):
+        if self.stream_type != DLStreamType.TASK_STREAM:
+            raise ValueError(
+                "Invalid stream type for RLJob, expected TASK_STREAM"
+            )
+
+        if RLJobBuilder.ACTOR_ROLE not in self.workloads:
+            raise ValueError("'actor' must be configured.")
+
+        for role, _ in self.workloads.items():
+            if role not in RLJobBuilder.ROLES:
+                raise ValueError(
+                    f"Invalid role '{role}' for RLJob, "
+                    f"supported roles are {RLJobBuilder.ROLES}."
+                )
+        return self
 
 
 class RLJobBuilder(DLJobBuilder):
@@ -52,8 +73,6 @@ class RLJobBuilder(DLJobBuilder):
             module_name (str): The module name of trainer.
             class_name (str): The class name of trainer.
         """
-
-        assert self._stream_type == DLStreamType.TASK_STREAM
 
         builder = self.workload(
             RLJobBuilder.TRAINER_ROLE, module_name, class_name
@@ -133,20 +152,5 @@ class RLJobBuilder(DLJobBuilder):
         super().with_collocation_all(RLRoleType.TRAINER.name)
         return self
 
-    def validate(self) -> bool:
-        if not super(RLJobBuilder, self).validate():
-            return False
-
-        if RLJobBuilder.ACTOR_ROLE not in list(self._role_builders.keys()):
-            logger.error("'actor' must be configured.")
-            return False
-
-        for role, _ in self._role_builders.items():
-            if role not in RLJobBuilder.ROLES:
-                logger.error(
-                    f"{role} is invalid for rl, supported roles "
-                    f"are {RLJobBuilder.ROLES}."
-                )
-                return False
-
-        return True
+    def build(self) -> RLJob:
+        return RLJob.model_validate(super().build().model_dump())
