@@ -95,7 +95,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
     """
 
     total: int = Field(
-        default=1, validation_alias=AliasChoices("total", "num", "number")
+        default=1,
+        ge=0,  # allow 0 to indicate no instances,
+        validation_alias=AliasChoices("total", "num", "number"),
     )
     resource: ResourceDesc = Field(
         default_factory=ResourceDesc,

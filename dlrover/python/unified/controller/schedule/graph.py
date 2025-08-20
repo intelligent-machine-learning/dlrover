@@ -146,7 +146,7 @@ class DLWorkloadRole:
             for i in range(self.instance_number)
         ]
         self.sub_master: Optional[DLExecutionMasterVertex] = None
-        if self.spec.get_master_cls() is not None:
+        if len(self.instances) > 0 and self.spec.get_master_cls() is not None:
             self.sub_master = DLExecutionMasterVertex(
                 role=self,
             )
