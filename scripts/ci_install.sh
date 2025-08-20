@@ -36,7 +36,7 @@ pip install -q 'ray[default, train]'
 pip install -q pyhocon
 pip install -q pytest-cov
 pip install -q pytest-ordering
-pip install -q pytest-async
+pip install -q pytest-asyncio
 pip install -q pytest-mock
 pip install -q pytest-timeout
 pip install -q packaging

@@ -15,9 +15,8 @@
 # Simplified/Extracted from examples/unified/rl/openrlhf
 
 
-from typing import Sequence
+from typing import List, Sequence
 
-from git import List
 from omegaconf import DictConfig
 
 from dlrover.python.unified.api.runtime import current_worker, rpc
