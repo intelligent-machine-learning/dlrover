@@ -10,12 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
-from typing import Any, Dict, List, Set, cast
+from typing import Any, Dict, Generic, List, Optional, Set, TypeVar, cast
 
 from pydantic import Field, model_validator
+from typing_extensions import Self
 
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
@@ -53,7 +53,10 @@ class DLJob(DLConfig):
                     raise ValueError(
                         f"Role '{role}' is not defined in workloads, but is included in collocation."
                     )
-                if workloads[role].group is not None:
+                if (
+                    workloads[role].group is not None
+                    and workloads[role].group != name
+                ):
                     raise ValueError(
                         f"Role {role} has already been assigned to a group: "
                         f"{workloads[role].group}. Cannot be included in collocation."
@@ -124,42 +127,14 @@ class DLJob(DLConfig):
         return submit(config, blocking)
 
 
-class RoleBuilder(ABC):
-    def __init__(self, job_builder, role, module_name, class_name):
-        self._job_builder = job_builder
-
-        self._role = role
-        self._module_name = module_name
-        self._class_name = class_name
-
-        self._job_builder.add_role_builder(self)
-
-    def __getattr__(self, attr):
-        if hasattr(self._job_builder, attr):
-            return getattr(self._job_builder, attr)
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{attr}'"
-        )
-
-    def get_role(self):
-        return self._role
-
-    @abstractmethod
-    def _build_role(self) -> Dict[str, WorkloadDesc]:
-        pass
-
-    @abstractmethod
-    def _get_per_group(self):
-        return 1
-
-    @abstractmethod
-    def _get_total(self):
-        return 1
+T = TypeVar("T", bound="DLJobBuilder")
 
 
-class WorkloadBuilder(RoleBuilder):
-    def __init__(self, job_builder, role, module_name, class_name):
-        super().__init__(job_builder, role, module_name, class_name)
+class RoleBuilder(ABC, Generic[T]):
+    def __init__(self, parent: T, role: str, entrypoint: str):
+        self.role = role
+        self.entrypoint = entrypoint
+        self._parent = parent
 
         self._num = 0
         self._per_group = 1
@@ -247,65 +222,56 @@ class WorkloadBuilder(RoleBuilder):
         self._sub_stage = sub_stage
         return self
 
-    def _get_per_group(self):
-        return self._per_group
+    @abstractmethod
+    def _build_role(self) -> Dict[str, WorkloadDesc]: ...
 
-    def _get_total(self):
-        return self._num
+    def end(self) -> T:
+        """
+        End the current builder and return to the parent builder.
+
+        Returns:
+            T: The parent builder instance.
+        """
+        self._parent.add_role_builder(self.role, self)
+        return self._parent
+
+
+class ElasticTrainBuilder(RoleBuilder[T]):
+    """Builder for elastic training workload."""
+
+    def nnodes(self, num: int):
+        self._num = num * self._per_group
+        return self
+
+    def nproc_per_node(self, num: int):
+        nnodes = self._num // self._per_group
+        self._per_group = num
+        self._num = nnodes * num
+        return self
 
     def _build_role(self) -> Dict[str, WorkloadDesc]:
         return {
-            self._role: SimpleWorkloadDesc(
-                entry_point=f"{self._module_name}.{self._class_name}",
+            self.role: ElasticWorkloadDesc(
+                entry_point=self.entrypoint,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
                 per_group=self._per_group,
-                envs=self._env,
-                resource=ResourceDesc.get_or_default(self._resource),
-            )
+            ),
         }
 
-    def build(self) -> "DLJob":
-        return self._job_builder.build()
 
-
-class DLRoverRunBuilder(WorkloadBuilder):
-    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+(::|\.)[a-zA-Z0-9_]+$"
-
-    def __init__(
-        self,
-        parent_builder,
-        entrypoint: str = "",
-        nnodes: int = 1,
-        nproc_per_node: int = 1,
-    ):
-        super().__init__(
-            parent_builder,
-            InternalDLWorkloadRole.ELASTIC_ROLE,
-            "",
-            "",
-        )
-        self._entrypoint = entrypoint
-        self._num = nnodes * nproc_per_node
-        self._per_node = nproc_per_node
-
-    def _validate(self):
-        if not self._num >= 1 or not self._per_node >= 1:
-            return False
-        if (
-            self._entrypoint is None
-            or re.match(self.ENTRYPOINT_REGEX, self._entrypoint) is None
-        ):
-            return False
-        return True
+class SimpleWorkloadBuilder(RoleBuilder[T]):
+    """Builder for simple workload."""
 
     def _build_role(self) -> Dict[str, WorkloadDesc]:
         return {
-            self._role: ElasticWorkloadDesc(
-                entry_point=self._entrypoint,
+            self.role: SimpleWorkloadDesc(
+                entry_point=self.entrypoint,
                 envs=self._env,
                 resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
-                per_group=self._per_node,
+                per_group=self._per_group,
             ),
         }
 
@@ -318,9 +284,12 @@ class DLJobBuilder(object):
         self._env = {}
         self._role_builders: Dict[str, RoleBuilder] = {}
         self._collocations: List[Set[str]] = []
+        self._last_role: Optional[str] = None
 
-    def add_role_builder(self, role_builder: RoleBuilder):
-        self._role_builders[role_builder.get_role()] = role_builder
+    def add_role_builder(self, role: str, role_builder: RoleBuilder):
+        if role in self._role_builders:
+            raise ValueError(f"Role '{role}' is already defined.")
+        self._role_builders[role] = role_builder
 
     def build(self):
         """
@@ -420,41 +389,44 @@ class DLJobBuilder(object):
         self._env.update(env)
         return self
 
-    def workload(self, role_name, module_name, class_name):
+    def role(self, role: str):
         """
-        Setup workload.
+        Set the last role for next workload definition.
 
         Args:
-            role_name (str): The role name of workload.
-            module_name (str): The module name of workload.
-            class_name (str): The class name of workload.
+            role (str): The role name of next workload.
         """
 
-        return WorkloadBuilder(self, role_name, module_name, class_name)
+        self._last_role = role
+        return self
 
-    def dlrover_run(
-        self,
-        entrypoint: str,
-        /,
-        nnodes: int,
-        nproc_per_node: int,
-    ):
+    def run(self, entrypoint: str):
+        """
+        Setup simple workload.
+
+        Args:
+            role (str): The role name of workload.
+            entrypoint (str): The entry point of workload.
+        """
+        if self._last_role is None:
+            raise ValueError("Role must be set before calling run().")
+
+        role = self._last_role
+        builder = SimpleWorkloadBuilder[Self](self, role, entrypoint)
+        return builder
+
+    def train(self, entrypoint: str):
         """
         Setup elastic agent workload(use elastic agent for elastic training,
             same with 'torchrun' case).
 
         Args:
             entrypoint (str): The training entrypoint.
-                e.g. 'xxx.module::function'
-            nnodes (int): The number of nodes.
-            nproc_per_node (int): The number of processes per node.
+                e.g. 'xxx.module.function'
         """
-
-        dlrover_run_builder = DLRoverRunBuilder(
-            self, entrypoint, nnodes, nproc_per_node
-        )
-
-        return dlrover_run_builder
+        role = self._last_role or InternalDLWorkloadRole.ELASTIC_ROLE
+        builder = ElasticTrainBuilder[Self](self, role, entrypoint)
+        return builder
 
     def with_collocation(self, *roles):
         """

@@ -17,9 +17,11 @@ from pydantic import ValidationError
 from dlrover.python.unified.api.builder import (
     DLJob,
     DLJobBuilder,
-    DLRoverRunBuilder,
     RLJobBuilder,
-    WorkloadBuilder,
+)
+from dlrover.python.unified.api.builder.base import (
+    ElasticTrainBuilder,
+    SimpleWorkloadBuilder,
 )
 from dlrover.python.unified.api.builder.rl import RLJob
 from dlrover.python.unified.common.enums import (
@@ -40,25 +42,32 @@ class ApiTest(BaseTest):
             .device_per_node(4)
             .config(conf)
             .global_env({"e0": "v0"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(4)
             .per_group(2)
             .env({"e1": "v1"})
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(4)
             .per_group(2)
             .env({"e2": "v2"})
-            .reward("m3", "c3")
+            .end()
+            .reward("m3.c3")
             .total(4)
             .per_group(2)
-            .reference("m4", "c4")
+            .env({"e3": "v3"})
+            .end()
+            .reference("m4.c4")
             .total(4)
             .per_group(2)
-            .critic("m5", "c5")
+            .end()
+            .critic("m5.c5")
             .total(4)
             .per_group(2)
-            .with_collocation("Actor", RLRoleType.ROLLOUT.name)
+            .end()
+            .with_collocation(RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name)
             .build()
         )
 
@@ -143,44 +152,69 @@ class ApiTest(BaseTest):
         with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
-            ).trainer("m0", "c0").build()
+            ).trainer("m0.c0").end().build()
 
         # invalid trainer
         with self.assertRaises(ValidationError):
             RLJobBuilder().node_num(1).device_per_node(1).config(
                 {"k1": "v1"}
-            ).trainer("", "").build()
+            ).trainer("").end().build()
 
         # invalid collocation
         with self.assertRaises(ValidationError):
-            RLJobBuilder().node_num(1).device_per_node(1).config(
-                {"k1": "v1"}
-            ).trainer("m0", "c0").actor("m1", "c1").rollout("m2", "c2").reward(
-                "m3", "c3"
-            ).with_collocation(
-                RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name
-            ).with_collocation(
-                RLRoleType.ROLLOUT.name, RLRoleType.REWARD.name
-            ).build()
+            (
+                RLJobBuilder()
+                .node_num(1)
+                .device_per_node(1)
+                .config({"k1": "v1"})
+                .trainer("m0.c0")
+                .end()
+                .actor("m1.c1")
+                .end()
+                .rollout("m2.c2")
+                .end()
+                .reward("m3.c3")
+                .end()
+                .with_collocation(
+                    RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name
+                )
+                .with_collocation(
+                    RLRoleType.ROLLOUT.name, RLRoleType.REWARD.name
+                )
+                .build()
+            )
 
         # a minimum valid rl
-        RLJobBuilder().node_num(1).device_per_node(1).config(
-            {"k1": "v1"}
-        ).trainer("m0", "c0").actor("m1", "c1").total(1).per_group(1).build()
+        (
+            RLJobBuilder()
+            .node_num(1)
+            .device_per_node(1)
+            .config({"k1": "v1"})
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
+            .total(1)
+            .per_group(1)
+            .end()
+            .build()
+        )
 
     def test_collocation_all(self):
         rl_job: DLJob = (
             RLJobBuilder()
             .node_num(1)
-            .device_per_node(1)
+            .device_per_node(2)
             .config({"k1": "v1"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(1)
             .per_group(1)
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(1)
             .per_group(1)
+            .end()
             .with_collocation_all()
             .build()
         )
@@ -197,16 +231,19 @@ class ApiTest(BaseTest):
             .device_per_node(4)
             .config({"k1": "v1"})
             .global_env({"e0": "v0"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(4)
             .per_group(4)
             .env({"e1": "v1"})
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(4)
             .per_group(4)
             .env({"e2": "v2"})
-            .with_collocation("Actor", RLRoleType.ROLLOUT.name)
+            .end()
+            .with_collocation(RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name)
             .build()
         )
         assert isinstance(rl_job, DLConfig)
@@ -233,18 +270,22 @@ class ApiTest(BaseTest):
             .device_per_node(4)
             .config({"k1": "v1"})
             .global_env({"e0": "v0"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(4)
             .per_group(4)
             .env({"e1": "v1"})
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(4)
             .per_group(4)
             .env({"e2": "v2"})
-            .reference("m3", "c3")
+            .end()
+            .reference("m3.c3")
             .total(4)
             .per_group(4)
+            .end()
             .with_collocation(
                 RLRoleType.ACTOR.name,
                 RLRoleType.ROLLOUT.name,
@@ -283,24 +324,29 @@ class ApiTest(BaseTest):
         rl_job = (
             RLJobBuilder()
             .node_num(2)
-            .device_per_node(4)
+            .device_per_node(6)
             .config({"k1": "v1"})
             .global_env({"e0": "v0"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(4)
             .per_group(2)
             .env({"e1": "v1"})
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(4)
             .per_group(2)
             .env({"e2": "v2"})
-            .reference("m3", "c3")
+            .end()
+            .reference("m3.c3")
             .total(12)
             .per_group(6)
-            .reward("m4", "c4")
+            .end()
+            .reward("m4.c4")
             .total(4)
             .per_group(2)
+            .end()
             .with_collocation(RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name)
             .with_collocation(
                 RLRoleType.REWARD.name, RLRoleType.REFERENCE.name
@@ -349,16 +395,19 @@ class ApiTest(BaseTest):
             .device_per_node(4)
             .config({"k1": "v1"})
             .global_env({"e0": "v0"})
-            .trainer("m0", "c0")
-            .actor("m1", "c1")
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
             .total(4)
             .per_group(4)
             .env({"e1": "v1"})
-            .rollout("m2", "c2")
+            .end()
+            .rollout("m2.c2")
             .total(4)
             .disable_ray_auto_visible_device()
             .env({"e2": "v2"})
             .per_group(4)
+            .end()
             .with_collocation("Actor", RLRoleType.ROLLOUT.name)
             .build()
         )
@@ -378,7 +427,10 @@ class ApiTest(BaseTest):
             .device_type("CPU")
             .config({"c1": "v1"})
             .global_env({"e0": "v0"})
-            .dlrover_run("test::main", nnodes=2, nproc_per_node=2)
+            .train("test::main")
+            .nnodes(2)
+            .nproc_per_node(2)
+            .end()
             .build()
         )
 
@@ -393,25 +445,32 @@ class ApiTest(BaseTest):
         assert workload.resource.accelerator == 1
 
     def test_role_builder(self):
-        workload_builder = WorkloadBuilder(DLJobBuilder(), "test", "m0", "c0")
+        workload_builder = SimpleWorkloadBuilder(
+            DLJobBuilder(), "test", "m0.c0"
+        )
         workload_builder.env(None)
         self.assertEqual(workload_builder._env, {})
         workload_builder.sub_stage(None)
         self.assertEqual(workload_builder._sub_stage, [])
         workload_builder.sub_stage([1])
         self.assertEqual(workload_builder._sub_stage, [1])
-        workload_builder.build()  # success
+        workload_builder.end().build()  # success
 
-        dlrover_run_builder = DLRoverRunBuilder(DLJobBuilder(), "test")
+        # Bad entrypoint
         with self.assertRaises(ValidationError):
-            dlrover_run_builder.build()
-        dlrover_run_builder._entrypoint = "tset::main"
-        dlrover_run_builder.build()  # success
-        dlrover_run_builder.total(-1)
+            ElasticTrainBuilder(DLJobBuilder(), "test", "main").end().build()
+        ElasticTrainBuilder(
+            DLJobBuilder(), "test", "tset::main"
+        ).end().build()  # success
+        # Bad total
         with self.assertRaises(ValidationError):
-            dlrover_run_builder.build()
+            (
+                ElasticTrainBuilder(DLJobBuilder(), "test", "tset::main")
+                .total(-1)
+                .end()
+                .build()
+            )
 
-        dlrover_run_builder = DLRoverRunBuilder(
-            DLJobBuilder(), "test::main"
-        ).total(1)
-        dlrover_run_builder.build()  # success
+        ElasticTrainBuilder(DLJobBuilder(), "test", "test::main").total(
+            1
+        ).end().build()  # success
