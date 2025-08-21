@@ -136,7 +136,7 @@ class RoleBuilder(ABC, Generic[T]):
         self.entrypoint = entrypoint
         self._parent = parent
 
-        self._num = 0
+        self._num = 1
         self._per_group = 1
         self._env = {}
         self._resource = {}
