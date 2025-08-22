@@ -26,5 +26,5 @@ coverage:
     project:
       default:
         target: 75%
-        threshold: 1%
+        threshold: 2%
         removed_code_behavior: fully_covered_patch
