@@ -15,13 +15,16 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List
 
+from omegaconf import DictConfig, OmegaConf
 from pydantic import (
     AliasChoices,
     BaseModel,
     Field,
+    field_serializer,
     field_validator,
     model_validator,
 )
+from pydantic_core import core_schema
 
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import MasterStateBackendType
@@ -96,6 +99,37 @@ class DLConfig(BaseModel):
                         f" '{name}' is inconsistent.\n  {group}"
                     )
         return list(groups.values())
+
+    @field_validator(
+        "user_config",
+        mode="plain",
+        json_schema_input_type=core_schema.dict_schema(
+            core_schema.str_schema(), core_schema.any_schema()
+        ),
+    )
+    def _normalize_user_config(cls, v):
+        """Convert None to empty DictConfig."""
+        import argparse
+
+        if v is None:
+            v = DictConfig({})
+        elif isinstance(v, dict):
+            v = DictConfig(v)
+        elif isinstance(v, DictConfig):
+            v = v
+        elif isinstance(v, argparse.Namespace):
+            v = DictConfig(vars(v))
+        else:
+            return v  # keep original type for Any
+        OmegaConf.resolve(v)
+        return v
+
+    @field_serializer("user_config")
+    def _serialize_user_config(self, v):
+        """Serialize user_config to dict."""
+        if isinstance(v, DictConfig):
+            return OmegaConf.to_object(v)
+        return v
 
     @field_validator("workloads", mode="after")
     def _require_workloads(cls, workloads):
