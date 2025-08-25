@@ -232,7 +232,7 @@ class RoleBuilder(ABC, Generic[T]):
         return self
 
     @abstractmethod
-    def _build_role(self) -> Dict[str, WorkloadDesc]: ...
+    def _build_role(self) -> Dict[str, WorkloadDesc]: ...  # pragma: no cover
 
     def end(self) -> T:
         """Return the parent builder instance.
@@ -373,29 +373,23 @@ class DLJobBuilder(object):
         self._params.accelerator_type = cast(Any, device_type)
         return self
 
-    def config(self, config=None):
+    def config(self, config: dict):
         """
         Set the training configuration.
 
         Args:
             config (dict): The full configuration of training in dict format.
         """
-
-        if config is None:
-            config = {}
         self._params.user_config = config
         return self
 
-    def global_env(self, env=None):
+    def global_env(self, env: dict):
         """
         Set the global training envs.
 
         Args:
             env (dict, optional): The global envs of training.
         """
-
-        if env is None:
-            env = {}
         self._env.update(env)
         return self
 

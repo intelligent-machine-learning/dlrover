@@ -156,6 +156,22 @@ class ApiTest(BaseTest):
                 {"k1": "v1"}
             ).trainer("").end().build()
 
+        # a minimum valid rl
+        (
+            RLJobBuilder()
+            .node_num(1)
+            .device_per_node(1)
+            .config({"k1": "v1"})
+            .trainer("m0.c0")
+            .end()
+            .actor("m1.c1")
+            .total(1)
+            .per_group(1)
+            .end()
+            .build()
+        )
+
+    def test_invalid_collocation(self):
         # invalid collocation
         with self.assertRaises(ValidationError):
             (
@@ -179,21 +195,41 @@ class ApiTest(BaseTest):
                 )
                 .build()
             )
-
-        # a minimum valid rl
-        (
-            RLJobBuilder()
-            .node_num(1)
-            .device_per_node(1)
-            .config({"k1": "v1"})
-            .trainer("m0.c0")
-            .end()
-            .actor("m1.c1")
-            .total(1)
-            .per_group(1)
-            .end()
-            .build()
-        )
+        # not defined role
+        with self.assertRaises(ValidationError) as e:
+            (
+                RLJobBuilder()
+                .trainer("m0.c0")
+                .end()
+                .actor("m1.c1")
+                .end()
+                .with_collocation(
+                    RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name
+                )
+                .build()
+            )
+        self.assertIn("not defined", str(e.exception))
+        # collocation twice
+        with self.assertRaises(ValidationError) as e:
+            (
+                RLJobBuilder()
+                .trainer("m0.c0")
+                .end()
+                .actor("m1.c1")
+                .end()
+                .rollout("m1.c1")
+                .end()
+                .reward("m1.c1")
+                .end()
+                .with_collocation(
+                    RLRoleType.ACTOR.name, RLRoleType.ROLLOUT.name
+                )
+                .with_collocation(
+                    RLRoleType.ACTOR.name, RLRoleType.REWARD.name
+                )
+                .build()
+            )
+        self.assertIn("already been assigned", str(e.exception))
 
     def test_collocation_all(self):
         rl_job: DLJob = (
@@ -473,4 +509,4 @@ class ApiTest(BaseTest):
 
         DLJobBuilder().role("test").run("tset.main").total(
             1
-        ).end().build()  # success
+        ).build()  # success
