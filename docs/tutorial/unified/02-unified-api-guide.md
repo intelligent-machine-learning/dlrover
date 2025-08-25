@@ -22,16 +22,14 @@ args = {"data_dir": "data/nanogpt/", "batch_size": 16}
 
 job = (
     DLJobBuilder()
-    .dl_type("SFT")
+    .config(DictConfig(args.__dict__))
     .node_num(2)
-    .device_per_node(1)
-    .device_type("GPU")
-    .config(DictConfig(args))
-    .dlrover_run(
-        "examples.unified.elastic.nanogpt.train.run",
-        nnodes=2,
-        nproc_per_node=1,
-    )
+    .device_per_node(2)
+    .device_type("GPU" if torch.cuda.is_available() else "CPU")
+    .train("examples.unified.elastic.nanogpt.train.run")
+    .nnodes(2)
+    .nproc_per_node(2)
+    .end() #optional, for type hinting
     .build()
 )
 
@@ -40,21 +38,18 @@ job.submit(job_name="nanogpt")
 
 ## Common builder methods
 
-- dl_type(type_str): high-level job category (SFT, PRE, RL, etc.).
 - node_num(n) / device_per_node(n): how many nodes and devices per node.
 - device_type("GPU"|"CPU"): preferred accelerator type.
 - config(DictConfig or dict): user configuration available at runtime.
-- dlrover_run(entrypoint, nnodes=?, nproc_per_node=?, **kwargs): sets the
-  worker entrypoint (module path + function) and process counts.
-- workload(...) / resource helpers: define multiple roles with per-role
-  counts and resources (if supported by builder version).
+- role(str): defines the role name for multi-role jobs.
+- train(entrypoint): define a training workload with entrypoint (module path + function), and return a sub builder.
+- run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
 
 ## Workload / role patterns
 
-- Single-role job: use `dlrover_run()` to point to the single entrypoint.
-- Multi-role job: declare workloads/roles with entrypoints and resource
-  specs (trainer, rollout, evaluator). Use `workload()` or the workload
-  tuple format depending on builder API availability.
+- Training workload: use `train()` to define the main training entrypoint.
+- Non-training workload: use `run()` to define auxiliary entrypoints
+  (data loader, evaluator, etc).
 
 ## Submission patterns
 
@@ -87,10 +82,9 @@ job.submit(job_name="nanogpt")
 ```python
 job = (
     DLJobBuilder()
-    .dl_type("RL")
     .config(DictConfig(args))
-    .workload("trainer", total=2, entry_point="module.trainer.run", resource={"gpu":1})
-    .workload("rollout", total=4, entry_point="module.rollout.run", resource={"cpu":4})
+    .role("trainer").train("module.trainer.run").total(2).resource(gpu=1).end()
+    .role("rollout").run("module.rollout.run").total(4).resource(cpu=4).end()
     .build()
 )
 job.submit(job_name="rl_job")

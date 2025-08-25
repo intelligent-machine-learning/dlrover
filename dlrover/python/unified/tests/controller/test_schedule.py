@@ -39,24 +39,24 @@ def demo_config():
         workloads={
             "actor": SimpleWorkloadDesc(
                 total=4,
-                entry_point="FakeActor",
+                entry_point="module.FakeActor",
                 resource=ResourceDesc(cpu=0.31),
                 group="actor_rollout",
             ),
             "reference": SimpleWorkloadDesc(
                 total=4,
-                entry_point="FakeReference",
+                entry_point="module.FakeReference",
                 resource=ResourceDesc(cpu=0.32),
             ),
             "rollout": SimpleWorkloadDesc(
                 total=4,
-                entry_point="FakeRollout",
+                entry_point="module.FakeRollout",
                 resource=ResourceDesc(cpu=0.33),
                 group="actor_rollout",
             ),
             "elastic": ElasticWorkloadDesc(
                 total=4,
-                entry_point="fake_train:run",
+                entry_point="fake_train.run",
             ),
         },
         accelerator_type=ACCELERATOR_TYPE.CPU,

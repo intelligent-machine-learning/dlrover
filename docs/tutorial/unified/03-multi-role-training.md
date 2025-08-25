@@ -100,49 +100,55 @@ and submits them to the `PrimeMaster`.
 # examples/unified/rl/openrlhf/ppo/main.py
 # Inside submit()
 
-# 1. Prepare workloads
-workloads = {}
-workloads[RLRoleType.ACTOR.name] = ElasticWorkloadDesc(
-    total=args.actor_num_nodes * args.actor_num_gpus_per_node,
-    per_group=args.actor_num_gpus_per_node,
-    resource=ResourceDesc(accelerator=1),
-    entry_point=f"{__package__}.ppo_actor.PolicyModelActor",
+# 1. Create a job builder
+builder = RLJobBuilder().config(args_2_omega_conf(args))
+
+# 2. Define workloads / roles
+builder.trainer(f"{P}.ppo_trainer.PPOTrainerActor").resource(cpu=4)
+(
+    builder.actor(f"{P}.ppo_actor.PolicyModelActor")
+    .resource(accelerator=1)
+    .nnodes(args.actor_num_nodes)
+    .nproc_per_node(args.actor_num_gpus_per_node)
 )
-workloads[RLRoleType.CRITIC.name] = ElasticWorkloadDesc(
-    total=args.critic_num_nodes * args.critic_num_gpus_per_node,
-    per_group=args.critic_num_gpus_per_node,
-    resource=ResourceDesc(accelerator=0.4),
-    entry_point=f"{__package__}.ppo_critic.CriticModelRayActor",
+(
+    builder.critic(f"{P}.ppo_critic.CriticModelRayActor")
+    .resource(accelerator=0.4)
+    .nnodes(args.critic_num_nodes)
+    .nproc_per_node(args.critic_num_gpus_per_node)
 )
-workloads[RLRoleType.ROLLOUT.name] = SimpleWorkloadDesc(
-    total=args.vllm_num_engines,
-    resource=ResourceDesc(accelerator=1),
-    entry_point=f"{__package__}.ppo_rollout.VLLMActor",
+(
+    builder.rollout(f"{P}.ppo_rollout.VLLMActor")
+    .resource(accelerator=1)
+    .total(args.vllm_num_engines)
 )
 # optional reference role
-workloads[RLRoleType.REFERENCE.name] = ElasticWorkloadDesc(
-    total=args.ref_num_nodes * args.ref_num_gpus_per_node,
-    per_group=args.ref_num_gpus_per_node,
-    resource=ResourceDesc(accelerator=0.4),
-    entry_point=f"{__package__}.ppo_reference.PPOReferenceActor",
-)
-workloads[RLRoleType.REWARD.name] = ElasticWorkloadDesc(
-    total=args.reward_num_nodes * args.reward_num_gpus_per_node,
-    per_group=args.reward_num_gpus_per_node,
-    resource=ResourceDesc(accelerator=0.4),
-    entry_point=f"{__package__}.ppo_reward.RewardModelRayActor",
-)
-workloads["trainer"] = SimpleWorkloadDesc(
-    resource=ResourceDesc(cpu=4),
-    entry_point=f"{__package__}.ppo_trainer.PPOTrainerActor",
+if args.init_kl_coef != 0:
+    (
+        builder.role(RLRoleType.REFERENCE.name)
+        .train("{P}.ppo_reference.PPOReferenceActor")
+        .resource(accelerator=0.4)
+        .nnodes(args.ref_num_nodes)
+        .nproc_per_node(args.ref_num_gpus_per_node)
+    )
+(
+    builder.role(RLRoleType.REWARD.name)
+    .train("{P}.ppo_reward.RewardModelRayActor")
+    .resource(accelerator=0.4)
+    .nnodes(args.reward_num_nodes)
+    .nproc_per_node(args.reward_num_gpus_per_node)
 )
 
-# 2. Assemble Job Configuration and submit
-config = DLConfig(user_config=args_2_omega_conf(args), workloads=workloads)
-master = PrimeMaster.create(JobConfig(job_name="openrlhf_demo", dl_config=config))
-master.start()
-master.wait()
-master.shutdown()
+# 3. Build and submit
+job = builder.build()
+# optional modifications before submission
+if args.skip_node_check:
+    for workload in job.workloads.values():
+        if workload.backend == "elastic":
+            workload.comm_pre_check = False
+print(job.model_dump_json(indent=2))
+if not args.dry_run:
+  job.submit(args.job_name)
 ```
 
 ### Trainer & Runtime Communication

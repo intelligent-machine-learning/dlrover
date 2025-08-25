@@ -10,99 +10,89 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Set
+from types import SimpleNamespace
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Set,
+    TypeVar,
+    Union,
+    cast,
+)
 
-from omegaconf import DictConfig
+from pydantic import Field, model_validator
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLWorkloadRole,
 )
 from dlrover.python.unified.common.enums import DLStreamType
-from dlrover.python.unified.common.exception import InvalidDLConfiguration
 from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
     SimpleWorkloadDesc,
     WorkloadDesc,
 )
-from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.controller.config import (
+    DLConfig,
+    JobConfig,
+)
 from dlrover.python.unified.driver.main import submit
 
+# Note: Builder don't do validation, let DLJob validate when build().
 
-class DLJob(object):
-    def __init__(
-        self,
-        stream_type,
-        node_num,
-        device_per_node,
-        device_type,
-        config,
-        env,
-        components,
-        collocations,
-    ):
-        self._stream_type = stream_type
-        self._node_num = node_num
-        self._device_per_node = device_per_node
-        self._device_type = device_type
-        self._config = config
-        self._env = env
-        self._components: Dict[str, Optional[WorkloadDesc]] = components
-        self._collocations: List[Set[str]] = collocations
 
-    @property
-    def stream_type(self):
-        return self._stream_type
+class DLJob(DLConfig):
+    stream_type: DLStreamType = DLStreamType.TASK_STREAM
+    collocations: List[Set[str]] = Field(default_factory=list)
 
-    @property
-    def node_num(self):
-        return self._node_num
-
-    @property
-    def device_per_node(self):
-        return self._device_per_node
-
-    @property
-    def device_type(self):
-        return self._device_type
-
-    @property
-    def config(self):
-        return self._config
-
-    @property
-    def env(self):
-        return self._env
-
-    @property
-    def collocations(self):
-        return self._collocations
-
-    def get_workload(self, role):
-        return self._components[role]
-
-    def _to_dl_config(self) -> DLConfig:
-        workloads = {role: v for role, v in self._components.items() if v}
-
+    @model_validator(mode="after")
+    def apply_collocations(self):
+        # apply collocations
+        workloads = self.workloads
         for i, collocation in enumerate(self.collocations):
             name = f"collocation_{i}"
             resource = ResourceDesc(accelerator=round(1 / len(collocation), 2))
             for role in collocation:
+                if role not in workloads:
+                    raise ValueError(
+                        f"Role '{role}' is not defined in workloads, but is included in collocation."
+                    )
+                if (
+                    workloads[role].group is not None
+                    and workloads[role].group != name
+                ):
+                    raise ValueError(
+                        f"Role {role} has already been assigned to a group: "
+                        f"{workloads[role].group}. Cannot be included in collocation."
+                    )
                 workloads[role].group = name
                 workloads[role].resource = resource.model_copy()
+        return self
 
-        return DLConfig(
-            user_config=self.config,
-            global_envs=self.env,
-            workloads=workloads,
-            device_per_node=self.device_per_node,
-            node_number=self.node_num,
-            accelerator_type=self.device_type,
-        )
+    # REVIEW - Should keep these aliases for backward compatibility?
+    @property
+    def node_num(self):
+        return self.node_number
+
+    @property
+    def device_type(self):
+        return self.accelerator_type
+
+    @property
+    def config(self):
+        return self.user_config
+
+    @property
+    def env(self):
+        return self.global_envs
+
+    def get_workload(self, role):
+        return self.workloads[role]
 
     def submit(
         self,
@@ -139,61 +129,27 @@ class DLJob(object):
             master_cpu=master_cpu,
             master_mem=master_memory,
             job_max_restart=job_max_restart,
-            dl_config=self._to_dl_config(),
+            dl_config=self,
             **kwargs,
         )
 
         return submit(config, blocking)
 
 
-class RoleBuilder(ABC):
-    def __init__(self, job_builder, role, module_name, class_name):
-        self._job_builder = job_builder
-
-        self._role = role
-        self._module_name = module_name
-        self._class_name = class_name
-
-        self._job_builder.add_role_builder(self)
-
-    def __getattr__(self, attr):
-        if hasattr(self._job_builder, attr):
-            return getattr(self._job_builder, attr)
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{attr}'"
-        )
-
-    def get_role(self):
-        return self._role
-
-    def _validate(self) -> bool:
-        if not self._role or not self._module_name or not self._class_name:
-            logger.error("Role or module or class not set.")
-            return False
-        return True
-
-    @abstractmethod
-    def _build_role(self) -> Dict[str, WorkloadDesc]:
-        pass
-
-    @abstractmethod
-    def _get_per_group(self):
-        return 1
-
-    @abstractmethod
-    def _get_total(self):
-        return 1
+T = TypeVar("T", bound="DLJobBuilder", covariant=True)
 
 
-class WorkloadBuilder(RoleBuilder):
-    def __init__(self, job_builder, role, module_name, class_name):
-        super().__init__(job_builder, role, module_name, class_name)
+class RoleBuilder(ABC, Generic[T]):
+    def __init__(self, parent: T, role: str, entrypoint: str):
+        self.role = role
+        self.entrypoint = entrypoint
+        self._parent = parent
 
-        self._num = 0
+        self._num = 1
         self._per_group = 1
-        self._env = {}
-        self._resource = {}
-        self._sub_stage = []
+        self._env: Dict[str, str] = {}
+        self._resource: Dict[str, Union[int, float]] = {}
+        self._sub_stage: List[str] = []
 
     def total(self, num=1):
         """
@@ -232,14 +188,22 @@ class WorkloadBuilder(RoleBuilder):
         self._env.update(env)
         return self
 
-    def resource(self, cpu=0, memory=0, disk=0, accelerator=0, **kwargs):
+    def resource(
+        self,
+        cpu: int | float = 0,
+        memory: int = 0,
+        disk: int = 0,
+        accelerator: int | float = 0,
+        **kwargs,
+    ):
         """
         The resource for current role.
 
         Args:
-            cpu (int, optional): The number of CPU cores to use. Defaults to 0.
-            memory (int, optional): The size of memory to use. Defaults to 0. Unit: mb.
-            accelerator (int, optional): The number of accelerator cores to use. Defaults to 0.
+            cpu: The number of CPU cores to use. Defaults to 0.
+            memory: The size of memory to use. Defaults to 0. Unit: mb.
+            disk: The size of disk to use. Defaults to 0. Unit: mb.
+            accelerator: The number of accelerator cores to use. Defaults to 0.
         """
 
         self._resource.update(
@@ -275,97 +239,75 @@ class WorkloadBuilder(RoleBuilder):
         self._sub_stage = sub_stage
         return self
 
-    def _get_per_group(self):
-        return self._per_group
+    @abstractmethod
+    def _build_role(self) -> Dict[str, WorkloadDesc]: ...  # pragma: no cover
 
-    def _get_total(self):
-        return self._num
+    def end(self) -> T:
+        """Return the parent builder instance.
+        It not necessary, but recommended to keep type hint working.
+        """
+        return self._parent
 
-    def _validate(self) -> bool:
-        if not super()._validate():
-            return False
+    def __getattr__(self, name: str) -> Any:
+        if hasattr(self._parent, name):
+            return getattr(self._parent, name)
+        return super().__getattribute__(name)
 
-        if self._num < 1:
-            logger.error(f"{self._role}: total number must be greater than 0.")
-            return False
 
-        if self._per_group < 1:
-            logger.error(
-                f"{self._role}: per group number must be greater than 0."
-            )
-            return False
-        return True
+class ElasticTrainBuilder(RoleBuilder[T]):
+    """Builder for elastic training workload."""
+
+    def nnodes(self, num: int):
+        self._num = num * self._per_group
+        return self
+
+    def nproc_per_node(self, num: int):
+        nnodes = self._num // self._per_group
+        self._per_group = num
+        self._num = nnodes * num
+        return self
 
     def _build_role(self) -> Dict[str, WorkloadDesc]:
         return {
-            self._role: SimpleWorkloadDesc(
-                entry_point=f"{self._module_name}.{self._class_name}",
+            self.role: ElasticWorkloadDesc(
+                entry_point=self.entrypoint,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
                 per_group=self._per_group,
-                envs=self._env,
-                resource=ResourceDesc.get_or_default(self._resource),
-            )
+            ),
         }
 
-    def build(self) -> "DLJob":
-        return self._job_builder.build()
 
-
-class DLRoverRunBuilder(WorkloadBuilder):
-    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+(::|\.)[a-zA-Z0-9_]+$"
-
-    def __init__(
-        self,
-        parent_builder,
-        entrypoint: str = "",
-        nnodes: int = 1,
-        nproc_per_node: int = 1,
-    ):
-        super().__init__(
-            parent_builder,
-            InternalDLWorkloadRole.ELASTIC_ROLE,
-            "",
-            "",
-        )
-        self._entrypoint = entrypoint
-        self._num = nnodes * nproc_per_node
-        self._per_node = nproc_per_node
-
-    def _validate(self):
-        if not self._num >= 1 or not self._per_node >= 1:
-            return False
-        if (
-            self._entrypoint is None
-            or re.match(self.ENTRYPOINT_REGEX, self._entrypoint) is None
-        ):
-            return False
-        return True
+class SimpleWorkloadBuilder(RoleBuilder[T]):
+    """Builder for simple workload."""
 
     def _build_role(self) -> Dict[str, WorkloadDesc]:
         return {
-            self._role: ElasticWorkloadDesc(
-                entry_point=self._entrypoint,
+            self.role: SimpleWorkloadDesc(
+                entry_point=self.entrypoint,
                 envs=self._env,
                 resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
-                per_group=self._per_node,
+                per_group=self._per_group,
             ),
         }
 
 
 class DLJobBuilder(object):
     def __init__(self):
-        self._node_num = 0
-        self._device_per_node = 0
-        self._device_type = "GPU"
-        self._config = {}
+        # Dummy object to hold parameters, use default if not assigned.
+        self._params = cast(DLJob, SimpleNamespace())
+
         self._env = {}
         self._role_builders: Dict[str, RoleBuilder] = {}
         self._collocations: List[Set[str]] = []
-        self._stream_type = DLStreamType.TASK_STREAM
+        self._last_role: Optional[str] = None
 
-    def add_role_builder(self, role_builder: RoleBuilder):
-        self._role_builders[role_builder.get_role()] = role_builder
+    def add_role_builder(self, role: str, role_builder: RoleBuilder):
+        if role in self._role_builders:
+            raise ValueError(f"Role '{role}' is already defined.")
+        self._role_builders[role] = role_builder
 
     def build(self):
         """
@@ -375,86 +317,28 @@ class DLJobBuilder(object):
             DLJob: Unified deep learning object.
 
         Raises:
-            InvalidDLConfiguration: If validation on configration failed.
+            pydantic.ValidationError: If validation on configuration failed.
         """
 
-        if not self.validate():
-            raise InvalidDLConfiguration()
-
         # build roles
-        components = {}
+        workloads: Dict[str, WorkloadDesc] = {}
         for role, role_builder in self._role_builders.items():
             if role_builder:
-                if not role_builder._validate():
-                    raise InvalidDLConfiguration()
-                for (
-                    role_name,
-                    role_config,
-                ) in role_builder._build_role().items():
-                    components[role_name] = role_config
+                workloads.update(role_builder._build_role())
 
         return DLJob(
-            stream_type=self._stream_type,
-            node_num=self._node_num,
-            device_per_node=self._device_per_node,
-            device_type=self._device_type,
-            config=self._config,
-            env=self._env,
-            components=components,
+            global_envs=self._env,
+            workloads=workloads,
             collocations=self._collocations,
+            **self._params.__dict__,
         )
-
-    def validate(self) -> bool:
-        if self._node_num < 1:
-            logger.error("'node_num' must be greater than 0.")
-            return False
-
-        if self._device_per_node < 1:
-            logger.error("'device_per_node' must be greater than 0.")
-            return False
-
-        if self._device_type != "CPU" and self._device_type != "GPU":
-            logger.error("'device_type' must be 'CPU' or 'GPU'.")
-            return False
-
-        if not self._config or (
-            not isinstance(self._config, dict)
-            and not isinstance(self._config, DictConfig)
-        ):
-            logger.error("'config' must be dict type and cannot be empty.")
-            return False
-
-        # for workload collocations
-        if self._collocations:
-            collocations_set = set()
-            for collocation in self._collocations:
-                process_num_sum = 0
-                for role in collocation:
-                    role_builder = self._role_builders[role]
-                    if role_builder is None:
-                        logger.error(
-                            "Collocation cannot be defined without "
-                            f"role definition: {role}."
-                        )
-                        return False
-
-                    process_num_sum += role_builder._get_per_group()
-
-                    if role not in collocations_set:
-                        collocations_set.add(role)
-                    else:
-                        logger.error(
-                            "The same role can only be defined once in 'collocation'."
-                        )
-                        return False
-        return True
 
     def as_task_stream(self):
         """
         Set as task stream.
         """
 
-        self._stream_type = DLStreamType.TASK_STREAM
+        self._params.stream_type = DLStreamType.TASK_STREAM
         return self
 
     def as_data_stream(self):
@@ -462,7 +346,7 @@ class DLJobBuilder(object):
         Set as data stream.
         """
 
-        self._stream_type = DLStreamType.DATA_STREAM
+        self._params.stream_type = DLStreamType.DATA_STREAM
         return self
 
     def node_num(self, num=1):
@@ -472,8 +356,7 @@ class DLJobBuilder(object):
         Args:
             num (int): The number of nodes. Default is 1.
         """
-
-        self._node_num = num
+        self._params.node_number = num
         return self
 
     def device_per_node(self, num=8):
@@ -483,8 +366,7 @@ class DLJobBuilder(object):
         Args:
             num (int): The device number of single node. Default is 8.
         """
-
-        self._device_per_node = num
+        self._params.device_per_node = num
         return self
 
     def device_type(self, device_type="GPU"):
@@ -495,71 +377,70 @@ class DLJobBuilder(object):
             device_type (str, optional): The device type, support: 'CPU' or
                 'GPU'. Default is 'GPU'.
         """
-
-        self._device_type = device_type
+        # let pydantic validate later
+        self._params.accelerator_type = cast(Any, device_type)
         return self
 
-    def config(self, config=None):
+    def config(self, config: Any):
         """
         Set the training configuration.
 
         Args:
             config (dict): The full configuration of training in dict format.
         """
-
-        if config is None:
-            config = {}
-        self._config = config
+        self._params.user_config = config
         return self
 
-    def global_env(self, env=None):
+    def global_env(self, env: dict):
         """
         Set the global training envs.
 
         Args:
             env (dict, optional): The global envs of training.
         """
-
-        if env is None:
-            env = {}
         self._env.update(env)
         return self
 
-    def workload(self, role_name, module_name, class_name):
+    def role(self, role: str):
         """
-        Setup workload.
+        Set the last role for next workload definition.
 
         Args:
-            role_name (str): The role name of workload.
-            module_name (str): The module name of workload.
-            class_name (str): The class name of workload.
+            role (str): The role name of next workload.
         """
 
-        return WorkloadBuilder(self, role_name, module_name, class_name)
+        self._last_role = role
+        return self
 
-    def dlrover_run(
-        self,
-        entrypoint: str,
-        /,
-        nnodes: int,
-        nproc_per_node: int,
-    ):
+    def run(self, entrypoint: str):
+        """
+        Setup simple workload.
+
+        Args:
+            role (str): The role name of workload.
+            entrypoint (str): The entry point of workload.
+        """
+        if self._last_role is None:
+            raise ValueError("Role must be set before calling run().")
+
+        role = self._last_role
+        builder = SimpleWorkloadBuilder(self, role, entrypoint)
+        self.add_role_builder(builder.role, builder)
+        return builder
+
+    def train(self, entrypoint: str):
         """
         Setup elastic agent workload(use elastic agent for elastic training,
             same with 'torchrun' case).
 
         Args:
             entrypoint (str): The training entrypoint.
-                e.g. 'xxx.module::function'
-            nnodes (int): The number of nodes.
-            nproc_per_node (int): The number of processes per node.
+                e.g. 'xxx.module.function'
         """
-
-        dlrover_run_builder = DLRoverRunBuilder(
-            self, entrypoint, nnodes, nproc_per_node
-        )
-
-        return dlrover_run_builder
+        role = self._last_role or InternalDLWorkloadRole.ELASTIC_ROLE
+        builder = ElasticTrainBuilder(self, role, entrypoint)
+        self.add_role_builder(builder.role, builder)
+        return builder
 
     def with_collocation(self, *roles):
         """

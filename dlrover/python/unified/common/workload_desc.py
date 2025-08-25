@@ -95,7 +95,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
     """
 
     total: int = Field(
-        default=1, validation_alias=AliasChoices("total", "num", "number")
+        default=1,
+        ge=0,  # allow 0 to indicate no instances,
+        validation_alias=AliasChoices("total", "num", "number"),
     )
     resource: ResourceDesc = Field(
         default_factory=ResourceDesc,
@@ -122,7 +124,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
         "per workload group.",
     )
     entry_point: str = Field(
-        description="The entry point for the elastic workload in `module.func` pattern"
+        description="The entry point for the elastic workload in `module.func` pattern",
+        validation_alias=AliasChoices("entry_point", "entrypoint"),
+        pattern=r"^[a-zA-Z0-9_.]+\.[a-zA-Z0-9_]+$",
     )
     config: Dict[str, Any] = Field(
         default_factory=dict,
@@ -137,6 +141,21 @@ class BaseWorkloadDesc(BaseModel, ABC):
             f"per_group {self.per_group}."
         )
         return self
+
+    @field_validator("entry_point", mode="before")
+    def _normalize_entry_point(cls, entry_point):
+        if isinstance(entry_point, str):
+            return entry_point.strip().replace("::", ".")
+        return entry_point
+
+    @field_validator("resource", mode="after")
+    def _require_resource_not_empty(cls, resource: ResourceDesc):
+        if resource.is_empty():
+            raise ValueError(
+                "Resource must not be empty. "
+                "Please specify at least one of cpu, accelerator, or custom."
+            )
+        return resource
 
     @abstractmethod
     def get_worker_cls(self) -> ActorClass: ...
@@ -172,10 +191,6 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
     )
     # TODO node_min,max,unit when supporting scaling
     # TODO numa_affinity,exclude_straggler,network_check,comm_perf_test,auto_tunning,save_at_breakpoint,
-
-    @field_validator("entry_point", mode="after")
-    def validate_entry_point(cls, entry_point: str) -> str:
-        return entry_point.replace("::", ".")
 
     def get_worker_cls(self) -> ActorClass:
         from dlrover.python.unified.backend import ElasticWorker
