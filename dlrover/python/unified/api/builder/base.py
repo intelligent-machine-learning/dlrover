@@ -226,14 +226,15 @@ class RoleBuilder(ABC, Generic[T]):
     def _build_role(self) -> Dict[str, WorkloadDesc]: ...
 
     def end(self) -> T:
+        """Return the parent builder instance.
+        It not necessary, but recommended to keep type hint working.
         """
-        End the current builder and return to the parent builder.
-
-        Returns:
-            T: The parent builder instance.
-        """
-        self._parent.add_role_builder(self.role, self)
         return self._parent
+
+    def __getattr__(self, name: str) -> Any:
+        if hasattr(self._job_builder, name):
+            return getattr(self._job_builder, name)
+        return super().__getattribute__(name)
 
 
 class ElasticTrainBuilder(RoleBuilder[T]):
@@ -413,6 +414,7 @@ class DLJobBuilder(object):
 
         role = self._last_role
         builder = SimpleWorkloadBuilder[Self](self, role, entrypoint)
+        self.add_role_builder(builder.role, builder)
         return builder
 
     def train(self, entrypoint: str):
@@ -426,6 +428,7 @@ class DLJobBuilder(object):
         """
         role = self._last_role or InternalDLWorkloadRole.ELASTIC_ROLE
         builder = ElasticTrainBuilder[Self](self, role, entrypoint)
+        self.add_role_builder(builder.role, builder)
         return builder
 
     def with_collocation(self, *roles):
