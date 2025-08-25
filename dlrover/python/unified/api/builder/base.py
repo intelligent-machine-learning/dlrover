@@ -241,8 +241,8 @@ class RoleBuilder(ABC, Generic[T]):
         return self._parent
 
     def __getattr__(self, name: str) -> Any:
-        if hasattr(self._job_builder, name):
-            return getattr(self._job_builder, name)
+        if hasattr(self._parent, name):
+            return getattr(self._parent, name)
         return super().__getattribute__(name)
 
 
