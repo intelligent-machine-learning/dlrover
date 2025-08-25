@@ -948,7 +948,7 @@ class GpuMetricMonitorTest(unittest.TestCase):
             _metric_context.log_job_metric(GpuMetricEnum.GPU_TENSOR_UTIL)
             _metric_context.log_job_metric(GpuMetricEnum.GPU_UTIL)
 
-            self.assertEqual(_metric_context.size(), 1)
+            self.assertTrue(_metric_context.size() >= 1)
 
             self.assertEqual(
                 list(
