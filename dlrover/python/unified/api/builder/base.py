@@ -1,0 +1,599 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import re
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Set
+
+from omegaconf import DictConfig
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.constant import (
+    DLWorkloadEnv,
+    InternalDLWorkloadRole,
+)
+from dlrover.python.unified.common.enums import DLStreamType
+from dlrover.python.unified.common.exception import InvalidDLConfiguration
+from dlrover.python.unified.common.workload_desc import (
+    ElasticWorkloadDesc,
+    ResourceDesc,
+    SimpleWorkloadDesc,
+    WorkloadDesc,
+)
+from dlrover.python.unified.controller.config import DLConfig, JobConfig
+from dlrover.python.unified.driver.main import submit
+
+
+class DLJob(object):
+    def __init__(
+        self,
+        stream_type,
+        node_num,
+        device_per_node,
+        device_type,
+        config,
+        env,
+        components,
+        collocations,
+    ):
+        self._stream_type = stream_type
+        self._node_num = node_num
+        self._device_per_node = device_per_node
+        self._device_type = device_type
+        self._config = config
+        self._env = env
+        self._components: Dict[str, Optional[WorkloadDesc]] = components
+        self._collocations: List[Set[str]] = collocations
+
+    @property
+    def stream_type(self):
+        return self._stream_type
+
+    @property
+    def node_num(self):
+        return self._node_num
+
+    @property
+    def device_per_node(self):
+        return self._device_per_node
+
+    @property
+    def device_type(self):
+        return self._device_type
+
+    @property
+    def config(self):
+        return self._config
+
+    @property
+    def env(self):
+        return self._env
+
+    @property
+    def collocations(self):
+        return self._collocations
+
+    def get_workload(self, role):
+        return self._components[role]
+
+    def _to_dl_config(self) -> DLConfig:
+        workloads = {role: v for role, v in self._components.items() if v}
+
+        for i, collocation in enumerate(self.collocations):
+            name = f"collocation_{i}"
+            resource = ResourceDesc(accelerator=round(1 / len(collocation), 2))
+            for role in collocation:
+                workloads[role].group = name
+                workloads[role].resource = resource.model_copy()
+
+        return DLConfig(
+            user_config=self.config,
+            global_envs=self.env,
+            workloads=workloads,
+            device_per_node=self.device_per_node,
+            node_number=self.node_num,
+            accelerator_type=self.device_type,
+        )
+
+    def submit(
+        self,
+        job_name,
+        blocking=True,
+        master_cpu=4,
+        master_memory=8192,
+        job_max_restart=10,
+        **kwargs,
+    ) -> int:
+        """
+        Submit the current dl job.
+
+        Args:
+            job_name (str): The name of the job.
+            blocking (bool, optional): Whether to block until the job is
+                complete. Defaults is True.
+            master_cpu (int, optional): The number of CPU cores to use.
+                Defaults to 4.
+            master_memory (int, optional): The number of memory cores to use.
+                Unit: mb. Defaults to 8192.
+            job_max_restart (int, optional): The maximum number of restarts.
+                Defaults to 10.
+
+            Other arguments please refer to:
+                'dlrover.python.unified.common.args'
+        Returns:
+            int: The exit code of the job. 0 means success, other means
+                failure.
+        """
+
+        config = JobConfig(
+            job_name=job_name,
+            master_cpu=master_cpu,
+            master_mem=master_memory,
+            job_max_restart=job_max_restart,
+            dl_config=self._to_dl_config(),
+            **kwargs,
+        )
+
+        return submit(config, blocking)
+
+
+class RoleBuilder(ABC):
+    def __init__(self, job_builder, role, module_name, class_name):
+        self._job_builder = job_builder
+
+        self._role = role
+        self._module_name = module_name
+        self._class_name = class_name
+
+        self._job_builder.add_role_builder(self)
+
+    def __getattr__(self, attr):
+        if hasattr(self._job_builder, attr):
+            return getattr(self._job_builder, attr)
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{attr}'"
+        )
+
+    def get_role(self):
+        return self._role
+
+    def _validate(self) -> bool:
+        if not self._role or not self._module_name or not self._class_name:
+            logger.error("Role or module or class not set.")
+            return False
+        return True
+
+    @abstractmethod
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
+        pass
+
+    @abstractmethod
+    def _get_per_group(self):
+        return 1
+
+    @abstractmethod
+    def _get_total(self):
+        return 1
+
+
+class WorkloadBuilder(RoleBuilder):
+    def __init__(self, job_builder, role, module_name, class_name):
+        super().__init__(job_builder, role, module_name, class_name)
+
+        self._num = 0
+        self._per_group = 1
+        self._env = {}
+        self._resource = {}
+        self._sub_stage = []
+
+    def total(self, num=1):
+        """
+        Set the total number of current role.
+
+        Args:
+            num (int): The number of current role. Default is 1.
+        """
+
+        self._num = num
+        return self
+
+    def per_group(self, num=1):
+        """
+        How many current role per group.
+
+        Args:
+            num (int): The number of current role per group.
+                Default is 1.
+        """
+
+        self._per_group = num
+        return self
+
+    def env(self, env=None):
+        """
+        The envs for current role.
+
+        Args:
+            env (dict, optional): The envs of current role.
+                Default is {}.
+        """
+
+        if env is None:
+            env = {}
+        self._env.update(env)
+        return self
+
+    def resource(self, cpu=0, memory=0, disk=0, accelerator=0, **kwargs):
+        """
+        The resource for current role.
+
+        Args:
+            cpu (int, optional): The number of CPU cores to use. Defaults to 0.
+            memory (int, optional): The size of memory to use. Defaults to 0. Unit: mb.
+            accelerator (int, optional): The number of accelerator cores to use. Defaults to 0.
+        """
+
+        self._resource.update(
+            {
+                "cpu": cpu,
+                "memory": memory,
+                "disk": disk,
+                "accelerator": accelerator,
+            }
+        )
+        self._resource.update(kwargs)
+        return self
+
+    def disable_ray_auto_visible_device(self):
+        """
+        Disable to let ray set visible device automatically.
+        """
+
+        self._env.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
+        return self
+
+    def sub_stage(self, sub_stage=None):
+        """
+        The sub-stage definition for current role.
+
+        Args:
+            sub_stage (list, optional): The sub-stage definition of current
+            role. Default is [].
+        """
+
+        if sub_stage is None:
+            sub_stage = []
+        self._sub_stage = sub_stage
+        return self
+
+    def _get_per_group(self):
+        return self._per_group
+
+    def _get_total(self):
+        return self._num
+
+    def _validate(self) -> bool:
+        if not super()._validate():
+            return False
+
+        if self._num < 1:
+            logger.error(f"{self._role}: total number must be greater than 0.")
+            return False
+
+        if self._per_group < 1:
+            logger.error(
+                f"{self._role}: per group number must be greater than 0."
+            )
+            return False
+        return True
+
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
+        return {
+            self._role: SimpleWorkloadDesc(
+                entry_point=f"{self._module_name}.{self._class_name}",
+                total=self._num,
+                per_group=self._per_group,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
+            )
+        }
+
+    def build(self) -> "DLJob":
+        return self._job_builder.build()
+
+
+class DLRoverRunBuilder(WorkloadBuilder):
+    ENTRYPOINT_REGEX = r"^[a-zA-Z0-9_.]+(::|\.)[a-zA-Z0-9_]+$"
+
+    def __init__(
+        self,
+        parent_builder,
+        entrypoint: str = "",
+        nnodes: int = 1,
+        nproc_per_node: int = 1,
+    ):
+        super().__init__(
+            parent_builder,
+            InternalDLWorkloadRole.ELASTIC_ROLE,
+            "",
+            "",
+        )
+        self._entrypoint = entrypoint
+        self._num = nnodes * nproc_per_node
+        self._per_node = nproc_per_node
+
+    def _validate(self):
+        if not self._num >= 1 or not self._per_node >= 1:
+            return False
+        if (
+            self._entrypoint is None
+            or re.match(self.ENTRYPOINT_REGEX, self._entrypoint) is None
+        ):
+            return False
+        return True
+
+    def _build_role(self) -> Dict[str, WorkloadDesc]:
+        return {
+            self._role: ElasticWorkloadDesc(
+                entry_point=self._entrypoint,
+                envs=self._env,
+                resource=ResourceDesc.get_or_default(self._resource),
+                total=self._num,
+                per_group=self._per_node,
+            ),
+        }
+
+
+class DLJobBuilder(object):
+    def __init__(self):
+        self._node_num = 0
+        self._device_per_node = 0
+        self._device_type = "GPU"
+        self._config = {}
+        self._env = {}
+        self._role_builders: Dict[str, RoleBuilder] = {}
+        self._collocations: List[Set[str]] = []
+        self._stream_type = DLStreamType.TASK_STREAM
+
+    def add_role_builder(self, role_builder: RoleBuilder):
+        self._role_builders[role_builder.get_role()] = role_builder
+
+    def build(self):
+        """
+        Build DLJob by builder's configuration.
+
+        Returns:
+            DLJob: Unified deep learning object.
+
+        Raises:
+            InvalidDLConfiguration: If validation on configration failed.
+        """
+
+        if not self.validate():
+            raise InvalidDLConfiguration()
+
+        # build roles
+        components = {}
+        for role, role_builder in self._role_builders.items():
+            if role_builder:
+                if not role_builder._validate():
+                    raise InvalidDLConfiguration()
+                for (
+                    role_name,
+                    role_config,
+                ) in role_builder._build_role().items():
+                    components[role_name] = role_config
+
+        return DLJob(
+            stream_type=self._stream_type,
+            node_num=self._node_num,
+            device_per_node=self._device_per_node,
+            device_type=self._device_type,
+            config=self._config,
+            env=self._env,
+            components=components,
+            collocations=self._collocations,
+        )
+
+    def validate(self) -> bool:
+        if self._node_num < 1:
+            logger.error("'node_num' must be greater than 0.")
+            return False
+
+        if self._device_per_node < 1:
+            logger.error("'device_per_node' must be greater than 0.")
+            return False
+
+        if self._device_type != "CPU" and self._device_type != "GPU":
+            logger.error("'device_type' must be 'CPU' or 'GPU'.")
+            return False
+
+        if not self._config or (
+            not isinstance(self._config, dict)
+            and not isinstance(self._config, DictConfig)
+        ):
+            logger.error("'config' must be dict type and cannot be empty.")
+            return False
+
+        # for workload collocations
+        if self._collocations:
+            collocations_set = set()
+            for collocation in self._collocations:
+                process_num_sum = 0
+                for role in collocation:
+                    role_builder = self._role_builders[role]
+                    if role_builder is None:
+                        logger.error(
+                            "Collocation cannot be defined without "
+                            f"role definition: {role}."
+                        )
+                        return False
+
+                    process_num_sum += role_builder._get_per_group()
+
+                    if role not in collocations_set:
+                        collocations_set.add(role)
+                    else:
+                        logger.error(
+                            "The same role can only be defined once in 'collocation'."
+                        )
+                        return False
+        return True
+
+    def as_task_stream(self):
+        """
+        Set as task stream.
+        """
+
+        self._stream_type = DLStreamType.TASK_STREAM
+        return self
+
+    def as_data_stream(self):
+        """
+        Set as data stream.
+        """
+
+        self._stream_type = DLStreamType.DATA_STREAM
+        return self
+
+    def node_num(self, num=1):
+        """
+        Set the total number of nodes.
+
+        Args:
+            num (int): The number of nodes. Default is 1.
+        """
+
+        self._node_num = num
+        return self
+
+    def device_per_node(self, num=8):
+        """
+        Set the device number per node.
+
+        Args:
+            num (int): The device number of single node. Default is 8.
+        """
+
+        self._device_per_node = num
+        return self
+
+    def device_type(self, device_type="GPU"):
+        """
+        Set the device type.
+
+        Args:
+            device_type (str, optional): The device type, support: 'CPU' or
+                'GPU'. Default is 'GPU'.
+        """
+
+        self._device_type = device_type
+        return self
+
+    def config(self, config=None):
+        """
+        Set the training configuration.
+
+        Args:
+            config (dict): The full configuration of training in dict format.
+        """
+
+        if config is None:
+            config = {}
+        self._config = config
+        return self
+
+    def global_env(self, env=None):
+        """
+        Set the global training envs.
+
+        Args:
+            env (dict, optional): The global envs of training.
+        """
+
+        if env is None:
+            env = {}
+        self._env.update(env)
+        return self
+
+    def workload(self, role_name, module_name, class_name):
+        """
+        Setup workload.
+
+        Args:
+            role_name (str): The role name of workload.
+            module_name (str): The module name of workload.
+            class_name (str): The class name of workload.
+        """
+
+        return WorkloadBuilder(self, role_name, module_name, class_name)
+
+    def dlrover_run(
+        self,
+        entrypoint: str,
+        /,
+        nnodes: int,
+        nproc_per_node: int,
+    ):
+        """
+        Setup elastic agent workload(use elastic agent for elastic training,
+            same with 'torchrun' case).
+
+        Args:
+            entrypoint (str): The training entrypoint.
+                e.g. 'xxx.module::function'
+            nnodes (int): The number of nodes.
+            nproc_per_node (int): The number of processes per node.
+        """
+
+        dlrover_run_builder = DLRoverRunBuilder(
+            self, entrypoint, nnodes, nproc_per_node
+        )
+
+        return dlrover_run_builder
+
+    def with_collocation(self, *roles):
+        """
+        Set a collocation strategy, requiring that the total number of
+        collocated roles on each node(per_node) must have an even relationship
+        with the number of devices on each machine(device_per_node).
+
+        Multiple role names is required.
+        For example, to colocate "actor" and "rollout", it can be expressed as
+        `.with_collocation("actor", "rollout")`.
+
+        Supported roles include: actor, rollout, reference, reward, and critic,
+        with support for both uppercase and lowercase. The same role can only
+        be included in one collocation.
+
+        Args:
+            roles (str): Multi role names.
+        """
+
+        roles = [role.upper() for role in roles]
+        self._collocations.append(set(roles))
+        return self
+
+    def with_collocation_all(self, *exclude_roles):
+        """
+        Set a collocation strategy for all roles.
+
+        Notice: can be used after role definition only
+        """
+
+        roles = set()
+        for role in list(self._role_builders.keys()):
+            if role in exclude_roles:
+                continue
+            roles.add(role)
+        self._collocations.append(roles)
+        return self
