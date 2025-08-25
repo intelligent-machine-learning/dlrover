@@ -281,19 +281,30 @@ class Node(object):
     def update_service_address(self, service_addr):
         self.service_addr = service_addr
 
-    def get_relaunch_node_info(self, new_id):
+    def generate_relaunch_node(self, new_id, new_name=None):
+        # inherited fields
         new_node = copy.deepcopy(self)
+
+        # updated fields
         new_node.id = new_id
-        new_node.name = None
+        new_node.name = new_name
+
+        # reset fields
         new_node.status = NodeStatus.INITIAL
+        new_node.host_name = None
+        new_node.host_ip = None
         new_node.start_time = None
         new_node.create_time = None
         new_node.finish_time = None
         new_node.heartbeat_time = 0
+        new_node.start_hang_time = 0
+        new_node.hang = False
         new_node.is_released = False
+        new_node.restart_training = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
         new_node.reported_status = ("", 0)
+
         return new_node
 
     def is_unrecoverable_failure(self):
