@@ -19,10 +19,6 @@ from dlrover.python.unified.api.builder import (
     DLJobBuilder,
     RLJobBuilder,
 )
-from dlrover.python.unified.api.builder.base import (
-    ElasticTrainBuilder,
-    SimpleWorkloadBuilder,
-)
 from dlrover.python.unified.api.builder.rl import RLJob
 from dlrover.python.unified.common.enums import (
     DLStreamType,
@@ -445,9 +441,7 @@ class ApiTest(BaseTest):
         assert workload.resource.accelerator == 1
 
     def test_role_builder(self):
-        workload_builder = SimpleWorkloadBuilder(
-            DLJobBuilder(), "test", "m0.c0"
-        )
+        workload_builder = DLJobBuilder().role("test").run("m0.c0")
         workload_builder.env(None)
         self.assertEqual(workload_builder._env, {})
         workload_builder.sub_stage(None)
@@ -458,19 +452,25 @@ class ApiTest(BaseTest):
 
         # Bad entrypoint
         with self.assertRaises(ValidationError):
-            ElasticTrainBuilder(DLJobBuilder(), "test", "main").end().build()
-        ElasticTrainBuilder(
-            DLJobBuilder(), "test", "tset::main"
-        ).end().build()  # success
+            DLJobBuilder().role("test").run("main").end().build()
+
+        # Normalize old format
+        res = (
+            DLJobBuilder().role("test").run("tset::main").end().build()
+        )  # success
+        assert res.workloads["test"].entry_point == "tset.main"
+
         # Bad total
         with self.assertRaises(ValidationError):
             (
-                ElasticTrainBuilder(DLJobBuilder(), "test", "tset::main")
+                DLJobBuilder()
+                .role("test")
+                .run("tset.main")
                 .total(-1)
                 .end()
                 .build()
             )
 
-        ElasticTrainBuilder(DLJobBuilder(), "test", "test::main").total(
+        DLJobBuilder().role("test").run("tset.main").total(
             1
         ).end().build()  # success
