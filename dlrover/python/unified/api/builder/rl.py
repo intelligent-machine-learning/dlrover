@@ -129,7 +129,7 @@ class RLJobBuilder(DLJobBuilder):
             entrypoint (str): The entry point of critic.
         """
 
-        return self.role(RLJobBuilder.CRITIC_ROLE).run(entrypoint)
+        return self.role(RLJobBuilder.CRITIC_ROLE).train(entrypoint)
 
     def with_collocation_all(self):
         """

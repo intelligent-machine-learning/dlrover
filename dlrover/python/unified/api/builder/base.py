@@ -188,14 +188,22 @@ class RoleBuilder(ABC, Generic[T]):
         self._env.update(env)
         return self
 
-    def resource(self, cpu=0, memory=0, disk=0, accelerator=0, **kwargs):
+    def resource(
+        self,
+        cpu: int | float = 0,
+        memory: int = 0,
+        disk: int = 0,
+        accelerator: int | float = 0,
+        **kwargs,
+    ):
         """
         The resource for current role.
 
         Args:
-            cpu (int, optional): The number of CPU cores to use. Defaults to 0.
-            memory (int, optional): The size of memory to use. Defaults to 0. Unit: mb.
-            accelerator (int, optional): The number of accelerator cores to use. Defaults to 0.
+            cpu: The number of CPU cores to use. Defaults to 0.
+            memory: The size of memory to use. Defaults to 0. Unit: mb.
+            disk: The size of disk to use. Defaults to 0. Unit: mb.
+            accelerator: The number of accelerator cores to use. Defaults to 0.
         """
 
         self._resource.update(
@@ -373,7 +381,7 @@ class DLJobBuilder(object):
         self._params.accelerator_type = cast(Any, device_type)
         return self
 
-    def config(self, config: dict):
+    def config(self, config: Any):
         """
         Set the training configuration.
 

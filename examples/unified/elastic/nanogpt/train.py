@@ -489,14 +489,13 @@ def launch_use_api():
     job = (
         DLJobBuilder()
         .config(DictConfig(args.__dict__))
-        .dlrover_run(
-            "examples.unified.elastic.nanogpt.train.run",
-            nnodes=2,
-            nproc_per_node=1,
-        )
         .node_num(2)
-        .device_per_node(1)
+        .device_per_node(2)
         .device_type("GPU" if torch.cuda.is_available() else "CPU")
+        .train("examples.unified.elastic.nanogpt.train.run")
+        .nnodes(2)
+        .nproc_per_node(2)
+        .end()  # optional, for type hinting
         .build()
     )
     job.submit(job_name="nanogpt")
