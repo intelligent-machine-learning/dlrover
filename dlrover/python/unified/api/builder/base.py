@@ -12,10 +12,19 @@
 # limitations under the License.
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
-from typing import Any, Dict, Generic, List, Optional, Set, TypeVar, cast
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Set,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from pydantic import Field, model_validator
-from typing_extensions import Self
 
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
@@ -127,7 +136,7 @@ class DLJob(DLConfig):
         return submit(config, blocking)
 
 
-T = TypeVar("T", bound="DLJobBuilder")
+T = TypeVar("T", bound="DLJobBuilder", covariant=True)
 
 
 class RoleBuilder(ABC, Generic[T]):
@@ -138,9 +147,9 @@ class RoleBuilder(ABC, Generic[T]):
 
         self._num = 1
         self._per_group = 1
-        self._env = {}
-        self._resource = {}
-        self._sub_stage = []
+        self._env: Dict[str, str] = {}
+        self._resource: Dict[str, Union[int, float]] = {}
+        self._sub_stage: List[str] = []
 
     def total(self, num=1):
         """
@@ -413,7 +422,7 @@ class DLJobBuilder(object):
             raise ValueError("Role must be set before calling run().")
 
         role = self._last_role
-        builder = SimpleWorkloadBuilder[Self](self, role, entrypoint)
+        builder = SimpleWorkloadBuilder(self, role, entrypoint)
         self.add_role_builder(builder.role, builder)
         return builder
 
@@ -427,7 +436,7 @@ class DLJobBuilder(object):
                 e.g. 'xxx.module.function'
         """
         role = self._last_role or InternalDLWorkloadRole.ELASTIC_ROLE
-        builder = ElasticTrainBuilder[Self](self, role, entrypoint)
+        builder = ElasticTrainBuilder(self, role, entrypoint)
         self.add_role_builder(builder.role, builder)
         return builder
 
