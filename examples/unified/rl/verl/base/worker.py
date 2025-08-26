@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from omegaconf import DictConfig
 from ray.actor import ActorHandle
 
-from dlrover.python.unified.trainer.rl_workload import BaseRLWorkload
+from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 from dlrover.python.unified.backend.rl.trainer import (
     trainer_invocation,
 )
@@ -99,13 +99,13 @@ class WorkerMeta:
 
 
 # we assume that in each WorkerGroup, there is a Master Worker
-class Worker(WorkerHelper, BaseRLWorkload):
+class Worker(WorkerHelper, BaseRLWorker):
     """A (distributed) worker."""
 
     fused_worker_attr_name = "fused_worker_dict"
 
-    def __init__(self, master_handle: ActorHandle, config: DictConfig):
-        super().__init__(master_handle, config)
+    def __init__(self, job_info, actor_info):
+        super().__init__(job_info, actor_info)
 
         self.cuda_visible_devices = None
 

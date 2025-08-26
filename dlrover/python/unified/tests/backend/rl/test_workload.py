@@ -14,6 +14,7 @@ import os
 
 from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
+from dlrover.python.unified.common.enums import WorkerStage
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.base import BaseTest
 
@@ -21,21 +22,32 @@ from dlrover.python.unified.tests.base import BaseTest
 class RLWorkerTest(BaseTest):
     # ActorBase.__init__ expects an event loop to be running.
     async def test_basic(self):
-        os.environ["NAME"] = "test"
-        os.environ["ROLE"] = "ACTOR"
-        os.environ["RANK"] = "0"
-        os.environ["LOCAL_RANK"] = "0"
         os.environ["MASTER_ADDR"] = "127.0.0.1"
         os.environ["MASTER_PORT"] = "29500"
 
         spec = CustomWorkloadDesc(module_name="test", class_name="test")
         workload = BaseRLWorker(
-            JobInfo(name="test", job_id="test", user_config={}),
+            JobInfo(name="test", job_id="test", user_config={"k1": "v1"}),
             ActorInfo(name="test", role="ACTOR", spec=spec),
         )
         self.assertIsNotNone(workload)
         self.assertEqual(workload.name, "test")
+        self.assertEqual(workload.role, "ACTOR")
+        self.assertEqual(workload.rank, 0)
         self.assertEqual(workload.local_rank, 0)
+        self.assertEqual(workload.world_size, 1)
+        self.assertEqual(workload.local_world_size, 1)
+        self.assertEqual(workload.config, {"k1": "v1"})
+        self.assertTrue(workload.is_actor_role())
+        self.assertFalse(workload.is_reward_role())
+        self.assertFalse(workload.is_ref_role())
+        self.assertFalse(workload.is_rollout_role())
+        self.assertFalse(workload.is_critic_role())
+        self.assertFalse(workload.is_actor_or_rollout_device_collocation())
+        self.assertTrue(workload.get_master_addr())
 
         workload.setup_rl_workload({"k2": "v2"})
         self.assertEqual(os.environ["k2"], "v2")
+
+        workload.update_rl_workload_stage(WorkerStage.RUNNING)
+        self.assertEqual(workload.stage, WorkerStage.RUNNING)

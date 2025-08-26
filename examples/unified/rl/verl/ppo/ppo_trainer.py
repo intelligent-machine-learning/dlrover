@@ -77,8 +77,8 @@ class PPOTrainer(BaseRLTrainer):
     https://github.com/volcengine/verl/blob/main/verl/trainer/ppo/ray_trainer.py.
     """
 
-    def __init__(self, actor_handles, actor_classes, config):
-        super().__init__(actor_handles, actor_classes, config)
+    def __init__(self, job_info, actor_info):
+        super().__init__(job_info, actor_info)
 
         self.tokenizer = None
         self.processor = None
@@ -86,7 +86,7 @@ class PPOTrainer(BaseRLTrainer):
         self.val_reward_fn = None
         self.validation_generations_logger = ValidationGenerationsLogger()
 
-        self.hybrid_engine = config.actor_rollout_ref.hybrid_engine
+        self.hybrid_engine = self.config.actor_rollout_ref.hybrid_engine
         assert self.hybrid_engine, "Currently, only support hybrid engine"
 
     def init(self):

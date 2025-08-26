@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 
 import ray.actor
 
@@ -28,7 +28,7 @@ class JobInfo:
 
     name: str
     job_id: str
-    user_config: dict
+    user_config: Any
 
 
 @dataclass
