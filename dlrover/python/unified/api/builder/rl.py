@@ -14,7 +14,6 @@ from pydantic import model_validator
 
 from dlrover.python.unified.common.enums import (
     DLStreamType,
-    DLType,
     RLRoleType,
 )
 
@@ -63,7 +62,6 @@ class RLJobBuilder(DLJobBuilder):
 
     def __init__(self):
         super(RLJobBuilder, self).__init__()
-        self._dl_type = DLType.RL.name
 
     def trainer(self, entrypoint: str):
         """

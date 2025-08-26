@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.workload_base import WorkerStage
+from dlrover.python.unified.common.actor_base import WorkerStage
 
 """Remote Call define for rl backend. Shared between master and worker actors."""
 

@@ -15,16 +15,16 @@ import pytest
 
 from dlrover.python.unified.api.builder.base import DLJob
 from dlrover.python.unified.api.builder.rl import RLJobBuilder
+from dlrover.python.unified.common.config import (
+    ACCELERATOR_TYPE,
+    DLConfig,
+    JobConfig,
+)
 from dlrover.python.unified.common.enums import RLRoleType
 from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
     SimpleWorkloadDesc,
-)
-from dlrover.python.unified.controller.config import (
-    ACCELERATOR_TYPE,
-    DLConfig,
-    JobConfig,
 )
 from dlrover.python.unified.controller.master import PrimeMaster
 

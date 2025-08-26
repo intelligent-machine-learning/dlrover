@@ -26,6 +26,10 @@ from typing import (
 
 from pydantic import Field, model_validator
 
+from dlrover.python.unified.common.config import (
+    DLConfig,
+    JobConfig,
+)
 from dlrover.python.unified.common.constant import (
     DLWorkloadEnv,
     InternalDLWorkloadRole,
@@ -36,10 +40,6 @@ from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     SimpleWorkloadDesc,
     WorkloadDesc,
-)
-from dlrover.python.unified.controller.config import (
-    DLConfig,
-    JobConfig,
 )
 from dlrover.python.unified.driver.main import submit
 

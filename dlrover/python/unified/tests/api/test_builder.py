@@ -20,11 +20,11 @@ from dlrover.python.unified.api.builder import (
     RLJobBuilder,
 )
 from dlrover.python.unified.api.builder.rl import RLJob
+from dlrover.python.unified.common.config import DLConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     RLRoleType,
 )
-from dlrover.python.unified.controller.config import DLConfig
 from dlrover.python.unified.tests.base import BaseTest
 
 

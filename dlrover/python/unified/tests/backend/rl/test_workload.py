@@ -13,7 +13,7 @@
 import os
 
 from dlrover.python.unified.backend.rl.worker import BaseRLWorker
-from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
+from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.base import BaseTest
 

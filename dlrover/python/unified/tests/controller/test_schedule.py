@@ -17,15 +17,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from dlrover.python.unified.common.config import (
+    ACCELERATOR_TYPE,
+    DLConfig,
+    JobConfig,
+)
 from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
     SimpleWorkloadDesc,
-)
-from dlrover.python.unified.controller.config import (
-    ACCELERATOR_TYPE,
-    DLConfig,
-    JobConfig,
 )
 from dlrover.python.unified.controller.schedule import scheduler
 from dlrover.python.unified.controller.schedule.graph import DLExecutionGraph

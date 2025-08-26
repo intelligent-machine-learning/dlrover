@@ -12,41 +12,14 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional
 
 import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.enums import WorkerStage
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
-
-
-class MasterStage(str, Enum):
-    INIT = "INIT"
-    READY = "READY"
-    RUNNING = "RUNNING"
-    STOPPING = "STOPPING"
-    STOPPED = "STOPPED"
-
-
-class WorkerStage(str, Enum):
-    """Stages of a worker actor."""
-
-    # CALL __init__
-    INIT = "INIT"
-    # _setup
-    # _self_check(optional)
-    READY = "READY"
-    # CALL check_workers(optional)
-    # CALL start
-    RUNNING = "RUNNING"
-    FINISHED = "FINISHED"
-    FAILED = "FAILED"
-
-    def is_terminal(self) -> bool:
-        """Check if the stage is terminal."""
-        return self in {WorkerStage.FINISHED, WorkerStage.FAILED}
 
 
 @dataclass

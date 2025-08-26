@@ -13,7 +13,7 @@
 
 from typing import Protocol
 
-from dlrover.python.unified.common.workload_base import (
+from dlrover.python.unified.common.actor_base import (
     ActorInfo,
     JobInfo,
 )

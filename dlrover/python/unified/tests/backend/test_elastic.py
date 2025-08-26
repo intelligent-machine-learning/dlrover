@@ -23,7 +23,7 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
 from dlrover.python.unified.backend.elastic.worker.worker import (
     _get_ray_gpu_devices,
 )
-from dlrover.python.unified.common.workload_base import ActorInfo
+from dlrover.python.unified.common.actor_base import ActorInfo
 
 
 def test_find_straggling_nodes():

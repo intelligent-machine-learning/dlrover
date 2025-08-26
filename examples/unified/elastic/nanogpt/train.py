@@ -24,16 +24,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.unified.api.builder.base import DLJobBuilder
 from dlrover.python.unified.api.runtime.worker import current_worker
-from dlrover.python.unified.common.workload_desc import (
-    ElasticWorkloadDesc,
-    ResourceDesc,
-)
-from dlrover.python.unified.controller.config import (
-    ACCELERATOR_TYPE,
-    DLConfig,
-    JobConfig,
-)
-from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 from dlrover.trainer.torch.flash_checkpoint.ddp import (
@@ -457,35 +447,6 @@ def launch():
     Launch the training process.
     """
     args = arg_parser()
-    device = (
-        ACCELERATOR_TYPE.GPU
-        if torch.cuda.is_available()
-        else ACCELERATOR_TYPE.CPU
-    )
-    config = DLConfig(
-        user_config=args,
-        accelerator_type=device,
-        workloads={
-            "train": ElasticWorkloadDesc(
-                total=2,
-                entry_point="examples.unified.elastic.nanogpt.0_base_train.run",
-                resource=ResourceDesc(accelerator=1),
-            )
-        },
-    )
-    master = PrimeMaster.create(
-        JobConfig(
-            job_name="nanogpt",
-            dl_config=config,
-        ),
-    )
-    master.start()
-    master.wait()
-    master.shutdown()
-
-
-def launch_use_api():
-    args = arg_parser()
     job = (
         DLJobBuilder()
         .config(DictConfig(args.__dict__))
@@ -502,6 +463,4 @@ def launch_use_api():
 
 
 if __name__ == "__main__":
-    # Pick one style you prefer:
-    # launch()
-    launch_use_api()
+    launch()

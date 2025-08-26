@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, List
 
 from omegaconf import DictConfig, OmegaConf
@@ -26,19 +25,15 @@ from pydantic import (
 )
 from pydantic_core import core_schema
 
-from dlrover.python.unified.common.constant import DLTrainerConstant
-from dlrover.python.unified.common.enums import MasterStateBackendType
-from dlrover.python.unified.common.workload_base import JobInfo
+from dlrover.python.unified.common.actor_base import JobInfo
+from dlrover.python.unified.common.enums import (
+    ACCELERATOR_TYPE,
+    MasterStateBackendType,
+)
 from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     WorkloadDesc,
 )
-
-
-class ACCELERATOR_TYPE(str, Enum):
-    CPU = "CPU"
-    GPU = "GPU"
-    TPU = "TPU"
 
 
 @dataclass
@@ -68,7 +63,7 @@ class DLConfig(BaseModel):
     )
     accelerator_type: ACCELERATOR_TYPE = ACCELERATOR_TYPE.GPU
     device_per_node: int = Field(
-        default=DLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
+        default=8,
         ge=1,
         description="The number of accelerators per node.",
     )
@@ -198,7 +193,6 @@ class JobConfig(BaseModel):
         default=10,
         description="The maximum limit on the number of master restarts.",
     )
-    torch_master_port: List[int] = DLTrainerConstant.TORCH_MASTER_PORT_DEFAULT
 
     def to_job_info(self) -> JobInfo:
         """Convert to JobInfo."""

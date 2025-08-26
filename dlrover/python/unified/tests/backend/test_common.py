@@ -17,7 +17,7 @@ from unittest.mock import Mock
 
 from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
-from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
+from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 

@@ -18,9 +18,9 @@ import ray
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.actor_base import ActorBase, WorkerStage
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
 from dlrover.python.util.common_util import find_free_port_from_env
 
 

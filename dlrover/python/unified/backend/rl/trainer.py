@@ -25,13 +25,13 @@ from ray.actor import ActorHandle
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.rl import remote_call
-from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_base import (
+from dlrover.python.unified.common.actor_base import (
     ActorBase,
     ActorInfo,
     WorkerStage,
 )
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.enums import RLRoleType
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_helper import get_actor_with_cache
 from dlrover.python.unified.util.actor_proxy import (

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from dlrover.python.unified.common.workload_base import ActorBase
+from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
 from .manager import ElasticManager

@@ -14,7 +14,8 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
-from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
+from dlrover.python.unified.common.actor_base import ActorInfo
+from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
 
 MASTER_ACTOR_NAME = "__prime_master__"

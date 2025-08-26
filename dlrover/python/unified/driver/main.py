@@ -15,8 +15,8 @@ import os
 import ray
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.config import DLConfig, JobConfig
 from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.controller.config import DLConfig, JobConfig
 from dlrover.python.unified.controller.master import PrimeMaster
 
 

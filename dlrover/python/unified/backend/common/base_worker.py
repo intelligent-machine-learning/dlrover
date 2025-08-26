@@ -20,7 +20,7 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     RPC_REGISTRY,
     export_rpc_instance,
 )
-from dlrover.python.unified.common.workload_base import ActorBase, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorBase, WorkerStage
 from dlrover.python.util.reflect_util import import_callable
 
 

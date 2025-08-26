@@ -16,8 +16,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from dlrover.python.unified.common.workload_base import ActorInfo
-from dlrover.python.unified.controller.config import DLConfig, WorkloadDesc
+from dlrover.python.unified.common.actor_base import ActorInfo
+from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
 
 
 class DLExecutionVertex(ABC, BaseModel):

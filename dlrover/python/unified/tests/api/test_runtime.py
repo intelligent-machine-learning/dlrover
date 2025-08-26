@@ -34,7 +34,7 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     rpc,
 )
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
-from dlrover.python.unified.common.workload_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorInfo, WorkerStage
 from dlrover.python.unified.util import async_helper
 from dlrover.python.unified.util.actor_helper import ActorInvocation
 

@@ -37,6 +37,7 @@ from ray.exceptions import (
 )
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.constant import RAY_HANG_CHECK_INTERVAL
 
 __actors_cache: Dict[str, ActorHandle] = {}
 T = TypeVar("T")
@@ -69,10 +70,6 @@ def as_actor_class(cls: type) -> ActorClass:
     if isinstance(cls, ActorClass):
         return cls
     return ray.remote(cls)  # type: ignore[return-value]
-
-
-RAY_INVOKE_TIMEOUT = 10.0  # Default timeout for Ray actor invocations
-RAY_MONITOR_INTERVAL = 5.0  # Interval for monitoring actor invocations
 
 
 class InvocationRef(Generic[T], ABC):
@@ -292,14 +289,16 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
             )
 
     def wait(
-        self, straggler_timeout: float = RAY_MONITOR_INTERVAL
+        self, straggler_timeout: float = RAY_HANG_CHECK_INTERVAL
     ) -> "BatchInvokeResult[T]":
         """Wait for all invocations to complete, blocking until they are ready."""
         while self.pending:
             self._resolve_sync(timeout=straggler_timeout)
         return self.result
 
-    async def async_wait(self, monitor_interval: float = RAY_MONITOR_INTERVAL):
+    async def async_wait(
+        self, monitor_interval: float = RAY_HANG_CHECK_INTERVAL
+    ):
         async def wait(ref: ActorInvocation[T]):
             """Resolve the invocation and return the result."""
             while ref.pending:
@@ -392,7 +391,7 @@ async def wait_ready(actors: List[str]):
             *[wait_one(actor_name) for actor_name in actors.copy()]
         )
         if actors:
-            await asyncio.sleep(RAY_MONITOR_INTERVAL)
+            await asyncio.sleep(RAY_HANG_CHECK_INTERVAL)
 
 
 class BatchInvokeResult(Generic[T]):

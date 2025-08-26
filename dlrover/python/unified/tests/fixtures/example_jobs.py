@@ -11,14 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.workload_desc import (
-    ElasticWorkloadDesc,
-    ResourceDesc,
-)
-from dlrover.python.unified.controller.config import (
+from dlrover.python.unified.common.config import (
     ACCELERATOR_TYPE,
     DLConfig,
     JobConfig,
+)
+from dlrover.python.unified.common.workload_desc import (
+    ElasticWorkloadDesc,
+    ResourceDesc,
 )
 
 

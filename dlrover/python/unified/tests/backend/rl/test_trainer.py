@@ -19,8 +19,8 @@ import pytest
 from dlrover.python.unified.backend.rl.trainer import (
     RoleGroupProxy,
 )
+from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_base import ActorInfo, JobInfo
 from dlrover.python.unified.common.workload_desc import CustomWorkloadDesc
 from dlrover.python.unified.tests.backend.rl.classes import (
     SimpleActor,

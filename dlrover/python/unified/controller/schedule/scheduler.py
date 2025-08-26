@@ -22,13 +22,13 @@ from ray.util.scheduling_strategies import (
 )
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.common.workload_desc import ResourceDesc
-from dlrover.python.unified.controller import remote_call
-from dlrover.python.unified.controller.config import (
+from dlrover.python.unified.common.config import (
     ACCELERATOR_TYPE,
     JobConfig,
 )
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.common.workload_desc import ResourceDesc
+from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 
 from .graph import DLExecutionGraph

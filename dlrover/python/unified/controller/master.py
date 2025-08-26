@@ -19,13 +19,14 @@ import ray.actor
 from ray.exceptions import GetTimeoutError
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_base import ActorInfo, MasterStage
+from dlrover.python.unified.common.actor_base import ActorInfo
+from dlrover.python.unified.common.enums import MasterStage
 
+from ..common.config import JobConfig
 from .api import (
     MASTER_ACTOR_NAME,
     PrimeMasterApi,
 )
-from .config import JobConfig
 from .manager import PrimeManager
 
 
@@ -142,9 +143,9 @@ class PrimeMaster:
         )
         try:
             ray.get(
-                ref.__ray_ready__.remote(),
+                ref.__ray_ready__.remote(),  # type: ignore
                 timeout=config.master_create_timeout,
-            )  # type: ignore
+            )
         except GetTimeoutError:
             raise TimeoutError(
                 f"Timeout waiting for PrimeMaster to be ready after {config.master_create_timeout} seconds."

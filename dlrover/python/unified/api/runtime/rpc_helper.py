@@ -31,7 +31,7 @@ from typing import (
     overload,
 )
 
-from dlrover.python.unified.common.workload_base import ActorInfo
+from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,

@@ -16,7 +16,7 @@ import time
 from typing import Collection, List, OrderedDict, Sequence, Tuple
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_base import ActorInfo
+from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
 )
