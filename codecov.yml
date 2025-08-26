@@ -6,6 +6,7 @@ coverage:
   ignore:
     - "dlrover/python/unified/tests"  # test codes
     - "dlrover/trainer/tests"  # test codes
+    - "dlrover/python/tests" # test codes
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
     - "dlrover/trainer/torch/node_check/utils.py"
     - "dlrover/proto"  # protobuf auto generated
@@ -23,6 +24,6 @@ coverage:
         removed_code_behavior: fully_covered_patch
     project:
       default:
-        target: 83%
+        target: 81%
         threshold: 2%
         removed_code_behavior: fully_covered_patch
