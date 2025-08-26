@@ -24,6 +24,7 @@ def test_register_data_queue():
 
 async def test_get_data_queue_owner():
     manager = SyncManager()
-    owner = await manager.get_data_queue_owner("test")
+    manager.get_data_queue_owner("test")
     manager.register_data_queue("test", "test_owner", 2)
+    owner = await manager.get_data_queue_owner("test")
     assert owner == "test_owner"
