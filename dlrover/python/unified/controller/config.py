@@ -15,7 +15,16 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from omegaconf import DictConfig, OmegaConf
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+from pydantic_core import core_schema
 
 from dlrover.python.unified.common.constant import DLTrainerConstant
 from dlrover.python.unified.common.enums import MasterStateBackendType
@@ -52,9 +61,17 @@ class DLConfig(BaseModel):
     workloads: Dict[str, WorkloadDesc]
     global_envs: Dict[str, str] = Field(default_factory=dict)
 
-    node_number: int = 1
+    node_number: int = Field(
+        default=1,
+        ge=1,
+        description="The total number of nodes.",
+    )
     accelerator_type: ACCELERATOR_TYPE = ACCELERATOR_TYPE.GPU
-    device_per_node: int = DLTrainerConstant.DEVICE_PER_NODE_DEFAULT
+    device_per_node: int = Field(
+        default=DLTrainerConstant.DEVICE_PER_NODE_DEFAULT,
+        ge=1,
+        description="The number of accelerators per node.",
+    )
 
     @property
     def workload_group(self) -> List[WorkloadGroup]:
@@ -83,12 +100,50 @@ class DLConfig(BaseModel):
                     )
         return list(groups.values())
 
+    @field_validator(
+        "user_config",
+        mode="plain",
+        json_schema_input_type=core_schema.dict_schema(
+            core_schema.str_schema(), core_schema.any_schema()
+        ),
+    )
+    def _normalize_user_config(cls, v):
+        """Convert None to empty DictConfig."""
+        import argparse
+
+        if v is None:
+            v = DictConfig({})
+        elif isinstance(v, dict):
+            v = DictConfig(v)
+        elif isinstance(v, DictConfig):
+            v = v
+        elif isinstance(v, argparse.Namespace):
+            v = DictConfig(vars(v))
+        else:
+            return v  # keep original type for Any
+        OmegaConf.resolve(v)
+        return v
+
+    @field_serializer("user_config")
+    def _serialize_user_config(self, v):
+        """Serialize user_config to dict."""
+        if isinstance(v, DictConfig):
+            return OmegaConf.to_object(v)
+        return v
+
+    @field_validator("workloads", mode="after")
+    def _require_workloads(cls, workloads):
+        """Ensure workloads are defined."""
+        if len(workloads) == 0:
+            raise ValueError("At least one workload must be defined.")
+        return workloads
+
     @model_validator(mode="after")
     def validate(self):
         for group in self.workload_group:
             if group.resource.accelerator > self.device_per_node:
                 raise ValueError(
-                    f"Accelerator resource {group.resource.accelerator} "
+                    f"Group {group.name} accelerator resource {group.resource.accelerator} "
                     f"exceeds device_per_node {self.device_per_node}."
                 )
         sum_accelerator = sum(

@@ -18,75 +18,63 @@ import argparse
 import time
 from datetime import datetime
 
+from dlrover.python.unified.api.builder.rl import RLJobBuilder
 from dlrover.python.unified.common.enums import RLRoleType
-from dlrover.python.unified.common.workload_desc import (
-    ElasticWorkloadDesc,
-    ResourceDesc,
-    SimpleWorkloadDesc,
-)
-from dlrover.python.unified.controller.config import DLConfig, JobConfig
-from dlrover.python.unified.controller.master import PrimeMaster
 from dlrover.python.unified.util.config_util import args_2_omega_conf
 
 
 def submit(args):
-    comm_pre_check = not args.skip_node_check
+    P = __package__
 
-    workloads = {}
-    workloads[RLRoleType.ACTOR.name] = ElasticWorkloadDesc(
-        total=args.actor_num_nodes * args.actor_num_gpus_per_node,
-        per_group=args.actor_num_gpus_per_node,
-        resource=ResourceDesc(accelerator=1),
-        entry_point=f"{__package__}.ppo_actor.PolicyModelActor",
-        comm_pre_check=comm_pre_check,
-        comm_backend="nccl",
+    # 1. Create a job builder
+    builder = RLJobBuilder().config(args_2_omega_conf(args))
+
+    # 2. Define workloads / roles
+    builder.trainer(f"{P}.ppo_trainer.PPOTrainerActor").resource(cpu=4)
+    (
+        builder.actor(f"{P}.ppo_actor.PolicyModelActor")
+        .resource(accelerator=1)
+        .nnodes(args.actor_num_nodes)
+        .nproc_per_node(args.actor_num_gpus_per_node)
     )
-    workloads[RLRoleType.CRITIC.name] = ElasticWorkloadDesc(
-        total=args.critic_num_nodes * args.critic_num_gpus_per_node,
-        per_group=args.critic_num_gpus_per_node,
-        resource=ResourceDesc(accelerator=0.4),
-        entry_point=f"{__package__}.ppo_critic.CriticModelRayActor",
-        comm_pre_check=comm_pre_check,
-        comm_backend="nccl",
+    (
+        builder.critic(f"{P}.ppo_critic.CriticModelRayActor")
+        .resource(accelerator=0.4)
+        .nnodes(args.critic_num_nodes)
+        .nproc_per_node(args.critic_num_gpus_per_node)
     )
-    workloads[RLRoleType.ROLLOUT.name] = SimpleWorkloadDesc(
-        total=args.vllm_num_engines,
-        resource=ResourceDesc(accelerator=1),
-        entry_point=f"{__package__}.ppo_rollout.VLLMActor",
+    (
+        builder.rollout(f"{P}.ppo_rollout.VLLMActor")
+        .resource(accelerator=1)
+        .total(args.vllm_num_engines)
     )
+    # optional reference role
     if args.init_kl_coef != 0:
-        workloads[RLRoleType.REFERENCE.name] = ElasticWorkloadDesc(
-            total=args.ref_num_nodes * args.ref_num_gpus_per_node,
-            per_group=args.ref_num_gpus_per_node,
-            resource=ResourceDesc(accelerator=0.4),
-            entry_point=f"{__package__}.ppo_reference.PPOReferenceActor",
-            comm_pre_check=comm_pre_check,
-            comm_backend="nccl",
+        (
+            builder.role(RLRoleType.REFERENCE.name)
+            .train(f"{P}.ppo_reference.PPOReferenceActor")
+            .resource(accelerator=0.4)
+            .nnodes(args.ref_num_nodes)
+            .nproc_per_node(args.ref_num_gpus_per_node)
         )
-    workloads[RLRoleType.REWARD.name] = ElasticWorkloadDesc(
-        total=args.reward_num_nodes * args.reward_num_gpus_per_node,
-        per_group=args.reward_num_gpus_per_node,
-        resource=ResourceDesc(accelerator=0.4),
-        entry_point=f"{__package__}.ppo_reward.RewardModelRayActor",
-        comm_pre_check=comm_pre_check,
-        comm_backend="nccl",
-    )
-    workloads["trainer"] = SimpleWorkloadDesc(
-        resource=ResourceDesc(cpu=4),
-        entry_point=f"{__package__}.ppo_trainer.PPOTrainerActor",
-    )
-    config = DLConfig(
-        user_config=args_2_omega_conf(args),
-        workloads=workloads,
+    (
+        builder.role(RLRoleType.REWARD.name)
+        .train(f"{P}.ppo_reward.RewardModelRayActor")
+        .resource(accelerator=0.4)
+        .nnodes(args.reward_num_nodes)
+        .nproc_per_node(args.reward_num_gpus_per_node)
     )
 
-    master = PrimeMaster.create(
-        JobConfig(job_name="openrlhf_demo", dl_config=config)
-    )
-    master.start()
-    master.wait()
-    print(master.get_status())
-    master.shutdown()
+    # 3. Build and submit
+    job = builder.build()
+    # optional modifications before submission
+    if args.skip_node_check:
+        for workload in job.workloads.values():
+            if workload.backend == "elastic":
+                workload.comm_pre_check = False
+    print(job.model_dump_json(indent=2))
+    if not args.dry_run:
+        job.submit(args.job_name)
 
 
 if __name__ == "__main__":
@@ -103,6 +91,12 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="skip node communication check",
+    )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        default=False,
+        help="only create the job and print the config, do not submit the job",
     )
 
     # Ray and vLLM

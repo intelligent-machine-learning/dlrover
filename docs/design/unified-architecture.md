@@ -223,6 +223,8 @@ There are three different driving patterns for the unified training framework:
 - Trainer Driven: The `Trainer` orchestrates the training process, coordinating interactions among various roles such as
   `Actor`, `Critic`, and `Rollout` in reinforcement learning scenarios.
 
+![Driving Patterns Diagram](../figures/unified/driving_patterns.excalidraw.svg)
+
 ### Elastic Training (SubMaster Driven)
 
 Elastic training is a core feature of the DLRover framework, enabling dynamic scaling of training resources based on

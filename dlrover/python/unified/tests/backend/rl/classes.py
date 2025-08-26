@@ -13,8 +13,6 @@
 import os
 import time
 
-import ray
-
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.rl.trainer import (
     BaseRLTrainer,
@@ -23,7 +21,7 @@ from dlrover.python.unified.backend.rl.trainer import (
 from dlrover.python.unified.backend.rl.worker import BaseRLWorker
 
 
-class TestInteractiveTrainer(BaseRLTrainer):
+class SimpleInteractiveTrainer(BaseRLTrainer):
     def trainer_run(self):
         self.init()
         self.fit()
@@ -43,8 +41,7 @@ class TestInteractiveTrainer(BaseRLTrainer):
         time.sleep(1)
 
 
-@ray.remote
-class TestActor(BaseRLWorker):
+class SimpleActor(BaseRLWorker):
     @trainer_invocation()
     def init(self):
         logger.info("TestActor init called")

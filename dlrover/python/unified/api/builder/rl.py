@@ -10,14 +10,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.python.common.log import default_logger as logger
+from pydantic import model_validator
+
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     DLType,
     RLRoleType,
 )
 
-from .base import DLJobBuilder
+from .base import DLJob, DLJobBuilder
+
+
+class RLJob(DLJob):
+    @model_validator(mode="after")
+    def validate(self):
+        if self.stream_type != DLStreamType.TASK_STREAM:
+            raise ValueError(
+                "Invalid stream type for RLJob, expected TASK_STREAM"
+            )
+
+        if RLJobBuilder.ACTOR_ROLE not in self.workloads:
+            raise ValueError("'actor' must be configured.")
+
+        for role, _ in self.workloads.items():
+            if role not in RLJobBuilder.ROLES:
+                raise ValueError(
+                    f"Invalid role '{role}' for RLJob, "
+                    f"supported roles are {RLJobBuilder.ROLES}."
+                )
+        return self
 
 
 class RLJobBuilder(DLJobBuilder):
@@ -44,20 +65,15 @@ class RLJobBuilder(DLJobBuilder):
         super(RLJobBuilder, self).__init__()
         self._dl_type = DLType.RL.name
 
-    def trainer(self, module_name, class_name):
+    def trainer(self, entrypoint: str):
         """
         Setup trainer for user-defined task stream.
 
         Args:
-            module_name (str): The module name of trainer.
-            class_name (str): The class name of trainer.
+            entrypoint (str): The entry point of actor.
         """
 
-        assert self._stream_type == DLStreamType.TASK_STREAM
-
-        builder = self.workload(
-            RLJobBuilder.TRAINER_ROLE, module_name, class_name
-        )
+        builder = self.role(RLJobBuilder.TRAINER_ROLE).run(entrypoint)
 
         # default property
         builder.total(1)
@@ -66,62 +82,54 @@ class RLJobBuilder(DLJobBuilder):
 
         return builder
 
-    def actor(self, module_name, class_name):
+    def actor(self, entrypoint: str):
         """
         Setup actor.
 
         Args:
-            module_name (str): The module name of actor.
-            class_name (str): The class name of actor.
+            entrypoint (str): The entry point of actor.
         """
 
-        return self.workload(RLJobBuilder.ACTOR_ROLE, module_name, class_name)
+        return self.role(RLJobBuilder.ACTOR_ROLE).train(entrypoint)
 
-    def rollout(self, module_name, class_name):
+    def rollout(self, entrypoint: str):
         """
         Setup rollout.
 
         Args:
-            module_name (str): The module name of rollout.
-            class_name (str): The class name of rollout.
+            entrypoint (str): The entry point of rollout.
         """
+        return self.role(RLJobBuilder.ROLLOUT_ROLE).run(entrypoint)
 
-        return self.workload(
-            RLJobBuilder.ROLLOUT_ROLE, module_name, class_name
-        )
-
-    def reference(self, module_name, class_name):
+    def reference(self, entrypoint: str):
         """
         Setup reference.
 
         Args:
-            module_name (str): The module name of reference.
-            class_name (str): The class name of reference.
+            entrypoint (str): The entry point of reference.
         """
 
-        return self.workload(RLJobBuilder.REF_ROLE, module_name, class_name)
+        return self.role(RLJobBuilder.REF_ROLE).run(entrypoint)
 
-    def reward(self, module_name, class_name):
+    def reward(self, entrypoint: str):
         """
         Setup reward.
 
         Args:
-            module_name (str): The module name of reward.
-            class_name (str): The class name of reward.
+            entrypoint (str): The entry point of reward.
         """
 
-        return self.workload(RLJobBuilder.REW_ROLE, module_name, class_name)
+        return self.role(RLJobBuilder.REW_ROLE).run(entrypoint)
 
-    def critic(self, module_name, class_name):
+    def critic(self, entrypoint: str):
         """
         Setup critic.
 
         Args:
-            module_name (str): The module name of actor.
-            class_name (str): The class name of actor.
+            entrypoint (str): The entry point of critic.
         """
 
-        return self.workload(RLJobBuilder.CRITIC_ROLE, module_name, class_name)
+        return self.role(RLJobBuilder.CRITIC_ROLE).train(entrypoint)
 
     def with_collocation_all(self):
         """
@@ -133,20 +141,5 @@ class RLJobBuilder(DLJobBuilder):
         super().with_collocation_all(RLRoleType.TRAINER.name)
         return self
 
-    def validate(self) -> bool:
-        if not super(RLJobBuilder, self).validate():
-            return False
-
-        if RLJobBuilder.ACTOR_ROLE not in list(self._role_builders.keys()):
-            logger.error("'actor' must be configured.")
-            return False
-
-        for role, _ in self._role_builders.items():
-            if role not in RLJobBuilder.ROLES:
-                logger.error(
-                    f"{role} is invalid for rl, supported roles "
-                    f"are {RLJobBuilder.ROLES}."
-                )
-                return False
-
-        return True
+    def build(self) -> RLJob:
+        return RLJob.model_validate(super().build().model_dump())
