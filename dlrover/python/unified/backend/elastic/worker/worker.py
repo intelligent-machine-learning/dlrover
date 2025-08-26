@@ -15,7 +15,6 @@ import os
 from datetime import timedelta
 
 import ray
-import ray.train.torch as ray_train
 import torch
 
 from dlrover.python.common.log import default_logger as logger
@@ -24,6 +23,27 @@ from dlrover.python.unified.common.workload_base import WorkerStage
 from dlrover.python.util.common_util import (
     find_free_port_from_env_and_bind,
 )
+
+
+def _get_ray_gpu_devices():
+    """Get the devices assigned to this worker."""
+    gpu_ids = [str(id) for id in ray.get_gpu_ids()]
+    if len(gpu_ids) == 0:
+        return [torch.device("cpu")]
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        visible = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        mapped = []
+        for gpu_id in gpu_ids:
+            try:
+                mapped.append(int(visible.index(gpu_id)))
+            except ValueError:
+                raise RuntimeError(
+                    "CUDA_VISIBLE_DEVICES set incorrectly. "
+                    f"Got {os.environ['CUDA_VISIBLE_DEVICES']}, expected to include {gpu_id}. "
+                )
+    else:
+        mapped = [int(gpu_id) for gpu_id in gpu_ids]
+    return [torch.device(f"cuda:{i}") for i in mapped]
 
 
 class ElasticWorker(BaseWorker):
@@ -53,7 +73,7 @@ class ElasticWorker(BaseWorker):
         os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
         # TODO RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES
-        device = ray_train.get_device()
+        device = _get_ray_gpu_devices()[0]
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)
@@ -133,12 +153,12 @@ class ElasticWorker(BaseWorker):
 
     def destroy_torch_process_group(self):
         """Destroy the torch process group."""
-        devices = ray_train.get_devices()
         if torch.distributed.is_initialized():
             torch.distributed.destroy_process_group()
             logger.info("Destroyed torch process group.")
         self._process_group_setup = False
 
+        devices = _get_ray_gpu_devices()
         if torch.cuda.is_available():
             for device in devices:
                 with torch.cuda.device(device):
