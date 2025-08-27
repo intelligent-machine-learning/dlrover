@@ -1803,8 +1803,10 @@ def _check_device(config: ElasticLaunchConfig):
     check_result = True, -1
 
     if config.accelerator == Accelerators.NVIDIA_GPU:
+        # for gpu or cpu
         device_stats = get_gpu_stats()
     elif config.accelerator == Accelerators.ASCEND_NPU:
+        # for ascend
         device_stats = get_hpu_stats()
     else:
         logger.debug(
@@ -1813,6 +1815,10 @@ def _check_device(config: ElasticLaunchConfig):
         return
 
     logger.debug(f"Device stats: {device_stats}")
+    if not device_stats:
+        logger.info("Skip device check for stats is empty.")
+        return
+
     for device_stat in device_stats:
         index = device_stat.index
 
