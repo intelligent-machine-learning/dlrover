@@ -160,6 +160,19 @@ class NpuMetricEnum(object):
     NPU_RDMA_TX = "npu_chip_info_bandwidth_tx"
 
 
+class MthreadsGPUMetricEnum(object):
+    """
+    it is the metrics enum of Mthreads GPU, collected by Mthreads
+    """
+
+    GPU_FREE_MEM = "DCGM_FI_DEV_FB_FREE"
+    GPU_USED_MEM = "DCGM_FI_DEV_FB_USED"
+    GPU_UTIL = "DCGM_FI_DEV_GPU_UTIL"
+    GPU_TEMP = "DCGM_FI_DEV_GPU_TEMP"
+    GPU_SM_UTIL = "DCGM_FI_PROF_MP_OCCUPANCY"
+    GPU_TENSOR_UTIL = "DCGM_FI_PROF_PIPE_MT_TENSOR_ACTIVE"
+
+
 class NodeExitReason(object):
     Succeeded = "Succeeded"
     KILLED = "Deleted"
@@ -433,6 +446,7 @@ class JobConstant(object):
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+    MTHREADS_GPU = "mthreads.com/gpu"
     GENERIC_CPU = "cpu"
 
 
