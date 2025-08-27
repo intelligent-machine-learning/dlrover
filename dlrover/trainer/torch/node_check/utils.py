@@ -82,7 +82,7 @@ def get_network_check_timeout() -> timedelta:
 def bm_allgather(shape, use_gpu, device_type="cuda"):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"{device_type}:{local_rank}" if use_gpu else "cpu")
+    device = torch.device(f"{device_type}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)
@@ -112,7 +112,7 @@ def bm_allgather(shape, use_gpu, device_type="cuda"):
 def bm_allreduce(shape, use_gpu, device_type="cuda"):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"{device_type}:{local_rank}" if use_gpu else "cpu")
+    device = torch.device(f"{device_type}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
 
     if use_gpu:
@@ -140,11 +140,10 @@ def bm_allreduce(shape, use_gpu, device_type="cuda"):
 
 @log_execution_time
 def _execute_nccl_comm(comm_op, *args):
-    local_rank = int(os.environ["LOCAL_RANK"])
     # warm up
     for _ in range(20):
         comm_op(*args)
-    torch.cuda.synchronize(device=local_rank)
+    torch.cuda.synchronize()
 
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
@@ -175,8 +174,7 @@ def _execute_cpu_comm(comm_op, *args):
 
 
 def matmul(use_cuda, round_num=10, verbose=False, device_type="cuda"):
-    local_rank = int(os.getenv("LOCAL_RANK", 0))
-    device = torch.device(f"{device_type}:{local_rank}" if use_cuda else "cpu")
+    device = torch.device(f"{device_type}" if use_cuda else "cpu")
 
     if use_cuda:
         m = k = n = 16384
