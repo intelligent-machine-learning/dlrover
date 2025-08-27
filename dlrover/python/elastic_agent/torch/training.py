@@ -925,6 +925,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     super()._stop_workers(worker_group)
                 else:
                     super()._stop_workers(worker_group, is_restart)
+                self._stop_orphan_workers(worker_group)
 
             signal.alarm(0)
         except StopWorkerTimeoutError as te:

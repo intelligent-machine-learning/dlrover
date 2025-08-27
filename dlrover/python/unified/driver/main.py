@@ -11,135 +11,84 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import time
 
 import ray
 
-from dlrover.python.unified.common.constant import DLWorkloadEnv
-from dlrover.python.unified.master.elastic.master import ElasticMaster
-from dlrover.python.unified.master.mpmd.master import MPMDMaster
-
-try:
-    from ray.exceptions import ActorDiedError as ade
-except ImportError:
-    from builtins import RuntimeError as ade
-
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.args import parse_job_args
-from dlrover.python.unified.common.config import JobConfig
-from dlrover.python.unified.common.dl_context import DLContext, RLContext
-from dlrover.python.unified.common.enums import DLType, JobStage
-from dlrover.python.unified.common.exception import InvalidDLConfiguration
-
-MASTER_CONNECT_INTERVAL = 5  # must < master's RUN_WAIT_INTERVAL
-MASTER_CONNECT_TIMEOUT = 3 * MASTER_CONNECT_INTERVAL
+from dlrover.python.unified.common.config import DLConfig, JobConfig
+from dlrover.python.unified.common.constant import DLWorkloadEnv
+from dlrover.python.unified.controller.master import PrimeMaster
 
 
-def gen_dl_context(args) -> DLContext:
-    train_type = args.dl_type
-    if train_type == DLType.RL:
-        return RLContext.build_from_args(args)
-    else:
-        return DLContext.build_from_args(args)
-
-
-def get_master_cls(args):
-    train_type = args.dl_type
-    if train_type in [DLType.RL, DLType.MULTIMODAL]:
-        return MPMDMaster
-    elif train_type in [DLType.SFT, DLType.PRE]:
-        return ElasticMaster
-    else:
-        raise InvalidDLConfiguration()
-
-
-def submit(args=None, blocking=True, ray_address=None):
-    # parse input arguments
-    parsed_args = parse_job_args(args)
-
-    # build job config from arguments
-    job_config = JobConfig.build_from_args(parsed_args)
-    logger.info(f"Job config: {job_config}")
-
-    # build rl context from arguments
-    dl_context = gen_dl_context(parsed_args)
-    if not dl_context.validate():
-        logger.error("DL Context is not valid.")
-        raise InvalidDLConfiguration()
-    logger.info(f"DL context: {dl_context}.")
-
-    # create master actor
-    name = "DLMaster-" + parsed_args.job_name
-    logger.info(f"Create DLMaster for job executing: {parsed_args.job_name}.")
-
-    runtime_env = {"env_vars": {}}
-    runtime_env["env_vars"].update(dl_context.env)
-
+def submit(config: JobConfig, blocking=True):
+    """Submit a job to DLRover."""
     # do ray init
     if ray.is_initialized():
         logger.info("Ray already initialized.")
     else:
-        working_dir_env = dl_context.env.get(
+        working_dir_env = config.dl_config.global_envs.get(
             DLWorkloadEnv.WORKING_DIR, os.getcwd()
         )
         logger.info(
             f"Using specified working dir: {working_dir_env} "
             f"instead of current working dir: {os.getcwd()}."
         )
-        if not ray_address:
-            address = "auto"
-        elif ray_address == "test":
-            address = None
-        else:
-            address = ray_address
-        ray.init(address=address, runtime_env={"working_dir": working_dir_env})
+        ray.init(runtime_env={"working_dir": working_dir_env})
         logger.info("Ray initialized.")
 
-    master_actor = (
-        get_master_cls(parsed_args)
-        .options(
-            name=name,
-            lifetime="detached",
-            num_cpus=parsed_args.master_cpu,
-            memory=parsed_args.master_mem,
-            runtime_env=runtime_env,
-            max_restarts=-1,
-            max_concurrency=64,
-        )
-        .remote(job_config.serialize(), dl_context.serialize())
-    )
-
-    ray.get(master_actor.ping.remote())
+    master = PrimeMaster.create(config)
     logger.info("DLMaster created.")
 
-    master_actor.run.remote()
-    logger.info("DLMaster start running...")
+    master.start()
+    logger.info("DLMaster started.")
 
-    exit_code = 0
     if blocking:
-        while True:
-            try:
-                result = ray.get(master_actor.get_job_status.remote())
-                # if result in ["FINISHED", "ERROR"]:
-                if JobStage.is_ending_stage(result):
-                    logger.info(f"DLMaster exited with: {result}")
-                    if result == JobStage.ERROR:
-                        exit_code = 1
-                    break
-            except ade:
-                logger.info("DLMaster already exited.")
-                break
-
-            logger.debug("DLMaster is running...")
-            time.sleep(MASTER_CONNECT_INTERVAL)
+        master.wait()
+        result = master.get_status()
+        logger.info(
+            f"DLMaster exited: {result.stage}, exit code: {result.exit_code}"
+        )
+        return result.exit_code
     else:
         logger.info("Driver exit now for none blocking mode.")
+        return 0
 
-    return exit_code
 
+def main(args=None, blocking=True):
+    """Main function to start the DLRover driver from CLI."""
 
-def main(args=None, blocking=True, ray_address=None):
-    return submit(args=args, blocking=blocking, ray_address=ray_address)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="DLRover Driver CLI to start the DLRover master."
+    )
+    parser.add_argument(
+        "--job_name",
+        type=str,
+        help="Name of the job to be submitted.",
+    )
+    parser.add_argument(
+        "--master_cpu",
+        type=int,
+        default=1,
+        help="Number of CPUs for the master actor.",
+    )
+    parser.add_argument(
+        "--master_memory",
+        type=int,
+        default=100,
+        help="Memory (in MB) for the master actor.",
+    )
+    parser.add_argument(
+        "--dl_config",
+        type=str,
+        required=True,
+        help="Json for DLRover job configuration.",
+    )
+    args = parser.parse_args(args)
+    args.dl_config = DLConfig.model_validate_json(args.dl_config)
+    config = JobConfig.model_validate(args.__dict__)
+    return submit(config=config, blocking=blocking)
 
 
 if __name__ == "__main__":

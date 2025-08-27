@@ -9,4 +9,4 @@ runs:
     - "-c"
     - "bash scripts/ci_install.sh && \
 python -m pytest --durations=10 dlrover/python/unified/tests \
---cov-report xml --cov=dlrover "
+--cov-report xml --cov=dlrover --asyncio-mode=auto "

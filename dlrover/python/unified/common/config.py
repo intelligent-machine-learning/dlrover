@@ -10,120 +10,194 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
 
-from dlrover.python.common.serialize import PickleSerializable
-from dlrover.python.unified.common.constant import DLMasterConstant
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
+from omegaconf import DictConfig, OmegaConf
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+from pydantic_core import core_schema
+
+from dlrover.python.unified.common.actor_base import JobInfo
 from dlrover.python.unified.common.enums import (
+    ACCELERATOR_TYPE,
     MasterStateBackendType,
-    SchedulingStrategyType,
+)
+from dlrover.python.unified.common.workload_desc import (
+    ResourceDesc,
+    WorkloadDesc,
 )
 
 
-class JobConfig(PickleSerializable):
-    def __init__(
-        self,
-        job_name: str,
-        master_state_backend_type: MasterStateBackendType,
-        master_state_backend_config: Dict,
-        scheduling_strategy_type: SchedulingStrategyType,
-        job_max_restart: int,
-        master_max_restart: int,
-        trainer_max_restart: int,
-        workload_max_restart: Dict[str, int],
-    ):
-        """
-        Configuration(non-business part) of the job.
+@dataclass
+class WorkloadGroup:
+    name: str
+    num: int
+    workloads: List[str]
+    resource: ResourceDesc
 
-        Args:
-            job_name (str): Name of the job.
-            master_state_backend_type: The type of the master state backend.
-            master_state_backend_config: The configuration of the master state
-                backend, like: path and so on.
-            scheduling_strategy_type: The type of scheduling strategy to
-                create workloads.
-            job_max_restart (int, optional): The maximum limit on the number
-                of job-level restarts. Default is 10.
-            master_max_restart (int, optional): The maximum limit on the
-                number of master restarts. Default is 10.
-            trainer_max_restart (int, optional): The maximum limit on the
-                number of trainer restarts. Default is 10.
-            workload_max_restart (Dict[str, int], optional): The
-                maximum limit on the number of workload actor restarts.
-                Default is 30.
-        """
 
-        self._job_name = job_name
-        self._master_state_backend_type = master_state_backend_type
-        self._master_state_backend_config = master_state_backend_config
-        self._scheduling_strategy_type = scheduling_strategy_type
-        self._job_max_restart = job_max_restart
-        self._master_max_restart = master_max_restart
-        self._trainer_max_restart = trainer_max_restart
-        self._workload_max_restart = workload_max_restart
+class DLConfig(BaseModel):
+    """Description of training configuration.
+    This class defines the configurations for algorithm users.
+    """
 
-    def __repr__(self):
-        return (
-            "JobConfig("
-            f"job_name={self._job_name}, "
-            f"master_state_backend_type={self._master_state_backend_type}, "
-            "master_state_backend_config="
-            f"{self._master_state_backend_config}, "
-            f"scheduling_strategy_type={self._scheduling_strategy_type}, "
-            f"job_max_restart={self._job_max_restart}, "
-            f"master_max_restart={self._master_max_restart}, "
-            f"trainer_max_restart={self._trainer_max_restart}, "
-            f"workload_max_restart={self._workload_max_restart})"
+    user_config: Any = Field(
+        default_factory=dict,
+        description="User-defined configuration for the deep learning job.",
+    )
+    workloads: Dict[str, WorkloadDesc]
+    global_envs: Dict[str, str] = Field(default_factory=dict)
+
+    node_number: int = Field(
+        default=1,
+        ge=1,
+        description="The total number of nodes.",
+    )
+    accelerator_type: ACCELERATOR_TYPE = ACCELERATOR_TYPE.GPU
+    device_per_node: int = Field(
+        default=8,
+        ge=1,
+        description="The number of accelerators per node.",
+    )
+
+    @property
+    def workload_group(self) -> List[WorkloadGroup]:
+        """Get the workload groups."""
+        groups: Dict[str, WorkloadGroup] = {}
+        for name, workload in self.workloads.items():
+            group_name = workload.group or f"_group_{name}"
+            if group_name not in groups:
+                groups[group_name] = WorkloadGroup(
+                    name=group_name,
+                    num=workload.total // workload.per_group,
+                    workloads=[],
+                    resource=ResourceDesc(),
+                )
+            groups[group_name].workloads.append(name)
+            for _ in range(workload.per_group):
+                groups[group_name].resource += workload.resource
+        # Validate number of instances in each group
+        for group in groups.values():
+            for name in group.workloads:
+                workload = self.workloads[name]
+                if workload.total != group.num * workload.per_group:
+                    raise ValueError(
+                        "Instance number for workload"
+                        f" '{name}' is inconsistent.\n  {group}"
+                    )
+        return list(groups.values())
+
+    @field_validator(
+        "user_config",
+        mode="plain",
+        json_schema_input_type=core_schema.dict_schema(
+            core_schema.str_schema(), core_schema.any_schema()
+        ),
+    )
+    def _normalize_user_config(cls, v):
+        """Convert None to empty DictConfig."""
+        import argparse
+
+        if v is None:
+            v = DictConfig({})
+        elif isinstance(v, dict):
+            v = DictConfig(v)
+        elif isinstance(v, DictConfig):
+            v = v
+        elif isinstance(v, argparse.Namespace):
+            v = DictConfig(vars(v))
+        else:
+            return v  # keep original type for Any
+        OmegaConf.resolve(v)
+        return v
+
+    @field_serializer("user_config")
+    def _serialize_user_config(self, v):
+        """Serialize user_config to dict."""
+        if isinstance(v, DictConfig):
+            return OmegaConf.to_object(v)
+        return v
+
+    @field_validator("workloads", mode="after")
+    def _require_workloads(cls, workloads):
+        """Ensure workloads are defined."""
+        if len(workloads) == 0:
+            raise ValueError("At least one workload must be defined.")
+        return workloads
+
+    @model_validator(mode="after")
+    def validate(self):
+        for group in self.workload_group:
+            if group.resource.accelerator > self.device_per_node:
+                raise ValueError(
+                    f"Group {group.name} accelerator resource {group.resource.accelerator} "
+                    f"exceeds device_per_node {self.device_per_node}."
+                )
+        sum_accelerator = sum(
+            workload.resource.accelerator
+            for workload in self.workloads.values()
         )
+        if sum_accelerator > self.node_number * self.device_per_node:
+            raise ValueError(
+                f"Total accelerator resource {sum_accelerator} exceeds "
+                f"node_number {self.node_number} * device_per_node "
+                f"{self.device_per_node}."
+            )
+        return self
 
-    @property
-    def job_name(self) -> str:
-        return self._job_name
 
-    @property
-    def master_state_backend_type(self) -> MasterStateBackendType:
-        return self._master_state_backend_type
+class JobConfig(BaseModel):
+    """Description of all job configuration."""
 
-    @property
-    def master_state_backend_config(self) -> Dict:
-        return self._master_state_backend_config
+    job_name: str = Field(description="Name of the job.")
+    dl_config: DLConfig = Field()
+    master_cpu: int = 2  # in cores
+    master_mem: int = Field(
+        default=4096,
+        description="Memory (in MB) for the master actor.",
+        validation_alias=AliasChoices("master_memory", "master_mem"),
+    )
+    master_create_timeout: float = Field(
+        default=600.0,
+        description="Timeout for creating the master actor.",
+        validation_alias=AliasChoices("master_create_timeout", "timeout"),
+    )
+    master_state_backend_type: MasterStateBackendType = Field(
+        default=MasterStateBackendType.RAY_INTERNAL,
+        description="The type of the master state backend.",
+    )
+    master_state_backend_config: Dict = Field(
+        default_factory=dict,
+        description="The configuration of the master state backend, "
+        "like: path and so on.",
+    )
+    placement_strategy: str = Field(
+        default="SPREAD",
+        description="The placement strategy for the job."
+        "Refer to ray's placement strategies for more details."
+        "Valid options are: STRICT_PACK, STRICT_SPREAD, PACK, SPREAD.",
+    )
+    job_max_restart: int = Field(
+        default=10,
+        description="The maximum limit on the number of job-level restarts.",
+    )
+    master_max_restart: int = Field(
+        default=10,
+        description="The maximum limit on the number of master restarts.",
+    )
 
-    @property
-    def scheduling_strategy_type(self) -> SchedulingStrategyType:
-        return self._scheduling_strategy_type
-
-    @property
-    def job_max_restart(self):
-        return self._job_max_restart
-
-    @property
-    def master_max_restart(self):
-        return self._master_max_restart
-
-    @property
-    def trainer_max_restart(self):
-        return self._trainer_max_restart
-
-    @property
-    def workload_max_restart(self):
-        return self._workload_max_restart
-
-    def get_workload_max_restart(self, role: str):
-        role = role.upper()
-
-        if role in self._workload_max_restart:
-            return self._workload_max_restart[role]
-        return max(DLMasterConstant.WORKLOAD_MAX_RESTART, self.job_max_restart)
-
-    @classmethod
-    def build_from_args(cls, args):
-        return JobConfig(
-            args.job_name,
-            args.master_state_backend_type,
-            args.master_state_backend_config,
-            args.scheduling_strategy_type,
-            args.job_max_restart,
-            args.master_max_restart,
-            args.trainer_max_restart,
-            args.workload_max_restart,
+    def to_job_info(self) -> JobInfo:
+        """Convert to JobInfo."""
+        return JobInfo(
+            name=self.job_name,
+            job_id=self.job_name,
+            user_config=self.dl_config.user_config,
         )
