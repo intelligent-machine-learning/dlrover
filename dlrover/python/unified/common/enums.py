@@ -14,12 +14,37 @@
 from enum import Enum
 
 
-class DLType(Enum):
-    PRE = "PRE"
-    SFT = "SFT"
-    MULTIMODAL = "MULTIMODAL"
-    RL = "RL"
-    HYBRID = "HYBRID"
+class MasterStage(str, Enum):
+    INIT = "INIT"
+    READY = "READY"
+    RUNNING = "RUNNING"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
+
+
+class WorkerStage(str, Enum):
+    """Stages of a worker actor."""
+
+    # CALL __init__
+    INIT = "INIT"
+    # _setup
+    # _self_check(optional)
+    READY = "READY"
+    # CALL check_workers(optional)
+    # CALL start
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"
+    FAILED = "FAILED"
+
+    def is_terminal(self) -> bool:
+        """Check if the stage is terminal."""
+        return self in {WorkerStage.FINISHED, WorkerStage.FAILED}
+
+
+class ACCELERATOR_TYPE(str, Enum):
+    CPU = "CPU"
+    GPU = "GPU"
+    TPU = "TPU"
 
 
 class DLStreamType(Enum):
@@ -27,17 +52,8 @@ class DLStreamType(Enum):
     DATA_STREAM = "DATA_STREAM"
 
 
-class TrainerType(Enum):
-    USER_DEFINED = "USER_DEFINED"
-    GENERATED = "GENERATED"
-    ELASTIC_TRAINING = "ELASTIC_TRAINING"
-
-
-class InternalRoleType(Enum):
-    ELASTIC = "ELASTIC"
-
-
-class RLRoleType(Enum):
+class RLRoleType(str, Enum):
+    TRAINER = "TRAINER"
     ACTOR = "ACTOR"
     ROLLOUT = "ROLLOUT"
     REFERENCE = "REFERENCE"
@@ -48,29 +64,3 @@ class RLRoleType(Enum):
 class MasterStateBackendType(Enum):
     RAY_INTERNAL = "RAY_INTERNAL"
     HDFS = "HDFS"
-
-
-class SchedulingStrategyType(Enum):
-    AUTO = "AUTO"
-    SIMPLE = "SIMPLE"
-    GROUP = "GROUP"
-
-
-class JobStage(Enum):
-    INIT = "INIT"
-    RUNNING = "RUNNING"
-    FAILOVER = "FAILOVER"
-    FINISHED = "FINISHED"
-    ERROR = "ERROR"
-
-    @classmethod
-    def is_ending_stage(cls, stage) -> bool:
-        if isinstance(stage, str):
-            stage = JobStage[stage.upper()]
-        return stage in (JobStage.FINISHED, JobStage.ERROR)
-
-
-class FailoverLevel(Enum):
-    GLOBAL = "GLOBAL"
-    PARTIAL = "PARTIAL"
-    IGNORE = "IGNORE"
