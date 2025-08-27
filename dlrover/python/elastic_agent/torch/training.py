@@ -121,8 +121,6 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
 try:
     from dlrover.python.common import musa_patch
 except Exception as e:
-    # If torch_musa is not available, we set it to None.
-    print(f"torch_musa is not available: {e}")
     pass
 
 __all__ = ["launch_agent"]

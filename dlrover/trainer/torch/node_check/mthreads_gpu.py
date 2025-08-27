@@ -27,8 +27,8 @@ from .utils import (
 try:
     from dlrover.python.common import musa_patch
 except Exception as e:
-    # If torch_musa is not available, we set it to None.
     print(f"torch_musa is not available: {e}")
+    musa_patch = None
 
 def set_mccl_env():
     env_conf = os.getenv("MCCL_SETTINGS", "")
