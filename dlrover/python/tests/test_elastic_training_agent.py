@@ -1388,6 +1388,9 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
             min_nodes=1, max_nodes=1, nproc_per_node=1
         )
 
+        config.accelerator = Accelerators.GENERIC_CPU
+        _check_device(config)
+
         mock_get_hpu_stats.return_value = []
         config.accelerator = Accelerators.ASCEND_NPU
         _check_device(config)
