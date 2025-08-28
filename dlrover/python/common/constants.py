@@ -173,7 +173,9 @@ class NodeExitReason(object):
 
 
 class NodeExitDescription(object):
-    CHECK_FAILED_MSG = "This node failed the node-check procedure(mat-mul + comm) before training."
+    GPU_INVALID_MSG = "The node's GPU basic check failed."
+    NODE_STRAGGLE_MSG = "The node is a straggler and exits."
+    NODE_FAILED_MSG = "This node failed the node-check procedure(mat-mul + comm) before training."
 
 
 class JobExitReason(object):
@@ -479,6 +481,7 @@ class EventReportConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+    ACTION_DEVICE_WARNING = "device_warning"
 
     ACTION_PRE_CHECK_DISABLE = "pre_check_disable"
     ACTION_PRE_CHECK_TIMEOUT = "pre_check_timeout"
