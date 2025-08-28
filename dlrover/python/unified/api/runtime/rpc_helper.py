@@ -218,9 +218,15 @@ class RoleGroup(Sequence["RoleActor"]):
 
         return as_future(get_results())
 
+    @overload
     def call_rank0(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[R]:
+    ) -> Future[R]: ...
+    @overload
+    def call_rank0(
+        self, method: str, *args: Any, **kwargs: Any
+    ) -> Future[object]: ...
+    def call_rank0(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the rank 0 actor in the role group."""
         if not self.actors:
             raise ValueError("No actors in the role group.")
