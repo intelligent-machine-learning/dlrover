@@ -23,3 +23,8 @@ def version_less_than_230():
 def version_less_than_240():
     current_version = version.parse(torch.__version__).base_version
     return version.parse(current_version) <= version.parse("2.3.1")
+
+
+def version_less_than_280():
+    current_version = version.parse(torch.__version__).base_version
+    return version.parse(current_version) <= version.parse("2.7.1")
