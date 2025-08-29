@@ -15,6 +15,7 @@ import os
 
 import torch
 import torch.distributed as dist
+
 # TODO: compatibility with torch_musa
 from .utils import (
     bm_allreduce,
@@ -25,10 +26,11 @@ from .utils import (
 )
 
 try:
-    from dlrover.python.common import musa_patch
+    from dlrover.python.common import musa_patch  # noqa: F401
 except Exception as e:
     print(f"torch_musa is not available: {e}")
-    musa_patch = None
+    pass
+
 
 def set_mccl_env():
     env_conf = os.getenv("MCCL_SETTINGS", "")

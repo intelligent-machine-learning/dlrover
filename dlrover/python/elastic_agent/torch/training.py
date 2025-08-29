@@ -119,8 +119,8 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
     pass
 
 try:
-    from dlrover.python.common import musa_patch
-except Exception as e:
+    from dlrover.python.common import musa_patch  # noqa: F401
+except Exception:
     pass
 
 __all__ = ["launch_agent"]
