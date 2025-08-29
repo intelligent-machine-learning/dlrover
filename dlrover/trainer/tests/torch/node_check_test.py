@@ -17,6 +17,8 @@ import random
 import unittest
 from datetime import timedelta
 
+from dlrover.trainer.torch.node_check.mthreads_gpu import main as mtgpu_main
+from dlrover.trainer.torch.node_check.mthreads_gpu import set_mccl_env
 from dlrover.trainer.torch.node_check.ascend_npu import main as npu_main
 from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
 from dlrover.trainer.torch.node_check.nvidia_gpu import set_nccl_env
@@ -56,6 +58,13 @@ class TestNetworkCheckScript(unittest.TestCase):
             self.assertEqual(data["local_rank"], 0)
             self.assertTrue(data["time"] > 0)
 
+        t = mtgpu_main()
+        self.assertTrue(t > 0)
+        with open("/tmp/dlrover/network_check/0.txt", "r") as f:
+            data = json.load(f)
+            self.assertEqual(data["local_rank"], 0)
+            self.assertTrue(data["time"] > 0)
+
     def test_mock_error(self):
         raised_error = False
         try:
@@ -81,6 +90,15 @@ class TestNetworkCheckScript(unittest.TestCase):
         )
         set_nccl_env()
         self.assertEqual(os.environ["NCCL_SOCKET_IFNAME"], "eth0")
+
+    def test_set_mccl_env(self):
+        set_mccl_env()
+        self.assertFalse("MCCL_SOCKET_IFNAME" in os.environ)
+        os.environ["MCCL_SETTINGS"] = (
+            "MCCL_DEBUG=INFO,MCCL_SOCKET_IFNAME=eth0,MCCL_IB_GID_INDEX=3"
+        )
+        set_mccl_env()
+        self.assertEqual(os.environ["MCCL_SOCKET_IFNAME"], "eth0")
 
     def test_get_network_check_timeout(self):
         os.environ.setdefault("NETWORK_CHECK_TIMEOUT", "10")

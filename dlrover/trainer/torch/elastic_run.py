@@ -179,7 +179,11 @@ def parse_args(args):
         type=str,
         action=env,
         default=Accelerators.NVIDIA_GPU,
-        choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
+        choices=[
+            Accelerators.NVIDIA_GPU,
+            Accelerators.ASCEND_NPU,
+            Accelerators.MTHREADS_GPU,
+        ],
         help="The type of accelerator chip of the machine.",
     )
     parser.add_argument(
