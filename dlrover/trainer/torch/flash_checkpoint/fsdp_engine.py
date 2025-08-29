@@ -487,6 +487,11 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if self._local_rank != self.local_shard_id:
             return False
 
+        if self._checkpoint_event_step > 0:
+            notify_event = self._notify_queue.get()
+            assert notify_event.step == self._checkpoint_event_step
+            self._checkpoint_event_step = -1
+
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
@@ -548,6 +553,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
             )
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+            self._checkpoint_event_step = step
         if success:
             self.latest_step = step
 
