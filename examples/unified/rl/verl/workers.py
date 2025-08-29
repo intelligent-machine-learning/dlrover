@@ -1,19 +1,54 @@
+# Copyright 2025 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import multiprocessing
+import threading
 from concurrent.futures import Future
+from functools import wraps
 from typing import List, cast
 
+import ray
 import verl.workers.fsdp_workers as verl_workers
 from omegaconf import DictConfig
-from verl.protocol import DataProto, _padding_size_key
+from verl.single_controller.base.decorator import MAGIC_ATTR
 from verl.single_controller.base.worker_group import WorkerGroup
+from verl.single_controller.ray.base import func_generator
 from verl.trainer.main_ppo import create_rl_dataset, create_rl_sampler
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer, Role
 from verl.trainer.ppo.reward import load_reward_manager
 
 from dlrover.python.unified.api.runtime.rpc_helper import (
     RoleGroup,
-    export_rpc_instance,
+    export_rpc_method,
+    rpc,
 )
 from dlrover.python.unified.api.runtime.worker import current_worker
+
+multiprocessing.set_start_method("spawn", force=True)
+
+end = threading.Event()
+
+
+def export_rpc(core):
+    for f in dir(core):
+        v = getattr(core, f)
+        if callable(v) and hasattr(v, MAGIC_ATTR):
+            export_rpc_method(f, v)
+
+
+@rpc()
+def job_end():
+    end.set()
 
 
 class ActorWorker:
@@ -25,30 +60,39 @@ class ActorWorker:
             role=role,
             profile_option=config.trainer.npu_profile.options,
         )
-        export_rpc_instance(None, self.core)
+        export_rpc(self.core)
+
+    def run(self):
+        end.wait()
 
 
 class CriticWorker:
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         self.core = verl_workers.CriticWorker(
-            config=config.actor_rollout_ref,
+            config=config.critic,
         )
-        export_rpc_instance(None, self.core)
+        export_rpc(self.core)
+
+    def run(self):
+        end.wait()
 
 
 class RMWorker:
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         self.core = verl_workers.RewardModelWorker(config.reward_model)
-        export_rpc_instance(None, self.core)
+        export_rpc(self.core)
+
+    def run(self):
+        end.wait()
 
 
 class Trainer:
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
 
-        # Modified from verl.trainer.main_ppo.TaskRunner.run
+        "verl.trainer.main_ppo.TaskRunner.run"  # Modified from
 
         from verl.utils import hf_processor, hf_tokenizer
         from verl.utils.dataset.rl_dataset import collate_fn
@@ -100,7 +144,7 @@ class Trainer:
         # Mock objects
         class FakeResourcePoolManager:
             def get_n_gpus(self):
-                return 0
+                return config.trainer.n_gpus_per_node
 
         roles = [Role.ActorRollout, Role.Critic]
         if config.reward_model.enable:
@@ -127,7 +171,7 @@ class Trainer:
         )
 
     def prepare(self):
-        # Modified from RayPPOTrainer.init_workers
+        "verl.trainer.ppo.ray_trainer.RayPPOTrainer.init_workers"  # Modified from
         trainer = self.trainer
         async_init: List[Future] = []
         if trainer.use_critic:
@@ -155,68 +199,55 @@ class Trainer:
         )
         trainer.actor_rollout_wg.init_model()
 
+        trainer.async_rollout_mode = False
+        if trainer.config.actor_rollout_ref.rollout.mode == "async":
+            from verl.experimental.agent_loop import AgentLoopManager
+
+            trainer.async_rollout_mode = True
+            trainer.async_rollout_manager = AgentLoopManager(
+                config=trainer.config,
+                worker_group=trainer.actor_rollout_wg,  # type: ignore
+            )
+
     def run(self):
         self.prepare()
         self.trainer.fit()
 
 
-def func_generator(
-    self, method_name, dispatch_fn, collect_fn, execute_fn, blocking
-):
-    assert blocking, "Blocking must be True"
-
-    class Functor:
-        @staticmethod
-        def __call__(*args, **kwargs):
-            args, kwargs = dispatch_fn(self, *args, **kwargs)
-            padding_count = kwargs.pop(_padding_size_key, 0)
-            output = execute_fn(method_name, *args, **kwargs)
-            output = collect_fn(self, output)
-            if padding_count > 0:
-                if isinstance(output, DataProto):
-                    indices = [i for i in range(len(output))][:-padding_count]
-                    output = output.select_idxs(indices)
-                elif isinstance(output, list):
-                    output = output[:-padding_count]
-            return output
-
-    # use class type to pass the method_name to get a better observability
-    return type(method_name, (Functor,), {})()
-
-
-class MyWorkerGroup(RoleGroup):
+class MyWorkerGroup(RoleGroup, WorkerGroup):
     def __init__(self, role: str, worker_cls: type) -> None:
         RoleGroup.__init__(self, role)
         WorkerGroup._bind_worker_method(
             cast(WorkerGroup, self), worker_cls, func_generator
         )
+        self._patch_ray_get()
+
+    @property
+    def world_size(self) -> int:
+        return len(self.actors)
 
     def execute_all(self, method_name: str, *args, **kwargs):
-        length = len(self.actors)
-        if all(isinstance(arg, list) for arg in args) and all(
-            isinstance(kwarg, list) for kwarg in kwargs.values()
-        ):
-            if all(len(arg) == length for arg in args) and all(
-                len(kwarg) == length for kwarg in kwargs.values()
-            ):
-                # print(f"splitting args and kwargs into {length} shards")
-                result: List[Future] = []
-                for i in range(length):
-                    sliced_args = tuple(arg[i] for arg in args)
-                    sliced_kwargs = {k: v[i] for k, v in kwargs.items()}
-                    result.append(
-                        self.actors[i].call(
-                            method_name,
-                            *sliced_args,
-                            **sliced_kwargs,
-                        )
-                    )
-                return [r.result() for r in result]
-        return self.call(method_name, *args, **kwargs).result()
+        return self.call(method_name, *args, **kwargs)
 
     def execute_rank_zero(self, method_name: str, *args, **kwargs):
-        return self.call_rank0(method_name, *args, **kwargs).result()
+        return self.call_rank0(method_name, *args, **kwargs)
 
     # Let linters know this class is dynamic
     def __getattr__(self, item):
         return super().__getattribute__(item)
+
+    @staticmethod
+    def _patch_ray_get():
+        """execute_all returns Future instead ObjectRef, patch to support ray.get"""
+        raw_ray_get = ray.get
+        if hasattr(raw_ray_get, "_patched_for_future"):
+            return
+
+        @wraps(raw_ray_get)
+        def wrap_ray_get(obj, *args, **kwargs):
+            if isinstance(obj, Future):
+                return obj.result()
+            return raw_ray_get(obj, *args, **kwargs)
+
+        setattr(wrap_ray_get, "_patched_for_future", True)
+        ray.get = wrap_ray_get

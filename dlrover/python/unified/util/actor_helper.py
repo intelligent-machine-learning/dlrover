@@ -270,23 +270,16 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
             for ref in self.refs
             if isinstance(ref._result, ray.ObjectRef)
         }
-        if len(waiting_refs) > 0:
-            ready, _ = ray.wait(
-                list(waiting_refs.keys()),
-                timeout=timeout,
-                num_returns=len(waiting_refs),
-            )
-            for task in ready:
-                ref = waiting_refs.pop(task)
-                ref.resolve_sync()
-                if isinstance(ref._result, ray.ObjectRef):
-                    waiting_refs[ref._result] = ref  # re-add if still pending
-        not_ready = list(waiting_refs.values())
-        if not_ready:
-            stragglers = [ref.actor_name for ref in not_ready]
-            logger.info(
-                f"Waiting completing {self.display_name} ...: {stragglers}"
-            )
+        if not waiting_refs:
+            return
+        ready, _ = ray.wait(
+            list(waiting_refs.keys()),
+            timeout=timeout,
+            num_returns=len(waiting_refs),
+        )
+        for task in ready:
+            ref = waiting_refs.pop(task)
+            ref.resolve_sync()
 
     def wait(
         self, straggler_timeout: float = RAY_HANG_CHECK_INTERVAL
@@ -294,6 +287,13 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
         """Wait for all invocations to complete, blocking until they are ready."""
         while self.pending:
             self._resolve_sync(timeout=straggler_timeout)
+            not_ready = [ref for ref in self.refs if ref.pending]
+            if not_ready:
+                stragglers = [ref.actor_name for ref in not_ready]
+                logger.info(
+                    f"Waiting completing {self.display_name} ...: {stragglers}"
+                )
+
         return self.result
 
     async def async_wait(
@@ -306,6 +306,7 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
 
         async def monitor():
             """Monitor the invocations and log progress."""
+            reported_failed = set()
             while True:
                 await asyncio.sleep(delay=monitor_interval)
                 stragglers = [
@@ -314,6 +315,20 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
                 logger.info(
                     f"Waiting completing {self.display_name} ...: {stragglers}"
                 )
+                # Some Actor failed may cause other hang, print exception for debugging
+                failed = [
+                    ref
+                    for ref in self.refs
+                    if not ref.pending and isinstance(ref._result, Exception)
+                ]
+                for ref in failed:
+                    if ref.actor_name not in reported_failed:
+                        continue
+                    logger.warning(
+                        f"Invocation {self.display_name} on {ref.actor_name} failed, may cause hang",
+                        exc_info=cast(Exception, ref._result),
+                    )
+                    reported_failed.add(ref.actor_name)
 
         monitor_task = asyncio.create_task(monitor())
         await asyncio.gather(*[wait(ref) for ref in self.refs])

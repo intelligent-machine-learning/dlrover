@@ -95,7 +95,7 @@ R = TypeVar("R", covariant=True)
 T = TypeVar("T", covariant=True)
 
 
-def _rpc_call(actor: str, method: str, args, kwargs) -> Any:
+def _rpc_call(actor: str, method: str, args, kwargs):
     return invoke_actor_t(
         _user_rpc_call,
         actor,
@@ -165,9 +165,8 @@ class RoleActor:
     def call(self, method: str, *args: Any, **kwargs: Any) -> Future[Any]: ...
     def call(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the actor."""
-        return as_future(
-            _rpc_call(self.name, method.__name__, args, kwargs).async_wait()
-        )
+        name = method if isinstance(method, str) else method.__name__
+        return as_future(_rpc_call(self.name, name, args, kwargs).async_wait())
 
 
 class RoleGroup(Sequence["RoleActor"]):
@@ -208,9 +207,29 @@ class RoleGroup(Sequence["RoleActor"]):
     def call(self, method, *args, **kwargs) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
-        ref = invoke_actors(
-            _rpc_call(actor.name, name, args, kwargs) for actor in self
-        )
+
+        length = len(self.actors)
+        if (
+            (args or kwargs)
+            and all(isinstance(arg, list) for arg in args)
+            and all(isinstance(kwarg, list) for kwarg in kwargs.values())
+            and all(len(arg) == length for arg in args)
+            and all(len(kwarg) == length for kwarg in kwargs.values())
+        ):
+            calls = []
+            for i in range(length):
+                sliced_args = tuple(arg[i] for arg in args)
+                sliced_kwargs = {k: v[i] for k, v in kwargs.items()}
+                calls.append(
+                    _rpc_call(
+                        self.actors[i].name, name, sliced_args, sliced_kwargs
+                    )
+                )
+        else:
+            calls = [
+                _rpc_call(actor.name, name, args, kwargs) for actor in self
+            ]
+        ref = invoke_actors(calls)
 
         async def get_results():
             results = await ref.async_wait()
