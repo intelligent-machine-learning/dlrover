@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,4 +62,4 @@ python main.py \
     trainer.test_freq=1 \
     trainer.use_legacy_worker_impl=auto \
     trainer.total_epochs=15 \
-    $@
+    "$@"
