@@ -13,6 +13,7 @@
 
 
 RAY_HANG_CHECK_INTERVAL = 5.0  # Interval for monitoring actor invocations
+RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME = 60
 
 
 class InternalDLWorkloadRole(object):

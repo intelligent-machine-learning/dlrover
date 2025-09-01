@@ -55,6 +55,18 @@ class DLExecutionVertex(ABC, BaseModel):
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
 
+    def inc_restart_count(self):
+        self.restart_count += 1
+
+    def reset_restart_count(self):
+        self.restart_count = 0
+
+    def set_restarting(self):
+        self.restarting = True
+
+    def set_running(self):
+        self.restarting = False
+
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
     """Worker vertex in the computational graph."""

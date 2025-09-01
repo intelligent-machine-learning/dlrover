@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.actor_base import WorkerStage
+from dlrover.python.unified.common.actor_base import WorkerStage, NodeInfo
 
 """Remote Call define for controller to invoke backends."""
 
@@ -28,4 +28,9 @@ def status() -> WorkerStage:
 
 def start() -> None:
     """Start the elastic training job."""
+    raise NotImplementedError("stub")  # pragma: no cover
+
+
+def get_node_info() -> NodeInfo:
+    """Get the ray node information."""
     raise NotImplementedError("stub")  # pragma: no cover

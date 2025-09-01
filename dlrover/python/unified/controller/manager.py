@@ -14,14 +14,17 @@
 import asyncio
 from typing import List
 
+import ray
+
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import WorkerStage
+from dlrover.python.unified.common.actor_base import WorkerStage, NodeInfo
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
+from .schedule.scaler import BaseRayNodeScaler, get_scaler
 
 from ..common.config import JobConfig
 from . import remote_call
@@ -29,6 +32,7 @@ from .api import MasterStatus
 from .schedule.graph import DLExecutionGraph
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
+from ..common.constant import RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
 
 
 class PrimeManager:
@@ -40,6 +44,7 @@ class PrimeManager:
         # Create all components
         self.graph = DLExecutionGraph.create(config.dl_config)
         self.scheduler: Scheduler = Scheduler(config)
+        self.scaler: BaseRayNodeScaler = get_scaler(config)
         self.sync = SyncManager()
 
         # Runtime state
@@ -129,7 +134,7 @@ class PrimeManager:
         self._update_stage(MasterStage.RUNNING)
 
     async def _main_loop(self):
-        """Monitor the nodes' status."""
+        """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
             res = await invoke_actors_t(
@@ -153,6 +158,76 @@ class PrimeManager:
         self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
 
+    async def relaunch_node_if_needed(self, actors):
+        """Relaunch the node if actor exceed restarting limit."""
+
+        # get the ray nodes if the actor on it exceed restarting limit
+        exceeded_restarting_limit_actors = [
+            actor
+            for actor in actors
+            if actor.restart_count > actor.spec.max_restart
+        ]
+
+        # get ray nodes info from target actors
+        res = await invoke_actors_t(
+            remote_call.get_node_info,
+            exceeded_restarting_limit_actors,
+        )
+
+        # aggregate the target nodes need to be relaunched
+        target_relaunch_nodes = list(set(res.results))
+
+        # get current nodes from ray(gcs)
+        current_nodes = []
+        for ray_node in ray.nodes():
+            current_nodes.append(
+                NodeInfo(
+                    id=ray_node["NodeID"],
+                    hostname=ray_node["NodeManagerHostname"],
+                    ip_address=ray_node["NodeManagerAddress"],
+                )
+            )
+        logger.debug(
+            f"Current nodes(size: {len(current_nodes)}): {current_nodes}"
+        )
+
+        # relaunch ray node
+        logger.info(f"Relaunch nodes: {target_relaunch_nodes}.")
+        self.scaler.relaunch(target_relaunch_nodes)
+
+        # wait for nodes relaunching
+        await asyncio.wait_for(
+            self._wait_node_relaunch(target_relaunch_nodes, current_nodes),
+            len(target_relaunch_nodes) * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+        )
+
+        # reset actor restart count if actor's ray node has relaunched
+        for relaunched_node_actor in exceeded_restarting_limit_actors:
+            relaunched_node_actor.reset_restart_count()
+            logger.info(
+                f"Reset actor {relaunched_node_actor.name} restart "
+                "count due to node relaunch."
+            )
+
+    async def _wait_node_relaunch(
+        self, relaunch_nodes, current_nodes, wait_interval=10
+    ):
+        current_nodes_id = [node.id for node in current_nodes]
+
+        def get_relaunched_num():
+            new_nodes_id = [ray_node["NodeID"] for ray_node in ray.nodes()]
+            return len(set(new_nodes_id) - set(current_nodes_id))
+
+        current_relaunched_num = get_relaunched_num()
+        while current_relaunched_num < len(relaunch_nodes):
+            logger.info(
+                "Waiting for nodes relaunching, "
+                f"total relaunching: {len(relaunch_nodes)}, "
+                f"finish relaunching: {current_relaunched_num}."
+            )
+            await asyncio.sleep(wait_interval)
+            current_relaunched_num = get_relaunched_num()
+
     async def restart_actors(self, actor_names: List[str]) -> None:
         """Restart the specified actors."""
         assert all(actor in self.graph.by_name for actor in actor_names), (
@@ -160,20 +235,22 @@ class PrimeManager:
         )
         actors = [self.graph.by_name[name] for name in actor_names]
         for actor in actors:
-            actor.restart_count += 1
-            if actor.restart_count > actor.spec.max_restart:
-                self.request_stop(
-                    f"Actor {actor.name} has exceeded the maximum restart count: {actor.restart_count}."
-                )
-                return
+            actor.inc_restart_count()
+
+        # relaunch node 1st if needed
+        try:
+            await self.relaunch_node_if_needed(actors)
+        except asyncio.TimeoutError:
+            logger.error("Timeout relaunching ray nodes.")
+
         for actor in actors:
-            actor.restarting = True
+            actor.set_restarting()
         await restart_actors(actor_names)
         logger.info({n.name: n.restarting for n in self.graph.vertices})
         await self._wait_ready(actor_names)
         logger.info({n.name: n.restarting for n in self.graph.vertices})
         for actor in actors:
-            actor.restarting = False
+            actor.set_running()
         logger.info(f"Restarted actors: {actor_names}")
 
     async def restart_job(self):

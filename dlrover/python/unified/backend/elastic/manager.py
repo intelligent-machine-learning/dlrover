@@ -148,11 +148,13 @@ class ElasticManager:
                 f"Current stage is {self.stage}, skipping failover handling."
             )
             return
+
         self.request_restart()
 
     async def _restart_job(self):
         """Restart the elastic job due to worker restart."""
         assert self.stage == WorkerStage.RUNNING
+
         logger.info("Restarting the elastic job due to worker restart.")
         self._task.cancel()
         self.stage = WorkerStage.READY  # Reset stage to READY for restart

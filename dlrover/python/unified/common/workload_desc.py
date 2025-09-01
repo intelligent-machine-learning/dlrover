@@ -108,10 +108,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
         validation_alias=AliasChoices("env", "environment", "envs"),
     )
     max_restart: int = Field(
-        default=10,
-        description="The maximum limit on the number of restarts.",
+        default=3,
+        description="The maximum limit on the number of single workload restarts.",
     )
-
     group: Optional[str] = Field(
         default=None,
         description="The name of the workload group this workload belongs to."
