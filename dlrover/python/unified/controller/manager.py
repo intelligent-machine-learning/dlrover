@@ -158,7 +158,7 @@ class PrimeManager:
         self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
 
-    async def relaunch_node_if_needed(self, actors):
+    async def relaunch_node_if_needed(self, actors, wait_interval=10):
         """Relaunch the node if actor exceed restarting limit."""
 
         # get the ray nodes if the actor on it exceed restarting limit
@@ -197,7 +197,9 @@ class PrimeManager:
 
         # wait for nodes relaunching
         await asyncio.wait_for(
-            self._wait_node_relaunch(target_relaunch_nodes, current_nodes),
+            self._wait_node_relaunch(
+                target_relaunch_nodes, current_nodes, wait_interval
+            ),
             len(target_relaunch_nodes) * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
         )
 
@@ -227,6 +229,7 @@ class PrimeManager:
             )
             await asyncio.sleep(wait_interval)
             current_relaunched_num = get_relaunched_num()
+        logger.info(f"All target nodes relaunched: {relaunch_nodes}")
 
     async def restart_actors(self, actor_names: List[str]) -> None:
         """Restart the specified actors."""

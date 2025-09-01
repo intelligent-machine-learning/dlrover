@@ -59,12 +59,11 @@ class NodeInfo:
     def __str__(self):
         return f"NodeInfo(id='{self.id}', hostname={self.hostname}, ip_address='{self.ip_address}')"
 
+    def __hash__(self):
+        return hash(self.id)
+
     def __eq__(self, other):
-        return (
-            self.id == other.id
-            and self.hostname == other.hostname
-            and self.ip_address == other.ip_address
-        )
+        return self.id == other.id
 
 
 class ActorBase:

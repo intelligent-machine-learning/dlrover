@@ -11,15 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
 from dlrover.python.unified.common.actor_base import NodeInfo
+from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 from dlrover.python.unified.controller.manager import PrimeManager
+from dlrover.python.unified.controller.schedule.graph import (
+    DLExecutionWorkerVertex,
+    DLWorkloadRole,
+)
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
+from dlrover.python.unified.util.actor_helper import BatchInvokeResult
 
 
 @pytest.fixture
@@ -108,3 +114,95 @@ async def test_wait_node_relaunch_timeout_case(mock_manager):
         )
 
     assert mock_manager.ray.nodes.call_count > 1
+
+
+@pytest.mark.asyncio
+async def test_relaunch_node_if_needed(mock_manager):
+    spec = SimpleWorkloadDesc(entry_point="test::main")
+    test_role = DLWorkloadRole(name="test", spec=spec, instance_number=2)
+
+    actor0 = DLExecutionWorkerVertex(
+        role=test_role,
+        rank=0,
+        node_rank=0,
+        world_size=2,
+        local_rank=0,
+        local_world_size=1,
+        restart_count=2,
+    )
+    actor1 = DLExecutionWorkerVertex(
+        role=test_role,
+        rank=1,
+        node_rank=1,
+        world_size=2,
+        local_rank=0,
+        local_world_size=1,
+        restart_count=4,
+    )
+    actors = [actor0, actor1]
+
+    with (
+        patch(
+            "dlrover.python.unified.controller.manager.invoke_actors_t",
+            new_callable=AsyncMock,
+        ) as mock_invoke,
+        patch("dlrover.python.unified.controller.manager.ray") as mock_ray,
+    ):
+        mock_invoke.return_value = BatchInvokeResult(
+            method_name="get_node_info",
+            actors=[actor1.name],
+            results=[NodeInfo(id="node1")],
+        )
+
+        call_count = 0
+
+        def mock_nodes():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # retrieve current nodes
+                return [
+                    {
+                        "NodeID": "node0",
+                        "NodeManagerHostname": "host0",
+                        "NodeManagerAddress": "192.168.1.0",
+                    },
+                    {
+                        "NodeID": "node1",
+                        "NodeManagerHostname": "host1",
+                        "NodeManagerAddress": "192.168.1.1",
+                    },
+                ]
+            elif call_count == 2:
+                # no new nodes relaunched yet
+                return [
+                    {
+                        "NodeID": "node0",
+                        "NodeManagerHostname": "host0",
+                        "NodeManagerAddress": "192.168.1.0",
+                    },
+                    {
+                        "NodeID": "node1",
+                        "NodeManagerHostname": "host1",
+                        "NodeManagerAddress": "192.168.1.1",
+                    },
+                ]
+            else:
+                # node 1 relaunched
+                return [
+                    {
+                        "NodeID": "node0",
+                        "NodeManagerHostname": "host0",
+                        "NodeManagerAddress": "192.168.1.0",
+                    },
+                    {
+                        "NodeID": "node2",
+                        "NodeManagerHostname": "host2",
+                        "NodeManagerAddress": "192.168.1.2",
+                    },
+                ]
+
+        mock_ray.nodes.side_effect = mock_nodes
+
+        await mock_manager.relaunch_node_if_needed(actors, wait_interval=1)
+        assert actor1.restart_count == 0

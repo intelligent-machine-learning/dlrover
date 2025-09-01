@@ -67,14 +67,12 @@ class BaseRayNodeScaler(ABC):
         """
 
     @abstractmethod
-    def scale_down(self, target_nodes: List[str]) -> bool:
+    def scale_down(self, target_nodes: List[NodeInfo]) -> bool:
         """
         Scale down the specified ray nodes.
 
         Args:
-            target_nodes: Specified nodes to scale down. The specified element
-            can be freely implemented by subclasses and may be a node ID,
-            node hostname, IP address, or the name of the corresponding pod.
+            target_nodes: Specified nodes to scale down.
         """
 
 
@@ -89,6 +87,6 @@ class DefaultRayNodeScaler(BaseRayNodeScaler):
         logger.warning("Default scaler does not support node scaling up.")
         return False
 
-    def scale_down(self, target_nodes: List[str]) -> bool:
+    def scale_down(self, target_nodes: List[NodeInfo]) -> bool:
         logger.warning("Default scaler does not support node scaling down.")
         return False

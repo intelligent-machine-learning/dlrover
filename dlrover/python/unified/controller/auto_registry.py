@@ -69,7 +69,7 @@ class AutoExtensionRegistry:
     def _scan_package_for_extensions(
         cls, package_name: str
     ) -> Dict[str, List[Type]]:
-        extensions = {}
+        extensions: Dict[str, List[Type]] = {}
 
         try:
             package = importlib.import_module(package_name)
