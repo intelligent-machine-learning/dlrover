@@ -12,11 +12,13 @@
 # limitations under the License.
 
 import torch
+
 try:
     import torch_musa  # noqa: F401
 except ImportError:
     print("torch_musa is not available")
     pass
+
 
 def patch_after_import_torch():
     # 1. Patch for torch.xxx
