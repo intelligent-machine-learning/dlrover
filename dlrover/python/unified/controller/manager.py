@@ -14,7 +14,7 @@
 import asyncio
 import pickle
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 import ray
 
@@ -83,7 +83,9 @@ class PrimeManager:
         self.sync_manager = SyncManager()
 
         # Runtime state
-        self._context: ManagerRuntimeContext = self._init_or_reload()
+        is_init, self._context = self._init_or_reload()
+        if is_init:
+            self.save()
         self._stopped_event = asyncio.Event()
 
         logger.info(f"PrimeManager initialized with config: {config}")
@@ -98,6 +100,11 @@ class PrimeManager:
     def stage(self) -> MasterStage:
         """Get the current stage of the job."""
         return self._context.stage
+
+    @property
+    def status(self) -> MasterStatus:
+        """Get the current status of the job."""
+        return self._context.status
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
@@ -361,7 +368,7 @@ class PrimeManager:
 
         logger.info("Save runtime context into state.")
 
-    def _init_or_reload(self):
+    def _init_or_reload(self) -> Tuple[bool, ManagerRuntimeContext]:
         state_key = self._get_state_key()
 
         if self._state_backend.exists(state_key):
@@ -369,13 +376,13 @@ class PrimeManager:
             logger.info(
                 "Reload state from state backend to recover runtime context."
             )
-            return ManagerRuntimeContext.deserialize(
+            return False, ManagerRuntimeContext.deserialize(
                 self._state_backend.get(state_key)
             )
         else:
             # init context
             logger.info("Init runtime context.")
-            return ManagerRuntimeContext(
+            return True, ManagerRuntimeContext(
                 graph=DLExecutionGraph.create(self.config.dl_config),
                 stage=MasterStage.INIT,
                 status=MasterStatus(MasterStage.INIT),
