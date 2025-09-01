@@ -317,16 +317,16 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
                 )
                 # Some Actor failed may cause other hang, print exception for debugging
                 failed = [
-                    ref
+                    (ref, ref._result)
                     for ref in self.refs
                     if not ref.pending and isinstance(ref._result, Exception)
                 ]
-                for ref in failed:
-                    if ref.actor_name not in reported_failed:
+                for ref, exe_info in failed:
+                    if ref.actor_name in reported_failed:
                         continue
                     logger.warning(
                         f"Invocation {self.display_name} on {ref.actor_name} failed, may cause hang",
-                        exc_info=cast(Exception, ref._result),
+                        exc_info=exe_info,
                     )
                     reported_failed.add(ref.actor_name)
 

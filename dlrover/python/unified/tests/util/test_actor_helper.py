@@ -24,6 +24,7 @@ import dlrover.python.unified.util.actor_helper as ah
 from dlrover.python.unified.util.actor_proxy import (
     ActorProxy,
     invoke_actor_t,
+    invoke_actors,
     invoke_actors_t,
     invoke_meta,
 )
@@ -176,6 +177,23 @@ def test_invoke_actors(tmp_actor1, tmp_actor2):
         ).async_wait()
     )
     assert result.results == result2.results
+
+
+async def test_invoke_actors_hang(mocker, tmp_actor1, tmp_actor2):
+    """Mock scene, one worker exception, cause another hang"""
+    warn = mocker.patch(
+        "dlrover.python.unified.util.actor_helper.logger.warning",
+        side_effect=ah.logger.warning,
+    )
+    result = await invoke_actors(
+        [
+            invoke_actor_t(Stub.slow_method, tmp_actor1, 0.5),
+            invoke_actor_t(Stub.method_exception, tmp_actor2),
+        ]
+    ).async_wait(monitor_interval=0.1)
+    assert warn.call_count >= 1
+    assert "may cause hang" in warn.call_args[0][0]
+    assert result.is_all_successful is False
 
 
 def test_kill_actors(tmp_actor1, tmp_actor2):
