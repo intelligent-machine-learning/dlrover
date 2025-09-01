@@ -11,47 +11,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import multiprocessing
-import threading
 from concurrent.futures import Future
-from functools import wraps
-from typing import List, cast
+from typing import List
 
-import ray
 import verl.workers.fsdp_workers as verl_workers
 from omegaconf import DictConfig
-from verl.single_controller.base.decorator import MAGIC_ATTR
-from verl.single_controller.base.worker_group import WorkerGroup
-from verl.single_controller.ray.base import func_generator
+from util import (
+    BaseWorker,
+    MyWorkerGroup,
+    notify_job_end,
+)
 from verl.trainer.main_ppo import create_rl_dataset, create_rl_sampler
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer, Role
 from verl.trainer.ppo.reward import load_reward_manager
 
-from dlrover.python.unified.api.runtime.rpc_helper import (
-    RoleGroup,
-    export_rpc_method,
-    rpc,
-)
 from dlrover.python.unified.api.runtime.worker import current_worker
 
-multiprocessing.set_start_method("spawn", force=True)
 
-end = threading.Event()
-
-
-def export_rpc(core):
-    for f in dir(core):
-        v = getattr(core, f)
-        if callable(v) and hasattr(v, MAGIC_ATTR):
-            export_rpc_method(f, v)
-
-
-@rpc()
-def job_end():
-    end.set()
-
-
-class ActorWorker:
+class ActorWorker(BaseWorker):
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         role = current_worker().actor_info.role
@@ -60,39 +37,30 @@ class ActorWorker:
             role=role,
             profile_option=config.trainer.npu_profile.options,
         )
-        export_rpc(self.core)
-
-    def run(self):
-        end.wait()
+        super().__init__(self.core)
 
 
-class CriticWorker:
+class CriticWorker(BaseWorker):
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         self.core = verl_workers.CriticWorker(
             config=config.critic,
         )
-        export_rpc(self.core)
-
-    def run(self):
-        end.wait()
+        super().__init__(self.core)
 
 
-class RMWorker:
+class RMWorker(BaseWorker):
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
         self.core = verl_workers.RewardModelWorker(config.reward_model)
-        export_rpc(self.core)
-
-    def run(self):
-        end.wait()
+        super().__init__(self.core)
 
 
 class Trainer:
     def __init__(self) -> None:
         config = DictConfig(current_worker().job_info.user_config)
 
-        "verl.trainer.main_ppo.TaskRunner.run"  # Modified from
+        # Modified from verl.trainer.main_ppo.TaskRunner.run
 
         from verl.utils import hf_processor, hf_tokenizer
         from verl.utils.dataset.rl_dataset import collate_fn
@@ -171,7 +139,7 @@ class Trainer:
         )
 
     def prepare(self):
-        "verl.trainer.ppo.ray_trainer.RayPPOTrainer.init_workers"  # Modified from
+        # Modified from RayPPOTrainer.init_workers
         trainer = self.trainer
         async_init: List[Future] = []
         if trainer.use_critic:
@@ -210,44 +178,8 @@ class Trainer:
             )
 
     def run(self):
-        self.prepare()
-        self.trainer.fit()
-
-
-class MyWorkerGroup(RoleGroup, WorkerGroup):
-    def __init__(self, role: str, worker_cls: type) -> None:
-        RoleGroup.__init__(self, role)
-        WorkerGroup._bind_worker_method(
-            cast(WorkerGroup, self), worker_cls, func_generator
-        )
-        self._patch_ray_get()
-
-    @property
-    def world_size(self) -> int:
-        return len(self.actors)
-
-    def execute_all(self, method_name: str, *args, **kwargs):
-        return self.call(method_name, *args, **kwargs)
-
-    def execute_rank_zero(self, method_name: str, *args, **kwargs):
-        return self.call_rank0(method_name, *args, **kwargs)
-
-    # Let linters know this class is dynamic
-    def __getattr__(self, item):
-        return super().__getattribute__(item)
-
-    @staticmethod
-    def _patch_ray_get():
-        """execute_all returns Future instead ObjectRef, patch to support ray.get"""
-        raw_ray_get = ray.get
-        if hasattr(raw_ray_get, "_patched_for_future"):
-            return
-
-        @wraps(raw_ray_get)
-        def wrap_ray_get(obj, *args, **kwargs):
-            if isinstance(obj, Future):
-                return obj.result()
-            return raw_ray_get(obj, *args, **kwargs)
-
-        setattr(wrap_ray_get, "_patched_for_future", True)
-        ray.get = wrap_ray_get
+        try:
+            self.prepare()
+            self.trainer.fit()
+        finally:
+            notify_job_end("critic", "ref", "rm", "actor_rollout")

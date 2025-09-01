@@ -38,7 +38,10 @@ from dlrover.python.unified.util.actor_proxy import (
     invoke_actors,
     invoke_meta,
 )
-from dlrover.python.unified.util.async_helper import as_future
+from dlrover.python.unified.util.async_helper import (
+    as_future,
+    completed_future,
+)
 
 RPC_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
@@ -175,7 +178,9 @@ class RoleGroup(Sequence["RoleActor"]):
     def __init__(self, role: str, optional: bool = False):
         """Get the role group for a specific role."""
         try:
-            actor_infos = PrimeMasterApi.get_workers_by_role(role)
+            actor_infos = PrimeMasterApi.get_workers_by_role(
+                role, optional=optional
+            )
         except ValueError:
             if not optional:
                 raise
@@ -207,6 +212,9 @@ class RoleGroup(Sequence["RoleActor"]):
     def call(self, method, *args, **kwargs) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
+
+        if len(self.actors) == 0:
+            return completed_future([])
 
         length = len(self.actors)
         if (
