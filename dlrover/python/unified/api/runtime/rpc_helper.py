@@ -42,8 +42,10 @@ from dlrover.python.unified.util.async_helper import (
     as_future,
     completed_future,
 )
+from dlrover.python.unified.util.test_hooks import test_cleanup
 
 RPC_REGISTRY: Dict[str, Callable[..., Any]] = {}
+test_cleanup(RPC_REGISTRY.clear)
 
 
 @dataclass

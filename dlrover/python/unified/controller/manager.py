@@ -14,81 +14,76 @@
 import asyncio
 import pickle
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional
 
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import WorkerStage, NodeInfo
+from dlrover.python.unified.common.actor_base import NodeInfo, WorkerStage
+from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
 from dlrover.python.unified.common.enums import MasterStage
+from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import (
-    invoke_actors_t,
     invoke_actor_t,
+    invoke_actors_t,
 )
-from .schedule.scaler import BaseRayNodeScaler, get_scaler
-from .state_backend import MasterStateBackendFactory
 
 from ..common.config import JobConfig
-from . import remote_call
-from .api import MasterStatus
-from .schedule.graph import DLExecutionGraph, DLExecutionVertex
-from .schedule.scheduler import Scheduler
-from .sync_manager import SyncManager
 from ..common.constant import (
     RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
     MasterConstant,
 )
+from . import remote_call
+from .schedule.graph import DLExecutionGraph, DLExecutionVertex
+from .schedule.scaler import BaseRayNodeScaler, get_scaler
+from .schedule.scheduler import Scheduler
+from .sync_manager import SyncManager
 
 
 @dataclass(kw_only=True)
-class ManagerRuntimeContext(object):
+class RuntimeState:
     """
-    This context is used for manager's runtime stateful using. It records all
+    Dataclass for manager's runtime state. It records all
     the key statement during job runtime. Master(manager) can reload the
-    runtime context when the master(manager) actor restart for failover.
+    runtime state when the master(manager) actor restart for failover.
     """
 
-    graph: DLExecutionGraph
-    stage: MasterStage
-    status: MasterStatus
-
+    stage: MasterStage = MasterStage.INIT
+    exit_code: int = 0
+    job_restart_count: int = 0
     node_total_count: int
     node_restart_count: int = 0
 
+    graph: DLExecutionGraph
+
     extra: Dict[str, Any] = field(default_factory=dict)
-
-    def serialize(self):
-        return pickle.dumps(self)
-
-    @classmethod
-    def deserialize(cls, data):
-        deserialized = pickle.loads(data)
-        assert isinstance(deserialized, cls)
-        return deserialized
 
 
 class PrimeManager:
-    INSTANCE: "PrimeManager"
+    INSTANCE: "PrimeManager"  # Avoid access if possible
 
     def __init__(self, config: JobConfig) -> None:
         self.config = config
-        self._state_backend = MasterStateBackendFactory.get_state_backend(
-            config.master_state_backend_type
-        )
+        self._state_key = MASTER_STATE_KEY_PREFIX + config.job_name
 
         # Create all components
         self.scheduler: Scheduler = Scheduler(config)
         self.scaler: BaseRayNodeScaler = get_scaler(config)
         self.sync_manager = SyncManager()
+        self.state_backend = MasterStateBackend.create(
+            config.master_state_backend_type,
+            config.master_state_backend_config,
+        )
 
         # Runtime state
-        is_init, self._context = self._init_or_reload()
-        if is_init:
-            self.save()
+        self.state: RuntimeState = self._load_state() or RuntimeState(
+            graph=DLExecutionGraph.create(config.dl_config),
+            node_total_count=len(ray.nodes()),
+        )
         self._stopped_event = asyncio.Event()
 
         logger.info(f"PrimeManager initialized with config: {config}")
@@ -96,31 +91,20 @@ class PrimeManager:
         self._task = None
 
     @property
-    def context(self) -> ManagerRuntimeContext:
-        """Get the runtime context."""
-        return self._context
-
-    @property
     def graph(self) -> DLExecutionGraph:
         """Get the graph of the job."""
-        return self.context.graph
+        return self.state.graph
 
     @property
     def stage(self) -> MasterStage:
         """Get the current stage of the job."""
-        return self.context.stage
-
-    @property
-    def status(self) -> MasterStatus:
-        """Get the current status of the job."""
-        return self.context.status
+        return self.state.stage
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
         if self.stage != stage:
             logger.info(f"Updating job stage from {self.stage} to {stage}")
-            self.context.stage = stage
-            self.context.status.stage = stage
+            self.state.stage = stage
             self.save()
 
     async def prepare(self):
@@ -204,7 +188,7 @@ class PrimeManager:
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
                 else:
-                    self._context.status.exit_code = 1
+                    self.state.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
@@ -260,9 +244,6 @@ class PrimeManager:
                 "count due to node relaunch."
             )
 
-    def _update_node_restart_count(self, inc_count):
-        self._context.node_restart_count += inc_count
-
     async def _wait_node_relaunch(
         self, relaunch_nodes, current_nodes, wait_interval=10
     ):
@@ -282,7 +263,7 @@ class PrimeManager:
             await asyncio.sleep(wait_interval)
             current_relaunched_num = get_relaunched_num()
 
-        self._update_node_restart_count(len(relaunch_nodes))
+        self.state.node_restart_count += len(relaunch_nodes)
         logger.info(f"All target nodes relaunched: {relaunch_nodes}")
 
     async def restart_actors(self, actors: List[DLExecutionVertex]) -> None:
@@ -296,12 +277,9 @@ class PrimeManager:
         ]
         influenced_actors = []
         if exceed_limit_actors:
-            if (
-                self._context.node_restart_count
-                >= self._context.node_total_count
-            ):
+            if self.state.node_restart_count >= self.state.node_total_count:
                 logger.fatal(
-                    f"Node relaunch beyond limit: {self._context.node_total_count}, stop job directly."
+                    f"Node relaunch beyond limit: {self.state.node_total_count}, stop job directly."
                 )
                 self.request_stop("node relaunch beyond limit.")
                 return
@@ -382,7 +360,8 @@ class PrimeManager:
                 f"Cannot restart job in stage {self.stage}. "
                 "Expected stage is RUNNING."
             )
-        self._context.status.job_restart_count += 1
+        assert self._task is not None
+        self.state.job_restart_count += 1
         logger.info("Restarting the job execution.")
         self._task.cancel()
         self._update_stage(MasterStage.READY)
@@ -423,31 +402,22 @@ class PrimeManager:
 
     def save(self):
         """Save the job state to persistent storage."""
-        # This is a placeholder for saving the job state.
-        # In a real implementation, this would save to a database or file.
+        try:
+            data = pickle.dumps(self.state)
+            self.state_backend.set(self._state_key, data)
+            logger.info("Save runtime context into state.")
+        except Exception:
+            logger.exception("Failed to save state")
 
-        state_key = self._get_state_key()
-        self._state_backend.set(state_key, self._context.serialize())
-
-        logger.info("Save runtime context into state.")
-
-    def _init_or_reload(self) -> Tuple[bool, ManagerRuntimeContext]:
-        state_key = self._get_state_key()
-
-        if self._state_backend.exists(state_key):
-            # reload context
-            logger.info(
-                "Reload state from state backend to recover runtime context."
-            )
-            return False, ManagerRuntimeContext.deserialize(
-                self._state_backend.get(state_key)
-            )
-        else:
-            # init context
-            logger.info("Init runtime context for beginning.")
-            return True, ManagerRuntimeContext(
-                graph=DLExecutionGraph.create(self.config.dl_config),
-                stage=MasterStage.INIT,
-                status=MasterStatus(MasterStage.INIT),
-                node_total_count=len(ray.nodes()),
-            )
+    def _load_state(self) -> Optional[RuntimeState]:
+        if not self.state_backend.exists(self._state_key):
+            return None
+        try:
+            data = self.state_backend.get(self._state_key)
+            assert isinstance(data, bytes), f"Expected bytes, got {type(data)}"
+            data = pickle.loads(data)
+            assert isinstance(data, RuntimeState)
+            return data
+        except Exception:
+            logger.exception("Failed to load state")
+            return None

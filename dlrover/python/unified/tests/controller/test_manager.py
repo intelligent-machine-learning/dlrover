@@ -25,6 +25,7 @@ from dlrover.python.unified.controller.schedule.graph import (
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
+from dlrover.python.unified.common.enums import MasterStage
 
 
 @pytest.fixture
@@ -193,22 +194,19 @@ async def test_relaunch_node_if_needed(mock_manager):
                 ]
 
         mock_ray.nodes.side_effect = mock_nodes
-        mock_manager._context.node_total_count = 2
-        mock_manager._context.node_restart_count = 0
+        mock_manager.state.node_total_count = 2
+        mock_manager.state.node_restart_count = 0
 
         await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
         assert target_actor.per_node_failure_count == 0
 
 
-def test_runtime_context(mock_manager):
-    runtime_context = mock_manager._context
-    graph = runtime_context.graph
-    assert runtime_context is not None
+def test_manager_save_load():
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+    assert manager.state.stage == MasterStage.INIT
+    manager._update_stage(MasterStage.RUNNING)
+    assert manager.state.stage == MasterStage.RUNNING
 
-    serialized_context = runtime_context.serialize()
-    recover_context = runtime_context.deserialize(serialized_context)
-
-    assert len(recover_context.graph.roles) == len(graph.roles)
-    assert len(recover_context.graph.edges) == len(graph.edges)
-    assert len(recover_context.graph.vertices) == len(graph.vertices)
-    assert recover_context.graph.vertices[1].name == graph.vertices[1].name
+    new_manager = PrimeManager(config)
+    assert new_manager.state.stage == MasterStage.RUNNING

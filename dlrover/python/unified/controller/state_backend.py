@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
+from typing import Any, ClassVar
 
-import ray
 from ray.experimental.internal_kv import (
     _internal_kv_del,
     _internal_kv_exists,
@@ -22,43 +22,41 @@ from ray.experimental.internal_kv import (
 )
 
 from dlrover.python.unified.common.enums import MasterStateBackendType
-
-
-class MasterStateBackendFactory(object):
-    @classmethod
-    def get_state_backend(
-        cls, backend_type: MasterStateBackendType
-    ) -> "MasterStateBackend":
-        if backend_type == MasterStateBackendType.HDFS:
-            # TODO: impl hdfs state backend
-            raise NotImplementedError()
-        else:
-            return RayInternalMasterStateBackend()
+from dlrover.python.unified.util.test_hooks import test_cleanup
 
 
 class MasterStateBackend(ABC):
-    @abstractmethod
-    def init(self):
-        """Initialize the state-backend."""
-        pass
+    @staticmethod
+    def create(
+        backend_type: MasterStateBackendType, config: Any
+    ) -> "MasterStateBackend":
+        if backend_type == MasterStateBackendType.RAY_INTERNAL:
+            return RayInternalMasterStateBackend()
+        elif backend_type == MasterStateBackendType.IN_MEMORY:
+            return InMemoryStateBackend()
+        elif backend_type == MasterStateBackendType.HDFS:
+            # TODO: impl hdfs state backend
+            raise NotImplementedError()
+        else:
+            raise ValueError(f"Unknown backend type: {backend_type}")
 
     @abstractmethod
-    def get(self, key):
+    def get(self, key: str) -> Any:
         """Get value by key."""
-        pass
+        ...
 
     @abstractmethod
-    def set(self, key, value):
+    def set(self, key: str, value: Any):
         """Set value by key."""
         pass
 
     @abstractmethod
-    def delete(self, key):
+    def delete(self, key: str):
         """Delete value by key."""
         pass
 
     @abstractmethod
-    def exists(self, key) -> bool:
+    def exists(self, key: str) -> bool:
         """Whether the key exists."""
         pass
 
@@ -68,28 +66,46 @@ class MasterStateBackend(ABC):
         pass
 
 
+class InMemoryStateBackend(MasterStateBackend):
+    """State-backend always store nothing"""
+
+    _store: ClassVar[dict] = {}
+    test_cleanup(_store.clear)
+
+    def get(self, key: str) -> Any:
+        return self._store.get(key)
+
+    def set(self, key: str, value: Any):
+        self._store[key] = value
+
+    def delete(self, key: str):
+        self._store.pop(key, None)
+
+    def exists(self, key: str) -> bool:
+        return key in self._store
+
+    def reset(self, *args, **kwargs):
+        self._store.clear()
+
+
 class RayInternalMasterStateBackend(MasterStateBackend):
     """
     State-backend using ray.experimental.internal_kv.
     """
 
-    def init(self):
-        if not ray.is_initialized():
-            ray.init()
-
-    def get(self, key):
+    def get(self, key: str) -> bytes:
         return _internal_kv_get(key)
 
-    def set(self, key, value):
+    def set(self, key: str, value: bytes):
         _internal_kv_put(key, value)
 
-    def delete(self, key):
+    def delete(self, key: str):
         _internal_kv_del(key)
 
-    def exists(self, key) -> bool:
+    def exists(self, key: str) -> bool:
         return _internal_kv_exists(key)
 
-    def reset(self, prefix):
+    def reset(self, prefix: str):
         keys = _internal_kv_list(prefix)
         for key in keys:
             _internal_kv_del(key)

@@ -11,26 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pytest import fixture
 
-from typing import Callable
+from dlrover.python.unified.util.test_hooks import _RESET_HOOKS
 
-
-def coverage_enabled():
-    """Check if coverage is enabled."""
-    try:
-        import coverage
-
-        return coverage.Coverage.current() is not None
-    except ImportError:
-        return False
+"""Fixture for testing purposes, not associated with any specific component."""
 
 
-_RESET_HOOKS = []
-
-
-def test_cleanup(callback: Callable[[], None]):
-    """Decorator to automatically reset the state after each test.
-    Use for Singleton/Global state.
-    """
-    _RESET_HOOKS.append(callback)
-    return callback
+@fixture(autouse=True)
+def reset_all_singletons():
+    """Reset all singleton instances."""
+    yield
+    for reset_hook in _RESET_HOOKS:
+        reset_hook()
