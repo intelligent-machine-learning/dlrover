@@ -33,10 +33,19 @@ def mock_manager(monkeypatch):
     """Create a PrimeManager with mocked ray dependencies."""
     mock_ray = MagicMock()
     mock_ray.nodes.return_value = []
+    mock_state_factory = MagicMock()
+    mock_state = MagicMock()
+    mock_state_factory.get_state_backend.return_value = mock_state
+    mock_state.exists = MagicMock(return_value=False)
+    mock_state.set = MagicMock(return_value=None)
 
     # mock module-level ray usage
     monkeypatch.setattr(
         "dlrover.python.unified.controller.manager.ray", mock_ray
+    )
+    monkeypatch.setattr(
+        "dlrover.python.unified.controller.manager.MasterStateBackendFactory",
+        mock_state_factory,
     )
 
     manager = PrimeManager(elastic_training_job())
@@ -203,6 +212,27 @@ async def test_relaunch_node_if_needed(mock_manager):
                 ]
 
         mock_ray.nodes.side_effect = mock_nodes
+        mock_manager._context.node_total_count = 2
+        mock_manager._context.node_restart_count = 0
 
         await mock_manager.relaunch_node_if_needed(actors, wait_interval=1)
         assert actor1.restart_count == 0
+
+        mock_manager._context.node_restart_count = 2
+        mock_manager.request_stop = MagicMock()
+        await mock_manager.relaunch_node_if_needed(actors, wait_interval=1)
+        mock_manager.request_stop.assert_called_once()
+
+
+def test_runtime_context(mock_manager):
+    runtime_context = mock_manager._context
+    graph = runtime_context.graph
+    assert runtime_context is not None
+
+    serialized_context = runtime_context.serialize()
+    recover_context = runtime_context.deserialize(serialized_context)
+
+    assert len(recover_context.graph.roles) == len(graph.roles)
+    assert len(recover_context.graph.edges) == len(graph.edges)
+    assert len(recover_context.graph.vertices) == len(graph.vertices)
+    assert recover_context.graph.vertices[1].name == graph.vertices[1].name

@@ -114,11 +114,11 @@ class PrimeMaster:
 
     def register_data_queue(self, name: str, owner_actor: str, size: int):
         """Register a data queue."""
-        self.manager.sync.register_data_queue(name, owner_actor, size)
+        self.manager.sync_manager.register_data_queue(name, owner_actor, size)
 
     async def get_data_queue_owner(self, name: str) -> str:
         """Get the owner actor of a data queue. Waits if not available."""
-        return await self.manager.sync.get_data_queue_owner(name)
+        return await self.manager.sync_manager.get_data_queue_owner(name)
 
     # endregion
     @staticmethod

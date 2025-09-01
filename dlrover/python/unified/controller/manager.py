@@ -12,7 +12,9 @@
 # limitations under the License.
 
 import asyncio
-from typing import List
+import pickle
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
 
 import ray
 
@@ -25,6 +27,7 @@ from dlrover.python.unified.util.actor_helper import (
 )
 from dlrover.python.unified.util.actor_proxy import invoke_actors_t
 from .schedule.scaler import BaseRayNodeScaler, get_scaler
+from .state_backend import MasterStateBackendFactory
 
 from ..common.config import JobConfig
 from . import remote_call
@@ -32,7 +35,37 @@ from .api import MasterStatus
 from .schedule.graph import DLExecutionGraph
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
-from ..common.constant import RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
+from ..common.constant import (
+    RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+    MasterConstant,
+)
+
+
+@dataclass
+class ManagerRuntimeContext(object):
+    """
+    This context is used for manager's runtime stateful using. It records all
+    the key statement during job runtime. Master(manager) can reload the
+    runtime context when the master(manager) actor restart for failover.
+    """
+
+    graph: DLExecutionGraph
+    stage: MasterStage
+    status: MasterStatus
+
+    node_total_count: int
+    node_restart_count: int = 0
+
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+    def serialize(self):
+        return pickle.dumps(self)
+
+    @classmethod
+    def deserialize(cls, data):
+        deserialized = pickle.loads(data)
+        assert isinstance(deserialized, cls)
+        return deserialized
 
 
 class PrimeManager:
@@ -40,35 +73,38 @@ class PrimeManager:
 
     def __init__(self, config: JobConfig) -> None:
         self.config = config
+        self._state_backend = MasterStateBackendFactory.get_state_backend(
+            config.master_state_backend_type
+        )
 
         # Create all components
-        self.graph = DLExecutionGraph.create(config.dl_config)
         self.scheduler: Scheduler = Scheduler(config)
         self.scaler: BaseRayNodeScaler = get_scaler(config)
-        self.sync = SyncManager()
+        self.sync_manager = SyncManager()
 
         # Runtime state
-        self._stage: MasterStage = MasterStage.INIT
+        self._context: ManagerRuntimeContext = self._init_or_reload()
         self._stopped_event = asyncio.Event()
-        # Exposed state for status detail
-        self.status = MasterStatus(
-            self._stage,
-        )
 
         logger.info(f"PrimeManager initialized with config: {config}")
         self.INSTANCE = self  # Singleton instance
 
     @property
+    def graph(self) -> DLExecutionGraph:
+        """Get the graoh of the job."""
+        return self._context.graph
+
+    @property
     def stage(self) -> MasterStage:
         """Get the current stage of the job."""
-        return self._stage
+        return self._context.stage
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
-        if self._stage != stage:
-            logger.info(f"Updating job stage from {self._stage} to {stage}")
-            self._stage = stage
-            self.status.stage = stage
+        if self.stage != stage:
+            logger.info(f"Updating job stage from {self.stage} to {stage}")
+            self._context.stage = stage
+            self._context.status.stage = stage
             self.save()
 
     async def prepare(self):
@@ -144,7 +180,7 @@ class PrimeManager:
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
                 else:
-                    self.status.exit_code = 1
+                    self._context.status.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
@@ -160,6 +196,14 @@ class PrimeManager:
 
     async def relaunch_node_if_needed(self, actors, wait_interval=10):
         """Relaunch the node if actor exceed restarting limit."""
+
+        # should continue node relaunching
+        if self._context.node_restart_count >= self._context.node_total_count:
+            logger.fatal(
+                f"Node relaunch beyond limit: {self._context.node_total_count}, stop job directly."
+            )
+            self.request_stop("node relaunch beyond limit.")
+            return
 
         # get the ray nodes if the actor on it exceed restarting limit
         exceeded_restarting_limit_actors = [
@@ -211,6 +255,9 @@ class PrimeManager:
                 "count due to node relaunch."
             )
 
+    def _update_node_restart_count(self, inc_count):
+        self._context.node_restart_count += inc_count
+
     async def _wait_node_relaunch(
         self, relaunch_nodes, current_nodes, wait_interval=10
     ):
@@ -229,6 +276,8 @@ class PrimeManager:
             )
             await asyncio.sleep(wait_interval)
             current_relaunched_num = get_relaunched_num()
+
+        self._update_node_restart_count(len(relaunch_nodes))
         logger.info(f"All target nodes relaunched: {relaunch_nodes}")
 
     async def restart_actors(self, actor_names: List[str]) -> None:
@@ -263,7 +312,7 @@ class PrimeManager:
                 f"Cannot restart job in stage {self.stage}. "
                 "Expected stage is RUNNING."
             )
-        self.status.job_restart_count += 1
+        self._context.status.job_restart_count += 1
         logger.info("Restarting the job execution.")
         self._task.cancel()
         self._update_stage(MasterStage.READY)
@@ -299,12 +348,36 @@ class PrimeManager:
         await self._stopped_event.wait()
         assert self.stage == MasterStage.STOPPED
 
+    def _get_state_key(self):
+        return MasterConstant.MASTER_STATE_KEY_PREFIX + self.config.job_name
+
     def save(self):
         """Save the job state to persistent storage."""
         # This is a placeholder for saving the job state.
         # In a real implementation, this would save to a database or file.
-        logger.info(
-            f"Job state saved: {self.stage}, "
-            f"nodes: {[node.name for node in self.graph.vertices]}"
-        )
-        # TODO implement actual save logic. (Ref state_backend.py)
+
+        state_key = self._get_state_key()
+        self._state_backend.set(state_key, self._context.serialize())
+
+        logger.info("Save runtime context into state.")
+
+    def _init_or_reload(self):
+        state_key = self._get_state_key()
+
+        if self._state_backend.exists(state_key):
+            # reload context
+            logger.info(
+                "Reload state from state backend to recover runtime context."
+            )
+            return ManagerRuntimeContext.deserialize(
+                self._state_backend.get(state_key)
+            )
+        else:
+            # init context
+            logger.info("Init runtime context.")
+            return ManagerRuntimeContext(
+                graph=DLExecutionGraph.create(self.config.dl_config),
+                stage=MasterStage.INIT,
+                status=MasterStatus(MasterStage.INIT),
+                node_total_count=len(ray.nodes()),
+            )

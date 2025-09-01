@@ -16,6 +16,10 @@ RAY_HANG_CHECK_INTERVAL = 5.0  # Interval for monitoring actor invocations
 RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME = 60
 
 
+class MasterConstant(object):
+    MASTER_STATE_KEY_PREFIX = "runtime_context_state_"
+
+
 class InternalDLWorkloadRole(object):
     ELASTIC_ROLE = "ELASTIC"
 
