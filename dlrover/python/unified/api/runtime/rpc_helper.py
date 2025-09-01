@@ -190,9 +190,11 @@ class RoleGroup(Sequence["RoleActor"]):
         self.actors = [RoleActor(actor) for actor in actor_infos]
 
     @overload
-    def __getitem__(self, index: int) -> "RoleActor": ...
+    def __getitem__(self, index: int) -> "RoleActor": ...  # pragma: no cover
     @overload
-    def __getitem__(self, index: slice) -> Sequence["RoleActor"]: ...
+    def __getitem__(
+        self, index: slice
+    ) -> Sequence["RoleActor"]: ...  # pragma: no cover
     def __getitem__(self, index):
         """Get an actor by index."""
         return self.actors[index]
@@ -204,26 +206,28 @@ class RoleGroup(Sequence["RoleActor"]):
     @overload
     def call(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[List[R]]: ...
+    ) -> Future[List[R]]: ...  # pragma: no cover
     @overload
     def call(
         self, method: str, *args: Any, **kwargs: Any
-    ) -> Future[List[Any]]: ...
-    def call(self, method, *args, **kwargs) -> Future[List[Any]]:
+    ) -> Future[List[Any]]: ...  # pragma: no cover
+    def call(
+        self, method, *args, _scatter: bool = False, **kwargs
+    ) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
 
         if len(self.actors) == 0:
             return completed_future([])
 
-        length = len(self.actors)
-        if (
-            (args or kwargs)
-            and all(isinstance(arg, list) for arg in args)
-            and all(isinstance(kwarg, list) for kwarg in kwargs.values())
-            and all(len(arg) == length for arg in args)
-            and all(len(kwarg) == length for kwarg in kwargs.values())
-        ):
+        if _scatter:
+            length = len(self.actors)
+            assert (
+                all(isinstance(arg, list) for arg in args)
+                and all(isinstance(kwarg, list) for kwarg in kwargs.values())
+                and all(len(arg) == length for arg in args)
+                and all(len(kwarg) == length for kwarg in kwargs.values())
+            ), "All arguments must be lists of the same length."
             calls = []
             for i in range(length):
                 sliced_args = tuple(arg[i] for arg in args)
@@ -248,11 +252,11 @@ class RoleGroup(Sequence["RoleActor"]):
     @overload
     def call_rank0(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[R]: ...
+    ) -> Future[R]: ...  # pragma: no cover
     @overload
     def call_rank0(
         self, method: str, *args: Any, **kwargs: Any
-    ) -> Future[object]: ...
+    ) -> Future[object]: ...  # pragma: no cover
     def call_rank0(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the rank 0 actor in the role group."""
         if not self.actors:
@@ -303,9 +307,9 @@ class FutureSequence(Sequence[T]):
         self._futures = futures
 
     @overload
-    def __getitem__(self, index: int) -> T: ...
+    def __getitem__(self, index: int) -> T: ...  # pragma: no cover
     @overload
-    def __getitem__(self, index: slice) -> Sequence[T]: ...
+    def __getitem__(self, index: slice) -> Sequence[T]: ...  # pragma: no cover
     def __getitem__(self, index):
         if isinstance(index, slice):
             return [self[i] for i in range(*index.indices(len(self)))]

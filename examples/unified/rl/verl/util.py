@@ -73,7 +73,14 @@ class MyWorkerGroup(RoleGroup, WorkerGroup):
         return len(self.actors)
 
     def execute_all(self, method_name: str, *args, **kwargs):
-        return self.call(method_name, *args, **kwargs)
+        length = len(self.actors)
+        scatter = (args or kwargs) and (
+            all(isinstance(arg, list) for arg in args)
+            and all(isinstance(kwarg, list) for kwarg in kwargs.values())
+            and all(len(arg) == length for arg in args)
+            and all(len(kwarg) == length for kwarg in kwargs.values())
+        )
+        return self.call(method_name, *args, **kwargs, _scatter=scatter)
 
     def execute_rank_zero(self, method_name: str, *args, **kwargs):
         return self.call_rank0(method_name, *args, **kwargs)
