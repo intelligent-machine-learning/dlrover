@@ -209,10 +209,10 @@ class RoleGroup(Sequence["RoleActor"]):
     ) -> Future[List[R]]: ...  # pragma: no cover
     @overload
     def call(
-        self, method: str, *args: Any, **kwargs: Any
+        self, method: str, *args: Any, _scatter: bool = False, **kwargs: Any
     ) -> Future[List[Any]]: ...  # pragma: no cover
     def call(
-        self, method, *args, _scatter: bool = False, **kwargs
+        self, method, *args, _scatter=False, **kwargs
     ) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
