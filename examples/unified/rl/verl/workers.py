@@ -158,13 +158,14 @@ class Trainer:
             trainer.rm_wg = MyWorkerGroup("rm", verl_workers.RewardModelWorker)
             async_init.append(trainer.rm_wg.call("init_model"))
 
-        # We init workers in parallel
-        [it.result() for it in async_init]
-
         # we should create rollout at the end so that vllm can have a better estimation of kv cache memory
         trainer.actor_rollout_wg = MyWorkerGroup(
             "actor_rollout", verl_workers.AsyncActorRolloutRefWorker
         )
+
+        # a. Directly use RoleGroup.call to init workers in parallel, which is non-blocking.
+        [it.result() for it in async_init]
+        # b. Use VeRL WorkerGroup call, which is blocking.
         trainer.actor_rollout_wg.init_model()
 
         trainer.async_rollout_mode = False
@@ -174,7 +175,7 @@ class Trainer:
             trainer.async_rollout_mode = True
             trainer.async_rollout_manager = AgentLoopManager(
                 config=trainer.config,
-                worker_group=trainer.actor_rollout_wg,  # type: ignore
+                worker_group=trainer.actor_rollout_wg,
             )
 
     def run(self):

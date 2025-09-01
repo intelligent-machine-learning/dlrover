@@ -25,11 +25,13 @@ from dlrover.python.unified.api.builder.base import DLJobBuilder
     version_base=None,
 )
 def main(config):
+    # 1. Ensure the config is resolved, raise early if not
     OmegaConf.resolve(config)
 
     nodes = config.trainer.nnodes
     gpus = config.trainer.n_gpus_per_node
 
+    # 2. Initialize the job builder
     builder = (
         DLJobBuilder()
         .global_env(
@@ -43,6 +45,7 @@ def main(config):
         .device_per_node(gpus)
         .config(config)
     )
+    # 3. Define roles and their resource requirements
     builder.role("actor_rollout").train("workers.ActorWorker").total(gpus)
     builder.role("critic").train("workers.CriticWorker").total(gpus)
     if config.reward_model.enable:
@@ -53,15 +56,19 @@ def main(config):
     ):
         builder.role("ref").train("workers.ActorWorker").total(gpus)
     builder.role("trainer").run("workers.Trainer").resource(cpu=4)
+    # 4. Share gpu
     builder.with_collocation_all("trainer")
 
+    # 5. Build the job
     job = builder.build()
     for workload in job.workloads.values():
         if workload.backend == "elastic":
-            workload.comm_pre_check = False
+            # workload.comm_pre_check = False
+            # veRL will setup process group itself, DLRover provide envs
             workload.comm_auto_setup_process_group = False
-
     pprint(job)
+
+    # 6. Submit the job, launch training
     job.submit(job_name="dlrover-verl-ppo")
 
 
