@@ -271,7 +271,9 @@ class MusaPatchTest(unittest.TestCase):
         mock_torch.Tensor = Mock()
         mock_torch.empty = Mock()
 
-        with patch.dict("sys.modules", {"torch": mock_torch, "torch_musa": None}):
+        with patch.dict(
+            "sys.modules", {"torch": mock_torch, "torch_musa": None}
+        ):
             # This should handle the ImportError gracefully
             try:
                 import dlrover.python.common.musa_patch  # noqa: F401
