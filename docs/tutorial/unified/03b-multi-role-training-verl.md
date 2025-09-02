@@ -61,6 +61,7 @@ def main(config):
         .node_num(nodes)
         .device_per_node(gpus)
         .config(config)
+        .no_setup_process_group()  # VeRL will setup process group itself
     )
     # 3. Define roles and their resource requirements
     # train() for workloads with Rendezvous, while run() for other workloads.
@@ -79,11 +80,6 @@ def main(config):
 
     # 5. Build the job
     job = builder.build()
-    for workload in job.workloads.values():
-        if workload.backend == "elastic":
-            # workload.comm_pre_check = False
-            # veRL will setup process group itself, DLRover provide envs
-            workload.comm_auto_setup_process_group = False
     pprint(job)
 
     # 6. Submit the job, launch training
