@@ -13,6 +13,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from unittest.mock import Mock
 import pytest
 
 from dlrover.python.unified.common.actor_base import NodeInfo
@@ -210,3 +211,28 @@ def test_manager_save_load():
 
     new_manager = PrimeManager(config)
     assert new_manager.state.stage == MasterStage.RUNNING
+
+
+def test_manager_failover(mocker):
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+
+    # 1. When failover from READY, the state should transition to STOPPED
+    manager._update_stage(MasterStage.READY)
+    assert manager.state.stage == MasterStage.READY
+
+    new_manager = PrimeManager(config)
+    new_manager.terminate = Mock()
+    new_manager.handle_self_failover()
+    assert new_manager.state.stage == MasterStage.READY
+    assert new_manager.terminate.called
+
+    # 2. When failover from RUNNING, recover running
+    manager._update_stage(MasterStage.RUNNING)
+    assert manager.state.stage == MasterStage.RUNNING
+
+    create_main_task = mocker.patch("asyncio.create_task")
+    new_manager = PrimeManager(config)
+    new_manager.handle_self_failover()
+    assert new_manager.state.stage == MasterStage.RUNNING
+    assert create_main_task.called
