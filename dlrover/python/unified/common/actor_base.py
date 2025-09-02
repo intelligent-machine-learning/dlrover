@@ -164,9 +164,7 @@ class ActorBase:
     def get_node_info(self):
         """Get the current actor's ray node's information."""
 
-        node_id = "unknown"
-        if ray.is_initialized() and ray.get_runtime_context():
-            node_id = ray.get_runtime_context().node_id.hex()
+        node_id = ray.get_runtime_context().node_id.hex()
         hostname, ip_address = env_utils.get_hostname_and_ip()
         return NodeInfo(
             id=node_id,

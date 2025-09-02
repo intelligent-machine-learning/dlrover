@@ -1,7 +1,7 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#  Copyright 2025 The DLRover Authors. All rights reserved.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -13,12 +13,8 @@
 
 import shutil
 from pathlib import Path
-
 import pytest
-
-from dlrover.python.unified.controller.auto_registry import (
-    AutoExtensionRegistry,
-)
+from dlrover.python.unified.util.auto_registry import AutoExtensionRegistry
 
 
 @pytest.fixture
@@ -37,7 +33,7 @@ def tmp_extension_project():
 import sys
 sys.path.insert(0, "..")                        
 from dlrover.python.unified.controller.schedule.scaler import BaseRayNodeScaler
-from dlrover.python.unified.controller.auto_registry import extension          
+from dlrover.python.unified.util.auto_registry import extension          
 
 @extension(priority=10)
 class TestScaler(BaseRayNodeScaler):                       

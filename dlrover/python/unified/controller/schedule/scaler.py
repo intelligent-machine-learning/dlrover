@@ -16,7 +16,7 @@ from typing import List, Any, Dict, Optional
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import NodeInfo
 from dlrover.python.unified.common.config import JobConfig
-from dlrover.python.unified.controller.auto_registry import (
+from dlrover.python.unified.util.auto_registry import (
     extensible,
     AutoExtensionRegistry,
 )
