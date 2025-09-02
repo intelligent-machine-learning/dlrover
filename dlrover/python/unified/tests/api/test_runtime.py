@@ -181,8 +181,8 @@ def test_role_group_basic(mocker, setup_async_helper):
     def fake_rpc_call(actor, method, args, kwargs):
         ret = Mock()
         ret.pending = False
-        ret.result_or_exception = f"{actor}-{method}"
-        ret.async_wait = AsyncMock(return_value=f"{actor}-{method}")
+        ret.result_or_exception = f"{actor}-{method}-{args}-{kwargs}"
+        ret.async_wait = AsyncMock(return_value=ret.result_or_exception)
         return ret
 
     # Mock PrimeMasterApi.get_workers_by_role
@@ -205,16 +205,30 @@ def test_role_group_basic(mocker, setup_async_helper):
 
     # Test call with method name
     fut = group.call("foo_method")
-    assert fut.result() == ["actorA-foo_method", "actorB-foo_method"]
+    assert fut.result() == [
+        "actorA-foo_method-()-{}",
+        "actorB-foo_method-()-{}",
+    ]
 
     # stub
     def foo_method(x, y=0): ...
 
-    fut2 = group.call(foo_method, 5, y=10)
-    assert fut2.result() == ["actorA-foo_method", "actorB-foo_method"]
+    fut = group.call(foo_method, 5, y=10)
+    assert fut.result() == [
+        "actorA-foo_method-(5,)-{'y': 10}",
+        "actorB-foo_method-(5,)-{'y': 10}",
+    ]
+
+    # Test call with scatter
+    fut = group.call(foo_method, [5, 10], y=[10, 20], _scatter=True)
+    assert fut.result() == [
+        "actorA-foo_method-(5,)-{'y': 10}",
+        "actorB-foo_method-(10,)-{'y': 20}",
+    ]
+
     # Test call_rank0
     fut3 = group.call_rank0(foo_method, 3, y=4)
-    assert fut3.result() == "actorA-foo_method"
+    assert fut3.result() == "actorA-foo_method-(3,)-{'y': 4}"
 
 
 def test_role_group_optional(mocker):
@@ -240,6 +254,10 @@ def test_role_group_no_actors(mocker):
         RoleGroup("empty", optional=True).call_batch(f, 4, [1, 2, 3, 4])
     with pytest.raises(ValueError, match="No actors in the role group."):
         RoleGroup("empty", optional=True).call_rank0(f, [])
+
+    assert (
+        RoleGroup("empty", optional=True).call(f, 4).result() == []
+    )  # allow call
 
 
 def test_rolegroup_call_batch(mocker, setup_async_helper):
@@ -274,6 +292,7 @@ def test_rolegroup_call_batch(mocker, setup_async_helper):
     assert results == ["actorA-1", "actorA-2", "actorB-3", "actorB-4"]
     assert list(fut_seq) == results
     assert list(fut_seq[1:2]) == results[1:2]
+    assert repr(fut_seq) == "FutureSequence(lens=[2, 2])"
 
 
 def test_ray_dataloader(shared_ray):
