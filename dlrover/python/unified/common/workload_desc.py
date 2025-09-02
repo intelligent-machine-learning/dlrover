@@ -107,8 +107,12 @@ class BaseWorkloadDesc(BaseModel, ABC):
         default_factory=dict,
         validation_alias=AliasChoices("env", "environment", "envs"),
     )
-    max_restart: int = Field(
+    max_failure: int = Field(
         default=3,
+        description="The maximum limit of failures.",
+    )
+    max_restart: int = Field(
+        default=10,
         description="The maximum limit on the number of single workload restarts.",
     )
     group: Optional[str] = Field(
@@ -162,6 +166,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
     def get_master_cls(self) -> Optional[ActorClass]:
         return None
 
+    def is_role_level_failover_supported(self):
+        """
+        Should set true if the workload's sub master support role level
+        failover. Otherwise, the whole job will restart directly if master
+        receives actor restarting report.
+        """
+        return False
+
 
 class ElasticWorkloadDesc(BaseWorkloadDesc):
     """
@@ -200,6 +212,9 @@ class ElasticWorkloadDesc(BaseWorkloadDesc):
         from dlrover.python.unified.backend.elastic.master import ElasticMaster
 
         return as_actor_class(ElasticMaster)
+
+    def is_role_level_failover_supported(self):
+        return True
 
 
 class SimpleWorkloadDesc(BaseWorkloadDesc):

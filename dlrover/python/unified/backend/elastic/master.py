@@ -25,7 +25,7 @@ class ElasticMaster(ActorBase):
 
     # Lifecycle Hooks
 
-    def status(self):
+    def stage(self):
         return self.manager.stage
 
     async def check_workers(self):
@@ -36,9 +36,8 @@ class ElasticMaster(ActorBase):
 
     # RPC methods for Workers
 
-    async def report_actor_restarted(self, name: str):
-        """Report that an actor has been restarted."""
-        await self.manager.handle_worker_restarted(name)
+    async def restart_workers(self):
+        await self.manager.request_restart()
 
     # TODO metric rpc: AtorchEvent, Event
     # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)

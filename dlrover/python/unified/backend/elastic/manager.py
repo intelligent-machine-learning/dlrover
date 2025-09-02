@@ -94,7 +94,7 @@ class ElasticManager:
         )
         res.raise_for_errors()
         res = await invoke_actors_t(
-            remote_call.status, [node.name for node in self.workers]
+            remote_call.stage, [node.name for node in self.workers]
         )
         res.raise_for_errors()
         self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
@@ -120,7 +120,7 @@ class ElasticManager:
         while self.stage == WorkerStage.RUNNING:
             try:
                 res = await invoke_actors_t(
-                    remote_call.status, [node.name for node in self.workers]
+                    remote_call.stage, [node.name for node in self.workers]
                 )
                 logger.debug(f"Node status results: {res.results}")
                 if all(it.is_terminal() for it in res.results):
@@ -135,21 +135,6 @@ class ElasticManager:
         )
         res.log_errors()
         self.stage = WorkerStage.FINISHED
-
-    async def handle_worker_restarted(self, worker_name: str):
-        """Handle worker restart event."""
-        worker = next((w for w in self.workers if w.name == worker_name), None)
-        if not worker:
-            logger.error(f"Worker {worker_name} not found.")
-            return
-        logger.info(f"Worker {worker_name} has been restarted.")
-        if self.stage != WorkerStage.RUNNING:
-            logger.info(
-                f"Current stage is {self.stage}, skipping failover handling."
-            )
-            return
-
-        self.request_restart()
 
     async def _restart_job(self):
         """Restart the elastic job due to worker restart."""
@@ -175,9 +160,12 @@ class ElasticManager:
         logger.info("Restarted elastic job successfully.")
 
     def request_restart(self):
-        assert self.stage == WorkerStage.RUNNING, (
-            f"Cannot restart job in stage {self.stage}, expected RUNNING."
-        )
+        if self.stage != WorkerStage.RUNNING:
+            logger.info(
+                f"Current stage is {self.stage}, skipping failover handling."
+            )
+            return
+
         if self._restarting:
             logger.warning("Job is already restarting, ignoring this request.")
             return

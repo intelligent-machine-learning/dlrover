@@ -21,13 +21,18 @@ def check_workers() -> None:
     raise NotImplementedError("stub")  # pragma: no cover
 
 
-def status() -> WorkerStage:
-    """Get the status of the elastic training job."""
+def stage() -> WorkerStage:
+    """Get the stage of the role level backends."""
     raise NotImplementedError("stub")  # pragma: no cover
 
 
 def start() -> None:
-    """Start the elastic training job."""
+    """Start the role level backends."""
+    raise NotImplementedError("stub")  # pragma: no cover
+
+
+def restart_workers() -> None:
+    """Restart the role level backends."""
     raise NotImplementedError("stub")  # pragma: no cover
 
 

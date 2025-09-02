@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from dlrover.python.unified.common.actor_base import ActorInfo
+from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
 
 
@@ -33,8 +33,10 @@ class DLExecutionVertex(ABC, BaseModel):
     role: "DLWorkloadRole"
 
     bundle_index: int = -1
+    failure_count: int = 0
     restart_count: int = 0
     restarting: bool = False
+    node_info: Optional[NodeInfo] = None
 
     @property
     @abstractmethod
@@ -51,9 +53,23 @@ class DLExecutionVertex(ABC, BaseModel):
         """Get the workload specification of the vertex."""
         return self.role.spec
 
+    @property
+    def node(self) -> Optional[NodeInfo]:
+        """Get the actor's node info."""
+        return self.node_info
+
     @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
+
+    def set_node(self, node_info: NodeInfo):
+        self.node_info = node_info
+
+    def inc_failure_count(self):
+        self.failure_count += 1
+
+    def reset_failure_count(self):
+        self.failure_count = 0
 
     def inc_restart_count(self):
         self.restart_count += 1
@@ -200,3 +216,26 @@ class DLExecutionGraph:
             for name, workload in dl_config.workloads.items()
         }
         return cls(roles, edges=[])
+
+    def get_all_actors_by_specified_node_actors(
+        self, actors: List[DLExecutionVertex]
+    ):
+        return self.get_all_actors_by_specified_nodes(
+            set(
+                [
+                    actor.node_info.id
+                    for actor in actors
+                    if actor.node_info is not None
+                ]
+            )
+        )
+
+    def get_all_actors_by_specified_nodes(self, nodes: set[str]):
+        return [
+            actor
+            for actor in self.vertices
+            if actor.node_info is not None and actor.node_info.id in nodes
+        ]
+
+    def update_actor_failure(self, name):
+        self.by_name[name].inc_failure_count()

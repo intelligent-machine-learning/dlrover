@@ -25,14 +25,17 @@ from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
 )
-from dlrover.python.unified.util.actor_proxy import invoke_actors_t
+from dlrover.python.unified.util.actor_proxy import (
+    invoke_actors_t,
+    invoke_actor_t,
+)
 from .schedule.scaler import BaseRayNodeScaler, get_scaler
 from .state_backend import MasterStateBackendFactory
 
 from ..common.config import JobConfig
 from . import remote_call
 from .api import MasterStatus
-from .schedule.graph import DLExecutionGraph
+from .schedule.graph import DLExecutionGraph, DLExecutionVertex
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
 from ..common.constant import (
@@ -41,7 +44,7 @@ from ..common.constant import (
 )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ManagerRuntimeContext(object):
     """
     This context is used for manager's runtime stateful using. It records all
@@ -90,28 +93,34 @@ class PrimeManager:
 
         logger.info(f"PrimeManager initialized with config: {config}")
         self.INSTANCE = self  # Singleton instance
+        self._task = None
+
+    @property
+    def context(self) -> ManagerRuntimeContext:
+        """Get the runtime context."""
+        return self._context
 
     @property
     def graph(self) -> DLExecutionGraph:
-        """Get the graoh of the job."""
-        return self._context.graph
+        """Get the graph of the job."""
+        return self.context.graph
 
     @property
     def stage(self) -> MasterStage:
         """Get the current stage of the job."""
-        return self._context.stage
+        return self.context.stage
 
     @property
     def status(self) -> MasterStatus:
         """Get the current status of the job."""
-        return self._context.status
+        return self.context.status
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
         if self.stage != stage:
             logger.info(f"Updating job stage from {self.stage} to {stage}")
-            self._context.stage = stage
-            self._context.status.stage = stage
+            self.context.stage = stage
+            self.context.status.stage = stage
             self.save()
 
     async def prepare(self):
@@ -122,14 +131,16 @@ class PrimeManager:
         logger.info("Finished creating actors for the job.")
 
         # Wait for all nodes to be ready
-        await self._wait_ready([node.name for node in self.graph.vertices])
+        actors = [actor.name for actor in self.graph.vertices]
+        await self._wait_ready(actors)
         self._update_stage(MasterStage.READY)
+
         await self._nodes_check()
 
     async def _wait_ready(self, actors: List[str]):
         """Wait for all actors to be ready."""
         while True:
-            res = await invoke_actors_t(remote_call.status, actors)
+            res = await invoke_actors_t(remote_call.stage, actors)
             not_ready = {
                 node: status
                 for node, status in zip(actors, res.results)
@@ -142,6 +153,13 @@ class PrimeManager:
                 f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
             )
             await asyncio.sleep(5)
+
+        # update all actor's node info
+        node_info_res = await invoke_actors_t(
+            remote_call.get_node_info, actors
+        )
+        for actor_name, node_info in node_info_res.as_dict().items():
+            self.graph.by_name[actor_name].set_node(node_info)
 
     async def _nodes_check(self):
         # let sub-masters pre-check nodes
@@ -162,11 +180,11 @@ class PrimeManager:
                 f"Cannot start job in stage {self.stage}. "
                 "Expected stage is READY."
             )
-        nodes = [node.name for node in self.graph.vertices]
-        res = await invoke_actors_t(remote_call.start, nodes)
+        actors = [actor.name for actor in self.graph.vertices]
+        res = await invoke_actors_t(remote_call.start, actors)
         res.raise_for_errors()
 
-        res = await invoke_actors_t(remote_call.status, nodes)
+        res = await invoke_actors_t(remote_call.stage, actors)
         # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
         assert not any(it == WorkerStage.READY for it in res.results), (
             f"Start should update stage, not READY. {res.as_dict()}"
@@ -180,9 +198,7 @@ class PrimeManager:
         """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
-            res = await invoke_actors_t(
-                remote_call.status, self.graph.vertices
-            )
+            res = await invoke_actors_t(remote_call.stage, self.graph.vertices)
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")
@@ -201,34 +217,13 @@ class PrimeManager:
         self._update_stage(MasterStage.STOPPED)
         self._stopped_event.set()
 
-    async def relaunch_node_if_needed(self, actors, wait_interval=10):
+    async def relaunch_nodes_by_actors(self, actors, wait_interval=10):
         """Relaunch the node if actor exceed restarting limit."""
 
-        # should continue node relaunching
-        if self._context.node_restart_count >= self._context.node_total_count:
-            logger.fatal(
-                f"Node relaunch beyond limit: {self._context.node_total_count}, stop job directly."
-            )
-            self.request_stop("node relaunch beyond limit.")
-            return
-
-        # get the ray nodes if the actor on it exceed restarting limit
-        exceeded_restarting_limit_actors = [
-            actor
-            for actor in actors
-            if actor.restart_count > actor.spec.max_restart
-        ]
-        if not exceeded_restarting_limit_actors:
-            return
-
-        # get ray nodes info from target actors
-        res = await invoke_actors_t(
-            remote_call.get_node_info,
-            exceeded_restarting_limit_actors,
-        )
-
         # aggregate the target nodes need to be relaunched
-        target_relaunch_nodes = list(set(res.results))
+        target_relaunch_nodes = list(
+            set([actor.node_info for actor in actors])
+        )
 
         # get current nodes from ray(gcs)
         current_nodes = []
@@ -257,7 +252,7 @@ class PrimeManager:
         )
 
         # reset actor restart count if actor's ray node has relaunched
-        for relaunched_node_actor in exceeded_restarting_limit_actors:
+        for relaunched_node_actor in actors:
             relaunched_node_actor.reset_restart_count()
             logger.info(
                 f"Reset actor {relaunched_node_actor.name} restart "
@@ -295,24 +290,101 @@ class PrimeManager:
             f"Some actors {actor_names} not found in the graph."
         )
         actors = [self.graph.by_name[name] for name in actor_names]
+
+        # judge whether to do node relaunching if there is actor restarted due
+        # to failure and the restart count exceed limit
+        exceed_limit_actors = [
+            actor
+            for actor in actors
+            if actor.failure_count > actor.spec.max_failure
+        ]
+        influenced_actors = []
+        if exceed_limit_actors:
+            if (
+                self._context.node_restart_count
+                >= self._context.node_total_count
+            ):
+                logger.fatal(
+                    f"Node relaunch beyond limit: {self._context.node_total_count}, stop job directly."
+                )
+                self.request_stop("node relaunch beyond limit.")
+                return
+
+            # node relaunch may cause more actors restarting, so need to get
+            # these influenced actors 1st
+            influenced_actors = (
+                self.graph.get_all_actors_by_specified_node_actors(
+                    exceed_limit_actors
+                )
+            )
+
+            try:
+                await self.relaunch_nodes_by_actors(exceed_limit_actors)
+            except asyncio.TimeoutError:
+                logger.error("Timeout relaunching ray nodes.")
+
+        # union influenced for set restarting flag
+        actors = list(set(actors + influenced_actors))
+
         for actor in actors:
             actor.inc_restart_count()
-
-        # relaunch node 1st if needed
-        try:
-            await self.relaunch_node_if_needed(actors)
-        except asyncio.TimeoutError:
-            logger.error("Timeout relaunching ray nodes.")
-
-        for actor in actors:
             actor.set_restarting()
-        await restart_actors(actor_names)
+
+        # diff_actors = all restart actors - node relaunch actors
+        diff_actors = list(set(actors) - set(influenced_actors))
+
+        positive_restart_actors_name = [actor.name for actor in diff_actors]
+        passive_restart_actors_name = [
+            actor.name for actor in influenced_actors
+        ]
+        all_restart_actors_name = [actor.name for actor in actors]
+        logger.info(
+            f"All restarting actors: {all_restart_actors_name}, "
+            f"positive restarting actors: {positive_restart_actors_name}, "
+            f"passive restarting actors: {passive_restart_actors_name}"
+        )
+
+        # restart diff actors only(because node relaunch will restart
+        # other actors automatically)
+        await restart_actors(positive_restart_actors_name)
         logger.info({n.name: n.restarting for n in self.graph.vertices})
-        await self._wait_ready(actor_names)
+
+        await self._wait_ready(all_restart_actors_name)
         logger.info({n.name: n.restarting for n in self.graph.vertices})
         for actor in actors:
             actor.set_running()
-        logger.info(f"Restarted actors: {actor_names}")
+        logger.info(f"Restarted actors: {all_restart_actors_name}")
+
+    async def deal_with_actor_restarting(self, actor: DLExecutionVertex):
+        """
+        The core logic of this method should only be executed for actors that
+        failed due to exceptions.
+
+        Other actors that are actively or passively restarted for other
+        reasons should be filtered out by the following `actor.restarting`
+        logic.
+        """
+
+        if actor.restarting:
+            return  # Actor is already restarting, no need to handle it again.
+
+        name = actor.name
+        # record restarted(failure) actor
+        self.graph.update_actor_failure(name)
+
+        if (
+            actor.spec.is_role_level_failover_supported()
+            and actor.role.sub_master is not None
+        ):
+            # call sub master do role level failover
+            await invoke_actor_t(
+                remote_call.restart_workers,
+                actor.role.sub_master.name,
+            )
+            return
+        else:
+            # call job restart
+            await self.restart_job()
 
     async def restart_job(self):
         """Restart the job execution."""

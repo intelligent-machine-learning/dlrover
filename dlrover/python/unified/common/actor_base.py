@@ -66,6 +66,14 @@ class NodeInfo:
         return self.id == other.id
 
 
+@dataclass
+class WorkerState:
+    job_info: JobInfo
+    actor_info: ActorInfo
+    node_info: NodeInfo
+    stage: WorkerStage
+
+
 class ActorBase:
     """Base class for all actors in the DLRover system."""
 
@@ -94,14 +102,8 @@ class ActorBase:
     def _report_restart(self):
         """Report that the actor has been restarted."""
         from dlrover.python.unified.controller.api import PrimeMasterApi
-        from dlrover.python.unified.util.actor_proxy import invoke_actor_t
 
-        master = self.actor_info.sub_master or PrimeMasterApi.ACTOR_NAME
-        invoke_actor_t(
-            PrimeMasterApi.report_actor_restarted,
-            master,
-            name=self.actor_info.name,
-        ).wait()
+        PrimeMasterApi.report_actor_restarted(self.actor_info.name)
 
     def __repr__(self):
         # ActorClass, not instance
@@ -124,7 +126,8 @@ class ActorBase:
         self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def status(self):
-        """Get the state of the actor/node."""
+        """Get the stage of the actor."""
+
         return self.stage
 
     def start(self):
@@ -153,13 +156,14 @@ class ActorBase:
             return
         pass
 
-    def report_actor_restarted(self, name: str):
-        """Report that the actor has been restarted."""
+    def restart_workers(self):
+        """
+        Restart workers calling from prime master and executed by sub master.
+        """
 
-        from dlrover.python.unified.controller.api import PrimeMasterApi
-
-        # default delegate to master
-        PrimeMasterApi.report_actor_restarted(name)
+        raise NotImplementedError(
+            "The current sub master does not implement restart_workers."
+        )
 
     def get_node_info(self):
         """Get the current actor's ray node's information."""

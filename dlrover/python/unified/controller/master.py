@@ -107,10 +107,8 @@ class PrimeMaster:
         actor = self.manager.graph.by_name.get(name)
         if actor is None:
             raise ValueError(f"Actor {name} not found.")
-        if actor.restarting:
-            return  # Actor is already restarting, no need to handle it again.
-        logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
-        asyncio.create_task(self.manager.restart_job())
+
+        asyncio.create_task(self.manager.deal_with_actor_restarting(actor))
 
     def register_data_queue(self, name: str, owner_actor: str, size: int):
         """Register a data queue."""

@@ -215,12 +215,12 @@ async def test_relaunch_node_if_needed(mock_manager):
         mock_manager._context.node_total_count = 2
         mock_manager._context.node_restart_count = 0
 
-        await mock_manager.relaunch_node_if_needed(actors, wait_interval=1)
+        await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
         assert actor1.restart_count == 0
 
         mock_manager._context.node_restart_count = 2
         mock_manager.request_stop = MagicMock()
-        await mock_manager.relaunch_node_if_needed(actors, wait_interval=1)
+        await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
         mock_manager.request_stop.assert_called_once()
 
 
