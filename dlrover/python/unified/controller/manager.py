@@ -218,6 +218,8 @@ class PrimeManager:
             for actor in actors
             if actor.restart_count > actor.spec.max_restart
         ]
+        if not exceeded_restarting_limit_actors:
+            return
 
         # get ray nodes info from target actors
         res = await invoke_actors_t(
