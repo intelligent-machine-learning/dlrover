@@ -637,12 +637,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = SimpleMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             rsp = mon.query_job_metrics(
                 job_name,
@@ -741,12 +737,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = NpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name,
@@ -783,12 +775,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = NpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             pod_metric = mon.collect_job_metrics(
                 job_name,
@@ -814,12 +802,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = GpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-24 10:05:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732442400
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name,
@@ -856,12 +840,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = GpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-24 10:05:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732442400
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name, metric_type, start, end, pod_name=pod_name
