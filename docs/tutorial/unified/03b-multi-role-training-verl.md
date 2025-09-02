@@ -3,7 +3,7 @@
 This guide demonstrates how to express and submit a multi-role training job using the verl example. The walkthrough is based on `examples/unified/rl/verl/main.py` and related files, and is designed to complement the OpenRLHF tutorial.
 
 **Paradigm Note:**
-The verl example demonstrates the Proxy/WorkerGroup paradigm, where the trainer interacts with workers via group proxies rather than explicit remote_call RPCs. This is an alternative to the remote_call (RPC) paradigm used in the OpenRLHF example.
+This verl-example demonstrates the Proxy/WorkerGroup paradigm, where the trainer interacts with workers via group proxies rather than explicit remote_call RPCs. This is an alternative to the remote_call (RPC) paradigm used in the OpenRLHF example.
 
 ## Overview
 
@@ -21,6 +21,8 @@ In the verl example, the main components are:
 - `workers.py`: Implements worker roles (e.g., actor, critic, reward model).
 - `util.py`: Shared utilities for worker and group management.
 - `run.sh`: Script to run `main.py` with appropriate arguments.
+
+You can combine DLRover with other algorithm implementations using the same paradigm.
 
 ## Workload Declaration and Submission (`main.py`)
 
@@ -61,6 +63,7 @@ def main(config):
         .config(config)
     )
     # 3. Define roles and their resource requirements
+    # train() for workloads with Rendezvous, while run() for other workloads.
     builder.role("actor_rollout").train("workers.ActorWorker").total(gpus)
     builder.role("critic").train("workers.CriticWorker").total(gpus)
     if config.reward_model.enable:

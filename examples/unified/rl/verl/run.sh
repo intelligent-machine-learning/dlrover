@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# This package includes code from [https://github.com/volcengine/verl]
+# licensed under the Apache License 2.0. See [https://github.com/volcengine/verl]
+# for details.
 
 # Modified from https://github.com/volcengine/verl/blob/main/examples/ppo_trainer/run_deepseek7b_llm.sh
 # - Update entrypoint to `main.py`

@@ -11,21 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 from concurrent.futures import Future
 from functools import wraps
 from typing import cast
 
 import ray
-from verl.single_controller.base import Worker as VerlWorker
 from verl.single_controller.base.decorator import MAGIC_ATTR
 from verl.single_controller.base.worker_group import WorkerGroup
 from verl.single_controller.ray.base import func_generator
 
-from dlrover.python.unified.api.runtime.rpc_helper import (
+from dlrover.python.unified.api.runtime import (
     RoleGroup,
     export_rpc_method,
-    rpc,
 )
 
 
@@ -35,20 +32,6 @@ def export_verl_worker_rpc(core):
         v = getattr(core, f)
         if callable(v) and hasattr(v, MAGIC_ATTR):
             export_rpc_method(f, v)
-
-
-class BaseWorker:
-    def __init__(self, core: VerlWorker) -> None:
-        self.end = threading.Event()
-        export_verl_worker_rpc(core)
-
-    def run(self):
-        self.end.wait()
-
-    @rpc()
-    def job_end(self):
-        """For trainer call"""
-        self.end.set()
 
 
 def notify_job_end(*roles: str):
@@ -74,7 +57,7 @@ class MyWorkerGroup(RoleGroup, WorkerGroup):
 
     def execute_all(self, method_name: str, *args, **kwargs):
         length = len(self.actors)
-        scatter = (args or kwargs) and (
+        scatter = bool(args or kwargs) and (
             all(isinstance(arg, list) for arg in args)
             and all(isinstance(kwarg, list) for kwarg in kwargs.values())
             and all(len(arg) == length for arg in args)

@@ -10,22 +10,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# This package includes code from [https://github.com/volcengine/verl]
+# licensed under the Apache License 2.0. See [https://github.com/volcengine/verl]
+# for details.
 
+import threading
 from concurrent.futures import Future
 from typing import List
 
 import verl.workers.fsdp_workers as verl_workers
 from omegaconf import DictConfig
 from util import (
-    BaseWorker,
     MyWorkerGroup,
+    export_verl_worker_rpc,
     notify_job_end,
 )
+from verl.single_controller.base import Worker as VerlWorker
 from verl.trainer.main_ppo import create_rl_dataset, create_rl_sampler
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer, Role
 from verl.trainer.ppo.reward import load_reward_manager
 
-from dlrover.python.unified.api.runtime.worker import current_worker
+from dlrover.python.unified.api.runtime import current_worker, rpc
+
+
+class BaseWorker:
+    def __init__(self, core: VerlWorker) -> None:
+        self.end = threading.Event()
+        export_verl_worker_rpc(core)
+
+    def run(self):
+        self.end.wait()
+
+    @rpc()
+    def job_end(self):
+        """For trainer call"""
+        self.end.set()
 
 
 class ActorWorker(BaseWorker):
@@ -175,7 +195,7 @@ class Trainer:
             trainer.async_rollout_mode = True
             trainer.async_rollout_manager = AgentLoopManager(
                 config=trainer.config,
-                worker_group=trainer.actor_rollout_wg,
+                worker_group=trainer.actor_rollout_wg,  # type: ignore
             )
 
     def run(self):
