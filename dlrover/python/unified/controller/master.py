@@ -43,7 +43,8 @@ class PrimeMaster:
         )
 
         self.manager = PrimeManager(config)
-        # TODO Failover according to stage
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            self.manager.handle_self_failover()
 
     def get_status(self):
         """Get the current status of the job."""

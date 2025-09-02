@@ -145,7 +145,9 @@ class PrimeManager:
             actor.set_node(node_info)
 
     async def _nodes_check(self):
-        # let sub-masters pre-check nodes
+        """Let sub-masters pre-check nodes.
+        This is a optional step, recommended to improve fault tolerance.
+        """
         sub_masters = [
             role.sub_master.name
             for role in self.graph.roles.values()
@@ -197,10 +199,7 @@ class PrimeManager:
         assert self.stage == MasterStage.STOPPING, (
             f"Job stage should be STOPPING, but got {self.stage}."
         )
-        kill_actors([node.name for node in self.graph.vertices])
-        logger.info("Job stopped successfully.")
-        self._update_stage(MasterStage.STOPPED)
-        self._stopped_event.set()
+        self.terminate()
 
     async def relaunch_nodes_by_actors(self, actors, wait_interval=10):
         """Relaunch the node if actor exceed restarting limit."""
@@ -388,9 +387,14 @@ class PrimeManager:
             self._update_stage(MasterStage.STOPPING)
         else:
             # No running job, terminate
-            kill_actors([node.name for node in self.graph.vertices])
-            self._update_stage(MasterStage.STOPPED)
-            self._stopped_event.set()
+            self.terminate()
+
+    def terminate(self):
+        logger.info("Terminating all actors...")
+        kill_actors([node.name for node in self.graph.vertices])
+        self._update_stage(MasterStage.STOPPED)
+        self._stopped_event.set()
+        logger.info("Job stopped successfully.")
 
     async def wait(self):
         """Wait for the job to finish."""
@@ -421,3 +425,17 @@ class PrimeManager:
         except Exception:
             logger.exception("Failed to load state")
             return None
+
+    def handle_self_failover(self):
+        """Handle failover for the master self."""
+        logger.info("Handling failover.")
+        if self.stage == MasterStage.RUNNING:
+            logger.info("Resuming monitoring the job.")
+            self._task = asyncio.create_task(
+                self._main_loop(), name="job_monitor"
+            )
+            # TODO not recovered SchedulerManager._pg
+        else:
+            # Don't support failover in other stages, which are little possibility
+            logger.warning(f"Job is in stage {self.stage}, terminating.")
+            self.terminate()
