@@ -59,3 +59,8 @@ def test_extension_registry(tmp_extension_project):
     AutoExtensionRegistry.auto_discover(tmp_extension_project)
     assert len(AutoExtensionRegistry._original_impl) == 1
     assert len(AutoExtensionRegistry._extension_impl) == 1
+
+
+def test_invalid_extension_registry():
+    with pytest.raises(Exception):
+        AutoExtensionRegistry.auto_discover("test")

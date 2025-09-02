@@ -62,8 +62,9 @@ class AutoExtensionRegistry:
                     )
                     cls._extension_impl[interface] = best_impl
 
-        except ImportError as e:
+        except Exception as e:
             logger.error(f"Extension discovery failed: {e}")
+            raise e
 
     @classmethod
     def _scan_package_for_extensions(
@@ -103,6 +104,7 @@ class AutoExtensionRegistry:
             pass
         except Exception:
             logger.exception(f"Package {package_name} scanning failed")
+            raise
 
         return extensions
 
