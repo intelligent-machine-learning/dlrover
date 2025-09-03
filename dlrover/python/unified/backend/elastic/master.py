@@ -36,8 +36,8 @@ class ElasticMaster(ActorBase):
 
     # RPC methods for Workers
 
-    async def restart_workers(self):
-        await self.manager.request_restart()
+    def restart_workers(self):
+        self.manager.request_restart()
 
     # TODO metric rpc: AtorchEvent, Event
     # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)
