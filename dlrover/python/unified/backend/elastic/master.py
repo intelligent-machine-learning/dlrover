@@ -25,7 +25,7 @@ class ElasticMaster(ActorBase):
 
     # Lifecycle Hooks
 
-    def stage(self):
+    def get_stage(self):
         return self.manager.stage
 
     async def check_workers(self):
