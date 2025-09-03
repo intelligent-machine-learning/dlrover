@@ -168,7 +168,7 @@ async def test_relaunch_node_if_needed(mocker):
                 },
             ]
 
-    ray_nodes = mocker.patch("ray.nodes", side_effect=mock_nodes)
+    mocker.patch("ray.nodes", side_effect=mock_nodes)
     manager = PrimeManager(elastic_training_job())
     manager.state.node_restart_count = 0
 
