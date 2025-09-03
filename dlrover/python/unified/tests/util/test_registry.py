@@ -76,13 +76,17 @@ def test_extension_registry(tmp_extension_project):
 
 
 @patch.object(AutoExtensionRegistry, "_scan_package_for_extensions")
-@patch.object(AutoExtensionRegistry, "_scanned_modules")
-def test_invalid_extension_registry(
-    mock_scanned_modules, mock_scan_package_for_extensions
-):
-    mock_scanned_modules.side_effect = ImportError()
+def test_invalid_auto_discover(mock_scan_package_for_extensions):
+    mock_scan_package_for_extensions.side_effect = Exception()
+    with pytest.raises(Exception):
+        AutoExtensionRegistry.auto_discover("test123")
+
+
+@patch("dlrover.python.unified.util.auto_registry.importlib")
+def test_invalid_scan_package_for_extensions(mock_importlib):
+    mock_importlib.import_module.side_effect = ImportError()
     AutoExtensionRegistry.auto_discover("test123")
 
-    mock_scan_package_for_extensions.side_effect = Exception()
+    mock_importlib.import_module.side_effect = Exception()
     with pytest.raises(Exception):
         AutoExtensionRegistry.auto_discover("test123")
