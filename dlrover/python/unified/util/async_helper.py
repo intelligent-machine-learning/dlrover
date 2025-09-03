@@ -62,6 +62,13 @@ def as_future(co: Coroutine[Any, Any, T]) -> Future[T]:
     return asyncio.run_coroutine_threadsafe(co, loop)
 
 
+def completed_future(result: T) -> Future[T]:
+    """Create a completed Future with the given result."""
+    future = Future[T]()
+    future.set_result(result)
+    return future
+
+
 def wait(co: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine in the main loop and wait for its result."""
     return as_future(co).result()
