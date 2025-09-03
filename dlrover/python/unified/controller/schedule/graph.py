@@ -33,7 +33,8 @@ class DLExecutionVertex(ABC, BaseModel):
     role: "DLWorkloadRole"
 
     bundle_index: int = -1
-    failure_count: int = 0
+    total_failure_count: int = 0
+    per_node_failure_count: int = 0
     restart_count: int = 0
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
@@ -66,10 +67,11 @@ class DLExecutionVertex(ABC, BaseModel):
         self.node_info = node_info
 
     def inc_failure_count(self):
-        self.failure_count += 1
+        self.total_failure_count += 1
+        self.per_node_failure_count += 1
 
-    def reset_failure_count(self):
-        self.failure_count = 0
+    def reset_per_node_failure_count(self):
+        self.per_node_failure_count = 0
 
     def inc_restart_count(self):
         self.restart_count += 1

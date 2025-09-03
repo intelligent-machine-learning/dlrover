@@ -251,9 +251,9 @@ class PrimeManager:
             len(target_relaunch_nodes) * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
         )
 
-        # reset actor restart count if actor's ray node has relaunched
+        # reset actor per node failure count if actor's ray node has relaunched
         for relaunched_node_actor in actors:
-            relaunched_node_actor.reset_restart_count()
+            relaunched_node_actor.reset_per_node_failure_count()
             logger.info(
                 f"Reset actor {relaunched_node_actor.name} restart "
                 "count due to node relaunch."

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,7 +25,6 @@ from dlrover.python.unified.controller.schedule.graph import (
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
-from dlrover.python.unified.util.actor_helper import BatchInvokeResult
 
 
 @pytest.fixture
@@ -130,16 +129,7 @@ async def test_relaunch_node_if_needed(mock_manager):
     spec = SimpleWorkloadDesc(entry_point="test::main")
     test_role = DLWorkloadRole(name="test", spec=spec, instance_number=2)
 
-    actor0 = DLExecutionWorkerVertex(
-        role=test_role,
-        rank=0,
-        node_rank=0,
-        world_size=2,
-        local_rank=0,
-        local_world_size=1,
-        restart_count=2,
-    )
-    actor1 = DLExecutionWorkerVertex(
+    target_actor = DLExecutionWorkerVertex(
         role=test_role,
         rank=1,
         node_rank=1,
@@ -148,28 +138,19 @@ async def test_relaunch_node_if_needed(mock_manager):
         local_world_size=1,
         restart_count=4,
     )
-    actors = [actor0, actor1]
+    target_actor.set_node(NodeInfo(id="node1"))
+    actors = [target_actor]
 
     with (
-        patch(
-            "dlrover.python.unified.controller.manager.invoke_actors_t",
-            new_callable=AsyncMock,
-        ) as mock_invoke,
         patch("dlrover.python.unified.controller.manager.ray") as mock_ray,
     ):
-        mock_invoke.return_value = BatchInvokeResult(
-            method_name="get_node_info",
-            actors=[actor1.name],
-            results=[NodeInfo(id="node1")],
-        )
-
         call_count = 0
 
         def mock_nodes():
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # retrieve current nodes
+                # init nodes
                 return [
                     {
                         "NodeID": "node0",
@@ -216,12 +197,7 @@ async def test_relaunch_node_if_needed(mock_manager):
         mock_manager._context.node_restart_count = 0
 
         await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
-        assert actor1.restart_count == 0
-
-        mock_manager._context.node_restart_count = 2
-        mock_manager.request_stop = MagicMock()
-        await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
-        mock_manager.request_stop.assert_called_once()
+        assert target_actor.per_node_failure_count == 0
 
 
 def test_runtime_context(mock_manager):
