@@ -16,6 +16,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+from dlrover.python.unified.controller.schedule.scaler import BaseRayNodeScaler
 from dlrover.python.unified.util.auto_registry import AutoExtensionRegistry
 
 
@@ -54,9 +56,23 @@ class TestScaler(BaseRayNodeScaler):
 
 
 def test_extension_registry(tmp_extension_project):
+    interface_name = (
+        f"{BaseRayNodeScaler.__module__}.{BaseRayNodeScaler.__qualname__}"
+    )
+
+    assert (
+        AutoExtensionRegistry.get_original_class_by_interface(interface_name)
+        is None
+    )
+
     AutoExtensionRegistry.auto_discover(tmp_extension_project)
     assert len(AutoExtensionRegistry._original_impl) == 1
     assert len(AutoExtensionRegistry._extension_impl) == 1
+
+    assert (
+        AutoExtensionRegistry.get_original_class_by_interface(interface_name)
+        is not None
+    )
 
 
 @patch.object(AutoExtensionRegistry, "_scan_package_for_extensions")

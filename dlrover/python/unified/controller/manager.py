@@ -131,19 +131,18 @@ class PrimeManager:
         logger.info("Finished creating actors for the job.")
 
         # Wait for all nodes to be ready
-        actors = [actor.name for actor in self.graph.vertices]
-        await self._wait_ready(actors)
+        await self._wait_ready(self.graph.vertices)
         self._update_stage(MasterStage.READY)
 
         await self._nodes_check()
 
-    async def _wait_ready(self, actors: List[str]):
+    async def _wait_ready(self, actors: List[DLExecutionVertex]):
         """Wait for all actors to be ready."""
         while True:
             res = await invoke_actors_t(remote_call.get_stage, actors)
             not_ready = {
-                node: status
-                for node, status in zip(actors, res.results)
+                actor.name: status
+                for actor, status in zip(actors, res.results)
                 if status != "READY"
             }
             if len(not_ready) == 0:
@@ -158,8 +157,8 @@ class PrimeManager:
         node_info_res = await invoke_actors_t(
             remote_call.get_node_info, actors
         )
-        for actor_name, node_info in node_info_res.as_dict().items():
-            self.graph.by_name[actor_name].set_node(node_info)
+        for actor, node_info in zip(actors, node_info_res.results):
+            actor.set_node(node_info)
 
     async def _nodes_check(self):
         # let sub-masters pre-check nodes
@@ -286,13 +285,8 @@ class PrimeManager:
         self._update_node_restart_count(len(relaunch_nodes))
         logger.info(f"All target nodes relaunched: {relaunch_nodes}")
 
-    async def restart_actors(self, actor_names: List[str]) -> None:
+    async def restart_actors(self, actors: List[DLExecutionVertex]) -> None:
         """Restart the specified actors."""
-        assert all(actor in self.graph.by_name for actor in actor_names), (
-            f"Some actors {actor_names} not found in the graph."
-        )
-        actors = [self.graph.by_name[name] for name in actor_names]
-
         # judge whether to do node relaunching if there is actor restarted due
         # to failure and the restart count exceed limit
         exceed_limit_actors = [
@@ -335,27 +329,21 @@ class PrimeManager:
         # diff_actors = all restart actors - node relaunch actors
         diff_actors = list(set(actors) - set(influenced_actors))
 
-        positive_restart_actors_name = [actor.name for actor in diff_actors]
-        passive_restart_actors_name = [
-            actor.name for actor in influenced_actors
-        ]
-        all_restart_actors_name = [actor.name for actor in actors]
         logger.info(
-            f"All restarting actors: {all_restart_actors_name}, "
-            f"positive restarting actors: {positive_restart_actors_name}, "
-            f"passive restarting actors: {passive_restart_actors_name}"
+            f"Positive restarting actors: {[actor.name for actor in diff_actors]}, "
+            f"passive restarting actors: {[actor.name for actor in influenced_actors]}"
         )
 
         # restart diff actors only(because node relaunch will restart
         # other actors automatically)
-        await restart_actors(positive_restart_actors_name)
+        await restart_actors([actor.name for actor in diff_actors])
         logger.info({n.name: n.restarting for n in self.graph.vertices})
 
-        await self._wait_ready(all_restart_actors_name)
+        await self._wait_ready(actors)
         logger.info({n.name: n.restarting for n in self.graph.vertices})
         for actor in actors:
             actor.set_running()
-        logger.info(f"Restarted actors: {all_restart_actors_name}")
+        logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
 
     async def deal_with_actor_restarting(self, actor: DLExecutionVertex):
         """
@@ -372,7 +360,7 @@ class PrimeManager:
 
         name = actor.name
         # record restarted(failure) actor
-        self.graph.update_actor_failure(name)
+        self.graph.by_name[name].inc_failure_count()
 
         if (
             actor.spec.is_role_level_failover_supported()

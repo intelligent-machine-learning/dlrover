@@ -95,8 +95,13 @@ class PrimeMaster:
             for role, role_info in self.manager.graph.roles.items()
         }
 
-    async def restart_actors(self, actors: List[str]) -> None:
-        """Restart the specified actors."""
+    async def restart_actors(self, actor_names: List[str]) -> None:
+        """Restart the specified actors by names."""
+        assert all(
+            actor in self.manager.graph.by_name for actor in actor_names
+        ), f"Some actors {actor_names} not found in the graph."
+        actors = [self.manager.graph.by_name[name] for name in actor_names]
+
         await self.manager.restart_actors(actors)
 
     async def restart(self):

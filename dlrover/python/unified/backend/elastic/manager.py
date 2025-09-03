@@ -63,7 +63,7 @@ class ElasticManager:
                 await invoke_actor_t(
                     PrimeMasterApi.restart_actors,
                     PrimeMasterApi.ACTOR_NAME,
-                    actors=[node.name for node in abnormal_nodes],
+                    actor_names=[node.name for node in abnormal_nodes],
                 )
                 logger.info("Restarted nodes, retrying node-check...")
                 return await self.check_workers(retry_count - 1)

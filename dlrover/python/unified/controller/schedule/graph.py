@@ -244,6 +244,3 @@ class DLExecutionGraph:
             for actor in self.vertices
             if actor.node_info is not None and actor.node_info.id in nodes
         ]
-
-    def update_actor_failure(self, name):
-        self.by_name[name].inc_failure_count()
