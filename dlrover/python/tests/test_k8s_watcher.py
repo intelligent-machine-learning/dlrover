@@ -84,14 +84,6 @@ class PodWatcherTest(unittest.TestCase):
                     "spec": {
                         "containers": [
                             {
-                                "name": "sd",
-                                "image": "dlrover-sidecar:latest",
-                                "resources": {
-                                    "requests": {"cpu": "0", "memory": "0"},
-                                    "limits": {},
-                                },
-                            },
-                            {
                                 "name": "main",
                                 "image": "dlrover-master:latest",
                                 "resources": {
@@ -206,6 +198,14 @@ class PodWatcherTest(unittest.TestCase):
                     "spec": {
                         "containers": [
                             {
+                                "name": "sd",
+                                "image": "dlrover-sidecar:latest",
+                                "resources": {
+                                    "requests": {"cpu": "0", "memory": "0"},
+                                    "limits": {},
+                                },
+                            },
+                            {
                                 "name": "main",
                                 "image": "dlrover-worker:latest",
                                 "resources": {
@@ -215,7 +215,7 @@ class PodWatcherTest(unittest.TestCase):
                                     },
                                     "limits": {},
                                 },
-                            }
+                            },
                         ],
                         "nodeName": "host-2",
                     },
