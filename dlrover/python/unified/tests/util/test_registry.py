@@ -13,6 +13,8 @@
 
 import shutil
 from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 from dlrover.python.unified.util.auto_registry import AutoExtensionRegistry
 
@@ -57,6 +59,14 @@ def test_extension_registry(tmp_extension_project):
     assert len(AutoExtensionRegistry._extension_impl) == 1
 
 
-def test_invalid_extension_registry():
+@patch.object(AutoExtensionRegistry, "_scan_package_for_extensions")
+@patch.object(AutoExtensionRegistry, "_scanned_modules")
+def test_invalid_extension_registry(
+    mock_scanned_modules, mock_scan_package_for_extensions
+):
+    mock_scanned_modules.side_effect = ImportError()
+    AutoExtensionRegistry.auto_discover("test123")
+
+    mock_scan_package_for_extensions.side_effect = Exception()
     with pytest.raises(Exception):
-        AutoExtensionRegistry.auto_discover("test")
+        AutoExtensionRegistry.auto_discover("test123")
