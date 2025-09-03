@@ -358,9 +358,8 @@ class PrimeManager:
         if actor.restarting:
             return  # Actor is already restarting, no need to handle it again.
 
-        name = actor.name
         # record restarted(failure) actor
-        self.graph.by_name[name].inc_failure_count()
+        actor.inc_failure_count()
 
         if (
             actor.spec.is_role_level_failover_supported()
