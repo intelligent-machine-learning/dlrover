@@ -55,7 +55,6 @@ class RuntimeState:
     stage: MasterStage = MasterStage.INIT
     exit_code: int = 0
     job_restart_count: int = 0
-    node_total_count: int
     node_restart_count: int = 0
 
     graph: DLExecutionGraph
@@ -82,7 +81,6 @@ class PrimeManager:
         # Runtime state
         self.state: RuntimeState = self._load_state() or RuntimeState(
             graph=DLExecutionGraph.create(config.dl_config),
-            node_total_count=len(ray.nodes()),
         )
         self._stopped_event = asyncio.Event()
 
@@ -244,7 +242,10 @@ class PrimeManager:
             )
 
     async def _wait_node_relaunch(
-        self, relaunch_nodes, current_nodes, wait_interval=10
+        self,
+        relaunch_nodes: List[NodeInfo],
+        current_nodes: List[NodeInfo],
+        wait_interval: float = 10,
     ):
         current_nodes_id = [node.id for node in current_nodes]
 
@@ -276,9 +277,9 @@ class PrimeManager:
         ]
         influenced_actors = []
         if exceed_limit_actors:
-            if self.state.node_restart_count >= self.state.node_total_count:
+            if self.state.node_restart_count >= self.config.node_max_restart:
                 logger.fatal(
-                    f"Node relaunch beyond limit: {self.state.node_total_count}, stop job directly."
+                    f"Node relaunch beyond limit: {self.config.node_max_restart}, stop job directly."
                 )
                 self.request_stop("node relaunch beyond limit.")
                 return

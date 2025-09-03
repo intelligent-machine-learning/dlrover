@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
-
 from unittest.mock import Mock
+
 import pytest
 
 from dlrover.python.unified.common.actor_base import NodeInfo
+from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 from dlrover.python.unified.controller.manager import PrimeManager
 from dlrover.python.unified.controller.schedule.graph import (
@@ -26,36 +26,10 @@ from dlrover.python.unified.controller.schedule.graph import (
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
-from dlrover.python.unified.common.enums import MasterStage
-
-
-@pytest.fixture
-def mock_manager(monkeypatch):
-    """Create a PrimeManager with mocked ray dependencies."""
-    mock_ray = MagicMock()
-    mock_ray.nodes.return_value = []
-    mock_state_factory = MagicMock()
-    mock_state = MagicMock()
-    mock_state_factory.get_state_backend.return_value = mock_state
-    mock_state.exists = MagicMock(return_value=False)
-    mock_state.set = MagicMock(return_value=None)
-
-    # mock module-level ray usage
-    monkeypatch.setattr(
-        "dlrover.python.unified.controller.manager.ray", mock_ray
-    )
-    monkeypatch.setattr(
-        "dlrover.python.unified.controller.manager.MasterStateBackendFactory",
-        mock_state_factory,
-    )
-
-    manager = PrimeManager(elastic_training_job())
-    manager.ray = mock_ray  # For backward compatibility
-    return manager
 
 
 @pytest.mark.asyncio
-async def test_wait_node_relaunch_partial_progress(mock_manager):
+async def test_wait_node_relaunch_partial_progress(mocker):
     current_nodes = [
         NodeInfo(id="node0"),
         NodeInfo(id="node1"),
@@ -94,40 +68,43 @@ async def test_wait_node_relaunch_partial_progress(mock_manager):
                 {"NodeID": "node5"},
             ]
 
-    mock_manager.ray.nodes.side_effect = mock_nodes
+    manager = PrimeManager(elastic_training_job())
+    ray_nodes = mocker.patch("ray.nodes", side_effect=mock_nodes)
 
-    await mock_manager._wait_node_relaunch(
+    await manager._wait_node_relaunch(
         relaunch_nodes, current_nodes, wait_interval=0.01
     )
 
     assert call_count >= 2
-    assert mock_manager.ray.nodes.call_count >= 2
+    assert ray_nodes.call_count >= 2
 
 
 @pytest.mark.asyncio
-async def test_wait_node_relaunch_timeout_case(mock_manager):
+async def test_wait_node_relaunch_timeout_case(mocker):
     import asyncio
 
     current_nodes = [NodeInfo(id="node0")]
     relaunch_nodes = [NodeInfo(id="node0")]
 
     # mock ray.nodes() to always return the same nodes (simulating timeout)
-    mock_manager.ray.nodes.return_value = [{"NodeID": "node0"}]
+    ray_nodes = mocker.patch("ray.nodes", return_value=[{"NodeID": "node0"}])
+
+    manager = PrimeManager(elastic_training_job())
 
     # should timeout since no new nodes are added
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(
-            mock_manager._wait_node_relaunch(
+            manager._wait_node_relaunch(
                 relaunch_nodes, current_nodes, wait_interval=0.01
             ),
             timeout=0.1,
         )
 
-    assert mock_manager.ray.nodes.call_count > 1
+    assert ray_nodes.call_count > 1
 
 
 @pytest.mark.asyncio
-async def test_relaunch_node_if_needed(mock_manager):
+async def test_relaunch_node_if_needed(mocker):
     spec = SimpleWorkloadDesc(entry_point="test::main")
     test_role = DLWorkloadRole(name="test", spec=spec, instance_number=2)
 
@@ -143,63 +120,60 @@ async def test_relaunch_node_if_needed(mock_manager):
     target_actor.set_node(NodeInfo(id="node1"))
     actors = [target_actor]
 
-    with (
-        patch("dlrover.python.unified.controller.manager.ray") as mock_ray,
-    ):
-        call_count = 0
+    call_count = 0
 
-        def mock_nodes():
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # init nodes
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node1",
-                        "NodeManagerHostname": "host1",
-                        "NodeManagerAddress": "192.168.1.1",
-                    },
-                ]
-            elif call_count == 2:
-                # no new nodes relaunched yet
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node1",
-                        "NodeManagerHostname": "host1",
-                        "NodeManagerAddress": "192.168.1.1",
-                    },
-                ]
-            else:
-                # node 1 relaunched
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node2",
-                        "NodeManagerHostname": "host2",
-                        "NodeManagerAddress": "192.168.1.2",
-                    },
-                ]
+    def mock_nodes():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # init nodes
+            return [
+                {
+                    "NodeID": "node0",
+                    "NodeManagerHostname": "host0",
+                    "NodeManagerAddress": "192.168.1.0",
+                },
+                {
+                    "NodeID": "node1",
+                    "NodeManagerHostname": "host1",
+                    "NodeManagerAddress": "192.168.1.1",
+                },
+            ]
+        elif call_count == 2:
+            # no new nodes relaunched yet
+            return [
+                {
+                    "NodeID": "node0",
+                    "NodeManagerHostname": "host0",
+                    "NodeManagerAddress": "192.168.1.0",
+                },
+                {
+                    "NodeID": "node1",
+                    "NodeManagerHostname": "host1",
+                    "NodeManagerAddress": "192.168.1.1",
+                },
+            ]
+        else:
+            # node 1 relaunched
+            return [
+                {
+                    "NodeID": "node0",
+                    "NodeManagerHostname": "host0",
+                    "NodeManagerAddress": "192.168.1.0",
+                },
+                {
+                    "NodeID": "node2",
+                    "NodeManagerHostname": "host2",
+                    "NodeManagerAddress": "192.168.1.2",
+                },
+            ]
 
-        mock_ray.nodes.side_effect = mock_nodes
-        mock_manager.state.node_total_count = 2
-        mock_manager.state.node_restart_count = 0
+    ray_nodes = mocker.patch("ray.nodes", side_effect=mock_nodes)
+    manager = PrimeManager(elastic_training_job())
+    manager.state.node_restart_count = 0
 
-        await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
-        assert target_actor.per_node_failure_count == 0
+    await manager.relaunch_nodes_by_actors(actors, wait_interval=1)
+    assert target_actor.per_node_failure_count == 0
 
 
 def test_manager_save_load():
@@ -217,7 +191,7 @@ def test_manager_failover(mocker):
     config = elastic_training_job()
     manager = PrimeManager(config)
 
-    # 1. When failover from READY, the state should transition to STOPPED
+    # Case 1. When failover from READY, the state should transition to STOPPED
     manager._update_stage(MasterStage.READY)
     assert manager.state.stage == MasterStage.READY
 
@@ -227,7 +201,7 @@ def test_manager_failover(mocker):
     assert new_manager.state.stage == MasterStage.READY
     assert new_manager.terminate.called
 
-    # 2. When failover from RUNNING, recover running
+    # Case 2. When failover from RUNNING, recover running
     manager._update_stage(MasterStage.RUNNING)
     assert manager.state.stage == MasterStage.RUNNING
 
