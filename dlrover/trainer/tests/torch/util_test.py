@@ -17,6 +17,7 @@ from unittest.mock import patch
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
+    version_less_than_280,
 )
 
 
@@ -61,4 +62,14 @@ class TestTorchVersionFunctions(unittest.TestCase):
         with patch("torch.__version__", "2.4.0+cu111"):
             self.assertFalse(
                 version_less_than_240(), "Expected False for version > 2.3.1"
+            )
+
+        with patch("torch.__version__", "2.7.1"):
+            self.assertTrue(
+                version_less_than_280(), "Expected True for version <= 2.7.1"
+            )
+
+        with patch("torch.__version__", "2.9.0.dev20250724+cu126"):
+            self.assertFalse(
+                version_less_than_280(), "Expected False for version >= 2.8.0"
             )
