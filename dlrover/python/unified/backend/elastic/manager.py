@@ -94,7 +94,7 @@ class ElasticManager:
         )
         res.raise_for_errors()
         res = await invoke_actors_t(
-            remote_call.stage, [node.name for node in self.workers]
+            remote_call.get_stage, [node.name for node in self.workers]
         )
         res.raise_for_errors()
         self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
@@ -120,7 +120,7 @@ class ElasticManager:
         while self.stage == WorkerStage.RUNNING:
             try:
                 res = await invoke_actors_t(
-                    remote_call.stage, [node.name for node in self.workers]
+                    remote_call.get_stage, [node.name for node in self.workers]
                 )
                 logger.debug(f"Node status results: {res.results}")
                 if all(it.is_terminal() for it in res.results):

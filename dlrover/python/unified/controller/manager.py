@@ -140,7 +140,7 @@ class PrimeManager:
     async def _wait_ready(self, actors: List[str]):
         """Wait for all actors to be ready."""
         while True:
-            res = await invoke_actors_t(remote_call.stage, actors)
+            res = await invoke_actors_t(remote_call.get_stage, actors)
             not_ready = {
                 node: status
                 for node, status in zip(actors, res.results)
@@ -184,7 +184,7 @@ class PrimeManager:
         res = await invoke_actors_t(remote_call.start, actors)
         res.raise_for_errors()
 
-        res = await invoke_actors_t(remote_call.stage, actors)
+        res = await invoke_actors_t(remote_call.get_stage, actors)
         # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
         assert not any(it == WorkerStage.READY for it in res.results), (
             f"Start should update stage, not READY. {res.as_dict()}"
@@ -198,7 +198,9 @@ class PrimeManager:
         """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
             await asyncio.sleep(5)
-            res = await invoke_actors_t(remote_call.stage, self.graph.vertices)
+            res = await invoke_actors_t(
+                remote_call.get_stage, self.graph.vertices
+            )
             if all(it in ["FAILED", "FINISHED"] for it in res.results):
                 if all(it == "FINISHED" for it in res.results):
                     self.request_stop("All nodes finished successfully.")

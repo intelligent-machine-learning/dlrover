@@ -146,7 +146,7 @@ class Scheduler:
         logger.info("Finished creating actors for the job.")
 
         # 2. Check actors with ping
-        res = await invoke_actors_t(remote_call.stage, graph.vertices)
+        res = await invoke_actors_t(remote_call.get_stage, graph.vertices)
         logger.info(f"Actors status: {res.as_dict()}")
 
     def create_actor(self, actor: RayActorSpec):

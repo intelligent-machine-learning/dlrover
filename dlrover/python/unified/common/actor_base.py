@@ -125,7 +125,7 @@ class ActorBase:
         """
         self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
-    def stage(self):
+    def get_stage(self):
         """Get the stage of the actor."""
 
         return self.stage

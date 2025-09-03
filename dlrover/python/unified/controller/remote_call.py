@@ -21,7 +21,7 @@ def check_workers() -> None:
     raise NotImplementedError("stub")  # pragma: no cover
 
 
-def stage() -> WorkerStage:
+def get_stage() -> WorkerStage:
     """Get the stage of the role level backends."""
     raise NotImplementedError("stub")  # pragma: no cover
 

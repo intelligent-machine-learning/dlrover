@@ -18,7 +18,7 @@ from dlrover.python.unified.common.actor_base import WorkerStage
 # mypy: disable-error-code=empty-body
 
 
-def stage() -> WorkerStage:
+def get_stage() -> WorkerStage:
     """Get the stage of the elastic training job."""
     raise NotImplementedError("stub")  # pragma: no cover
 
