@@ -72,8 +72,14 @@ class ElasticWorker(BaseWorker):
         os.environ["WORLD_SIZE"] = str(self.actor_info.spec.total)
         os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
-        # TODO RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES
-        device = _get_ray_gpu_devices()[0]
+        # Setup device
+        if self.job_info.accelerator_type == "GPU":
+            if self.actor_info.spec.rank_based_gpu_selection:
+                device = torch.device(f"cuda:{self.actor_info.local_rank}")
+            else:
+                device = _get_ray_gpu_devices()[0]
+        else:
+            device = torch.device("cpu")
         os.environ["ACCELERATE_TORCH_DEVICE"] = str(device)
         if torch.cuda.is_available() and device.type == "cuda":
             torch.cuda.set_device(device)

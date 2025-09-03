@@ -18,7 +18,7 @@ import ray.actor
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import WorkerStage
+from dlrover.python.unified.common.enums import ACCELERATOR_TYPE, WorkerStage
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 
@@ -32,6 +32,7 @@ class JobInfo:
     name: str
     job_id: str
     user_config: Any
+    accelerator_type: ACCELERATOR_TYPE
 
 
 @dataclass(frozen=True)
