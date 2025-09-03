@@ -455,7 +455,7 @@ class PrimeManager:
             )
         else:
             # init context
-            logger.info("Init runtime context.")
+            logger.info("Init runtime context for beginning.")
             return True, ManagerRuntimeContext(
                 graph=DLExecutionGraph.create(self.config.dl_config),
                 stage=MasterStage.INIT,
