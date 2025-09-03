@@ -4,13 +4,11 @@ This guide demonstrates how to express and submit a multi-role OpenRLHF training
 
 ## Overview
 
-Multi-role training lets you define and orchestrate
-multiple specialized workloads—such as actors, critics,
-rollout engines, trainers, and reward models—each with
-its own resource needs and execution entry point.
-By composing these roles into a single distributed
-configuration, you can flexibly scale and manage
-complex reinforcement learning workflows.
+Multi-role training lets you define and orchestrate multiple specialized workloads—such as actors, critics, rollout engines, trainers, and reward models—each with its own resource needs and execution entry point. By composing these roles into a single distributed configuration, you can flexibly scale and manage complex reinforcement learning workflows.
+
+**Paradigm Note:**
+This OpenRLHF example demonstrates the remote_call (RPC) paradigm for inter-role communication, where each role exposes and invokes RPC methods for distributed coordination.
+For an alternative approach using the Proxy/WorkerGroup paradigm, see the verl example ([04. Multi-Role Training Example: verl](03b-multi-role-training-verl.md)).
 
 For RL scenarios, two core training workloads—**Actor** and **Critic**—must
 be trained simultaneously, reflecting the greater complexity of RL compared
@@ -52,6 +50,11 @@ This example is based on the OpenRLHF PPO, LICENSEd under Apache 2.0. Requiremen
 ```bash
 cd examples/unified/
 bash rl/openrlhf/ppo/run.sh
+
+---
+
+For a practical multi-role training example using verl, see [03B. Multi-Role Training Example: verl](03b-multi-role-training-verl.md).
+
 ```
 
 It's not necessary to run this example, we will explain the
