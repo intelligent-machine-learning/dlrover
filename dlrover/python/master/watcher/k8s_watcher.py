@@ -134,7 +134,14 @@ def _convert_pod_yaml_to_node(pod):
     pod_id = int(metadata.labels[replica_index_key])
     rank_id = int(metadata.labels[rank_index_key])
     relaunch_count = int(metadata.labels[relaunch_count_key])
-    resource = _parse_container_resource(pod.spec.containers[0])
+    resource = NodeResource(0, 0)
+    for container in pod.spec.containers:
+        res = _parse_container_resource(container)
+        if res.cpu == 0 or res.memory == 0:
+            continue
+        else:
+            resource = res
+            break
     host_name = pod.spec.node_name
     host_ip = pod.status.host_ip
 

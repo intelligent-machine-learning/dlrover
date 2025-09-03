@@ -84,13 +84,21 @@ class PodWatcherTest(unittest.TestCase):
                     "spec": {
                         "containers": [
                             {
+                                "name": "sd",
+                                "image": "dlrover-sidecar:latest",
+                                "resources": {
+                                    "requests": {"cpu": "0", "memory": "0"},
+                                    "limits": {},
+                                },
+                            },
+                            {
                                 "name": "main",
                                 "image": "dlrover-master:latest",
                                 "resources": {
                                     "requests": {"cpu": "4", "memory": "1024"},
                                     "limits": {},
                                 },
-                            }
+                            },
                         ],
                         "nodeName": "host-0",
                     },
