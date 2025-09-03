@@ -86,9 +86,9 @@ class PrimeMasterApi(ActorProxy):
 
     @staticmethod
     def restart_actors(
-        actors: List[str],
+        actor_names: List[str],
     ) -> None:
-        """Restart the specified actors."""
+        """Restart the specified actors by names."""
         raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod

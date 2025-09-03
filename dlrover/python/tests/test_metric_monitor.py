@@ -303,8 +303,7 @@ class MetricContextTests(unittest.TestCase):
                 "worker-2": copy.deepcopy(nmetric1),
             },
         )
-        time.sleep(1)
-        key2 = int(time.time())
+        key2 = int(time.time() + 1)
         jctx.add_node_metrics(
             key2,
             {
@@ -317,8 +316,7 @@ class MetricContextTests(unittest.TestCase):
         self.assertEqual(jctx.size(), 2)
 
         jctx.max_metric_records = 2
-        time.sleep(1)
-        key3 = int(time.time())
+        key3 = int(time.time() + 2)
         jctx.add_node_metrics(
             key3,
             {
@@ -639,12 +637,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = SimpleMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             rsp = mon.query_job_metrics(
                 job_name,
@@ -743,12 +737,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = NpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name,
@@ -785,12 +775,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = NpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-22 4:55:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-22 4:55:45", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732251300
+            end = start + 300
 
             pod_metric = mon.collect_job_metrics(
                 job_name,
@@ -816,12 +802,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = GpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-24 10:05:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732442400
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name,
@@ -858,12 +840,8 @@ class MetricMonitorTests(unittest.TestCase):
 
             mon = GpuMetricMonitor(job_name, [metric_type])
 
-            start = datetime.strptime(
-                "2024-11-24 10:00:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            end = datetime.strptime(
-                "2024-11-24 10:05:00", "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
+            start = 1732442400
+            end = start + 300
 
             job_metric = mon.collect_job_metrics(
                 job_name, metric_type, start, end, pod_name=pod_name
@@ -941,14 +919,16 @@ class GpuMetricMonitorTest(unittest.TestCase):
                     GpuMetricEnum.GPU_UTIL,
                 ],
             )
+
+            # will collect once, then wait 1s, then break by stop
             mon.start(interval=1)
-            time.sleep(2)
+            time.sleep(0.1)
             mon.stop()
 
             _metric_context.log_job_metric(GpuMetricEnum.GPU_TENSOR_UTIL)
             _metric_context.log_job_metric(GpuMetricEnum.GPU_UTIL)
 
-            self.assertTrue(_metric_context.size() >= 1)
+            self.assertTrue(_metric_context.size() == 1)
 
             self.assertEqual(
                 list(
@@ -1048,13 +1028,15 @@ class NpuMetricMonitorTest(unittest.TestCase):
                     NpuMetricEnum.NPU_UTIL,
                 ],
             )
+
+            # will collect once, then wait 1s, then break by stop
             mon.start(interval=1)
-            time.sleep(2)
+            time.sleep(0.1)
             mon.stop()
 
             _metric_context.log_job_metric(NpuMetricEnum.NPU_UTIL)
 
-            self.assertTrue(_metric_context.size() >= 1)
+            self.assertTrue(_metric_context.size() == 1)
             self.assertEqual(
                 list(
                     _metric_context.backtrace_avg_metrics(

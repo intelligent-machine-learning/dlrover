@@ -303,11 +303,29 @@ class DLJobBuilder(object):
         self._role_builders: Dict[str, RoleBuilder] = {}
         self._collocations: List[Set[str]] = []
         self._last_role: Optional[str] = None
+        self._no_setup_process_group: bool = False
+        self._skip_node_check: bool = False
 
     def add_role_builder(self, role: str, role_builder: RoleBuilder):
         if role in self._role_builders:
             raise ValueError(f"Role '{role}' is already defined.")
         self._role_builders[role] = role_builder
+
+    def no_setup_process_group(self):
+        """Disable the automatic setup of process group.
+
+        Only set MASTER_ADDR and MASTER_PORT, for framework compatibility.
+        """
+        self._no_setup_process_group = True
+        return self
+
+    def skip_node_check(self):
+        """Skip the node check for the job.
+
+        Not recommended for production use.
+        """
+        self._skip_node_check = True
+        return self
 
     def build(self):
         """
@@ -326,12 +344,23 @@ class DLJobBuilder(object):
             if role_builder:
                 workloads.update(role_builder._build_role())
 
-        return DLJob(
+        job = DLJob(
             global_envs=self._env,
             workloads=workloads,
             collocations=self._collocations,
             **self._params.__dict__,
         )
+        if self._no_setup_process_group:
+            for workload in job.workloads.values():
+                if workload.backend == "elastic":
+                    workload.comm_auto_setup_process_group = False
+
+        if self._skip_node_check:
+            for workload in job.workloads.values():
+                if workload.backend == "elastic":
+                    workload.comm_pre_check = False
+
+        return job
 
     def as_task_stream(self):
         """
