@@ -39,6 +39,12 @@ class DLExecutionVertex(ABC, BaseModel):
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
 
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return self.name == other.name
+
     @property
     @abstractmethod
     def name(self) -> str:

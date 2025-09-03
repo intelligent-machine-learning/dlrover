@@ -107,9 +107,10 @@ class BaseWorkloadDesc(BaseModel, ABC):
         default_factory=dict,
         validation_alias=AliasChoices("env", "environment", "envs"),
     )
-    max_failure: int = Field(
+    per_node_max_failure: int = Field(
         default=3,
-        description="The maximum limit of failures.",
+        description="The maximum limit of failures count in a single node. "
+        "Will relaunch the corresponding node if this limit exceeded.",
     )
     max_restart: int = Field(
         default=10,

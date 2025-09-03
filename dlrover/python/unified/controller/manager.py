@@ -298,7 +298,7 @@ class PrimeManager:
         exceed_limit_actors = [
             actor
             for actor in actors
-            if actor.failure_count > actor.spec.max_failure
+            if actor.per_node_failure_count > actor.spec.per_node_max_failure
         ]
         influenced_actors = []
         if exceed_limit_actors:
