@@ -391,7 +391,7 @@ class PrimeManager:
         except asyncio.CancelledError:
             logger.info("Monitor task cancelled, proceeding with restart.")
         logger.info("Restarting all actors...")
-        await self.restart_actors([node.name for node in self.graph.vertices])
+        await self.restart_actors(self.graph.vertices)
         logger.info("Restarted actors, re-checking their status.")
         await self._nodes_check()
         await self.start()

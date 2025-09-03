@@ -152,7 +152,7 @@ class ElasticManager:
         await invoke_actor_t(
             PrimeMasterApi.restart_actors,
             PrimeMasterApi.ACTOR_NAME,
-            actors=[worker.name for worker in self.workers],
+            actor_names=[worker.name for worker in self.workers],
         )
         logger.info("Restarted workers, re-checking their status.")
         await self.check_workers()
