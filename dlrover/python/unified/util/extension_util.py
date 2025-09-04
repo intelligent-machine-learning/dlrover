@@ -23,7 +23,7 @@ class Extensible:
 
     @classmethod
     def extensions(cls) -> List[type]:
-        assert super(cls) is Extensible, (
+        assert cls.__base__ is Extensible, (
             "Extensible class must be directly derived from Extensible"
         )
         if not hasattr(cls, "__extensions"):
