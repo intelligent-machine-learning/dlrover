@@ -23,5 +23,5 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 def test_default_scaler():
     scaler = DefaultRayNodeScaler(elastic_training_job())
     assert not scaler.relaunch([NodeInfo(id="node0")])
-    assert not scaler.scale_up(count=2)
+    assert not scaler.scale_up(node_number=2)
     assert not scaler.scale_down([NodeInfo(id="node0")])
