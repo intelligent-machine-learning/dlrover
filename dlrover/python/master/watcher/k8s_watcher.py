@@ -135,6 +135,7 @@ def _convert_pod_yaml_to_node(pod):
     rank_id = int(metadata.labels[rank_index_key])
     relaunch_count = int(metadata.labels[relaunch_count_key])
     resource = NodeResource(0, 0)
+     # this is a temporary workaround to retrieve the 'main' container's resource
     for container in pod.spec.containers:
         res = _parse_container_resource(container)
         if res.cpu > 0 and res.memory > 0:
