@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import ClassVar, List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.util.test_hooks import test_cleanup
+from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 
 class Extensible:
@@ -15,7 +15,7 @@ class Extensible:
         )
         if not hasattr(cls, "__extensions"):
             cls.__extensions = []
-            test_cleanup(cls.__extensions.clear)
+            after_test_cleanup(cls.__extensions.clear)
         return cls.__extensions
 
     @classmethod

@@ -22,7 +22,7 @@ from ray.experimental.internal_kv import (
 )
 
 from dlrover.python.unified.common.enums import MasterStateBackendType
-from dlrover.python.unified.util.test_hooks import test_cleanup
+from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 
 class MasterStateBackend(ABC):
@@ -70,7 +70,7 @@ class InMemoryStateBackend(MasterStateBackend):
     """State-backend always store nothing"""
 
     _store: ClassVar[dict] = {}
-    test_cleanup(_store.clear)
+    after_test_cleanup(_store.clear)
 
     def get(self, key: str) -> Any:
         return self._store.get(key)

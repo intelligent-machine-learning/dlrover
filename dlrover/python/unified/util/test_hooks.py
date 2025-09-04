@@ -28,7 +28,7 @@ def coverage_enabled():
 _RESET_HOOKS = []
 
 
-def test_cleanup(callback: Callable[[], None]):
+def after_test_cleanup(callback: Callable[[], None]):
     """Decorator to automatically reset the state after each test.
     Use for Singleton/Global state.
     """
