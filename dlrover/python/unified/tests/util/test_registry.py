@@ -87,6 +87,9 @@ def test_invalid_scan_package_for_extensions(mock_importlib):
     mock_importlib.import_module.side_effect = ImportError()
     AutoExtensionRegistry.auto_discover("test123")
 
+    mock_importlib.import_module.side_effect = AttributeError()
+    AutoExtensionRegistry.auto_discover("test123")
+
     mock_importlib.import_module.side_effect = Exception()
     with pytest.raises(Exception):
         AutoExtensionRegistry.auto_discover("test123")
