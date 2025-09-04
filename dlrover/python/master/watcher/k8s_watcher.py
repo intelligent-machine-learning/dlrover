@@ -137,9 +137,7 @@ def _convert_pod_yaml_to_node(pod):
     resource = NodeResource(0, 0)
     for container in pod.spec.containers:
         res = _parse_container_resource(container)
-        if res.cpu == 0 or res.memory == 0:
-            continue
-        else:
+        if res.cpu > 0 and res.memory > 0:
             resource = res
             break
     host_name = pod.spec.node_name
