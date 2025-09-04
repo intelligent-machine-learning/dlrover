@@ -21,17 +21,17 @@ from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 
 class Extensible:
-    __extensions: ClassVar[List[type]]
+    _extensions: ClassVar[List[type]]
 
     @classmethod
     def extensions(cls) -> List[type]:
         assert cls.__base__ is Extensible, (
             "Extensible class must be directly derived from Extensible"
         )
-        if not hasattr(cls, "__extensions"):
-            cls.__extensions = []
-            after_test_cleanup(cls.__extensions.clear)
-        return cls.__extensions
+        if not hasattr(cls, "_extensions"):
+            cls._extensions = []
+            after_test_cleanup(cls._extensions.clear)
+        return cls._extensions
 
     @classmethod
     def register_extension(cls, ext: type):
@@ -46,16 +46,24 @@ class Extensible:
             "All extensions must be subclasses of the base class."
         )
 
+        conflict = detect_mixin_conflicts(extensions, cls)
+        if conflict:
+            for method, impl in conflict.items():
+                logger.warning(
+                    f"Method {method} is overridden by multiple mixins: {impl}"
+                )
+            raise RuntimeError(
+                f"Cannot construct '{cls.__name__}' due to method conflicts"
+            )
+
         try:
             ret = type(f"Mixed_{cls.__name__}", tuple(extensions) + (cls,), {})
             logger.info(f"{ret.__name__} built with {ret.__mro__}")
             return ret
-        except Exception:
-            logger.exception(f"Failed to create mixed class for {cls}")
-            detect_mixin_conflicts(extensions, cls)
+        except Exception as e:
             raise RuntimeError(
-                f"Cannot construct '{cls.__name__}' due to method conflicts"
-            )
+                f"Failed to create mixed class for {cls}"
+            ) from e
 
 
 def get_overridden_methods(mixin: type, base: type) -> set:
@@ -65,7 +73,18 @@ def get_overridden_methods(mixin: type, base: type) -> set:
             continue
         mixin_attr = getattr(mixin, name)
         base_attr = getattr(base, name, None)
-        if mixin_attr != base_attr or callable(mixin_attr):
+
+        # Handle classmethod and staticmethod
+        def unwrap(attr):
+            # For bound methods, get the underlying function
+            if hasattr(attr, "__func__"):
+                return attr.__func__
+            return attr
+
+        mixin_func = unwrap(mixin_attr)
+        base_func = unwrap(base_attr)
+
+        if mixin_func is not base_func and callable(mixin_func):
             overridden.add(name)
     return overridden
 
@@ -75,11 +94,6 @@ def detect_mixin_conflicts(mixins: List[type], base: type):
     for mixin in mixins:
         for method in get_overridden_methods(mixin, base):
             method_map[method].append(mixin)
-    for method, impl in method_map.items():
-        if len(impl) > 1:
-            logger.warning(
-                f"Method {method} is overridden by multiple mixins: {impl}"
-            )
 
     return {k: v for k, v in method_map.items() if len(v) > 1}
 
