@@ -21,6 +21,8 @@ except ImportError:
 
 
 def patch_after_import_torch():
+    if not hasattr(torch, "musa"):
+        return
     # 1. Patch for torch.xxx
     torch.cuda.is_available = torch.musa.is_available
     torch.cuda.current_device = lambda: f"musa:{torch.musa.current_device()}"
