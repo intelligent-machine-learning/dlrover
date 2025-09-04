@@ -55,13 +55,14 @@ class BaseRayNodeScaler(ABC):
 
     @abstractmethod
     def scale_up(
-        self, count: int = 1, resource: Optional[Dict[str, Any]] = None
+        self, node_number, resource: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
         Scale up specified number of ray nodes.
 
         Args:
-            count: Number of ray nodes to scale.
+            node_number: The expected number of ray nodes to scale to
+                        (not delta value).
             resource: Specified resource to scale. Default is None(with same
                 resource of current node).
         """
@@ -82,7 +83,7 @@ class DefaultRayNodeScaler(BaseRayNodeScaler):
         return False
 
     def scale_up(
-        self, count: int = 1, resource: Optional[Dict[str, Any]] = None
+        self, node_number, resource: Optional[Dict[str, Any]] = None
     ) -> bool:
         logger.warning("Default scaler does not support node scaling up.")
         return False
