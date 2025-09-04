@@ -25,6 +25,8 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
 
+# mypy: disable-error-code=method-assign
+
 
 def test_manager_save_load():
     config = elastic_training_job()
