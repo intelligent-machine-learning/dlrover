@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
+import importlib.metadata
 from collections import defaultdict
 from typing import ClassVar, Dict, List
 
@@ -80,3 +82,12 @@ def detect_mixin_conflicts(mixins: List[type], base: type):
             )
 
     return {k: v for k, v in method_map.items() if len(v) > 1}
+
+
+def load_entrypoints(group: str):
+    """Load entry points for a specific group."""
+    exts = importlib.metadata.entry_points(group=group)
+    for ext in exts:
+        logger.info(f"Loading extension {ext.name} for {group}: {ext.value}")
+        ext.load()
+    logger.info(f"All extensions loaded for {group}")

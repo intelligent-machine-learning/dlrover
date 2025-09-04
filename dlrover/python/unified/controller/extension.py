@@ -14,7 +14,10 @@
 from typing import ClassVar, List
 
 from dlrover.python.unified.common.actor_base import NodeInfo
-from dlrover.python.unified.util.extension_util import Extensible
+from dlrover.python.unified.util.extension_util import (
+    Extensible,
+    load_entrypoints,
+)
 
 
 class Extension(Extensible):
@@ -23,6 +26,7 @@ class Extension(Extensible):
     @staticmethod
     def singleton() -> "Extension":
         if not hasattr(Extension, "INSTANCE"):
+            load_entrypoints("dlrover.unified.extension")
             Extension.INSTANCE = Extension.build_mixed_class()()
         return Extension.INSTANCE
 
