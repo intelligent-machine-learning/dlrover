@@ -11,18 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import ClassVar, List
 
 from dlrover.python.unified.common.actor_base import NodeInfo
 from dlrover.python.unified.util.extension_util import Extensible
 
 
 class Extension(Extensible):
-    INSTANCE: "Extension"
+    INSTANCE: ClassVar["Extension"]
 
     @staticmethod
     def singleton() -> "Extension":
-        if not Extension.INSTANCE:
+        if not hasattr(Extension, "INSTANCE"):
             Extension.INSTANCE = Extension.build_mixed_class()()
         return Extension.INSTANCE
 
