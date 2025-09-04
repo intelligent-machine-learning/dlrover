@@ -267,6 +267,7 @@ class PrimeManager:
         try:
             await self.ext.relaunch_nodes_impl(nodes)
             self.state.node_restart_count += len(nodes)
+            logger.info(f"Relaunched nodes: {[node.id for node in nodes]}")
         except NotImplementedError:
             logger.warning("Relaunch is not implemented, skipping relaunch.")
             for n in nodes:

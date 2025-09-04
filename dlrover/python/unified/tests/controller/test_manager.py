@@ -11,9 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
+import pytest
+from pytest_mock import MockerFixture
+
+from dlrover.python.unified.common.actor_base import NodeInfo
 from dlrover.python.unified.common.enums import MasterStage
+from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
+from dlrover.python.unified.controller import remote_call
 from dlrover.python.unified.controller.manager import PrimeManager
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
@@ -54,3 +60,67 @@ def test_manager_failover(mocker):
     new_manager.handle_self_failover()
     assert new_manager.state.stage == MasterStage.RUNNING
     assert create_main_task.called
+
+
+@pytest.mark.parametrize("case", [1, 2, 3])
+async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
+    config = elastic_training_job()
+    config.dl_config.workloads["simple"] = SimpleWorkloadDesc(
+        entry_point="simple.run"
+    )
+    manager = PrimeManager(config)
+
+    # Case 1. Elastic worker restarted
+    if case == 1:
+        invoke_actor = mocker.patch(
+            "dlrover.python.unified.controller.manager.invoke_actor_t",
+            AsyncMock(),
+        )
+        worker = manager.graph.roles["training"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+        assert worker.role.sub_master is not None
+
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 1
+        assert worker.total_failure_count == 1
+        assert invoke_actor.called
+        assert invoke_actor.call_args[0][0] is remote_call.restart_workers
+        assert invoke_actor.call_args[0][1] == worker.role.sub_master.name
+    # Case 2. Simple worker restarted
+    elif case == 2:
+        manager.restart_job = AsyncMock()
+        worker = manager.graph.roles["simple"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 1
+        assert worker.total_failure_count == 1
+        assert manager.restart_job.called
+    # Case 3. Worker failed cause node relaunch
+    elif case == 3:
+        manager.restart_job = AsyncMock()  # noop
+        worker = manager.graph.roles["simple"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+        worker.per_node_failure_count = 100  # Large enough
+
+        # Sub 1. relaunch_nodes not implemented
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 101
+        assert worker.total_failure_count == 1
+        assert len(manager.state.removed_nodes) == 0
+
+        # Sub 2. relaunch_nodes
+        manager.ext.relaunch_nodes_impl = AsyncMock()
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 102
+        assert worker.total_failure_count == 2
+        assert worker.node_info.id in manager.state.removed_nodes
+        assert manager.ext.relaunch_nodes_impl.called
+        assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
+            worker.node_info
+        ]
+
+        # Sub 3. new worker join due to node relaunch
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 0  # no failure
+        assert worker.total_failure_count == 2  # keep
