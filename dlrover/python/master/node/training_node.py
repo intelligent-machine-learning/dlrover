@@ -254,7 +254,10 @@ class TrainingNodeManager(object):
             new_name = self._new_node_name_fn(node.type, new_id)
             relaunch_node = node.generate_relaunch_node(new_id, new_name)
             self._update_node(relaunch_node)
-        logger.info(f"Relaunch node {node.name} to {new_id}")
+        logger.info(
+            f"Relaunch node {node.name} to {new_id}: "
+            f"{node.relaunch_count}/{node.max_relaunch_count}"
+        )
         plan.launch_nodes.append(relaunch_node)
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True

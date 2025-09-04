@@ -47,8 +47,12 @@ from dlrover.python.scheduler.kubernetes import (
     convert_memory_to_mb,
     k8sClient,
 )
+from dlrover.python.common.global_context import (
+    Context,
+)
 
 job_ctx = get_job_context()
+_dlrover_context = Context.singleton_instance()
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -170,6 +174,7 @@ def _convert_pod_yaml_to_node(pod):
         node_group=node_group,
         node_group_size=node_group_size,
         node_group_id=node_group_id,
+        max_relaunch_count=_dlrover_context.max_relaunch_count,
     )
 
     logger.debug(

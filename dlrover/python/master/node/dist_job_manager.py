@@ -166,6 +166,7 @@ class DistributedJobManager(JobManager):
         self._relaunch_on_worker_failure = min(
             worker_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
+        _dlrover_context.max_relaunch_count = self._relaunch_on_worker_failure
         self._wait_pending_relaunch = wait_pending_relaunch
         self._start_launch_waiting_workers_time = time.time()
         self._critical_worker_index = critical_worker_index
@@ -984,6 +985,10 @@ class DistributedJobManager(JobManager):
 
         if should_relaunch:
             node.relaunch_count += 1
+            logger.info(
+                f"Node {node.name} passed should_relaunch with "
+                f"{node.relaunch_count}/{node.max_relaunch_count}"
+            )
 
         if not should_relaunch and len(msg) > 0:
             self._report_event(
