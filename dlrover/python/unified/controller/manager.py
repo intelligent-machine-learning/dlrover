@@ -20,7 +20,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import NodeInfo, WorkerStage
 from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
 from dlrover.python.unified.common.enums import MasterStage
-from dlrover.python.unified.controller.extension import Extension
+from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
@@ -74,7 +74,7 @@ class PrimeManager:
             config.master_state_backend_type,
             config.master_state_backend_config,
         )
-        self.ext = Extension.singleton()
+        self.ext = ManagerExtension.singleton()
 
         # Runtime state
         self.state: RuntimeState = self._load_state() or RuntimeState(

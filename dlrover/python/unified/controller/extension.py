@@ -20,15 +20,36 @@ from dlrover.python.unified.util.extension_util import (
 )
 
 
-class Extension(Extensible):
-    INSTANCE: ClassVar["Extension"]
+class ManagerExtension(Extensible):
+    """Extension points for PrimeManager.
+
+    To implement a custom extension:
+    1. create a subclass of Extension and override the desired methods.
+    2. register the subclass using entrypoints in setup.py:
+       entry_points={
+           'dlrover.unified.extension': [
+               'my_extension = my_module:MyExtension',
+           ],
+       }
+    """
+
+    INSTANCE: ClassVar["ManagerExtension"]
 
     @staticmethod
-    def singleton() -> "Extension":
-        if not hasattr(Extension, "INSTANCE"):
+    def singleton() -> "ManagerExtension":
+        if not hasattr(ManagerExtension, "INSTANCE"):
             load_entrypoints("dlrover.unified.extension")
-            Extension.INSTANCE = Extension.build_mixed_class()()
-        return Extension.INSTANCE
+            ManagerExtension.INSTANCE = ManagerExtension.build_mixed_class()()
+        return ManagerExtension.INSTANCE
+
+    @property
+    def manager(self):
+        """Utility for extension to access PrimeManager singleton"""
+        from dlrover.python.unified.controller.manager import PrimeManager
+
+        return PrimeManager.INSTANCE
+
+    # region Extension Points Begin
 
     async def relaunch_nodes_impl(self, nodes: List[NodeInfo]):
         """Relaunch the specified nodes.

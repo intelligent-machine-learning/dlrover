@@ -21,11 +21,11 @@ from dlrover.python.unified.common.actor_base import NodeInfo
 from dlrover.python.unified.common.constant import (
     RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
 )
-from dlrover.python.unified.controller.extension import Extension
+from dlrover.python.unified.controller.extension import ManagerExtension
 
 
-@Extension.register_extension
-class RelaunchSupport(Extension):
+@ManagerExtension.register_extension
+class RelaunchSupport(ManagerExtension):
     async def relaunch_nodes_impl(self, nodes: List[NodeInfo]):
         logger.info(f"Relaunch nodes: {nodes}.")
         # TODO do_relaunch
