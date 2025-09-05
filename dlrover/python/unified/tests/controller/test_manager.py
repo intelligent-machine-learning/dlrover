@@ -11,204 +11,182 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 
 from dlrover.python.unified.common.actor_base import NodeInfo
+from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
-from dlrover.python.unified.controller.manager import PrimeManager
-from dlrover.python.unified.controller.schedule.graph import (
-    DLExecutionWorkerVertex,
-    DLWorkloadRole,
-)
+from dlrover.python.unified.controller import remote_call
+from dlrover.python.unified.controller.manager import PrimeManager, logger
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
 
+# mypy: disable-error-code=method-assign
 
-@pytest.fixture
-def mock_manager(monkeypatch):
-    """Create a PrimeManager with mocked ray dependencies."""
-    mock_ray = MagicMock()
-    mock_ray.nodes.return_value = []
-    mock_state_factory = MagicMock()
-    mock_state = MagicMock()
-    mock_state_factory.get_state_backend.return_value = mock_state
-    mock_state.exists = MagicMock(return_value=False)
-    mock_state.set = MagicMock(return_value=None)
 
-    # mock module-level ray usage
-    monkeypatch.setattr(
-        "dlrover.python.unified.controller.manager.ray", mock_ray
+def test_manager_save_load():
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+    assert manager.state.stage == MasterStage.INIT
+    manager._update_stage(MasterStage.RUNNING)
+    assert manager.state.stage == MasterStage.RUNNING
+
+    new_manager = PrimeManager(config)
+    assert new_manager.state.stage == MasterStage.RUNNING
+
+
+def test_manager_failover(mocker):
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+
+    # Case 1. When failover from READY, the state should transition to STOPPED
+    manager._update_stage(MasterStage.READY)
+    assert manager.state.stage == MasterStage.READY
+
+    new_manager = PrimeManager(config)
+    new_manager._do_stop = Mock()
+    new_manager.handle_self_failover()
+    assert new_manager.state.stage == MasterStage.READY
+    assert new_manager._do_stop.called
+
+    # Case 2. When failover from RUNNING, recover running
+    manager._update_stage(MasterStage.RUNNING)
+    assert manager.state.stage == MasterStage.RUNNING
+
+    create_main_task = mocker.patch("asyncio.create_task")
+    new_manager = PrimeManager(config)
+    new_manager.handle_self_failover()
+    assert new_manager.state.stage == MasterStage.RUNNING
+    assert create_main_task.called
+
+
+@pytest.mark.parametrize("case", [1, 2, 3])
+async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
+    config = elastic_training_job()
+    config.dl_config.workloads["simple"] = SimpleWorkloadDesc(
+        entry_point="simple.run"
     )
-    monkeypatch.setattr(
-        "dlrover.python.unified.controller.manager.MasterStateBackendFactory",
-        mock_state_factory,
-    )
+    manager = PrimeManager(config)
 
-    manager = PrimeManager(elastic_training_job())
-    manager.ray = mock_ray  # For backward compatibility
-    return manager
-
-
-@pytest.mark.asyncio
-async def test_wait_node_relaunch_partial_progress(mock_manager):
-    current_nodes = [
-        NodeInfo(id="node0"),
-        NodeInfo(id="node1"),
-        NodeInfo(id="node2"),
-    ]
-    relaunch_nodes = [NodeInfo(id="node1"), NodeInfo(id="node2")]
-
-    # mock ray.nodes() to simulate gradual node relaunching
-    call_count = 0
-
-    def mock_nodes():
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            # no new nodes relaunched yet
-            return [
-                {"NodeID": "node0"},
-                {"NodeID": "node1"},
-                {"NodeID": "node2"},
-                {"NodeID": "node3"},
-            ]
-        elif call_count == 2:
-            # node 1 relaunched
-            return [
-                {"NodeID": "node0"},
-                {"NodeID": "node4"},
-                {"NodeID": "node2"},
-                {"NodeID": "node3"},
-            ]
-        else:
-            # all nodes relaunched
-            return [
-                {"NodeID": "node0"},
-                {"NodeID": "node4"},
-                {"NodeID": "node2"},
-                {"NodeID": "node5"},
-            ]
-
-    mock_manager.ray.nodes.side_effect = mock_nodes
-
-    await mock_manager._wait_node_relaunch(
-        relaunch_nodes, current_nodes, wait_interval=0.01
-    )
-
-    assert call_count >= 2
-    assert mock_manager.ray.nodes.call_count >= 2
-
-
-@pytest.mark.asyncio
-async def test_wait_node_relaunch_timeout_case(mock_manager):
-    import asyncio
-
-    current_nodes = [NodeInfo(id="node0")]
-    relaunch_nodes = [NodeInfo(id="node0")]
-
-    # mock ray.nodes() to always return the same nodes (simulating timeout)
-    mock_manager.ray.nodes.return_value = [{"NodeID": "node0"}]
-
-    # should timeout since no new nodes are added
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(
-            mock_manager._wait_node_relaunch(
-                relaunch_nodes, current_nodes, wait_interval=0.01
-            ),
-            timeout=0.1,
+    # Case 1. Elastic worker restarted
+    if case == 1:
+        invoke_actor = mocker.patch(
+            "dlrover.python.unified.controller.manager.invoke_actor_t",
+            AsyncMock(),
         )
+        worker = manager.graph.roles["training"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+        assert worker.role.sub_master is not None
 
-    assert mock_manager.ray.nodes.call_count > 1
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 1
+        assert worker.total_failure_count == 1
+        assert invoke_actor.called
+        assert invoke_actor.call_args[0][0] is remote_call.restart_workers
+        assert invoke_actor.call_args[0][1] == worker.role.sub_master.name
+    # Case 2. Simple worker restarted
+    elif case == 2:
+        manager.restart_job = AsyncMock()
+        worker = manager.graph.roles["simple"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 1
+        assert worker.total_failure_count == 1
+        assert manager.restart_job.called
+    # Case 3. Worker failed cause node relaunch
+    elif case == 3:
+        manager.restart_job = AsyncMock()  # noop
+        worker = manager.graph.roles["simple"].instances[0]
+        worker.node_info = NodeInfo("node_1")
+        worker.per_node_failure_count = 100  # Large enough
+
+        # Sub 1. relaunch_nodes not implemented
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 101
+        assert worker.total_failure_count == 1
+        assert len(manager.state.removed_nodes) == 0
+
+        # Sub 2. relaunch_nodes
+        manager.ext.relaunch_nodes_impl = AsyncMock()
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 102
+        assert worker.total_failure_count == 2
+        assert worker.node_info.id in manager.state.removed_nodes
+        assert manager.ext.relaunch_nodes_impl.called
+        assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
+            worker.node_info
+        ]
+
+        # Sub 3. new worker join due to node relaunch
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 0  # no failure
+        assert worker.total_failure_count == 2  # keep
 
 
-@pytest.mark.asyncio
-async def test_relaunch_node_if_needed(mock_manager):
-    spec = SimpleWorkloadDesc(entry_point="test::main")
-    test_role = DLWorkloadRole(name="test", spec=spec, instance_number=2)
+async def test_some_misc_cases(mocker: MockerFixture):
+    config = elastic_training_job()
+    manager = PrimeManager(config)
 
-    target_actor = DLExecutionWorkerVertex(
-        role=test_role,
-        rank=1,
-        node_rank=1,
-        world_size=2,
-        local_rank=0,
-        local_world_size=1,
-        restart_count=4,
+    # request_stop in READY stage
+    manager.state.stage = MasterStage.READY
+    manager._do_stop = Mock()
+    manager.request_stop("test stop in READY")
+    assert manager._do_stop.called
+
+    # save exception
+    mocker.patch.object(
+        manager.state_backend, "set", side_effect=Exception("test")
     )
-    target_actor.set_node(NodeInfo(id="node1"))
-    actors = [target_actor]
+    with patch.object(
+        logger, "exception", side_effect=logger.exception
+    ) as mock_log:
+        manager.save()
+    assert mock_log.called
+    assert mock_log.call_args[0][0] == "Failed to save state"
 
-    with (
-        patch("dlrover.python.unified.controller.manager.ray") as mock_ray,
-    ):
-        call_count = 0
-
-        def mock_nodes():
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # init nodes
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node1",
-                        "NodeManagerHostname": "host1",
-                        "NodeManagerAddress": "192.168.1.1",
-                    },
-                ]
-            elif call_count == 2:
-                # no new nodes relaunched yet
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node1",
-                        "NodeManagerHostname": "host1",
-                        "NodeManagerAddress": "192.168.1.1",
-                    },
-                ]
-            else:
-                # node 1 relaunched
-                return [
-                    {
-                        "NodeID": "node0",
-                        "NodeManagerHostname": "host0",
-                        "NodeManagerAddress": "192.168.1.0",
-                    },
-                    {
-                        "NodeID": "node2",
-                        "NodeManagerHostname": "host2",
-                        "NodeManagerAddress": "192.168.1.2",
-                    },
-                ]
-
-        mock_ray.nodes.side_effect = mock_nodes
-        mock_manager._context.node_total_count = 2
-        mock_manager._context.node_restart_count = 0
-
-        await mock_manager.relaunch_nodes_by_actors(actors, wait_interval=1)
-        assert target_actor.per_node_failure_count == 0
+    # _load_state exception
+    mocker.patch.object(manager.state_backend, "exists", return_value=True)
+    mocker.patch.object(
+        manager.state_backend, "get", side_effect=Exception("test")
+    )
+    with patch.object(
+        logger, "exception", side_effect=logger.exception
+    ) as mock_log:
+        assert manager._load_state() is None
+    assert mock_log.called
+    assert mock_log.call_args[0][0] == "Failed to load state"
 
 
-def test_runtime_context(mock_manager):
-    runtime_context = mock_manager._context
-    graph = runtime_context.graph
-    assert runtime_context is not None
+async def test_request_stop_cases():
+    config = elastic_training_job()
+    manager = PrimeManager(config)
 
-    serialized_context = runtime_context.serialize()
-    recover_context = runtime_context.deserialize(serialized_context)
+    # Case 1. Actor.restart_count exceeds the limit
+    manager.request_stop = Mock()
+    worker = manager.graph.roles["training"].instances[0]
+    worker.restart_count = worker.spec.max_restart
+    await manager.restart_actors([worker])
+    assert manager.request_stop.called
+    assert worker.name in str(manager.request_stop.call_args[0][0])
 
-    assert len(recover_context.graph.roles) == len(graph.roles)
-    assert len(recover_context.graph.edges) == len(graph.edges)
-    assert len(recover_context.graph.vertices) == len(graph.vertices)
-    assert recover_context.graph.vertices[1].name == graph.vertices[1].name
+    # Case 2. node_restart_count exceeds the limit
+    manager.request_stop = Mock()
+    manager.state.node_restart_count = config.node_max_restart
+    await manager._relaunch_fault_nodes([])
+    assert manager.request_stop.called
+    assert "node relaunch" in str(manager.request_stop.call_args[0][0])
+
+    # Case 3. job_restart_count exceeds the limit
+    manager.request_stop = Mock()
+    manager.state.job_restart_count = config.job_max_restart
+    manager.state.stage = MasterStage.RUNNING
+    manager._task = AsyncMock()
+
+    await manager.restart_job()
+    assert manager.request_stop.called
+    assert "Job has exceeded" in str(manager.request_stop.call_args[0][0])
