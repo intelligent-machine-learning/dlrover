@@ -140,7 +140,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         req_message = comm.deserialize_message(request.data)
 
-        response = self.get_response("get")
+        response = self.get_response(CommunicationReqType.COMM_REQ_TYPE_GET)
         if not req_message:
             return response
         message = None
@@ -405,7 +405,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
-        response = self.get_response("report")
+        response = self.get_response(CommunicationReqType.COMM_REQ_TYPE_REPORT)
         if not message:
             return response
 
