@@ -37,6 +37,7 @@ from dlrover.python.common.constants import (
     NodeType,
     PSClusterVersionType,
     RendezvousName,
+    CommunicationReqMeta,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
@@ -236,6 +237,10 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
         )
+        self.grpc_server_context = MagicMock()
+        self.grpc_server_context.invocation_metadata.return_value = [
+            (CommunicationReqMeta.COMM_META_JOB_UID, "11111")
+        ]
 
     def tearDown(self) -> None:
         os.environ.clear()
@@ -245,7 +250,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         request = elastic_training_pb2.Message()
         message = comm.RunningNodesRequest()
         request.data = message.serialize()
-        res = self.servicer.get(request, None)
+        res = self.servicer.get(request, self.grpc_server_context)
         ret: comm.RunningNodes = comm.deserialize_message(res.data)
         self.assertEqual(len(ret.nodes), 3)
 
@@ -398,21 +403,21 @@ class MasterServicerFunctionalTest(unittest.TestCase):
     def test_get(self):
         request = elastic_training_pb2.Message()
         request.data = b""
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         self.assertEqual(response.data, b"")
 
     def test_get_cluster_version(self):
         message = comm.ClusterVersionRequest(NodeType.WORKER, 0, "local")
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         res_msg = comm.deserialize_message(response.data)
         self.assertEqual(res_msg.version, 0)
 
         message = comm.ClusterVersionRequest(NodeType.PS, 0, "local")
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         res_msg = comm.deserialize_message(response.data)
         self.assertEqual(res_msg.version, 0)
 
@@ -420,7 +425,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         message = comm.TrainingStatusRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         res_msg: comm.TrainingStatus = comm.deserialize_message(response.data)
         self.assertEqual(res_msg.status, 3)
 
@@ -431,14 +436,14 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.servicer._rdzv_managers[
             RendezvousName.TRAINING
         ]._waiting_nodes = {0: 8}
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         res_msg: comm.RendezvousState = comm.deserialize_message(response.data)
         self.assertEqual(res_msg.waiting_num, 1)
 
     def test_report(self):
         request = elastic_training_pb2.Message()
         request.data = b""
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertFalse(response.success)
 
     def test_report_task_result(self):
@@ -454,7 +459,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         )
         self.servicer._collect_dataset_shard_params(dataset_params)
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertFalse(response.success, False)
 
         message = comm.TaskResult("test", 0, "")
@@ -462,7 +467,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.servicer._start_autoscale = False
         self.servicer._perf_monitor.completed_global_step == 0
         self.servicer._start_training_time = time.time() - 3600
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(self.servicer._start_autoscale)
         self.assertTrue(response.success)
 
@@ -472,7 +477,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             NodeType.WORKER, 0, PSClusterVersionType.LOCAL, 1
         )
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
         self.assertEqual(
             self.servicer._elastic_ps_service._worker_local_version[0], 1
@@ -482,7 +487,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             NodeType.WORKER, 0, PSClusterVersionType.RESTORED, 1
         )
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
         self.assertEqual(
             self.servicer._elastic_ps_service._worker_restored_version[0], 1
@@ -492,7 +497,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             NodeType.PS, 0, PSClusterVersionType.GLOBAL, 1
         )
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
         self.assertEqual(self.servicer._elastic_ps_service._global_version, 1)
 
@@ -502,35 +507,35 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         request.data = message.serialize()
         request.node_type = NodeType.WORKER
         request.node_id = 0
-        self.servicer.report(request, None)
+        self.servicer.report(request, self.grpc_server_context)
         self.assertEqual(len(self.servicer._sync_service._sync_objs_target), 1)
         sync_obj = self.servicer._sync_service._sync_objs_target["test"]
         self.assertEqual(len(sync_obj), 2)
 
         message = comm.SyncFinish("test")
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertFalse(response.success)
 
         self.servicer._sync_service._sync_objs_target["test"] = []
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
         message = comm.SyncBarrier("test")
         request.data = message.serialize()
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertFalse(response.success)
 
         self.servicer._sync_service._finished_barriers = ["test"]
-        response = self.servicer.report(request, None)
+        response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
     def test_get_paral_config(self):
         message = comm.ParallelConfigRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        self.servicer.report(request, None)
-        response = self.servicer.get(request, None)
+        self.servicer.report(request, self.grpc_server_context)
+        response = self.servicer.get(request, self.grpc_server_context)
         config = comm.deserialize_message(response.data)
         if config:
             self.assertIsInstance(config, comm.ParallelConfig)
@@ -539,8 +544,8 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         message = comm.StragglerExistRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        self.servicer.report(request, None)
-        response = self.servicer.get(request, None)
+        self.servicer.report(request, self.grpc_server_context)
+        response = self.servicer.get(request, self.grpc_server_context)
         config = comm.deserialize_message(response.data)
         self.assertIsInstance(config, comm.NetworkCheckResult)
 
@@ -548,7 +553,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         message = comm.CheckHardwareResetRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
-        response = self.servicer.get(request, None)
+        response = self.servicer.get(request, self.grpc_server_context)
         config = comm.deserialize_message(response.data)
         self.assertIsInstance(config, comm.ParallelConfig)
         self.assertFalse(config.restart)
@@ -582,7 +587,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         request.data = message.serialize()
         request.node_type = NodeType.WORKER
         request.node_id = 0
-        self.servicer.get(request, None)
+        self.servicer.get(request, self.grpc_server_context)
 
         worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertEqual(worker0.heartbeat_time, ts)
@@ -700,6 +705,56 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.assertEqual(
             self.servicer.get_task_type(None), elastic_training_pb2.NONE
         )
+
+    def test_validate_request(self):
+        # no job uid
+        request = elastic_training_pb2.Message()
+        ts0 = int(time.time())
+        message = comm.HeartBeat(ts0)
+        request.data = message.serialize()
+        request.node_type = NodeType.WORKER
+        request.node_id = 0
+        context = MagicMock()
+        context.invocation_metadata.return_value = []
+        self.servicer.get(request, context)
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
+        self.assertEqual(worker0.heartbeat_time, ts0)
+
+        # job uid is empty
+        ts1 = ts0 + 1
+        message = comm.HeartBeat(ts1)
+        request.data = message.serialize()
+        context = MagicMock()
+        context.invocation_metadata.return_value = [
+            (CommunicationReqMeta.COMM_META_JOB_UID, "")
+        ]
+        self.servicer.get(request, context)
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
+        self.assertEqual(worker0.heartbeat_time, ts1)
+
+        # job uid equal
+        ts2 = ts1 + 1
+        message = comm.HeartBeat(ts2)
+        request.data = message.serialize()
+        context = MagicMock()
+        context.invocation_metadata.return_value = [
+            (CommunicationReqMeta.COMM_META_JOB_UID, "11111")
+        ]
+        self.servicer.get(request, context)
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
+        self.assertEqual(worker0.heartbeat_time, ts2)
+
+        # job uid not equal
+        ts3 = ts2 + 1
+        message = comm.HeartBeat(ts3)
+        request.data = message.serialize()
+        context = MagicMock()
+        context.invocation_metadata.return_value = [
+            (CommunicationReqMeta.COMM_META_JOB_UID, "2222")
+        ]
+        self.servicer.get(request, context)
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
+        self.assertNotEqual(worker0.heartbeat_time, ts3)
 
 
 class MasterServicerForRayTest(unittest.TestCase):
