@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from concurrent import futures
 from typing import Dict, List, Optional
 
+import grpc
 from grpc import ServicerContext
 
 from dlrover.python.common import comm
@@ -859,6 +860,10 @@ try:
             request_meta = dict(context.invocation_metadata())
 
             if not self.validate_request(request_meta):
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details(
+                    CommunicationReqMeta.COMM_META_JOB_UID_INVALID_MSG
+                )
                 return self.get_response(
                     CommunicationReqType.COMM_REQ_TYPE_GET
                 )
@@ -949,7 +954,9 @@ try:
                 header = self.request.headers
                 if not self._handler.validate_request(header):
                     self.set_status(406)
-                    self.write("")
+                    self.write(
+                        CommunicationReqMeta.COMM_META_JOB_UID_INVALID_MSG
+                    )
                     return
 
                 path = self.request.path

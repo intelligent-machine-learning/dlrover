@@ -41,6 +41,7 @@ class CommunicationReqType(object):
 
 class CommunicationReqMeta(object):
     COMM_META_JOB_UID = "job_uid"
+    COMM_META_JOB_UID_INVALID_MSG = "Job uid is invalid"
 
 
 class ElasticJobApi(object):
