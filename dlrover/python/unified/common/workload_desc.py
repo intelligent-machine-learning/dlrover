@@ -138,6 +138,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
         "This is used to pass additional parameters to the workload.",
     )
 
+    rank_based_gpu_selection: bool = Field(
+        default=False,
+        description=(
+            "If True, GPUs are selected according to the local rank and visible devices. "
+            "Otherwise, GPU allocation is managed by Ray and only the allocated GPUs are made visible."
+        ),
+    )
+
     @model_validator(mode="after")
     def validate(self):
         assert self.total % self.per_group == 0, (

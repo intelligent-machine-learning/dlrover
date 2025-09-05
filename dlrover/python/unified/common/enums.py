@@ -64,3 +64,4 @@ class RLRoleType(str, Enum):
 class MasterStateBackendType(Enum):
     RAY_INTERNAL = "RAY_INTERNAL"
     HDFS = "HDFS"
+    IN_MEMORY = "IN_MEMORY"  # TEST Only, not for prod

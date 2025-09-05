@@ -38,9 +38,13 @@ from ray.exceptions import (
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import RAY_HANG_CHECK_INTERVAL
+from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 __actors_cache: Dict[str, ActorHandle] = {}
 T = TypeVar("T")
+
+
+after_test_cleanup(__actors_cache.clear)
 
 
 def reset_actor_cache(name: str):

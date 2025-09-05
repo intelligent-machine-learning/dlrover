@@ -11,17 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.actor_base import NodeInfo
-from dlrover.python.unified.controller.schedule.scaler import (
-    DefaultRayNodeScaler,
-)
-from dlrover.python.unified.tests.fixtures.example_jobs import (
-    elastic_training_job,
-)
+from pytest import fixture
+
+from dlrover.python.unified.util.test_hooks import _RESET_HOOKS
+
+"""Fixture for testing purposes, not associated with any specific component."""
 
 
-def test_default_scaler():
-    scaler = DefaultRayNodeScaler(elastic_training_job())
-    assert not scaler.relaunch([NodeInfo(id="node0")])
-    assert not scaler.scale_up(count=2)
-    assert not scaler.scale_down([NodeInfo(id="node0")])
+@fixture(autouse=True)
+def reset_all_singletons():
+    """Reset all singleton instances."""
+    yield
+    for reset_hook in _RESET_HOOKS:
+        reset_hook()

@@ -12,6 +12,9 @@
 # limitations under the License.
 
 
+from typing import Callable
+
+
 def coverage_enabled():
     """Check if coverage is enabled."""
     try:
@@ -20,3 +23,14 @@ def coverage_enabled():
         return coverage.Coverage.current() is not None
     except ImportError:
         return False
+
+
+_RESET_HOOKS = []
+
+
+def after_test_cleanup(callback: Callable[[], None]):
+    """Decorator to automatically reset the state after each test.
+    Use for Singleton/Global state.
+    """
+    _RESET_HOOKS.append(callback)
+    return callback

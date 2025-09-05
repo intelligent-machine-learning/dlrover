@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.unified.tests.fixtures.misc import reset_all_singletons
+
 from .fixtures.ray_util import (
     coverage_combine,
     disable_ray_auto_init,
@@ -21,6 +23,7 @@ from .fixtures.ray_util import (
 __fixtures__ = [
     coverage_combine,  # auto-use
     disable_ray_auto_init,  # auto-use
+    reset_all_singletons,  # auto-use
     shared_ray,
     tmp_ray,
 ]

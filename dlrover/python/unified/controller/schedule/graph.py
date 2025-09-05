@@ -60,36 +60,13 @@ class DLExecutionVertex(ABC, BaseModel):
         """Get the workload specification of the vertex."""
         return self.role.spec
 
-    @property
-    def node(self) -> Optional[NodeInfo]:
-        """Get the actor's node info."""
-        return self.node_info
-
     @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
 
-    def set_node(self, node_info: NodeInfo):
-        self.node_info = node_info
-
     def inc_failure_count(self):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
-
-    def reset_per_node_failure_count(self):
-        self.per_node_failure_count = 0
-
-    def inc_restart_count(self):
-        self.restart_count += 1
-
-    def reset_restart_count(self):
-        self.restart_count = 0
-
-    def set_restarting(self):
-        self.restarting = True
-
-    def set_running(self):
-        self.restarting = False
 
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
@@ -189,7 +166,7 @@ class DLWorkloadRole:
 
 
 class DLExecutionGraph:
-    """The computational graph for distributed deep learning."""
+    """Store topology information for distributed execution."""
 
     def __init__(
         self, roles: Dict[str, DLWorkloadRole], edges: List[DLExecutionEdge]

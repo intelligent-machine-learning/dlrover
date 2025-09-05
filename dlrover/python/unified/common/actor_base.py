@@ -12,12 +12,12 @@
 # limitations under the License.
 import os
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any, Optional
 
 import ray.actor
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import WorkerStage
+from dlrover.python.unified.common.enums import ACCELERATOR_TYPE, WorkerStage
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 from dlrover.python.common import env_utils
@@ -30,6 +30,7 @@ class JobInfo:
     name: str
     job_id: str
     user_config: Any
+    accelerator_type: ACCELERATOR_TYPE
 
 
 @dataclass
