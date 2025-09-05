@@ -112,21 +112,6 @@ class MasterServicer(ABC):
         # clear kv store in case previous data is still there
         self._kv_store.clear()
 
-    def validate_request(self, request) -> bool:
-        if not request:
-            return False
-        try:
-            job_uid = request.job_uid
-
-            # compare uid only when value is not empty(for backward compatible)
-            if job_uid and job_uid != self._job_manager.get_job_uid():
-                logger.warning(f"Invalid job uid: {job_uid} for request.")
-                return False
-            return True
-        except Exception:
-            # for backward compatible
-            return True
-
     @abstractmethod
     def get_response(self, method):
         """Should be implemented by subclasses."""
@@ -138,15 +123,11 @@ class MasterServicer(ABC):
         pass
 
     def get(self, request, _):
-        response = self.get_response("get")
-
-        if not self.validate_request(request):
-            return response
-
         node_type = request.node_type
         node_id = request.node_id
         req_message = comm.deserialize_message(request.data)
 
+        response = self.get_response("get")
         if not req_message:
             return response
         message = None
@@ -407,15 +388,11 @@ class MasterServicer(ABC):
         return res
 
     def report(self, request, _):
-        response = self.get_response("report")
-
-        if not self.validate_request(request):
-            return response
-
         node_type = request.node_type
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
+        response = self.get_response("report")
         if not message:
             return response
 

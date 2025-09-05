@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,9 +15,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 
 import grpc
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 from . import brain_pb2 as brain__pb2
-from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
 class BrainStub(object):
