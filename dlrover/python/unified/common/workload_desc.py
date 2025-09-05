@@ -152,6 +152,11 @@ class BaseWorkloadDesc(BaseModel, ABC):
             f"instance_number {self.total} must be divisible by "
             f"per_group {self.per_group}."
         )
+        if self.rank_based_gpu_selection:
+            assert self.per_group > 1 and self.resource.accelerator <= 1, (
+                "rank_based_gpu_selection is only valid when "
+                "per_group > 1 and resources(gpu) <= 1."
+            )
         return self
 
     @field_validator("entry_point", mode="before")
