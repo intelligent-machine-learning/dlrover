@@ -136,6 +136,24 @@ class ElasticManager:
         res.log_errors()
         self.stage = WorkerStage.FINISHED
 
+    def _recover_running(self):
+        """Recover the running job after failover."""
+        res = invoke_actors_t(
+            remote_call.get_stage, [node.name for node in self.workers]
+        ).wait()
+        if not all(
+            it != WorkerStage.INIT and it != WorkerStage.READY
+            for it in res.results
+        ):
+            # In case job-level failover
+            logger.warning(
+                "Some workers are not running after failover, cannot recover the job."
+            )
+            return
+        self.stage = WorkerStage.RUNNING
+        self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
+        logger.info("Recovered the running job after failover.")
+
     async def _restart_job(self):
         """Restart the elastic job due to worker restart."""
         assert self.stage == WorkerStage.RUNNING
