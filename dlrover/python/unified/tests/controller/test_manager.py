@@ -48,10 +48,10 @@ def test_manager_failover(mocker):
     assert manager.state.stage == MasterStage.READY
 
     new_manager = PrimeManager(config)
-    new_manager.terminate = Mock()
+    new_manager._do_stop = Mock()
     new_manager.handle_self_failover()
     assert new_manager.state.stage == MasterStage.READY
-    assert new_manager.terminate.called
+    assert new_manager._do_stop.called
 
     # Case 2. When failover from RUNNING, recover running
     manager._update_stage(MasterStage.RUNNING)

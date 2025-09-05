@@ -32,9 +32,6 @@ from dlrover.python.unified.util.actor_proxy import (
 )
 
 from ..common.config import JobConfig
-from ..common.constant import (
-    MasterConstant,
-)
 from . import remote_call
 from .schedule.graph import DLExecutionGraph, DLExecutionVertex
 from .schedule.scheduler import Scheduler
@@ -64,6 +61,8 @@ class PrimeManager:
     INSTANCE: "PrimeManager"  # Avoid access if possible
 
     def __init__(self, config: JobConfig) -> None:
+        # Note: all fields are readonly default, and state are private mutable
+
         self.config = config
         self._state_key = MASTER_STATE_KEY_PREFIX + config.job_name
 
@@ -77,14 +76,15 @@ class PrimeManager:
         self.ext = ManagerExtension.singleton()
 
         # Runtime state
+        # Note: All states should only mutate by manager itself or methods.
         self.state: RuntimeState = self._load_state() or RuntimeState(
             graph=DLExecutionGraph.create(config.dl_config),
         )
         self._stopped_event = asyncio.Event()
+        self._task = None
 
         logger.info(f"PrimeManager initialized with config: {config}")
         self.INSTANCE = self  # Singleton instance
-        self._task = None
 
     @property
     def graph(self) -> DLExecutionGraph:
@@ -195,7 +195,7 @@ class PrimeManager:
         assert self.stage == MasterStage.STOPPING, (
             f"Job stage should be STOPPING, but got {self.stage}."
         )
-        self.terminate()
+        self._do_stop()
 
     async def restart_actors(self, actors: List[DLExecutionVertex]) -> None:
         """Restart the specified actors."""
@@ -234,7 +234,7 @@ class PrimeManager:
         # record failure and relaunch fault node if needed
         assert actor.node_info is not None, "actor.node should set before"
         if actor.node_info.id in self.state.removed_nodes:
-            # caused by node relaunch, reset pre-node failure count
+            # caused by node relaunch, reset per-node failure count
             actor.per_node_failure_count = 0
             # This is not a failure
         else:
@@ -282,6 +282,11 @@ class PrimeManager:
             )
         assert self._task is not None
         self.state.job_restart_count += 1
+        if self.state.job_restart_count > self.config.job_max_restart:
+            self.request_stop(
+                f"Job has exceeded the maximum restart count: {self.state.job_restart_count}."
+            )
+            return
         logger.info("Restarting the job execution.")
         self._task.cancel()
         self._update_stage(MasterStage.READY)
@@ -307,10 +312,10 @@ class PrimeManager:
         if self.stage == MasterStage.RUNNING:
             self._update_stage(MasterStage.STOPPING)
         else:
-            # No running job, terminate
-            self.terminate()
+            # main loop is not running, do stop directly
+            self._do_stop()
 
-    def terminate(self):
+    def _do_stop(self):
         logger.info("Terminating all actors...")
         kill_actors([node.name for node in self.graph.vertices])
         self._update_stage(MasterStage.STOPPED)
@@ -321,9 +326,6 @@ class PrimeManager:
         """Wait for the job to finish."""
         await self._stopped_event.wait()
         assert self.stage == MasterStage.STOPPED
-
-    def _get_state_key(self):
-        return MasterConstant.MASTER_STATE_KEY_PREFIX + self.config.job_name
 
     def save(self):
         """Save the job state to persistent storage."""
@@ -359,4 +361,4 @@ class PrimeManager:
         else:
             # Don't support failover in other stages, which are little possibility
             logger.warning(f"Job is in stage {self.stage}, terminating.")
-            self.terminate()
+            self._do_stop()
