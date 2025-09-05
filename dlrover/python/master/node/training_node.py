@@ -219,6 +219,8 @@ class TrainingNodeManager(object):
 
     def _update_node(self, node: Node):
         self._job_context.update_job_node(node)
+        if node.has_group():
+            self._job_context.update_job_node_by_group(node)
 
     def update_nodes_iter(self, update_rank_iter=True):
         nodes = self._job_context.job_nodes_by_type(self._node_type)

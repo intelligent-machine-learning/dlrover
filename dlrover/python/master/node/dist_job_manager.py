@@ -589,9 +589,6 @@ class DistributedJobManager(JobManager):
                 node_id = node.id
                 exist_nodes[node_type].append(node)
 
-                if node.has_group():
-                    self._job_context.update_job_node_by_group(node)
-
                 # for nodes not in current 'job_nodes' obj, re add it
                 if (
                     node_id not in job_nodes[node_type]
@@ -603,6 +600,8 @@ class DistributedJobManager(JobManager):
                     )
                     new_node = copy.deepcopy(node)
                     self._job_context.update_job_node(new_node)
+                    if new_node.has_group():
+                        self._job_context.update_job_node_by_group(new_node)
 
                 # update node group info if necessary
                 if (
@@ -802,6 +801,8 @@ class DistributedJobManager(JobManager):
                 is_released=event.node.is_released,
             )
             self._job_context.update_job_node(cur_node)
+            if cur_node.has_group():
+                self._job_context.update_job_node_by_group(cur_node)
 
         # For the given node id, check whether it meets
         # the state change condition
@@ -833,6 +834,8 @@ class DistributedJobManager(JobManager):
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
             self._job_context.update_job_node(cur_node)
+            if cur_node.has_group():
+                self._job_context.update_job_node_by_group(cur_node)
 
             self._process_node_events(status_change_flow, cur_node)
 
@@ -890,6 +893,10 @@ class DistributedJobManager(JobManager):
         If node relaunch pending in node group happened, check if we
         need to relaunch the whole node group
         """
+        logger.debug(
+            f"Check node group {node_group} "
+            f"already relaunched: {self._relaunched_groups}"
+        )
         if node_group in self._relaunched_groups:
             logger.debug(
                 f"Skip node group {node_group} due to "
@@ -1033,6 +1040,8 @@ class DistributedJobManager(JobManager):
         node.relaunchable = False
 
         self._job_context.update_job_node(node)
+        if node.has_group():
+            self._job_context.update_job_node_by_group(node)
         self._scaler.scale(plan)
 
     def _relaunch_node_group(self, node_group: int):
@@ -1069,6 +1078,8 @@ class DistributedJobManager(JobManager):
             plan.remove_nodes.append(node)
             node.relaunchable = False
             self._job_context.update_job_node(node)
+            if node.has_group():
+                self._job_context.update_job_node_by_group(node)
 
         logger.info(
             f"Finish scale plan for node group {node_group} relaunch "
@@ -1093,6 +1104,8 @@ class DistributedJobManager(JobManager):
                         scale_plan.remove_nodes.append(node)
                         node.is_released = True
                         self._job_context.update_job_node(node)
+                        if node.has_group():
+                            self._job_context.update_job_node_by_group(node)
         if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
@@ -1188,11 +1201,15 @@ class DistributedJobManager(JobManager):
                         node.is_released = True
                         node.relaunchable = False
                         self._job_context.update_job_node(node)
+                        if node.has_group():
+                            self._job_context.update_job_node_by_group(node)
                 for node in job_nodes[NodeType.WORKER].values():
                     node.eval_time = self._perf_monitor.get_worker_eval_time(
                         node.id
                     )
                     self._job_context.update_job_node(node)
+                    if node.has_group():
+                        self._job_context.update_job_node_by_group(node)
             self._stopped = True
 
     def update_node_resource_usage(
