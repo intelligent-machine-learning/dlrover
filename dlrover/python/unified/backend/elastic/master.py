@@ -12,6 +12,8 @@
 # limitations under the License.
 
 
+import ray
+
 from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
@@ -22,6 +24,8 @@ class ElasticMaster(ActorBase):
     def _setup(self):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            self.manager._recover_running()
 
     # Lifecycle Hooks
 
