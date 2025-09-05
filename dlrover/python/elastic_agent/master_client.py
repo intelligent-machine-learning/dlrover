@@ -16,7 +16,7 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import requests
 
@@ -29,6 +29,7 @@ from dlrover.python.common.constants import (
     NetworkFailureReason,
     NodeEnv,
     NodeEventType,
+    CommunicationReqMeta,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -554,13 +555,25 @@ try:
             self._channel = comm.build_grpc_channel(self._master_addr)
             self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
+        def _gen_request_meta(self) -> Sequence[Tuple[str, Union[str, bytes]]]:
+            return [
+                (
+                    CommunicationReqMeta.COMM_META_JOB_UID,
+                    env_utils.get_job_uid(),
+                )
+            ]
+
         @retry()
         def _report(self, message: comm.Message):
             request = elastic_training_pb2.Message()
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()
-            return self._stub.report(request, timeout=self._timeout)
+            return self._stub.report(
+                request,
+                timeout=self._timeout,
+                metadata=self._gen_request_meta(),
+            )
 
         @retry()
         def _get(self, message: comm.Message):
@@ -568,7 +581,11 @@ try:
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()
-            response = self._stub.get(request, timeout=self._timeout)
+            response = self._stub.get(
+                request,
+                timeout=self._timeout,
+                metadata=self._gen_request_meta(),
+            )
             res_message = comm.deserialize_message(response.data)
             return res_message
 
@@ -585,11 +602,19 @@ class HttpMasterClient(MasterClient):
     def _get_http_request_url(self, path: str) -> str:
         return "http://" + self._master_addr + path
 
+    def _get_headers(self) -> Dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            CommunicationReqMeta.COMM_META_JOB_UID: env_utils.get_job_uid(),
+        }
+
     @retry()
     def _report(self, message: comm.Message):
         with requests.post(
             self._get_http_request_url("/report"),
             json=self._gen_request(message).to_json(),
+            headers=self._get_headers(),
         ) as response:
             if response.status_code != 200:
                 error_msg = f"Failed to report master with http request: {type(message)}."
@@ -604,6 +629,7 @@ class HttpMasterClient(MasterClient):
         with requests.post(
             self._get_http_request_url("/get"),
             json=self._gen_request(message).to_json(),
+            headers=self._get_headers(),
         ) as response:
             if response.status_code != 200:
                 error_msg = f"Failed to get from master with http request: {type(message)}."

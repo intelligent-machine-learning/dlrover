@@ -25,6 +25,7 @@ from dlrover.python.unified.common.enums import MasterStage
 from ..common.config import JobConfig
 from .api import (
     MASTER_ACTOR_NAME,
+    MasterStatus,
     PrimeMasterApi,
 )
 from .manager import PrimeManager
@@ -42,10 +43,17 @@ class PrimeMaster:
         )
 
         self.manager = PrimeManager(config)
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            self.manager.handle_self_failover()
 
     def get_status(self):
         """Get the current status of the job."""
-        return self.manager.status
+        internal_state = self.manager.state
+        return MasterStatus(
+            internal_state.stage,
+            internal_state.exit_code,
+            internal_state.job_restart_count,
+        )
 
     async def start(self):
         """Start the job execution."""

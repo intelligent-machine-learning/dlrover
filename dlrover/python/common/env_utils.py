@@ -54,6 +54,12 @@ def get_torch_restart_count():
     return int(os.getenv("TORCHELASTIC_RESTART_COUNT", 0))
 
 
+def get_job_uid():
+    """Get the job UID."""
+    job_uid = os.getenv(NodeEnv.JOB_UID, "")
+    return job_uid
+
+
 def get_node_id():
     """Get the node ID."""
     node_id = int(os.getenv(NodeEnv.NODE_ID, 0))
