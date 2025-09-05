@@ -16,7 +16,7 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import requests
 
@@ -28,7 +28,7 @@ from dlrover.python.common.constants import (
     KeyValueOps,
     NetworkFailureReason,
     NodeEnv,
-    NodeEventType,
+    NodeEventType, CommunicationReqMeta,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -554,13 +554,16 @@ try:
             self._channel = comm.build_grpc_channel(self._master_addr)
             self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
+        def _gen_request_meta(self) -> Sequence[Tuple[str, Union[str, bytes]]]:
+            return [(CommunicationReqMeta.COMM_META_JOB_UID, env_utils.get_job_uid())]
+
         @retry()
         def _report(self, message: comm.Message):
             request = elastic_training_pb2.Message()
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()
-            return self._stub.report(request, timeout=self._timeout)
+            return self._stub.report(request, timeout=self._timeout, metadata=self._gen_request_meta())
 
         @retry()
         def _get(self, message: comm.Message):
@@ -568,7 +571,7 @@ try:
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()
-            response = self._stub.get(request, timeout=self._timeout)
+            response = self._stub.get(request, timeout=self._timeout, metadata=self._gen_request_meta())
             res_message = comm.deserialize_message(response.data)
             return res_message
 

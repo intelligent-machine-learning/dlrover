@@ -19,11 +19,12 @@ from abc import ABC, abstractmethod
 from concurrent import futures
 from typing import Dict, List, Optional
 
+from grpc import ServicerContext
+
 from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseRequest, BaseResponse, TaskType
 from dlrover.python.common.constants import (
     GRPC,
-    CommunicationType,
     CustomMetricKeys,
     JobConstant,
     JobStage,
@@ -32,7 +33,8 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    TrainingLoopStatus,
+    TrainingLoopStatus, CommunicationReqType, CommunicationReqMeta,
+    CommunicationType,
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
@@ -844,8 +846,32 @@ try:
                 sync_service,
             )
 
+        def validate_request(self, request_meta: dict) -> bool:
+            if CommunicationReqMeta.COMM_META_JOB_UID in request_meta:
+                job_uid = request_meta[CommunicationReqMeta.COMM_META_JOB_UID]
+                if job_uid and job_uid != self._job_manager.job_uid:
+                    logger.error(f"Invalid job uid for request: {job_uid}.")
+                    return False
+            return True
+
+        def get(self, request, context: ServicerContext):
+            request_meta = dict(context.invocation_metadata())
+
+            if not self.validate_request(request_meta):
+                return self.get_response(CommunicationReqType.COMM_REQ_TYPE_GET)
+
+            return super().get(request, context)
+
+        def report(self, request, context: ServicerContext):
+            request_meta = dict(context.invocation_metadata())
+
+            if not self.validate_request(request_meta):
+                return self.get_response(CommunicationReqType.COMM_REQ_TYPE_REPORT)
+
+            return super().report(request, context)
+
         def get_response(self, method):
-            if method == "report":
+            if method == CommunicationReqType.COMM_REQ_TYPE_REPORT:
                 return elastic_training_pb2.Response()
             else:
                 return elastic_training_pb2.Message()

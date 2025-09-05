@@ -34,6 +34,15 @@ class CommunicationType(object):
     COMM_SERVICE_RAY = "ray"
 
 
+class CommunicationReqType(object):
+    COMM_REQ_TYPE_GET = "get"
+    COMM_REQ_TYPE_REPORT = "report"
+
+
+class CommunicationReqMeta(object):
+    COMM_META_JOB_UID = "job_uid"
+
+
 class ElasticJobApi(object):
     GROUP = "elastic.iml.github.io"
     VERION = "v1alpha1"
