@@ -230,7 +230,7 @@ class PrimeManager:
             return  # Actor is already restarting, no need to handle it again.
 
         # record failure and relaunch fault node if needed
-        assert actor.node_info is not None, "actor.node should set before"
+        assert actor.node_info is not None, "actor.node should be set before"
         if actor.node_info.id in self.state.removed_nodes:
             # caused by node relaunch, reset per-node failure count
             actor.per_node_failure_count = 0
