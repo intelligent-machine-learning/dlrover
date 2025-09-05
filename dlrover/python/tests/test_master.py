@@ -147,6 +147,9 @@ class DistributedJobMasterTest(unittest.TestCase):
 
         try:
             run(parse_master_args(original_args))
+            original_args.append("--xpu_type")
+            original_args.append("mthreads")
+            run(parse_master_args(original_args))
         except Exception:
             pass
 

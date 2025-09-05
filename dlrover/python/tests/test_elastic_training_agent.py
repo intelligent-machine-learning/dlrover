@@ -205,6 +205,34 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         config.auto_configure_params()
         self.assertEqual(config.failure_node_errors, "")
 
+    @patch("torch.cuda.is_available")
+    @patch("torch.cuda.get_device_name")
+    def test_mtgpu_auto_configure(
+        self, mock_get_device_name, mock_is_available
+    ):
+        mock_get_device_name.return_value = "mthreads"
+        mock_is_available.return_value = True
+        config = ElasticLaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=8,
+            run_id="test",
+            auto_config=True,
+        )
+        os.environ["NODE_NUM"] = "4"
+        os.environ["TRAINING_LOG_FILE"] = "training_log"
+        os.environ["FAILURE_NODE_ERRORS"] = "#errors#"
+        config.auto_configure_params()
+        self.assertEqual(config.max_nodes, 4)
+        self.assertEqual(config.min_nodes, 4)
+        self.assertTrue(config.network_check)
+        self.assertEqual(config.training_log_file, "training_log")
+        self.assertEqual(config.failure_node_errors, "#errors#")
+
+        os.environ["FAILURE_NODE_ERRORS"] = " #errors"
+        config.auto_configure_params()
+        self.assertEqual(config.failure_node_errors, "")
+
     def test_rank0_rendezvous(self):
         agent = ElasticTrainingAgent(
             node_rank=0,
