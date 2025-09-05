@@ -33,7 +33,9 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
     TrainingExceptionLevel,
-    TrainingLoopStatus, CommunicationReqType, CommunicationReqMeta,
+    TrainingLoopStatus,
+    CommunicationReqType,
+    CommunicationReqMeta,
     CommunicationType,
 )
 from dlrover.python.common.event.context import JobEventContext
@@ -123,6 +125,14 @@ class MasterServicer(ABC):
     def get_task_type(self, task_type):
         """Should be implemented by subclasses."""
         pass
+
+    def validate_request(self, request_meta: dict) -> bool:
+        if CommunicationReqMeta.COMM_META_JOB_UID in request_meta:
+            job_uid = request_meta[CommunicationReqMeta.COMM_META_JOB_UID]
+            if job_uid and job_uid != self._job_manager.job_uid:
+                logger.error(f"Invalid job uid: {job_uid} for request.")
+                return False
+        return True
 
     def get(self, request, _):
         node_type = request.node_type
@@ -663,7 +673,6 @@ class MasterServicer(ABC):
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )
-        logger.info("debug rdzv return")
         return True
 
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
@@ -846,19 +855,13 @@ try:
                 sync_service,
             )
 
-        def validate_request(self, request_meta: dict) -> bool:
-            if CommunicationReqMeta.COMM_META_JOB_UID in request_meta:
-                job_uid = request_meta[CommunicationReqMeta.COMM_META_JOB_UID]
-                if job_uid and job_uid != self._job_manager.job_uid:
-                    logger.error(f"Invalid job uid for request: {job_uid}.")
-                    return False
-            return True
-
         def get(self, request, context: ServicerContext):
             request_meta = dict(context.invocation_metadata())
 
             if not self.validate_request(request_meta):
-                return self.get_response(CommunicationReqType.COMM_REQ_TYPE_GET)
+                return self.get_response(
+                    CommunicationReqType.COMM_REQ_TYPE_GET
+                )
 
             return super().get(request, context)
 
@@ -866,7 +869,9 @@ try:
             request_meta = dict(context.invocation_metadata())
 
             if not self.validate_request(request_meta):
-                return self.get_response(CommunicationReqType.COMM_REQ_TYPE_REPORT)
+                return self.get_response(
+                    CommunicationReqType.COMM_REQ_TYPE_REPORT
+                )
 
             return super().report(request, context)
 
@@ -941,6 +946,12 @@ try:
 
         def post(self):
             try:
+                header = self.request.headers
+                if not self._handler.validate_request(header):
+                    self.set_status(406)
+                    self.write("")
+                    return
+
                 path = self.request.path
                 request = BaseRequest.from_json(json.loads(self.request.body))
 
