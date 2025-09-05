@@ -36,7 +36,7 @@ generate_proto_files() {
     then
         python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --pyi_out=. --grpc_python_out=. "$filename".proto
     else
-        python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --grpc_python_out=. "$filename".proto
+        python3 -m grpc_tools.protoc -I. -I"$base_dir" --python_out=. --pyi_out=. --grpc_python_out=. "$filename".proto
     fi
     sed -i "s/import ${filename}_pb2/from \. import ${filename}_pb2/g" "$filename"_pb2_grpc.py
   done

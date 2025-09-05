@@ -60,6 +60,10 @@ class JobManager(metaclass=ABCMeta):
         self._training_node_config = TrainingNodeConfig(external_config)
         self._job_context = get_job_context()
 
+    @property
+    def job_uid(self):
+        return self._job_args.job_uuid
+
     @abstractmethod
     def start(self):
         pass

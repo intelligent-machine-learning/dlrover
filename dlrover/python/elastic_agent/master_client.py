@@ -557,6 +557,7 @@ try:
         @retry()
         def _report(self, message: comm.Message):
             request = elastic_training_pb2.Message()
+            request.job_uid = env_utils.get_job_uid()
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()
@@ -565,6 +566,7 @@ try:
         @retry()
         def _get(self, message: comm.Message):
             request = elastic_training_pb2.Message()
+            request.job_uid = env_utils.get_job_uid()
             request.node_id = self._node_id
             request.node_type = self._node_type
             request.data = message.serialize()

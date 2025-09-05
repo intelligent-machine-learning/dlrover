@@ -119,7 +119,7 @@ class PodScaler(Scaler):
         self._master_addr = self._get_master_addr()
         self._started = True
         threading.Thread(
-            target=self._periodic_create_pod, name="pod-creater", daemon=True
+            target=self._periodic_create_pod, name="pod-creator", daemon=True
         ).start()
 
     def stop(self):
@@ -184,7 +184,7 @@ class PodScaler(Scaler):
                 if replica == NodeType.DLROVER_MASTER:
                     continue
                 pod = spec["template"]
-                pod["apiVesion"] = "v1"
+                pod["apiVersion"] = "v1"
                 pod["kind"] = "Pod"
                 res = FakeKubeResponse(pod)
                 v1pod = self._k8s_client.api_client.deserialize(res, "V1Pod")

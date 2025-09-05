@@ -21,6 +21,7 @@ message Message {
   string node_type = 2;
   // pickle bytes.
   bytes data = 3;
+  string job_uid = 4;
 }
 
 service Master {

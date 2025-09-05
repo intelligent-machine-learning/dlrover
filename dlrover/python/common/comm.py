@@ -18,6 +18,7 @@ from typing import Dict, List
 import grpc
 
 import dlrover.python.util.dlrover_pickle as pickle
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import GRPC
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
@@ -103,6 +104,8 @@ def deserialize_message(data: bytes):
 
 
 class Message(JsonSerializable):
+    job_uid: str = env_utils.get_job_uid()
+
     def serialize(self):
         return pickle.dumps(self)
 
@@ -115,6 +118,7 @@ class BaseRequest(Message):
 
     def to_json(self):
         return {
+            "job_uid": self.job_uid,
             "node_id": self.node_id,
             "node_type": self.node_type,
             "data": base64.b64encode(self.data).decode("utf-8"),
@@ -123,6 +127,7 @@ class BaseRequest(Message):
     @staticmethod
     def from_json(json_data):
         return BaseRequest(
+            job_uid=json_data.get("job_uid"),
             node_id=json_data.get("node_id"),
             node_type=json_data.get("node_type"),
             data=base64.b64decode(json_data.get("data")),
