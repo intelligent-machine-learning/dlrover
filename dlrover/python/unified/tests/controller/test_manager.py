@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pytest_mock import MockerFixture
@@ -20,7 +20,7 @@ from dlrover.python.unified.common.actor_base import NodeInfo
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 from dlrover.python.unified.controller import remote_call
-from dlrover.python.unified.controller.manager import PrimeManager
+from dlrover.python.unified.controller.manager import PrimeManager, logger
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
@@ -126,3 +126,67 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         await manager.deal_with_actor_restarting(worker)
         assert worker.per_node_failure_count == 0  # no failure
         assert worker.total_failure_count == 2  # keep
+
+
+async def test_some_misc_cases(mocker: MockerFixture):
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+
+    # request_stop in READY stage
+    manager.state.stage = MasterStage.READY
+    manager._do_stop = Mock()
+    manager.request_stop("test stop in READY")
+    assert manager._do_stop.called
+
+    # save exception
+    mocker.patch.object(
+        manager.state_backend, "set", side_effect=Exception("test")
+    )
+    with patch.object(
+        logger, "exception", side_effect=logger.exception
+    ) as mock_log:
+        manager.save()
+    assert mock_log.called
+    assert mock_log.call_args[0][0] == "Failed to save state"
+
+    # _load_state exception
+    mocker.patch.object(manager.state_backend, "exists", return_value=True)
+    mocker.patch.object(
+        manager.state_backend, "get", side_effect=Exception("test")
+    )
+    with patch.object(
+        logger, "exception", side_effect=logger.exception
+    ) as mock_log:
+        assert manager._load_state() is None
+    assert mock_log.called
+    assert mock_log.call_args[0][0] == "Failed to load state"
+
+
+async def test_request_stop_cases():
+    config = elastic_training_job()
+    manager = PrimeManager(config)
+
+    # Case 1. Actor.restart_count exceeds the limit
+    manager.request_stop = Mock()
+    worker = manager.graph.roles["training"].instances[0]
+    worker.restart_count = worker.spec.max_restart
+    await manager.restart_actors([worker])
+    assert manager.request_stop.called
+    assert worker.name in str(manager.request_stop.call_args[0][0])
+
+    # Case 2. node_restart_count exceeds the limit
+    manager.request_stop = Mock()
+    manager.state.node_restart_count = config.node_max_restart
+    await manager._relaunch_fault_nodes([])
+    assert manager.request_stop.called
+    assert "node relaunch" in str(manager.request_stop.call_args[0][0])
+
+    # Case 3. job_restart_count exceeds the limit
+    manager.request_stop = Mock()
+    manager.state.job_restart_count = config.job_max_restart
+    manager.state.stage = MasterStage.RUNNING
+    manager._task = AsyncMock()
+
+    await manager.restart_job()
+    assert manager.request_stop.called
+    assert "Job has exceeded" in str(manager.request_stop.call_args[0][0])

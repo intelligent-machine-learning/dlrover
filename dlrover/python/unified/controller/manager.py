@@ -156,11 +156,9 @@ class PrimeManager:
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
-        if self.stage != MasterStage.READY:
-            raise RuntimeError(
-                f"Cannot start job in stage {self.stage}. "
-                "Expected stage is READY."
-            )
+        assert self.stage == MasterStage.READY, (
+            f"Cannot start job in stage {self.stage}. Expected stage is READY."
+        )
         actors = [actor.name for actor in self.graph.vertices]
         res = await invoke_actors_t(remote_call.start, actors)
         res.raise_for_errors()
@@ -261,7 +259,7 @@ class PrimeManager:
             logger.fatal(
                 f"Node relaunch beyond limit: {self.config.node_max_restart}, stop job directly."
             )
-            self.request_stop("node relaunch beyond limit.")
+            self.request_stop("node relaunch beyond limit")
             return
         self.state.removed_nodes.update(node.id for node in nodes)
         try:
@@ -275,11 +273,10 @@ class PrimeManager:
 
     async def restart_job(self):
         """Restart the job execution."""
-        if self.stage != MasterStage.RUNNING:
-            raise RuntimeError(
-                f"Cannot restart job in stage {self.stage}. "
-                "Expected stage is RUNNING."
-            )
+        assert self.stage == MasterStage.RUNNING, (
+            f"Cannot restart job in stage {self.stage}. "
+            "Expected stage is RUNNING."
+        )
         assert self._task is not None
         self.state.job_restart_count += 1
         if self.state.job_restart_count > self.config.job_max_restart:
