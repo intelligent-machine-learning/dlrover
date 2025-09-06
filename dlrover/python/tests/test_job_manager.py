@@ -502,6 +502,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.DELETED,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
@@ -512,6 +515,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.RUNNING,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
@@ -522,6 +528,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.RUNNING,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         node0.exit_reason = NodeExitReason.NO_HEARTBEAT
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
