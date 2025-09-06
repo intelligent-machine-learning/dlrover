@@ -1,0 +1,544 @@
+@startuml
+
+
+
+
+
+/' Objects '/
+
+namespace atorch {
+	class BvarMetrics {
+		+BvarMetrics()
+		+BvarMetrics(BvarMetrics&& other)
+		+BvarMetrics(const std::string& name, const std::string_view& type, const uint64_t flop, Labels label, std::shared_ptr<server::ClientStub> stub)
+		+~BvarMetrics()
+		+isTimeout(int count) : bool
+		-sync_ : bool
+		-alive_counter_ : int
+		-zero_qps_counter_ : int
+		-{static} expose_bvar_ : static bool
+		-{static} push_interval_ : static std::chrono::seconds
+		-{static} coll_bvar_window_size_ : static time_t
+		-{static} mm_bvar_window_size_ : static time_t
+		-start_ : std::chrono::steady_clock::time_point
+		-client_stub_ : std::shared_ptr<server::ClientStub>
+		-name_ : std::string
+		-timeout_counter_ : std::unique_ptr<TimeoutCounter>
+		-bv_ : std::unique_ptr<bvar::LatencyRecorder>
+		-flop_ : uint64_t
+		+pushMetrics(uint64_t dur_in_us) : void
+		+setSync(bool sync) : void
+		+{static} setUp() : void
+	}
+
+	class GpuTimerManager <template<typename T>> {
+		-GpuTimerManager()
+		-~GpuTimerManager()
+		-working_queue_ : BlockingDeque<T>
+		-getMetrics(T* work_item) : BvarMetrics&
+		+{static} getInstance() : GpuTimerManager&
+		-metrics_manager_ : MetricsManager*
+		+getEvent() : T*
+		-event_pool_ : TimerPool<T>
+		-daemon_ : bp::child*
+		-{static} instance_ : inline static GpuTimerManager*
+		-{static} init_flag_ : inline static std::once_flag
+		-dump_stack_count_ : int
+		-py_stack_util_ : stack_util::PyStackInProcess*
+		-dump_stub_ : std::shared_ptr<ClientStub>
+		-daemon_addr_ : std::string
+		-event_poller_ : std::thread
+		+intercept_manager : typename T::InnerInterceptManager
+		-deregisterMetrics() : void
+		-doHang() : void
+		-doWork() : void
+		-{static} initSingleton() : void
+		+recordEvent(T* event) : void
+		-startDaemon(int port) : void
+		-startWork() : void
+		-stopWork() : void
+	}
+
+	class KernelTraceManager {
+		-KernelTraceManager()
+		-~KernelTraceManager()
+		+{static} getInstance() : KernelTraceManager&
+		-has_do_prepare_for_dump_ : bool
+		-has_trigger_trace_ : bool
+		+prepareDump() : bool
+		+pushTrace(T* work_item) : bool
+		+triggerTrace() : bool
+		-{static} instance_ : inline static KernelTraceManager*
+		-{static} init_flag_ : inline static std::once_flag
+		-switch_ : std::unique_ptr<util::ShmSwitch>
+		-kernel_trace_ : std::vector<KernelTrace>
+		-curr_ : uint32_t
+		-kernel_trace_count_ : uint32_t
+		+dumpKernelTrace(stack_util::PyStackInProcess* py_stack_util) : void
+		-{static} initSingleton() : void
+		-reset(const std::string& barrier_name) : void
+	}
+
+	class LibraryLoader {
+		+LibraryLoader(const std::string& library_path)
+		#can_use_ : bool
+		#library_path_ : const std::string
+		#LoadLibrary() : void
+		#handle_ : void*
+	}
+
+	class MetricsManager {
+		+MetricsManager()
+		+~MetricsManager()
+		+GetOrCreateMetrics(const std::string& name, const std::string_view& type, const uint64_t flop, Labels label, std::shared_ptr<server::ClientStub> stub) : BvarMetrics&
+		-deregister_timeout_count_ : int
+		-should_run_ : std::atomic<bool>
+		-mu_ : std::mutex
+		-deregister_thread_ : std::thread
+		-metrics_ : std::unordered_map<std::string, BvarMetrics*>
+		+DeleteMetrics(bool exit) : void
+		-checkMetrics() : void
+		+deregisterMetrics() : void
+	}
+
+	class TimeoutCounter {
+		+TimeoutCounter()
+		-counter_ : std::unique_ptr<bvar::Adder<uint64_t>>
+		-timout_counter_ : std::unique_ptr<bvar::Window<bvar::Adder<uint64_t>>>
+		+ThroughtPut() : uint64_t
+		+Add() : void
+	}
+
+	abstract class XpuTimer {
+		+{abstract} getExtraLabels() : Labels
+		+{abstract} isHang(uint64_t timeout) : bool
+		+{abstract} isReady() : bool
+		+{abstract} getTraceCode() : int
+		+{abstract} getName() : std::string
+		+{abstract} getType() : std::string_view&
+		+{abstract} getExecuteTimeStamp() : time_t
+		+{abstract} getLaunchTimeStamp() : time_t
+		+{abstract} getDuration() : uint64_t
+		+{abstract} getFlop() : uint64_t
+		+{abstract} getTraceId() : uint64_t
+		+{static} doPrepare() : void
+		+{static} doPrepareForDumpTrace() : void
+		+{static} dumpTraceMeta(const std::string& path) : void
+		+{abstract} endRecord() : void
+		+{abstract} reBuild() : void
+		+{abstract} startRecord() : void
+	}
+
+	class KernelTrace {
+		+kernel_type : int
+		+trace_code : int
+		+execute_timestamp : time_t
+		+delay : uint32_t
+		+dur : uint32_t
+		+trace_id : uint64_t
+	}
+
+	class PyStackTrace {
+		+line : int
+		+filename : std::string
+		+function_name : std::string
+	}
+
+	namespace util {
+		class BlockingDeque <template<typename T>> {
+			+pop(std::function<bool ( T* )> is_hang, std::function<bool ( T* )> is_ready) : T*
+			-mutex_ : mutable std::mutex
+			-cond_var_ : std::condition_variable
+			-deque_ : std::deque<T*>
+			+printHangName(std::vector<std::string>* hang_items) : void
+			+push(T* valuePtr) : void
+		}
+
+		class EnvVarRegistry {
+			+{static} GetEnvVar(const std::string& name) : T
+			-{static} getDefault() : T
+			-{static} getEnvInner(std::string env_name, bool* has_env) : T
+			+{static} convert_to_variant(const std::string_view& sv) : VarType
+			+{static} convert_to_variant(const char* s) : VarType
+			+{static} convert_to_variant(const T& val) : VarType
+			-{static} GetPtree() : boost::property_tree::ptree&
+			+{static} BOOL_DEFAULT_VALUE : static constexpr bool
+			+{static} INT_DEFAULT_VALUE : static constexpr int
+			+{static} STRING_DEFAULT_VALUE : static constexpr std::string_view
+			-{static} GetRegistry() : std::unordered_map<std::string , VarType>&
+			+{static} RegisterEnvVar(const std::string& name, variant<int, bool, std::string> default_value) : void
+		}
+
+		class ScopeGuard {
+			+ScopeGuard(std::function<void ( )> cb)
+			-function<void()
+			+~ScopeGuard()
+		}
+
+		class ShmType <template<typename T>> {
+			+ShmType(int local_world_size, int local_rank, bool main)
+			+~ShmType()
+			+getObj() : T*
+			-obj_ : T*
+			-shm_area_ : bip::managed_shared_memory*
+			-shm_name_ : std::string
+		}
+
+		class TimerPool <template<typename T>> {
+			+TimerPool()
+			+getObject() : T*
+			-pool_ : std::deque<T*>
+			-mutex_ : std::mutex
+			+returnObject(T* obj) : void
+		}
+
+		namespace detail {
+			class InterProcessBarrierImpl {
+				+InterProcessBarrierImpl(std::string name, int world_size, int rank)
+				+~InterProcessBarrierImpl()
+				+name_ : std::string
+			}
+
+			class InterProcessBarrierImpl::Inner {
+				+Inner(bool val)
+				+val : bool
+				+reset(bool value) : void
+			}
+
+			class ShmSwitch {
+				+reset_flag : bool
+				+dump_path : char
+				+start_dump : int
+				+timestamp : int64_t
+				+{static} BarrierName : static constexpr std::string_view
+				+{static} ObjName : static constexpr std::string_view
+				+{static} ShmName : static constexpr std::string_view
+				+dump_count : uint32_t
+				+dump_path_length : uint32_t
+				+reset() : void
+				+reset(const std::string& path, uint32_t count, int64_t stamp) : void
+				+reset(const std::string& path, uint32_t count, int64_t stamp, bool reset_signal) : void
+			}
+		}
+
+		namespace config {
+			class GlobalConfig {
+				+{static} debug_mode : static bool
+				+{static} enable : static bool
+				+{static} ip : static std::string
+				+{static} job_name : static std::string
+				+{static} pod_name : static std::string
+				+{static} rank_str : static std::string
+				+{static} all_devices : static std::vector<uint64_t>
+				+{static} local_rank : static uint32_t
+				+{static} local_world_size : static uint32_t
+				+{static} rank : static uint32_t
+				+{static} world_size : static uint32_t
+			}
+		}
+	}
+
+	namespace stack_util {
+		class PyStackInProcess {
+			+PyStackInProcess(const std::string& library_path)
+			+getPyStack() : PyStack
+			-get_py_stack_fn_ : PyStack (* ) ( )
+			+shouldDump(uint64_t count) : bool
+			-stack_maps_ : std::unordered_map<std::string, PyStack>
+			-dump_count_ : uint64_t
+			-LoadFn() : void
+			+dumpPyStack(const std::string& path, int rank) : void
+			+insertPyStack(const std::string& kernel_name) : void
+			+insertPyStack(const std::string& kernel_name, const PyStack&& stack) : void
+		}
+	}
+
+	namespace server {
+		abstract class AsyncJob {
+			+~AsyncJob()
+			+cntl : brpc::Controller*
+			+done : google::protobuf::Closure*
+			+{abstract} run() : void
+			+run_and_delete() : void
+			+{static} RunServerJob(void* args) : void*
+		}
+
+		class ClientStub {
+			+ClientStub(std::string endpoint)
+			-stub_ : HostingService_Stub*
+			-channel_ : brpc::Channel*
+			-options_ : brpc::ChannelOptions*
+			-{static} HandleDeregisterPrometheusResponse(brpc::Controller* cntl, RegisterPrometheusResponse* response) : void
+			-{static} HandleDumpResponse(brpc::Controller* cntl, StacktraceResponse* response) : void
+			-{static} HandlePushPrometheusResponse(brpc::Controller* cntl, google::protobuf::Empty* response) : void
+			-{static} HandleRegisterPrometheusResponse(brpc::Controller* cntl, RegisterPrometheusResponse* response) : void
+			+pushPrometheusMetrics(bool sync, const std::string& name, int local_rank, uint64_t qps, uint64_t avg_latency, uint64_t max_latency, uint64_t p99_latency, uint64_t p9999_latency, double flops, uint64_t count) : void
+			+requestDeRegisterPrometheus(bool sync, const std::string& name, int rank, int local_rank) : void
+			+requestDump(bool sync, int pid, int rank, int world_size, const std::string& dump_path, const std::vector<std::string>& hang_kernel) : void
+			+requestRegisterPrometheus(bool sync, const std::string& name, const std::string& gauge_name, int rank, int local_rank, const std::map<std::string, std::string>& labels) : void
+		}
+
+		class HostingServiceImpl {
+			+HostingServiceImpl(int local_world_size)
+			-local_world_size_ : int
+			-rank_ : int
+			-switch_ : std::unique_ptr<util::ShmSwitch>
+			-mus_ : std::vector<std::unique_ptr<butil::Mutex>>
+			-prometheus_services_ : std::vector<std::unordered_map<std::string, LocalPrometheusService*>>
+			+DeRegisterPrometheus(google::protobuf::RpcController* cntl_base, const DeRegisterPrometheusRequest* request, RegisterPrometheusResponse* response, google::protobuf::Closure* done) : void
+			+DumpKernelTrace(google::protobuf::RpcController* cntl_base, const DumpKernelTraceRequest* request, DumpKernelTraceResponse* response, google::protobuf::Closure* done) : void
+			+DumpStringStacktrace(google::protobuf::RpcController* cntl_base, const StacktraceRequest* request, StacktraceResponse* response, google::protobuf::Closure* done) : void
+			+PushPrometheus(google::protobuf::RpcController* cntl_base, const BrpcMetrics* request, google::protobuf::Empty* response, google::protobuf::Closure* done) : void
+			+RegisterPrometheus(google::protobuf::RpcController* cntl_base, const RegisterPrometheusRequest* request, RegisterPrometheusResponse* response, google::protobuf::Closure* done) : void
+		}
+
+		class LocalPrometheusService {
+			+LocalPrometheusService(const std::string& gauge_prefix, const std::string& kernel_name, const std::map<std::string, std::string>& label, int rank)
+			+LocalPrometheusService(LocalPrometheusService&& other)
+			+~LocalPrometheusService()
+			-gauges_ : array<Gauge_t, constant::Metrics::CAP>
+			-rank_ : int
+			-{static} mu_ : static butil::Mutex
+			-{static} exposer_ : static prometheus::Exposer*
+			-{static} registry_ : static std::shared_ptr<prometheus::Registry>
+			-{static} all_familys_ : static std::unordered_map<std::string, Family_t_Array>
+			-{static} all_gauges_ : static std::vector<Gauge_t_MapArray>
+			-gauge_prefix_ : std::string
+			-kernel_name_ : std::string
+			+push(const BrpcMetrics* metrics) : void
+			+{static} setUp(int port, int local_world_size) : void
+		}
+
+		class MainServer {
+			+MainServer(const std::string& endpoint, int thread_num, int prometheus_port, int local_world_size)
+			-server_ : brpc::Server
+			-options_ : brpc::ServerOptions
+			-local_world_size_ : int
+			-thread_num_ : int
+			+{static} DUMMY_SERVER : static constexpr std::string_view
+			+{static} HOSTING_SERVICE : static constexpr std::string_view
+			+{static} LOCAL_RANK_0_SERVER : static constexpr std::string_view
+			-endpoint_ : std::string
+			-services_ : std::unordered_map<std::string_view, google::protobuf::Service*>
+			-addService(const std::string_view& service_name) : void
+			+join() : void
+			+start(const std::string_view& server_type) : void
+		}
+
+		class StringStacktraceJob {
+			-~StringStacktraceJob()
+			+response : StacktraceResponse*
+			-stderr_buf : butil::IOBuf
+			-stdout_buf : butil::IOBuf
+			+request : const StacktraceRequest*
+			+run() : void
+		}
+	}
+
+	namespace nvidia {
+		class EventStartTimeHelper {
+			+EventStartTimeHelper(cudaStream_t s)
+			-start_event_ : cudaEvent_t
+			-stream_ : cudaStream_t
+			-cpu_time_ : time_t
+			+getTime(cudaEvent_t kernel_launch_start) : time_t
+			+reset() : void
+		}
+
+		class FaParser {
+			+FaParser(const std::string& library_path)
+			+getFaBwdShape(void**) : std::vector<uint64_t>
+			+getFaFwdShape(void**) : std::vector<uint64_t>
+			-get_bwd_shape_ : vector<uint64_t>(* ) ( void** )
+			-get_fwd_shape_ : vector<uint64_t>(* ) ( void** )
+			-LoadFn() : void
+		}
+
+		class InterceptManager {
+			-FnReturn()>handleFa ( void** args, const std::string& name, const std::string& type)
+			-FnReturn()>handleNccl ( const cudaLaunchConfig_t* config, const void* func, void** args, const std::string& name)
+			+FnReturn()>handleCudaLaunchKernelExC ( const cudaLaunchConfig_t* config, const void* func, void** args, const std::string& name, const std::string& type)
+			+FnReturn()>handleCudaLaunchKernel ( const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream, const std::string& name, const std::string& type)
+			+isIntercepted(const void* func, std::string* name, std::string* type) : bool
+			-getOffset(const void* symbol) : ptrdiff_t
+			-getFaBwdShape(void** args) : std::vector<uint64_t>
+			-getFaFwdShape(void** args) : std::vector<uint64_t>
+			-getNcclShape(void** args) : uint64_t
+		}
+
+		class NcclParser {
+			+NcclParser(const std::string& library_path)
+			+getNcclShape(void**) : uint64_t
+			-get_nccl_shape_ : uint64_t (* ) ( void** )
+			-LoadFn() : void
+		}
+
+		class NvidiaGpuTimer {
+			+NvidiaGpuTimer()
+			-extra_labels_ : Labels
+			+getExtraLabels() : Labels
+			-inner_rebuild_cb_ : MatmulBuilderCallback
+			+isHang(uint64_t timeout) : bool
+			+isReady() : bool
+			-start_event_ : cudaEvent_t
+			-stop_event_ : cudaEvent_t
+			-stream_ : cudaStream_t
+			+getTraceCode() : int
+			-trace_code_ : int
+			-{static} kernel_encoding_counter_ : static int
+			-{static} stream_timer_helper_ : static std::unordered_map<cudaStream_t, EventStartTimeHelper*>
+			-{static} trace_id_counter_ : static std::unordered_map<int, uint64_t>
+			-{static} tracing_metas_ : static std::unordered_map<std::string, int>
+			-launch_time_ : std::chrono::time_point<std::chrono::system_clock>
+			-string() : std::function<const
+			+getName() : std::string
+			-name_ : std::string
+			-type_ : std::string_view
+			+getType() : std::string_view&
+			+getExecuteTimeStamp() : time_t
+			+getLaunchTimeStamp() : time_t
+			-launch_time_timestamp_ : time_t
+			-flop_ : uint64_t
+			+getDuration() : uint64_t
+			+getFlop() : uint64_t
+			+getTraceId() : uint64_t
+			-hang_counter_ : uint64_t
+			-trace_id_ : uint64_t
+			+{static} doLogStackTrace() : void
+			+{static} doPrepare() : void
+			+{static} doPrepareForDumpTrace() : void
+			+{static} dumpTraceMeta(const std::string& path) : void
+			+endRecord() : void
+			+reBuild() : void
+			+reset(cudaStream_t s, std::function<NvidiaGpuTimer::FnReturn ( )> cb, const std::string_view& type) : void
+			+reset(cudaStream_t s, const std::string_view& type, const std::initializer_list<int>& bmnk, const std::string&& name_prefix, cudaDataType_t dtype, uint8_t bias) : void
+			-reset_cb(std::function<NvidiaGpuTimer::FnReturn ( )> cb) : void
+			-reset_event(cudaStream_t s, const std::string_view& type) : void
+			+startRecord() : void
+		}
+
+		class NvidiaGpuTimer::MatmulBuilderCallback {
+			+MatmulBuilderCallback()
+			+operator()() : NvidiaGpuTimer :: FnReturn
+			-dtype_ : cudaDataType_t
+			-bmnk_ : std::array<int, 4>
+			-name_prefix_ : std::string
+			-bias_ : uint8_t
+			+reset(const std::initializer_list<int>& bmnk, const std::string&& name_prefix, cudaDataType_t dtype, uint8_t bias) : void
+		}
+	}
+
+	namespace constant {
+		class KernelTraceConstant {
+			+{static} DEFAULT_TRACE_COUNT : static constexpr int
+			+{static} DEFAULT_TRACE_DUMP_PATH : static constexpr std::string_view
+		}
+
+		class Metrics {
+			+{static} AVG_LATENCY : static constexpr int
+			+{static} CAP : static constexpr int
+			+{static} COUNT : static constexpr int
+			+{static} FLOPS : static constexpr int
+			+{static} MAX_LATENCY : static constexpr int
+			+{static} P9999_LATENCY : static constexpr int
+			+{static} P99_LATENCY : static constexpr int
+			+{static} QPS : static constexpr int
+			+{static} COLL_GAUGE_PREFIX : static constexpr std::string_view
+			+{static} COLL_TYPE : static constexpr std::string_view
+			+{static} MM_GAUGE_PREFIX : static constexpr std::string_view
+			+{static} MM_TYPE : static constexpr std::string_view
+		}
+	}
+}
+
+
+
+
+
+/' Inheritance relationships '/
+
+atorch.server.AsyncJob <|-- atorch.server.StringStacktraceJob
+
+
+atorch.LibraryLoader <|-- atorch.nvidia.FaParser
+
+
+atorch.LibraryLoader <|-- atorch.nvidia.NcclParser
+
+
+atorch.LibraryLoader <|-- atorch.stack_util.PyStackInProcess
+
+
+atorch.XpuTimer <|-- atorch.nvidia.NvidiaGpuTimer
+
+
+
+
+
+/' Aggregation relationships '/
+
+atorch.BvarMetrics *-- atorch.server.ClientStub
+
+
+atorch.BvarMetrics *-- atorch.TimeoutCounter
+
+
+atorch.GpuTimerManager *-- atorch.util.BlockingDeque
+
+
+atorch.GpuTimerManager *-- atorch.server.ClientStub
+
+
+atorch.GpuTimerManager o-- atorch.GpuTimerManager
+
+
+atorch.GpuTimerManager o-- atorch.MetricsManager
+
+
+atorch.GpuTimerManager o-- atorch.stack_util.PyStackInProcess
+
+
+atorch.GpuTimerManager *-- atorch.util.TimerPool
+
+
+atorch.server.HostingServiceImpl o-- atorch.server.LocalPrometheusService
+
+
+atorch.server.HostingServiceImpl *-- atorch.util.detail.ShmSwitch
+
+
+atorch.KernelTraceManager *-- atorch.KernelTrace
+
+
+atorch.KernelTraceManager o-- atorch.KernelTraceManager
+
+
+atorch.KernelTraceManager *-- atorch.util.detail.ShmSwitch
+
+
+atorch.server.LocalPrometheusService *-- atorch.constant.Metrics
+
+
+atorch.MetricsManager o-- atorch.BvarMetrics
+
+
+atorch.nvidia.NvidiaGpuTimer o-- atorch.nvidia.EventStartTimeHelper
+
+
+
+
+
+
+/' Nested objects '/
+
+atorch.util.detail.InterProcessBarrierImpl +-- atorch.util.detail.InterProcessBarrierImpl::Inner
+
+
+atorch.nvidia.NvidiaGpuTimer +-- atorch.nvidia.NvidiaGpuTimer::MatmulBuilderCallback
+
+
+
+!include comment.iuml
+
+
+@enduml

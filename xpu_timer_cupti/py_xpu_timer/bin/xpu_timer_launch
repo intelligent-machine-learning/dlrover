@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+libhook_path=$(dirname $0)/libevent_hook.so
+
+xpu_timer_daemon -try_start 1
+
+if [ $? -ne 0 ]; then
+echo "xpu timer launch error, check path of libpython.so"
+ldd $libhook_path
+exec "$@"
+fi
+
+intercepted_symbol_path=`realpath $(dirname $0)/intercepted.sym.default`
+new_intercepted_symbol_path=`realpath $(dirname $0)/intercepted.sym`
+
+NV_NPU=`xpu_timer_print_env | grep -e NVIDIA &>/dev/null && echo 1 || echo 0`
+SYMBOL=
+
+
+if [ $NV_NPU = 1 ];then
+    if [ ! -f $new_intercepted_symbol_path ];then
+        xpu_timer_gen_syms $new_intercepted_symbol_path
+    fi
+
+    if [ -s $new_intercepted_symbol_path ];then
+        intercepted_symbol_path=$new_intercepted_symbol_path
+    else
+        echo "use default symbol file $intercepted_symbol_path"
+    fi
+    SYMBOL=${XPU_TIMER_SYMS_FILE:-$intercepted_symbol_path}
+fi
+
+XPU_TIMER_SYMS_FILE=$SYMBOL LD_PRELOAD=$LD_PRELOAD:$(realpath $libhook_path) exec "$@"

@@ -1,0 +1,20 @@
+load("//test:test_rules.bzl", "linkstatic_cc_test")
+
+linkstatic_cc_test(
+    name = "common_test",
+    size = "small",
+    srcs = ["common_test.cc"],
+    copts = ["-std=c++17"],
+    data = [
+        "config.ini",
+    ],
+    env = {
+        "MY_INT_ENV_VARIABLE": "100",
+        "MY_BOOL_ENV_VARIABLE": "0",
+        "MY_STR_ENV_VARIABLE": "hello",
+    },
+    deps = [
+        "//xpu_timer/common:util",
+        "@googletest//:gtest_main",
+    ],
+)

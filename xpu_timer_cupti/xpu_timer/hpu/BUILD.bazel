@@ -1,0 +1,42 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//:workspace.bzl", "xpu_cc_binary", "xpu_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["only_keep_hpu.lds"])
+
+xpu_cc_library(
+    name = "hpu_timer",
+    srcs = [
+        "hpu_dtype_util.cc",
+        "hpu_timer.cc",
+    ],
+    hdrs = [
+        "hpu_dtype_util.h",
+        "hpu_timer.h",
+    ],
+    deps = [
+        "//xpu_timer/common:xpu_timer",
+        "//xpu_timer/protos:cc_hook_proto",
+    ],
+)
+
+xpu_cc_library(
+    name = "hpu_hook",
+    srcs = [
+        "hook.cc",
+    ],
+    hdrs = [
+        "hook.h",
+    ],
+    deps = [
+        "//xpu_timer/common:macro",
+        "//xpu_timer/common:manager",
+        "//xpu_timer/common:util",
+        "@hpu//:ascendcl",
+        "@hpu//:hccl",
+        "@hpu//:opapi",
+    ],
+    # force to keep all syms, if not, linker will remove useless symbols.
+    alwayslink = True,
+)

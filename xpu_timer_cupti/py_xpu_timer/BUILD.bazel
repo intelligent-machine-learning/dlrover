@@ -1,0 +1,39 @@
+load("//:workspace.bzl", "cp_xpu_build_wheel_files")
+load("@xpu_timer_cfg//:xpu_config.bzl", "XPU_TIMER_CONFIG")
+
+filegroup(
+    name = "srcs_py_xpu_timer",
+    srcs = glob([
+        "py_xpu_timer/*",
+        "bin/*",
+        "src/*",
+        "setup.py",
+    ]),
+)
+
+
+filegroup(
+    name = "data_append_bin",
+    srcs = [
+        "//:libevent_hook.so",
+        "//xpu_timer/python:libpy_tracing.so",
+        "//xpu_timer/server:xpu_timer_daemon",
+    ] + getattr(XPU_TIMER_CONFIG, "py_bin", []),
+)
+
+filegroup(
+    name = "data_append_py",
+    srcs = [
+        "//xpu_timer/protos:hook_pb2.py",
+        "//xpu_timer/protos:hosting_service_pb2.py",
+        "@com_google_perfetto//:protos/perfetto/trace/perfetto_trace_pb2.py",
+    ] + getattr(XPU_TIMER_CONFIG, "gen_symbol", []),
+)
+
+cp_xpu_build_wheel_files(
+    name = "xpu_timer_wheel",
+    srcs = [":srcs_py_xpu_timer"],
+    append_bin = [":data_append_bin"],
+    append_py = [":data_append_py"],
+    dest = "dist",
+)

@@ -1,0 +1,19 @@
+package(default_visibility = ["//visibility:public"])
+
+genrule(
+    name = "nv_cublaslt_gemm",
+    srcs = ["@cublaslt_gemm_bin//file"],
+    outs = ["py_xpu_timer/bin/cublaslt_gemm"],
+    cmd = """
+        cp $(SRCS) $(OUTS) && chmod +x $(OUTS)
+    """,
+)
+
+genrule(
+    name = "nv_cublas_benchmark",
+    srcs = ["@cublas_benchmark_bin//file"],
+    outs = ["py_xpu_timer/bin/cublas_benchmark"],
+    cmd = """
+        cp $(SRCS) $(OUTS) && chmod +x $(OUTS)
+    """,
+)

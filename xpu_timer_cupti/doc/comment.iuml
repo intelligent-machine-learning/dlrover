@@ -1,0 +1,93 @@
+
+/' comment '/
+note left of atorch.XpuTimer::getExtraLabels
+  获取 prometheus 投递 label
+end note
+
+note left of atorch.XpuTimer::isHang
+  判断这个 event 是否 hang
+end note
+
+note left of atorch.XpuTimer::isReady
+  判断这个 event 是否 ready
+end note
+
+note left of atorch.XpuTimer::getTraceCode
+  获取这个 event 的 trace 编号
+end note
+
+note left of atorch.XpuTimer::getName
+  获取这个 event 的名称
+end note
+
+note left of atorch.XpuTimer::getType
+  获取这个 event kernel 的种类
+end note
+
+note left of atorch.XpuTimer::getExecuteTimeStamp
+  获取这个 kernel 的实际被调度运行的时间
+end note
+
+note left of atorch.XpuTimer::getLaunchTimeStamp
+  获取这个 kernel 的发射时间
+end note
+
+note left of atorch.XpuTimer::getDuration
+  获取这个 kernel 的运行时长
+end note
+
+note left of atorch.XpuTimer::getFlop
+  获取这个 kernel 的 flop 数
+end note
+
+note left of atorch.XpuTimer::getTraceId
+  获取这个 kernel 的 trace id, 用于区分一个 timeline 中有相同名字的 kernel
+end note
+
+note left of atorch.XpuTimer::doPrepare
+  每个继承 XpuTimer 的类在启动前额外的准备，比如 reload nccl syms
+end note
+
+note left of atorch.XpuTimer::doPrepareForDumpTrace
+  每个继承 XpuTimer 的类在 dump timeline 前额外的准备
+  比如重新对每个 stream 上记录新的 init event
+end note
+
+note left of atorch.XpuTimer::dumpTraceMeta
+  每个继承 XpuTimer 的类在 dump timeline 时产出的 meta 数据
+  用于生成 timeline 时解析 trace
+end note
+
+note left of atorch.XpuTimer::endRecord
+  为每个 kernel 发射后记录 event
+end note
+
+note left of atorch.XpuTimer::reBuild
+  为每个 kernel 在 ready 后回调创建一些耗费时间片的操作
+  比如获取名字，flop 等操作
+end note
+
+note left of atorch.XpuTimer::startRecord
+  为每个 kernel 发射前记录 event
+end note
+
+atorch.GpuTimerManager *-- atorch.KernelTraceManager
+atorch.GpuTimerManager <|-- atorch.nvidia.NvidiaGpuTimer : template class, T=NvidiaGpuTimer
+atorch.util.detail.ShmSwitch <|-- atorch.util.ShmType : template class, T=atorch.util.detail.ShmSwitch
+atorch.constant.KernelTraceConstant <.. atorch.util.EnvVarRegistry
+atorch.server.MainServer o-- atorch.server.HostingServiceImpl
+atorch.server.StringStacktraceJob <.. atorch.server.HostingServiceImpl 
+atorch.GpuTimerManager *-- atorch.nvidia.InterceptManager
+atorch.XpuTimer ..[hidden]> atorch.LibraryLoader
+atorch.XpuTimer ..[hidden]> atorch.PyStackTrace
+
+
+note "Hook 功能主入口,Lazy 初始化" as EntryPoint
+EntryPoint .- atorch.GpuTimerManager
+
+note "xpu_daemon_server 实现" as Daemon
+Daemon .- atorch.server.MainServer
+
+note "进程内 python 打栈实现, 使用 dlopen 打开 libpy_xpu_timer_callstack.so\n具体实现在 py_xpu_timer/src/py_xpu_callstack.cc" as CythonStack
+
+CythonStack .- atorch.stack_util.PyStackInProcess
