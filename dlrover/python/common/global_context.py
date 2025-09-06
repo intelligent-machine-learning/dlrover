@@ -81,6 +81,7 @@ class DefaultValues(object):
     MAX_CKPT_THRESHOLD = 900  # seconds
     MAX_AVG_STEPS = 50
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
+    MAX_RELAUNCH_COUNT = 3
 
 
 class Context(Singleton):
@@ -143,6 +144,7 @@ class Context(Singleton):
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
+        self.max_relaunch_count = DefaultValues.MAX_RELAUNCH_COUNT
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(

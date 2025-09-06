@@ -219,6 +219,8 @@ class TrainingNodeManager(object):
 
     def _update_node(self, node: Node):
         self._job_context.update_job_node(node)
+        if node.has_group():
+            self._job_context.update_job_node_by_group(node)
 
     def update_nodes_iter(self, update_rank_iter=True):
         nodes = self._job_context.job_nodes_by_type(self._node_type)
@@ -254,7 +256,10 @@ class TrainingNodeManager(object):
             new_name = self._new_node_name_fn(node.type, new_id)
             relaunch_node = node.generate_relaunch_node(new_id, new_name)
             self._update_node(relaunch_node)
-        logger.info(f"Relaunch node {node.name} to {new_id}")
+        logger.info(
+            f"Relaunch node {node.name} to {new_id}: "
+            f"{node.relaunch_count}/{node.max_relaunch_count}"
+        )
         plan.launch_nodes.append(relaunch_node)
         if remove_exited_node and not node.is_released and node.exited():
             node.is_released = True

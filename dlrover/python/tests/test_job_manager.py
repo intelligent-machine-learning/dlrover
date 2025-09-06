@@ -267,6 +267,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             status=NodeStatus.RUNNING,
             config_resource=NodeResource(1, 4096),
             max_relaunch_count=1,
+            node_group=1000,
+            node_group_size=1,
+            node_group_id="rack-0",
         )
 
         gpu_stats: list[GPUStats] = [
@@ -499,6 +502,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.DELETED,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
@@ -509,6 +515,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.RUNNING,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
@@ -519,6 +528,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeResource(0, 0),
             rank_index=0,
             status=NodeStatus.RUNNING,
+            node_group=100,
+            node_group_size=1,
+            node_group_id="rack0",
         )
         node0.exit_reason = NodeExitReason.NO_HEARTBEAT
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
@@ -665,7 +677,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
         new_node = Node(
             node_type=NodeType.WORKER,
-            node_id=4,
+            node_id=100,
+            rank_index=100,
             status=NodeStatus.RUNNING,
             config_resource=NodeResource(1, 4096),
             max_relaunch_count=1,
@@ -675,13 +688,24 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
         manager._process_list_nodes([new_node])
         self.assertEqual(
-            self.job_context.job_nodes()[NodeType.WORKER][4].group, 1024
+            self.job_context.job_nodes()[NodeType.WORKER][100].group, 1024
         )
         self.assertEqual(
-            self.job_context.job_nodes()[NodeType.WORKER][4].group_size, 1
+            self.job_context.job_nodes()[NodeType.WORKER][100].group_size, 1
         )
         self.assertEqual(
-            self.job_context.job_nodes()[NodeType.WORKER][4].group_id, "rack-0"
+            self.job_context.job_nodes()[NodeType.WORKER][100].group_id,
+            "rack-0",
+        )
+        self.assertEqual(self.job_context.job_node_groups()[1024][100].id, 100)
+        self.assertEqual(
+            self.job_context.job_node_groups()[1024][100].rank_index, 100
+        )
+        self.assertEqual(
+            self.job_context.job_node_groups()[1024][100].group, 1024
+        )
+        self.assertEqual(
+            self.job_context.job_node_groups()[1024][100].group_size, 1
         )
 
     @patch.object(DistributedJobManager, "_process_event")
@@ -955,7 +979,15 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._remove_exited_node = True
         job_nodes = self.job_context.job_nodes()
         job_nodes[NodeType.WORKER][0].status = NodeStatus.FAILED
+        job_nodes[NodeType.WORKER][0].id = 100
+        job_nodes[NodeType.WORKER][0].rank_index = 100
+        job_nodes[NodeType.WORKER][0].group = 101
+        job_nodes[NodeType.WORKER][0].group_size = 1
+        job_nodes[NodeType.WORKER][0].group_id = "rack-0"
         self.job_context.update_job_node(job_nodes[NodeType.WORKER][0])
+        self.job_context.update_job_node_by_group(
+            job_nodes[NodeType.WORKER][0]
+        )
         manager.clear_exited_nodes()
         job_nodes = self.job_context.job_nodes()
         self.assertTrue(job_nodes[NodeType.WORKER][0].is_released)
@@ -1091,6 +1123,20 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, PerfMonitor())
 
         manager.start()
+        node = Node(
+            NodeType.WORKER,
+            100,
+            rank_index=0,
+            status=NodeStatus.INITIAL,
+            node_group=0,
+            node_group_size=1,
+            node_group_id="rack0",
+            relaunchable=True,
+            name="test-0",
+        )
+        self.job_context.update_job_node(node)
+        self.job_context.update_job_node_by_group(node)
+
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
         self.assertIn("node_heartbeat_monitor", active_threads_name)

@@ -339,6 +339,7 @@ class PodScaler(Scaler):
                 rank_index=task_id,
                 status=pod.status.phase,
                 config_resource=pod_resource,
+                max_relaunch_count=_dlrover_context.max_relaunch_count,
             )
             if node.type != NodeType.WORKER and node.status not in [
                 NodeStatus.PENDING,

@@ -301,7 +301,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 stop_node = True
         if node.relaunch_count >= node.max_relaunch_count:
             logger.info(
-                "Need to stop job for node relaunching "
+                f"Need to stop job for node {node.name} relaunching "
                 f"count: {node.relaunch_count} "
                 f"over limit: {node.max_relaunch_count}."
             )
@@ -334,7 +334,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "The available number of worker is less than the minimum"
+                    "The available number of worker is less than the minimum "
                     f"number {self._min_node} of rdzv"
                 ),
             )
