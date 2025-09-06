@@ -1122,6 +1122,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         manager = create_job_manager(params, PerfMonitor())
 
+        manager.start()
         node = Node(
             NodeType.WORKER,
             100,
@@ -1136,7 +1137,6 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.job_context.update_job_node(node)
         self.job_context.update_job_node_by_group(node)
 
-        manager.start()
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
         self.assertIn("node_heartbeat_monitor", active_threads_name)
