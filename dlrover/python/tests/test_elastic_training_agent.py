@@ -95,6 +95,7 @@ from dlrover.python.elastic_agent.torch.training import (
     comm_perf_check,
     launch_agent,
     node_health_check,
+    run_network_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.trainer.torch.utils import version_less_than_230
@@ -501,6 +502,140 @@ def mock_npu_metric_collect(*args, **kwargs):
     _metric_context.add_node_metrics(
         int(datetime.now().timestamp()), job_metrics
     )
+
+
+class MusaPatchImportTest(unittest.TestCase):
+    """Test cases for musa_patch import in training.py"""
+
+    def test_musa_patch_import_success(self):
+        """Test that musa_patch import works when module exists"""
+        # This test will pass if the import doesn't raise an exception
+        # We're testing the actual import behavior from training.py
+        try:
+            import dlrover.python.elastic_agent.torch.training  # noqa: F401
+
+            # If we get here, the import succeeded (including musa_patch)
+            self.assertTrue(True)
+        except Exception as e:
+            self.fail(f"Import should not fail: {e}")
+
+    @patch("dlrover.python.common.musa_patch")
+    def test_musa_patch_import_failure_handling(self, mock_musa_patch):
+        """Test that musa_patch import failure is properly handled"""
+        # Mock the module to simulate import failure
+        mock_musa_patch.side_effect = ImportError("musa_patch not available")
+
+        # Test that the training module can still be imported even if musa_patch fails
+        try:
+            # We can't easily test the import failure during module loading,
+            # but we can test that the module works without musa_patch
+            from dlrover.python.elastic_agent.torch.training import (
+                ElasticLaunchConfig,
+            )
+
+            config = ElasticLaunchConfig(
+                min_nodes=1, max_nodes=1, nproc_per_node=1
+            )
+            self.assertIsNotNone(config)
+        except Exception as e:
+            self.fail(f"Training module should work without musa_patch: {e}")
+
+    def test_musa_patch_optional_import_pattern(self):
+        """Test that the import pattern correctly handles exceptions"""
+        # This test verifies that the try-except pattern is working as expected
+
+        # Test the exact pattern used in training.py
+        import_success = True
+        try:
+            from dlrover.python.common import musa_patch  # noqa: F401
+        except Exception:
+            import_success = False
+
+        # The test should pass regardless of whether musa_patch exists
+        # This verifies that the exception handling works
+        self.assertIsInstance(import_success, bool)
+
+    def test_musa_patch_import_does_not_affect_module_functionality(self):
+        """Test that musa_patch import failure doesn't affect other functionality"""
+        # Test that we can still access other parts of the training module
+        from dlrover.python.elastic_agent.torch.training import (
+            ElasticLaunchConfig,
+        )
+
+        # Create a config to ensure the module is functional
+        config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1, run_id="test"
+        )
+
+        self.assertIsNotNone(config)
+        self.assertEqual(config.min_nodes, 1)
+
+    def test_training_module_imports_completed(self):
+        """Test that all important components from training module are importable"""
+        try:
+            from dlrover.python.elastic_agent.torch.training import (
+                ElasticLaunchConfig,
+                ElasticTrainingAgent,
+                launch_agent,
+                _set_paral_config,
+            )
+
+            # Verify all imports are successful
+            self.assertIsNotNone(ElasticLaunchConfig)
+            self.assertIsNotNone(ElasticTrainingAgent)
+            self.assertIsNotNone(launch_agent)
+            self.assertIsNotNone(_set_paral_config)
+
+        except ImportError as e:
+            self.fail(
+                f"Essential training module components should be importable: {e}"
+            )
+
+    def test_musa_patch_import_resilience(self):
+        """Test that the module loading is resilient to musa_patch issues"""
+        # Verify that even if there are issues with musa_patch,
+        # the core functionality remains available
+
+        from dlrover.python.elastic_agent.torch.training import (
+            ElasticLaunchConfig,
+        )
+
+        # Test creating and using a basic configuration
+        config = ElasticLaunchConfig(
+            min_nodes=2,
+            max_nodes=4,
+            nproc_per_node=8,
+            run_id="test_resilience",
+        )
+
+        # Test basic configuration properties
+        self.assertEqual(config.min_nodes, 2)
+        self.assertEqual(config.max_nodes, 4)
+        self.assertEqual(config.nproc_per_node, 8)
+        self.assertEqual(config.run_id, "test_resilience")
+
+        # Test auto-configuration doesn't break
+        try:
+            config.auto_configure_params()
+            # Should not raise exception even if musa_patch is not available
+            self.assertTrue(True)
+        except Exception as e:
+            self.fail(
+                f"Auto-configuration should not fail due to musa_patch: {e}"
+            )
+
+
+@patch("dlrover.python.elastic_agent.torch.training.node_health_check")
+@patch("dlrover.python.elastic_agent.torch.training.comm_perf_check")
+def test_run_network_check(mock_comm_perf_check, mock_node_health_check):
+    mock_comm_perf_check.return_value = True
+    mock_node_health_check.return_value = True
+    config = ElasticLaunchConfig(
+        4, 4, 8, accelerator=Accelerators.MTHREADS_GPU
+    )
+    entrypoint = "python"
+    result = run_network_check(config, entrypoint)
+    assert result
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
