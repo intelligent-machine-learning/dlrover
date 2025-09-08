@@ -14,10 +14,12 @@
 import importlib
 import importlib.metadata
 from collections import defaultdict
-from typing import ClassVar, Dict, List
+from typing import ClassVar, Dict, List, Type, TypeVar
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.util.test_hooks import after_test_cleanup
+
+T = TypeVar("T", bound=Type["Extensible"])
 
 
 class Extensible:
@@ -34,8 +36,12 @@ class Extensible:
         return cls._extensions
 
     @classmethod
-    def register_extension(cls, ext: type):
+    def register_extension(cls, ext: T) -> T:
+        assert issubclass(ext, cls), (
+            f"Extension {ext} must be a subclass of {cls}"
+        )
         cls.extensions().append(ext)
+        return ext  # Allow usage as a decorator
 
     @classmethod
     def build_mixed_class(cls) -> type:
