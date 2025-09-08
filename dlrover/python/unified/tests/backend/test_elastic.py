@@ -72,11 +72,7 @@ def test_setup_envs(mocker: MockerFixture, case: int):
     envs = mocker.patch.dict(os.environ, {}, clear=True)
     worker = Mock(ElasticWorker)
     worker.actor_info = ActorInfo(
-        "test",
-        "worker",
-        ElasticWorkloadDesc(entry_point="a.b"),
-        local_rank=2,
-        rank=2,
+        "test", "worker", ElasticWorkloadDesc(entry_point="a.b")
     )
     worker.job_info = JobInfo("test", "test", {}, ACCELERATOR_TYPE.GPU)
 
@@ -85,8 +81,8 @@ def test_setup_envs(mocker: MockerFixture, case: int):
         mocker.patch("ray.get_gpu_ids", return_value=[0])
         ElasticWorker._setup_envs(worker)
         assert envs["NAME"] == "test"
-        assert envs["LOCAL_RANK"] == "2"
-        assert envs["RANK"] == "2"
+        assert envs["LOCAL_RANK"] == "0"
+        assert envs["RANK"] == "0"
         assert envs["LOCAL_WORLD_SIZE"] == "1"
         assert envs["WORLD_SIZE"] == "1"
         assert envs["NODE_RANK"] == "0"
