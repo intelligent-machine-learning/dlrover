@@ -6,8 +6,10 @@ NanoGPT example.
 ## Prerequisites
 
 - Python 3.10+
-- Optional: Docker (for containerized runs)
-- If using GPUs: CUDA and appropriate drivers installed
+- Ray Cluster:
+  Need cluster for multi-node training, reference [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) for guidance.
+  If there is no cluster, DLRover will automatically start a local cluster for single-node training.
+- If using GPUs: torch CUDA and appropriate drivers installed
 
 ## Quick Start
 
