@@ -19,11 +19,13 @@ from abc import ABC, abstractmethod
 from concurrent import futures
 from typing import Dict, List, Optional
 
+import grpc
+from grpc import ServicerContext
+
 from dlrover.python.common import comm
 from dlrover.python.common.comm import BaseRequest, BaseResponse, TaskType
 from dlrover.python.common.constants import (
     GRPC,
-    CommunicationType,
     CustomMetricKeys,
     JobConstant,
     JobStage,
@@ -33,6 +35,9 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
     TrainingLoopStatus,
+    CommunicationReqType,
+    CommunicationReqMeta,
+    CommunicationType,
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
@@ -122,12 +127,20 @@ class MasterServicer(ABC):
         """Should be implemented by subclasses."""
         pass
 
+    def validate_request(self, request_meta: dict) -> bool:
+        if CommunicationReqMeta.COMM_META_JOB_UID in request_meta:
+            job_uid = request_meta[CommunicationReqMeta.COMM_META_JOB_UID]
+            if job_uid and job_uid != self._job_manager.job_uid:
+                logger.error(f"Invalid job uid: {job_uid} for request.")
+                return False
+        return True
+
     def get(self, request, _):
         node_type = request.node_type
         node_id = request.node_id
         req_message = comm.deserialize_message(request.data)
 
-        response = self.get_response("get")
+        response = self.get_response(CommunicationReqType.COMM_REQ_TYPE_GET)
         if not req_message:
             return response
         message = None
@@ -392,7 +405,7 @@ class MasterServicer(ABC):
         node_id = request.node_id
         message = comm.deserialize_message(request.data)
 
-        response = self.get_response("report")
+        response = self.get_response(CommunicationReqType.COMM_REQ_TYPE_REPORT)
         if not message:
             return response
 
@@ -661,7 +674,6 @@ class MasterServicer(ABC):
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )
-        logger.info("debug rdzv return")
         return True
 
     def _report_failure(self, node_type, node_id, message: comm.NodeFailure):
@@ -844,8 +856,32 @@ try:
                 sync_service,
             )
 
+        def get(self, request, context: ServicerContext):
+            request_meta = dict(context.invocation_metadata())
+
+            if not self.validate_request(request_meta):
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details(
+                    CommunicationReqMeta.COMM_META_JOB_UID_INVALID_MSG
+                )
+                return self.get_response(
+                    CommunicationReqType.COMM_REQ_TYPE_GET
+                )
+
+            return super().get(request, context)
+
+        def report(self, request, context: ServicerContext):
+            request_meta = dict(context.invocation_metadata())
+
+            if not self.validate_request(request_meta):
+                return self.get_response(
+                    CommunicationReqType.COMM_REQ_TYPE_REPORT
+                )
+
+            return super().report(request, context)
+
         def get_response(self, method):
-            if method == "report":
+            if method == CommunicationReqType.COMM_REQ_TYPE_REPORT:
                 return elastic_training_pb2.Response()
             else:
                 return elastic_training_pb2.Message()
@@ -915,6 +951,14 @@ try:
 
         def post(self):
             try:
+                header = self.request.headers
+                if not self._handler.validate_request(header):
+                    self.set_status(406)
+                    self.write(
+                        CommunicationReqMeta.COMM_META_JOB_UID_INVALID_MSG
+                    )
+                    return
+
                 path = self.request.path
                 request = BaseRequest.from_json(json.loads(self.request.body))
 

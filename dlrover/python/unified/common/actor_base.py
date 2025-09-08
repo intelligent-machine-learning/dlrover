@@ -11,19 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from dataclasses import dataclass
-from typing import Optional, Any
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 import ray.actor
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import WorkerStage
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
-from dlrover.python.common import env_utils
+
+# Note: All info classes are transfer objects; immutability is preferred.
 
 
-@dataclass
+@dataclass(frozen=True)
 class JobInfo:
     """Information about a job. Exposed to workers and sub-masters."""
 
@@ -32,7 +34,7 @@ class JobInfo:
     user_config: Any
 
 
-@dataclass
+@dataclass(frozen=True)
 class ActorInfo:
     """Information about a actor. Exposed to workers and sub-masters."""
 
@@ -47,23 +49,14 @@ class ActorInfo:
     local_rank: int = 0  # local rank in node
 
 
-@dataclass
+@dataclass(frozen=True)
 class NodeInfo:
     """Information about a node. Exposed to masters."""
 
     id: str
     hostname: Optional[str] = None
     ip_address: Optional[str] = None
-    envs: Optional[dict[str, str]] = None
-
-    def __str__(self):
-        return f"NodeInfo(id='{self.id}', hostname={self.hostname}, ip_address='{self.ip_address}')"
-
-    def __hash__(self):
-        return hash(self.id)
-
-    def __eq__(self, other):
-        return self.id == other.id
+    envs: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

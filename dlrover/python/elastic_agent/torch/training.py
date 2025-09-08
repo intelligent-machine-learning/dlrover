@@ -113,6 +113,7 @@ from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
+    version_less_than_280,
 )
 
 _agent_evt = DLRoverAgentEvent().singleton_instance()
@@ -923,8 +924,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 if version_less_than_240():
                     super()._stop_workers(worker_group)
-                else:
+                elif version_less_than_280():
                     super()._stop_workers(worker_group, is_restart)
+                else:
+                    super()._stop_workers(worker_group)
                 self._stop_orphan_workers(worker_group)
 
             signal.alarm(0)

@@ -12,12 +12,11 @@
 # limitations under the License.
 
 
+MASTER_STATE_KEY_PREFIX = (
+    "DLROVER_MASTER_STATE:"  # f"DLROVER_MASTER_STATE:{config.job_name}"
+)
 RAY_HANG_CHECK_INTERVAL = 5.0  # Interval for monitoring actor invocations
 RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME = 60
-
-
-class MasterConstant(object):
-    MASTER_STATE_KEY_PREFIX = "dlrover_runtime_context_state_"
 
 
 class InternalDLWorkloadRole(object):

@@ -11,34 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from dlrover.python.unified.common.actor_base import (
     ActorBase,
-    JobInfo,
     ActorInfo,
+    JobInfo,
     NodeInfo,
 )
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
-
-
-def test_node_info():
-    node0 = NodeInfo(
-        id="node0",
-        hostname="node0.com",
-        ip_address="10.0.0.1",
-        envs={"k1": "v1"},
-    )
-    node1 = NodeInfo(
-        id="node1",
-        hostname="node1.com",
-        ip_address="10.0.0.2",
-        envs={"k1": "v2"},
-    )
-    assert "node0.com" in node0.__str__()
-    assert node0 != node1
-    node_set = {node0, node1}
-    assert len(node_set) == 2
 
 
 def test_get_node_info():

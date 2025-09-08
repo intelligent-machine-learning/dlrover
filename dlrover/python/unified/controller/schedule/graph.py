@@ -12,12 +12,17 @@
 # limitations under the License.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from pydantic import BaseModel
 
 from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
+
+# Develop Note: all classes in this file are state structures, owned by PrimeManager
+# 1. Only mutable inside PrimeManager, or passed from PrimeManager(e.g. Scheduler).
+# 2. All classes is internal for controller, not exposed to workers or sub-masters.
+# 3. All classes should be unique per identifier, not create instance freely.
 
 
 class DLExecutionVertex(ABC, BaseModel):
@@ -60,36 +65,13 @@ class DLExecutionVertex(ABC, BaseModel):
         """Get the workload specification of the vertex."""
         return self.role.spec
 
-    @property
-    def node(self) -> Optional[NodeInfo]:
-        """Get the actor's node info."""
-        return self.node_info
-
     @abstractmethod
     def to_actor_info(self) -> "ActorInfo":
         """Convert to NodeInfo. Exposed to workers and sub-masters."""
 
-    def set_node(self, node_info: NodeInfo):
-        self.node_info = node_info
-
     def inc_failure_count(self):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
-
-    def reset_per_node_failure_count(self):
-        self.per_node_failure_count = 0
-
-    def inc_restart_count(self):
-        self.restart_count += 1
-
-    def reset_restart_count(self):
-        self.restart_count = 0
-
-    def set_restarting(self):
-        self.restarting = True
-
-    def set_running(self):
-        self.restarting = False
 
 
 class DLExecutionWorkerVertex(DLExecutionVertex):
@@ -189,7 +171,7 @@ class DLWorkloadRole:
 
 
 class DLExecutionGraph:
-    """The computational graph for distributed deep learning."""
+    """Store topology information for distributed execution."""
 
     def __init__(
         self, roles: Dict[str, DLWorkloadRole], edges: List[DLExecutionEdge]
@@ -225,20 +207,8 @@ class DLExecutionGraph:
         }
         return cls(roles, edges=[])
 
-    def get_all_actors_by_specified_node_actors(
-        self, actors: List[DLExecutionVertex]
-    ):
-        return self.get_all_actors_by_specified_nodes(
-            set(
-                [
-                    actor.node_info.id
-                    for actor in actors
-                    if actor.node_info is not None
-                ]
-            )
-        )
-
-    def get_all_actors_by_specified_nodes(self, nodes: set[str]):
+    def get_all_actors_by_node_ids(self, nodes: Iterable[str]):
+        nodes = set(nodes)
         return [
             actor
             for actor in self.vertices
