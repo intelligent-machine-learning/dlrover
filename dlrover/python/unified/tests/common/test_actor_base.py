@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.unified.common.actor_base import (
     ActorBase,
     ActorInfo,
-    JobInfo,
     NodeInfo,
 )
 from dlrover.python.unified.tests.fixtures.example_jobs import (
