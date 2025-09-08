@@ -142,9 +142,7 @@ async def test_some_misc_cases(mocker: MockerFixture):
     mocker.patch.object(
         manager.state_backend, "set", side_effect=Exception("test")
     )
-    with patch.object(
-        logger, "exception", side_effect=logger.exception
-    ) as mock_log:
+    with patch.object(logger, "exception", wraps=logger.exception) as mock_log:
         manager.save()
     assert mock_log.called
     assert mock_log.call_args[0][0] == "Failed to save state"
@@ -154,9 +152,7 @@ async def test_some_misc_cases(mocker: MockerFixture):
     mocker.patch.object(
         manager.state_backend, "get", side_effect=Exception("test")
     )
-    with patch.object(
-        logger, "exception", side_effect=logger.exception
-    ) as mock_log:
+    with patch.object(logger, "exception", wraps=logger.exception) as mock_log:
         assert manager._load_state() is None
     assert mock_log.called
     assert mock_log.call_args[0][0] == "Failed to load state"
