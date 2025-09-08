@@ -86,6 +86,8 @@ class Scheduler:
                 DLWorkloadEnv.ROLE: role.name,
                 **role.spec.envs,
             }
+            if role.spec.rank_based_gpu_selection:
+                role_envs.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
             for worker in role.instances:
                 assert self._pg is not None, (
                     "Placement group must be created before creating actors."

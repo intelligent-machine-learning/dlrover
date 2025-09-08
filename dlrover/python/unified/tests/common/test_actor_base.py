@@ -16,17 +16,21 @@ from unittest.mock import MagicMock, patch
 from dlrover.python.unified.common.actor_base import (
     ActorBase,
     ActorInfo,
-    JobInfo,
     NodeInfo,
 )
-from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
+from dlrover.python.unified.tests.fixtures.example_jobs import (
+    elastic_training_job,
+)
 
 
 def test_get_node_info():
-    job_info = JobInfo(name="test_job", job_id="test_job_id", user_config={})
-    workload_desc = SimpleWorkloadDesc(entry_point="test::main")
+    config = elastic_training_job()
+    job_info = config.to_job_info()
+
     actor_info = ActorInfo(
-        name="test_actor", role="worker", spec=workload_desc
+        name="test_actor",
+        role="worker",
+        spec=config.dl_config.workloads["training"],
     )
 
     mock_runtime_context = MagicMock()
