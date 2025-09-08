@@ -471,6 +471,10 @@ There are 3 parameters related to GPU allocation, and results in different behav
 
 > **Note:** Avoid using `resources(gpu) <= 0.5`, `per_group = 8`, and `rank_based_gpu_selection = False` together, as Ray may assign the same GPU to multiple actors in one role, leading to resource conflicts and failures in NCCL communication.
 
+##### A. Share Node
+
 ![A. Share Node](../figures/unified/gpu_allocation_strategy-A,B%20share%20node.png)
+
+##### B. Share Each GPU
 
 ![B. Share Each GPU](../figures/unified/gpu_allocation_strategy-A,B%20share%20gpu.png)
