@@ -20,6 +20,7 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.actor_base import WorkerStage
+from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.util.common_util import (
     find_free_port_from_env_and_bind,
 )
@@ -73,7 +74,7 @@ class ElasticWorker(BaseWorker):
         os.environ["NODE_RANK"] = str(self.actor_info.node_rank)
 
         # Setup device
-        if self.job_info.accelerator_type == "GPU":
+        if self.job_info.accelerator_type == ACCELERATOR_TYPE.GPU:
             if self.actor_info.spec.rank_based_gpu_selection:
                 device = torch.device(f"cuda:{self.actor_info.local_rank}")
             else:
