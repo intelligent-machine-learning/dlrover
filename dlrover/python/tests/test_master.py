@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from dlrover.python.common.constants import (
+    Accelerators,
     DistributionStrategy,
     JobExitReason,
     JobStage,
@@ -237,3 +238,72 @@ class LocalJobMasterTest(unittest.TestCase):
         self.assertEqual(
             self.job_context.get_pre_check_status(), PreCheckStatus.DISABLED
         )
+
+
+class MasterMainXpuTypeTest(unittest.TestCase):
+    """Test cases for mthreads xpu_type handling in master main.py"""
+
+    def setUp(self):
+        """Set up test environment"""
+        # Set up common test fixtures for coverage tests
+        self.mock_args = MagicMock()
+        self.mock_args.platform = "kubernetes"
+        self.mock_args.job_name = "test-job"
+        self.mock_args.namespace = "default"
+        self.mock_args.port = 8080
+        self.mock_args.task_process_timeout = 600
+        self.mock_args.hang_detection = True
+        self.mock_args.hang_downtime = 300
+        self.mock_args.pending_fail_strategy = "restart"
+        self.mock_args.pending_timeout = 60
+        self.mock_args.service_type = "ClusterIP"
+        self.mock_args.pre_check_ops = []
+        self.mock_args.node_num = 1
+        self.mock_args.xpu_type = "mthreads"
+
+    def tearDown(self):
+        """Clean up test environment"""
+        pass
+
+    def test_mthreads_gpu_constant_value(self):
+        """Test that MTHREADS_GPU constant has the expected value"""
+        from dlrover.python.common.constants import Accelerators
+
+        # Verify that MTHREADS_GPU has the expected value
+        expected_value = "mthreads.com/gpu"
+        self.assertEqual(Accelerators.MTHREADS_GPU, expected_value)
+
+    def test_mthreads_gpu_constant_exists(self):
+        """Test that MTHREADS_GPU constant exists and is a string"""
+        from dlrover.python.common.constants import Accelerators
+
+        # Verify that the MTHREADS_GPU constant exists
+        self.assertTrue(hasattr(Accelerators, "MTHREADS_GPU"))
+
+        # Verify it's a string (as expected)
+        self.assertIsInstance(Accelerators.MTHREADS_GPU, str)
+
+    @patch("dlrover.python.master.main._dlrover_context")
+    @patch("dlrover.python.master.main.new_job_args")
+    @patch("dlrover.python.master.dist_master.DistributedJobMaster")
+    @patch("dlrover.python.master.main.update_context")
+    def test_run_with_mthreads_xpu_type_coverage(
+        self, mock_update, mock_master, mock_new_job_args, mock_context
+    ):
+        """Test run function with mthreads xpu_type - coverage focused"""
+        from dlrover.python.master.main import run
+
+        mock_job_args = MagicMock()
+        mock_new_job_args.return_value = mock_job_args
+        mock_master_instance = MagicMock()
+        mock_master.return_value = mock_master_instance
+        mock_master_instance.run.return_value = 0
+
+        self.mock_args.xpu_type = "mthreads"
+        run(self.mock_args)
+
+        self.assertEqual(mock_job_args.xpu_type, Accelerators.MTHREADS_GPU)
+
+
+if __name__ == "__main__":
+    unittest.main()
