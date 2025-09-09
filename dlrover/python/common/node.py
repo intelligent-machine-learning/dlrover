@@ -26,6 +26,9 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.resource import Resource
 from dlrover.python.common.serialize import JsonSerializable
+from dlrover.python.common.global_context import Context
+
+_dlrover_context = Context.singleton_instance()
 
 
 def _is_float_str(str_number):
@@ -189,7 +192,7 @@ class Node(object):
         rank_index=None,
         relaunch_count=0,
         critical=False,
-        max_relaunch_count=0,
+        max_relaunch_count=_dlrover_context.max_relaunch_count,
         relaunchable=True,
         service_addr=None,
         host_name=None,
