@@ -19,7 +19,6 @@ import time
 import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
-from unittest.mock import patch
 
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
