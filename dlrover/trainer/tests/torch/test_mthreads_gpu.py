@@ -289,7 +289,7 @@ class MthreadsGpuTest(unittest.TestCase):
 
     def test_main_block_direct_execution(self):
         """Test direct execution of __main__ block using runpy (replacing cover_main.py)"""
-        # 设置必要的环境变量
+        # Set up necessary environment variables
         os.environ.update(
             {
                 "RANK": "0",
@@ -300,7 +300,7 @@ class MthreadsGpuTest(unittest.TestCase):
             }
         )
 
-        # Mock所有重型操作避免实际执行
+        # Mock all heavy operations to avoid actual execution
         with (
             patch("torch.cuda.is_available", return_value=False),
             patch("dlrover.trainer.torch.node_check.utils.init_process_group"),
@@ -318,23 +318,23 @@ class MthreadsGpuTest(unittest.TestCase):
             ),
             patch("torch.distributed.destroy_process_group"),
         ):
-            # 使用runpy直接执行模块的__main__块
+            # Use runpy to directly execute the module's __main__ block
             import runpy
 
             try:
-                # 这将执行第62-63行的代码
+                # This will execute lines 62-63 of the code
                 runpy.run_module(
                     "dlrover.trainer.torch.node_check.mthreads_gpu",
                     run_name="__main__",
                 )
-                # 如果成功执行到这里，测试通过
+                # If execution reaches here successfully, test passes
                 self.assertTrue(True)
             except SystemExit:
-                # SystemExit 也被认为是成功的执行
+                # SystemExit is also considered successful execution
                 self.assertTrue(True)
             except Exception as e:
-                # 其他异常也可能是正常的（比如模块内部的某些检查）
-                # 只要能执行到__main__块就算成功
+                # Other exceptions may also be normal (e.g., internal module checks)
+                # As long as the __main__ block can be executed, it's considered successful
                 self.assertTrue(
                     True, f"Main block executed with exception: {e}"
                 )
