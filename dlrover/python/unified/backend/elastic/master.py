@@ -12,10 +12,13 @@
 # limitations under the License.
 
 
+import asyncio
+
 import ray
 
 from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.async_helper import unsafe_run_blocking
 
 from .manager import ElasticManager
 
@@ -25,7 +28,11 @@ class ElasticMaster(ActorBase):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
         if ray.get_runtime_context().was_current_actor_reconstructed:
-            self.manager._recover_running()
+            unsafe_run_blocking(
+                self.manager._recover_running(
+                    main_loop=asyncio.get_running_loop()
+                )
+            )
 
     # Lifecycle Hooks
 

@@ -136,11 +136,13 @@ class ElasticManager:
         res.log_errors()
         self.stage = WorkerStage.FINISHED
 
-    def _recover_running(self):
+    async def _recover_running(self, main_loop: asyncio.AbstractEventLoop):
         """Recover the running job after failover."""
-        res = invoke_actors_t(
+        # Note, This function runs outside main loop, must create task in main loop
+
+        res = await invoke_actors_t(
             remote_call.get_stage, [node.name for node in self.workers]
-        ).wait()
+        )
         if not all(
             it != WorkerStage.INIT and it != WorkerStage.READY
             for it in res.results
@@ -151,7 +153,9 @@ class ElasticManager:
             )
             return
         self.stage = WorkerStage.RUNNING
-        self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
+        self._task = main_loop.create_task(
+            self._monitor(), name="monitor_nodes"
+        )
         logger.info("Recovered the running job after failover.")
 
     async def _restart_job(self):

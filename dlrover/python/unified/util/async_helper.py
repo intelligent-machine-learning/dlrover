@@ -13,6 +13,7 @@
 
 import asyncio
 from concurrent.futures import Future
+from threading import Thread
 from typing import Any, Coroutine, TypeVar
 
 """Utility functions for asynchronous operations in DLRover.
@@ -35,6 +36,42 @@ def init_main_loop():
         raise RuntimeError(
             "You must call init_main_loop() in the main thread or ray AsyncActor"
         )
+
+
+def unsafe_run_blocking(coro: Coroutine[Any, Any, T]) -> T:
+    """Run a coroutine in a separate thread and wait for its result.
+
+    Note: All coroutines should be in the main loop, unless could not use main loop.
+    You should check before use:
+    1. it must sync call.
+    2. it's safe to block current event loop.
+    3. The coroutine does not spawn background tasks.
+    """
+    assert asyncio.get_event_loop() == __main_loop, (
+        "unsafe_run_blocking is prepared for main loop"
+    )
+
+    result = Future[T]()
+
+    def run():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            task = loop.create_task(coro)
+            loop.run_until_complete(task)
+
+            # Check for unfinished tasks to avoid resource leaks
+            leftovers = [t for t in asyncio.all_tasks(loop) if not t.done()]
+            assert len(leftovers) == 0, (
+                f"Should not spawn background tasks in unsafe_run_blocking: {leftovers}"
+            )
+            result.set_result(task.result())
+        except Exception as e:
+            result.set_exception(e)
+
+    Thread(target=run).start()
+    return result.result()
 
 
 def is_in_event_loop() -> bool:
