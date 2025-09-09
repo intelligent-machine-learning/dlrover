@@ -47,8 +47,12 @@ from dlrover.python.scheduler.kubernetes import (
     convert_memory_to_mb,
     k8sClient,
 )
+from dlrover.python.common.global_context import (
+    Context,
+)
 
 job_ctx = get_job_context()
+_dlrover_context = Context.singleton_instance()
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -134,7 +138,13 @@ def _convert_pod_yaml_to_node(pod):
     pod_id = int(metadata.labels[replica_index_key])
     rank_id = int(metadata.labels[rank_index_key])
     relaunch_count = int(metadata.labels[relaunch_count_key])
-    resource = _parse_container_resource(pod.spec.containers[0])
+    resource = NodeResource(0, 0)
+    # this is a temporary workaround to retrieve the 'main' container's resource
+    for container in pod.spec.containers:
+        res = _parse_container_resource(container)
+        if res.cpu > 0 and res.memory > 0:
+            resource = res
+            break
     host_name = pod.spec.node_name
     host_ip = pod.status.host_ip
 
@@ -164,6 +174,7 @@ def _convert_pod_yaml_to_node(pod):
         node_group=node_group,
         node_group_size=node_group_size,
         node_group_id=node_group_id,
+        max_relaunch_count=_dlrover_context.max_relaunch_count,
     )
 
     logger.debug(

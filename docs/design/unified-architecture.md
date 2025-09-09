@@ -440,3 +440,41 @@ directly handle the training logic. Instead, it oversees the `SubMaster` and its
 training tasks. The `PrimeMaster` is responsible for job scheduling, resource allocation, and global state management.
 - The `SubMaster`, on the other hand, is a specialized component that manages one role, providing
 additional orchestration and management capabilities, like rendezvousing and fault tolerance.
+
+### Different GPU allocation strategies?
+
+There are 3 parameters related to GPU allocation, and results in different behaviors:
+
+- `resources(gpu)` decides how many GPUs allocated to each actor.
+- `per_group` determines the scheduling group and affects `LOCAL_RANK`.
+- `rank_based_gpu_selection` affects `CUDA_VISIBLE_DEVICES` and how to use GPU devices in `torch`.
+
+#### For single-role gpu allocation (using 8 GPUs machine as an example)
+
+| resources(gpu) | per_group  | rank_based_gpu_selection | CUDA_VISIBLE_DEVICES       | LOCAL_RANK | torch device      |
+| -------------- | ---------- | ------------------------ | -------------------------- | ---------- | ----------------- |
+| 1(default)     | 1(default) | False(default)           | 1/2/N     (ray allocation) | all 0      | cuda:0            |
+| 2              | 1          | False                    | 0,1 / 2,3 (ray allocation) | all 0      | cuda:0,cuda:1     |
+| 2              | 4          | False                    | 0,1 / 2,3 (ray allocation) | 0/1/2/3    | cuda:0,cuda:1     |
+| 1              | 8          | False                    | 1/2/N     (ray allocation) | 0/1/2...7  | cuda:0            |
+| 1              | 8          | True                     | NOT_SET                    | 0/1/2...7  | cuda:{LOCAL_RANK} |
+
+> **Note:** `rank_based_gpu_selection` is only valid when `per_group > 1` and `resources(gpu) <= 1`.
+
+#### For multi-role gpu sharing (Co-locate A and B on the same node, using 8 GPUs machine as an example)
+
+| case                                              | resources(gpu) | per_group | rank_based_gpu_selection | CUDA_VISIBLE_DEVICES                                 | LOCAL_RANK | torch device      |
+| ------------------------------------------------- | -------------- | --------- | ------------------------ | ---------------------------------------------------- | ---------- | ----------------- |
+| A. share node <br> but use different gpus         | 1              | 4         | True                     | MANUAL_SET <br> `0,1,2,3` for A <br> `4,5,6,7` for B | 0/1/2/3    | cuda:{LOCAL_RANK} |
+| B. share each gpu                                 | 0.5            | 1         | False                    | 0/1/2...7                                            | 0          | cuda:0            |
+| B. share each gpu <br> (rank_based_gpu_selection) | 0.5            | 8         | True                     | NOT_SET                                              | 0/1/2...7  | cuda:{LOCAL_RANK} |
+
+> **Note:** Avoid using `resources(gpu) <= 0.5`, `per_group = 8`, and `rank_based_gpu_selection = False` together, as Ray may assign the same GPU to multiple actors in one role, leading to resource conflicts and failures in NCCL communication.
+
+##### A. Share Node
+
+![A. Share Node](../figures/unified/gpu_allocation_strategy-A,B%20share%20node.png)
+
+##### B. Share Each GPU
+
+![B. Share Each GPU](../figures/unified/gpu_allocation_strategy-A,B%20share%20gpu.png)

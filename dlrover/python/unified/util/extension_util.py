@@ -35,7 +35,11 @@ class Extensible:
 
     @classmethod
     def register_extension(cls, ext: type):
+        assert issubclass(ext, cls), (
+            f"Extension {ext} must be a subclass of {cls}"
+        )
         cls.extensions().append(ext)
+        return ext  # Allow usage as a decorator
 
     @classmethod
     def build_mixed_class(cls) -> type:
