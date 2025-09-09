@@ -85,7 +85,7 @@ class PrimeManager:
         self._task = None
 
         logger.info(f"PrimeManager initialized with config: {config}")
-        self.INSTANCE = self  # Singleton instance
+        PrimeManager.INSTANCE = self  # Singleton instance
         ControllerEvents.inited(config)
 
     @property

@@ -31,6 +31,7 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 def test_manager_save_load():
     config = elastic_training_job()
     manager = PrimeManager(config)
+    assert PrimeManager.INSTANCE is manager
     assert manager.state.stage == MasterStage.INIT
     manager._update_stage(MasterStage.RUNNING)
     assert manager.state.stage == MasterStage.RUNNING
