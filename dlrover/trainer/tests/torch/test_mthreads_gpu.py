@@ -301,23 +301,21 @@ class MthreadsGpuTest(unittest.TestCase):
         )
 
         # Mock all heavy operations to avoid actual execution
-        with (
-            patch("torch.cuda.is_available", return_value=False),
-            patch("dlrover.trainer.torch.node_check.utils.init_process_group"),
-            patch(
-                "dlrover.trainer.torch.node_check.utils.get_network_check_timeout",
-                return_value=10,
-            ),
-            patch(
-                "dlrover.trainer.torch.node_check.utils.matmul",
-                return_value=1.0,
-            ),
-            patch(
-                "dlrover.trainer.torch.node_check.utils.bm_allreduce",
-                return_value=2.0,
-            ),
-            patch("torch.distributed.destroy_process_group"),
-        ):
+        with patch("torch.cuda.is_available", return_value=False), \
+             patch("dlrover.trainer.torch.node_check.utils.init_process_group"), \
+             patch(
+                 "dlrover.trainer.torch.node_check.utils.get_network_check_timeout",
+                 return_value=10
+             ), \
+             patch(
+                 "dlrover.trainer.torch.node_check.utils.matmul",
+                 return_value=1.0
+             ), \
+             patch(
+                 "dlrover.trainer.torch.node_check.utils.bm_allreduce",
+                 return_value=2.0
+             ), \
+             patch("torch.distributed.destroy_process_group"):
             # Use runpy to directly execute the module's __main__ block
             import runpy
 
