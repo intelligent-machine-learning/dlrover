@@ -243,9 +243,8 @@ class DiagnosisMaster(DiagnosisManager):
                         EventReportConstants.ACTION_PRE_CHECK_ERROR,
                         pre_check_op.__class__.__name__,
                     )
-                    logger.error(
-                        f"{pre_check_op.__class__.__name__} got unexpected error: {e}",
-                        exc_info=True,
+                    logger.warning(
+                        f"{pre_check_op.__class__.__name__} got unexpected error: {e}"
                     )
                     if is_last_op:
                         pre_check_finish = True

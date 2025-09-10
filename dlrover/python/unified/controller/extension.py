@@ -51,10 +51,12 @@ class ManagerExtension(Extensible):
 
     # region Extension Points Begin
 
-    async def relaunch_nodes_impl(self, nodes: List[NodeInfo]) -> List[NodeInfo]:
+    async def relaunch_nodes_impl(
+        self, nodes: List[NodeInfo]
+    ) -> List[NodeInfo]:
         """
         Relaunch the specified nodes.
-        
+
         For best practice:
         1) do not raise exception(try to catch all the possible exceptions)
         2) use return value(ray nodes) to express how many node relaunched successfully
