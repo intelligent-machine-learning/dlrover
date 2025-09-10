@@ -46,6 +46,7 @@ def mock_rpc_call(actor_name, method, args, kwargs):
     actor._arbitrary_remote_call = BaseWorker._arbitrary_remote_call.__get__(
         actor
     )
+    actor._user_rpc_ready = asyncio.Event()
     actor._user_rpc_ready.set()
     ret = BaseWorker._user_rpc_call(actor, method, *args, **kwargs)
     v = asyncio.run(ret)

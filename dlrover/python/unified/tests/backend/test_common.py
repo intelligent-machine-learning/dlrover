@@ -34,17 +34,17 @@ async def test_start_base():
         spec=SimpleWorkloadDesc(entry_point=f"{__name__}._entrypoint"),
     )
     worker = BaseWorker(Mock(JobInfo), info)
+    worker._on_execution_end = Mock()
 
     global _entrypoint
     _entrypoint = Mock()
     _entrypoint.__module__ = __name__
 
-    assert worker.stage == "READY"
+    await worker.setup()
     worker.start()
-    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     assert module_level_rpc.__name__ in RPC_REGISTRY
 
-    while worker.stage != "FINISHED":
+    while not worker._on_execution_end.called:
         await asyncio.sleep(0)
     assert _entrypoint.call_count == 1
 
@@ -57,6 +57,7 @@ async def test_start_class():
         spec=SimpleWorkloadDesc(entry_point=f"{__name__}._entrypoint"),
     )
     worker = BaseWorker(Mock(JobInfo), info)
+    worker._on_execution_end = Mock()
 
     init_called = False
     run_called = False
@@ -72,7 +73,7 @@ async def test_start_class():
 
         def run(self):
             nonlocal run_called
-            assert worker.stage == "RUNNING"
+            assert run_called is False
             assert threading.current_thread().name == "user_main_thread"
             run_called = True
 
@@ -80,12 +81,11 @@ async def test_start_class():
     _entrypoint = entrypoint_class
     _entrypoint.__module__ = __name__
 
-    assert worker.stage == "READY"
+    worker._setup()
     worker.start()
-    assert worker.stage == "RUNNING" or worker.stage == "FINISHED"
     assert init_called
     assert entrypoint_class.class_level_rpc.__name__ in RPC_REGISTRY
 
-    while worker.stage != "FINISHED":
+    while not worker._on_execution_end.called:
         await asyncio.sleep(0)
     assert run_called

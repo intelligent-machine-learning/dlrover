@@ -71,6 +71,7 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         entry_point="simple.run"
     )
     manager = PrimeManager(config)
+    manager.state.stage = MasterStage.RUNNING
 
     # Case 1. Elastic worker restarted
     if case == 1:
