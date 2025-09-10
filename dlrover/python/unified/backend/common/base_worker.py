@@ -33,8 +33,7 @@ class BaseWorker(ActorBase):
 
     CURRENT: ClassVar["BaseWorker"]
 
-    @log_execution("setup")  # Should copy when override
-    def setup(self):
+    def _setup(self):
         BaseWorker.CURRENT = self
 
         self._user_rpc_ready = asyncio.Event()

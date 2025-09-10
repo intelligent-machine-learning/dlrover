@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from asyncio import iscoroutine
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Coroutine, Optional, final
 
 import ray.actor
 
@@ -98,9 +99,10 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    def _setup(self): ...
+    def _setup(self) -> Any | Coroutine:
+        pass
 
-    @log_execution("setup")  # Should copy when override
+    @final
     async def setup(self):
         """Setup the actor/node.
 
@@ -108,7 +110,10 @@ class ActorBase:
         by subclasses to perform any necessary setup before the actor/node
         is ready to run.
         """
-        self._setup()
+        with log_execution("setup"):
+            ret = self._setup()
+            if iscoroutine(ret):
+                await ret
 
     @log_execution("start")  # Should copy when override
     def start(self):

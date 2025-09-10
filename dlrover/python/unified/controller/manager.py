@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Set
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
-from dlrover.python.unified.common.enums import MasterStage
+from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
@@ -34,7 +34,6 @@ from dlrover.python.unified.util.actor_proxy import (
 )
 
 from ..common.config import JobConfig
-from . import remote_call
 from .schedule.graph import DLExecutionGraph, DLExecutionVertex
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
@@ -82,6 +81,7 @@ class PrimeManager:
         self.state: RuntimeState = self._load_state() or RuntimeState(
             graph=DLExecutionGraph.create(config.dl_config),
         )
+        self._notify_main_loop = asyncio.Semaphore()
         self._stopped_event = asyncio.Event()
         self._task = None
 
@@ -172,18 +172,18 @@ class PrimeManager:
     async def _main_loop(self):
         """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
-            await asyncio.sleep(5)
-            res = await invoke_actors_t(
-                remote_call.get_stage, self.graph.vertices
-            )
-            if all(it in ["FAILED", "FINISHED"] for it in res.results):
-                if all(it == "FINISHED" for it in res.results):
-                    self.request_stop("All nodes finished successfully.")
-                else:
+            await self._notify_main_loop.acquire()
+            if all(it.result is not None for it in self.graph.vertices):
+                if any(
+                    it.result == ExecutionResult.FAIL
+                    for it in self.graph.vertices
+                ):
                     self.state.exit_code = 1
                     self.request_stop(
                         "All nodes finished, but some nodes failed."
                     )
+                else:
+                    self.request_stop("All nodes finished successfully.")
                 break
 
         assert self.stage == MasterStage.STOPPING, (
@@ -331,6 +331,7 @@ class PrimeManager:
         ControllerEvents.stop_requested(reason)
         if self.stage == MasterStage.RUNNING:
             self._update_stage(MasterStage.STOPPING)
+            self._notify_main_loop.release()
         else:
             # main loop is not running, do stop directly
             self._do_stop()
@@ -391,8 +392,10 @@ class PrimeManager:
             self._do_stop()
 
     async def deal_with_actor_finished(
-        self, actor: DLExecutionVertex, stage: MasterStage
+        self, actor: DLExecutionVertex, result: ExecutionResult
     ):
         """Handle the actor finished event."""
-        logger.info(f"Actor {actor.name} reported stage {stage}.")
+        logger.info(f"Actor {actor.name} reported result {result}.")
+        actor.result = result
+        self._notify_main_loop.release()
         # TODO deal_with_actor_finished

@@ -13,6 +13,7 @@
 
 
 from dlrover.python.unified.common.actor_base import ActorBase
+from dlrover.python.unified.common.enums import ExecutionResult
 from dlrover.python.unified.controller.api import PrimeMasterApi
 
 from .manager import ElasticManager
@@ -30,6 +31,16 @@ class ElasticMaster(ActorBase):
 
     async def start(self):
         await self.manager.start()
+        # ElasticMaster is Servicer, not affect the job result
+        PrimeMasterApi.report_execution_result(
+            self.actor_info.name, ExecutionResult.SERVICER
+        )
+
+    def recover_running(self):
+        # manager has nothing to recover
+        PrimeMasterApi.report_execution_result(
+            self.actor_info.name, ExecutionResult.SERVICER
+        )
 
     # RPC methods for Workers
 

@@ -23,19 +23,24 @@ def catch_exception(msg: str):
     try:
         yield
     except Exception:
-        logger.exception(msg)
+        logger.exception(msg, stacklevel=3)
 
 
 @contextmanager
 def log_execution(name: str, log_exception: bool = True):
     """Log the execution of a block of code."""
-    logger.info(f"Run '{name}' ...")
+    logger.info(f"Run '{name}' ...", stacklevel=3)
     start = time.time()
     try:
         yield
         elapsed = time.time() - start
-        logger.info(f"End '{name}' successfully, took {elapsed:.2f} seconds.")
+        logger.info(
+            f"End '{name}' successfully, took {elapsed:.2f} seconds.",
+            stacklevel=3,
+        )
     except Exception:
         if log_exception:
-            logger.exception(f"Error during execution of '{name}'")
+            logger.exception(
+                f"Error during execution of '{name}'", stacklevel=3
+            )
         raise

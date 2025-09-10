@@ -107,6 +107,6 @@ class PrimeMasterApi(ActorProxy):
         raise NotImplementedError("stub")  # pragma: no cover
 
     @staticmethod
-    def report_execution_result(name: str, stage: ExecutionResult):
+    def report_execution_result(name: str, result: ExecutionResult):
         """Report the execution result of an actor."""
         raise NotImplementedError("stub")  # pragma: no cover

@@ -36,7 +36,6 @@ class ElasticManager:
         assert workers[0].spec.backend == "elastic"
         self.spec: ElasticWorkloadDesc = workers[0].spec
         self.workers: List[ActorInfo] = workers
-        self.finished = False
         self._restarting = False
 
         # self.perf_monitor = PerfMonitor()

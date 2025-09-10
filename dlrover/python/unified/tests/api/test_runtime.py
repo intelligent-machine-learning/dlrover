@@ -34,7 +34,7 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     rpc,
 )
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
-from dlrover.python.unified.common.actor_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.util import async_helper
 from dlrover.python.unified.util.actor_helper import ActorInvocation
 
@@ -46,7 +46,7 @@ def mock_rpc_call(actor_name, method, args, kwargs):
     actor._arbitrary_remote_call = BaseWorker._arbitrary_remote_call.__get__(
         actor
     )
-    actor.stage = WorkerStage.RUNNING
+    actor._user_rpc_ready.set()
     ret = BaseWorker._user_rpc_call(actor, method, *args, **kwargs)
     v = asyncio.run(ret)
     ret = Mock(ActorInvocation)
