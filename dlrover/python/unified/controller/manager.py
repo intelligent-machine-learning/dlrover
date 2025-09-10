@@ -215,6 +215,7 @@ class PrimeManager:
         for actor in actors:
             actor.restarting = False
         logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
+        self.save()
 
     async def deal_with_actor_restarting(self, actor: DLExecutionVertex):
         """
@@ -240,6 +241,8 @@ class PrimeManager:
         else:
             actor.inc_failure_count()
         if actor.per_node_failure_count > actor.spec.per_node_max_failure:
+            logger.info(f"Actor {actor.name} trigger node relaunch for "
+                        f"exceeded the maximum per-node failure count: {actor.spec.per_node_max_failure}.")
             await self._relaunch_fault_nodes([actor.node_info])
 
         if (
@@ -265,11 +268,20 @@ class PrimeManager:
             return
         self.state.removed_nodes.update(node.id for node in nodes)
         try:
-            await self.ext.relaunch_nodes_impl(nodes)
-            self.state.node_restart_count += len(nodes)
-            logger.info(f"Relaunched nodes: {[node.id for node in nodes]}")
+            relaunched_nodes = await self.ext.relaunch_nodes_impl(nodes)
+            self.state.node_restart_count += len(relaunched_nodes)
+            logger.info(f"Relaunched nodes: {[node.id for node in relaunched_nodes]}")
+
+            # remove not relaunched nodes from
+            for n in nodes:
+                if n not in relaunched_nodes:
+                    self.state.removed_nodes.remove(n.id)
         except NotImplementedError:
             logger.warning("Relaunch is not implemented, skipping relaunch.")
+            for n in nodes:
+                self.state.removed_nodes.remove(n.id)
+        except Exception:
+            logger.exception("Failed to relaunch nodes due to unexpected error. The following node relaunch may not be executed properly.")
             for n in nodes:
                 self.state.removed_nodes.remove(n.id)
 

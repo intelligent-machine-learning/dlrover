@@ -51,8 +51,18 @@ class ManagerExtension(Extensible):
 
     # region Extension Points Begin
 
-    async def relaunch_nodes_impl(self, nodes: List[NodeInfo]):
-        """Relaunch the specified nodes.
-        @param nodes: The list of ray node IDs to relaunch.
+    async def relaunch_nodes_impl(self, nodes: List[NodeInfo]) -> List[NodeInfo]:
+        """
+        Relaunch the specified nodes.
+        
+        For best practice:
+        1) do not raise exception(try to catch all the possible exceptions)
+        2) use return value(ray nodes) to express how many node relaunched successfully
+
+        Args:
+            nodes: The list of ray nodes to relaunch.
+
+        Returns:
+            A list of ray nodes which have relaunched successfully.
         """
         raise NotImplementedError("Relaunch is not implemented")
