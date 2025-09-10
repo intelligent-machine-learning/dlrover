@@ -67,4 +67,4 @@ class ManagerExtension(Extensible):
         Returns:
             A list of ray nodes which have relaunched successfully.
         """
-        raise NotImplementedError("Relaunch is not implemented")
+        return []

@@ -130,6 +130,13 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         assert worker.per_node_failure_count == 0  # no failure
         assert worker.total_failure_count == 2  # keep
 
+        # Sub 4. relaunch_nodes raise exception
+        manager.ext.relaunch_nodes_impl = AsyncMock(side_effect=Exception())
+        manager.state.removed_nodes = set()
+        worker.per_node_failure_count = 100  # Large enough
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.node_info.id not in manager.state.removed_nodes
+
 
 async def test_some_misc_cases(mocker: MockerFixture):
     config = elastic_training_job()
