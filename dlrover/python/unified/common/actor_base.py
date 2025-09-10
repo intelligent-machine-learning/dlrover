@@ -17,8 +17,7 @@ from typing import Any, Optional
 import ray.actor
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import ACCELERATOR_TYPE, WorkerStage
+from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 from dlrover.python.unified.util.decorators import (
@@ -71,7 +70,6 @@ class ActorBase:
         """Initialize the actor with node information."""
         self.job_info = job_info
         self.actor_info = actor_info
-        self.stage: WorkerStage = WorkerStage.INIT
         init_main_loop()
 
         # Report restart if this actor was reconstructed.
@@ -112,11 +110,6 @@ class ActorBase:
         """
         self._setup()
 
-    def get_stage(self):
-        """Get the stage of the actor."""
-
-        return self.stage
-
     @log_execution("start")  # Should copy when override
     def start(self):
         """Start the actor/node. If already started, do nothing.
@@ -138,20 +131,25 @@ class ActorBase:
     @log_execution("check_workers")  # Should copy when override
     def check_workers(self):
         """Check the workers of the master."""
-        if self.stage != WorkerStage.READY:
-            logger.error(
-                f"Only READY stage can perform check_workers. current: {self.stage}"
-            )
-            return
         pass
 
-    def restart_workers(self):
+    def recover_running(self):
+        """Recover the sub-master to the RUNNING state.
+
+        This method should be overridden by subclasses to implement
+        the logic required to transition the sub-master back to RUNNING.
         """
-        Restart workers calling from prime master and executed by sub master.
+        pass
+
+    def restart_role_level(self):
+        """
+        Request role_level restart.
+
+        May be invoked multiple times, should ignore duplicate requests.
         """
 
         raise NotImplementedError(
-            "The current sub master does not implement restart_workers."
+            "The current sub master does not implement restart_role_level."
         )
 
     # region Misc methods
@@ -166,20 +164,4 @@ class ActorBase:
             hostname=hostname,
             ip_address=ip_address,
             envs=dict(os.environ),
-        )
-
-    # region Helper for subclasses
-
-    def _update_stage_force(
-        self, stage: WorkerStage, expected: Optional[WorkerStage] = None
-    ):
-        """Update the stage of the actor/node."""
-        if expected is not None and self.stage != expected:
-            raise RuntimeError(
-                f"Cannot update stage from {self.stage} to {stage}, "
-                f"expected {expected}."
-            )
-        self.stage = stage
-        logger.info(
-            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import NodeInfo, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
@@ -28,6 +28,7 @@ from dlrover.python.unified.util.actor_helper import (
     restart_actors,
 )
 from dlrover.python.unified.util.actor_proxy import (
+    SELF,
     invoke_actor_t,
     invoke_actors_t,
 )
@@ -125,13 +126,13 @@ class PrimeManager:
     async def _setup_actors(self, actors: List[DLExecutionVertex]):
         """Wait for all actors to be ready."""
         with ControllerEvents.setup_actors():
-            res = await invoke_actors_t(remote_call.setup, actors)
+            res = await invoke_actors_t(ActorBase.setup, actors, SELF)
             res.raise_for_errors()
         logger.info("All actors have completed setup.")
 
         # update all actor's node info
         node_info_res = await invoke_actors_t(
-            remote_call.get_node_info, actors
+            ActorBase.get_node_info, actors, SELF
         )
         for actor, node_info in zip(actors, node_info_res.results):
             actor.node_info = node_info
@@ -148,7 +149,9 @@ class PrimeManager:
         if not sub_masters:
             return
         with ControllerEvents.node_check():
-            res = await invoke_actors_t(remote_call.check_workers, sub_masters)
+            res = await invoke_actors_t(
+                ActorBase.check_workers, sub_masters, SELF
+            )
             res.raise_for_errors()
         logger.info("Masters checked all workers successfully.")
 
@@ -159,14 +162,8 @@ class PrimeManager:
         )
         with ControllerEvents.starting():
             actors = [actor.name for actor in self.graph.vertices]
-            res = await invoke_actors_t(remote_call.start, actors)
+            res = await invoke_actors_t(ActorBase.start, actors, SELF)
             res.raise_for_errors()
-
-            res = await invoke_actors_t(remote_call.get_stage, actors)
-            # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
-            assert not any(it == WorkerStage.READY for it in res.results), (
-                f"Start should update stage, not READY. {res.as_dict()}"
-            )
 
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(self._main_loop(), name="job_monitor")
@@ -223,11 +220,18 @@ class PrimeManager:
         reasons should be filtered out by the following `actor.restarting`
         logic.
         """
-
+        # 1. Ignore some cases
         if actor.restarting:
             return  # Actor is already restarting, no need to handle it again.
 
-        # record failure and relaunch fault node if needed
+        if self.stage != MasterStage.RUNNING:
+            logger.info(
+                f"Current stage is {self.stage}, skipping failover handling."
+            )
+            return
+
+        # 2. record failure and relaunch fault node if needed
+
         assert actor.node_info is not None, (
             "actor.node should be set beforehand."
         )
@@ -244,19 +248,23 @@ class PrimeManager:
             )
             await self._relaunch_fault_nodes([actor.node_info])
 
+        # 3. Do failover
+
+        if actor is actor.role.sub_master:
+            await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
+            return
+
         if (
             actor.spec.is_role_level_failover_supported()
             and actor.role.sub_master is not None
         ):
             # call sub master do role level failover
             await invoke_actor_t(
-                remote_call.restart_workers,
-                actor.role.sub_master.name,
+                ActorBase.restart_role_level, actor.role.sub_master.name, SELF
             )
             return
-        else:
-            # call job restart
-            await self.restart_job()
+        # call job restart
+        await self.restart_job()
 
     async def _relaunch_fault_nodes(self, nodes: List[NodeInfo]):
         if self.state.node_restart_count >= self.config.node_max_restart:
@@ -366,7 +374,7 @@ class PrimeManager:
             logger.exception("Failed to load state")
             return None
 
-    def handle_self_failover(self):
+    def self_recover(self):
         """Handle failover for the master self."""
         logger.info("Handling failover.")
         if self.stage == MasterStage.RUNNING:
@@ -381,3 +389,10 @@ class PrimeManager:
             logger.warning(f"Job is in stage {self.stage}, terminating.")
             ControllerEvents.failover_stop(self.stage)
             self._do_stop()
+
+    async def deal_with_actor_finished(
+        self, actor: DLExecutionVertex, stage: MasterStage
+    ):
+        """Handle the actor finished event."""
+        logger.info(f"Actor {actor.name} reported stage {stage}.")
+        # TODO deal_with_actor_finished

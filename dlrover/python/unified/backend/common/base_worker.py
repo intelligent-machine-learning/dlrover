@@ -21,7 +21,10 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     export_rpc_instance,
 )
 from dlrover.python.unified.backend.common.events import BaseWorkerEvents
-from dlrover.python.unified.common.actor_base import ActorBase, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorBase
+from dlrover.python.unified.common.enums import ExecutionResult
+from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.decorators import log_execution
 from dlrover.python.util.reflect_util import import_callable
 
 
@@ -30,12 +33,13 @@ class BaseWorker(ActorBase):
 
     CURRENT: ClassVar["BaseWorker"]
 
-    def _setup(self):
+    @log_execution("setup")  # Should copy when override
+    def setup(self):
         BaseWorker.CURRENT = self
 
+        self._user_rpc_ready = asyncio.Event()
         self._setup_envs()
         self._self_check()
-        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
@@ -47,6 +51,7 @@ class BaseWorker(ActorBase):
         # This method can be overridden by subclasses to perform self-checks.
         logger.info(f"[{self.actor_info.name}] Running self check.")
 
+    @log_execution("start")  # Should copy when override
     def start(self):
         """Start the worker."""
         # This method can be overridden by subclasses to implement specific start logic.
@@ -77,55 +82,57 @@ class BaseWorker(ActorBase):
                     f"Failed to instantiate user class {user_func}"
                 ) from e
             export_rpc_instance(None, inst)
-            if not hasattr(inst, "run"):
-                logger.error(
-                    f"User class {user_func} does not have a 'run' method, "
-                    "assert FINISH. This may cause job state inconsistency."
-                )
-                self._update_stage_force(
-                    WorkerStage.FINISHED, WorkerStage.READY
-                )
-                return
+            user_func = getattr(inst, "run", None)
 
-            user_func = inst.run
         logger.info(f"Exported RPC methods: {list(RPC_REGISTRY.keys())}")
+        self._user_rpc_ready.set()
 
-        self._update_stage_force(WorkerStage.RUNNING, WorkerStage.READY)
-        Thread(
-            target=self._execute_user_function,
-            args=(user_func,),
-            daemon=True,
-            name="user_main_thread",
-        ).start()
+        if user_func is not None:
+            Thread(
+                target=self._execute_user_function,
+                args=(user_func,),
+                daemon=True,
+                name="user_main_thread",
+            ).start()
+        else:
+            logger.warning(
+                f"User class {user_func} does not have a 'run' method. "
+                "Assert this worker as SERVICER, ready to receive RPC calls."
+            )
+            self._on_execution_end(ExecutionResult.SERVICER)
+
+    def _on_execution_end(self, result: ExecutionResult):
+        """Report the execution result to the prime master."""
+        PrimeMasterApi.report_execution_result(self.actor_info.name, result)
 
     def _execute_user_function(self, user_func):
         """Execute the user function."""
 
         try:
-            logger.info(f"Executing: {user_func}")
-            with BaseWorkerEvents.running():
+            with (
+                log_execution(
+                    f"user_function:{user_func}", log_exception=False
+                ),
+                BaseWorkerEvents.running(),
+            ):
                 user_func()
         except Exception:
             logger.exception(
-                "Unexpected error occurred while executing user function."
+                f"Unexpected error occurred while executing user function({user_func})."
             )
-            self._update_stage_force(WorkerStage.FAILED, WorkerStage.RUNNING)
+            self._on_execution_end(ExecutionResult.FAIL)
         else:
-            self._update_stage_force(WorkerStage.FINISHED, WorkerStage.RUNNING)
+            self._on_execution_end(ExecutionResult.SUCCESS)
 
     # rpc
     async def _user_rpc_call(self, fn_name: str, *args, **kwargs):
         """Call a user-defined RPC method."""
-        while self.stage == WorkerStage.READY:
+        if not self._user_rpc_ready.is_set():
             logger.warning(
                 f"Actor {self.actor_info.name} is starting, not ready for RPC {fn_name}, waiting..."
             )
-            await asyncio.sleep(5)
-        if self.stage not in [WorkerStage.RUNNING, WorkerStage.FINISHED]:
-            raise RuntimeError(
-                f"Actor {self.actor_info.name} is not in a valid state to handle RPC calls. "
-                f"Current stage: {self.stage}. Expected RUNNING or FINISHED."
-            )
+            with log_execution("wait_user_rpc_ready"):
+                await self._user_rpc_ready.wait()
 
         if fn_name not in RPC_REGISTRY:
             raise ValueError(

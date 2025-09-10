@@ -22,6 +22,16 @@ class MasterStage(str, Enum):
     STOPPED = "STOPPED"
 
 
+class ExecutionResult(str, Enum):
+    """Results of worker execution."""
+
+    SUCCESS = "SUCCESS"  # Finished successfully
+    FAIL = "FAIL"  # Finished with failure
+
+    # always running, receive rpc calls, but not affected the job status
+    SERVICER = "SERVICER"
+
+
 class WorkerStage(str, Enum):
     """Stages of a worker actor."""
 

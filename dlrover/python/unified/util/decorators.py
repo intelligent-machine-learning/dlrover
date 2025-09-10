@@ -27,14 +27,15 @@ def catch_exception(msg: str):
 
 
 @contextmanager
-def log_execution(name: str):
+def log_execution(name: str, log_exception: bool = True):
     """Log the execution of a block of code."""
     logger.info(f"Run '{name}' ...")
     start = time.time()
     try:
         yield
         elapsed = time.time() - start
-        logger.info(f"End '{name}', took {elapsed:.2f} seconds.")
+        logger.info(f"End '{name}' successfully, took {elapsed:.2f} seconds.")
     except Exception:
-        logger.exception(f"Error during execution of '{name}'")
+        if log_exception:
+            logger.exception(f"Error during execution of '{name}'")
         raise
