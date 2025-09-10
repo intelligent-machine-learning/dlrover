@@ -11,9 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from asyncio import iscoroutine
 from dataclasses import dataclass, field
-from typing import Any, Coroutine, Optional, final
+from typing import Any, Optional
 
 import ray.actor
 
@@ -23,7 +22,6 @@ from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 from dlrover.python.unified.util.decorators import (
     catch_exception,
-    log_execution,
 )
 
 # Note: All info classes are transfer objects; immutability is preferred.
@@ -99,10 +97,6 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    def _setup(self) -> Any | Coroutine:
-        pass
-
-    @final
     async def setup(self):
         """Setup the actor/node.
 
@@ -110,12 +104,7 @@ class ActorBase:
         by subclasses to perform any necessary setup before the actor/node
         is ready to run.
         """
-        with log_execution("setup"):
-            ret = self._setup()
-            if iscoroutine(ret):
-                await ret
 
-    @log_execution("start")  # Should copy when override
     def start(self):
         """Start the actor/node. If already started, do nothing.
 
@@ -133,7 +122,6 @@ class ActorBase:
         ray.actor.exit_actor()  # As ray.kill don't execute callback.
 
     # region for sub-master
-    @log_execution("check_workers")  # Should copy when override
     def check_workers(self):
         """Check the workers of the master."""
         pass

@@ -33,7 +33,7 @@ class BaseWorker(ActorBase):
 
     CURRENT: ClassVar["BaseWorker"]
 
-    def _setup(self):
+    def setup(self):
         BaseWorker.CURRENT = self
 
         self._user_rpc_ready = asyncio.Event()
@@ -50,7 +50,6 @@ class BaseWorker(ActorBase):
         # This method can be overridden by subclasses to perform self-checks.
         logger.info(f"[{self.actor_info.name}] Running self check.")
 
-    @log_execution("start")  # Should copy when override
     def start(self):
         """Start the worker."""
         # This method can be overridden by subclasses to implement specific start logic.

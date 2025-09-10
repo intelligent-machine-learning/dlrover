@@ -57,12 +57,12 @@ class ElasticWorker(BaseWorker):
     It skips the torch-run, and directly runs the training in process.
     """
 
-    def _setup(self):
+    def setup(self):
         assert self.actor_info.spec.backend == "elastic"
 
         self._master_socket = None
         self._process_group_setup = False
-        super()._setup()
+        super().setup()
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""

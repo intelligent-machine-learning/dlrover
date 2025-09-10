@@ -15,12 +15,13 @@
 from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.common.enums import ExecutionResult
 from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.decorators import log_execution
 
 from .manager import ElasticManager
 
 
 class ElasticMaster(ActorBase):
-    def _setup(self):
+    def setup(self):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
 
@@ -30,7 +31,8 @@ class ElasticMaster(ActorBase):
         await self.manager.check_workers()
 
     async def start(self):
-        await self.manager.start()
+        with log_execution("ElasticMaster start"):
+            await self.manager.start()
         # ElasticMaster is Servicer, not affect the job result
         PrimeMasterApi.report_execution_result(
             self.actor_info.name, ExecutionResult.SERVICER

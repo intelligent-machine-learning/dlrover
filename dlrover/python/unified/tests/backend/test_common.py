@@ -40,7 +40,7 @@ async def test_start_base():
     _entrypoint = Mock()
     _entrypoint.__module__ = __name__
 
-    await worker.setup()
+    worker.setup()
     worker.start()
     assert module_level_rpc.__name__ in RPC_REGISTRY
 
@@ -81,7 +81,7 @@ async def test_start_class():
     _entrypoint = entrypoint_class
     _entrypoint.__module__ = __name__
 
-    worker._setup()
+    worker.setup()
     worker.start()
     assert init_called
     assert entrypoint_class.class_level_rpc.__name__ in RPC_REGISTRY

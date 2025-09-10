@@ -11,10 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import time
 from contextlib import contextmanager
 
 from dlrover.python.common.log import default_logger as logger
+
+
+def _get_stacklevel():
+    stack = inspect.stack()
+    stacklevel = 3
+    if stack[3].function == "inner":
+        stacklevel = 4
+    return stacklevel
 
 
 @contextmanager
@@ -23,24 +32,27 @@ def catch_exception(msg: str):
     try:
         yield
     except Exception:
-        logger.exception(msg, stacklevel=3)
+        logger.exception(msg, stacklevel=_get_stacklevel())
 
 
+# Note: don't decorate async function with this
 @contextmanager
 def log_execution(name: str, log_exception: bool = True):
     """Log the execution of a block of code."""
-    logger.info(f"Run '{name}' ...", stacklevel=3)
+    stacklevel = _get_stacklevel()
+
+    logger.info(f"Run '{name}' ...", stacklevel=stacklevel)
     start = time.time()
     try:
         yield
         elapsed = time.time() - start
         logger.info(
             f"End '{name}' successfully, took {elapsed:.2f} seconds.",
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
     except Exception:
         if log_exception:
             logger.exception(
-                f"Error during execution of '{name}'", stacklevel=3
+                f"Error during execution of '{name}'", stacklevel=stacklevel
             )
         raise
