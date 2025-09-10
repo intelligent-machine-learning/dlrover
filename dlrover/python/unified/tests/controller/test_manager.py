@@ -113,7 +113,9 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         assert len(manager.state.removed_nodes) == 0
 
         # Sub 2. relaunch_nodes
-        manager.ext.relaunch_nodes_impl = AsyncMock()
+        manager.ext.relaunch_nodes_impl = AsyncMock(
+            return_value=[NodeInfo("node_1")]
+        )
         await manager.deal_with_actor_restarting(worker)
         assert worker.per_node_failure_count == 102
         assert worker.total_failure_count == 2
