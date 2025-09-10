@@ -159,7 +159,7 @@ framework with new processing paradigms—without altering the core architecture
 ### Common Lifecycle Hooks
 
 - `__init__`: Initializes the node with the provided configuration.
-- `status`: Retrieves the current runtime status of the node.
+- `setup`: Let actor/node perform any necessary setup before it is ready to receive requests.
 - `check_child`: Monitors the status of child nodes (applicable to `SubMaster`).
 - `start`: Launches the node’s processing logic (e.g., training loop, monitoring routine).
 
@@ -173,7 +173,7 @@ framework with new processing paradigms—without altering the core architecture
 ```mermaid
 stateDiagram-v2
     [*] --> INIT: __init__
-    INIT --> READY: _setup, _self_check, ...
+    INIT --> READY: setup, _self_check, ...
     READY --> RUNNING: check_workers, rendezvous, ...
     RUNNING --> FINISH: 
     RUNNING --> FAILED: task error
