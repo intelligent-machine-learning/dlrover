@@ -28,7 +28,7 @@
 | FSDP-Dataloader  |  1   |  1   |  1   |  1   |
 |   DLRM-badsync   |  1   |  1   |  1   |  1   |
 
-  - [ ] Greyhound: [https://github.com/wutianyuan1/Greyhound](https://github.com/wutianyuan1/Greyhound) **DDL: 9月12日前**
-    - [ ] 首先是overhead，这里的XPU timer使用CUPTI版本
-    - [ ] 其次是能不能检测慢
-    - [ ] 以及FSDP、megatron、DLRM的适配性
+  - [x] Greyhound: [https://github.com/wutianyuan1/Greyhound](https://github.com/wutianyuan1/Greyhound) **DDL: 9月12日前**
+    - [x] 首先是overhead，这里的XPU timer使用CUPTI版本
+    - [x] 其次是能不能检测慢
+    - [x] 以及FSDP、megatron、DLRM的适配性
