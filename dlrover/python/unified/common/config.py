@@ -204,4 +204,5 @@ class JobConfig(BaseModel):
             name=self.job_name,
             job_id=self.job_name,
             user_config=self.dl_config.user_config,
+            accelerator_type=self.dl_config.accelerator_type,
         )

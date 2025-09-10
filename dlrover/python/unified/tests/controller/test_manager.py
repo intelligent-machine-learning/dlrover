@@ -31,6 +31,7 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 def test_manager_save_load():
     config = elastic_training_job()
     manager = PrimeManager(config)
+    assert PrimeManager.INSTANCE is manager
     assert manager.state.stage == MasterStage.INIT
     manager._update_stage(MasterStage.RUNNING)
     assert manager.state.stage == MasterStage.RUNNING
@@ -112,7 +113,9 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         assert len(manager.state.removed_nodes) == 0
 
         # Sub 2. relaunch_nodes
-        manager.ext.relaunch_nodes_impl = AsyncMock()
+        manager.ext.relaunch_nodes_impl = AsyncMock(
+            return_value=[NodeInfo("node_1")]
+        )
         await manager.deal_with_actor_restarting(worker)
         assert worker.per_node_failure_count == 102
         assert worker.total_failure_count == 2
@@ -126,6 +129,13 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         await manager.deal_with_actor_restarting(worker)
         assert worker.per_node_failure_count == 0  # no failure
         assert worker.total_failure_count == 2  # keep
+
+        # Sub 4. relaunch_nodes raise exception
+        manager.ext.relaunch_nodes_impl = AsyncMock(side_effect=Exception())
+        manager.state.removed_nodes = set()
+        worker.per_node_failure_count = 100  # Large enough
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.node_info.id not in manager.state.removed_nodes
 
 
 async def test_some_misc_cases(mocker: MockerFixture):
