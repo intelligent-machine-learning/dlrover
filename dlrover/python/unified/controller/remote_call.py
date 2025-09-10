@@ -11,9 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.actor_base import WorkerStage, NodeInfo
+from dlrover.python.unified.common.actor_base import NodeInfo, WorkerStage
 
 """Remote Call define for controller to invoke backends."""
+
+
+def setup() -> None:
+    """Setup the actor.
+    Always called when the actor is initialized or reconstructed, before other methods.
+    """
+    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def check_workers() -> None:

@@ -21,6 +21,10 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import ACCELERATOR_TYPE, WorkerStage
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
+from dlrover.python.unified.util.decorators import (
+    catch_exception,
+    log_execution,
+)
 
 # Note: All info classes are transfer objects; immutability is preferred.
 
@@ -60,14 +64,6 @@ class NodeInfo:
     envs: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class WorkerState:
-    job_info: JobInfo
-    actor_info: ActorInfo
-    node_info: NodeInfo
-    stage: WorkerStage
-
-
 class ActorBase:
     """Base class for all actors in the DLRover system."""
 
@@ -83,16 +79,13 @@ class ActorBase:
             ray.is_initialized()
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
-            try:
-                self._report_restart()
-            except Exception:
-                logger.exception("Unexpected error when reporting restart.")
-        self._setup()
+            self._report_restart()
 
     @property
     def name(self) -> str:
         return self.actor_info.name
 
+    @catch_exception("Unexpected error when reporting restart.")
     def _report_restart(self):
         """Report that the actor has been restarted."""
         from dlrover.python.unified.controller.api import PrimeMasterApi
@@ -107,23 +100,24 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    def _setup(self):
+    def _setup(self): ...
+
+    @log_execution("setup")  # Should copy when override
+    async def setup(self):
         """Setup the actor/node.
 
         This method is called during initialization and should be overridden
         by subclasses to perform any necessary setup before the actor/node
         is ready to run.
-
-        Could be asynchronous, but must keep stage not READY until all setup is done.
-        And it must update the stage to READY when setup is complete.
         """
-        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
+        self._setup()
 
     def get_stage(self):
         """Get the stage of the actor."""
 
         return self.stage
 
+    @log_execution("start")  # Should copy when override
     def start(self):
         """Start the actor/node. If already started, do nothing.
 
@@ -141,6 +135,7 @@ class ActorBase:
         ray.actor.exit_actor()  # As ray.kill don't execute callback.
 
     # region for sub-master
+    @log_execution("check_workers")  # Should copy when override
     def check_workers(self):
         """Check the workers of the master."""
         if self.stage != WorkerStage.READY:

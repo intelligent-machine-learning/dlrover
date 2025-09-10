@@ -117,30 +117,17 @@ class PrimeManager:
         logger.info("Finished creating actors for the job.")
 
         # Wait for all nodes to be ready
-        await self._wait_ready(self.graph.vertices)
+        await self._setup_actors(self.graph.vertices)
         self._update_stage(MasterStage.READY)
 
         await self._nodes_check()
 
-    async def _wait_ready(self, actors: List[DLExecutionVertex]):
+    async def _setup_actors(self, actors: List[DLExecutionVertex]):
         """Wait for all actors to be ready."""
-        while True:
-            res = await invoke_actors_t(remote_call.get_stage, actors)
-            not_ready = {
-                actor.name: status
-                for actor, status in zip(actors, res.results)
-                if status != "READY"
-            }
-            if len(not_ready) == 0:
-                logger.info("All nodes are ready.")
-                break
-            logger.warning(
-                f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
-            )
-            ControllerEvents.wait_ready(
-                len(not_ready), total_count=len(actors)
-            )
-            await asyncio.sleep(5)
+        with ControllerEvents.setup_actors():
+            res = await invoke_actors_t(remote_call.setup, actors)
+            res.raise_for_errors()
+        logger.info("All actors have completed setup.")
 
         # update all actor's node info
         node_info_res = await invoke_actors_t(
@@ -220,9 +207,10 @@ class PrimeManager:
         for actor in actors:
             actor.restarting = True
         await restart_actors([actor.name for actor in actors])
-        await self._wait_ready(actors)
+        await self._setup_actors(actors)
         for actor in actors:
             actor.restarting = False
+        self.save()
         logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
         self.save()
 
