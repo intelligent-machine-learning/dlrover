@@ -280,10 +280,6 @@ class PrimeManager:
             for n in nodes:
                 if n not in relaunched_nodes:
                     self.state.removed_nodes.remove(n.id)
-        except NotImplementedError:
-            logger.warning("Relaunch is not implemented, skipping relaunch.")
-            for n in nodes:
-                self.state.removed_nodes.remove(n.id)
         except Exception:
             logger.exception(
                 "Failed to relaunch nodes due to unexpected error. The following node relaunch may not be executed properly."
