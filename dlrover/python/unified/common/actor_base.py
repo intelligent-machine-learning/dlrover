@@ -97,7 +97,7 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    async def setup(self):
+    def setup(self):
         """Setup the actor/node.
 
         This method is called during initialization and should be overridden

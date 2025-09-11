@@ -32,25 +32,6 @@ class ExecutionResult(str, Enum):
     SERVICER = "SERVICER"
 
 
-class WorkerStage(str, Enum):
-    """Stages of a worker actor."""
-
-    # CALL __init__
-    INIT = "INIT"
-    # _setup
-    # _self_check(optional)
-    READY = "READY"
-    # CALL check_workers(optional)
-    # CALL start
-    RUNNING = "RUNNING"
-    FINISHED = "FINISHED"
-    FAILED = "FAILED"
-
-    def is_terminal(self) -> bool:
-        """Check if the stage is terminal."""
-        return self in {WorkerStage.FINISHED, WorkerStage.FAILED}
-
-
 class ACCELERATOR_TYPE(str, Enum):
     CPU = "CPU"
     GPU = "GPU"

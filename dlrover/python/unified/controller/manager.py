@@ -251,6 +251,7 @@ class PrimeManager:
         # 3. Do failover
 
         if actor is actor.role.sub_master:
+            await self._setup_actors([actor])
             await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
             return
 
