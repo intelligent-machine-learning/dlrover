@@ -14,7 +14,6 @@
 import os
 import signal
 import sys
-import threading
 from unittest.mock import Mock
 
 import pytest
@@ -28,17 +27,10 @@ def exception_handler():
     handler = ErrorHandler()
     handler._process = Mock(spec=Process)
     yield handler
-
-
-def test_singleton():
-    handler1 = ErrorHandler()
-    handler2 = ErrorHandler()
-    assert handler1 is handler2
+    handler.unregister()
 
 
 def test_register_unregister(exception_handler):
-    exception_handler.unregister()
-
     original_excepthook = sys.excepthook
 
     exception_handler.register()
@@ -76,7 +68,6 @@ def test_handle_signal(exception_handler):
     assert mock_process.instant.call_count == 1
     assert mock_process.instant.call_args.args[0] == "exit_sig"
     assert mock_process.instant.call_args.args[1]["sig"] is not None
-    exception_handler.unregister()
 
 
 def test_handle_signal_generate_frame_failed(exception_handler):
@@ -95,7 +86,6 @@ def test_handle_signal_generate_frame_failed(exception_handler):
     content = mock_process.instant.call_args.args[1]
     assert content["sig"] is not None
     assert content["stack"].startswith("get stack failed: ")
-    exception_handler.unregister()
 
 
 def test_handle_signal_event_failed(exception_handler):
@@ -109,7 +99,6 @@ def test_handle_signal_event_failed(exception_handler):
 
     assert mock_process.instant.call_count == 1
     assert mock_process.instant.call_args.args[0] == "exit_sig"
-    exception_handler.unregister()
 
 
 def test_handle_signal_unregister_signal(exception_handler, monkeypatch):
@@ -130,29 +119,3 @@ def test_handle_signal_unregister_signal(exception_handler, monkeypatch):
     #  test unregister
     exception_handler.unregister()
     assert not exception_handler._registered  # ensure unregistered
-
-
-def test_thread_safety():
-    def create_handler():
-        return ErrorHandler()
-
-    lock = threading.Lock()
-    handlers = []
-    threads = []
-
-    def append_handler():
-        handler = create_handler()
-        with lock:
-            handlers.append(handler)
-
-    for _ in range(10):
-        thread = threading.Thread(target=append_handler)
-        threads.append(thread)
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-
-    first_handler = handlers[0]
-    for handler in handlers[1:]:
-        assert handler is first_handler

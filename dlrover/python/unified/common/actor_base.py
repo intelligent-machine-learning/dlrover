@@ -78,7 +78,7 @@ class ActorBase:
         self.stage: WorkerStage = WorkerStage.INIT
         init_main_loop()
 
-        # Report restart to sub-master/master if this actor was reconstructed.
+        # Report restart if this actor was reconstructed.
         if (
             ray.is_initialized()
             and ray.get_runtime_context().was_current_actor_reconstructed
@@ -106,7 +106,7 @@ class ActorBase:
         # We display the actor name in ray logging
         return self.name
 
-    # Hook methods for subclasses to implement
+    # region Hook methods for subclasses to implement
     def _setup(self):
         """Setup the actor/node.
 
@@ -140,7 +140,7 @@ class ActorBase:
         """Self-kill the actor/node."""
         ray.actor.exit_actor()  # As ray.kill don't execute callback.
 
-    # for sub-master
+    # region for sub-master
     def check_workers(self):
         """Check the workers of the master."""
         if self.stage != WorkerStage.READY:
@@ -159,6 +159,8 @@ class ActorBase:
             "The current sub master does not implement restart_workers."
         )
 
+    # region Misc methods
+
     def get_node_info(self):
         """Get the current actor's ray node's information."""
 
@@ -171,7 +173,7 @@ class ActorBase:
             envs=dict(os.environ),
         )
 
-    # Helper methods for subclasses to use
+    # region Helper for subclasses
 
     def _update_stage_force(
         self, stage: WorkerStage, expected: Optional[WorkerStage] = None

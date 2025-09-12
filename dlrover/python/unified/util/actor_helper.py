@@ -57,8 +57,7 @@ def refresh_actor_cache(name: str):
         reset_actor_cache(name)
         __actors_cache[name] = ray.get_actor(name)
     except ValueError:
-        logger.error(f"Actor {name} not found")
-        raise
+        raise ValueError(f"Actor {name} not found")
 
 
 def get_actor_with_cache(name: str):
@@ -145,12 +144,13 @@ class ActorInvocation(InvocationRef[T]):
                 f"Method {self.method_name} not found on actor {self.actor_name}: {e}"
             )
             self._result = e
+        except RayActorError as e:
+            self._handle_exception(e)
         except Exception as e:
             logger.error(
                 f"Fail to submit task {self.display_name} to {self.actor_name}: {e}"
             )
             self._result = e
-        self._check_result()
 
     def resolve_sync(self, timeout: Optional[float] = None):
         """Wait for the result of the invocation asynchronously.
@@ -161,18 +161,8 @@ class ActorInvocation(InvocationRef[T]):
             self._result = cast(T, ray.get(self._result, timeout=timeout))
         except GetTimeoutError:
             return  # still pending, will retry later
-        except RayActorError as e:
-            self._result = e  # known error,handle in _check_result
-        except RayTaskError as e:
-            self._result = RuntimeError(
-                f"Error executing {self.display_name} on {self.actor_name}: {e}"
-            )
         except Exception as e:
-            logger.error(
-                f"Unexpected exception executing {self.display_name} on {self.actor_name}: {e}"
-            )
-            self._result = e
-        self._check_result()
+            self._handle_exception(e)
 
     async def resolve_async(self, timeout: Optional[float] = None):
         """Wait for the result of the invocation asynchronously.
@@ -187,37 +177,40 @@ class ActorInvocation(InvocationRef[T]):
             self._result = cast(T, await co)
         except TimeoutError:
             return
-        except RayActorError as e:
-            self._result = e  # known error,handle in _check_result
-        except RayTaskError as e:
+        except Exception as e:
+            self._handle_exception(e)
+
+    def _handle_exception(self, e: Exception):
+        # if isinstance(e, ActorUnavailableError):
+        # pass
+        if isinstance(e, RayActorError):
+            # retry for actor restart or unavailable errors
+            if self._retry_count > 0:
+                if (
+                    self.method_name == "__ray_terminate__"
+                    or self.method_name == "shutdown"
+                ):
+                    self._result = cast(T, None)  # Success for shutdown
+                    return
+
+                self._retry_count -= 1
+                logger.warning(
+                    f"ActorError when executing {self.display_name} on {self.actor_name},"
+                    f" retrying ({self._retry_count} retries left); {self._result}"
+                )
+                reset_actor_cache(self.actor_name)
+                self._invoke()
+            else:
+                self._result = e
+        elif isinstance(e, RayTaskError):
             self._result = RuntimeError(
                 f"Error executing {self.display_name} on {self.actor_name}: {e}"
             )
-        except Exception as e:
+        else:
             logger.error(
                 f"Unexpected exception executing {self.display_name} on {self.actor_name}: {type(e)}"
             )
             self._result = e
-        self._check_result()
-
-    def _check_result(self):
-        """Check if the invocation should be retried."""
-        # retry for actor restart or unavailable errors
-        if self._retry_count > 0 and isinstance(self._result, RayActorError):
-            if (
-                self.method_name == "__ray_terminate__"
-                or self.method_name == "shutdown"
-            ):
-                self._result = cast(T, None)  # Success for shutdown
-                return
-
-            self._retry_count -= 1
-            logger.warning(
-                f"ActorError when executing {self.display_name} on {self.actor_name},"
-                f" retrying ({self._retry_count} retries left); {self._result}"
-            )
-            reset_actor_cache(self.actor_name)
-            self._invoke()
 
     @property
     def pending(self) -> bool:

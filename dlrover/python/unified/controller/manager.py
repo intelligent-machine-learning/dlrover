@@ -20,6 +20,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import NodeInfo, WorkerStage
 from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
 from dlrover.python.unified.common.enums import MasterStage
+from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
@@ -85,6 +86,7 @@ class PrimeManager:
 
         logger.info(f"PrimeManager initialized with config: {config}")
         PrimeManager.INSTANCE = self  # Singleton instance
+        ControllerEvents.inited(config)
 
     @property
     def graph(self) -> DLExecutionGraph:
@@ -98,16 +100,20 @@ class PrimeManager:
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
-        if self.stage != stage:
-            logger.info(f"Updating job stage from {self.stage} to {stage}")
+        old_stage = self.stage
+        if old_stage != stage:
+            logger.info(f"Updating job stage from {old_stage} to {stage}")
             self.state.stage = stage
+            ControllerEvents.stage_updated(old_stage, stage)
             self.save()
 
     async def prepare(self):
         """Prepare all for the job execution.
         Execute only once, not support failover when failed."""
-        self.scheduler.allocate_placement_group(self.graph)
-        await self.scheduler.create_actors(self.graph)
+        with ControllerEvents.creating_pg():
+            self.scheduler.allocate_placement_group(self.graph)
+        with ControllerEvents.creating_actors():
+            await self.scheduler.create_actors(self.graph)
         logger.info("Finished creating actors for the job.")
 
         # Wait for all nodes to be ready
@@ -131,6 +137,9 @@ class PrimeManager:
             logger.warning(
                 f"Waiting for {len(not_ready)} nodes to be ready: {not_ready}"
             )
+            ControllerEvents.wait_ready(
+                len(not_ready), total_count=len(actors)
+            )
             await asyncio.sleep(5)
 
         # update all actor's node info
@@ -149,25 +158,28 @@ class PrimeManager:
             for role in self.graph.roles.values()
             if role.sub_master is not None
         ]
-        if sub_masters:
+        if not sub_masters:
+            return
+        with ControllerEvents.node_check():
             res = await invoke_actors_t(remote_call.check_workers, sub_masters)
             res.raise_for_errors()
-            logger.info("Masters checked all workers successfully.")
+        logger.info("Masters checked all workers successfully.")
 
     async def start(self):
         """Execute the job. Start tracking the job status."""
         assert self.stage == MasterStage.READY, (
             f"Cannot start job in stage {self.stage}. Expected stage is READY."
         )
-        actors = [actor.name for actor in self.graph.vertices]
-        res = await invoke_actors_t(remote_call.start, actors)
-        res.raise_for_errors()
+        with ControllerEvents.starting():
+            actors = [actor.name for actor in self.graph.vertices]
+            res = await invoke_actors_t(remote_call.start, actors)
+            res.raise_for_errors()
 
-        res = await invoke_actors_t(remote_call.get_stage, actors)
-        # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
-        assert not any(it == WorkerStage.READY for it in res.results), (
-            f"Start should update stage, not READY. {res.as_dict()}"
-        )
+            res = await invoke_actors_t(remote_call.get_stage, actors)
+            # It should be RUNNING, but may be FINISHED/FAILED when workload runs too short.
+            assert not any(it == WorkerStage.READY for it in res.results), (
+                f"Start should update stage, not READY. {res.as_dict()}"
+            )
 
         logger.info("Job started successfully.")
         self._task = asyncio.create_task(self._main_loop(), name="job_monitor")
@@ -208,10 +220,7 @@ class PrimeManager:
         for actor in actors:
             actor.restarting = True
         await restart_actors([actor.name for actor in actors])
-        logger.info({n.name: n.restarting for n in self.graph.vertices})
-
         await self._wait_ready(actors)
-        logger.info({n.name: n.restarting for n in self.graph.vertices})
         for actor in actors:
             actor.restarting = False
         logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
@@ -300,19 +309,20 @@ class PrimeManager:
                 f"Job has exceeded the maximum restart count: {self.state.job_restart_count}."
             )
             return
-        logger.info("Restarting the job execution.")
-        self._task.cancel()
-        self._update_stage(MasterStage.READY)
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            logger.info("Monitor task cancelled, proceeding with restart.")
-        logger.info("Restarting all actors...")
-        await self.restart_actors(self.graph.vertices)
-        logger.info("Restarted actors, re-checking their status.")
-        await self._nodes_check()
-        await self.start()
-        logger.info("Job restarted successfully.")
+        with ControllerEvents.restarting():
+            logger.info("Restarting the job execution.")
+            self._task.cancel()
+            self._update_stage(MasterStage.READY)
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                logger.info("Monitor task cancelled, proceeding with restart.")
+            logger.info("Restarting all actors...")
+            await self.restart_actors(self.graph.vertices)
+            logger.info("Restarted actors, re-checking their status.")
+            await self._nodes_check()
+            await self.start()
+            logger.info("Job restarted successfully.")
 
     def request_stop(self, reason: str):
         """Stop the job execution. And clean up resources."""
@@ -322,6 +332,7 @@ class PrimeManager:
         ):
             return
         logger.info(f"Requesting to stop the job: {reason}")
+        ControllerEvents.stop_requested(reason)
         if self.stage == MasterStage.RUNNING:
             self._update_stage(MasterStage.STOPPING)
         else:
@@ -329,11 +340,12 @@ class PrimeManager:
             self._do_stop()
 
     def _do_stop(self):
-        logger.info("Terminating all actors...")
-        kill_actors([node.name for node in self.graph.vertices])
-        self._update_stage(MasterStage.STOPPED)
-        self._stopped_event.set()
-        logger.info("Job stopped successfully.")
+        with ControllerEvents.stopping():
+            logger.info("Terminating all actors...")
+            kill_actors([node.name for node in self.graph.vertices])
+            self._update_stage(MasterStage.STOPPED)
+            self._stopped_event.set()
+            logger.info("Job stopped successfully.")
 
     async def wait(self):
         """Wait for the job to finish."""
@@ -342,22 +354,26 @@ class PrimeManager:
 
     def save(self):
         """Save the job state to persistent storage."""
-        try:
-            data = pickle.dumps(self.state)
-            self.state_backend.set(self._state_key, data)
-            logger.info("Save runtime context into state.")
-        except Exception:
-            logger.exception("Failed to save state")
+        with ControllerEvents.saving():
+            try:
+                data = pickle.dumps(self.state)
+                self.state_backend.set(self._state_key, data)
+                logger.info("Save runtime context into state.")
+            except Exception:
+                logger.exception("Failed to save state")
 
     def _load_state(self) -> Optional[RuntimeState]:
         if not self.state_backend.exists(self._state_key):
             return None
         try:
-            data = self.state_backend.get(self._state_key)
-            assert isinstance(data, bytes), f"Expected bytes, got {type(data)}"
-            data = pickle.loads(data)
-            assert isinstance(data, RuntimeState)
-            return data
+            with ControllerEvents.loading_state():
+                data = self.state_backend.get(self._state_key)
+                assert isinstance(data, bytes), (
+                    f"Expected bytes, got {type(data)}"
+                )
+                data = pickle.loads(data)
+                assert isinstance(data, RuntimeState)
+                return data
         except Exception:
             logger.exception("Failed to load state")
             return None
@@ -370,8 +386,10 @@ class PrimeManager:
             self._task = asyncio.create_task(
                 self._main_loop(), name="job_monitor"
             )
-            # TODO not recovered SchedulerManager._pg
+            # TODO SchedulerManager._pg is not recovered
+            ControllerEvents.failover_success()
         else:
             # Don't support failover in other stages, which are little possibility
             logger.warning(f"Job is in stage {self.stage}, terminating.")
+            ControllerEvents.failover_stop(self.stage)
             self._do_stop()

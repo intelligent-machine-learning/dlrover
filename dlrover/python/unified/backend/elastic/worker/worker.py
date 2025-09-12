@@ -19,6 +19,7 @@ import torch
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
+from dlrover.python.unified.backend.elastic.events import ElasticWorkerEvents
 from dlrover.python.unified.common.actor_base import WorkerStage
 from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.util.common_util import (
@@ -147,15 +148,16 @@ class ElasticWorker(BaseWorker):
             "Call destroy_torch_process_group() before setting it up again."
         )
 
-        torch.distributed.init_process_group(
-            backend=backend,
-            init_method=master_addr,
-            rank=rank,
-            world_size=world_size,
-            **(
-                {"timeout": timeout} if timeout else {}  # type:ignore
-            ),  # old version torch<2.1 does not support timeout=None
-        )
+        with ElasticWorkerEvents.init_process_group():
+            torch.distributed.init_process_group(
+                backend=backend,
+                init_method=master_addr,
+                rank=rank,
+                world_size=world_size,
+                **(
+                    {"timeout": timeout} if timeout else {}  # type:ignore
+                ),  # old version torch<2.1 does not support timeout=None
+            )
         self._process_group_setup = True
 
     def destroy_torch_process_group(self):
@@ -184,8 +186,10 @@ class ElasticWorker(BaseWorker):
             )
 
             logger.info(f"[{self.actor_info.name}] Running network check.")
-            res = run_comm_check()
-            res = round(res, 3)  # round to 3 decimal places
+            with ElasticWorkerEvents.comm_check() as span:
+                res = run_comm_check()
+                res = round(res, 3)  # round to 3 decimal places
+                span.extra_args(result=res)
             logger.info(
                 f"[{self.actor_info.name}] Network check finished, "
                 f"result: {res:.3f} seconds."
