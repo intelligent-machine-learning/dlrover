@@ -11,16 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.unified.common.actor_base import WorkerStage
 
 """Remote Call define for elastic backend. Shared between master and worker actors."""
 
 # mypy: disable-error-code=empty-body
-
-
-def get_stage() -> WorkerStage:
-    """Get the stage of the elastic training job."""
-    raise NotImplementedError("stub")  # pragma: no cover
 
 
 def get_master_addr() -> str:

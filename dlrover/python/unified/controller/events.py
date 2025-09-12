@@ -68,5 +68,8 @@ class _ControllerEvents:
     def creating_actors(self):
         return self.__emitter.duration("#creating_actors")
 
+    def setup_actors(self):
+        return self.__emitter.duration("#setup_actors")
+
 
 ControllerEvents = _ControllerEvents()

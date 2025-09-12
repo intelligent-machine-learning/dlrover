@@ -17,10 +17,12 @@ from typing import Any, Optional
 import ray.actor
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import ACCELERATOR_TYPE, WorkerStage
+from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
+from dlrover.python.unified.util.decorators import (
+    catch_exception,
+)
 
 # Note: All info classes are transfer objects; immutability is preferred.
 
@@ -60,14 +62,6 @@ class NodeInfo:
     envs: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class WorkerState:
-    job_info: JobInfo
-    actor_info: ActorInfo
-    node_info: NodeInfo
-    stage: WorkerStage
-
-
 class ActorBase:
     """Base class for all actors in the DLRover system."""
 
@@ -75,7 +69,6 @@ class ActorBase:
         """Initialize the actor with node information."""
         self.job_info = job_info
         self.actor_info = actor_info
-        self.stage: WorkerStage = WorkerStage.INIT
         init_main_loop()
 
         # Report restart if this actor was reconstructed.
@@ -83,16 +76,13 @@ class ActorBase:
             ray.is_initialized()
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
-            try:
-                self._report_restart()
-            except Exception:
-                logger.exception("Unexpected error when reporting restart.")
-        self._setup()
+            self._report_restart()
 
     @property
     def name(self) -> str:
         return self.actor_info.name
 
+    @catch_exception("Unexpected error when reporting restart.")
     def _report_restart(self):
         """Report that the actor has been restarted."""
         from dlrover.python.unified.controller.api import PrimeMasterApi
@@ -107,22 +97,13 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    def _setup(self):
+    def setup(self):
         """Setup the actor/node.
 
         This method is called during initialization and should be overridden
         by subclasses to perform any necessary setup before the actor/node
         is ready to run.
-
-        Could be asynchronous, but must keep stage not READY until all setup is done.
-        And it must update the stage to READY when setup is complete.
         """
-        self._update_stage_force(WorkerStage.READY, WorkerStage.INIT)
-
-    def get_stage(self):
-        """Get the stage of the actor."""
-
-        return self.stage
 
     def start(self):
         """Start the actor/node. If already started, do nothing.
@@ -143,20 +124,25 @@ class ActorBase:
     # region for sub-master
     def check_workers(self):
         """Check the workers of the master."""
-        if self.stage != WorkerStage.READY:
-            logger.error(
-                f"Only READY stage can perform check_workers. current: {self.stage}"
-            )
-            return
         pass
 
-    def restart_workers(self):
+    def recover_running(self):
+        """Recover the sub-master to the RUNNING state.
+
+        This method should be overridden by subclasses to implement
+        the logic required to transition the sub-master back to RUNNING.
         """
-        Restart workers calling from prime master and executed by sub master.
+        pass
+
+    def restart_role_level(self):
+        """
+        Request role_level restart.
+
+        May be invoked multiple times, should ignore duplicate requests.
         """
 
         raise NotImplementedError(
-            "The current sub master does not implement restart_workers."
+            "The current sub master does not implement restart_role_level."
         )
 
     # region Misc methods
@@ -171,20 +157,4 @@ class ActorBase:
             hostname=hostname,
             ip_address=ip_address,
             envs=dict(os.environ),
-        )
-
-    # region Helper for subclasses
-
-    def _update_stage_force(
-        self, stage: WorkerStage, expected: Optional[WorkerStage] = None
-    ):
-        """Update the stage of the actor/node."""
-        if expected is not None and self.stage != expected:
-            raise RuntimeError(
-                f"Cannot update stage from {self.stage} to {stage}, "
-                f"expected {expected}."
-            )
-        self.stage = stage
-        logger.info(
-            f"Actor {self.actor_info.name} updated to stage: {self.stage}"
         )

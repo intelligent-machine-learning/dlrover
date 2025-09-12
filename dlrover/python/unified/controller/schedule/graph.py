@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
+from dlrover.python.unified.common.enums import ExecutionResult
 
 # Develop Note: all classes in this file are state structures, owned by PrimeManager
 # 1. Only mutable inside PrimeManager, or passed from PrimeManager(e.g. Scheduler).
@@ -37,12 +38,14 @@ class DLExecutionVertex(ABC, BaseModel):
 
     role: "DLWorkloadRole"
 
+    # Runtime state, mutable
     bundle_index: int = -1
     total_failure_count: int = 0
     per_node_failure_count: int = 0
     restart_count: int = 0
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
+    result: Optional[ExecutionResult] = None
 
     def __hash__(self):
         return hash(self.name)

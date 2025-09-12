@@ -21,13 +21,14 @@ from dlrover.python.unified.backend.elastic.events import ElasticMasterEvents
 from dlrover.python.unified.backend.elastic.node_check_manager import (
     NodeCheckManager,
 )
-from dlrover.python.unified.common.actor_base import ActorInfo, WorkerStage
+from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
     invoke_actors_t,
 )
+from dlrover.python.unified.util.decorators import log_execution
 
 
 class ElasticManager:
@@ -35,13 +36,11 @@ class ElasticManager:
         assert workers[0].spec.backend == "elastic"
         self.spec: ElasticWorkloadDesc = workers[0].spec
         self.workers: List[ActorInfo] = workers
-        self.finished = False
         self._restarting = False
 
         # self.perf_monitor = PerfMonitor()
         # self.diagnosis = DiagnosisMaster()
         self.node_check_manager = NodeCheckManager()
-        self.stage = WorkerStage.READY
 
         ElasticMasterEvents.inited(self.spec)
 
@@ -87,9 +86,6 @@ class ElasticManager:
 
     async def start(self):
         """Start the elastic training job."""
-        assert self.stage == WorkerStage.READY, (
-            f"Cannot start ElasticManager in stage {self.stage}, expected READY."
-        )
 
         logger.info("Start job execution.")
         with ElasticMasterEvents.doing_setup_workloads():
@@ -100,13 +96,7 @@ class ElasticManager:
                 [node.name for node in self.workers],
             )
             res.raise_for_errors()
-        res = await invoke_actors_t(
-            remote_call.get_stage, [node.name for node in self.workers]
-        )
-        res.raise_for_errors()
-        self._task = asyncio.create_task(self._monitor(), name="monitor_nodes")
-        self.stage = WorkerStage.RUNNING
-        logger.info("Elastic job started, monitoring nodes...")
+        logger.info("Elastic job started")
 
     async def setup_workloads(self):
         logger.info("Start setup all elastic workloads...")
@@ -122,62 +112,9 @@ class ElasticManager:
             f"Finish setup all workloads, cost: {elapsed / 1000:.2f}ms"
         )
 
-    async def _monitor(self):
-        logger.info("Start monitoring nodes status...")
-        while self.stage == WorkerStage.RUNNING:
-            try:
-                res = await invoke_actors_t(
-                    remote_call.get_stage, [node.name for node in self.workers]
-                )
-                logger.debug(f"Node status results: {res.results}")
-                if all(it.is_terminal() for it in res.results):
-                    logger.info("All nodes are finished.")
-                    break
-            except Exception as e:
-                logger.warning(e)
-            await asyncio.sleep(5)
-        res = await invoke_actors_t(
-            remote_call.destroy_torch_process_group,
-            [node.name for node in self.workers],
-        )
-        res.log_errors()
-        self.stage = WorkerStage.FINISHED
-
-    async def _recover_running(self, main_loop: asyncio.AbstractEventLoop):
-        """Recover the running job after failover."""
-        # Note, This function runs outside main loop, must create task in main loop
-
-        res = await invoke_actors_t(
-            remote_call.get_stage, [node.name for node in self.workers]
-        )
-        if not all(
-            it != WorkerStage.INIT and it != WorkerStage.READY
-            for it in res.results
-        ):
-            # In case job-level failover
-            logger.warning(
-                "Some workers are not running after failover, cannot recover the job."
-            )
-            return
-        self.stage = WorkerStage.RUNNING
-        self._task = main_loop.create_task(
-            self._monitor(), name="monitor_nodes"
-        )
-        logger.info("Recovered the running job after failover.")
-
     async def _restart_job(self):
         """Restart the elastic job due to worker restart."""
-        assert self.stage == WorkerStage.RUNNING
-
-        with ElasticMasterEvents.restarting():
-            logger.info("Restarting the elastic job due to worker restart.")
-            self._task.cancel()
-            self.stage = WorkerStage.READY  # Reset stage to READY for restart
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                logger.info("Monitor task cancelled, proceeding with restart.")
-
+        with log_execution("restarting"), ElasticMasterEvents.restarting():
             logger.info("Restarting all workers...")
             await invoke_actor_t(
                 PrimeMasterApi.restart_actors,
@@ -187,15 +124,8 @@ class ElasticManager:
             logger.info("Restarted workers, re-checking their status.")
             await self.check_workers()
             await self.start()
-            logger.info("Restarted elastic job successfully.")
 
     def request_restart(self):
-        if self.stage != WorkerStage.RUNNING:
-            logger.info(
-                f"Current stage is {self.stage}, skipping failover handling."
-            )
-            return
-
         if self._restarting:
             logger.warning("Job is already restarting, ignoring this request.")
             return

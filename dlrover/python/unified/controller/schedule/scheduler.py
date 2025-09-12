@@ -28,8 +28,7 @@ from dlrover.python.unified.common.config import (
 )
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.common.workload_desc import ResourceDesc
-from dlrover.python.unified.controller import remote_call
-from dlrover.python.unified.util.actor_proxy import invoke_actors_t
+from dlrover.python.unified.util.actor_helper import wait_ready
 
 from .graph import DLExecutionGraph
 
@@ -148,8 +147,8 @@ class Scheduler:
         logger.info("Finished creating actors for the job.")
 
         # 2. Check actors with ping
-        res = await invoke_actors_t(remote_call.get_stage, graph.vertices)
-        logger.info(f"Actors status: {res.as_dict()}")
+        await wait_ready([node.name for node in graph.vertices])
+        logger.info("All actors finished initializing.")
 
     def create_actor(self, actor: RayActorSpec):
         runtime_env: dict = {
