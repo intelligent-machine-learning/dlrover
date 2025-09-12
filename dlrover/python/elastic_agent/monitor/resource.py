@@ -96,19 +96,30 @@ def get_hpu_stats(hpus=[]):
         acl.init()
         if not hpus:
             try:
-                device_count = acl.rt.get_device_count()
+                device_count = acl.rt.get_device_count()[0]
             except Exception:
                 logger.warning("No HPU is available.")
                 device_count = 0
             hpus = list(range(device_count))
         hpu_stats: list[GPUStats] = []
         for i in hpus:
+            acl.rt.set_device(i)
             # get HPU memory
-            free_mem, total_mem = acl.rt.get_mem_info()
+            # format: (free, total, ret)
+            free_mem, total_mem, ret = acl.rt.get_mem_info(0)
+            if ret != 0:
+                raise RuntimeError("Failed to execute get_mem_info")
             used_mem = total_mem - free_mem
 
             # get HPU utilization
-            utilization = acl.rt.get_device_utilization_rate(i)
+            # format: ({'cube_utilization': 0, 'vector_utilization': 0, 'aicpu_utilization': 0, 'memory_utilization': -1, 'utilization_extend': 0}, ret)
+            utilization_dict, ret = acl.rt.get_device_utilization_rate(i)
+            if ret != 0:
+                raise RuntimeError(
+                    "Failed to execute get_device_utilization_rate"
+                )
+            # use cube_utilization as common gpu_utilization
+            utilization = utilization_dict["cube_utilization"]
 
             hpu_stats.append(
                 GPUStats(
