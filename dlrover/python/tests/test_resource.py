@@ -76,9 +76,12 @@ class ResourceTest(unittest.TestCase):
     def test_get_hpu_stats_with_mock_acl(self):
         mock_acl = MagicMock()
         mock_acl.init.return_value = None
-        mock_acl.rt.get_device_count.return_value = 2
-        mock_acl.rt.get_mem_info.return_value = 100, 50
-        mock_acl.rt.get_device_utilization_rate.return_value = 0.3
+        mock_acl.rt.get_device_count.return_value = 2, 0
+        mock_acl.rt.get_mem_info.return_value = 100, 50, 0
+        mock_acl.rt.get_device_utilization_rate.return_value = (
+            {"cube_utilization": 0.3},
+            0,
+        )
 
         with patch.dict("sys.modules", {"acl": mock_acl}):
             result = get_hpu_stats()
@@ -91,5 +94,12 @@ class ResourceTest(unittest.TestCase):
             self.assertEqual(len(result), 0)
 
             mock_acl.rt.get_device_count.side_effect = Exception()
+            result = get_hpu_stats()
+            self.assertEqual(len(result), 0)
+
+            mock_acl.rt.get_mem_info.return_value = 0, 0, 1
+            self.assertEqual(len(result), 0)
+
+            mock_acl.rt.get_device_utilization_rate.return_value = ({}, 1)
             result = get_hpu_stats()
             self.assertEqual(len(result), 0)
