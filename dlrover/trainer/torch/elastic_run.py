@@ -519,7 +519,6 @@ def run(args):
     agent.start(pid=vars(args))
 
     logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
-    master_handler = None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")

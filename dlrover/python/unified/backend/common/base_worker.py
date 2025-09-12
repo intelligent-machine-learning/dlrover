@@ -20,6 +20,7 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     RPC_REGISTRY,
     export_rpc_instance,
 )
+from dlrover.python.unified.backend.common.events import BaseWorkerEvents
 from dlrover.python.unified.common.actor_base import ActorBase, WorkerStage
 from dlrover.python.util.reflect_util import import_callable
 
@@ -51,8 +52,10 @@ class BaseWorker(ActorBase):
         # This method can be overridden by subclasses to implement specific start logic.
         logger.info(f"[{self.actor_info.name}] Starting.")
         try:
-            logger.info(f"Entry point: {self.actor_info.spec.entry_point}")
-            user_func = import_callable(self.actor_info.spec.entry_point)
+            entrypoint = self.actor_info.spec.entry_point
+            logger.info(f"Entry point: {entrypoint}")
+            with BaseWorkerEvents.import_user_entrypoint(entrypoint):
+                user_func = import_callable(entrypoint)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to import user function {self.actor_info.spec.entry_point}: {e}"
@@ -67,7 +70,8 @@ class BaseWorker(ActorBase):
                 f"Instantiating user class {user_func} for actor {self.actor_info.name}."
             )
             try:
-                inst = user_func()
+                with BaseWorkerEvents.instantiate_user_class(str(user_func)):
+                    inst = user_func()
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to instantiate user class {user_func}"
@@ -99,7 +103,8 @@ class BaseWorker(ActorBase):
 
         try:
             logger.info(f"Executing: {user_func}")
-            user_func()
+            with BaseWorkerEvents.running():
+                user_func()
         except Exception:
             logger.exception(
                 "Unexpected error occurred while executing user function."
