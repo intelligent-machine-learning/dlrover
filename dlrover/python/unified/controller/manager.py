@@ -100,10 +100,11 @@ class PrimeManager:
 
     def _update_stage(self, stage: MasterStage):
         """Update the stage of the job."""
-        if self.stage != stage:
-            logger.info(f"Updating job stage from {self.stage} to {stage}")
+        old_stage = self.stage
+        if old_stage != stage:
+            logger.info(f"Updating job stage from {old_stage} to {stage}")
             self.state.stage = stage
-            ControllerEvents.stage_updated(self.stage, stage)
+            ControllerEvents.stage_updated(old_stage, stage)
             self.save()
 
     async def prepare(self):

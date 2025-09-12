@@ -41,11 +41,11 @@ def init_main_loop():
 def unsafe_run_blocking(coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine in a separate thread and wait for its result.
 
-    Note: All coroutines should be in the main loop, unless could not use main loop.
-    You should check before use:
-    1. it must sync call.
-    2. it's safe to block current event loop.
-    3. The coroutine does not spawn background tasks.
+    You should check before use this function:
+    1. It could not use main loop. In general, all coroutines should be in the main loop.
+    2. It must sync call.
+    3. It's safe to block current event loop.
+    4. The coroutine does not spawn background tasks.
     """
     assert asyncio.get_event_loop() == __main_loop, (
         "unsafe_run_blocking is prepared for main loop"
