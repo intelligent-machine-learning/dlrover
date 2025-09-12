@@ -20,7 +20,6 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
-
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import (
     DistributionStrategy,
