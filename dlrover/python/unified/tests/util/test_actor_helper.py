@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 import pytest
 import ray
+from pytest_mock import MockerFixture
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
@@ -179,12 +180,11 @@ def test_invoke_actors(tmp_actor1, tmp_actor2):
     assert result.results == result2.results
 
 
-async def test_invoke_actors_hang(mocker, tmp_actor1, tmp_actor2):
+async def test_invoke_actors_hang(
+    mocker: MockerFixture, tmp_actor1, tmp_actor2
+):
     """Mock scene, one worker exception, cause another hang"""
-    warn = mocker.patch(
-        "dlrover.python.unified.util.actor_helper.logger.warning",
-        side_effect=ah.logger.warning,
-    )
+    warn = mocker.spy(ah.logger, "warning")
     result = await invoke_actors(
         [
             invoke_actor_t(Stub.slow_method, tmp_actor1, 0.5),
