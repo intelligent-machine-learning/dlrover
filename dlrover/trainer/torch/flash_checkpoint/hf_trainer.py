@@ -159,7 +159,7 @@ class FlashCkptTrainer(Trainer):
             self.store_flos()
 
         torch.save = self.flash_checkpointer.ckpt_agent.save
-        self.save_model(output_dir, _internal_call=True)
+
         if self.is_deepspeed_enabled:
             self.model_wrapped.save_checkpoint(output_dir)
 
