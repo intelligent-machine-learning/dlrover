@@ -64,7 +64,7 @@ def test_manager_failover(mocker):
     assert create_main_task.called
 
 
-@pytest.mark.parametrize("case", [1, 2, 3])
+@pytest.mark.parametrize("case", [1, 2, 3, 4])
 async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
     config = elastic_training_job()
     config.dl_config.workloads["simple"] = SimpleWorkloadDesc(
@@ -83,6 +83,13 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         worker.node_info = NodeInfo("node_1")
         assert worker.role.sub_master is not None
 
+        manager.state.stage = MasterStage.READY
+        with patch.object(logger, "info", wraps=logger.warning) as mock_log:
+            await manager.deal_with_actor_restarting(worker)
+        assert mock_log.called == 1
+        assert "skipping failover handling" in str(mock_log.call_args[0][0])
+
+        manager.state.stage = MasterStage.RUNNING
         await manager.deal_with_actor_restarting(worker)
         assert worker.per_node_failure_count == 1
         assert worker.total_failure_count == 1
@@ -136,6 +143,26 @@ async def test_manager_handle_actor_restart(mocker: MockerFixture, case):
         worker.per_node_failure_count = 100  # Large enough
         await manager.deal_with_actor_restarting(worker)
         assert worker.node_info.id not in manager.state.removed_nodes
+    # Case 4. SubMaster restarted
+    elif case == 4:
+        invoke_actor = mocker.patch(
+            "dlrover.python.unified.controller.manager.invoke_actor_t",
+            AsyncMock(),
+        )
+        setup_actors = mocker.patch.object(
+            manager, "_setup_actors", AsyncMock()
+        )
+        worker = manager.graph.roles["training"].sub_master
+        assert worker is not None
+        worker.node_info = NodeInfo("node_1")
+
+        manager.state.stage = MasterStage.RUNNING
+        await manager.deal_with_actor_restarting(worker)
+        assert worker.per_node_failure_count == 1
+        assert worker.total_failure_count == 1
+        assert setup_actors.called
+        assert invoke_actor.called
+        assert invoke_actor.call_args[0][0] is ActorBase.recover_running
 
 
 async def test_some_misc_cases(mocker: MockerFixture):
