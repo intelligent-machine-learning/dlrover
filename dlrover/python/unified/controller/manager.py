@@ -181,7 +181,7 @@ class PrimeManager:
                 if role.spec.is_driver
             ]
             # all driver roles finished
-            if all(result is None for result in results):
+            if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
                     self.state.exit_code = 1
                     self.request_stop(

@@ -28,6 +28,7 @@ class ExecutionResult(str, Enum):
     SUCCESS = "SUCCESS"  # Finished successfully
     FAIL = "FAIL"  # Finished with failure
 
+
 class ACCELERATOR_TYPE(str, Enum):
     CPU = "CPU"
     GPU = "GPU"
