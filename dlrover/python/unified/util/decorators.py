@@ -35,10 +35,15 @@ def catch_exception(msg: str):
         logger.exception(msg, stacklevel=_get_stacklevel())
 
 
-# Note: don't decorate async function with this
 @contextmanager
 def log_execution(name: str, log_exception: bool = True):
-    """Log the execution of a block of code."""
+    """
+    Log the execution of a block of code.
+
+    Note:
+        - Do not decorate async functions with this context manager.
+        - Decorating both base and overridden functions may result in nested logging.
+    """
     stacklevel = _get_stacklevel()
 
     logger.info(f"Run '{name}' ...", stacklevel=stacklevel)
