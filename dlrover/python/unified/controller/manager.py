@@ -173,17 +173,24 @@ class PrimeManager:
         """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
             await self._notify_main_loop.acquire()
-            if all(actor.result is not None for actor in self.graph.vertices):
-                if any(
-                    actor.result == ExecutionResult.FAIL
-                    for actor in self.graph.vertices
-                ):
+
+            # ignore non-driver roles
+            results = [
+                role.get_result()
+                for role in self.graph.roles.values()
+                if role.spec.is_driver
+            ]
+            # all driver roles finished
+            if all(result is None for result in results):
+                if any(result == ExecutionResult.FAIL for result in results):
                     self.state.exit_code = 1
                     self.request_stop(
-                        "All nodes finished, but some nodes failed."
+                        "All driver roles finished, but some nodes failed."
                     )
                 else:
-                    self.request_stop("All nodes finished successfully.")
+                    self.request_stop(
+                        "All driver roles finished successfully."
+                    )
                 break
 
         assert self.stage == MasterStage.STOPPING, (

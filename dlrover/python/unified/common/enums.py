@@ -28,10 +28,6 @@ class ExecutionResult(str, Enum):
     SUCCESS = "SUCCESS"  # Finished successfully
     FAIL = "FAIL"  # Finished with failure
 
-    # always running, receive rpc calls, but not affected the job status
-    SERVICER = "SERVICER"
-
-
 class ACCELERATOR_TYPE(str, Enum):
     CPU = "CPU"
     GPU = "GPU"

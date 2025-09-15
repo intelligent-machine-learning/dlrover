@@ -172,6 +172,16 @@ class DLWorkloadRole:
                 role=self,
             )
 
+    def get_result(self) -> Optional[ExecutionResult]:
+        if any(instance.result is None for instance in self.instances):
+            return None
+        if any(
+            instance.result == ExecutionResult.FAIL
+            for instance in self.instances
+        ):
+            return ExecutionResult.FAIL
+        return ExecutionResult.SUCCESS
+
 
 class DLExecutionGraph:
     """Store topology information for distributed execution."""

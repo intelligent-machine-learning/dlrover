@@ -81,6 +81,11 @@ class BaseWorker(ActorBase):
                 ) from e
             export_rpc_instance(None, inst)
             user_func = getattr(inst, "run", None)
+            if self.actor_info.spec.is_driver and user_func is None:
+                raise ValueError(
+                    f"User class {user_func} does not have a 'run' method."
+                    "If this workload is RPC-driven, set `is_driver=False` in WorkLoad."
+                )
 
         logger.info(f"Exported RPC methods: {list(RPC_REGISTRY.keys())}")
         self._user_rpc_ready.set()
@@ -93,11 +98,7 @@ class BaseWorker(ActorBase):
                 name="user_main_thread",
             ).start()
         else:
-            logger.warning(
-                f"User class {user_func} does not have a 'run' method. "
-                "Assert this worker as SERVICER, ready to receive RPC calls."
-            )
-            self._on_execution_end(ExecutionResult.SERVICER)
+            logger.warning("No user function to execute.")
 
     def _on_execution_end(self, result: ExecutionResult):
         """Report the execution result to the prime master."""

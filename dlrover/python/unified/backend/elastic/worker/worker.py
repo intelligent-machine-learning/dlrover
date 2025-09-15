@@ -213,6 +213,5 @@ class ElasticWorker(BaseWorker):
         super().start()
 
     def _on_execution_end(self, result: "ExecutionResult"):
-        if result != ExecutionResult.SERVICER:
-            self.destroy_torch_process_group()
+        self.destroy_torch_process_group()
         super()._on_execution_end(result)
