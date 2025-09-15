@@ -26,23 +26,6 @@ Experience: TypeAlias = Any
 Tensor: TypeAlias = Any
 
 
-# region Common
-def end_job() -> None:
-    """End the job by calling the end_job method on the group."""
-    futures = [
-        group(role).call(end_job)
-        for role in [
-            RLRoleType.ROLLOUT,
-            RLRoleType.REFERENCE,
-            RLRoleType.REWARD,
-            RLRoleType.ACTOR,
-            RLRoleType.CRITIC,
-        ]
-    ]
-    for future in futures:
-        future.result()
-
-
 # endregion
 # region Rollout
 
