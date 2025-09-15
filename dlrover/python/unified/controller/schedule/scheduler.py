@@ -86,6 +86,8 @@ class Scheduler:
                 DLWorkloadEnv.ROLE: role.name,
                 **role.spec.envs,
             }
+            if role.spec.rank_based_gpu_selection:
+                role_envs.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
             for worker in role.instances:
                 assert self._pg is not None, (
                     "Placement group must be created before creating actors."
@@ -146,7 +148,7 @@ class Scheduler:
         logger.info("Finished creating actors for the job.")
 
         # 2. Check actors with ping
-        res = await invoke_actors_t(remote_call.status, graph.vertices)
+        res = await invoke_actors_t(remote_call.get_stage, graph.vertices)
         logger.info(f"Actors status: {res.as_dict()}")
 
     def create_actor(self, actor: RayActorSpec):

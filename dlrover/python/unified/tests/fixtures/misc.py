@@ -10,7 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This package includes code from [https://github.com/volcengine/verl]
-# licensed under the Apache License 2.0. See [https://github.com/volcengine/
-# verl] for details.
+
+from pytest import fixture
+
+from dlrover.python.unified.util.test_hooks import _RESET_HOOKS
+
+"""Fixture for testing purposes, not associated with any specific component."""
+
+
+@fixture(autouse=True)
+def reset_all_singletons():
+    """Reset all singleton instances."""
+    yield
+    for reset_hook in _RESET_HOOKS:
+        reset_hook()

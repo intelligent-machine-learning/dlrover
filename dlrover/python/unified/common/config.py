@@ -185,6 +185,10 @@ class JobConfig(BaseModel):
         "Refer to ray's placement strategies for more details."
         "Valid options are: STRICT_PACK, STRICT_SPREAD, PACK, SPREAD.",
     )
+    node_max_restart: int = Field(
+        default=10,
+        description="The maximum limit on the number of node restarts.",
+    )
     job_max_restart: int = Field(
         default=10,
         description="The maximum limit on the number of job-level restarts.",
@@ -200,4 +204,5 @@ class JobConfig(BaseModel):
             name=self.job_name,
             job_id=self.job_name,
             user_config=self.dl_config.user_config,
+            accelerator_type=self.dl_config.accelerator_type,
         )

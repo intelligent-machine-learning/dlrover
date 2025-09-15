@@ -115,6 +115,28 @@ class ApiTest(BaseTest):
 
         self.assertEqual(len(rl_job.workloads), 6)
 
+    def test_extra_flag(self):
+        job = (
+            DLJobBuilder()
+            .train("a.b")
+            .end()
+            .role("r2")
+            .run("a.b")
+            .end()
+            .no_setup_process_group()
+            .skip_node_check()
+            .build()
+        )
+        assert all(
+            it.backend != "elastic" or it.comm_pre_check is False
+            for it in job.workloads.values()
+        )
+        assert all(
+            it.backend != "elastic"
+            or it.comm_auto_setup_process_group is False
+            for it in job.workloads.values()
+        )
+
     def test_validation(self):
         # without dl type
         with self.assertRaises(ValidationError):

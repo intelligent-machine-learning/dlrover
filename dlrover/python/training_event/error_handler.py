@@ -14,34 +14,21 @@
 import os
 import signal
 import sys
-import threading
 import traceback
 
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.training_event.config import Config, get_default_logger
 from dlrover.python.training_event.emitter import Process
 
 logger = get_default_logger()
 
 
-class ErrorHandler:
-    _instance = None
-    _lock = threading.Lock()
-    _initialized = False
-
-    def __new__(cls):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-            return cls._instance
-
+class ErrorHandler(Singleton):
     def __init__(self):
-        with self._lock:
-            if not self._initialized:
-                self._original_excepthook = None
-                self._original_handlers = {}
-                self._process = Process("ErrorReporter")
-                self._registered = False
-                self._initialized = True
+        self._original_excepthook = None
+        self._original_handlers = {}
+        self._process = Process("ErrorReporter")
+        self._registered = False
 
     def _handle_exception(self, exc_type, exc_value, exc_traceback):
         """handle exception"""
@@ -104,7 +91,7 @@ class ErrorHandler:
             # call original handler with signal
             os.kill(os.getpid(), signum)
 
-    def _register(self):
+    def register(self):
         """register exception handler"""
         with self._lock:
             if self._registered:
@@ -133,7 +120,7 @@ class ErrorHandler:
             self._registered = True
             logger.info("Exception handler registered")
 
-    def _unregister(self):
+    def unregister(self):
         """unregister exception handler"""
         with self._lock:
             if not self._registered:
@@ -151,20 +138,8 @@ class ErrorHandler:
 
             logger.info("Exception handler unregistered")
 
-    @classmethod
-    def register(cls):
-        """register exception handler"""
-        instance = cls()
-        instance._register()
-
-    @classmethod
-    def unregister(cls):
-        """unregister exception handler"""
-        instance = cls()
-        instance._unregister()
-
 
 def init_error_handler():
     config = Config.singleton_instance()
     if config.enable and config.hook_error:
-        ErrorHandler.register()
+        ErrorHandler.singleton_instance().register()

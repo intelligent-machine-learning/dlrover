@@ -16,6 +16,7 @@ from dlrover.python.unified.common.config import (
     DLConfig,
     JobConfig,
 )
+from dlrover.python.unified.common.enums import MasterStateBackendType
 from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
@@ -38,4 +39,5 @@ def elastic_training_job():
     return JobConfig(
         job_name="test_elastic_training",
         dl_config=dl_config,
+        master_state_backend_type=MasterStateBackendType.IN_MEMORY,
     )

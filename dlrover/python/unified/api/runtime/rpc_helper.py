@@ -38,9 +38,14 @@ from dlrover.python.unified.util.actor_proxy import (
     invoke_actors,
     invoke_meta,
 )
-from dlrover.python.unified.util.async_helper import as_future
+from dlrover.python.unified.util.async_helper import (
+    as_future,
+    completed_future,
+)
+from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 RPC_REGISTRY: Dict[str, Callable[..., Any]] = {}
+after_test_cleanup(RPC_REGISTRY.clear)
 
 
 @dataclass
@@ -95,7 +100,7 @@ R = TypeVar("R", covariant=True)
 T = TypeVar("T", covariant=True)
 
 
-def _rpc_call(actor: str, method: str, args, kwargs) -> Any:
+def _rpc_call(actor: str, method: str, args, kwargs):
     return invoke_actor_t(
         _user_rpc_call,
         actor,
@@ -165,9 +170,8 @@ class RoleActor:
     def call(self, method: str, *args: Any, **kwargs: Any) -> Future[Any]: ...
     def call(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the actor."""
-        return as_future(
-            _rpc_call(self.name, method.__name__, args, kwargs).async_wait()
-        )
+        name = method if isinstance(method, str) else method.__name__
+        return as_future(_rpc_call(self.name, name, args, kwargs).async_wait())
 
 
 class RoleGroup(Sequence["RoleActor"]):
@@ -176,7 +180,9 @@ class RoleGroup(Sequence["RoleActor"]):
     def __init__(self, role: str, optional: bool = False):
         """Get the role group for a specific role."""
         try:
-            actor_infos = PrimeMasterApi.get_workers_by_role(role)
+            actor_infos = PrimeMasterApi.get_workers_by_role(
+                role, optional=optional
+            )
         except ValueError:
             if not optional:
                 raise
@@ -186,9 +192,11 @@ class RoleGroup(Sequence["RoleActor"]):
         self.actors = [RoleActor(actor) for actor in actor_infos]
 
     @overload
-    def __getitem__(self, index: int) -> "RoleActor": ...
+    def __getitem__(self, index: int) -> "RoleActor": ...  # pragma: no cover
     @overload
-    def __getitem__(self, index: slice) -> Sequence["RoleActor"]: ...
+    def __getitem__(
+        self, index: slice
+    ) -> Sequence["RoleActor"]: ...  # pragma: no cover
     def __getitem__(self, index):
         """Get an actor by index."""
         return self.actors[index]
@@ -200,17 +208,42 @@ class RoleGroup(Sequence["RoleActor"]):
     @overload
     def call(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[List[R]]: ...
+    ) -> Future[List[R]]: ...  # pragma: no cover
     @overload
     def call(
-        self, method: str, *args: Any, **kwargs: Any
-    ) -> Future[List[Any]]: ...
-    def call(self, method, *args, **kwargs) -> Future[List[Any]]:
+        self, method: str, *args: Any, _scatter: bool = False, **kwargs: Any
+    ) -> Future[List[Any]]: ...  # pragma: no cover
+    def call(
+        self, method, *args, _scatter=False, **kwargs
+    ) -> Future[List[Any]]:
         """Invoke a method on all actors in the role group."""
         name = method if isinstance(method, str) else method.__name__
-        ref = invoke_actors(
-            _rpc_call(actor.name, name, args, kwargs) for actor in self
-        )
+
+        if len(self.actors) == 0:
+            return completed_future([])
+
+        if _scatter:
+            length = len(self.actors)
+            assert (
+                all(isinstance(arg, list) for arg in args)
+                and all(isinstance(kwarg, list) for kwarg in kwargs.values())
+                and all(len(arg) == length for arg in args)
+                and all(len(kwarg) == length for kwarg in kwargs.values())
+            ), "All arguments must be lists of the same length."
+            calls = []
+            for i in range(length):
+                sliced_args = tuple(arg[i] for arg in args)
+                sliced_kwargs = {k: v[i] for k, v in kwargs.items()}
+                calls.append(
+                    _rpc_call(
+                        self.actors[i].name, name, sliced_args, sliced_kwargs
+                    )
+                )
+        else:
+            calls = [
+                _rpc_call(actor.name, name, args, kwargs) for actor in self
+            ]
+        ref = invoke_actors(calls)
 
         async def get_results():
             results = await ref.async_wait()
@@ -218,9 +251,15 @@ class RoleGroup(Sequence["RoleActor"]):
 
         return as_future(get_results())
 
+    @overload
     def call_rank0(
         self, method: Callable[P, R], *args: P.args, **kwargs: P.kwargs
-    ) -> Future[R]:
+    ) -> Future[R]: ...  # pragma: no cover
+    @overload
+    def call_rank0(
+        self, method: str, *args: Any, **kwargs: Any
+    ) -> Future[object]: ...  # pragma: no cover
+    def call_rank0(self, method, *args, **kwargs) -> Future[Any]:
         """Invoke a method on the rank 0 actor in the role group."""
         if not self.actors:
             raise ValueError("No actors in the role group.")
@@ -270,9 +309,9 @@ class FutureSequence(Sequence[T]):
         self._futures = futures
 
     @overload
-    def __getitem__(self, index: int) -> T: ...
+    def __getitem__(self, index: int) -> T: ...  # pragma: no cover
     @overload
-    def __getitem__(self, index: slice) -> Sequence[T]: ...
+    def __getitem__(self, index: slice) -> Sequence[T]: ...  # pragma: no cover
     def __getitem__(self, index):
         if isinstance(index, slice):
             return [self[i] for i in range(*index.indices(len(self)))]

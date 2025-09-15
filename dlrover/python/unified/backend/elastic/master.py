@@ -12,8 +12,13 @@
 # limitations under the License.
 
 
+import asyncio
+
+import ray
+
 from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.async_helper import unsafe_run_blocking
 
 from .manager import ElasticManager
 
@@ -22,10 +27,16 @@ class ElasticMaster(ActorBase):
     def _setup(self):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            unsafe_run_blocking(
+                self.manager._recover_running(
+                    main_loop=asyncio.get_running_loop()
+                )
+            )
 
     # Lifecycle Hooks
 
-    def status(self):
+    def get_stage(self):
         return self.manager.stage
 
     async def check_workers(self):
@@ -36,9 +47,8 @@ class ElasticMaster(ActorBase):
 
     # RPC methods for Workers
 
-    async def report_actor_restarted(self, name: str):
-        """Report that an actor has been restarted."""
-        await self.manager.handle_worker_restarted(name)
+    def restart_workers(self):
+        self.manager.request_restart()
 
     # TODO metric rpc: AtorchEvent, Event
     # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)

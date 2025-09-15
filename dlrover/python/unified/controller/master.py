@@ -25,6 +25,7 @@ from dlrover.python.unified.common.enums import MasterStage
 from ..common.config import JobConfig
 from .api import (
     MASTER_ACTOR_NAME,
+    MasterStatus,
     PrimeMasterApi,
 )
 from .manager import PrimeManager
@@ -42,10 +43,17 @@ class PrimeMaster:
         )
 
         self.manager = PrimeManager(config)
+        if ray.get_runtime_context().was_current_actor_reconstructed:
+            self.manager.handle_self_failover()
 
     def get_status(self):
         """Get the current status of the job."""
-        return self.manager.status
+        internal_state = self.manager.state
+        return MasterStatus(
+            internal_state.stage,
+            internal_state.exit_code,
+            internal_state.job_restart_count,
+        )
 
     async def start(self):
         """Start the job execution."""
@@ -95,8 +103,13 @@ class PrimeMaster:
             for role, role_info in self.manager.graph.roles.items()
         }
 
-    async def restart_actors(self, actors: List[str]) -> None:
-        """Restart the specified actors."""
+    async def restart_actors(self, actor_names: List[str]) -> None:
+        """Restart the specified actors by names."""
+        assert all(
+            actor in self.manager.graph.by_name for actor in actor_names
+        ), f"Some actors {actor_names} not found in the graph."
+        actors = [self.manager.graph.by_name[name] for name in actor_names]
+
         await self.manager.restart_actors(actors)
 
     async def restart(self):
@@ -107,18 +120,16 @@ class PrimeMaster:
         actor = self.manager.graph.by_name.get(name)
         if actor is None:
             raise ValueError(f"Actor {name} not found.")
-        if actor.restarting:
-            return  # Actor is already restarting, no need to handle it again.
-        logger.info(f"Actor {name} unexpectedly restarted. Restart the job.")
-        asyncio.create_task(self.manager.restart_job())
+
+        asyncio.create_task(self.manager.deal_with_actor_restarting(actor))
 
     def register_data_queue(self, name: str, owner_actor: str, size: int):
         """Register a data queue."""
-        self.manager.sync.register_data_queue(name, owner_actor, size)
+        self.manager.sync_manager.register_data_queue(name, owner_actor, size)
 
     async def get_data_queue_owner(self, name: str) -> str:
         """Get the owner actor of a data queue. Waits if not available."""
-        return await self.manager.sync.get_data_queue_owner(name)
+        return await self.manager.sync_manager.get_data_queue_owner(name)
 
     # endregion
     @staticmethod
