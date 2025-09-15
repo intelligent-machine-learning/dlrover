@@ -173,10 +173,10 @@ class PrimeManager:
         """Monitor the actors' status."""
         while self.stage == MasterStage.RUNNING:
             await self._notify_main_loop.acquire()
-            if all(it.result is not None for it in self.graph.vertices):
+            if all(actor.result is not None for actor in self.graph.vertices):
                 if any(
-                    it.result == ExecutionResult.FAIL
-                    for it in self.graph.vertices
+                    actor.result == ExecutionResult.FAIL
+                    for actor in self.graph.vertices
                 ):
                     self.state.exit_code = 1
                     self.request_stop(
@@ -207,7 +207,6 @@ class PrimeManager:
         await self._setup_actors(actors)
         for actor in actors:
             actor.restarting = False
-        self.save()
         logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
         self.save()
 
@@ -399,4 +398,4 @@ class PrimeManager:
         logger.info(f"Actor {actor.name} reported result {result}.")
         actor.result = result
         self._notify_main_loop.release()
-        # TODO deal_with_actor_finished
+        # TODO handle Failed case failover

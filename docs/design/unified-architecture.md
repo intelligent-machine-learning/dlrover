@@ -76,7 +76,7 @@ The actual processing nodes executing the `WorkLoad`. Workers could run independ
 
 ##### ElasticWorker (specialized Worker for elastic training)
 
-- The worker nodes that execute elastic training workloads.
+- The worker process that execute elastic training workloads.
 - Created by the `PrimeMaster` and managed by the `ElasticMaster`.
 
 ### Sequence Diagram
@@ -158,10 +158,10 @@ framework with new processing paradigms—without altering the core architecture
 
 ### Common Lifecycle Hooks
 
-- `__init__`: Initializes the node with the provided configuration.
-- `setup`: Let actor/node perform any necessary setup before it is ready to receive requests.
-- `check_child`: Monitors the status of child nodes (applicable to `SubMaster`).
-- `start`: Launches the node’s processing logic (e.g., training loop, monitoring routine).
+- `__init__`: Initializes the worker with the provided configuration.
+- `setup`: Let actor/worker perform any necessary setup before it is ready to receive requests.
+- `check_child`: Monitors the status of child workers (applicable to `SubMaster`).
+- `start`: Launches the processing logic (e.g., training loop, monitoring routine).
 
 ### Core Lifecycle Stages
 
