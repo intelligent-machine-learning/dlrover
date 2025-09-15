@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,13 +47,13 @@ def get_process_cpu_percent():
 
 
 def get_used_memory():
-    """ "Get the used memory of the container"""
+    """Get the used memory of the container"""
     mem = psutil.virtual_memory()
     return int(mem.used / 1024 / 1024)
 
 
 def get_gpu_stats(gpus=[]):
-    """ "Get the used gpu info of the container"""
+    """Get the used gpu info of the container"""
     if not gpus:
         try:
             device_count = pynvml.nvmlDeviceGetCount()
@@ -81,6 +81,60 @@ def get_gpu_stats(gpus=[]):
             )
         )
     return gpu_stats
+
+
+def get_hpu_stats(hpus=[]):
+    """Get the used hpu info of the container"""
+
+    try:
+        import acl
+    except ImportError:
+        logger.warning("No Ascend acl is available, skip getting hpu stats.")
+        return []
+
+    try:
+        acl.init()
+        if not hpus:
+            try:
+                device_count = acl.rt.get_device_count()[0]
+            except Exception:
+                logger.warning("No HPU is available.")
+                device_count = 0
+            hpus = list(range(device_count))
+        hpu_stats: list[GPUStats] = []
+        for i in hpus:
+            acl.rt.set_device(i)
+            # get HPU memory
+            # format: (free, total, ret)
+            free_mem, total_mem, ret = acl.rt.get_mem_info(0)
+            if ret != 0:
+                raise RuntimeError("Failed to execute get_mem_info")
+            used_mem = total_mem - free_mem
+
+            # get HPU utilization
+            # format: ({'cube_utilization': 0, 'vector_utilization': 0, 'aicpu_utilization': 0, 'memory_utilization': -1, 'utilization_extend': 0}, ret)
+            utilization_dict, ret = acl.rt.get_device_utilization_rate(i)
+            if ret != 0:
+                raise RuntimeError(
+                    "Failed to execute get_device_utilization_rate"
+                )
+            # use cube_utilization as common gpu_utilization
+            utilization = utilization_dict["cube_utilization"]
+
+            hpu_stats.append(
+                GPUStats(
+                    index=i,
+                    total_memory_mb=total_mem,
+                    used_memory_mb=used_mem,
+                    gpu_utilization=utilization,
+                )
+            )
+        return hpu_stats
+    except Exception as e:
+        logger.warning(f"Got unexpected error when getting hpu stats: {e}")
+        return []
+    finally:
+        acl.finalize()
 
 
 class ResourceMonitor(Singleton):
