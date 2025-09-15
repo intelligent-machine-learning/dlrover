@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -61,6 +61,10 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+from dlrover.python.elastic_agent.monitor.resource import (
+    get_gpu_stats,
+    get_hpu_stats,
+)
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
@@ -73,6 +77,7 @@ from dlrover.python.common.constants import (
     NodeExitDescription,
     RendezvousName,
     TrainingExceptionLevel,
+    EventReportConstants,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -1632,7 +1637,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                         "check because the nodes is less than 3."
                     )
                     raise NodeCheckFailedError(
-                        NodeExitDescription.CHECK_FAILED_MSG
+                        NodeExitDescription.NODE_FAILED_MSG
                     )
                 else:
                     # Run the next round check to detect the fault node.
@@ -1646,12 +1651,12 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 NodeEventType.NODE_CHECK_FAILED,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise NodeCheckFailedError(NodeExitDescription.CHECK_FAILED_MSG)
+            raise NodeCheckFailedError(NodeExitDescription.NODE_FAILED_MSG)
         elif self._node_rank in stragglers:
             logger.warning("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise NodeCheckFailedError(
-                    "The node is a straggler and exits."
+                    NodeExitDescription.NODE_STRAGGLE_MSG
                 )
         return success
 
@@ -1804,7 +1809,56 @@ def comm_perf_check(
     return result
 
 
+def _check_device(config: ElasticLaunchConfig):
+    check_result = True, -1
+
+    if config.accelerator == Accelerators.NVIDIA_GPU:
+        # for gpu or cpu
+        device_stats = get_gpu_stats()
+    elif config.accelerator == Accelerators.ASCEND_NPU:
+        # for ascend
+        device_stats = get_hpu_stats()
+    else:
+        logger.debug(
+            f"Device type {config.accelerator} is not supported for checking."
+        )
+        return
+
+    logger.debug(f"Device stats: {device_stats}")
+    if not device_stats:
+        logger.info("Skip device check for stats is empty.")
+        return
+
+    for device_stat in device_stats:
+        index = device_stat.index
+
+        # to avoid memory leak
+        if device_stat.used_memory_mb / device_stat.total_memory_mb >= 0.3:
+            logger.error(
+                f"Device[{config.accelerator}] check[{index}] "
+                "failed: occupied memory detected."
+            )
+            check_result = False, index
+            break
+
+    if not check_result[0]:
+        client = MasterClient.singleton_instance()
+        client.report_event(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=env_utils.get_hostname_and_ip()[0],
+            action=EventReportConstants.ACTION_DEVICE_WARNING,
+            msg="Device check failed",
+            labels={"device": check_result[1]},
+        )
+        raise NodeCheckFailedError(NodeExitDescription.GPU_INVALID_MSG)
+
+    logger.info(f"Device[{config.accelerator}] check succeeded.")
+
+
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
+    _check_device(config)
+
+    # matmul + comm check
     if config.accelerator == Accelerators.NVIDIA_GPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
