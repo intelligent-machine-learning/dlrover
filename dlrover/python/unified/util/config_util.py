@@ -62,3 +62,14 @@ def convert_str_values(
                         pass
             elif isinstance(value, (DictConfig, ListConfig)):
                 convert_str_values(value)
+
+
+def read_dict_from_envs(prefix: str) -> dict:
+    """Read dict from environment variables with the given prefix."""
+    import os
+
+    result = {}
+    for k, v in os.environ.items():
+        if k.startswith(prefix):
+            result[k[len(prefix) :].lower()] = v
+    return result

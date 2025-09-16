@@ -70,31 +70,16 @@ def test_submit_init():
         assert ret is fake_master.get_status.return_value.exit_code
 
 
-def test_driver_help():
-    with pytest.raises(SystemExit):
-        main(["--help"])
-
-
 def test_driver():
     with patch("dlrover.python.unified.driver.main.submit") as mock_submit:
         job = elastic_training_job()
-        main(
-            [
-                "--job_name",
-                "test",
-                "--master_cpu",
-                "1",
-                "--master_memory",
-                "100",
-                "--dl_config",
-                job.dl_config.model_dump_json(),
-            ]
-        )
+
+        with pytest.raises(ValueError, match="required"):
+            main([])
+
+        main([job.model_dump_json()])
         assert mock_submit.called
         config = mock_submit.call_args.kwargs["config"]
 
         assert isinstance(config, JobConfig)
-        assert config.job_name == "test"
-        assert config.master_cpu == 1
-        assert config.master_mem == 100
-        assert config.dl_config == job.dl_config
+        assert config == job
