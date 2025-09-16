@@ -108,18 +108,12 @@ class DLJob(DLConfig):
         Submit the current dl job.
 
         Args:
-            job_name (str): The name of the job.
             blocking (bool, optional): Whether to block until the job is
                 complete. Defaults is True.
-            master_cpu (int, optional): The number of CPU cores to use.
-                Defaults to 4.
-            master_memory (int, optional): The number of memory cores to use.
-                Unit: mb. Defaults to 8192.
-            job_max_restart (int, optional): The maximum number of restarts.
-                Defaults to 10.
+            **kwargs: Any extra arguments to override the JobConfig
+                Also could set through envs with prefix 'DLROVER_UNIFIED_'.
+                See 'dlrover.python.unified.common.config.JobConfig' for details.
 
-            Other arguments please refer to:
-                'dlrover.python.unified.common.args'
         Returns:
             int: The exit code of the job. 0 means success, other means
                 failure.
@@ -133,12 +127,12 @@ class DLJob(DLConfig):
             kwargs["job_name"] = job_name
 
         config = JobConfig(
+            dl_config=self,
             **{
                 "job_name": default_name,
-                "dl_config": self,
                 **from_env,
                 **kwargs,
-            }
+            },
         )
 
         return submit(config, blocking)
