@@ -130,8 +130,17 @@ class MasterServicer(ABC):
     def validate_request(self, request_meta: dict) -> bool:
         if CommunicationReqMeta.COMM_META_JOB_UID in request_meta:
             job_uid = request_meta[CommunicationReqMeta.COMM_META_JOB_UID]
-            if job_uid and job_uid != self._job_manager.job_uid:
-                logger.error(f"Invalid job uid: {job_uid} for request.")
+            # 1) for backward compatible: skip if client uid is empty
+            # 2) for local mode compatible: skip if uid is empty(local mode)
+            if (
+                job_uid
+                and self._job_manager.job_uid
+                and job_uid != self._job_manager.job_uid
+            ):
+                logger.error(
+                    f"Invalid job uid: {job_uid} for request, "
+                    f"expect: {self._job_manager.job_uid}."
+                )
                 return False
         return True
 
