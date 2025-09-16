@@ -79,6 +79,15 @@ class ArgsTest(unittest.TestCase):
         parsed_args = parse_master_args(original_args)
         self.assertEqual(parsed_args.xpu_type, "nvidia")
 
+        original_args = [
+            "--job_name",
+            "test",
+            "--xpu_type",
+            "mthreads",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.xpu_type, "mthreads")
+
         # test print
         print_args(parsed_args, groups=[["optimizer", "loss"]])
 

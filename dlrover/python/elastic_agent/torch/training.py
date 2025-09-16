@@ -124,6 +124,11 @@ try:
 except (ModuleNotFoundError, ImportError):  # noqa: F841
     pass
 
+try:
+    from dlrover.python.common import musa_patch  # noqa: F401
+except Exception:
+    pass
+
 __all__ = ["launch_agent"]
 _DLROVER_TERMINAL_STATE_SYNC_ID = "torchelastic/agent/terminal_state"
 
@@ -233,6 +238,8 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
+        if "mthreads" in device:
+            self.accelerator = Accelerators.MTHREADS_GPU
         logger.info(
             f"Use {self.accelerator} device for training, "
             f"cuda is available: {torch.cuda.is_available()}."
@@ -1856,6 +1863,8 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.ascend_npu"]
+    elif config.accelerator == Accelerators.MTHREADS_GPU:
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.mthreads_gpu"]
     else:
         logger.warning(f"Unsupported accelerator chip {config.accelerator}.")
         return True

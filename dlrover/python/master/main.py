@@ -66,6 +66,8 @@ def run(args):
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":
         job_args.xpu_type = Accelerators.NVIDIA_GPU
+    elif args.xpu_type.lower() == "mthreads":
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
     else:
         logger.info(f"{args.xpu_type}, use cpu as default")
         job_args.xpu_type = Accelerators.GENERIC_CPU

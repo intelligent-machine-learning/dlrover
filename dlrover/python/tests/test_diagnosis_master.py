@@ -15,6 +15,7 @@ import copy
 import threading
 import time
 import unittest
+from collections import OrderedDict
 from datetime import datetime
 from typing import List
 from unittest import mock
@@ -26,6 +27,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     NpuMetricEnum,
+    MthreadsGPUMetricEnum,
     PlatformType,
     PreCheckStatus,
 )
@@ -379,3 +381,232 @@ class TestOperator(PreCheckOperator):
 
     def failed_actions(self, *args, **kwargs) -> List[DiagnosisAction]:
         return [NoAction()]
+
+
+class DiagnosisMasterMthreadsTest(unittest.TestCase):
+    """Test class for mthreads GPU diagnosis functionality."""
+
+    def setUp(self):
+        """Set up test fixtures with mthreads GPU configuration."""
+        self.job_name = "test-job"
+
+        # Set up job args for mthreads GPU
+        self.job_args = K8sJobArgs(
+            PlatformType.KUBERNETES, "default", self.job_name
+        )
+        self.job_args.xpu_type = Accelerators.MTHREADS_GPU
+
+        self.diagnosis_master = DiagnosisMaster(job_args=self.job_args)
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_healthy(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for healthy mthreads GPU nodes."""
+        # Mock healthy metrics - simulate tensor utilization above threshold
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics over time with high utilization
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                0.85  # High utilization (well above 0.001 threshold)
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # Should return healthy result
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+        self.assertIsNotNone(start_ts)
+        self.assertIsNotNone(end_ts)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_low_utilization(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU with low tensor utilization."""
+        # Mock low utilization metrics
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics over time with low utilization (below threshold of 0.001)
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                0.0005  # Very low, below 0.001 threshold
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # Should detect hanging due to low utilization
+        self.assertEqual(result, DiagnosisResult.DIAG_HANG)
+        self.assertIsNotNone(start_ts)
+        self.assertIsNotNone(end_ts)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_no_metrics(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU when no metrics available."""
+        # Mock no metrics available
+        mock_metric_context.backtrace_avg_metrics.return_value = None
+        mock_metric_context.max_metric_records = 100
+
+        # Test with no metrics
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # Should return error when no metrics
+        self.assertEqual(result, DiagnosisResult.DIAG_ERROR)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_waiting_state(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU in waiting state."""
+        # Mock insufficient metrics (less than requested duration)
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Only 3 metric points (less than requested 10)
+        for i in range(3):
+            mock_metrics[current_time - i * 60] = (
+                0.70  # Above threshold, but insufficient data
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with duration longer than available metrics
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # Should return waiting state
+        self.assertEqual(result, DiagnosisResult.DIAG_WAITING)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_edge_threshold(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU at edge of utilization threshold."""
+        from dlrover.python.master.diagnosis.diagnosis_master import (
+            JobHangWatermark,
+        )
+
+        # Mock metrics at exactly the threshold
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics at threshold level
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                JobHangWatermark.TENSOR_UTIL_LOW_WM
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # At threshold should still be considered hanging
+        self.assertEqual(result, DiagnosisResult.DIAG_HANG)
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_mixed_utilization(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU with mixed utilization over time."""
+        from dlrover.python.master.diagnosis.diagnosis_master import (
+            JobHangWatermark,
+        )
+
+        # Mock varying metrics over time
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Most recent metric is high (healthy), but older ones are low
+        mock_metrics[current_time] = (
+            JobHangWatermark.TENSOR_UTIL_LOW_WM + 0.01
+        )  # High (recent)
+        for i in range(1, 10):
+            mock_metrics[current_time - i * 60] = (
+                0.0005  # Low (older, below threshold)
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(10)
+        )
+
+        # Should return healthy because most recent metric is above threshold
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+
+    @patch("dlrover.python.master.diagnosis.diagnosis_master._metric_context")
+    def test_check_tensor_drop_zero_mthreads_max_duration_limit(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero respects max metric records limit."""
+        # Test with duration exceeding max_metric_records
+        mock_metric_context.max_metric_records = 50
+        excessive_duration = 150  # More than max_metric_records
+
+        # Mock metrics
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+        for i in range(60):  # More metrics than max_metric_records
+            mock_metrics[current_time - i * 60] = 0.80  # High utilization
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+
+        # Test with excessive duration
+        result, start_ts, end_ts = (
+            self.diagnosis_master.check_tensor_drop_zero(excessive_duration)
+        )
+
+        # Should still work (duration gets clamped to max_metric_records)
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+
+        # Verify duration was clamped to max_metric_records
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL,
+            50,  # Clamped to max_metric_records
+        )
