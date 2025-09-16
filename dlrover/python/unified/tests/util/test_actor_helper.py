@@ -167,17 +167,11 @@ def test_invoke_actor_async(tmp_actor1):
         async_wait(invoke_actor_t(Stub.method_exception, tmp_actor1))
 
 
-def test_invoke_actors(tmp_actor1, tmp_actor2):
-    result = invoke_actors_t(Stub.some_method, [tmp_actor1, tmp_actor2]).wait()
+async def test_invoke_actors(tmp_actor1, tmp_actor2):
+    result = await invoke_actors_t(Stub.some_method, [tmp_actor1, tmp_actor2])
     assert result.is_all_successful
     assert result[0] == "ok"
     assert result[1] == "ok"
-    result2 = asyncio.run(
-        invoke_actors_t(
-            Stub.some_method, [tmp_actor1, tmp_actor2]
-        ).async_wait()
-    )
-    assert result.results == result2.results
 
 
 async def test_invoke_actors_hang(
@@ -278,19 +272,9 @@ def test_static_stub_invoke(tmp_actor1, tmp_actor2):
         == "ok"
     )
 
-    assert invoke_actors_t(
-        Stub.some_method, [tmp_actor1, tmp_actor2]
-    ).wait().results == [
-        "ok",
-        "ok",
-    ]
-
 
 def test_slow_invoke(tmp_actor1, tmp_actor2):
     # Test that the slow method can be invoked and returns the expected result
-    assert invoke_actors_t(
-        Stub.slow_method, [tmp_actor1, tmp_actor2], 0.5
-    ).wait(0.1).results == ["done", "done"]
     assert asyncio.run(
         invoke_actors_t(
             Stub.slow_method, [tmp_actor1, tmp_actor2], 0.5

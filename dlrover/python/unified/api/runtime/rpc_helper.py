@@ -107,7 +107,7 @@ def _rpc_call(actor: str, method: str, args, kwargs):
         method,
         *args,
         **kwargs,
-        _display_name=f"user_rpc({method})",
+        _rpc_display_name=f"user_rpc({method})",
     )
 
 
