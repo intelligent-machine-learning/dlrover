@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from dlrover.python.unified.common.actor_base import ActorInfo
-from dlrover.python.unified.common.enums import MasterStage
+from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.util.actor_proxy import ActorProxy
 
 MASTER_ACTOR_NAME = "__prime_master__"
@@ -104,4 +104,9 @@ class PrimeMasterApi(ActorProxy):
     @staticmethod
     def get_data_queue_owner(name: str) -> str:
         """Get the owner actor of a data queue. Waits if not available."""
+        raise NotImplementedError("stub")  # pragma: no cover
+
+    @staticmethod
+    def report_execution_result(name: str, result: ExecutionResult):
+        """Report the execution result of an actor."""
         raise NotImplementedError("stub")  # pragma: no cover

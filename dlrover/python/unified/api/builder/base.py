@@ -145,6 +145,8 @@ class RoleBuilder(ABC, Generic[T]):
         self.entrypoint = entrypoint
         self._parent = parent
 
+        # Dummy object to hold parameters, use default if not assigned.
+        self._params = cast(ElasticWorkloadDesc, SimpleNamespace())
         self._num = 1
         self._per_group = 1
         self._env: Dict[str, str] = {}
@@ -225,6 +227,13 @@ class RoleBuilder(ABC, Generic[T]):
         self._env.update(DLWorkloadEnv.RAY_NOSET_VISIBLE_DEVICES_ENVS)
         return self
 
+    def not_driver(self):
+        """
+        Set the current role is not driver.
+        """
+        self._params.is_driver = False
+        return self
+
     def sub_stage(self, sub_stage=None):
         """
         The sub-stage definition for current role.
@@ -275,6 +284,7 @@ class ElasticTrainBuilder(RoleBuilder[T]):
                 resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
                 per_group=self._per_group,
+                **self._params.__dict__,
             ),
         }
 
@@ -290,6 +300,7 @@ class SimpleWorkloadBuilder(RoleBuilder[T]):
                 resource=ResourceDesc.get_or_default(self._resource),
                 total=self._num,
                 per_group=self._per_group,
+                **self._params.__dict__,
             ),
         }
 
