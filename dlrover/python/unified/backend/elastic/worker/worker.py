@@ -20,8 +20,10 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.backend.elastic.events import ElasticWorkerEvents
-from dlrover.python.unified.common.actor_base import WorkerStage
-from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
+from dlrover.python.unified.common.enums import (
+    ACCELERATOR_TYPE,
+    ExecutionResult,
+)
 from dlrover.python.util.common_util import (
     find_free_port_from_env_and_bind,
 )
@@ -55,12 +57,12 @@ class ElasticWorker(BaseWorker):
     It skips the torch-run, and directly runs the training in process.
     """
 
-    def _setup(self):
+    def setup(self):
         assert self.actor_info.spec.backend == "elastic"
 
         self._master_socket = None
         self._process_group_setup = False
-        super()._setup()
+        super().setup()
 
     def _setup_envs(self):
         """Setup environment variables for the worker."""
@@ -207,9 +209,9 @@ class ElasticWorker(BaseWorker):
 
     def start_elastic_job(self):
         """Start the elastic worker. If already started, do nothing."""
-        assert self.stage == WorkerStage.READY, (
-            f"Cannot start elastic worker {self.actor_info.name} in stage {self.stage}. "
-            "Expected stage is READY."
-        )
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
         super().start()
+
+    def _on_execution_end(self, result: "ExecutionResult"):
+        self.destroy_torch_process_group()
+        super()._on_execution_end(result)

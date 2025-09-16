@@ -88,7 +88,9 @@ class RLJobBuilder(DLJobBuilder):
             entrypoint (str): The entry point of actor.
         """
 
-        return self.role(RLJobBuilder.ACTOR_ROLE).train(entrypoint)
+        return (
+            self.role(RLJobBuilder.ACTOR_ROLE).train(entrypoint).not_driver()
+        )
 
     def rollout(self, entrypoint: str):
         """
@@ -97,7 +99,9 @@ class RLJobBuilder(DLJobBuilder):
         Args:
             entrypoint (str): The entry point of rollout.
         """
-        return self.role(RLJobBuilder.ROLLOUT_ROLE).run(entrypoint)
+        return (
+            self.role(RLJobBuilder.ROLLOUT_ROLE).run(entrypoint).not_driver()
+        )
 
     def reference(self, entrypoint: str):
         """
@@ -107,7 +111,7 @@ class RLJobBuilder(DLJobBuilder):
             entrypoint (str): The entry point of reference.
         """
 
-        return self.role(RLJobBuilder.REF_ROLE).run(entrypoint)
+        return self.role(RLJobBuilder.REF_ROLE).run(entrypoint).not_driver()
 
     def reward(self, entrypoint: str):
         """
@@ -117,7 +121,7 @@ class RLJobBuilder(DLJobBuilder):
             entrypoint (str): The entry point of reward.
         """
 
-        return self.role(RLJobBuilder.REW_ROLE).run(entrypoint)
+        return self.role(RLJobBuilder.REW_ROLE).run(entrypoint).not_driver()
 
     def critic(self, entrypoint: str):
         """
@@ -127,7 +131,9 @@ class RLJobBuilder(DLJobBuilder):
             entrypoint (str): The entry point of critic.
         """
 
-        return self.role(RLJobBuilder.CRITIC_ROLE).train(entrypoint)
+        return (
+            self.role(RLJobBuilder.CRITIC_ROLE).train(entrypoint).not_driver()
+        )
 
     def with_collocation_all(self):
         """

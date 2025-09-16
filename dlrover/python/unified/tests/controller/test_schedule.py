@@ -30,7 +30,6 @@ from dlrover.python.unified.common.workload_desc import (
 from dlrover.python.unified.controller.schedule import scheduler
 from dlrover.python.unified.controller.schedule.graph import DLExecutionGraph
 from dlrover.python.unified.controller.schedule.scheduler import Scheduler
-from dlrover.python.unified.util.actor_helper import BatchInvokeResult
 
 
 @pytest.fixture
@@ -121,17 +120,11 @@ def test_allocate_placement_group(tmp_scheduler: Scheduler):
 
 
 def test_create_actors(tmp_scheduler: Scheduler):
-    scheduler.invoke_actors_t = AsyncMock()
+    scheduler.wait_ready = AsyncMock()  # type:ignore[method-assign]
     tmp_scheduler._create_pg = MagicMock()  # type:ignore[method-assign]
     tmp_scheduler.create_actor = MagicMock()  # type:ignore[method-assign]
     graph = DLExecutionGraph.create(tmp_scheduler._config.dl_config)
 
     tmp_scheduler.allocate_placement_group(graph)
-    scheduler.invoke_actors_t.return_value = BatchInvokeResult(
-        actors=[node.name for node in graph.vertices],
-        method_name="status",
-        results=["RUNNING"]
-        * len(graph.vertices),  # Simulate all nodes are running
-    )
     asyncio.run(tmp_scheduler.create_actors(graph))
     assert tmp_scheduler.create_actor.call_count == len(graph.vertices)

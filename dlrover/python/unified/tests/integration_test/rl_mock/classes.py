@@ -24,11 +24,6 @@ from dlrover.python.unified.api.runtime import current_worker, rpc
 from . import remote_call
 
 
-@rpc(remote_call.end_job)
-def end_job() -> None:
-    print("Ending job...")
-
-
 class Actor:
     @rpc(remote_call.actor_init)
     def init(self, *args, **kwargs):
@@ -144,7 +139,6 @@ class Trainer:
         self.init_workers()
 
         self.fit()
-        remote_call.end_job()
 
     def prepare_datasets(self):
         print("Preparing datasets...")
