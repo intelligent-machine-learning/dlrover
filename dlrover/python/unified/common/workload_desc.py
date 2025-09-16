@@ -145,6 +145,13 @@ class BaseWorkloadDesc(BaseModel, ABC):
             "Otherwise, GPU allocation is managed by Ray and only the allocated GPUs are made visible."
         ),
     )
+    is_driver: bool = Field(
+        default=True,
+        description=(
+            "If True, job will wait for this workload to complete. "
+            "If False, job will not wait, suitable for RPC driven workloads."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate(self):

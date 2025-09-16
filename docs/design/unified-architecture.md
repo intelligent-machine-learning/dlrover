@@ -76,7 +76,7 @@ The actual processing nodes executing the `WorkLoad`. Workers could run independ
 
 ##### ElasticWorker (specialized Worker for elastic training)
 
-- The worker nodes that execute elastic training workloads.
+- The worker process that execute elastic training workloads.
 - Created by the `PrimeMaster` and managed by the `ElasticMaster`.
 
 ### Sequence Diagram
@@ -158,10 +158,10 @@ framework with new processing paradigms—without altering the core architecture
 
 ### Common Lifecycle Hooks
 
-- `__init__`: Initializes the node with the provided configuration.
-- `status`: Retrieves the current runtime status of the node.
-- `check_child`: Monitors the status of child nodes (applicable to `SubMaster`).
-- `start`: Launches the node’s processing logic (e.g., training loop, monitoring routine).
+- `__init__`: Initializes the worker with the provided configuration.
+- `setup`: Let actor/worker perform any necessary setup before it is ready to receive requests.
+- `check_child`: Monitors the status of child workers (applicable to `SubMaster`).
+- `start`: Launches the processing logic (e.g., training loop, monitoring routine).
 
 ### Core Lifecycle Stages
 
@@ -172,13 +172,24 @@ framework with new processing paradigms—without altering the core architecture
 
 ```mermaid
 stateDiagram-v2
+    direction LR
+
     [*] --> INIT: __init__
-    INIT --> READY: _setup, _self_check, ...
-    READY --> RUNNING: check_workers, rendezvous, ...
-    RUNNING --> FINISH: 
+    INIT --> READY: setup, [_self_check,] ...
+    READY --> RUNNING: [check_workers, rendezvous], start ...
+    RUNNING --> FINISH
     RUNNING --> FAILED: task error
-FINISH --> [*]
-FAILED --> [*]
+    FINISH --> [*]
+    FAILED --> [*]
+
+    state "SubMaster Failover Recovery" as FAILOVER {
+        INIT_F: re-init
+        READY_F: re-setup
+
+        RUNNING --> INIT_F: unexpected_restart
+        INIT_F --> READY_F: setup (failover)
+        READY_F --> RUNNING: recover_running
+    }
 ```
 
 ### Stability

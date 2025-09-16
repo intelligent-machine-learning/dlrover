@@ -22,23 +22,11 @@ class MasterStage(str, Enum):
     STOPPED = "STOPPED"
 
 
-class WorkerStage(str, Enum):
-    """Stages of a worker actor."""
+class ExecutionResult(str, Enum):
+    """Results of worker execution."""
 
-    # CALL __init__
-    INIT = "INIT"
-    # _setup
-    # _self_check(optional)
-    READY = "READY"
-    # CALL check_workers(optional)
-    # CALL start
-    RUNNING = "RUNNING"
-    FINISHED = "FINISHED"
-    FAILED = "FAILED"
-
-    def is_terminal(self) -> bool:
-        """Check if the stage is terminal."""
-        return self in {WorkerStage.FINISHED, WorkerStage.FAILED}
+    SUCCESS = "SUCCESS"  # Finished successfully
+    FAIL = "FAIL"  # Finished with failure
 
 
 class ACCELERATOR_TYPE(str, Enum):
