@@ -22,6 +22,7 @@ from dlrover.python.common.constants import (
     GpuMetricEnum,
     NodeType,
     NpuMetricEnum,
+    MthreadsGPUMetricEnum,
     PreCheckStatus,
 )
 from dlrover.python.common.event.context import JobEventContext
@@ -366,6 +367,10 @@ class DiagnosisMaster(DiagnosisManager):
         elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
             metrics = _metric_context.backtrace_avg_metrics(
                 GpuMetricEnum.GPU_TENSOR_UTIL, duration
+            )
+        elif self._job_args.xpu_type is Accelerators.MTHREADS_GPU:
+            metrics = _metric_context.backtrace_avg_metrics(
+                MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, duration
             )
         else:
             return DiagnosisResult.DIAG_INVALID_PARAM, 0, 0
