@@ -41,8 +41,10 @@ class _ControllerEvents:
     def starting(self):
         return self.__emitter.duration("#starting")
 
-    def stop_requested(self, reason: str):
-        self.__emitter.instant("#stop_requested", {"reason": reason})
+    def stop_requested(self, reason: str, code: int):
+        self.__emitter.instant(
+            "#stop_requested", {"reason": reason, "code": code}
+        )
 
     def stopping(self):
         return self.__emitter.duration("#stopping")

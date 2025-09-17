@@ -184,13 +184,12 @@ class PrimeManager:
             # all driver roles finished
             if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
-                    self.state.exit_code = 1
                     self.request_stop(
                         "All driver roles finished, but some nodes failed."
                     )
                 else:
                     self.request_stop(
-                        "All driver roles finished successfully."
+                        "All driver roles finished successfully.", code=0
                     )
                 break
 
@@ -341,15 +340,17 @@ class PrimeManager:
             await self.start()
             logger.info("Job restarted successfully.")
 
-    def request_stop(self, reason: str):
+    def request_stop(self, reason: str, code: int = 1):
         """Stop the job execution. And clean up resources."""
         if (
             self.stage == MasterStage.STOPPING
             or self.stage == MasterStage.STOPPED
         ):
             return
-        logger.info(f"Requesting to stop the job: {reason}")
-        ControllerEvents.stop_requested(reason)
+        logger.info(f"Requesting to stop the job: {reason}(code={code})")
+        ControllerEvents.stop_requested(reason, code)
+
+        self.state.exit_code = code
         if self.stage == MasterStage.RUNNING:
             self._update_stage(MasterStage.STOPPING)
             self._notify_main_loop.release()
