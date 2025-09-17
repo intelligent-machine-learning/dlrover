@@ -82,6 +82,8 @@ Use `job.submit()` submits the job; runtime semantics (blocking vs non-blocking)
 
 ### Submission parameters
 
+User can use the following environment variables to configure job submitting.
+
 | Config                | Environment Variable                    | Default      | Note                                     |
 | --------------------- | --------------------------------------- | ------------ | ---------------------------------------- |
 | job_name              | `DLROVER_UNIFIED_JOB_NAME`              | dlrover-xxxx | Name of the job                          |

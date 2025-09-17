@@ -108,6 +108,9 @@ class DLJob(DLConfig):
         Submit the current dl job.
 
         Args:
+            job_name (str, optional): The name of the job. If not provided,
+                will use `DLROVER_UNIFIED_JOB_NAME` from envs or generate
+                a random name like `dlrover-<random_hex>`.
             blocking (bool, optional): Whether to block until the job is
                 complete. Defaults is True.
             **kwargs: Any extra arguments to override the JobConfig
