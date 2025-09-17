@@ -79,10 +79,10 @@ def get_network_check_timeout() -> timedelta:
 
 
 @log_execution_time
-def bm_allgather(shape, use_gpu):
+def bm_allgather(shape, use_gpu, device_type="cuda"):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device("cuda" if use_gpu else "cpu")
+    device = torch.device(f"{device_type}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)
@@ -109,10 +109,10 @@ def bm_allgather(shape, use_gpu):
 
 
 @log_execution_time
-def bm_allreduce(shape, use_gpu):
+def bm_allreduce(shape, use_gpu, device_type="cuda"):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device("cuda" if use_gpu else "cpu")
+    device = torch.device(f"{device_type}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
 
     if use_gpu:
@@ -173,8 +173,8 @@ def _execute_cpu_comm(comm_op, *args):
     return elapsed_time
 
 
-def matmul(use_cuda, round_num=10, verbose=False):
-    device = torch.device("cuda" if use_cuda else "cpu")
+def matmul(use_cuda, round_num=10, verbose=False, device_type="cuda"):
+    device = torch.device(f"{device_type}" if use_cuda else "cpu")
 
     if use_cuda:
         m = k = n = 16384

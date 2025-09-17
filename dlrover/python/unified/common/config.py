@@ -179,12 +179,6 @@ class JobConfig(BaseModel):
         description="The configuration of the master state backend, "
         "like: path and so on.",
     )
-    placement_strategy: str = Field(
-        default="SPREAD",
-        description="The placement strategy for the job."
-        "Refer to ray's placement strategies for more details."
-        "Valid options are: STRICT_PACK, STRICT_SPREAD, PACK, SPREAD.",
-    )
     node_max_restart: int = Field(
         default=10,
         description="The maximum limit on the number of node restarts.",

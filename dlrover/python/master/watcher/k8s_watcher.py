@@ -179,10 +179,10 @@ def _convert_pod_yaml_to_node(pod):
 
     logger.debug(
         f"convert yaml to node: {node} "
-        f"type {pod_type}, id {pod_id}, name {pod_name} "
-        f"rank {rank_id}, status {status} "
-        f"group {node_group} group_size {node_group_size} "
-        f"group_id {node_group_id} with meta {metadata.labels}"
+        f"type {pod_type}, id {pod_id}, name {pod_name}, "
+        f"rank {rank_id}, status {status}, "
+        f"group {node_group}, group_size {node_group_size}, "
+        f"group_id {node_group_id}, with meta {metadata.labels}"
     )
 
     node.create_time = metadata.creation_timestamp

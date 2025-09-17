@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.config import DLConfig, JobConfig
+from dlrover.python.unified.common.config import JobConfig
 from dlrover.python.unified.common.constant import DLWorkloadEnv
 from dlrover.python.unified.controller.master import PrimeMaster
 
@@ -57,37 +58,15 @@ def submit(config: JobConfig, blocking=True):
 def main(args=None, blocking=True):
     """Main function to start the DLRover driver from CLI."""
 
-    import argparse
+    args = args if args is not None else sys.argv[1:]
 
-    parser = argparse.ArgumentParser(
-        description="DLRover Driver CLI to start the DLRover master."
-    )
-    parser.add_argument(
-        "--job_name",
-        type=str,
-        help="Name of the job to be submitted.",
-    )
-    parser.add_argument(
-        "--master_cpu",
-        type=int,
-        default=1,
-        help="Number of CPUs for the master actor.",
-    )
-    parser.add_argument(
-        "--master_memory",
-        type=int,
-        default=100,
-        help="Memory (in MB) for the master actor.",
-    )
-    parser.add_argument(
-        "--dl_config",
-        type=str,
-        required=True,
-        help="Json for DLRover job configuration.",
-    )
-    args = parser.parse_args(args)
-    args.dl_config = DLConfig.model_validate_json(args.dl_config)
-    config = JobConfig.model_validate(args.__dict__)
+    if len(args) < 1:
+        raise ValueError(
+            "A single argument representing JobConfig in JSON format is required."
+        )
+
+    config = JobConfig.model_validate_json(args[0])
+
     return submit(config=config, blocking=blocking)
 
 
