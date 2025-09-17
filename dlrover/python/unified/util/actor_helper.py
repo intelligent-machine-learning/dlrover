@@ -183,20 +183,19 @@ class ActorInvocation(InvocationRef[T]):
 
     def _handle_exception(self, e: Exception):
         if isinstance(e, RayActorError):
-            # retry for actor unavailable errors
-            # isinstance(e, ActorUnavailableError)
-            if not isinstance(e, ActorDiedError) and self._retry_count > 0:
+            if isinstance(e, ActorDiedError):
                 if (
                     self.method_name == "__ray_terminate__"
                     or self.method_name == "shutdown"
                 ):
                     self._result = cast(T, None)  # Success for shutdown
                     return
-
-                self._retry_count -= 1
+            # retry for ActorUnavailableError
+            elif self.retry_count > 0:
+                self.retry_count -= 1
                 logger.warning(
                     f"ActorError when executing {self.display_name} on {self.actor_name},"
-                    f" retrying ({self._retry_count} retries left); {self._result}"
+                    f" retrying ({self.retry_count} retries left); {self._result}"
                 )
                 reset_actor_cache(self.actor_name)
                 self._invoke()
@@ -357,7 +356,6 @@ def _terminate_actors(actors: List[str], timeout: float = 10.0):
 async def restart_actors(actors: List[str]):
     """Restart Ray actors by their names."""
     logger.info(f"Restarting actors: {actors}")
-    _terminate_actors(actors)  # try graceful shutdown
     for actor in actors:
         try:
             ray.kill(get_actor_with_cache(actor), no_restart=False)
