@@ -12,6 +12,7 @@
 # limitations under the License.
 
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorBase
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.decorators import log_execution
@@ -24,7 +25,7 @@ class ElasticMaster(ActorBase):
         workers = PrimeMasterApi.get_workers_by_role(self.actor_info.role)
         self.manager = ElasticManager(workers)
 
-    # Lifecycle Hooks
+    # region Lifecycle Hooks
 
     async def check_workers(self):
         await self.manager.check_workers()
@@ -37,10 +38,18 @@ class ElasticMaster(ActorBase):
         # manager has nothing to recover
         pass
 
-    # RPC methods for Workers
-
     def restart_role_level(self):
         self.manager.request_restart()
+
+    def handle_worker_failover(self, worker_name: str) -> bool:
+        logger.info(
+            f"Worker {worker_name} needs failover, triggering restart."
+        )
+        self.manager.request_restart()
+        return True
+
+    # region RPC methods for Workers
+    # Currently, ElasticMaster as controller, no additional rpc methods are needed.
 
     # TODO metric rpc: AtorchEvent, Event
     # TODO diagnosis rpc: NodeFailure, ResourceStats, DiagnosisReportData(XPUTimer)

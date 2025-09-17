@@ -136,6 +136,7 @@ class PrimeManager:
         )
         for actor, node_info in zip(actors, node_info_res.results):
             actor.node_info = node_info
+            actor.is_ready.set()
 
     async def _nodes_check(self):
         """Let sub-masters pre-check nodes.
@@ -226,7 +227,10 @@ class PrimeManager:
         reasons should be filtered out by the following `actor.restarting`
         logic.
         """
-        # 1. Ignore some cases
+        logger.info(f"Actor {actor.name} is restarting.")
+        actor.is_ready.clear()  # whatever the reason, not ready just after restart
+
+        # Ignore some cases
         if actor.restarting:
             return  # Actor is already restarting, no need to handle it again.
 
@@ -236,7 +240,7 @@ class PrimeManager:
             )
             return
 
-        # 2. record failure and relaunch fault node if needed
+        # record failure
 
         assert actor.node_info is not None, (
             "actor.node should be set beforehand."
@@ -247,30 +251,40 @@ class PrimeManager:
             # This is not a failure
         else:
             actor.inc_failure_count()
+
+        # Do failover
+        asyncio.create_task(self._do_failover(actor))
+
+    async def _do_failover(self, actor: DLExecutionVertex):
+        """Handle failover for the given actor."""
+        # relaunch fault node if needed
         if actor.per_node_failure_count > actor.spec.per_node_max_failure:
+            assert actor.node_info is not None
             logger.info(
                 f"Actor {actor.name} trigger node relaunch for "
                 f"exceeded the maximum per-node failure count: {actor.spec.per_node_max_failure}."
             )
             await self._relaunch_fault_nodes([actor.node_info])
 
-        # 3. Do failover
-
+        # if the actor is sub-master, recover it directly
         if actor is actor.role.sub_master:
             await self._setup_actors([actor])
             await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
             return
 
-        if (
-            actor.spec.is_role_level_failover_supported()
-            and actor.role.sub_master is not None
-        ):
-            # call sub master do role level failover
-            await invoke_actor_t(
-                ActorBase.restart_role_level, actor.role.sub_master.name, SELF
+        # Let sub-master handle worker failover first
+        if actor.role.sub_master is not None:
+            await actor.role.sub_master.is_ready.wait()
+            handled = await invoke_actor_t(
+                ActorBase.handle_worker_failover,
+                actor.role.sub_master.name,
+                SELF,
+                actor.name,
             )
-            return
-        # call job restart
+            # If the sub-master handled the failover, we're done
+            if handled:
+                return
+        # fallback to job restart to handle the failover
         await self.restart_job()
 
     async def _relaunch_fault_nodes(self, nodes: List[NodeInfo]):

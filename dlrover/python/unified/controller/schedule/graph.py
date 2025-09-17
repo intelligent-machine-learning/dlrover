@@ -10,8 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional
 
 from pydantic import BaseModel
@@ -46,12 +47,19 @@ class DLExecutionVertex(ABC, BaseModel):
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
     result: Optional[ExecutionResult] = None
+    # Indicate whether the actor is ready to receive tasks, initialized is done by manager._setup_actors
+    is_ready: asyncio.Event = field(default_factory=asyncio.Event)
 
-    def __hash__(self):
-        return hash(self.name)
+    def __getstate__(self):
+        state = self.model_dump()
+        state["is_ready"] = self.is_ready.is_set()
+        return state
 
-    def __eq__(self, other):
-        return self.name == other.name
+    def __setstate__(self, state):
+        is_ready = state.pop("is_ready")
+        self.__init__(**state)
+        if is_ready:
+            self.is_ready.set()
 
     @property
     @abstractmethod
