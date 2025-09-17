@@ -15,8 +15,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional
 
-from pydantic import BaseModel
-
 from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
 from dlrover.python.unified.common.enums import ExecutionResult
@@ -27,7 +25,8 @@ from dlrover.python.unified.common.enums import ExecutionResult
 # 3. All classes should be unique per identifier, not create instance freely.
 
 
-class DLExecutionVertex(ABC, BaseModel):
+@dataclass(kw_only=True)
+class DLExecutionVertex(ABC):
     """
     Vertex expression for computational graph.
 
@@ -51,7 +50,7 @@ class DLExecutionVertex(ABC, BaseModel):
     is_ready: asyncio.Event = field(default_factory=asyncio.Event)
 
     def __getstate__(self):
-        state = self.model_dump()
+        state = self.__dict__.copy()
         state["is_ready"] = self.is_ready.is_set()
         return state
 
@@ -85,6 +84,7 @@ class DLExecutionVertex(ABC, BaseModel):
         self.per_node_failure_count += 1
 
 
+@dataclass(kw_only=True)
 class DLExecutionWorkerVertex(DLExecutionVertex):
     """Worker vertex in the computational graph."""
 

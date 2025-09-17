@@ -305,6 +305,9 @@ class PrimeManager:
             for n in nodes:
                 if n not in relaunched_nodes:
                     self.state.removed_nodes.remove(n.id)
+            if not relaunched_nodes:
+                logger.info("No nodes were relaunched.")
+                return
             # Ensure the nodes are removed from Ray cluster, avoid exceptions during restart processing.
             try:
                 await asyncio.wait_for(
@@ -315,7 +318,7 @@ class PrimeManager:
                 logger.info(
                     f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 logger.warning(
                     "Timeout waiting for nodes to be removed from Ray cluster, may cause inconsistency."
                 )
