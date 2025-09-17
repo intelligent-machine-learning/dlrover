@@ -18,14 +18,6 @@ from functools import wraps
 from dlrover.python.common.log import default_logger as logger
 
 
-def _get_stacklevel():
-    stack = inspect.stack()
-    stacklevel = 3
-    if stack[3].function == "inner":
-        stacklevel = 4
-    return stacklevel
-
-
 def catch_exception(msg: str):
     """Catch exception and log it."""
 
