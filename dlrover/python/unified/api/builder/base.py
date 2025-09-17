@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
 from typing import (
@@ -31,6 +32,7 @@ from dlrover.python.unified.common.config import (
     JobConfig,
 )
 from dlrover.python.unified.common.constant import (
+    JOB_OPTIONS_ENV_PREFIX,
     DLWorkloadEnv,
     InternalDLWorkloadRole,
 )
@@ -42,6 +44,7 @@ from dlrover.python.unified.common.workload_desc import (
     WorkloadDesc,
 )
 from dlrover.python.unified.driver.main import submit
+from dlrover.python.unified.util.config_util import read_dict_from_envs
 
 # Note: Builder don't do validation, let DLJob validate when build().
 
@@ -96,41 +99,43 @@ class DLJob(DLConfig):
 
     def submit(
         self,
-        job_name,
+        job_name: str | None = None,
+        /,
         blocking=True,
-        master_cpu=4,
-        master_memory=8192,
-        job_max_restart=10,
         **kwargs,
     ) -> int:
         """
         Submit the current dl job.
 
         Args:
-            job_name (str): The name of the job.
+            job_name (str, optional): The name of the job. If not provided,
+                will use `DLROVER_UNIFIED_JOB_NAME` from envs or generate
+                a random name like `dlrover-<random_hex>`.
             blocking (bool, optional): Whether to block until the job is
                 complete. Defaults is True.
-            master_cpu (int, optional): The number of CPU cores to use.
-                Defaults to 4.
-            master_memory (int, optional): The number of memory cores to use.
-                Unit: mb. Defaults to 8192.
-            job_max_restart (int, optional): The maximum number of restarts.
-                Defaults to 10.
+            **kwargs: Any extra arguments to override the JobConfig
+                Also could set through envs with prefix 'DLROVER_UNIFIED_'.
+                See 'dlrover.python.unified.common.config.JobConfig' for details.
 
-            Other arguments please refer to:
-                'dlrover.python.unified.common.args'
         Returns:
             int: The exit code of the job. 0 means success, other means
                 failure.
         """
 
+        default_name = f"dlrover-{random.randbytes(3).hex()}"
+
+        from_env = read_dict_from_envs(JOB_OPTIONS_ENV_PREFIX)
+
+        if job_name is not None:
+            kwargs["job_name"] = job_name
+
         config = JobConfig(
-            job_name=job_name,
-            master_cpu=master_cpu,
-            master_mem=master_memory,
-            job_max_restart=job_max_restart,
             dl_config=self,
-            **kwargs,
+            **{
+                "job_name": default_name,
+                **from_env,
+                **kwargs,
+            },
         )
 
         return submit(config, blocking)

@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import patch
+
 from omegaconf import OmegaConf
 from pydantic import ValidationError
 
@@ -20,7 +22,7 @@ from dlrover.python.unified.api.builder import (
     RLJobBuilder,
 )
 from dlrover.python.unified.api.builder.rl import RLJob
-from dlrover.python.unified.common.config import DLConfig
+from dlrover.python.unified.common.config import DLConfig, JobConfig
 from dlrover.python.unified.common.enums import (
     DLStreamType,
     RLRoleType,
@@ -532,3 +534,47 @@ class ApiTest(BaseTest):
         DLJobBuilder().role("test").run("tset.main").total(
             1
         ).build()  # success
+
+
+def test_submit(monkeypatch):
+    # mock submit, just return the config
+    dl_job = (
+        DLJobBuilder()
+        .node_num(1)
+        .device_per_node(1)
+        .config({"c1": "v1"})
+        .global_env({"e0": "v0"})
+        .train("test::main")
+        .nnodes(1)
+        .nproc_per_node(1)
+        .end()
+        .build()
+    )
+
+    with patch(
+        "dlrover.python.unified.api.builder.base.submit"
+    ) as mock_submit:
+        ret = dl_job.submit()
+        assert ret is mock_submit.return_value
+        assert mock_submit.called
+        job = mock_submit.call_args.args[0]
+        assert isinstance(job, JobConfig)
+        assert job.job_name.startswith("dlrover-")
+
+    monkeypatch.setenv("DLROVER_UNIFIED_JOB_NAME", "test_env_name")
+    with patch(
+        "dlrover.python.unified.api.builder.base.submit"
+    ) as mock_submit:
+        ret = dl_job.submit()
+        job = mock_submit.call_args.args[0]
+        assert isinstance(job, JobConfig)
+        assert job.job_name == "test_env_name"
+
+    with patch(
+        "dlrover.python.unified.api.builder.base.submit"
+    ) as mock_submit:
+        ret = dl_job.submit("set_name", master_cpu=8)
+        job = mock_submit.call_args.args[0]
+        assert isinstance(job, JobConfig)
+        assert job.job_name == "set_name"
+        assert job.master_cpu == 8

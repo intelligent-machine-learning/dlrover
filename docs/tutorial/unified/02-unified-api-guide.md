@@ -7,10 +7,9 @@ DLRover control plane.
 ## Key flow
 
 1. Create a DLJobBuilder instance.
-2. Configure job-level settings (type, node/device counts, device type).
+2. Configure job-level settings (user configuration, node/device counts, device type).
 3. Register workloads/entrypoints and resources.
-4. Provide user configuration (dict or OmegaConf).
-5. Build the job object and submit.
+4. Build the job object and submit.
 
 ## Minimal example
 
@@ -36,46 +35,7 @@ job = (
 job.submit(job_name="nanogpt")
 ```
 
-## Common builder methods
-
-- node_num(n) / device_per_node(n): how many nodes and devices per node.
-- device_type("GPU"|"CPU"): preferred accelerator type.
-- config(DictConfig or dict): user configuration available at runtime.
-- role(str): defines the role name for multi-role jobs.
-- train(entrypoint): define a training workload with entrypoint (module path + function), and return a sub builder.
-- run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
-
-## Workload / role patterns
-
-- Training workload: use `train()` to define the main training entrypoint.
-- Non-training workload: use `run()` to define auxiliary entrypoints
-  (data loader, evaluator, etc).
-
-## Submission patterns
-
-- Synchronous vs asynchronous: `job.submit()` submits the job; runtime
-  semantics (blocking vs non-blocking) depend on environment.
-- Provide `job_name` for easier tracking of logs, checkpoints and state.
-- Programmatic monitoring: use Runtime SDK to query job status and control
-  running jobs.
-
-## Best practices before submit
-
-- Ensure entrypoint module paths are importable on workers (PYTHONPATH).
-- Avoid heavy work at import-time; perform setup in `run()`/`__init__`.
-- Use `DictConfig` for structured configs to ease overrides in CI/tests.
-- Debug locally with small `nnodes` / `nproc_per_node` values.
-- Pin critical dependency versions in CI to avoid runtime mismatches.
-
-## Troubleshooting
-
-- Import errors on workers: check PYTHONPATH and packaging.
-- Rendezvous or NCCL failures: verify network, NCCL envs and consistent
-  world sizes.
-- Resource allocation failures: verify scheduler/back-end logs for why
-  requested resources were not satisfied.
-
-## Advanced examples (outline)
+### Advanced examples (outline)
 
 - Multiple roles (pseudo):
 
@@ -93,7 +53,45 @@ job.submit(job_name="rl_job")
 (Use the exact `workload()` method names from the installed builder
 version.)
 
-## See also
+## Common builder methods
 
-- Runtime SDK: `04-runtime-sdk.md` for monitoring, RPC helpers and
-  runtime utilities.
+- node_num(n) / device_per_node(n): how many nodes and devices per node.
+- device_type("GPU"|"CPU"): preferred accelerator type.
+- config(DictConfig or dict): user configuration available at runtime.
+- role(str): defines the role name for multi-role jobs.
+- train(entrypoint): define a training workload with entrypoint (module path + function), and return a sub builder.
+- run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
+
+### Workload / role patterns
+
+- Training workload: use `train()` to define the main training entrypoint.
+- Non-training workload: use `run()` to define auxiliary entrypoints
+  (data loader, evaluator, etc).
+
+### Best practices
+
+- Ensure entrypoint module paths are importable on workers (PYTHONPATH).
+- Avoid heavy work at import-time; perform setup in `run()`/`__init__`.
+- Use `DictConfig` for structured configs to ease overrides in CI/tests.
+- Debug locally with small `nnodes` / `nproc_per_node` values.
+- Pin critical dependency versions in CI to avoid runtime mismatches.
+
+## Submission
+
+Use `job.submit()` submits the job; runtime semantics (blocking vs non-blocking) depend on environment.
+
+### Submission parameters
+
+User can use the following environment variables to configure job submitting.
+
+| Config                | Environment Variable                    | Default      | Note                                     |
+| --------------------- | --------------------------------------- | ------------ | ---------------------------------------- |
+| job_name              | `DLROVER_UNIFIED_JOB_NAME`              | dlrover-xxxx | Name of the job                          |
+| master_cpu            | `DLROVER_UNIFIED_MASTER_CPU`            | 2            | Number of CPU cores for the master node  |
+| master_mem            | `DLROVER_UNIFIED_MASTER_MEM`            | 4096 (in MB) | Amount of memory for the master node     |
+| master_create_timeout | `DLROVER_UNIFIED_MASTER_CREATE_TIMEOUT` | 600 (in s)   | Timeout for creating master node         |
+| node_max_restart      | `DLROVER_UNIFIED_NODE_MAX_RESTART`      | 10           | Maximum number of restarts for each node |
+| job_max_restart       | `DLROVER_UNIFIED_JOB_MAX_RESTART`       | 10           | Maximum number of job restarts           |
+| master_max_restart    | `DLROVER_UNIFIED_MASTER_MAX_RESTART`    | 10           | Maximum number of master restarts        |
+
+See `dlrover.python.unified.common.config.JobConfig` for all options.
