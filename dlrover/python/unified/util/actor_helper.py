@@ -406,6 +406,20 @@ async def wait_ready(actors: List[str]):
             await asyncio.sleep(RAY_HANG_CHECK_INTERVAL)
 
 
+async def wait_ray_node_remove(nodes: List[str], interval: float = 10):
+    """Wait for Ray nodes to be removed.
+    nodes: List of node IDs to wait for removal.
+    """
+    nodes = nodes.copy()
+    while nodes:
+        logger.info(f"Waiting for ray nodes removing: {nodes}")
+        running = [
+            ray_node["NodeID"] for ray_node in ray.nodes() if ray_node["alive"]
+        ]
+        nodes = [node for node in nodes if node in running]
+        await asyncio.sleep(interval)
+
+
 class BatchInvokeResult(Generic[T]):
     """A class to hold results from invoking methods on multiple actors."""
 

@@ -18,7 +18,10 @@ from typing import Any, Dict, List, Optional, Set
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
-from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
+from dlrover.python.unified.common.constant import (
+    MASTER_STATE_KEY_PREFIX,
+    RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+)
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
@@ -26,6 +29,7 @@ from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
+    wait_ray_node_remove,
 )
 from dlrover.python.unified.util.actor_proxy import (
     SELF,
@@ -297,14 +301,25 @@ class PrimeManager:
         try:
             relaunched_nodes = await self.ext.relaunch_nodes_impl(nodes)
             self.state.node_restart_count += len(relaunched_nodes)
-            logger.info(
-                f"Total relaunched nodes: {[node.id for node in relaunched_nodes]}"
-            )
-
-            # remove not relaunched nodes from
+            # unset non-relaunched nodes
             for n in nodes:
                 if n not in relaunched_nodes:
                     self.state.removed_nodes.remove(n.id)
+            # Ensure the nodes are removed from Ray cluster, avoid exceptions during restart processing.
+            try:
+                await asyncio.wait_for(
+                    wait_ray_node_remove([n.id for n in relaunched_nodes]),
+                    timeout=len(relaunched_nodes)
+                    * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+                )
+                logger.info(
+                    f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Timeout waiting for nodes to be removed from Ray cluster, may cause inconsistency."
+                )
+
         except Exception:
             logger.exception(
                 "Failed to relaunch nodes due to unexpected error. The following node relaunch may not be executed properly."
