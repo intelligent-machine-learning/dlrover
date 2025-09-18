@@ -22,13 +22,13 @@ from pytest_mock import MockerFixture
 from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
-from dlrover.python.unified.util.actor_proxy import (
-    ActorProxy,
+from dlrover.python.unified.util.actor_helper import (
     invoke_actor_t,
     invoke_actors,
     invoke_actors_t,
     invoke_meta,
 )
+from dlrover.python.unified.util.actor_proxy import ActorProxy
 
 
 @ray.remote

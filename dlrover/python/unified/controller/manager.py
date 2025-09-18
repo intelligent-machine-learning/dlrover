@@ -32,9 +32,15 @@ from dlrover.python.unified.util.actor_helper import (
     wait_ray_node_remove,
 )
 from dlrover.python.unified.util.actor_proxy import (
+    kill_actors,
+    restart_actors,
+)
+from dlrover.python.unified.util.actor_proxy import (
     SELF,
     invoke_actor_t,
     invoke_actors_t,
+    kill_actors,
+    restart_actors,
 )
 
 from ..common.config import JobConfig

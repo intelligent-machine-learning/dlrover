@@ -19,8 +19,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
-)
-from dlrover.python.unified.util.actor_proxy import (
     invoke_actor_t,
     invoke_actors,
     invoke_actors_t,

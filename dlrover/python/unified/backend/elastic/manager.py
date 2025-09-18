@@ -24,7 +24,7 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.actor_proxy import (
+from dlrover.python.unified.util.actor_helper import (
     invoke_actor_t,
     invoke_actors_t,
 )
