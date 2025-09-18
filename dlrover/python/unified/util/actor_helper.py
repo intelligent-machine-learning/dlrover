@@ -38,6 +38,7 @@ from ray.exceptions import (
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.constant import RAY_HANG_CHECK_INTERVAL
+from dlrover.python.unified.util.decorators import log_execution
 from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
 __actors_cache: Dict[str, ActorHandle] = {}
@@ -404,6 +405,22 @@ async def wait_ready(actors: List[str]):
         )
         if actors:
             await asyncio.sleep(RAY_HANG_CHECK_INTERVAL)
+
+
+@log_execution("wait_ray_node_remove")
+async def wait_ray_node_remove(nodes: List[str], interval: float = 10):
+    """Wait for Ray nodes to be removed.
+    nodes: List of node IDs to wait for removal.
+    """
+    nodes = nodes.copy()
+    while nodes:
+        running = set(
+            ray_node["NodeID"] for ray_node in ray.nodes() if ray_node["Alive"]
+        )
+        nodes = [node for node in nodes if node in running]
+        if nodes:
+            logger.info(f"Waiting for ray nodes removing: {nodes}")
+            await asyncio.sleep(interval)
 
 
 class BatchInvokeResult(Generic[T]):
