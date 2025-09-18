@@ -15,14 +15,21 @@ from functools import partial, wraps
 from typing import (
     Any,
     Callable,
+    Generic,
+    ParamSpec,
     TypeVar,
+    overload,
 )
 
-from dlrover.python.unified.util.actor_helper import invoke_actor_t
+from dlrover.python.unified.util.actor_helper import (
+    ActorInvocation,
+    invoke_actor_t,
+)
 
 T = TypeVar("T", bound="type")
 
 
+# TODO remove this, use actor_call instead.
 class ActorProxy:
     """A proxy class to interact with Ray actors as if they were local objects.
 
@@ -88,3 +95,62 @@ class ActorProxy:
                 setattr(wrapped, "__origin__", method)
 
                 setattr(target, name, staticmethod(wrapped))
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+UNBOUND = "UNBOUND"
+
+
+class ActorCall(Generic[P, R]):
+    """New decorator style for actor call, support binding actor name to class.
+
+    Based on descriptor protocol __get__, could __call__ directly.
+    Support extra usage: bind, _call, async_call.
+    """
+
+    def __init__(self, func: Callable[P, R], actor: str = UNBOUND) -> None:
+        self._func = func
+        self._actor = actor
+        wraps(func)(self)
+
+    def bind(self, actor: str):
+        return ActorCall[P, R](self._func, actor)
+
+    def _call(self, *args: P.args, **kwds: P.kwargs) -> ActorInvocation[R]:
+        """Internal method to create an ActorInvocation for the call."""
+        if self._actor is UNBOUND:
+            raise ValueError("ACTOR_NAME is not bound, call bind() first.")
+        return invoke_actor_t(self._func, self._actor, *args, **kwds)
+
+    def __repr__(self) -> str:
+        return f"ActorCall(func={self._func}, actor={self._actor})"
+
+    # Misc
+
+    @property
+    def __func__(self) -> Callable[P, R]:
+        return self._func
+
+    def __get__(self, instance, owner):
+        actor = getattr(instance or owner, "ACTOR_NAME", None)
+        assert isinstance(actor, str | None)
+        return self.bind(actor or self._actor)
+
+    def __call__(self, *args: P.args, **kwds: P.kwargs) -> R:
+        return self._call(*args, **kwds).wait()
+
+    async def async_call(self, *args: P.args, **kwds: P.kwargs) -> R:
+        return await self._call(*args, **kwds)
+
+
+@overload
+def actor_call(func: Callable[P, R]) -> ActorCall[P, R]: ...
+@overload
+def actor_call(
+    *, actor: str
+) -> Callable[[Callable[P, R]], ActorCall[P, R]]: ...
+def actor_call(func=None, *, actor: str = UNBOUND) -> Any:
+    if func is None:
+        return lambda f: ActorCall(f, actor)
+    return ActorCall(func, actor)
