@@ -231,7 +231,7 @@ class PrimeManager:
         logic.
         """
         logger.info(f"Actor {actor.name} is restarting.")
-        actor.is_ready.clear()  # whatever the reason, not ready just after restart
+        actor.is_ready.clear()  # reset to unready after restart whatever the reason is
 
         # Ignore some cases
         if actor.restarting:
@@ -309,20 +309,19 @@ class PrimeManager:
                 logger.info("No nodes were relaunched.")
                 return
             # Ensure the nodes are removed from Ray cluster, avoid exceptions during restart processing.
-            try:
-                await asyncio.wait_for(
-                    wait_ray_node_remove([n.id for n in relaunched_nodes]),
-                    timeout=len(relaunched_nodes)
-                    * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
-                )
-                logger.info(
-                    f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Timeout waiting for nodes to be removed from Ray cluster, may cause inconsistency."
-                )
-
+            await asyncio.wait_for(
+                wait_ray_node_remove([n.id for n in relaunched_nodes]),
+                timeout=(
+                    len(relaunched_nodes) * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
+                ),
+            )
+            logger.info(
+                f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timeout waiting for nodes to be removed from Ray cluster, may cause inconsistency."
+            )
         except Exception:
             logger.exception(
                 "Failed to relaunch nodes due to unexpected error. The following node relaunch may not be executed properly."

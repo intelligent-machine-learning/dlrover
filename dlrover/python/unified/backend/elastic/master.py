@@ -42,9 +42,8 @@ class ElasticMaster(ActorBase):
         self.manager.request_restart()
 
     def handle_worker_failover(self, worker_name: str) -> bool:
-        logger.info(
-            f"Worker {worker_name} needs failover, triggering restart."
-        )
+        logger.info(f"Worker {worker_name} needs failover, request restart.")
+        # Elastic training currently only supports role-level restart.
         self.manager.request_restart()
         return True
 
