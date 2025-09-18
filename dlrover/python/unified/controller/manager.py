@@ -29,7 +29,7 @@ from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
     SELF,
     invoke_actor,
-    invoke_actors_t,
+    invoke_actors,
     kill_actors,
     restart_actors,
     wait_ray_node_remove,
@@ -128,12 +128,12 @@ class PrimeManager:
     async def _setup_actors(self, actors: List[DLExecutionVertex]):
         """Wait for all actors to be ready."""
         with ControllerEvents.setup_actors():
-            res = await invoke_actors_t(ActorBase.setup, actors, SELF)
+            res = await invoke_actors(ActorBase.setup, actors, SELF)
             res.raise_for_errors()
         logger.info("All actors have completed setup.")
 
         # update all actor's node info
-        node_info_res = await invoke_actors_t(
+        node_info_res = await invoke_actors(
             ActorBase.get_node_info, actors, SELF
         )
         for actor, node_info in zip(actors, node_info_res.results):
@@ -152,7 +152,7 @@ class PrimeManager:
         if not sub_masters:
             return
         with ControllerEvents.node_check():
-            res = await invoke_actors_t(
+            res = await invoke_actors(
                 ActorBase.check_workers, sub_masters, SELF
             )
             res.raise_for_errors()
@@ -165,7 +165,7 @@ class PrimeManager:
         )
         with ControllerEvents.starting():
             actors = [actor.name for actor in self.graph.vertices]
-            res = await invoke_actors_t(ActorBase.start, actors, SELF)
+            res = await invoke_actors(ActorBase.start, actors, SELF)
             res.raise_for_errors()
 
         logger.info("Job started successfully.")

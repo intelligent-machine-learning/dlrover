@@ -10,10 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
 import asyncio
 import time
-from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from typing import (
@@ -86,29 +84,6 @@ def as_actor_class(cls: type) -> ActorClass:
     return ray.remote(cls)  # type: ignore[return-value]
 
 
-class InvocationRef(Generic[T], ABC):
-    @property
-    @abc.abstractmethod
-    def pending(self) -> bool:  # pragma: no-cover
-        """Check if the invocation is still pending."""
-        ...
-
-    @property
-    @abc.abstractmethod
-    def result(self) -> T:  # pragma: no-cover
-        """Get the result of the invocation, raising an exception if it failed."""
-        ...
-
-    @abc.abstractmethod
-    async def async_wait(self) -> T:  # pragma: no-cover
-        """Wait for the result of the invocation asynchronously."""
-        ...
-
-    def __await__(self) -> Generator[None, None, T]:
-        """Await the result of the invocation."""
-        return self.async_wait().__await__()
-
-
 @dataclass
 class ActorInvocationMeta:
     name: Optional[str] = None
@@ -120,7 +95,7 @@ META_ATTR_NAME = "__invoke_meta__"
 EMPTY_META = ActorInvocationMeta()
 
 
-class ActorInvocation(InvocationRef[T]):
+class ActorInvocation(Generic[T]):
     """A class to represent an invocation of a method on a Ray actor.
     wraps ObjectRef and handles retries for actor errors.
     """
@@ -279,19 +254,18 @@ class ActorInvocation(InvocationRef[T]):
             raise res
         return cast(T, res)
 
+    def __await__(self) -> Generator[None, None, T]:
+        """Await the result of the invocation."""
+        return self.async_wait().__await__()
 
-class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
+
+class ActorBatchInvocation(Generic[T]):
     """A class to represent an invocation of a method on multiple Ray actors."""
 
     def __init__(self, refs: List[ActorInvocation[T]]):
         assert len(refs) > 0, "At least one actor must be specified."
         self.refs = refs
         self.display_name = refs[0].display_name
-
-    @property
-    def pending(self) -> bool:
-        """Check if any invocation is still pending."""
-        return any(ref.pending for ref in self.refs)
 
     async def async_wait(
         self, monitor_interval: float = RAY_HANG_CHECK_INTERVAL
@@ -330,19 +304,11 @@ class ActorBatchInvocation(Generic[T], InvocationRef["BatchInvokeResult[T]"]):
         monitor_task = asyncio.create_task(monitor())
         await asyncio.gather(*[wait(ref) for ref in self.refs])
         monitor_task.cancel()
-        return self.result
 
-    @property
-    def result(self) -> "BatchInvokeResult[T]":
-        """Get the results of all invocations."""
-        assert not self.pending, (
-            "Invocations are still pending. Call resolve first."
-        )
-        results = [ref.result_or_exception for ref in self.refs]
         return BatchInvokeResult(
             [ref.actor_name for ref in self.refs],
             self.display_name,
-            results,
+            [ref.result_or_exception for ref in self.refs],
         )
 
 
@@ -568,26 +534,26 @@ def invoke_actor(
     )
 
 
-def invoke_actors(
+async def wait_batch_invoke(
     refs: Iterable[ActorInvocation[R]],
-) -> ActorBatchInvocation[R]:
+) -> BatchInvokeResult[R]:
     """Create a batch invocation from multiple ActorInvocation instances."""
-    return ActorBatchInvocation[R](list(refs))
+    return await ActorBatchInvocation[R](list(refs)).async_wait()
 
 
-def invoke_actors_t(
+async def invoke_actors(
     func: Callable[P, R],
     actors: Iterable[Union[str, IActorInfo]],
     *args: P.args,
     **kwargs: P.kwargs,
-) -> ActorBatchInvocation[R]:
+) -> BatchInvokeResult[R]:
     """Type Safe wrapper for invoking a method on a Ray actor."""
     meta: ActorInvocationMeta = getattr(func, META_ATTR_NAME, EMPTY_META)
     name = meta.name or func.__name__
     # Remove `self` if it's the first argument.
     if args and args[0] is SELF:
         args = args[1:]  # type: ignore[assignment]
-    return invoke_actors(
+    return await wait_batch_invoke(
         ActorInvocation[R](
             actor if isinstance(actor, str) else actor.name,
             name,

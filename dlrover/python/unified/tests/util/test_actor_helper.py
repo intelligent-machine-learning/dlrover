@@ -26,8 +26,8 @@ from dlrover.python.unified.util.actor_helper import (
     actor_call,
     invoke_actor,
     invoke_actors,
-    invoke_actors_t,
     invoke_meta,
+    wait_batch_invoke,
 )
 
 
@@ -180,7 +180,7 @@ def test_invoke_actor_async(tmp_actor1):
 
 
 async def test_invoke_actors(tmp_actor1, tmp_actor2):
-    result = await invoke_actors_t(Stub.some_method, [tmp_actor1, tmp_actor2])
+    result = await invoke_actors(Stub.some_method, [tmp_actor1, tmp_actor2])
     assert result.is_all_successful
     assert result[0] == "ok"
     assert result[1] == "ok"
@@ -190,13 +190,18 @@ async def test_invoke_actors_hang(
     mocker: MockerFixture, tmp_actor1, tmp_actor2
 ):
     """Mock scene, one worker exception, cause another hang"""
+    mocker.patch.object(
+        ah.ActorBatchInvocation.async_wait,
+        "__defaults__",
+        (0.1,),
+    )
     warn = mocker.spy(ah.logger, "warning")
-    result = await invoke_actors(
+    result = await wait_batch_invoke(
         [
-            invoke_actor(Stub.slow_method, tmp_actor1, 0.5),
+            invoke_actor(Stub.slow_method, tmp_actor1, 0.3),
             invoke_actor(Stub.method_exception, tmp_actor2),
         ]
-    ).async_wait(monitor_interval=0.1)
+    )
     assert warn.call_count >= 1
     assert "may cause hang" in warn.call_args[0][0]
     assert result.is_all_successful is False
@@ -295,11 +300,22 @@ def test_static_stub_invoke(tmp_actor1, tmp_actor2):
 
 def test_slow_invoke(tmp_actor1, tmp_actor2):
     # Test that the slow method can be invoked and returns the expected result
-    assert asyncio.run(
-        invoke_actors_t(
-            Stub.slow_method, [tmp_actor1, tmp_actor2], 0.5
-        ).async_wait(0.1)
-    ).results == ["done", "done"]
+    with (
+        patch.object(
+            ah.ActorBatchInvocation.async_wait,
+            "__defaults__",
+            (0.1,),
+        ),
+        patch.object(ah.logger, "info", wraps=ah.logger.info) as mock_log,
+    ):
+        print(ah.ActorBatchInvocation.async_wait.__defaults__)
+        assert asyncio.run(
+            invoke_actors(Stub.slow_method, [tmp_actor1, tmp_actor2], 0.2)
+        ).results == ["done", "done"]
+    assert any(
+        "Waiting completing" in call.args[0]
+        for call in mock_log.call_args_list
+    )
 
     async def async_cancel_test():
         ref = invoke_actor(Stub.slow_method, tmp_actor1, 1.0)

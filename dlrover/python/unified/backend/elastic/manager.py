@@ -25,7 +25,7 @@ from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_helper import (
-    invoke_actors_t,
+    invoke_actors,
 )
 from dlrover.python.unified.util.decorators import log_execution
 
@@ -88,7 +88,7 @@ class ElasticManager:
         with ElasticMasterEvents.doing_setup_workloads():
             await self.setup_workloads()
         with ElasticMasterEvents.starting_elastic_job():
-            res = await invoke_actors_t(
+            res = await invoke_actors(
                 remote_call.start_elastic_job,
                 [node.name for node in self.workers],
             )

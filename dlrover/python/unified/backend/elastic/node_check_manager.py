@@ -21,7 +21,7 @@ from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
     invoke_actor,
     invoke_actors,
-    invoke_actors_t,
+    wait_batch_invoke,
 )
 
 from . import remote_call
@@ -38,7 +38,7 @@ def assert_sorted_by_rank(workers: List[ActorInfo]):
 async def group_by_node(
     workers: List[ActorInfo],
 ) -> List[List[ActorInfo]]:
-    node_ids = await invoke_actors_t(
+    node_ids = await invoke_actors(
         remote_call.get_ray_node_id, [w.name for w in workers]
     )
     grouped: OrderedDict[str, List[ActorInfo]] = OrderedDict()
@@ -75,7 +75,7 @@ class NodeCheckManager:
             ],
         )
         res_round0 = await self._perform_node_check(workers)
-        await invoke_actors_t(
+        await invoke_actors(
             remote_call.destroy_torch_process_group,
             workers,
         )
@@ -87,7 +87,7 @@ class NodeCheckManager:
         groups = self._grouping_round1(res_round0.results)  # TODO by node
         await self._setup_rendezvous_groups(workers, groups)
         res_round1 = await self._perform_node_check(workers)
-        await invoke_actors_t(
+        await invoke_actors(
             remote_call.destroy_torch_process_group,
             workers,
         )
@@ -163,7 +163,7 @@ class NodeCheckManager:
             remote_call.get_master_addr, group[0].name
         )
 
-        res = await invoke_actors(
+        res = await wait_batch_invoke(
             invoke_actor(
                 remote_call.setup_torch_process_group,
                 node.name,
@@ -194,7 +194,7 @@ class NodeCheckManager:
         self, nodes: List[ActorInfo]
     ) -> BatchInvokeResult[float]:
         """Perform a node check."""
-        res = await invoke_actors_t(
+        res = await invoke_actors(
             remote_call.run_network_check, [node.name for node in nodes]
         )
         return res

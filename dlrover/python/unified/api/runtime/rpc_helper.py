@@ -35,8 +35,8 @@ from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_helper import (
     invoke_actor,
-    invoke_actors,
     invoke_meta,
+    wait_batch_invoke,
 )
 from dlrover.python.unified.util.async_helper import (
     as_future,
@@ -243,7 +243,7 @@ class RoleGroup(Sequence["RoleActor"]):
             calls = [
                 _rpc_call(actor.name, name, args, kwargs) for actor in self
             ]
-        ref = invoke_actors(calls)
+        ref = wait_batch_invoke(calls)
 
         async def get_results():
             results = await ref.async_wait()
