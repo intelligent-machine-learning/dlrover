@@ -28,7 +28,7 @@ from dlrover.python.unified.util.actor_helper import (
     invoke_actors_t,
     invoke_meta,
 )
-from dlrover.python.unified.util.actor_proxy import ActorProxy
+from dlrover.python.unified.util.actor_proxy import actor_call
 
 
 @ray.remote
@@ -59,25 +59,39 @@ class SimpleActor:
         return ray.get_runtime_context().was_current_actor_reconstructed
 
 
-class Stub(ActorProxy):
+class Stub:
+    def __init__(self, actor: str):
+        self.ACTOR_NAME = actor
+
+    @actor_call
     @staticmethod
     def some_method() -> str: ...  # type: ignore[empty-body]
+    @actor_call
     @staticmethod
     def some_method_with_arg(a: int, b: str) -> str: ...  # type: ignore[empty-body]
+    @actor_call
     @staticmethod
     def slow_method(time: float) -> str: ...  # type: ignore[empty-body]
+    @actor_call
     @staticmethod
     def method_relaunch() -> str: ...  # type: ignore[empty-body]
+    @actor_call
     @staticmethod
     def method_exception() -> str: ...  # type: ignore[empty-body]
+    @actor_call
     @staticmethod
     def is_restarted() -> bool: ...  # type: ignore[empty-body]
 
+    @actor_call
     @staticmethod
     def not_existent_method() -> str: ...  # type: ignore[empty-body]
+
+    @actor_call
     @staticmethod
     @invoke_meta(name="some_method")
     def some_method_alias() -> str: ...  # type: ignore[empty-body]
+
+    @actor_call
     @staticmethod
     @invoke_meta(name="__ray_terminate__")
     def terminate() -> None: ...  # type: ignore[empty-body]
@@ -210,11 +224,19 @@ def test_restart_actor(tmp_actor1):
         asyncio.run(ah.restart_actors(["non_existent_actor"]))
 
 
-def test_actor_proxy(tmp_actor1):
-    with pytest.raises(TypeError):
+def test_actor_call_decorator(tmp_actor1):
+    with pytest.raises(ValueError):
         Stub.some_method()
+    assert (
+        repr(Stub.some_method)
+        == "ActorCall(func=Stub.some_method, actor=UNBOUND)"
+    )
+    assert Stub.some_method.bind(tmp_actor1)() == "ok"
+
     actor = Stub(tmp_actor1)
     assert actor.some_method() == "ok"
+    assert asyncio.run(actor.some_method.async_call()) == "ok"
+    assert actor.some_method_alias() == "ok"
     assert actor.some_method_with_arg(1, b="b") == "ok"
     with pytest.raises(AttributeError):
         actor.not_existent_method()
