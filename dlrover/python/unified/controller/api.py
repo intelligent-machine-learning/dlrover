@@ -16,7 +16,7 @@ from typing import Dict, List
 
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
-from dlrover.python.unified.util.actor_proxy import actor_call
+from dlrover.python.unified.util.actor_helper import actor_call
 
 MASTER_ACTOR_NAME = "__prime_master__"
 
@@ -31,7 +31,10 @@ class MasterStatus:
 
 
 class PrimeMasterApi:
-    """Stub for Remote interface for PrimeMaster."""
+    """Stub for Remote interface for PrimeMaster.
+
+    Note: use async_call inside event loop, otherwise will block the loop.
+    """
 
     ACTOR_NAME: str = MASTER_ACTOR_NAME
 

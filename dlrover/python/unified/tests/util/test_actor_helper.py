@@ -23,12 +23,12 @@ from ray.actor import ActorClass
 
 import dlrover.python.unified.util.actor_helper as ah
 from dlrover.python.unified.util.actor_helper import (
+    actor_call,
     invoke_actor_t,
     invoke_actors,
     invoke_actors_t,
     invoke_meta,
 )
-from dlrover.python.unified.util.actor_proxy import actor_call
 
 
 @ray.remote
