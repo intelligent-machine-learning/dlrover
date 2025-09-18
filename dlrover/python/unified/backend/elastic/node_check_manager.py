@@ -19,7 +19,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.util.actor_helper import (
     BatchInvokeResult,
-    invoke_actor_t,
+    invoke_actor,
     invoke_actors,
     invoke_actors_t,
 )
@@ -159,12 +159,12 @@ class NodeCheckManager:
     async def _setup_rendezvous_group(
         self, group: List[ActorInfo], only_envs: bool = False
     ):
-        master_addr = await invoke_actor_t(
+        master_addr = await invoke_actor(
             remote_call.get_master_addr, group[0].name
         )
 
         res = await invoke_actors(
-            invoke_actor_t(
+            invoke_actor(
                 remote_call.setup_torch_process_group,
                 node.name,
                 master_addr=master_addr,

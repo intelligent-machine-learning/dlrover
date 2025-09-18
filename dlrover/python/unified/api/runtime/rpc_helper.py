@@ -34,7 +34,7 @@ from typing import (
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.actor_helper import (
-    invoke_actor_t,
+    invoke_actor,
     invoke_actors,
     invoke_meta,
 )
@@ -101,7 +101,7 @@ T = TypeVar("T", covariant=True)
 
 
 def _rpc_call(actor: str, method: str, args, kwargs):
-    return invoke_actor_t(
+    return invoke_actor(
         _user_rpc_call,
         actor,
         method,

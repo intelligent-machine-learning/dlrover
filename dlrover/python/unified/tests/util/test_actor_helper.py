@@ -24,7 +24,7 @@ from ray.actor import ActorClass
 import dlrover.python.unified.util.actor_helper as ah
 from dlrover.python.unified.util.actor_helper import (
     actor_call,
-    invoke_actor_t,
+    invoke_actor,
     invoke_actors,
     invoke_actors_t,
     invoke_meta,
@@ -143,24 +143,22 @@ def test_as_actor_class():
 
 def test_invoke_actor(tmp_actor1):
     with pytest.raises(ValueError):
-        invoke_actor_t(Stub.some_method, "non_existent_actor").wait()
-    assert invoke_actor_t(Stub.some_method, tmp_actor1).wait() == "ok"
-    assert invoke_actor_t(Stub.some_method_alias, tmp_actor1).wait() == "ok"
+        invoke_actor(Stub.some_method, "non_existent_actor").wait()
+    assert invoke_actor(Stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor(Stub.some_method_alias, tmp_actor1).wait() == "ok"
     assert (
-        invoke_actor_t(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        invoke_actor(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
         == "ok"
     )
 
     with pytest.raises(AttributeError):
-        invoke_actor_t(Stub.not_existent_method, tmp_actor1).wait()
-    assert (
-        invoke_actor_t(Stub.method_relaunch, tmp_actor1).wait() == "restarted"
-    )
+        invoke_actor(Stub.not_existent_method, tmp_actor1).wait()
+    assert invoke_actor(Stub.method_relaunch, tmp_actor1).wait() == "restarted"
     with pytest.raises(Exception, match="This is a test exception"):
-        invoke_actor_t(Stub.method_exception, tmp_actor1).wait()
+        invoke_actor(Stub.method_exception, tmp_actor1).wait()
 
     # No ActorDieError when shutdown
-    assert invoke_actor_t(Stub.terminate, tmp_actor1).wait() is None
+    assert invoke_actor(Stub.terminate, tmp_actor1).wait() is None
 
 
 def test_invoke_actor_async(tmp_actor1):
@@ -168,17 +166,17 @@ def test_invoke_actor_async(tmp_actor1):
         return asyncio.run(invoke.async_wait())
 
     with pytest.raises(ValueError):
-        async_wait(invoke_actor_t(Stub.some_method, "non_existent_actor"))
-    assert async_wait(invoke_actor_t(Stub.some_method, tmp_actor1)) == "ok"
+        async_wait(invoke_actor(Stub.some_method, "non_existent_actor"))
+    assert async_wait(invoke_actor(Stub.some_method, tmp_actor1)) == "ok"
     with pytest.raises(AttributeError):
-        async_wait(invoke_actor_t(Stub.not_existent_method, tmp_actor1))
+        async_wait(invoke_actor(Stub.not_existent_method, tmp_actor1))
 
     assert (
-        async_wait(invoke_actor_t(Stub.method_relaunch, tmp_actor1))
+        async_wait(invoke_actor(Stub.method_relaunch, tmp_actor1))
         == "restarted"
     )
     with pytest.raises(Exception, match="This is a test exception"):
-        async_wait(invoke_actor_t(Stub.method_exception, tmp_actor1))
+        async_wait(invoke_actor(Stub.method_exception, tmp_actor1))
 
 
 async def test_invoke_actors(tmp_actor1, tmp_actor2):
@@ -195,8 +193,8 @@ async def test_invoke_actors_hang(
     warn = mocker.spy(ah.logger, "warning")
     result = await invoke_actors(
         [
-            invoke_actor_t(Stub.slow_method, tmp_actor1, 0.5),
-            invoke_actor_t(Stub.method_exception, tmp_actor2),
+            invoke_actor(Stub.slow_method, tmp_actor1, 0.5),
+            invoke_actor(Stub.method_exception, tmp_actor2),
         ]
     ).async_wait(monitor_interval=0.1)
     assert warn.call_count >= 1
@@ -205,7 +203,7 @@ async def test_invoke_actors_hang(
 
 
 def test_kill_actors(tmp_actor1, tmp_actor2):
-    invoke_actor_t(Stub.terminate, tmp_actor1).wait()  # Already died
+    invoke_actor(Stub.terminate, tmp_actor1).wait()  # Already died
 
     ah.kill_actors([tmp_actor1, tmp_actor2])
     assert tmp_actor1 not in ah.__actors_cache
@@ -216,9 +214,9 @@ def test_kill_actors(tmp_actor1, tmp_actor2):
 
 
 def test_restart_actor(tmp_actor1):
-    assert invoke_actor_t(Stub.is_restarted, tmp_actor1).wait() is False
+    assert invoke_actor(Stub.is_restarted, tmp_actor1).wait() is False
     asyncio.run(ah.restart_actors([tmp_actor1]))
-    assert invoke_actor_t(Stub.is_restarted, tmp_actor1).wait() is True
+    assert invoke_actor(Stub.is_restarted, tmp_actor1).wait() is True
 
     with pytest.raises(ValueError):
         asyncio.run(ah.restart_actors(["non_existent_actor"]))
@@ -287,10 +285,10 @@ def test_batch_invoke_result_with_failure():
 
 
 def test_static_stub_invoke(tmp_actor1, tmp_actor2):
-    assert invoke_actor_t(Stub.some_method, tmp_actor1).wait() == "ok"
-    assert invoke_actor_t(Stub.some_method_alias, tmp_actor2).wait() == "ok"
+    assert invoke_actor(Stub.some_method, tmp_actor1).wait() == "ok"
+    assert invoke_actor(Stub.some_method_alias, tmp_actor2).wait() == "ok"
     assert (
-        invoke_actor_t(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
+        invoke_actor(Stub.some_method_with_arg, tmp_actor1, 1, b="b").wait()
         == "ok"
     )
 
@@ -304,7 +302,7 @@ def test_slow_invoke(tmp_actor1, tmp_actor2):
     ).results == ["done", "done"]
 
     async def async_cancel_test():
-        ref = invoke_actor_t(Stub.slow_method, tmp_actor1, 1.0)
+        ref = invoke_actor(Stub.slow_method, tmp_actor1, 1.0)
         task = asyncio.create_task(ref.async_wait())
         await asyncio.sleep(0.2)
         task.cancel()

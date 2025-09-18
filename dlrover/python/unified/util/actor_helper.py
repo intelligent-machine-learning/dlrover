@@ -550,7 +550,7 @@ class IActorInfo(Protocol):
     def name(self) -> str: ...
 
 
-def invoke_actor_t(
+def invoke_actor(
     func: Callable[P, R], actor_name: str, *args: P.args, **kwargs: P.kwargs
 ) -> ActorInvocation[R]:
     """Type Safe wrapper for invoking a method on a Ray actor."""
@@ -621,7 +621,7 @@ class ActorCall(Generic[P, R]):
         """Internal method to create an ActorInvocation for the call."""
         if self._actor is UNBOUND:
             raise ValueError("ACTOR_NAME is not bound, call bind() first.")
-        return invoke_actor_t(self._func, self._actor, *args, **kwds)
+        return invoke_actor(self._func, self._actor, *args, **kwds)
 
     def __repr__(self) -> str:
         return (

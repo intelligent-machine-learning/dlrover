@@ -27,20 +27,12 @@ from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
-    kill_actors,
-    restart_actors,
-    wait_ray_node_remove,
-)
-from dlrover.python.unified.util.actor_proxy import (
-    kill_actors,
-    restart_actors,
-)
-from dlrover.python.unified.util.actor_proxy import (
     SELF,
-    invoke_actor_t,
+    invoke_actor,
     invoke_actors_t,
     kill_actors,
     restart_actors,
+    wait_ray_node_remove,
 )
 
 from ..common.config import JobConfig
@@ -278,13 +270,13 @@ class PrimeManager:
         # if the actor is sub-master, recover it directly
         if actor is actor.role.sub_master:
             await self._setup_actors([actor])
-            await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
+            await invoke_actor(ActorBase.recover_running, actor.name, SELF)
             return
 
         # Let sub-master handle worker failover first
         if actor.role.sub_master is not None:
             await actor.role.sub_master.is_ready.wait()
-            handled = await invoke_actor_t(
+            handled = await invoke_actor(
                 ActorBase.handle_worker_failover,
                 actor.role.sub_master.name,
                 SELF,
