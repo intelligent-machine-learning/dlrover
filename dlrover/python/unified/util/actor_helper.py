@@ -176,7 +176,7 @@ class ActorInvocation(Generic[T]):
             if self.timeout is not None:
                 co = asyncio.wait_for(co, timeout=self.timeout)  # type: ignore[assignment]
             self._result = cast(T, await co)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             self._raise_if_timeout()
         except Exception as e:
             self._handle_exception(e)
@@ -513,7 +513,7 @@ class IActorInfo(Protocol):
     """Common interface for actor information, for extracting name."""
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str: ...  # pragma: no cover
 
 
 def invoke_actor(
@@ -612,13 +612,5 @@ class ActorCall(Generic[P, R]):
         return await self._call(*args, **kwds)
 
 
-@overload
-def actor_call(func: Callable[P, R]) -> ActorCall[P, R]: ...
-@overload
-def actor_call(
-    *, actor: str
-) -> Callable[[Callable[P, R]], ActorCall[P, R]]: ...
-def actor_call(func=None, *, actor: str = UNBOUND) -> Any:
-    if func is None:
-        return lambda f: ActorCall(f, actor)
-    return ActorCall(func, actor)
+def actor_call(func: Callable[P, R]) -> ActorCall[P, R]:
+    return ActorCall(func)

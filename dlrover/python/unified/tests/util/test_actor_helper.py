@@ -344,3 +344,23 @@ async def test_wait_ray_node_remove(mocker: MockerFixture):
     bg = asyncio.create_task(remove_node())
     await ah.wait_ray_node_remove(["node2"], interval=0.1)
     await bg
+
+
+def test_timeout_invoke(tmp_actor1):
+    # All timeout raises TimeoutError
+    with pytest.raises(TimeoutError):
+        invoke_actor(
+            Stub.slow_method,
+            tmp_actor1,
+            1.0,
+            _rpc_timeout=0.2,  # type: ignore
+        ).wait()
+    with pytest.raises(TimeoutError):
+        asyncio.run(
+            invoke_actor(
+                Stub.slow_method,
+                tmp_actor1,
+                1.0,
+                _rpc_timeout=0.2,  # type: ignore
+            ).async_wait()
+        )
