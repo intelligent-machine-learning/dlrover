@@ -243,11 +243,10 @@ class RoleGroup(Sequence["RoleActor"]):
             calls = [
                 _rpc_call(actor.name, name, args, kwargs) for actor in self
             ]
-        ref = wait_batch_invoke(calls)
 
         async def get_results():
-            results = await ref.async_wait()
-            return results.results
+            res = await wait_batch_invoke(calls)
+            return res.results
 
         return as_future(get_results())
 
