@@ -49,7 +49,7 @@ from dlrover.python.unified.common.constant import RAY_HANG_CHECK_INTERVAL
 from dlrover.python.unified.util.decorators import log_execution
 from dlrover.python.unified.util.test_hooks import after_test_cleanup
 
-"""Helper functions for working with Ray actors."""
+"""Helper functions for working with Ray and Actors."""
 
 __actors_cache: Dict[str, ActorHandle] = {}
 T = TypeVar("T")
