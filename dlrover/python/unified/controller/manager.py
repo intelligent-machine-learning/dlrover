@@ -18,7 +18,10 @@ from typing import Any, Dict, List, Optional, Set
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
-from dlrover.python.unified.common.constant import MASTER_STATE_KEY_PREFIX
+from dlrover.python.unified.common.constant import (
+    MASTER_STATE_KEY_PREFIX,
+    RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+)
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
@@ -26,6 +29,7 @@ from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
     kill_actors,
     restart_actors,
+    wait_ray_node_remove,
 )
 from dlrover.python.unified.util.actor_proxy import (
     SELF,
@@ -136,6 +140,7 @@ class PrimeManager:
         )
         for actor, node_info in zip(actors, node_info_res.results):
             actor.node_info = node_info
+            actor.is_ready.set()
 
     async def _nodes_check(self):
         """Let sub-masters pre-check nodes.
@@ -183,13 +188,12 @@ class PrimeManager:
             # all driver roles finished
             if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
-                    self.state.exit_code = 1
                     self.request_stop(
                         "All driver roles finished, but some nodes failed."
                     )
                 else:
                     self.request_stop(
-                        "All driver roles finished successfully."
+                        "All driver roles finished successfully.", code=0
                     )
                 break
 
@@ -226,7 +230,10 @@ class PrimeManager:
         reasons should be filtered out by the following `actor.restarting`
         logic.
         """
-        # 1. Ignore some cases
+        logger.info(f"Actor {actor.name} is restarting.")
+        actor.is_ready.clear()  # reset to unready after restart whatever the reason is
+
+        # Ignore some cases
         if actor.restarting:
             return  # Actor is already restarting, no need to handle it again.
 
@@ -236,7 +243,7 @@ class PrimeManager:
             )
             return
 
-        # 2. record failure and relaunch fault node if needed
+        # record failure
 
         assert actor.node_info is not None, (
             "actor.node should be set beforehand."
@@ -247,30 +254,40 @@ class PrimeManager:
             # This is not a failure
         else:
             actor.inc_failure_count()
+
+        # Do failover
+        asyncio.create_task(self._do_failover(actor))
+
+    async def _do_failover(self, actor: DLExecutionVertex):
+        """Handle failover for the given actor."""
+        # relaunch fault node if needed
         if actor.per_node_failure_count > actor.spec.per_node_max_failure:
+            assert actor.node_info is not None
             logger.info(
                 f"Actor {actor.name} trigger node relaunch for "
                 f"exceeded the maximum per-node failure count: {actor.spec.per_node_max_failure}."
             )
             await self._relaunch_fault_nodes([actor.node_info])
 
-        # 3. Do failover
-
+        # if the actor is sub-master, recover it directly
         if actor is actor.role.sub_master:
             await self._setup_actors([actor])
             await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
             return
 
-        if (
-            actor.spec.is_role_level_failover_supported()
-            and actor.role.sub_master is not None
-        ):
-            # call sub master do role level failover
-            await invoke_actor_t(
-                ActorBase.restart_role_level, actor.role.sub_master.name, SELF
+        # Let sub-master handle worker failover first
+        if actor.role.sub_master is not None:
+            await actor.role.sub_master.is_ready.wait()
+            handled = await invoke_actor_t(
+                ActorBase.handle_worker_failover,
+                actor.role.sub_master.name,
+                SELF,
+                actor.name,
             )
-            return
-        # call job restart
+            # If the sub-master handled the failover, we're done
+            if handled:
+                return
+        # fallback to job restart to handle the failover
         await self.restart_job()
 
     async def _relaunch_fault_nodes(self, nodes: List[NodeInfo]):
@@ -284,14 +301,27 @@ class PrimeManager:
         try:
             relaunched_nodes = await self.ext.relaunch_nodes_impl(nodes)
             self.state.node_restart_count += len(relaunched_nodes)
-            logger.info(
-                f"Total relaunched nodes: {[node.id for node in relaunched_nodes]}"
-            )
-
-            # remove not relaunched nodes from
+            # unset non-relaunched nodes
             for n in nodes:
                 if n not in relaunched_nodes:
                     self.state.removed_nodes.remove(n.id)
+            if not relaunched_nodes:
+                logger.info("No nodes were relaunched.")
+                return
+            # Ensure the nodes are removed from Ray cluster, avoid exceptions during restart processing.
+            await asyncio.wait_for(
+                wait_ray_node_remove([n.id for n in relaunched_nodes]),
+                timeout=(
+                    len(relaunched_nodes) * RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
+                ),
+            )
+            logger.info(
+                f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timeout waiting for nodes to be removed from Ray cluster, may cause inconsistency."
+            )
         except Exception:
             logger.exception(
                 "Failed to relaunch nodes due to unexpected error. The following node relaunch may not be executed properly."
@@ -327,15 +357,17 @@ class PrimeManager:
             await self.start()
             logger.info("Job restarted successfully.")
 
-    def request_stop(self, reason: str):
+    def request_stop(self, reason: str, code: int = 1):
         """Stop the job execution. And clean up resources."""
         if (
             self.stage == MasterStage.STOPPING
             or self.stage == MasterStage.STOPPED
         ):
             return
-        logger.info(f"Requesting to stop the job: {reason}")
-        ControllerEvents.stop_requested(reason)
+        logger.info(f"Requesting to stop the job: {reason}(code={code})")
+        ControllerEvents.stop_requested(reason, code)
+
+        self.state.exit_code = code
         if self.stage == MasterStage.RUNNING:
             self._update_stage(MasterStage.STOPPING)
             self._notify_main_loop.release()

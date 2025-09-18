@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from typing import Dict, List
 
 import ray
@@ -121,7 +120,7 @@ class PrimeMaster:
         if actor is None:
             raise ValueError(f"Actor {name} not found.")
 
-        asyncio.create_task(self.manager.deal_with_actor_restarting(actor))
+        await self.manager.deal_with_actor_restarting(actor)
 
     def register_data_queue(self, name: str, owner_actor: str, size: int):
         """Register a data queue."""

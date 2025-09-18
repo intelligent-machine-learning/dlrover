@@ -97,7 +97,7 @@ class ActorBase:
         return self.name
 
     # region Hook methods for subclasses to implement
-    def setup(self):
+    def setup(self) -> None:
         """Setup the actor/node.
 
         This method is called during initialization and should be overridden
@@ -105,7 +105,7 @@ class ActorBase:
         is ready to run.
         """
 
-    def start(self):
+    def start(self) -> None:
         """Start the actor/node. If already started, do nothing.
 
         This method should be overridden by subMaster or trainer,
@@ -117,24 +117,22 @@ class ActorBase:
            worker actor, and ensure that stage updated to FINISHED or FAILED when done.
         """
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Self-kill the actor/node."""
         ray.actor.exit_actor()  # As ray.kill don't execute callback.
 
     # region for sub-master
-    def check_workers(self):
+    def check_workers(self) -> None:
         """Check the workers of the master."""
-        pass
 
-    def recover_running(self):
+    def recover_running(self) -> None:
         """Recover the sub-master to the RUNNING state.
 
         This method should be overridden by subclasses to implement
         the logic required to transition the sub-master back to RUNNING.
         """
-        pass
 
-    def restart_role_level(self):
+    def restart_role_level(self) -> None:
         """
         Request role_level restart.
 
@@ -144,6 +142,18 @@ class ActorBase:
         raise NotImplementedError(
             "The current sub master does not implement restart_role_level."
         )
+
+    def handle_worker_failover(self, worker_name: str) -> bool:
+        """
+        Handle worker failover.
+
+        This method should be overridden by sub-masters to implement
+        the logic required to handle worker failover.
+
+        Returns:
+            True if failover is handled, False otherwise(fallback to job-level failover).
+        """
+        return False
 
     # region Misc methods
 
