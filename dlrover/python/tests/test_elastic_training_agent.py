@@ -1598,6 +1598,5 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         _check_device(config)
 
 
-
 if __name__ == "__main__":
     unittest.main()
