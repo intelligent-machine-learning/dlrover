@@ -1594,6 +1594,9 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         with self.assertRaises(NodeCheckFailedError):
             ElasticTrainingAgent.reset_device_checked()
             _check_device(config)
+        # skip cuz checked
+        _check_device(config)
+
 
 
 if __name__ == "__main__":
