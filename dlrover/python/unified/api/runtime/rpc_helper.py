@@ -33,10 +33,10 @@ from typing import (
 
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.actor_proxy import (
-    invoke_actor_t,
-    invoke_actors,
+from dlrover.python.unified.util.actor_helper import (
+    invoke_actor,
     invoke_meta,
+    wait_batch_invoke,
 )
 from dlrover.python.unified.util.async_helper import (
     as_future,
@@ -101,13 +101,13 @@ T = TypeVar("T", covariant=True)
 
 
 def _rpc_call(actor: str, method: str, args, kwargs):
-    return invoke_actor_t(
+    return invoke_actor(
         _user_rpc_call,
         actor,
         method,
         *args,
         **kwargs,
-        _display_name=f"user_rpc({method})",
+        _rpc_display_name=f"user_rpc({method})",
     )
 
 
@@ -243,11 +243,10 @@ class RoleGroup(Sequence["RoleActor"]):
             calls = [
                 _rpc_call(actor.name, name, args, kwargs) for actor in self
             ]
-        ref = invoke_actors(calls)
 
         async def get_results():
-            results = await ref.async_wait()
-            return results.results
+            res = await wait_batch_invoke(calls)
+            return res.results
 
         return as_future(get_results())
 
