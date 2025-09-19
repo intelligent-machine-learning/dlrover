@@ -1825,6 +1825,7 @@ def _check_device(config: ElasticLaunchConfig):
         return
 
     check_result = True, -1
+    ElasticTrainingAgent.set_device_checked()
 
     if config.accelerator == Accelerators.NVIDIA_GPU:
         # for gpu or cpu
@@ -1836,13 +1837,11 @@ def _check_device(config: ElasticLaunchConfig):
         logger.debug(
             f"Device type {config.accelerator} is not supported for checking."
         )
-        ElasticTrainingAgent.set_device_checked()
         return
 
     logger.debug(f"Device stats: {device_stats}")
     if not device_stats:
         logger.info("Skip device check for stats is empty.")
-        ElasticTrainingAgent.set_device_checked()
         return
 
     for device_stat in device_stats:
@@ -1866,11 +1865,9 @@ def _check_device(config: ElasticLaunchConfig):
             msg="Device check failed",
             labels={"device": check_result[1]},
         )
-        ElasticTrainingAgent.set_device_checked()
         raise NodeCheckFailedError(NodeExitDescription.GPU_INVALID_MSG)
 
     logger.info(f"Device[{config.accelerator}] check succeeded.")
-    ElasticTrainingAgent.set_device_checked()
 
 
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
