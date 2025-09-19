@@ -24,9 +24,8 @@ from dlrover.python.unified.backend.elastic.node_check_manager import (
 from dlrover.python.unified.common.actor_base import ActorInfo
 from dlrover.python.unified.common.workload_desc import ElasticWorkloadDesc
 from dlrover.python.unified.controller.api import PrimeMasterApi
-from dlrover.python.unified.util.actor_proxy import (
-    invoke_actor_t,
-    invoke_actors_t,
+from dlrover.python.unified.util.actor_helper import (
+    invoke_actors,
 )
 from dlrover.python.unified.util.decorators import log_execution
 
@@ -63,9 +62,7 @@ class ElasticManager:
             )
             if retry_count > 0:
                 logger.info("Ask PrimeMaster to restart the nodes.")
-                await invoke_actor_t(
-                    PrimeMasterApi.restart_actors,
-                    PrimeMasterApi.ACTOR_NAME,
+                await PrimeMasterApi.restart_actors.async_call(
                     actor_names=[node.name for node in abnormal_nodes],
                 )
                 logger.info("Restarted nodes, retrying node-check...")
@@ -91,7 +88,7 @@ class ElasticManager:
         with ElasticMasterEvents.doing_setup_workloads():
             await self.setup_workloads()
         with ElasticMasterEvents.starting_elastic_job():
-            res = await invoke_actors_t(
+            res = await invoke_actors(
                 remote_call.start_elastic_job,
                 [node.name for node in self.workers],
             )
@@ -116,9 +113,7 @@ class ElasticManager:
         """Restart the elastic job due to worker restart."""
         with log_execution("restarting"), ElasticMasterEvents.restarting():
             logger.info("Restarting all workers...")
-            await invoke_actor_t(
-                PrimeMasterApi.restart_actors,
-                PrimeMasterApi.ACTOR_NAME,
+            await PrimeMasterApi.restart_actors.async_call(
                 actor_names=[worker.name for worker in self.workers],
             )
             logger.info("Restarted workers, re-checking their status.")

@@ -16,7 +16,10 @@
 
 # mypy: disable-error-code=empty-body
 
+from dlrover.python.unified.util.actor_helper import actor_call
 
+
+@actor_call
 def get_master_addr() -> str:
     """Get the master address."""
     raise NotImplementedError("stub")  # pragma: no cover

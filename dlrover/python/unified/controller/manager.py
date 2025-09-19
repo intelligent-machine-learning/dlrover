@@ -27,14 +27,12 @@ from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
 from dlrover.python.unified.util.actor_helper import (
+    SELF,
+    invoke_actor,
+    invoke_actors,
     kill_actors,
     restart_actors,
     wait_ray_node_remove,
-)
-from dlrover.python.unified.util.actor_proxy import (
-    SELF,
-    invoke_actor_t,
-    invoke_actors_t,
 )
 
 from ..common.config import JobConfig
@@ -130,12 +128,12 @@ class PrimeManager:
     async def _setup_actors(self, actors: List[DLExecutionVertex]):
         """Wait for all actors to be ready."""
         with ControllerEvents.setup_actors():
-            res = await invoke_actors_t(ActorBase.setup, actors, SELF)
+            res = await invoke_actors(ActorBase.setup, actors, SELF)
             res.raise_for_errors()
         logger.info("All actors have completed setup.")
 
         # update all actor's node info
-        node_info_res = await invoke_actors_t(
+        node_info_res = await invoke_actors(
             ActorBase.get_node_info, actors, SELF
         )
         for actor, node_info in zip(actors, node_info_res.results):
@@ -154,7 +152,7 @@ class PrimeManager:
         if not sub_masters:
             return
         with ControllerEvents.node_check():
-            res = await invoke_actors_t(
+            res = await invoke_actors(
                 ActorBase.check_workers, sub_masters, SELF
             )
             res.raise_for_errors()
@@ -167,7 +165,7 @@ class PrimeManager:
         )
         with ControllerEvents.starting():
             actors = [actor.name for actor in self.graph.vertices]
-            res = await invoke_actors_t(ActorBase.start, actors, SELF)
+            res = await invoke_actors(ActorBase.start, actors, SELF)
             res.raise_for_errors()
 
         logger.info("Job started successfully.")
@@ -272,13 +270,13 @@ class PrimeManager:
         # if the actor is sub-master, recover it directly
         if actor is actor.role.sub_master:
             await self._setup_actors([actor])
-            await invoke_actor_t(ActorBase.recover_running, actor.name, SELF)
+            await invoke_actor(ActorBase.recover_running, actor.name, SELF)
             return
 
         # Let sub-master handle worker failover first
         if actor.role.sub_master is not None:
             await actor.role.sub_master.is_ready.wait()
-            handled = await invoke_actor_t(
+            handled = await invoke_actor(
                 ActorBase.handle_worker_failover,
                 actor.role.sub_master.name,
                 SELF,

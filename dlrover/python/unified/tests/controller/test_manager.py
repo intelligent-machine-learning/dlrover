@@ -112,7 +112,7 @@ async def test_do_failover(mocker: MockerFixture, case):
     # Case 1. Elastic worker
     if case == 1:
         invoke_actor = mocker.patch(
-            "dlrover.python.unified.controller.manager.invoke_actor_t",
+            "dlrover.python.unified.controller.manager.invoke_actor",
             AsyncMock(return_value=True),
         )
         worker = manager.graph.roles["training"].instances[0]
@@ -183,7 +183,7 @@ async def test_do_failover(mocker: MockerFixture, case):
     # Case 4. SubMaster restarted
     elif case == 4:
         invoke_actor = mocker.patch(
-            "dlrover.python.unified.controller.manager.invoke_actor_t",
+            "dlrover.python.unified.controller.manager.invoke_actor",
             AsyncMock(),
         )
         setup_actors = mocker.patch.object(
