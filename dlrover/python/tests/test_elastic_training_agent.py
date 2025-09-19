@@ -1547,41 +1547,52 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
     @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
     @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
     def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
+        self.assertFalse(ElasticTrainingAgent.is_device_checked())
+        ElasticTrainingAgent.set_device_checked()
+        self.assertTrue(ElasticTrainingAgent.is_device_checked())
+
         config = ElasticLaunchConfig(
             min_nodes=1, max_nodes=1, nproc_per_node=1
         )
 
         config.accelerator = Accelerators.GENERIC_CPU
+        ElasticTrainingAgent.node_device_check = False
         _check_device(config)
 
         mock_get_hpu_stats.return_value = []
         config.accelerator = Accelerators.ASCEND_NPU
+        ElasticTrainingAgent.node_device_check = False
         _check_device(config)
 
         mock_get_hpu_stats.return_value = [
             GPUStats(total_memory_mb=100, used_memory_mb=10)
         ]
+        ElasticTrainingAgent.node_device_check = False
         _check_device(config)
 
         mock_get_hpu_stats.return_value = [
             GPUStats(total_memory_mb=100, used_memory_mb=50)
         ]
         with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.node_device_check = False
             _check_device(config)
 
         mock_get_gpu_stats.return_value = []
         config.accelerator = Accelerators.NVIDIA_GPU
+        ElasticTrainingAgent.node_device_check = False
         _check_device(config)
 
         mock_get_gpu_stats.return_value = [
             GPUStats(total_memory_mb=100, used_memory_mb=10)
         ]
+        ElasticTrainingAgent.node_device_check = False
         _check_device(config)
 
         mock_get_gpu_stats.return_value = [
             GPUStats(total_memory_mb=100, used_memory_mb=50)
         ]
         with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.node_device_check = False
             _check_device(config)
 
 
