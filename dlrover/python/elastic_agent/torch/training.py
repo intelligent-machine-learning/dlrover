@@ -577,6 +577,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def set_device_checked(cls):
         cls.node_device_check = True
 
+    @classmethod
+    def reset_device_checked(cls):
+        cls.node_device_check = False
+
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
         """The ASCEND framework might fork multiple sub-processes, we should
