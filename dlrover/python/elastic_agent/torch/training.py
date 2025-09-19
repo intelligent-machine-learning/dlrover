@@ -507,6 +507,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
     the exitcode is 1 if the hardware breakdowns.
     """
 
+    node_device_check = False
+
     def __init__(
         self,
         node_rank,
@@ -566,6 +568,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info(
                     f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
                 )
+
+    @classmethod
+    def is_device_checked(cls):
+        return cls.node_device_check
+
+    @classmethod
+    def set_device_checked(cls):
+        cls.node_device_check = True
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
@@ -1810,6 +1820,10 @@ def comm_perf_check(
 
 
 def _check_device(config: ElasticLaunchConfig):
+    if ElasticTrainingAgent.is_device_checked():
+        logger.info("Skip device check for not 1st time starting.")
+        return
+
     check_result = True, -1
 
     if config.accelerator == Accelerators.NVIDIA_GPU:
@@ -1822,11 +1836,13 @@ def _check_device(config: ElasticLaunchConfig):
         logger.debug(
             f"Device type {config.accelerator} is not supported for checking."
         )
+        ElasticTrainingAgent.set_device_checked()
         return
 
     logger.debug(f"Device stats: {device_stats}")
     if not device_stats:
         logger.info("Skip device check for stats is empty.")
+        ElasticTrainingAgent.set_device_checked()
         return
 
     for device_stat in device_stats:
@@ -1850,9 +1866,11 @@ def _check_device(config: ElasticLaunchConfig):
             msg="Device check failed",
             labels={"device": check_result[1]},
         )
+        ElasticTrainingAgent.set_device_checked()
         raise NodeCheckFailedError(NodeExitDescription.GPU_INVALID_MSG)
 
     logger.info(f"Device[{config.accelerator}] check succeeded.")
+    ElasticTrainingAgent.set_device_checked()
 
 
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
