@@ -18,7 +18,7 @@ import os
 import time
 
 import torch
-from gguf import Any
+from typing import Any
 from omegaconf import DictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
