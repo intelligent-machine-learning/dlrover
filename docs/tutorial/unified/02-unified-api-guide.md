@@ -98,3 +98,31 @@ User can use the following environment variables to configure job submitting.
 
 
 See `dlrover.python.unified.common.config.JobConfig` for all options.
+
+#### Isolation scheduling configuration
+
+Users can achieve isolated (targeted) scheduling of master or worker actors by 
+specifying custom resources for cluster nodes when creating the cluster and 
+providing the corresponding settings when submitting jobs:
+```txt
+master_isolation_schedule_resource  # for master
+worker_isolation_schedule_resource  # for worker
+```
+
+
+For example: if user wants all the master actors be scheduled on head node, 
+and all the worker actors be scheduled on worker nodes.
+
+1. Set {"MASTER_RESOURCE":999} for ray head node and {"WORKER_RESOURCE":999} 
+   for other ray worker nodes
+2. Configure the following submitting params:
+```python
+master_isolation_schedule_resource="MASTER_RESOURCE"
+worker_isolation_schedule_resource="WORKER_RESOURCE"
+```
+or using envs(before submission):
+```python
+DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE="MASTER_RESOURCE"
+DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE="WORKER_RESOURCE"
+```
+
