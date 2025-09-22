@@ -202,8 +202,12 @@ def test_failover_entire_job(tmp_ray):
     "tmp_ray", [{"resources": {"MR": 999, "WR": 999}}], indirect=True
 )
 def test_master_worker_isolation_scheduling(tmp_ray, monkeypatch):
-    monkeypatch.setenv("DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE", "MR")
-    monkeypatch.setenv("DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE", "WR")
+    monkeypatch.setenv(
+        "DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE", "MR"
+    )
+    monkeypatch.setenv(
+        "DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE", "WR"
+    )
 
     dl_job = (
         DLJobBuilder()
