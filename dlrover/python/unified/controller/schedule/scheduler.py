@@ -31,7 +31,6 @@ from dlrover.python.unified.common.workload_desc import ResourceDesc
 from dlrover.python.unified.util.actor_helper import wait_ready
 
 from .graph import DLExecutionGraph
-from ...backend import ElasticMaster
 
 
 @dataclass
@@ -176,12 +175,6 @@ class Scheduler:
         await wait_ready([node.name for node in graph.vertices])
         logger.info("All actors finished initializing.")
 
-    @classmethod
-    def _is_sub_master(cls, actor: RayActorSpec) -> bool:
-        if actor.cls in [ElasticMaster]:
-            return True
-        return False
-
     def create_actor(self, actor: RayActorSpec):
         runtime_env: dict = {
             "env_vars": actor.envs,
@@ -201,24 +194,6 @@ class Scheduler:
             f"with runtime env: {runtime_env}"
         )
 
-        worker_ud_resource = actor.resource.user_defined
-        if self._is_sub_master(actor):
-            if self._config.master_isolation_schedule_resource:
-                worker_ud_resource[
-                    self._config.master_isolation_schedule_resource
-                ] = 1
-                logger.info(
-                    f"Setup sub-master actor: {actor.name} isolation ud resource: {worker_ud_resource}"
-                )
-        else:
-            if self._config.worker_isolation_schedule_resource:
-                worker_ud_resource[
-                    self._config.worker_isolation_schedule_resource
-                ] = 1
-                logger.info(
-                    f"Setup worker actor: {actor.name} isolation ud resource: {worker_ud_resource}"
-                )
-
         actor.cls.options(
             name=actor.name,
             lifetime="detached",
@@ -227,7 +202,7 @@ class Scheduler:
             num_cpus=actor.resource.cpu,
             memory=actor.resource.memory,
             num_gpus=num_gpus,  # use bundle resource instead
-            resources=worker_ud_resource,
+            resources=actor.resource.user_defined,
             runtime_env=runtime_env,
             scheduling_strategy=actor.scheduling_strategy,
         ).remote(**actor.options)
