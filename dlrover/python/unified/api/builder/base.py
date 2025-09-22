@@ -45,6 +45,7 @@ from dlrover.python.unified.common.workload_desc import (
 )
 from dlrover.python.unified.driver.main import submit
 from dlrover.python.unified.util.config_util import read_dict_from_envs
+from dlrover.python.common.log import default_logger as logger
 
 # Note: Builder don't do validation, let DLJob validate when build().
 
@@ -125,6 +126,7 @@ class DLJob(DLConfig):
         default_name = f"dlrover-{random.randbytes(3).hex()}"
 
         from_env = read_dict_from_envs(JOB_OPTIONS_ENV_PREFIX)
+        logger.info(f"Got submitting config from env: {from_env}")
 
         if job_name is not None:
             kwargs["job_name"] = job_name

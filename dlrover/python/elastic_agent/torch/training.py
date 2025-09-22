@@ -507,6 +507,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
     the exitcode is 1 if the hardware breakdowns.
     """
 
+    node_device_check = False
+
     def __init__(
         self,
         node_rank,
@@ -566,6 +568,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info(
                     f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
                 )
+
+    @classmethod
+    def is_device_checked(cls):
+        return cls.node_device_check
+
+    @classmethod
+    def set_device_checked(cls):
+        cls.node_device_check = True
+
+    @classmethod
+    def reset_device_checked(cls):
+        cls.node_device_check = False
 
     @prof
     def _stop_workers_ascend(self, worker_group: WorkerGroup) -> None:
@@ -1810,7 +1824,12 @@ def comm_perf_check(
 
 
 def _check_device(config: ElasticLaunchConfig):
+    if ElasticTrainingAgent.is_device_checked():
+        logger.info("Skip device check for not 1st time starting.")
+        return
+
     check_result = True, -1
+    ElasticTrainingAgent.set_device_checked()
 
     if config.accelerator == Accelerators.NVIDIA_GPU:
         # for gpu or cpu
