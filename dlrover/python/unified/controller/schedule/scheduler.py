@@ -31,6 +31,7 @@ from dlrover.python.unified.common.workload_desc import ResourceDesc
 from dlrover.python.unified.util.actor_helper import wait_ready
 
 from .graph import DLExecutionGraph
+from ...backend import ElasticMaster
 
 
 @dataclass
@@ -66,6 +67,7 @@ class Scheduler:
                         bundle_id_start + worker.rank // role.spec.per_group
                     )
         self._pg = self._create_pg(bundles)
+
         assert self._pg is not None
         if not self._pg.wait(timeout_seconds=30):
             raise RuntimeError(
@@ -118,6 +120,18 @@ class Scheduler:
                         "actor_info": worker.to_actor_info(),
                     },
                 )
+
+                # set isolation resource if required
+                worker_isolation_resource = (
+                    self._config.worker_isolation_schedule_resource
+                )
+                if worker_isolation_resource:
+                    spec.resource.user_defined[worker_isolation_resource] = 1
+                    logger.debug(
+                        f"Setup worker actor: {worker.name} isolation "
+                        f"ud resource: {worker_isolation_resource}"
+                    )
+
                 logger.info(
                     f"Creating worker actor: {worker.to_actor_info()} "
                     f"with bundle: {worker.bundle_index}"
@@ -140,6 +154,18 @@ class Scheduler:
                         "actor_info": sub_master.to_actor_info(),
                     },
                 )
+
+                # set isolation resource if required
+                master_isolation_resource = (
+                    self._config.master_isolation_schedule_resource
+                )
+                if master_isolation_resource:
+                    spec.resource.user_defined[master_isolation_resource] = 1
+                    logger.debug(
+                        f"Setup sub-master actor: {sub_master.name} isolation "
+                        f"ud resource: {master_isolation_resource}"
+                    )
+
                 logger.info(
                     f"Creating sub-master actor: {sub_master.to_actor_info()} with bundle: {sub_master.bundle_index}"
                 )
@@ -149,6 +175,12 @@ class Scheduler:
         # 2. Check actors with ping
         await wait_ready([node.name for node in graph.vertices])
         logger.info("All actors finished initializing.")
+
+    @classmethod
+    def _is_sub_master(cls, actor: RayActorSpec) -> bool:
+        if actor.cls in [ElasticMaster]:
+            return True
+        return False
 
     def create_actor(self, actor: RayActorSpec):
         runtime_env: dict = {
@@ -169,6 +201,24 @@ class Scheduler:
             f"with runtime env: {runtime_env}"
         )
 
+        worker_ud_resource = actor.resource.user_defined
+        if self._is_sub_master(actor):
+            if self._config.master_isolation_schedule_resource:
+                worker_ud_resource[
+                    self._config.master_isolation_schedule_resource
+                ] = 1
+                logger.info(
+                    f"Setup sub-master actor: {actor.name} isolation ud resource: {worker_ud_resource}"
+                )
+        else:
+            if self._config.worker_isolation_schedule_resource:
+                worker_ud_resource[
+                    self._config.worker_isolation_schedule_resource
+                ] = 1
+                logger.info(
+                    f"Setup worker actor: {actor.name} isolation ud resource: {worker_ud_resource}"
+                )
+
         actor.cls.options(
             name=actor.name,
             lifetime="detached",
@@ -177,7 +227,7 @@ class Scheduler:
             num_cpus=actor.resource.cpu,
             memory=actor.resource.memory,
             num_gpus=num_gpus,  # use bundle resource instead
-            resources=actor.resource.user_defined,
+            resources=worker_ud_resource,
             runtime_env=runtime_env,
             scheduling_strategy=actor.scheduling_strategy,
         ).remote(**actor.options)
@@ -187,11 +237,19 @@ class Scheduler:
 
         accelerator = self._config.dl_config.accelerator_type
 
+        # add isolation ud resource for bundles
+        if self._config.worker_isolation_schedule_resource:
+            for bundle in bundles:
+                bundle.user_defined[
+                    self._config.worker_isolation_schedule_resource
+                ] = 100
+
         def _to_bundle(resource: ResourceDesc) -> Dict[str, Any]:
             """Convert ResourceDesc to a bundle dict."""
             ret = {
                 "CPU": resource.cpu,
                 "memory": resource.memory,
+                **resource.user_defined,
             }
             if accelerator == ACCELERATOR_TYPE.GPU:
                 ret["GPU"] = resource.accelerator

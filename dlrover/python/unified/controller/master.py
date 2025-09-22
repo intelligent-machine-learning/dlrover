@@ -148,6 +148,14 @@ class PrimeMaster:
         if not ray.is_initialized():
             logger.info("Ray is not initialized, initializing now.")
             ray.init()
+
+        master_ud_resource = {}
+        if config.master_isolation_schedule_resource:
+            master_ud_resource[config.master_isolation_schedule_resource] = 1
+            logger.info(
+                f"Setup master actor isolation ud resource: {master_ud_resource}"
+            )
+
         ref = (
             ray.remote(PrimeMaster)
             .options(
@@ -155,6 +163,7 @@ class PrimeMaster:
                 lifetime="detached" if detached else "normal",
                 num_cpus=config.master_cpu,
                 memory=config.master_mem,
+                resources=master_ud_resource,
                 max_restarts=config.master_max_restart,
                 runtime_env={"env_vars": config.dl_config.global_envs},
             )
