@@ -84,14 +84,17 @@ Use `job.submit()` submits the job; runtime semantics (blocking vs non-blocking)
 
 User can use the following environment variables to configure job submitting.
 
-| Config                | Environment Variable                    | Default      | Note                                     |
-| --------------------- | --------------------------------------- | ------------ | ---------------------------------------- |
-| job_name              | `DLROVER_UNIFIED_JOB_NAME`              | dlrover-xxxx | Name of the job                          |
-| master_cpu            | `DLROVER_UNIFIED_MASTER_CPU`            | 2            | Number of CPU cores for the master node  |
-| master_mem            | `DLROVER_UNIFIED_MASTER_MEM`            | 4096 (in MB) | Amount of memory for the master node     |
-| master_create_timeout | `DLROVER_UNIFIED_MASTER_CREATE_TIMEOUT` | 600 (in s)   | Timeout for creating master node         |
-| node_max_restart      | `DLROVER_UNIFIED_NODE_MAX_RESTART`      | 10           | Maximum number of restarts for each node |
-| job_max_restart       | `DLROVER_UNIFIED_JOB_MAX_RESTART`       | 10           | Maximum number of job restarts           |
-| master_max_restart    | `DLROVER_UNIFIED_MASTER_MAX_RESTART`    | 10           | Maximum number of master restarts        |
+| Config                             | Environment Variable                                 | Default      | Note                                                                                      |
+|------------------------------------|------------------------------------------------------| ------------ |-------------------------------------------------------------------------------------------|
+| job_name                           | `DLROVER_UNIFIED_JOB_NAME`                           | dlrover-xxxx | Name of the job                                                                           |
+| master_cpu                         | `DLROVER_UNIFIED_MASTER_CPU`                         | 2            | Number of CPU cores for the master node                                                   |
+| master_mem                         | `DLROVER_UNIFIED_MASTER_MEM`                         | 4096 (in MB) | Amount of memory for the master node                                                      |
+| master_create_timeout              | `DLROVER_UNIFIED_MASTER_CREATE_TIMEOUT`              | 600 (in s)   | Timeout for creating master node                                                          |
+| node_max_restart                   | `DLROVER_UNIFIED_NODE_MAX_RESTART`                   | 10           | Maximum number of restarts for each node                                                  |
+| job_max_restart                    | `DLROVER_UNIFIED_JOB_MAX_RESTART`                    | 10           | Maximum number of job restarts                                                            |
+| master_max_restart                 | `DLROVER_UNIFIED_MASTER_MAX_RESTART`                 | 10           | Maximum number of master restarts                                                         |
+| master_isolation_schedule_resource | `DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE` | ""           | The master actor's scheduling will use this resource(key:1) if the resource is configured |
+| worker_isolation_schedule_resource | `DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE` | ""           | The worker actor's scheduling will use this resource(key:1) if the resource is configured |
+
 
 See `dlrover.python.unified.common.config.JobConfig` for all options.
