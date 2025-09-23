@@ -115,18 +115,18 @@ and all the worker actors be scheduled on worker nodes.
 
 1. Set {"MASTER_RESOURCE":999} for ray head node and {"WORKER_RESOURCE":999} 
    for other ray worker nodes
-```txt
-Noticed: Please configure the resource value to be sufficiently large, it is 
-recommended to set the value > 999.
-```
+    ```txt
+    Noticed: Please configure the resource value to be sufficiently large, it is 
+    recommended to set the value > 999.
+    ```
 2. Configure the following submitting params:
-```python
-master_isolation_schedule_resource="MASTER_RESOURCE"
-worker_isolation_schedule_resource="WORKER_RESOURCE"
-```
-or using envs(before submission):
-```python
-DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE="MASTER_RESOURCE"
-DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE="WORKER_RESOURCE"
-```
+    ```python
+    master_isolation_schedule_resource="MASTER_RESOURCE"
+    worker_isolation_schedule_resource="WORKER_RESOURCE"
+    ```
+    or using envs(before submission):
+    ```python
+    DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE="MASTER_RESOURCE"
+    DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE="WORKER_RESOURCE"
+    ```
 
