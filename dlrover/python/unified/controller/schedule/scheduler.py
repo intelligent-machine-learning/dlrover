@@ -212,13 +212,6 @@ class Scheduler:
 
         accelerator = self._config.dl_config.accelerator_type
 
-        # add isolation ud resource for bundles
-        if self._config.worker_isolation_schedule_resource:
-            for bundle in bundles:
-                bundle.user_defined[
-                    self._config.worker_isolation_schedule_resource
-                ] = 100
-
         def _to_bundle(resource: ResourceDesc) -> Dict[str, Any]:
             """Convert ResourceDesc to a bundle dict."""
             ret = {
@@ -231,17 +224,26 @@ class Scheduler:
             elif accelerator == ACCELERATOR_TYPE.CPU:
                 ret["CPU"] = max(ret["CPU"], resource.accelerator)
 
+            # add isolation ud resource for bundles
+            worker_isolation_resource = (
+                self._config.worker_isolation_schedule_resource
+            )
+            if worker_isolation_resource:
+                # a fixed value is enough
+                ret[worker_isolation_resource] = 100
+
             # remove value=0
             return {k: v for k, v in ret.items() if v != 0}
 
+        bundles_for_pg = [_to_bundle(bundle) for bundle in bundles]
         logger.info(
             "Creating placement group "
             f"with bundle size: {len(bundles)} "
             f"with total resource: {sum(bundles, ResourceDesc())}. \n"
-            f"All bundles: {bundles}."
+            f"All bundles: {bundles_for_pg}."
         )
         return placement_group(
-            bundles=[_to_bundle(bundle) for bundle in bundles],
+            bundles=bundles_for_pg,
             strategy="PACK",
             name=f"dlrover_placement_group_{self._config.job_name}",
         )
