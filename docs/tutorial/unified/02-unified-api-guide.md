@@ -84,14 +84,49 @@ Use `job.submit()` submits the job; runtime semantics (blocking vs non-blocking)
 
 User can use the following environment variables to configure job submitting.
 
-| Config                | Environment Variable                    | Default      | Note                                     |
-| --------------------- | --------------------------------------- | ------------ | ---------------------------------------- |
-| job_name              | `DLROVER_UNIFIED_JOB_NAME`              | dlrover-xxxx | Name of the job                          |
-| master_cpu            | `DLROVER_UNIFIED_MASTER_CPU`            | 2            | Number of CPU cores for the master node  |
-| master_mem            | `DLROVER_UNIFIED_MASTER_MEM`            | 4096 (in MB) | Amount of memory for the master node     |
-| master_create_timeout | `DLROVER_UNIFIED_MASTER_CREATE_TIMEOUT` | 600 (in s)   | Timeout for creating master node         |
-| node_max_restart      | `DLROVER_UNIFIED_NODE_MAX_RESTART`      | 10           | Maximum number of restarts for each node |
-| job_max_restart       | `DLROVER_UNIFIED_JOB_MAX_RESTART`       | 10           | Maximum number of job restarts           |
-| master_max_restart    | `DLROVER_UNIFIED_MASTER_MAX_RESTART`    | 10           | Maximum number of master restarts        |
+| Config                             | Environment Variable                                 | Default      | Note                                                                                      |
+|------------------------------------|------------------------------------------------------| ------------ |-------------------------------------------------------------------------------------------|
+| job_name                           | `DLROVER_UNIFIED_JOB_NAME`                           | dlrover-xxxx | Name of the job                                                                           |
+| master_cpu                         | `DLROVER_UNIFIED_MASTER_CPU`                         | 2            | Number of CPU cores for the master node                                                   |
+| master_mem                         | `DLROVER_UNIFIED_MASTER_MEM`                         | 4096 (in MB) | Amount of memory for the master node                                                      |
+| master_create_timeout              | `DLROVER_UNIFIED_MASTER_CREATE_TIMEOUT`              | 600 (in s)   | Timeout for creating master node                                                          |
+| node_max_restart                   | `DLROVER_UNIFIED_NODE_MAX_RESTART`                   | 10           | Maximum number of restarts for each node                                                  |
+| job_max_restart                    | `DLROVER_UNIFIED_JOB_MAX_RESTART`                    | 10           | Maximum number of job restarts                                                            |
+| master_max_restart                 | `DLROVER_UNIFIED_MASTER_MAX_RESTART`                 | 10           | Maximum number of master restarts                                                         |
+| master_isolation_schedule_resource | `DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE` | ""           | The master actor's scheduling will use this resource(key:1) if the resource is configured |
+| worker_isolation_schedule_resource | `DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE` | ""           | The worker actor's scheduling will use this resource(key:1) if the resource is configured |
+
 
 See `dlrover.python.unified.common.config.JobConfig` for all options.
+
+#### Isolation scheduling configuration
+
+Users can achieve isolated (targeted) scheduling of master or worker actors by 
+specifying custom resources for cluster nodes when creating the cluster and 
+providing the corresponding settings when submitting jobs:
+```txt
+master_isolation_schedule_resource  # for master
+worker_isolation_schedule_resource  # for worker
+```
+
+
+For example: if user wants all the master actors be scheduled on head node, 
+and all the worker actors be scheduled on worker nodes.
+
+1. Set {"MASTER_RESOURCE":999} for ray head node and {"WORKER_RESOURCE":999} 
+   for other ray worker nodes
+    ```txt
+    Noticed: Please configure the resource value to be sufficiently large, it is 
+    recommended to set the value > 999.
+    ```
+2. Configure the following submitting params:
+    ```python
+    master_isolation_schedule_resource="MASTER_RESOURCE"
+    worker_isolation_schedule_resource="WORKER_RESOURCE"
+    ```
+    or using envs(before submission):
+    ```python
+    DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE="MASTER_RESOURCE"
+    DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE="WORKER_RESOURCE"
+    ```
+

@@ -84,6 +84,7 @@ class DLConfig(BaseModel):
             groups[group_name].workloads.append(name)
             for _ in range(workload.per_group):
                 groups[group_name].resource += workload.resource
+
         # Validate number of instances in each group
         for group in groups.values():
             for name in group.workloads:
@@ -190,6 +191,14 @@ class JobConfig(BaseModel):
     master_max_restart: int = Field(
         default=10,
         description="The maximum limit on the number of master restarts.",
+    )
+    master_isolation_schedule_resource: str = Field(
+        default="",
+        description="The master actor's scheduling will use this resource(key:1) if the resource is configured.",
+    )
+    worker_isolation_schedule_resource: str = Field(
+        default="",
+        description="The worker actor's scheduling will use this resource(key:1) if the resource is configured.",
     )
 
     def to_job_info(self) -> JobInfo:

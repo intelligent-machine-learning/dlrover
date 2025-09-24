@@ -195,3 +195,32 @@ def test_failover_entire_job(tmp_ray):
 
     assert master.get_status().job_restart_count == 1
     assert master.get_status().exit_code == 0, "Success expected"
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    "tmp_ray", [{"resources": {"MR": 999, "WR": 999}}], indirect=True
+)
+def test_master_worker_isolation_scheduling(tmp_ray, monkeypatch):
+    monkeypatch.setenv(
+        "DLROVER_UNIFIED_MASTER_ISOLATION_SCHEDULE_RESOURCE", "MR"
+    )
+    monkeypatch.setenv(
+        "DLROVER_UNIFIED_WORKER_ISOLATION_SCHEDULE_RESOURCE", "WR"
+    )
+
+    dl_job = (
+        DLJobBuilder()
+        .node_num(2)
+        .device_per_node(2)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .train(f"{__name__}.elastic_workload_run")
+        .nnodes(2)
+        .nproc_per_node(2)
+        .end()
+        .build()
+    )
+
+    ret = dl_job.submit("test", master_cpu=1, master_memory=128)
+    assert ret == 0, "Job should succeed"

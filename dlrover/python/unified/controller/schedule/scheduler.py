@@ -66,6 +66,7 @@ class Scheduler:
                         bundle_id_start + worker.rank // role.spec.per_group
                     )
         self._pg = self._create_pg(bundles)
+
         assert self._pg is not None
         if not self._pg.wait(timeout_seconds=30):
             raise RuntimeError(
@@ -118,6 +119,18 @@ class Scheduler:
                         "actor_info": worker.to_actor_info(),
                     },
                 )
+
+                # set isolation resource if required
+                worker_isolation_resource = (
+                    self._config.worker_isolation_schedule_resource
+                )
+                if worker_isolation_resource:
+                    spec.resource.user_defined[worker_isolation_resource] = 1
+                    logger.debug(
+                        f"Setup worker actor: {worker.name} isolation "
+                        f"ud resource: {worker_isolation_resource}"
+                    )
+
                 logger.info(
                     f"Creating worker actor: {worker.to_actor_info()} "
                     f"with bundle: {worker.bundle_index}"
@@ -140,6 +153,18 @@ class Scheduler:
                         "actor_info": sub_master.to_actor_info(),
                     },
                 )
+
+                # set isolation resource if required
+                master_isolation_resource = (
+                    self._config.master_isolation_schedule_resource
+                )
+                if master_isolation_resource:
+                    spec.resource.user_defined[master_isolation_resource] = 1
+                    logger.debug(
+                        f"Setup sub-master actor: {sub_master.name} isolation "
+                        f"ud resource: {master_isolation_resource}"
+                    )
+
                 logger.info(
                     f"Creating sub-master actor: {sub_master.to_actor_info()} with bundle: {sub_master.bundle_index}"
                 )
@@ -192,23 +217,33 @@ class Scheduler:
             ret = {
                 "CPU": resource.cpu,
                 "memory": resource.memory,
+                **resource.user_defined,
             }
             if accelerator == ACCELERATOR_TYPE.GPU:
                 ret["GPU"] = resource.accelerator
             elif accelerator == ACCELERATOR_TYPE.CPU:
                 ret["CPU"] = max(ret["CPU"], resource.accelerator)
 
+            # add isolation ud resource for bundles
+            worker_isolation_resource = (
+                self._config.worker_isolation_schedule_resource
+            )
+            if worker_isolation_resource:
+                # a fixed value is enough
+                ret[worker_isolation_resource] = 100
+
             # remove value=0
             return {k: v for k, v in ret.items() if v != 0}
 
+        bundles_for_pg = [_to_bundle(bundle) for bundle in bundles]
         logger.info(
             "Creating placement group "
             f"with bundle size: {len(bundles)} "
             f"with total resource: {sum(bundles, ResourceDesc())}. \n"
-            f"All bundles: {bundles}."
+            f"All bundles: {bundles_for_pg}."
         )
         return placement_group(
-            bundles=[_to_bundle(bundle) for bundle in bundles],
+            bundles=bundles_for_pg,
             strategy="PACK",
             name=f"dlrover_placement_group_{self._config.job_name}",
         )
