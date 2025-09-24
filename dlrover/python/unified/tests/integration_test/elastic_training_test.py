@@ -70,7 +70,7 @@ def test_api_full(tmp_ray):
 
 
 @pytest.mark.timeout(40, func_only=True)  # 25s in ci
-def test_api_full_with_error(tmp_ray):
+def test_api_full_with_error_with_no_failover(tmp_ray):
     dl_job = (
         DLJobBuilder()
         .node_num(3)
@@ -87,7 +87,30 @@ def test_api_full_with_error(tmp_ray):
         "test",
         master_cpu=1,
         master_memory=128,
-        workload_max_restart={"ELASTIC": 1},
+        failover_strategy_when_failed=0,
+    )
+    assert ret != 0, "Job should fail due to error in workload"
+
+
+@pytest.mark.timeout(40, func_only=True)  # 25s in ci
+def test_api_full_with_error_with_job_failover(tmp_ray):
+    dl_job = (
+        DLJobBuilder()
+        .node_num(3)
+        .device_per_node(2)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .train(f"{__name__}.elastic_workload_run_error")
+        .nproc_per_node(2)
+        .end()
+        .build()
+    )
+
+    ret = dl_job.submit(
+        "test",
+        master_cpu=1,
+        master_memory=128,
+        job_max_restart=1,
     )
     assert ret != 0, "Job should fail due to error in workload"
 
