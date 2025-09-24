@@ -13,6 +13,7 @@
 
 import argparse
 
+from dlrover.python.common.constants import DistributionStrategy, OptimizeMode
 from dlrover.python.common.global_context import DefaultValues
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.util.args_util import parse_tuple_list, pos_int
@@ -103,6 +104,18 @@ def _build_master_args_parser():
         default=DefaultValues.SEC_TO_TIMEOUT_TASK_PROCESS,
         type=pos_int,
         help="The timeout value of worker task process(For PS type job).",
+    )
+    parser.add_argument(
+        "--distribution_strategy",
+        default=DistributionStrategy.ALLREDUCE,
+        type=str,
+        help="distribution strategy",
+    )
+    parser.add_argument(
+        "--optimize_mode",
+        default=OptimizeMode.SINGLE_JOB,
+        type=str,
+        help="optimize mode",
     )
     return parser
 

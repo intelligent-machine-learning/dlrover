@@ -81,6 +81,10 @@ def run(args):
     else:
         from dlrover.python.master.dist_master import DistributedJobMaster
 
+        if job_args.platform == PlatformType.VOLCANO:
+            job_args.distribution_strategy = args.distribution_strategy
+            job_args.optimize_mode = args.optimize_mode
+
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()

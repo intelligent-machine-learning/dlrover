@@ -109,7 +109,7 @@ from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
     NodeEventType,
-    PreCheckStatus,
+    PreCheckStatus, NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -118,7 +118,7 @@ from dlrover.python.elastic_agent.torch.training import (
     launch_agent,
 )
 from dlrover.python.training_event import DLRoverAgentEvent
-from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.trainer.torch.utils import version_less_than_230, is_run_in_volcano
 
 
 def parse_args(args):
@@ -216,6 +216,41 @@ def parse_args(args):
     )
     return parser.parse_args(args)
 
+# Require svc and env plugin for volcano job.
+# And the mater task name must be 'master'. the worker name must be 'worker'
+def setup_env_for_volcano():
+    if not is_run_in_volcano():
+        return
+    os.environ['GRPC_ENABLE_FORK'] = 'false'
+    os.environ['NODE_TYPE'] = 'worker'
+    vcMasterHosts = os.environ.get('VC_MASTER_HOSTS', "")
+    if vcMasterHosts == "":
+        raise RuntimeError("VC_MASTER_HOSTS env is not set, you must use"
+                           "master as task name for dlrover master.")
+    if len(vcMasterHosts.split(',')) != 1:
+        raise RuntimeError(f"The length of env VC_MASTER_HOSTS {vcMasterHosts} should be 1.")
+    dlroverMasterPort = os.environ.get('DLROVER_MASTER_PORT', "")
+    if dlroverMasterPort == "":
+        raise RuntimeError("DLROVER_MASTER_PORT env is not set, you must use")
+    os.environ['DLROVER_MASTER_ADDR'] = f"{vcMasterHosts}:{dlroverMasterPort}"
+    if os.environ.get('VC_TASK_INDEX', -1) == -1:
+        raise RuntimeError("VC_TASK_INDEX env is not set.")
+    #  NODE_ID, NODE_RANK, RANK are same with VC_TASK_INDEX in volcano
+    os.environ['NODE_ID'] = os.environ.get('VC_TASK_INDEX')
+    os.environ['NODE_RANK'] = os.environ.get('VC_TASK_INDEX')
+    os.environ['RANK'] = os.environ.get('VC_TASK_INDEX')
+    if os.environ.get('VC_WORKER_NUM', -1) == -1:
+        raise RuntimeError("VC_WORKER_NUM env is not set, you must use "
+                           "worker as task name for dlrover worker.")
+    # NODE_ID, WORLD_SIZE are same with VC_WORKER_NUM in volcano
+    os.environ['NODE_NUM'] = os.environ.get('VC_WORKER_NUM')
+    os.environ['WORLD_SIZE'] = os.environ.get('VC_WORKER_NUM')
+    os.environ['DLROVER_MASTER_SERVICE_TYPE'] = 'grpc'
+    # worker related env
+    os.environ['WORKER_TYPE'] = NodeType.WORKER
+    os.environ['WORKER_ID'] = os.environ.get('VC_TASK_INDEX')
+    os.environ['WORKER_RANK'] = os.environ.get('VC_TASK_INDEX')
+    os.environ['WORKER_NUM'] = os.environ.get('VC_WORKER_NUM')
 
 class ElasticLaunch:
     """
@@ -518,6 +553,9 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
 
 
 def run(args):
+    # reconfigure env for volcano
+    setup_env_for_volcano()
+
     # export event for dlrover agent
     agent = DLRoverAgentEvent.singleton_instance()
     agent.start(pid=vars(args))
