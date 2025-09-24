@@ -218,6 +218,8 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    connect_master_timeout = 300
+    connect_master_max_retry = 5
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -316,6 +318,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         node_rank,
         rdzv_params: RendezvousParameters,
         local_world_size,
+        connect_master_timeout = 300,
     ):
         self._name = name
         self._node_rank = node_rank
@@ -328,7 +331,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
-        self._store = MasterKVStore(self._name, timedelta(seconds=300))
+        self._store = MasterKVStore(self._name, timedelta(seconds=connect_master_timeout))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         node_unit = int(rdzv_params.get("node_unit", "1"))
         self._client.report_rdzv_params(
@@ -521,6 +524,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         training_log_file: str = "",
         failure_node_errors: str = "",
         with_diagnostician: bool = True,
+        connect_master_max_retry = 5,
     ):
         if version_less_than_230():
             super().__init__(
@@ -557,6 +561,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
             )
+        self.connect_master_max_retry = connect_master_max_retry
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -722,7 +727,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return master_addr, master_port
 
     def _safe_get_master_addr_port(self, store: Store) -> Tuple[str, int]:
-        for _ in range(5):
+        for _ in range(self.connect_master_max_retry):
             try:
                 return self._get_master_addr_port(store)
             except Exception as e:
@@ -1414,6 +1419,7 @@ def launch_agent(
         training_log_file=config.training_log_file,
         failure_node_errors=config.failure_node_errors,
         exit_barrier_timeout=900,
+        connect_master_max_retry=config.connect_master_max_retry
     )
 
     shutdown_rdzv = True
@@ -1512,6 +1518,7 @@ def _create_worker_spec(
         node_rank,
         rdzv_parameters,
         local_world_size=config.nproc_per_node,
+        connect_master_timeout=config.connect_master_timeout,
     )
     spec = WorkerSpec(
         role=config.role,
