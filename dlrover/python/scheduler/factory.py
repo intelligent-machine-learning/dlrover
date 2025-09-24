@@ -26,6 +26,9 @@ def new_elastic_job(platform, job_name, namespace):
         from dlrover.python.scheduler.ray import RayElasticJob
 
         return RayElasticJob(job_name, namespace)
+    elif platform in (PlatformType.VOLCANO):
+        from dlrover.python.scheduler.volcano import VolcanoElasticJob
+        return VolcanoElasticJob(job_name, namespace)
     else:
         raise ValueError("Not support engine %s", platform)
 
@@ -42,5 +45,9 @@ def new_job_args(platform, job_name, namespace):
         return RayJobArgs(platform, namespace, job_name)
     elif platform == PlatformType.LOCAL:
         return LocalJobArgs(platform, namespace, job_name)
+    elif platform == PlatformType.VOLCANO:
+        from dlrover.python.scheduler.volcano import VolcanoJobArgs
+
+        return VolcanoJobArgs(platform, namespace, job_name)
     else:
         raise ValueError("Not support platform %s", platform)
