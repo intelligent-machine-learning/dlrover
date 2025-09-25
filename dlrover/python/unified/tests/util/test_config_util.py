@@ -80,10 +80,22 @@ class ConfigUtilTest(BaseTest):
             WorkloadEntrypointType.MODULE_FUNC,
         )
         self.assertEqual(
+            get_entrypoint_type("my.module.run"),
+            WorkloadEntrypointType.MODULE_FUNC,
+        )
+        self.assertEqual(
             get_entrypoint_type("test.py"), WorkloadEntrypointType.PY_CMD
         )
         self.assertEqual(
             get_entrypoint_type("test.py --test1"),
+            WorkloadEntrypointType.PY_CMD,
+        )
+        self.assertEqual(
+            get_entrypoint_type("./test.py"),
+            WorkloadEntrypointType.PY_CMD,
+        )
+        self.assertEqual(
+            get_entrypoint_type("/path/test.py"),
             WorkloadEntrypointType.PY_CMD,
         )
         self.assertIsNone(get_entrypoint_type("test"))
