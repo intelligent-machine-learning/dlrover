@@ -186,9 +186,26 @@ class PrimeManager:
             # all driver roles finished
             if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
-                    self.request_stop(
-                        "All driver roles finished, but some nodes failed."
-                    )
+                    if self.config.failover_strategy_when_failed == 1:
+                        # trigger job failover
+                        logger.info(
+                            "Trigger job failover for there is some failed workers."
+                        )
+                        await self.restart_job()
+                    elif self.config.failover_strategy_when_failed == 2:
+                        # TODO: implement by role level failover
+                        logger.info(
+                            "Role level failover is not supported yet, do job failover instead."
+                        )
+                        await self.restart_job()
+                    else:
+                        logger.info(
+                            f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_strategy_when_failed} with some workers failed."
+                        )
+                        # stop job
+                        self.request_stop(
+                            "All driver roles finished, but some workers failed."
+                        )
                 else:
                     self.request_stop(
                         "All driver roles finished successfully.", code=0
