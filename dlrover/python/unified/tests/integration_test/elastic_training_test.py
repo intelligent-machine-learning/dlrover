@@ -78,7 +78,9 @@ def test_api_full_with_cmd(tmp_ray):
         .device_type("CPU")
         .config({"c1": "v1"})
         .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
-        .train("test_run.py --test 0")
+        .train(
+            "dlrover/python/unified/tests/integration_test/test_run.py --test 0"
+        )
         .nnodes(2)
         .nproc_per_node(2)
         .end()
