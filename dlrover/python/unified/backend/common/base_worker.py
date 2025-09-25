@@ -12,6 +12,10 @@
 # limitations under the License.
 
 import asyncio
+import runpy
+import sys
+import shlex
+
 from threading import Thread
 from typing import ClassVar
 
@@ -22,8 +26,12 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
 )
 from dlrover.python.unified.backend.common.events import BaseWorkerEvents
 from dlrover.python.unified.common.actor_base import ActorBase
-from dlrover.python.unified.common.enums import ExecutionResult
+from dlrover.python.unified.common.enums import (
+    ExecutionResult,
+    WorkloadEntrypointType,
+)
 from dlrover.python.unified.controller.api import PrimeMasterApi
+from dlrover.python.unified.util.config_util import get_entrypoint_type
 from dlrover.python.unified.util.decorators import log_execution
 from dlrover.python.util.reflect_util import import_callable
 
@@ -53,10 +61,25 @@ class BaseWorker(ActorBase):
     def start(self):
         """Start the worker."""
         # This method can be overridden by subclasses to implement specific start logic.
-        logger.info(f"[{self.actor_info.name}] Starting.")
+        entrypoint = self.actor_info.spec.entry_point
+        logger.info(
+            f"[{self.actor_info.name}] starting with entrypoint: {entrypoint}."
+        )
+
+        entrypoint_type = get_entrypoint_type(entrypoint)
+        if entrypoint_type == WorkloadEntrypointType.MODULE_FUNC:
+            self._start_with_module_func(entrypoint)
+        elif entrypoint_type == WorkloadEntrypointType.PY_CMD:
+            self._start_with_py_cmd(entrypoint)
+        else:
+            raise RuntimeError(
+                f"Invalid entrypoint type for entrypoint: {entrypoint}"
+            )
+
+    def _start_with_module_func(self, entrypoint: str):
+        logger.info(f"Use module-func mode with entrypoint: {entrypoint}.")
+
         try:
-            entrypoint = self.actor_info.spec.entry_point
-            logger.info(f"Entry point: {entrypoint}")
             with BaseWorkerEvents.import_user_entrypoint(entrypoint):
                 user_func = import_callable(entrypoint)
         except Exception as e:
@@ -100,6 +123,10 @@ class BaseWorker(ActorBase):
         else:
             logger.warning("No user function to execute.")
 
+    def _start_with_py_cmd(self, entrypoint):
+        logger.info(f"Use py-cmd mode with entrypoint: {entrypoint}.")
+        self._execute_command(entrypoint)
+
     def _on_execution_end(self, result: ExecutionResult):
         """Report the execution result to the prime master."""
         PrimeMasterApi.report_execution_result(self.actor_info.name, result)
@@ -122,6 +149,41 @@ class BaseWorker(ActorBase):
             self._on_execution_end(ExecutionResult.FAIL)
         else:
             self._on_execution_end(ExecutionResult.SUCCESS)
+
+    def _execute_command(self, command: str):
+        """Execute the user command."""
+
+        try:
+            parts = shlex.split(command)
+            python_file = parts[0]
+            args = parts[1:]
+
+            # save original argv
+            original_argv = sys.argv
+            sys.argv = [python_file] + args
+
+            try:
+                with (
+                    log_execution(
+                        f"user_command:{command}", log_exception=False
+                    ),
+                    BaseWorkerEvents.running(),
+                ):
+                    # run py command by runpy
+                    runpy.run_path(python_file, run_name="__main__")
+            finally:
+                sys.argv = original_argv
+            self._on_execution_end(ExecutionResult.SUCCESS)
+        except SystemExit as e:
+            exit_code = 0 if e.code is None or e.code == 0 else 1
+            self._on_execution_end(
+                ExecutionResult.SUCCESS
+                if exit_code == 0
+                else ExecutionResult.FAIL
+            )
+        except Exception as e:
+            logger.exception(f"Command execution failed: {e}")
+            self._on_execution_end(ExecutionResult.FAIL)
 
     # rpc
     async def _user_rpc_call(self, fn_name: str, *args, **kwargs):

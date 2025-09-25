@@ -11,8 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import re
+from typing import Optional
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
+
+from dlrover.python.unified.common.enums import WorkloadEntrypointType
+
+MODULE_FUNC_PATTERN = r"^[a-zA-Z0-9_.]+\.[a-zA-Z0-9_]+$"
+COMMAND_PATTERN = r"^[^\s]+\.py(?:\s+\S*)*$"
 
 
 def args_2_omega_conf(args: argparse.Namespace) -> DictConfig:
@@ -73,3 +80,14 @@ def read_dict_from_envs(prefix: str) -> dict[str, str]:
         for k, v in os.environ.items()
         if k.startswith(prefix)
     }
+
+
+def get_entrypoint_type(entry_point: str) -> Optional[WorkloadEntrypointType]:
+    entry_point = entry_point.strip()
+
+    if re.match(MODULE_FUNC_PATTERN, entry_point):
+        return WorkloadEntrypointType.MODULE_FUNC
+    elif re.match(COMMAND_PATTERN, entry_point):
+        return WorkloadEntrypointType.PY_CMD
+
+    return None

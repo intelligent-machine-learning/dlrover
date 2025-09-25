@@ -128,9 +128,9 @@ class BaseWorkloadDesc(BaseModel, ABC):
         "per workload group.",
     )
     entry_point: str = Field(
-        description="The entry point for the elastic workload in `module.func` pattern",
+        description="The entry point for the workload in `module.func` pattern or `command`(xxx.py arg0 arg1) pattern",
         validation_alias=AliasChoices("entry_point", "entrypoint"),
-        pattern=r"^[a-zA-Z0-9_.]+\.[a-zA-Z0-9_]+$",
+        pattern=r"^[a-zA-Z0-9_.]+\.[a-zA-Z0-9_]+$|.*\.py(?:\s+\S+)*$",
     )
     config: Dict[str, Any] = Field(
         default_factory=dict,
