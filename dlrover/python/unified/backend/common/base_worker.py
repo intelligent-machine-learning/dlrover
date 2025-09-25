@@ -17,7 +17,7 @@ import sys
 import shlex
 
 from threading import Thread
-from typing import ClassVar
+from typing import ClassVar, Optional, Callable, Any
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.api.runtime.rpc_helper import (
@@ -81,7 +81,9 @@ class BaseWorker(ActorBase):
 
         try:
             with BaseWorkerEvents.import_user_entrypoint(entrypoint):
-                user_func = import_callable(entrypoint)
+                user_func: Optional[Callable[..., Any]] = import_callable(
+                    entrypoint
+                )
         except Exception as e:
             raise RuntimeError(
                 f"Failed to import user function {self.actor_info.spec.entry_point}: {e}"
