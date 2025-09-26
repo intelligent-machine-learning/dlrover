@@ -19,9 +19,25 @@ jobs:
       matrix:
         build_info:
           - py_version: "3.8.14"
+            py_tag: "py38"
+            platform: "linux/amd64"
+            dockerfile: "./docker/release/master.dockerfile"
             image_name: "release_dlrover_master_py38"
+          - py_version: "3.8.14"
+            py_tag: "py38"
+            platform: "linux/arm64"
+            dockerfile: "./docker/release/master.dockerfile.aarch64"
+            image_name: "release_dlrover_master_py38_aarch64"
           - py_version: "3.10.17"
+            py_tag: "py310"
+            platform: "linux/amd64"
+            dockerfile: "./docker/release/master.dockerfile"
             image_name: "release_dlrover_master_py310"
+          - py_version: "3.10.17"
+            py_tag: "py310"
+            platform: "linux/arm64"
+            dockerfile: "./docker/release/master.dockerfile.aarch64"
+            image_name: "release_dlrover_master_py310_aarch64"
     permissions:
       contents: read
       packages: write
@@ -29,6 +45,14 @@ jobs:
     steps:
       - name: Checkout Branch
         uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Extract version from SETUP
         run: |
@@ -52,14 +76,16 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./
-          file: ./docker/release/master.dockerfile
-          platforms: linux/amd64
+          file: ${{ matrix.build_info.dockerfile }}
+          platforms: ${{ matrix.build_info.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ env.VERSION }}
             PY_VERSION=${{ matrix.build_info.py_version }}
+            PY_TAG=${{ matrix.build_info.py_tag }}
+            platform=${{ matrix.build_info.platform }}
 
       - name: Set Image Public
         run: |
