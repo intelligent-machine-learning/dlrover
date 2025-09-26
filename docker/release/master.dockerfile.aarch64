@@ -1,7 +1,8 @@
 ARG PY_VERSION=3.8.14
+ARG PY_TAG
 ARG VERSION
 
-FROM ghcr.io/intelligent-machine-learning/dlrover_dev_${PY_VERSION}_arm64 AS builder
+FROM ghcr.io/intelligent-machine-learning/dlrover_dev_${PY_TAG}_arm64 AS builder
 
 WORKDIR /dlrover
 COPY ./ .
