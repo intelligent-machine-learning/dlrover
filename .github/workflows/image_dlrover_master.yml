@@ -19,9 +19,21 @@ jobs:
       matrix:
         build_info:
           - py_version: "3.8.14"
+            arch: "x86_64"
+            dockerfile: "./docker/release/master.dockerfile"
             image_name: "release_dlrover_master_py38"
+          - py_version: "3.8.14"
+            arch: "aarch64"
+            dockerfile: "./docker/release/master.dockerfile.aarch64"
+            image_name: "release_dlrover_master_py38_aarch64"
           - py_version: "3.10.17"
+            arch: "x86_64"
+            dockerfile: "./docker/release/master.dockerfile"
             image_name: "release_dlrover_master_py310"
+          - py_version: "3.10.17"
+            arch: "aarch64"
+            dockerfile: "./docker/release/master.dockerfile.aarch64"
+            image_name: "release_dlrover_master_py310_aarch64"
     permissions:
       contents: read
       packages: write
@@ -52,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./
-          file: ./docker/release/master.dockerfile
+          file: ${{ matrix.build_info.dockerfile }}
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -60,6 +72,7 @@ jobs:
           build-args: |
             VERSION=${{ env.VERSION }}
             PY_VERSION=${{ matrix.build_info.py_version }}
+            ARC=${{ matrix.build_info.arch }}
 
       - name: Set Image Public
         run: |
