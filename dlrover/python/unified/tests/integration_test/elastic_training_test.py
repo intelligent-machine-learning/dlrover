@@ -71,6 +71,13 @@ def test_api_full(tmp_ray):
 
 @pytest.mark.timeout(40, func_only=True)  # 25s in ci
 def test_api_full_with_cmd(tmp_ray):
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
     dl_job = (
         DLJobBuilder()
         .node_num(2)
@@ -79,7 +86,7 @@ def test_api_full_with_cmd(tmp_ray):
         .config({"c1": "v1"})
         .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
         .train(
-            "dlrover/python/unified/tests/integration_test/test_run.py --test 0"
+            f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
         )
         .nnodes(2)
         .nproc_per_node(2)

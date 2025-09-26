@@ -14,13 +14,11 @@ import argparse
 
 from omegaconf import DictConfig, OmegaConf
 
-from dlrover.python.unified.common.enums import WorkloadEntrypointType
 from dlrover.python.unified.tests.base import BaseTest
 from dlrover.python.unified.util.config_util import (
     args_2_omega_conf,
     convert_str_values,
     omega_conf_2_args,
-    get_entrypoint_type,
 )
 
 
@@ -73,29 +71,3 @@ class ConfigUtilTest(BaseTest):
         self.assertEqual(config["k5"]["nested_k2"], 789)
         self.assertIsNone(config["k6"][0])
         self.assertEqual(config["k6"][2], 89.01)
-
-    def test_get_entrypoint_type(self):
-        self.assertEqual(
-            get_entrypoint_type("test.test"),
-            WorkloadEntrypointType.MODULE_FUNC,
-        )
-        self.assertEqual(
-            get_entrypoint_type("my.module.run"),
-            WorkloadEntrypointType.MODULE_FUNC,
-        )
-        self.assertEqual(
-            get_entrypoint_type("test.py"), WorkloadEntrypointType.PY_CMD
-        )
-        self.assertEqual(
-            get_entrypoint_type("test.py --test1"),
-            WorkloadEntrypointType.PY_CMD,
-        )
-        self.assertEqual(
-            get_entrypoint_type("./test.py"),
-            WorkloadEntrypointType.PY_CMD,
-        )
-        self.assertEqual(
-            get_entrypoint_type("/path/test.py"),
-            WorkloadEntrypointType.PY_CMD,
-        )
-        self.assertIsNone(get_entrypoint_type("test"))
