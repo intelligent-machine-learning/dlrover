@@ -59,7 +59,7 @@ version.)
 - device_type("GPU"|"CPU"): preferred accelerator type.
 - config(DictConfig or dict): user configuration available at runtime.
 - role(str): defines the role name for multi-role jobs.
-- train(entrypoint): define a training workload with entrypoint (module path + function), and return a sub builder.
+- train(entrypoint): define a training workload with entrypoint (module path + function or command with python file), and return a sub builder.
 - run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
 
 ### Workload / role patterns

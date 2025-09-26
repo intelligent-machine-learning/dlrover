@@ -481,8 +481,10 @@ class DLJobBuilder(object):
             same with 'torchrun' case).
 
         Args:
-            entrypoint (str): The training entrypoint.
-                e.g. 'xxx.module.function'
+            entrypoint (str): The training entrypoint, can be module+func or py command.
+                e.g.
+                module+func type: 'xxx.module.function'
+                py command type: 'xxx.py --arg0 --arg1'
         """
         role = self._last_role or InternalDLWorkloadRole.ELASTIC_ROLE
         builder = ElasticTrainBuilder(self, role, entrypoint)

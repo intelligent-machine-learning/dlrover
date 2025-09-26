@@ -28,7 +28,7 @@ from dlrover.python.unified.tests.fixtures.example_jobs import (
 
 
 def elastic_workload_run():
-    time.sleep(1)
+    time.sleep(0.1)
     print("elastic_workload_run run called")
 
 
@@ -59,6 +59,35 @@ def test_api_full(tmp_ray):
         .config({"c1": "v1"})
         .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
         .train(f"{__name__}.elastic_workload_run")
+        .nnodes(2)
+        .nproc_per_node(2)
+        .end()
+        .build()
+    )
+
+    ret = dl_job.submit("test", master_cpu=1, master_memory=128)
+    assert ret == 0, "Job should succeed"
+
+
+@pytest.mark.timeout(40, func_only=True)  # 25s in ci
+def test_api_full_with_cmd(tmp_ray):
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
+    dl_job = (
+        DLJobBuilder()
+        .node_num(2)
+        .device_per_node(2)
+        .device_type("CPU")
+        .config({"c1": "v1"})
+        .global_env({"e0": "v0", "DLROVER_LOG_LEVEL": "DEBUG"})
+        .train(
+            f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+        )
         .nnodes(2)
         .nproc_per_node(2)
         .end()
