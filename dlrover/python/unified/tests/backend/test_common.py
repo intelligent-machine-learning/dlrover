@@ -22,6 +22,7 @@ import pytest
 from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
+from dlrover.python.unified.common.enums import ExecutionResult
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 
@@ -97,7 +98,14 @@ async def test_start_class():
 
 @pytest.mark.asyncio
 async def test_start_with_py_cmd():
-    script_path = "../integration_test/dummy_run.py"
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
+    script_path = f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py"
 
     RPC_REGISTRY.clear()
     info = ActorInfo(
@@ -107,12 +115,15 @@ async def test_start_with_py_cmd():
     )
     worker = BaseWorker(Mock(JobInfo), info)
     worker._on_execution_end = Mock()
-
     worker.setup()
 
     with patch("runpy.run_path") as mock_run:
         mock_run.side_effect = lambda path, run_name: None
         worker._start_with_py_cmd(script_path + " --test 0")
+
+        while not worker._on_execution_end.called:
+            await asyncio.sleep(0.1)
+
         mock_run.assert_called_once_with(script_path, run_name="__main__")
 
     while not worker._on_execution_end.called:
@@ -134,7 +145,6 @@ async def test_start_with_py_cmd_error_handling():
         )
         worker = BaseWorker(Mock(JobInfo), info)
         worker._on_execution_end = Mock()
-
         worker.setup()
 
         # inject error
@@ -143,5 +153,5 @@ async def test_start_with_py_cmd_error_handling():
             worker._start_with_py_cmd(script_path)
 
         while not worker._on_execution_end.called:
-            await asyncio.sleep(0)
-        worker._on_execution_end.assert_called_once()
+            await asyncio.sleep(0.1)
+        worker._on_execution_end.assert_called_once_with(ExecutionResult.FAIL)
