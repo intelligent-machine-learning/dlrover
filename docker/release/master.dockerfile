@@ -12,7 +12,7 @@ FROM python:${PY_VERSION} AS base
 
 ARG VERSION
 
-RUN pip install pyparsing -i https://pypi.org/simple
+RUN pip install pyparsing protobuf -i https://pypi.org/simple
 RUN apt-get -qq update && apt-get install -y iputils-ping vim gdb
 
 COPY --from=builder /dlrover/dist/dlrover-${VERSION}-py3-none-any.whl /
