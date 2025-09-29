@@ -12,12 +12,17 @@
 # limitations under the License.
 
 import asyncio
+import os
+import tempfile
 import threading
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+
+import pytest
 
 from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
+from dlrover.python.unified.common.enums import ExecutionResult
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 
@@ -89,3 +94,64 @@ async def test_start_class():
     while not worker._on_execution_end.called:
         await asyncio.sleep(0)
     assert run_called
+
+
+@pytest.mark.asyncio
+async def test_start_with_py_cmd():
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
+    script_path = f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py"
+
+    RPC_REGISTRY.clear()
+    info = ActorInfo(
+        name="worker_cmd",
+        role="worker",
+        spec=SimpleWorkloadDesc(entry_point=f"{script_path} --test 0"),
+    )
+    worker = BaseWorker(Mock(JobInfo), info)
+    worker._on_execution_end = Mock()
+    worker.setup()
+
+    with patch("runpy.run_path") as mock_run:
+        mock_run.side_effect = lambda path, run_name: None
+        worker._start_with_py_cmd(script_path + " --test 0")
+
+        while not worker._on_execution_end.called:
+            await asyncio.sleep(0.1)
+
+        mock_run.assert_called_once_with(script_path, run_name="__main__")
+
+    while not worker._on_execution_end.called:
+        await asyncio.sleep(0)
+    worker._on_execution_end.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_start_with_py_cmd_error_handling():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        script_path = os.path.join(tmp_dir, "error_script.py")
+        with open(script_path, "w") as f:
+            f.write("raise ValueError('Test error')")
+
+        info = ActorInfo(
+            name="worker_error",
+            role="worker",
+            spec=SimpleWorkloadDesc(entry_point=script_path),
+        )
+        worker = BaseWorker(Mock(JobInfo), info)
+        worker._on_execution_end = Mock()
+        worker.setup()
+
+        # inject error
+        with patch("runpy.run_path") as mock_run:
+            mock_run.side_effect = ValueError("Test error")
+            worker._start_with_py_cmd(script_path)
+
+        while not worker._on_execution_end.called:
+            await asyncio.sleep(0.1)
+        worker._on_execution_end.assert_called_once_with(ExecutionResult.FAIL)
