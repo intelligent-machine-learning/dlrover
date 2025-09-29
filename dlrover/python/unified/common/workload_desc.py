@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal, Optional, Union
 
@@ -25,8 +25,30 @@ from pydantic import (
 from ray.actor import ActorClass
 from typing_extensions import TypeAlias
 
+from dlrover.python.unified.common.enums import WorkloadEntrypointType
 from dlrover.python.unified.util.actor_helper import as_actor_class
 from dlrover.python.util.common_util import get_class_by_module_and_class_name
+
+
+def get_entrypoint_type(entry_point: str) -> Optional[WorkloadEntrypointType]:
+    entry_point = entry_point.strip()
+
+    if (
+        entry_point.endswith(".py")
+        or "/" in entry_point
+        or entry_point.startswith("./")
+    ):
+        return WorkloadEntrypointType.PY_CMD
+    parts = entry_point.split()
+    if parts and parts[0].endswith(".py"):
+        return WorkloadEntrypointType.PY_CMD
+
+    if re.fullmatch(
+        r"^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)+$", entry_point
+    ):
+        return WorkloadEntrypointType.MODULE_FUNC
+
+    return None
 
 
 class ResourceDesc(BaseModel):
@@ -128,9 +150,8 @@ class BaseWorkloadDesc(BaseModel, ABC):
         "per workload group.",
     )
     entry_point: str = Field(
-        description="The entry point for the elastic workload in `module.func` pattern",
+        description="The entry point for the workload in `module.func` pattern or `command`(xxx.py arg0 arg1) pattern",
         validation_alias=AliasChoices("entry_point", "entrypoint"),
-        pattern=r"^[a-zA-Z0-9_.]+\.[a-zA-Z0-9_]+$",
     )
     config: Dict[str, Any] = Field(
         default_factory=dict,
@@ -172,6 +193,12 @@ class BaseWorkloadDesc(BaseModel, ABC):
             return entry_point.strip().replace("::", ".")
         return entry_point
 
+    @field_validator("entry_point")
+    def _validate_entry_point(cls, entry_point):
+        if not get_entrypoint_type(entry_point):
+            raise ValueError("Invalid entrypoint.")
+        return entry_point
+
     @field_validator("resource", mode="after")
     def _require_resource_not_empty(cls, resource: ResourceDesc):
         if resource.is_empty():
@@ -186,6 +213,10 @@ class BaseWorkloadDesc(BaseModel, ABC):
 
     def get_master_cls(self) -> Optional[ActorClass]:
         return None
+
+    @property
+    def entry_point_type(self):
+        return get_entrypoint_type(self.entry_point)
 
 
 class ElasticWorkloadDesc(BaseWorkloadDesc):
