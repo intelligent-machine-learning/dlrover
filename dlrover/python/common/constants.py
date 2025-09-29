@@ -26,6 +26,7 @@ class PlatformType(object):
     RAY = "ray"
     PY_KUBERNETES = "pyk8s"
     LOCAL = "local"
+    VOLCANO = "volcano"
 
 
 class CommunicationType(object):

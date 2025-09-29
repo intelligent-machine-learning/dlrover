@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 import torch
 from packaging import version
@@ -28,3 +29,7 @@ def version_less_than_240():
 def version_less_than_280():
     current_version = version.parse(torch.__version__).base_version
     return version.parse(current_version) <= version.parse("2.7.1")
+
+def is_run_in_volcano():
+    # Use volcano environment plugins to check if we are running in volcano
+    return os.environ.get('VC_TASK_INDEX', -1) != -1
