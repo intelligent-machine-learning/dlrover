@@ -107,6 +107,7 @@ class JobArgs(JsonSerializable):
         self.cordon_fault_node = False
         self.xpu_type: Accelerators = Accelerators.GENERIC_CPU
         self.enable_suspended = False
+        self.dead_node_timeout = 600
 
     @abstractmethod
     def initilize(self):

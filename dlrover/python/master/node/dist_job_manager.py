@@ -475,7 +475,7 @@ class DistributedJobManager(JobManager):
     def _monitor_node_heart_beat(self):
         with self._lock:
             try:
-                events = self._get_dead_node_event()
+                events = self._get_dead_node_event(window_interval=self._job_args.dead_node_timeout)
             except Exception as e:
                 logger.warning(e)
                 events = []

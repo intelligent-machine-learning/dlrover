@@ -214,6 +214,22 @@ def parse_args(args):
         action=check_env,
         help="Whether to test the communication performance.",
     )
+    parser.add_argument(
+        "--connect-master-timeout",
+        "--connect_master_timeout",
+        type=int,
+        action=env,
+        default=30,
+        help="Connect master timeout in seconds.",
+    )
+    parser.add_argument(
+        "--connect-master-max-retry",
+        "--connect_master_max_retry",
+        type=int,
+        action=env,
+        default=2,
+        help="Connect master max retry times.",
+    )
     return parser.parse_args(args)
 
 
@@ -402,6 +418,8 @@ def _elastic_config_from_args(
     elastic_config.rdzv_endpoint = ""
     join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
     elastic_config.rdzv_configs["timeout"] = join_timeout
+    elastic_config.connect_master_timeout = args.connect_master_max_retry
+    elastic_config.connect_master_max_retry = args.connect_master_max_retry
     return elastic_config, cmd, cmd_args
 
 
