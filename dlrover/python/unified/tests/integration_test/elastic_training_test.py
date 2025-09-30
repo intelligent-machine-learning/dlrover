@@ -116,7 +116,7 @@ def test_api_full_with_error_with_no_failover(tmp_ray):
         "test",
         master_cpu=1,
         master_memory=128,
-        failover_strategy_when_failed=0,
+        failover_exec_strategy=0,
     )
     assert ret != 0, "Job should fail due to error in workload"
 
@@ -163,7 +163,7 @@ def test_api_full_with_error_with_role_failover(tmp_ray):
         master_cpu=1,
         master_memory=128,
         job_max_restart=1,
-        failover_strategy_when_failed=2,
+        failover_exec_strategy=2,
     )
     assert ret != 0, "Job should fail due to error in workload"
 
