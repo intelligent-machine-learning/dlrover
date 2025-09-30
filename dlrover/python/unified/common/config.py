@@ -192,6 +192,14 @@ class JobConfig(BaseModel):
         default=10,
         description="The maximum limit on the number of master restarts.",
     )
+    failover_trigger_strategy: int = Field(
+        default=1,
+        description="Whether to trigger failover asap when worker has failure. 0: no trigger, 1: do trigger.",
+    )
+    failover_exec_strategy: int = Field(
+        default=1,
+        description="What kind of failover should do if any worker failed. 0: no failover, 1: job level failover, 2: role level failover.",
+    )
     master_isolation_schedule_resource: str = Field(
         default="",
         description="The master actor's scheduling will use this resource(key:1) if the resource is configured.",
