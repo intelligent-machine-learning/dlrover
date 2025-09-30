@@ -181,7 +181,7 @@ class PrimeManager:
                 role.has_any_failure() for role in self.graph.roles.values()
             ]
             if any(any_failure):
-                if self.config.failover_trigger_strategy_when_failed == 1:
+                if self.config.failover_trigger_strategy == 1:
                     await self._process_failover("got worker failure")
                 logger.info(
                     "Failure detected, but since the failover-trigger-strategy is set to 0, failover will not be executed for now."
@@ -448,11 +448,11 @@ class PrimeManager:
         # TODO handle Failed case failover
 
     async def _process_failover(self, reason=""):
-        if self.config.failover_exec_strategy_when_failed == 1:
+        if self.config.failover_exec_strategy == 1:
             # trigger job failover
             logger.info(f"Trigger job failover, reason: {reason}.")
             await self.restart_job()
-        elif self.config.failover_exec_strategy_when_failed == 2:
+        elif self.config.failover_exec_strategy == 2:
             # TODO: implement by role level failover
             logger.info(
                 f"Role level failover is not supported yet, do job failover instead, reason: {reason}."
@@ -460,7 +460,7 @@ class PrimeManager:
             await self.restart_job()
         else:
             logger.info(
-                f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_exec_strategy_when_failed}, reason: {reason}."
+                f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_exec_strategy}, reason: {reason}."
             )
             # stop job
             self.request_stop(
