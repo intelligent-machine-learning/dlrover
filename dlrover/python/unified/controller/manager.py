@@ -447,7 +447,7 @@ class PrimeManager:
         self._notify_main_loop.release()
         # TODO handle Failed case failover
 
-    async def _process_failover(self, reason=""):
+    async def _process_failover(self, role_name="", reason=""):
         if self.config.failover_exec_strategy == 1:
             # trigger job failover
             logger.info(f"Trigger job failover, reason: {reason}.")
