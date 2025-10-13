@@ -13,6 +13,7 @@
 
 import asyncio
 import pickle
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
@@ -50,6 +51,13 @@ class RuntimeState:
     """
 
     stage: MasterStage = MasterStage.INIT
+    # lag for failover status, the presence of a corresponding key-value pair
+    # indicates that failover is in progress.
+    # format:
+    # key: role name, is empty if job level
+    # value: timestamp
+    failover_stage: Dict[str, int] = field(default_factory=dict)
+
     exit_code: int = 0
     job_restart_count: int = 0
     node_restart_count: int = 0
@@ -182,7 +190,7 @@ class PrimeManager:
             ]
             if any(any_failure):
                 if self.config.failover_trigger_strategy == 2:
-                    await self._process_failover("got worker failure")
+                    await self._process_failover(reason="got worker failure")
                 logger.info(
                     "Failure detected, but since the failover-trigger-strategy is set to 0, failover will not be executed for now."
                 )
@@ -197,13 +205,15 @@ class PrimeManager:
             if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
                     await self._process_failover(
-                        "got failure result on finished"
+                        reason="got failure result on finished"
                     )
                 else:
                     self.request_stop(
                         "All driver roles finished successfully.", code=0
                     )
                 break
+
+            await asyncio.sleep(1)
 
         assert self.stage == MasterStage.STOPPING, (
             f"Job stage should be STOPPING, but got {self.stage}."
@@ -447,22 +457,51 @@ class PrimeManager:
         self._notify_main_loop.release()
         # TODO handle Failed case failover
 
-    async def _process_failover(self, role_name="", reason=""):
-        if self.config.failover_exec_strategy == 1:
-            # trigger job failover
-            logger.info(f"Trigger job failover, reason: {reason}.")
-            await self.restart_job()
-        elif self.config.failover_exec_strategy == 2:
-            # TODO: implement by role level failover
+    def _set_failover_stage(self, role_name):
+        if role_name not in self.state.failover_stage:
+            self.state.failover_stage[role_name] = int(time.time())
+            logger.info(f"Setting failover stage: {role_name}")
+
+    def _clear_failover_stage(self, role_name):
+        self.state.failover_stage.pop(role_name)
+        logger.info(f"Clear failover stage: {role_name}")
+
+    def is_failover_stage(self, role_name):
+        if (
+            "global" in self.state.failover_stage
+            or role_name in self.state.failover_stage
+        ):
+            return True
+        return False
+
+    async def _process_failover(
+        self, role_name="global", reason="unknown reason"
+    ):
+        if self.is_failover_stage(role_name):
             logger.info(
-                f"Role level failover is not supported yet, do job failover instead, reason: {reason}."
+                "Failover is already in progress, skip the following process."
             )
-            await self.restart_job()
+            return
         else:
-            logger.info(
-                f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_exec_strategy}, reason: {reason}."
-            )
-            # stop job
-            self.request_stop(
-                "All driver roles finished, but some workers failed."
-            )
+            self._set_failover_stage(role_name)
+
+            if self.config.failover_exec_strategy == 1:
+                # trigger job failover
+                logger.info(f"Trigger job failover, reason: {reason}.")
+                await self.restart_job()
+            elif self.config.failover_exec_strategy == 2:
+                # TODO: implement by role level failover
+                logger.info(
+                    f"Role level failover is not supported yet, do job failover instead, reason: {reason}."
+                )
+                await self.restart_job()
+            else:
+                logger.info(
+                    f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_exec_strategy}, reason: {reason}."
+                )
+                # stop job
+                self.request_stop(
+                    "All driver roles finished, but some workers failed."
+                )
+
+            self._clear_failover_stage(role_name)
