@@ -64,12 +64,14 @@ class ResourceTest(unittest.TestCase):
         mock_pynvml.nvmlDeviceGetUtilizationRates.return_value = MagicMock()
 
         with patch.dict("sys.modules", {"pynvml": mock_pynvml}):
-            result = get_gpu_stats()
-            self.assertEqual(len(result), 2)
+            self.assertEqual(len(get_gpu_stats()), 2)
 
-    def test_get_gpu_stats(self):
-        result = get_gpu_stats()
-        self.assertEqual(len(result), 0)
+            mock_pynvml.nvmlDeviceGetCount.side_effect = Exception()
+            self.assertEqual(get_hpu_stats(), [])
+
+    def test_get_gpu_stats_without_acl(self):
+        with patch.dict("sys.modules", {"pynvml": None}):
+            self.assertEqual(get_gpu_stats(), [])
 
     def test_get_hpu_stats_without_acl(self):
         self.assertEqual(get_hpu_stats(), [])
