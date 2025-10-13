@@ -17,7 +17,7 @@ import threading
 import time
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.constants import NodeEnv, Accelerators
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -73,7 +73,7 @@ class TFTrainingReporter(Singleton):
 
 
 class TorchTrainingMonitor(Singleton):
-    def __init__(self, metrics_path, device_type):
+    def __init__(self, metrics_path, device_type=Accelerators.NVIDIA_GPU):
         self._resource_monitor = ResourceMonitor.singleton_instance(
             device_type
         )
