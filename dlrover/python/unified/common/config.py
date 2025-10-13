@@ -193,12 +193,12 @@ class JobConfig(BaseModel):
         description="The maximum limit on the number of master restarts.",
     )
     failover_trigger_strategy: int = Field(
-        default=1,
-        description="Whether to trigger failover asap when worker has failure. 0: no (may be later), 1: yes.",
+        default=2,
+        description="When to trigger failover when there is failure. 0: skip, 1: later(will not trigger asap when worker failed), 2: now(trigger asap).",
     )
     failover_exec_strategy: int = Field(
         default=1,
-        description="What kind of failover should do if any worker failed. 0: no failover, 1: job level failover, 2: role level failover.",
+        description="What kind of failover should do when there is failure. 0: no failover, 1: job level failover, 2: role level failover.",
     )
     master_isolation_schedule_resource: str = Field(
         default="",

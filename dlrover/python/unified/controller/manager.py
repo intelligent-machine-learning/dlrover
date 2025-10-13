@@ -181,7 +181,7 @@ class PrimeManager:
                 role.has_any_failure() for role in self.graph.roles.values()
             ]
             if any(any_failure):
-                if self.config.failover_trigger_strategy == 1:
+                if self.config.failover_trigger_strategy == 2:
                     await self._process_failover("got worker failure")
                 logger.info(
                     "Failure detected, but since the failover-trigger-strategy is set to 0, failover will not be executed for now."
