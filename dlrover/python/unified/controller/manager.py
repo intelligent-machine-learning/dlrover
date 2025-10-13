@@ -455,16 +455,15 @@ class PrimeManager:
         logger.info(f"Actor {actor.name} reported result {result}.")
         actor.result = result
         self._notify_main_loop.release()
-        # TODO handle Failed case failover
 
     def _set_failover_stage(self, role_name):
         if role_name not in self.state.failover_stage:
             self.state.failover_stage[role_name] = int(time.time())
-            logger.info(f"Setting failover stage: {role_name}")
+            logger.debug(f"Setting failover stage: {role_name}")
 
     def _clear_failover_stage(self, role_name):
         self.state.failover_stage.pop(role_name)
-        logger.info(f"Clear failover stage: {role_name}")
+        logger.debug(f"Clear failover stage: {role_name}")
 
     def is_failover_stage(self, role_name):
         if (
