@@ -1394,7 +1394,7 @@ def launch_agent(
     _agent_evt.start(args=vars(config))
 
     _set_paral_config()
-    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
+    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS, config)
     monitor.start()
 
     spec = _create_worker_spec(

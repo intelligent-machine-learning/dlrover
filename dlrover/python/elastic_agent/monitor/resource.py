@@ -16,13 +16,13 @@ import threading
 import time
 
 import psutil
-import pynvml
 
 from dlrover.python.common.comm import GPUStats
-from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.constants import NodeEnv, Accelerators
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 
 
 def get_process_cpu_percent():
@@ -54,33 +54,48 @@ def get_used_memory():
 
 def get_gpu_stats(gpus=[]):
     """Get the used gpu info of the container"""
-    if not gpus:
-        try:
-            device_count = pynvml.nvmlDeviceGetCount()
-        except Exception:
-            logger.warning("No GPU is available.")
-            device_count = 0
-        gpus = list(range(device_count))
-    gpu_stats: list[GPUStats] = []
-    for i in gpus:
-        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        total_memory = memory_info.total / (1024**2)
-        used_memory = memory_info.used / (1024**2)
 
-        # Get GPU utilization
-        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        gpu_utilization = utilization.gpu
+    try:
+        import pynvml
+    except ImportError:
+        logger.warning("No pynvml is available, skip getting gpu stats.")
+        return []
 
-        gpu_stats.append(
-            GPUStats(
-                index=i,
-                total_memory_mb=total_memory,
-                used_memory_mb=used_memory,
-                gpu_utilization=gpu_utilization,
+    try:
+        pynvml.nvmlInit()
+
+        if not gpus:
+            try:
+                device_count = pynvml.nvmlDeviceGetCount()
+            except Exception:
+                logger.warning("No GPU is available.")
+                device_count = 0
+            gpus = list(range(device_count))
+        gpu_stats: list[GPUStats] = []
+        for i in gpus:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            total_memory = memory_info.total / (1024**2)
+            used_memory = memory_info.used / (1024**2)
+
+            # Get GPU utilization
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_utilization = utilization.gpu
+
+            gpu_stats.append(
+                GPUStats(
+                    index=i,
+                    total_memory_mb=total_memory,
+                    used_memory_mb=used_memory,
+                    gpu_utilization=gpu_utilization,
+                )
             )
-        )
-    return gpu_stats
+        return gpu_stats
+    except Exception as e:
+        logger.warning(f"Got unexpected error when getting gpu stats: {e}")
+        return []
+    finally:
+        pynvml.nvmlShutdown()
 
 
 def get_hpu_stats(hpus=[]):
@@ -138,19 +153,17 @@ def get_hpu_stats(hpus=[]):
 
 
 class ResourceMonitor(Singleton):
-    def __init__(self):
+    def __init__(self, config: ElasticLaunchConfig):
         """
         The monitor samples the used memory and cpu percent
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        self._gpu_enabled = False
+        self._gpu_type = config.accelerator
         self._gpu_stats: list[GPUStats] = []
         self._master_client = MasterClient.singleton_instance()
 
         if os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
-            self.init_gpu_monitor()
-
             # The first time called cpu_percent will return a meaningless 0.0
             # value which we are supposed to ignore. So, here we call it at
             # the beginning of monitor and the next value is valid.
@@ -177,44 +190,20 @@ class ResourceMonitor(Singleton):
             )
 
     def stop(self):
-        if self._gpu_enabled:
-            self.shutdown_gpu_monitor()
-
-    def __del__(self):
-        if self._gpu_enabled:
-            self.shutdown_gpu_monitor()
-
-    def init_gpu_monitor(self):
-        try:
-            pynvml.nvmlInit()
-            self._gpu_enabled = True
-        except pynvml.NVMLError_LibraryNotFound:
-            logger.warning(
-                "NVIDIA NVML library not found. "
-                "GPU monitoring features will be disabled."
-            )
-        except pynvml.NVMLError_Unknown as e:
-            logger.error(
-                f"An unknown error occurred during NVML initializing: {e}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during NVML initializing: {e}"
-            )
-
-    def shutdown_gpu_monitor(self):
-        try:
-            pynvml.nvmlShutdown()
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during NVML shutdown: {e}"
-            )
+        pass
 
     def report_resource(self):
         used_mem = get_used_memory()
         cpu_percent = get_process_cpu_percent()
-        if self._gpu_enabled:
+
+        if self._gpu_type == Accelerators.NVIDIA_GPU:
             self._gpu_stats = get_gpu_stats()
+        elif self._gpu_type == Accelerators.ASCEND_NPU:
+            self._gpu_stats = get_hpu_stats()
+        else:
+            # not supported for others
+            pass
+
         current_cpu = round(cpu_percent * self._total_cpu, 2)
         self._master_client.report_used_resource(
             used_mem, current_cpu, self._gpu_stats
