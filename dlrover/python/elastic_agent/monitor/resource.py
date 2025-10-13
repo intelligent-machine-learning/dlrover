@@ -22,7 +22,6 @@ from dlrover.python.common.constants import NodeEnv, Accelerators
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 
 
 def get_process_cpu_percent():
@@ -153,13 +152,13 @@ def get_hpu_stats(hpus=[]):
 
 
 class ResourceMonitor(Singleton):
-    def __init__(self, config: ElasticLaunchConfig):
+    def __init__(self, gpu_type: str):
         """
         The monitor samples the used memory and cpu percent
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        self._gpu_type = config.accelerator
+        self._gpu_type = gpu_type
         self._gpu_stats: list[GPUStats] = []
         self._master_client = MasterClient.singleton_instance()
 

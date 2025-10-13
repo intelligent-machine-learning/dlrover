@@ -75,7 +75,7 @@ class TFTrainingReporter(Singleton):
 
 class TorchTrainingMonitor(Singleton):
     def __init__(self, metrics_path, config: ElasticLaunchConfig):
-        self._resource_monitor = ResourceMonitor.singleton_instance(config)
+        self._resource_monitor = ResourceMonitor.singleton_instance(config.accelerator)
         self._last_timestamp = 0
         self._start_time = 0
         self._master_client = MasterClient.singleton_instance()
