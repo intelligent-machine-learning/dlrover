@@ -22,7 +22,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
-from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 
 
 def is_tf_chief():
@@ -74,8 +73,10 @@ class TFTrainingReporter(Singleton):
 
 
 class TorchTrainingMonitor(Singleton):
-    def __init__(self, metrics_path, config: ElasticLaunchConfig):
-        self._resource_monitor = ResourceMonitor.singleton_instance(config.accelerator)
+    def __init__(self, metrics_path, device_type):
+        self._resource_monitor = ResourceMonitor.singleton_instance(
+            device_type
+        )
         self._last_timestamp = 0
         self._start_time = 0
         self._master_client = MasterClient.singleton_instance()
