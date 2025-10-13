@@ -491,12 +491,15 @@ class PrimeManager:
             elif self.config.failover_exec_strategy == 2:
                 # TODO: implement by role level failover
                 logger.info(
-                    f"Role level failover is not supported yet, do job failover instead, reason: {reason}."
+                    "Role level failover is not supported yet, do job failover instead, "
+                    f"reason: {reason}."
                 )
                 await self.restart_job()
             else:
                 logger.info(
-                    f"Skip failover for strategy(failover_strategy_when_failed) is: {self.config.failover_exec_strategy}, reason: {reason}."
+                    "Skip failover for strategy(failover_strategy_when_failed) "
+                    f"is: {self.config.failover_exec_strategy}, "
+                    f"reason: {reason}."
                 )
                 # stop job
                 self.request_stop(
