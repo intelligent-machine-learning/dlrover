@@ -194,7 +194,7 @@ class JobConfig(BaseModel):
     )
     failover_trigger_strategy: int = Field(
         default=1,
-        description="Whether to trigger failover asap when worker has failure. 0: no trigger, 1: do trigger.",
+        description="Whether to trigger failover asap when worker has failure. 0: no (may be later), 1: yes.",
     )
     failover_exec_strategy: int = Field(
         default=1,
