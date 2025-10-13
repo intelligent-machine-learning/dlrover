@@ -94,7 +94,10 @@ def get_gpu_stats(gpus=[]):
         logger.warning(f"Got unexpected error when getting gpu stats: {e}")
         return []
     finally:
-        pynvml.nvmlShutdown()
+        try:
+            pynvml.nvmlShutdown()
+        except Exception:
+            pass
 
 
 def get_hpu_stats(hpus=[]):
@@ -152,7 +155,7 @@ def get_hpu_stats(hpus=[]):
 
 
 class ResourceMonitor(Singleton):
-    def __init__(self, gpu_type: str):
+    def __init__(self, gpu_type: str = Accelerators.NVIDIA_GPU):
         """
         The monitor samples the used memory and cpu percent
         reports the used memory and cpu percent to the DLRover master.

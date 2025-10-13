@@ -56,15 +56,16 @@ class ResourceTest(unittest.TestCase):
         resource = Resource(cpu=-2, gpu=1)
         self.assertFalse(resource.validate())
 
-    @patch("dlrover.python.elastic_agent.monitor.resource.pynvml")
-    def test_get_gpu_stats_with_mock_pynvml(self, mock_pynvml):
+    def test_get_gpu_stats_with_mock_pynvml(self):
+        mock_pynvml = MagicMock()
         mock_pynvml.nvmlDeviceGetCount.return_value = 2
         mock_pynvml.nvmlDeviceGetHandleByIndex.return_value = MagicMock()
         mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = MagicMock()
         mock_pynvml.nvmlDeviceGetUtilizationRates.return_value = MagicMock()
 
-        result = get_gpu_stats()
-        self.assertEqual(len(result), 2)
+        with patch.dict("sys.modules", {"pynvml": mock_pynvml}):
+            result = get_gpu_stats()
+            self.assertEqual(len(result), 2)
 
     def test_get_gpu_stats(self):
         result = get_gpu_stats()
