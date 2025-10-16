@@ -22,6 +22,7 @@ from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.constant import (
     MASTER_STATE_KEY_PREFIX,
     RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+    InternalDLWorkloadRole,
 )
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
@@ -54,7 +55,7 @@ class RuntimeState:
     # lag for failover status, the presence of a corresponding key-value pair
     # indicates that failover is in progress.
     # format:
-    # key: role name, is empty if job level
+    # key: role name, is 'GLOBAL' if job level
     # value: timestamp
     failover_stage: Dict[str, int] = field(default_factory=dict)
 
@@ -440,12 +441,22 @@ class PrimeManager:
             self._task = asyncio.create_task(
                 self._main_loop(), name="job_monitor"
             )
+
+            # if a master failover and a failover of any role overlap,
+            # we currently perform a global restart again for safety.
+            if self.is_failover_stage():
+                self._clear_failover_stage()
+                asyncio.create_task(
+                    self._process_failover(reason="failover overlapping")
+                )
+
             # TODO SchedulerManager._pg is not recovered
             ControllerEvents.failover_success()
         else:
             # Don't support failover in other stages, which are little possibility
             logger.warning(f"Job is in stage {self.stage}, terminating.")
             ControllerEvents.failover_stop(self.stage)
+            self._clear_failover_stage(InternalDLWorkloadRole.GLOBAL_ROLE)
             self._do_stop()
 
     async def deal_with_actor_finished(
@@ -461,26 +472,35 @@ class PrimeManager:
             self.state.failover_stage[role_name] = int(time.time())
             logger.debug(f"Setting failover stage: {role_name}")
 
-    def _clear_failover_stage(self, role_name):
-        self.state.failover_stage.pop(role_name)
-        logger.debug(f"Clear failover stage: {role_name}")
+    def _clear_failover_stage(self, role_name=""):
+        if not role_name:
+            self.state.failover_stage.clear()
+            logger.debug("Clear all failover stage.")
+        else:
+            self.state.failover_stage.pop(role_name)
+            logger.debug(f"Clear failover stage: {role_name}")
 
-    def is_failover_stage(self, role_name):
-        if (
-            "global" in self.state.failover_stage
-            or role_name in self.state.failover_stage
-        ):
-            return True
-        return False
+    def is_failover_stage(self, role_name=""):
+        if not role_name:
+            # is any role in failover stage
+            return len(self.state.failover_stage) == 0
+        else:
+            if (
+                InternalDLWorkloadRole.GLOBAL_ROLE in self.state.failover_stage
+                or role_name in self.state.failover_stage
+            ):
+                return True
+            return False
 
     async def _process_failover(
-        self, role_name="global", reason="unknown reason"
+        self,
+        role_name=InternalDLWorkloadRole.GLOBAL_ROLE,
+        reason="unknown reason",
     ):
         if self.is_failover_stage(role_name):
             logger.info(
                 "Failover is already in progress, skip the following process."
             )
-            return
         else:
             self._set_failover_stage(role_name)
 
