@@ -456,7 +456,7 @@ class PrimeManager:
             # Don't support failover in other stages, which are little possibility
             logger.warning(f"Job is in stage {self.stage}, terminating.")
             ControllerEvents.failover_stop(self.stage)
-            self._clear_failover_stage(InternalDLWorkloadRole.GLOBAL_ROLE)
+            self._clear_failover_stage()
             self._do_stop()
 
     async def deal_with_actor_finished(
