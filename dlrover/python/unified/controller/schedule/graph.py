@@ -190,6 +190,14 @@ class DLWorkloadRole:
             return ExecutionResult.FAIL
         return ExecutionResult.SUCCESS
 
+    def has_any_failure(self) -> bool:
+        if any(
+            instance.result == ExecutionResult.FAIL
+            for instance in self.instances
+        ):
+            return True
+        return False
+
 
 class DLExecutionGraph:
     """Store topology information for distributed execution."""

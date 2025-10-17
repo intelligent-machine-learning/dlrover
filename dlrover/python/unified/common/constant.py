@@ -22,6 +22,7 @@ JOB_OPTIONS_ENV_PREFIX = "DLROVER_UNIFIED_"
 
 class InternalDLWorkloadRole(object):
     ELASTIC_ROLE = "ELASTIC"
+    GLOBAL_ROLE = "GLOBAL"
 
 
 class DLWorkloadEnv(object):
