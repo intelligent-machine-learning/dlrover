@@ -1019,10 +1019,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
 
-        # set workers numa-affinity if necessary
-        if self._config.numa_affinity:
-            self._set_numa_affinity()
-
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)

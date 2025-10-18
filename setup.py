@@ -11,7 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
 from setuptools import find_packages, setup
+
+
+def get_bin_dir():
+    prefix = sys.prefix
+    bin_dir = os.path.join(prefix, "bin")
+
+    if not os.path.exists(bin_dir):
+        os.makedirs(bin_dir, exist_ok=True)
+
+    return bin_dir
+
+
+bin_dir = get_bin_dir()
+
 
 install_requires = [
     "psutil",
@@ -21,14 +37,12 @@ install_requires = [
     "packaging",
 ]
 
-
 extra_require = {
     "k8s": ["kubernetes", "tornado", "grpcio"],
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
 }
-
 
 setup(
     name="dlrover",
@@ -57,4 +71,5 @@ setup(
     entry_points={
         "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]
     },
+    data_files=[(bin_dir, ["scripts/dlrover_run_affinity.sh"])],
 )
