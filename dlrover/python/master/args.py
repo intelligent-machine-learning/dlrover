@@ -104,6 +104,12 @@ def _build_master_args_parser():
         type=pos_int,
         help="The timeout value of worker task process(For PS type job).",
     )
+    parser.add_argument(
+        "--dead_node_timeout",
+        default=600,
+        type=int,
+        help="dead node timeout in seconds",
+    )
     return parser
 
 
