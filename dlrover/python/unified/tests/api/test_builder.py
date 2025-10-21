@@ -13,6 +13,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from omegaconf import OmegaConf
 from pydantic import ValidationError
 
@@ -499,6 +500,21 @@ class ApiTest(BaseTest):
         assert workload.entry_point == "test.main"
         assert workload.total == 4
         assert workload.resource.accelerator == 1
+
+        with pytest.raises(ValidationError):
+            (
+                DLJobBuilder()
+                .node_num(2)
+                .device_per_node(2)
+                .device_type("CPU")
+                .config({"c1": "v1"})
+                .global_env({"e0": "v0"})
+                .train("test")
+                .nnodes(2)
+                .nproc_per_node(2)
+                .end()
+                .build()
+            )
 
     def test_role_builder(self):
         workload_builder = DLJobBuilder().role("test").run("m0.c0")

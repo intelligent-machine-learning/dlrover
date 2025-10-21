@@ -14,10 +14,12 @@
 import pytest
 from pydantic import ValidationError
 
+from dlrover.python.unified.common.enums import WorkloadEntrypointType
 from dlrover.python.unified.common.workload_desc import (
     ElasticWorkloadDesc,
     ResourceDesc,
     SimpleWorkloadDesc,
+    get_entrypoint_type,
 )
 
 
@@ -56,3 +58,22 @@ def test_validate():
             rank_based_gpu_selection=True,
             resource=ResourceDesc(accelerator=2),
         )
+
+
+def test_get_entrypoint_type():
+    assert (
+        get_entrypoint_type("test.test") == WorkloadEntrypointType.MODULE_FUNC
+    )
+    assert (
+        get_entrypoint_type("my.module.run")
+        == WorkloadEntrypointType.MODULE_FUNC
+    )
+    assert get_entrypoint_type("test.py") == WorkloadEntrypointType.PY_CMD
+    assert (
+        get_entrypoint_type("test.py --test1") == WorkloadEntrypointType.PY_CMD
+    )
+    assert get_entrypoint_type("./test.py") == WorkloadEntrypointType.PY_CMD
+    assert (
+        get_entrypoint_type("/path/test.py") == WorkloadEntrypointType.PY_CMD
+    )
+    assert get_entrypoint_type("test") is None
