@@ -133,7 +133,7 @@ class PrimeMaster:
     async def report_execution_result(
         self, name: str, result: ExecutionResult
     ):
-        """Report the execution result of a actor."""
+        """Report the execution result of an actor."""
         actor = self.manager.graph.by_name.get(name)
         if actor is None:
             raise ValueError(f"Actor {name} not found.")

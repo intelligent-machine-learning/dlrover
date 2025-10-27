@@ -13,6 +13,7 @@
 
 import asyncio
 import pickle
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
@@ -21,6 +22,7 @@ from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.constant import (
     MASTER_STATE_KEY_PREFIX,
     RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+    InternalDLWorkloadRole,
 )
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
 from dlrover.python.unified.controller.events import ControllerEvents
@@ -50,6 +52,13 @@ class RuntimeState:
     """
 
     stage: MasterStage = MasterStage.INIT
+    # lag for failover status, the presence of a corresponding key-value pair
+    # indicates that failover is in progress.
+    # format:
+    # key: role name, is 'GLOBAL' if job level
+    # value: timestamp
+    failover_stage: Dict[str, int] = field(default_factory=dict)
+
     exit_code: int = 0
     job_restart_count: int = 0
     node_restart_count: int = 0
@@ -177,6 +186,16 @@ class PrimeManager:
         while self.stage == MasterStage.RUNNING:
             await self._notify_main_loop.acquire()
 
+            any_failure = [
+                role.has_any_failure() for role in self.graph.roles.values()
+            ]
+            if any(any_failure):
+                if self.config.failover_trigger_strategy == 2:
+                    await self._process_failover(reason="got worker failure")
+                logger.info(
+                    "Failure detected, but since the failover-trigger-strategy is set to 0, failover will not be executed for now."
+                )
+
             # ignore non-driver roles
             results = [
                 role.get_result()
@@ -186,14 +205,16 @@ class PrimeManager:
             # all driver roles finished
             if all(result is not None for result in results):
                 if any(result == ExecutionResult.FAIL for result in results):
-                    self.request_stop(
-                        "All driver roles finished, but some nodes failed."
+                    await self._process_failover(
+                        reason="got failure result on finished"
                     )
                 else:
                     self.request_stop(
                         "All driver roles finished successfully.", code=0
                     )
                 break
+
+            await asyncio.sleep(1)
 
         assert self.stage == MasterStage.STOPPING, (
             f"Job stage should be STOPPING, but got {self.stage}."
@@ -420,12 +441,22 @@ class PrimeManager:
             self._task = asyncio.create_task(
                 self._main_loop(), name="job_monitor"
             )
+
+            # if a master failover and a failover of any role overlap,
+            # we currently perform a global restart again for safety.
+            if self.is_failover_stage():
+                self._clear_failover_stage()
+                asyncio.create_task(
+                    self._process_failover(reason="failover overlapping")
+                )
+
             # TODO SchedulerManager._pg is not recovered
             ControllerEvents.failover_success()
         else:
             # Don't support failover in other stages, which are little possibility
             logger.warning(f"Job is in stage {self.stage}, terminating.")
             ControllerEvents.failover_stop(self.stage)
+            self._clear_failover_stage()
             self._do_stop()
 
     async def deal_with_actor_finished(
@@ -435,4 +466,64 @@ class PrimeManager:
         logger.info(f"Actor {actor.name} reported result {result}.")
         actor.result = result
         self._notify_main_loop.release()
-        # TODO handle Failed case failover
+
+    def _set_failover_stage(self, role_name):
+        if role_name not in self.state.failover_stage:
+            self.state.failover_stage[role_name] = int(time.time())
+            logger.debug(f"Setting failover stage: {role_name}")
+
+    def _clear_failover_stage(self, role_name=""):
+        if not role_name:
+            self.state.failover_stage.clear()
+            logger.debug("Clear all failover stage.")
+        else:
+            self.state.failover_stage.pop(role_name)
+            logger.debug(f"Clear failover stage: {role_name}")
+
+    def is_failover_stage(self, role_name=""):
+        if not role_name:
+            # is any role in failover stage
+            return len(self.state.failover_stage) == 0
+        else:
+            if (
+                InternalDLWorkloadRole.GLOBAL_ROLE in self.state.failover_stage
+                or role_name in self.state.failover_stage
+            ):
+                return True
+            return False
+
+    async def _process_failover(
+        self,
+        role_name=InternalDLWorkloadRole.GLOBAL_ROLE,
+        reason="unknown reason",
+    ):
+        if self.is_failover_stage(role_name):
+            logger.info(
+                "Failover is already in progress, skip the following process."
+            )
+        else:
+            self._set_failover_stage(role_name)
+
+            if self.config.failover_exec_strategy == 1:
+                # trigger job failover
+                logger.info(f"Trigger job failover, reason: {reason}.")
+                await self.restart_job()
+            elif self.config.failover_exec_strategy == 2:
+                # TODO: implement by role level failover
+                logger.info(
+                    "Role level failover is not supported yet, do job failover instead, "
+                    f"reason: {reason}."
+                )
+                await self.restart_job()
+            else:
+                logger.info(
+                    "Skip failover for strategy(failover_strategy_when_failed) "
+                    f"is: {self.config.failover_exec_strategy}, "
+                    f"reason: {reason}."
+                )
+                # stop job
+                self.request_stop(
+                    "All driver roles finished, but some workers failed."
+                )
+
+            self._clear_failover_stage(role_name)
