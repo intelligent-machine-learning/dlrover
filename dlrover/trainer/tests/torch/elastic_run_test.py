@@ -192,10 +192,9 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.training_port, 1000)
         self.assertTrue("bin/python" in cmd)
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
-
         self.assertTrue(config.numa_affinity)
         self.assertTrue(elastic._config.numa_affinity)
-        self.assertTrue("dlrover_run_affinity.sh" in elastic._entrypoint)
+        self.assertFalse("dlrover_run_affinity.sh" in elastic._entrypoint)
 
     @patch(f"{MC_PATH}.get_elastic_run_config")
     def test_elastic_config_from_master_1(self, mock_func):
