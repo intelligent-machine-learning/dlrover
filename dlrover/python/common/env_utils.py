@@ -13,22 +13,11 @@
 
 import os
 import socket
-import sys
 
 import psutil
 
 from dlrover.python.common.constants import CommunicationType, NodeEnv
 from dlrover.python.common.log import default_logger as logger
-
-
-def get_bin_dir():
-    prefix = sys.prefix
-    bin_dir = os.path.join(prefix, "bin")
-
-    if not os.path.exists(bin_dir):
-        os.makedirs(bin_dir, exist_ok=True)
-
-    return bin_dir
 
 
 def get_node_rank():
