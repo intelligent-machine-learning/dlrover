@@ -407,6 +407,10 @@ class ConfigPath(object):
     NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"
 
 
+class ScriptPath(object):
+    RUN_AFFINITY_SCRIPT = "dlrover_run_affinity.sh"
+
+
 class CheckpointConstant(object):
     TRACER_FILE_NAME = "dlrover_latest.txt"
     MODEL_STATES_NAME = "model_states"

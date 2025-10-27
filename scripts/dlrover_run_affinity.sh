@@ -22,4 +22,6 @@ BUS_ID=${BUS_ID,,}
 NODE=$(cat /sys/bus/pci/devices/"${BUS_ID:4}"/numa_node)
 
 echo "Starting local rank $RANK on numa node $NODE"
+echo -n "Cmd: numactl --cpunodebind=${NODE} --membind=${NODE}"
+echo "$@"
 numactl --cpunodebind="${NODE}" --membind="${NODE}" "$@"

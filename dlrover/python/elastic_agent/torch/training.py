@@ -78,6 +78,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
     EventReportConstants,
+    ScriptPath,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -536,6 +537,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._node_rank = node_rank
         self._config = config
         self._entrypoint = entrypoint
+        self._args = spec
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
@@ -893,6 +895,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             try:
                 if self._config.network_check:
                     run_network_check(self._config, self._entrypoint)
+
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
@@ -1015,7 +1018,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{spec.get_entrypoint_name()}"
         )
 
-        self._initialize_workers(self._worker_group)
+        if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            wg = self._worker_group
+            logger.info(f"WorkerGroup before numa affinity: {wg.spec} {wg}")
+            wg.spec.args = (wg.spec.entrypoint,) + wg.spec.args
+            wg.spec.entrypoint = ScriptPath.RUN_AFFINITY_SCRIPT
+            logger.info(f"WorkerGroup after numa affinity: {wg.spec} {wg}")
+            self._initialize_workers(wg)
+        else:
+            self._initialize_workers(self._worker_group)
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
 
@@ -1366,6 +1377,10 @@ def launch_agent(
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
     node_rank = env_utils.get_node_rank()
+    logger.info(
+        f"Launching agent entrypoint: {entrypoint}, args: {args}, "
+        f"name: {entrypoint_name}, rank: {node_rank}"
+    )
 
     logger.info(
         f"Starting training agent with launch configs:\n"
@@ -1525,6 +1540,7 @@ def _create_worker_spec(
     if version_less_than_230():
         spec.redirects = config.redirects
         spec.tee = config.tee
+
     return spec
 
 

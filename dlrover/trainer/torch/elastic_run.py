@@ -256,12 +256,6 @@ class ElasticLaunch:
         self._entrypoint = entrypoint
         self._use_dlrover_launch = use_dlrover_launch
 
-        # if numa_affinity enabled, add dlrover_set_affinity.sh script before entrypoint
-        if self._config.numa_affinity and isinstance(self._entrypoint, str):
-            self._entrypoint = "dlrover_run_affinity.sh " + str(
-                self._entrypoint
-            )
-
     def __call__(self, *args):
         if self._use_dlrover_launch:
             wait_pre_check(self._config)
