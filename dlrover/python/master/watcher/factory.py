@@ -17,7 +17,7 @@ from dlrover.python.common.log import default_logger as logger
 
 def new_node_watcher(platform, job_name, namespace="default"):
     logger.info("New %s Node Watcher", platform)
-    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
+    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES, PlatformType.VOLCANO):
         from dlrover.python.master.watcher.k8s_watcher import PodWatcher
 
         return PodWatcher(job_name, namespace)
@@ -43,6 +43,12 @@ def new_scale_plan_watcher(platform, job_name, namespace, job_uuid):
         )
 
         return RayScalePlanWatcher(job_name, namespace, job_uuid)
+    elif platform in (PlatformType.VOLCANO):
+        from dlrover.python.master.watcher.volcano_watcher import (
+            VolcanoScalePlanWatcher,
+        )
+
+        return VolcanoScalePlanWatcher(job_name, namespace, job_uuid)
     else:
         raise ValueError("Not support engine %s", platform)
 
