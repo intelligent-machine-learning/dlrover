@@ -2,23 +2,29 @@
 
 ## Overview
 
-This document describes the failover (fault tolerance) mechanisms in DLRover Unified, a distributed training system. It covers the core logic, component interactions, and key scenarios for handling failures at different levels (worker, submaster, node, and PrimeMaster). The structure is as follows:
+This document describes the failover (fault tolerance) mechanisms in DLRover 
+Unified, a distributed training system. It covers the core logic, component interactions, 
+and key scenarios for handling failures at different levels (worker, submaster, 
+node, and PrimeMaster). The structure is as follows:
 
 - **Core Failover Logic:** Main decision flow for handling actor failures.
 - **Worker Failover:** How different types of workers (with/without SubMaster) and SubMaster recover from failures.
 - **PrimeMaster Failover:** Self-healing and state management of the global controller.
 - **Node Relaunch:** Multi-component process for replacing faulty nodes and restarting all affected actors.
 
-Each section includes diagrams and concise explanations to help understand the system's robustness and recovery strategies.
+Each section includes diagrams and concise explanations to help understand the 
+system's robustness and recovery strategies.
 
 ---
 
 ## Core Failover Logic: deal_with_actor_restarting
 
-When a worker (actor) fails in DLRover Unified, the system starts the failover process from Ray reconstructing the worker and the worker reporting a RESTARTED event. The manager then determines the recovery strategy based on the failure context:
+When a worker (actor) fails in DLRover Unified, the system starts the failover 
+process from Ray reconstructing the worker and the worker reporting a RESTARTED 
+event. The manager then determines the recovery strategy based on the failure context:
 
 - If the failure is due to node relaunch (the node is in removed_nodes), reset the per-node failure count and do not treat it as a failure.
-- Otherwise, increment the per-node failure count.
+- Otherwise, update the corresponding failure record.
 - If the per-node failure count exceeds its configured limit, trigger node relaunch to replace the faulty node (then return to failover handling).
 - Otherwise, proceed to failover handling (such as restarting the job or recovering running state). Role-specific handling (e.g., SubMaster, role-level failover, restart count limit) is managed in subsequent steps.
 
@@ -26,27 +32,31 @@ When a worker (actor) fails in DLRover Unified, the system starts the failover p
 flowchart TD
     A[Worker Failure] --> B[Ray Reconstructs Worker]
     B --> C[Worker Reports RESTARTED]
-    C --> D{Is Node Relaunch?}
+    C --> D{Is Influenced by Node Relaunch?}
     D -- Yes --> E[Reset per-node failure count]
     E --> K[Proceed to Failover Handling]
-    D -- No --> F[Increment Failure Count]
-    F --> G{per_node_failure_count > Limit?}
+    D -- No --> F[Update Failure Info]
+    F --> G{Should Continue Failover Judgement?}
     G -- Yes --> H[Trigger Node Relaunch]
     H --> K
     G -- No --> K[Proceed to Failover Handling]
 ```
 
-This logic ensures node-level limits are enforced, and failover is triggered only when necessary. Role-specific recovery and restart count limits are handled in later steps.
+This logic ensures node-level limits are enforced, and failover is triggered 
+only when necessary. Role-specific recovery and restart count limits are handled 
+in later steps.
 
 ---
 
 ## Worker Failover
 
-DLRover Unified handles worker failures via automatic restart or job termination when restart limits are reached.
+DLRover Unified handles worker failures via automatic restart or job termination 
+when restart limits are reached.
 
 ### 1. ElasticWorker (with SubMaster)
 
-If the failed worker belongs to a role with SubMaster (ElasticMaster), role-level failover is supported. The failover handling is:
+If the failed worker belongs to a role with SubMaster (ElasticMaster), 
+role-level failover is supported. The failover handling is:
 
 - ElasticWorker detects failure and reports RESTARTED to PrimeMaster.
 - PrimeMaster requests SubMaster to perform role-level failover and restart the affected actors.
@@ -60,6 +70,7 @@ sequenceDiagram
     participant EW as ElasticWorker
     participant SM as SubMaster
     participant PM as PrimeMaster
+    activate EW
     EW->>PM: Report restarted (failure)
     PM->>SM: Request Role-level Failover
     activate SM
@@ -79,7 +90,9 @@ sequenceDiagram
     SM-->>PM: Role-level Failover Done
 ```
 
-This process ensures that role-level failover is coordinated by SubMaster and controlled by PrimeMaster, with restart limits enforced to prevent infinite retries. SubMaster always restores its own state before actor recovery.
+This process ensures that role-level failover is coordinated by SubMaster and 
+controlled by PrimeMaster, with restart limits enforced to prevent infinite 
+retries. SubMaster always restores its own state before actor recovery.
 
 ### 2. Other Worker (no SubMaster)
 
@@ -104,11 +117,15 @@ sequenceDiagram
     PM->>PM: (re)start job to RUNNING stage
 ```
 
-This process ensures that job-level failover is managed by PrimeMaster, with all state transitions and actor restarts coordinated for global consistency.
+This process ensures that job-level failover is managed by PrimeMaster, with all s
+tate transitions and actor restarts coordinated for global consistency.
 
 ### 3. SubMaster Failover
 
-When SubMaster (ElasticMaster) fails, the system ensures recovery and role consistency:
+When SubMaster (such as: ElasticMaster) fails, the system ensures recovery and 
+role consistency. SubMaster is uniformly designed as a stateless object, with 
+all its internal state derived from the PrimeMaster's state management, 
+allowing for direct retries:
 
 ```mermaid
 flowchart TD
@@ -124,14 +141,18 @@ flowchart TD
 
 ## PrimeMaster Failover
 
-PrimeMaster is the unique, self-healing, and core stateful component in DLRover Unified. Its state save/load mechanism is critical for global job consistency and recovery:
+PrimeMaster is the unique, self-healing, and core stateful component in DLRover 
+Unified. Its state save/load mechanism is critical for global job consistency 
+and recovery:
 
 - PrimeMaster maintains the authoritative job state and orchestrates all failover logic.
 - On any state change, PrimeMaster saves its current state to persistent storage, ensuring that both itself and all workers are in a globally consistent state.
 - When a failure occurs, PrimeMaster is reconstructed and loads the last saved state from persistent storage. This separation of Save and Load guarantees that job progress is never lost.
 - After loading, PrimeMaster performs self-recover. Only if the restored stage is RUNNING (the long-lived stage), failover proceeds and job monitoring resumes. For other short-lived stages, or if any exception occurs during recovery, PrimeMaster safely terminates the job to avoid inconsistency.
 
-This design ensures distributed jobs can always recover from failures in a consistent and reliable manner, with all exceptions and abnormal branches leading to a safe stop.
+This design ensures distributed jobs can always recover from failures in a 
+consistent and reliable manner, with all exceptions and abnormal branches leading 
+to a safe stop.
 
 ```mermaid
 flowchart TD
@@ -154,7 +175,10 @@ flowchart TD
 
 ## Node Relaunch
 
-Node relaunch is a coordinated process managed by PrimeManager to maintain job reliability when a node's per-node failure count exceeds its configured limit. All actors on the same node—including Other Actor—are affected and restarted together. The process involves:
+Node relaunch is a coordinated process managed by PrimeManager to maintain job 
+reliability when a node's per-node failure count exceeds its configured limit. 
+All actors on the same node—including Other Actor—are affected and restarted 
+together. The process involves:
 
 - Actor reports failure (RESTARTED) to PrimeManager.
 - PrimeManager records the failure, checks per-node failure count, and updates removed_nodes if relaunch is needed.
@@ -185,4 +209,6 @@ sequenceDiagram
     Note over PM: Proceed to Failover Handling <br> (Failover Handling Should support deduplication)
 ```
 
-This ensures that faulty nodes are replaced and all actors on the node are consistently restarted, minimizing disruption and maintaining global state consistency.
+This ensures that faulty nodes are replaced and all actors on the node are 
+consistently restarted, minimizing disruption and maintaining global state 
+consistency.

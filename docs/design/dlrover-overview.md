@@ -76,7 +76,7 @@ Before discussing the two architectures in detail, let's first take a holistic
 look at their overall design and differences:
 
 <div align="center">
-<img src="../figures/dlrover-overview-2025.png" alt="Editor" width="500">
+<img src="../figures/dlrover-overview-2025.png" alt="Overview-all" width="500">
 </div>
 
 To help users better understand the new Ray-based architecture, we recommend 
@@ -125,7 +125,7 @@ The diagram below illustrates the overall design of DLRover based on the Ray
 architecture:
 
 <div align="center">
-<img src="../figures/dlrover-overview-ray.png" alt="Editor" width="500">
+<img src="../figures/dlrover-overview-ray.png" alt="Overview-ray" width="500">
 </div>
 
 1. The primary unit managed by DLRover has shifted from Nodes to Actors (process).  
@@ -160,7 +160,7 @@ for computational scenarios, even enabling the simultaneous representation of
 both offline and online computing.
 
 <div align="center">
-<img src="../figures/scenario-support-mind.png" alt="Editor" width="500">
+<img src="../figures/scenario-support-mind.png" alt="Scenario" width="500">
 </div>
 
 
@@ -201,6 +201,23 @@ Here are a few examples of common scenarios:
 <img src="../figures/unified/collocation.png" alt="Collocation">
 </div>
 
+##### Consistent Fault Tolerance
+
+Building upon DLRover's previous work on stability and leveraging Ray's inherent 
+capabilities, the new architecture further simplifies the fault tolerance 
+implementation process. As illustrated in the design overview above, the fault 
+tolerance mechanism based on the current three-layer structure: PrimeMaster, 
+SubMaster, and Worker is as shown in the diagram below:
+
+<div align="center">
+<img src="../figures/dlrover-overview-ray-failover.png" alt="Overview-ray-failover">
+</div>
+
+Both Masters and Workers possess inherent recovery capabilities. Additionally, 
+for complex heterogeneous scenarios, the system supports further localized 
+fault tolerance, significantly enhancing the efficiency of fault handling.
+
+For specific details, please refer to [failover-design](./unified-failover.md).
 
 ##### Extensible Components
 
