@@ -537,7 +537,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._node_rank = node_rank
         self._config = config
         self._entrypoint = entrypoint
-        self._args = spec
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
