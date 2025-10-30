@@ -1018,14 +1018,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
         if self._config.numa_affinity and isinstance(spec.entrypoint, str):
-            wg = self._worker_group
-            logger.info(f"WorkerGroup before numa affinity: {wg.spec} {wg}")
-            wg.spec.args = (wg.spec.entrypoint,) + wg.spec.args
-            wg.spec.entrypoint = ScriptPath.RUN_AFFINITY_SCRIPT
-            logger.info(f"WorkerGroup after numa affinity: {wg.spec} {wg}")
-            self._initialize_workers(wg)
-        else:
-            self._initialize_workers(self._worker_group)
+            logger.info(
+                f"WorkerGroup before numa affinity: {self._worker_group.spec}"
+            )
+            self._worker_group.spec.args = (
+                self._worker_group.spec.entrypoint,
+            ) + self._worker_group.spec.args
+            self._worker_group.spec.entrypoint = ScriptPath.RUN_AFFINITY_SCRIPT
+            logger.info(
+                f"WorkerGroup after numa affinity: {self._worker_group.spec}"
+            )
+
+        self._initialize_workers(self._worker_group)
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
 
