@@ -36,7 +36,7 @@ flowchart TD
     D -- Yes --> E[Reset per-node failure count]
     E --> K[Proceed to Failover Handling]
     D -- No --> F[Update Failure Info]
-    F --> G{Should Continue Failover Judgement?}
+    F --> G{Should Trigger Node Relaunch?}
     G -- Yes --> H[Trigger Node Relaunch]
     H --> K
     G -- No --> K[Proceed to Failover Handling]
@@ -88,6 +88,7 @@ sequenceDiagram
     EW-->>SM: Job Started
     deactivate SM
     SM-->>PM: Role-level Failover Done
+    deactivate EW
 ```
 
 This process ensures that role-level failover is coordinated by SubMaster and 
