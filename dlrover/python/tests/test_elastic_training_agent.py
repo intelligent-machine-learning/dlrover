@@ -865,6 +865,24 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
 
+    def test_invoke_run_with_numa_affinity(self):
+        self.config.numa_affinity = True
+        self.config.training_port = 0
+        self.spec.entrypoint = "sleep"
+        self.spec.args = tuple(["3"])
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="sleep",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+        agent._initialize_workers = MagicMock(return_value=None)
+        with self.assertRaises(AssertionError):
+            agent._invoke_run()
+
     @unittest.skip("skip")
     def test_numa_affinity(self):
         with patch(
