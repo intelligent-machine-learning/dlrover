@@ -56,7 +56,7 @@ with multiple hardware devices (beyond NVIDIA GPUs).
 
 DLRover's development has primarily gone through the following stages:
 
-```mermaid
+```
     ~ 2022 : Optimizing resources for CPU-intensive computing
     2022 ~ 2023 : Providing more comprehensive job lifecycle management and fault tolerance support
     2023 ~ 2024 : Enhancing fault tolerance for large model computing
