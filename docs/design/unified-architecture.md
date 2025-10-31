@@ -216,7 +216,10 @@ lifecycle. Key mechanisms include:
 
 #### Failover
 
-The framework provides comprehensive failover strategies to ensure operational continuity:
+The framework provides comprehensive failover strategies to ensure operational 
+continuity. More details please refer to [here](./unified-failover.md).
+
+Use 'Torch Elastic Training' as a example:
 
 - If an `ElasticWorker` fails during `node_check`, the `ElasticMaster` restarts all abnormal workers and retries
   `node_check` until all workers are ready.

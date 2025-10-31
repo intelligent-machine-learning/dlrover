@@ -4,6 +4,10 @@ The DLRover project follows the semantic versioning scheme and maintains a separ
 
 For laset news about DLRover you can check as following link: https://github.com/intelligent-machine-learning/dlrover?tab=readme-ov-file#latest-news=
 
+
+## Release 0.6.0 on Dec 31, 2025
+Please refer to [release 0.6.0](https://github.com/intelligent-machine-learning/dlrover/releases/tag/v0.6.0)
+
 ## Release 0.5.0 on Jul 7, 2025
 Please refer to [release 0.5.0](https://github.com/intelligent-machine-learning/dlrover/releases/tag/v0.5.0)
 

@@ -21,6 +21,8 @@ Start here to run a complete example and verify your environment:
   - [03B. Multi-Role Training Example: verl](03b-multi-role-training-verl.md) — Multi-role training with VeRL
 - 04. Runtime SDK
   - [04. Runtime SDK](04-runtime-sdk.md) — Use the DLRover Runtime SDK and runtime patterns
+- 05. Others
+  - [Develop Notes](./unified_develop_notes.md) - Some notes for understanding the code.
 
 ## Examples
 

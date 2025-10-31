@@ -7,28 +7,33 @@
 [![Build](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9827/badge)](https://www.bestpractices.dev/projects/9827)
 [![Code Coverage](https://codecov.io/gh/intelligent-machine-learning/dlrover/branch/master/graph/badge.svg)](https://codecov.io/gh/intelligent-machine-learning/dlrover)
+[![GitHub contributors](https://img.shields.io/github/contributors/intelligent-machine-learning/dlrover?style=flat)](https://github.com/intelligent-machine-learning/dlrover/graphs/contributors)
 [![PyPI Status Badge](https://badge.fury.io/py/dlrover.svg)](https://pypi.org/project/dlrover/)
 </div>
 
 DLRover makes the distributed training of large AI models easy, stable, fast and green.
 It can automatically train the Deep Learning model on the distributed cluster.
-It helps model developers to focus on model arichtecture, without taking care of
+It helps model developers to focus on model architecture, without taking care of
 any engineering stuff, say, hardware acceleration, distributed running, etc.
 Now, it provides automated operation and maintenance for deep learning
 training jobs on K8s/Ray. Major features as
 
+- **Full-Scene**: Support deep learning full-scene distributed training computation implementation.
 - **Fault-Tolerance**: The distributed training can continue running in the event of failures.
-- **Flash Checkpoint**: The distributed training can recover failures from the in-memory checkpoint in seconds.
 - **Auto-Scaling**: The distributed training can scale up/down resources to improve the stability, throughput
 and resource utilization.
+- **Others**:
+  - **XPU Timer Integration**: With runtime xpu-timer integration, can possess stronger runtime diagnostics and fault tolerance capabilities.
+  - **Flash Checkpoint**: The distributed training can recover failures from the in-memory checkpoint in seconds.
 
 Furthermore, DLRover offers extension libraries for PyTorch and TensorFlow to expedite training. These are also open-source projects available in our [GitHub repositories](https://github.com/intelligent-machine-learning).
 - [ATorch](https://github.com/intelligent-machine-learning/atorch): an extension library of PyTorch to Speed Up Training of Large LLM.
-- [TFPlus](https://github.com/intelligent-machine-learning/tfplus): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
+- [TFPlus](https://github.com/intelligent-machine-learning/tfplus)(K8S platform only): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
 
 ## Latest News
 
-- [2025/08] [Practice: Gang Scheduling with DLRover](docs/tutorial/gang_scheduling.md)
+- [2025/12] [DLRover on Ray's new architecture achieves its first official release.](docs/blogs/dlrover_on_ray.md)
+- [2025/08] [Practice: Gang Scheduling with DLRover.](docs/tutorial/gang_scheduling.md)
 - [2025/01] [EDiT: A Local-SGD-Based Efficient Distributed Training Method for Large Language Models, ICLR'25.](https://arxiv.org/abs/2412.07210)
 - [2024/06] [DLRover-RM has been accepted by VLDB'24.](docs/blogs/dlrover_rm.md)
 - [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md#huggingface-transformerstrainer)
