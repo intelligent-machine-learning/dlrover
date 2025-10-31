@@ -668,10 +668,28 @@ class WorkerManager(TrainingNodeManager):
         nodes = self._get_nodes()
         return all([node.is_node_check_failed() for _, node in nodes.items()])
 
-    def is_all_initial_workers_node_check_failed(self, worker_num: int):
+    def is_all_initial_workers_node_check_failed(
+        self, worker_num: int, min_worker_num: int = 4
+    ):
         """
-        Check all initial workers are check-failed
-        (exclude new relaunched workers)"""
+        Check all initial workers are check-failed(exclude new relaunched workers).
+
+        Will skip judgement if worker number is less than min_worker_num because
+        when the number of workers is too small (especially in single-machine
+        or dual-machine scenarios), the probability of an all check failure
+        increases significantly. At the same time, in scenarios with
+        fewer workers, the number of fault tolerance attempts is limited by
+        the total number of workers, which does not lead to excessively high
+        fault tolerance costs. Hence, this boundary restriction is imposed.
+        """
+
+        if worker_num < min_worker_num:
+            logger.debug(
+                "Skip all initial workers node-check failed judgement "
+                f"for worker num: {worker_num} < {min_worker_num}."
+            )
+            return False
+
         nodes = [
             node
             for _, node in self._get_nodes().items()
