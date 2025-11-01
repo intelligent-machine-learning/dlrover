@@ -52,6 +52,8 @@ def main():
     init_process_group(protocol, timeout=get_network_check_timeout())
 
     if use_cuda:
+        os.environ["HCCL_CONNECT_TIMEOUT"] = "120"
+        os.environ["HCCL_EXEC_TIMEOUT"] = "180"
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
         # Given that the GPU models on each node are the same, the benchmark
@@ -64,6 +66,9 @@ def main():
                 cann_version=torch.version.cann,
             )
             logger.info(f"benchmark env: {bench_env}")
+            logger.info(
+                f"hccl env: {os.environ['HCCL_CONNECT_TIMEOUT']} {os.environ['HCCL_EXEC_TIMEOUT']}"
+            )
 
     try:
         # warmup
