@@ -264,6 +264,11 @@ class WorkerManagerTest(unittest.TestCase):
                 self._job_resource.worker_num
             )
         )
+        self.assertFalse(
+            worker_manager.is_all_initial_workers_node_check_failed(
+                self._job_resource.worker_num, 100
+            )
+        )
 
     def test_is_training_hang_by_pending_workers(self):
         self.job_context.clear_job_nodes()
