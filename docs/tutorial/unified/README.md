@@ -17,7 +17,7 @@ Start here to run a complete example and verify your environment:
 - 02. Builder API
   - [02. Unified API Guide](02-unified-api-guide.md) — Submit and configure larger training jobs
 - 03. Advanced / Multi-role
-  - [03. Multi-Role Training (OpenRLHF)](03-multi-role-training.md) — Multi-role training with OpenRLHF
+  - [03A. Multi-Role Training (OpenRLHF)](03a-multi-role-training.md) — Multi-role training with OpenRLHF
   - [03B. Multi-Role Training Example: verl](03b-multi-role-training-verl.md) — Multi-role training with VeRL
 - 04. Runtime SDK
   - [04. Runtime SDK](04-runtime-sdk.md) — Use the DLRover Runtime SDK and runtime patterns

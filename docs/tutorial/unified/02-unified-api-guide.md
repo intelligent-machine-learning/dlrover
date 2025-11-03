@@ -45,6 +45,7 @@ job = (
     .config(DictConfig(args))
     .role("trainer").train("module.trainer.run").total(2).resource(gpu=1).end()
     .role("rollout").run("module.rollout.run").total(4).resource(cpu=4).end()
+    .workload("reward", "module.reward.run").total(1).resource(cpu=2).end()
     .build()
 )
 job.submit(job_name="rl_job")
@@ -59,8 +60,9 @@ version.)
 - device_type("GPU"|"CPU"): preferred accelerator type.
 - config(DictConfig or dict): user configuration available at runtime.
 - role(str): defines the role name for multi-role jobs.
-- train(entrypoint): define a training workload with entrypoint (module path + function or command with python file), and return a sub builder.
 - run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
+- workload(role, entrypoint): single method combine role + run
+- train(entrypoint): define a training workload with entrypoint (module path + function or command with python file), and return a sub builder.
 
 ### Workload / role patterns
 

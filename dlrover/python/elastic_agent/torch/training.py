@@ -78,6 +78,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
     EventReportConstants,
+    ScriptPath,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -893,6 +894,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             try:
                 if self._config.network_check:
                     run_network_check(self._config, self._entrypoint)
+
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
@@ -1015,13 +1017,21 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{spec.get_entrypoint_name()}"
         )
 
+        if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            logger.info(
+                f"WorkerGroup before numa affinity: {self._worker_group.spec}"
+            )
+            self._worker_group.spec.args = (
+                self._worker_group.spec.entrypoint,
+            ) + self._worker_group.spec.args
+            self._worker_group.spec.entrypoint = ScriptPath.RUN_AFFINITY_SCRIPT
+            logger.info(
+                f"WorkerGroup after numa affinity: {self._worker_group.spec}"
+            )
+
         self._initialize_workers(self._worker_group)
         monitor_interval = spec.monitor_interval
         rdzv_handler = spec.rdzv_handler
-
-        # set workers numa-affinity if necessary
-        if self._config.numa_affinity:
-            self._set_numa_affinity()
 
         while True:
             assert self._worker_group.state != WorkerState.INIT
@@ -1370,6 +1380,10 @@ def launch_agent(
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
     node_rank = env_utils.get_node_rank()
+    logger.info(
+        f"Launching agent entrypoint: {entrypoint}, args: {args}, "
+        f"name: {entrypoint_name}, rank: {node_rank}"
+    )
 
     logger.info(
         f"Starting training agent with launch configs:\n"
@@ -1529,6 +1543,7 @@ def _create_worker_spec(
     if version_less_than_230():
         spec.redirects = config.redirects
         spec.tee = config.tee
+
     return spec
 
 

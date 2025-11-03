@@ -13,6 +13,7 @@
 
 from setuptools import find_packages, setup
 
+
 install_requires = [
     "psutil",
     "pynvml",
@@ -21,14 +22,12 @@ install_requires = [
     "packaging",
 ]
 
-
 extra_require = {
     "k8s": ["kubernetes", "tornado", "grpcio"],
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
 }
-
 
 setup(
     name="dlrover",
@@ -52,9 +51,10 @@ setup(
             "docker/*",
             "Makefile",
             "trainer/check/*",
-        ]
+        ],
     },
     entry_points={
         "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]
     },
+    data_files=[("bin", ["scripts/dlrover_run_affinity.sh"])],
 )
