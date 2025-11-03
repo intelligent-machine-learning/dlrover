@@ -448,6 +448,18 @@ class DLJobBuilder(object):
         self._env.update(env)
         return self
 
+    def workload(self, role: str, entrypoint: str):
+        """
+        Set user defined workload.
+
+        Args:
+            role (str): The role of workload.
+            entrypoint (str): The entrypoint of workload.
+        """
+
+        self.role(role)
+        return self.run(entrypoint=entrypoint)
+
     def role(self, role: str):
         """
         Set the last role for next workload definition.
@@ -464,7 +476,6 @@ class DLJobBuilder(object):
         Setup simple workload.
 
         Args:
-            role (str): The role name of workload.
             entrypoint (str): The entry point of workload.
         """
         if self._last_role is None:
