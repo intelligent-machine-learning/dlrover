@@ -1081,7 +1081,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
         self.assertTrue(orphan_killed)
 
-    def test_stop_workers(self):
+    @patch("subprocess.run")
+    def test_stop_workers(self, mock_run):
         agent = ElasticTrainingAgent(
             node_rank=0,
             config=self.config,
@@ -1099,6 +1100,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             time.sleep(10)
 
         # with timeout
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
         with patch.object(
             LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds
         ):
@@ -1134,67 +1136,33 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         # Mock getpgid to return a safe process group ID
         mock_getpgid.return_value = 9999
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        
+
         with self.assertRaises(StopWorkerTimeoutError):
             agent._stop_timeout_handler(signal.SIGALRM, None)
-        
-        # Verify pkill is called with correct arguments
+
         mock_run.assert_called_once()
         args, kwargs = mock_run.call_args
-        self.assertIn('pkill', args[0])
-        self.assertIn('-9', args[0])
-        self.assertIn('9999', str(args[0]))
+        self.assertIn("pkill", args[0])
+        self.assertIn("-9", args[0])
+        self.assertIn("9999", str(args[0]))
 
-    # @patch('os.getpgid')
-    # @patch('subprocess.run')
-    # def test_stop_timeout_handler_pkill_failure(self, mock_run, mock_getpgid):
-    #     """Test _stop_timeout_handler when pkill fails"""
-    #     agent = ElasticTrainingAgent(
-    #         node_rank=0,
-    #         config=self.config,
-    #         entrypoint="echo",
-    #         spec=self.spec,
-    #         start_method=self.config.start_method,
-    #         log_dir=self.config.log_dir,
-    #         exit_barrier_timeout=1,
-    #     )
-    #
-    #     mock_getpgid.return_value = 9999
-    #     mock_run.return_value = MagicMock(returncode=1, stderr="permission denied")
-    #
-    #     with self.assertRaises(StopWorkerTimeoutError):
-    #         agent._stop_timeout_handler(signal.SIGALRM, None)
-    #
-    # @patch('os.getpgid')
-    # @patch('subprocess.run')
-    # def test_stop_timeout_handler_subprocess_exceptions(self, mock_run, mock_getpgid):
-    #     """Test _stop_timeout_handler handles subprocess exceptions"""
-    #     agent = ElasticTrainingAgent(
-    #         node_rank=0,
-    #         config=self.config,
-    #         entrypoint="echo",
-    #         spec=self.spec,
-    #         start_method=self.config.start_method,
-    #         log_dir=self.config.log_dir,
-    #         exit_barrier_timeout=1,
-    #     )
-    #
-    #     mock_getpgid.return_value = 9999
-    #
-    #     # Test TimeoutExpired exception
-    #     mock_run.side_effect = subprocess.TimeoutExpired('pkill', 5)
-    #     with self.assertRaises(StopWorkerTimeoutError):
-    #         agent._stop_timeout_handler(signal.SIGALRM, None)
-    #
-    #     # Test CalledProcessError
-    #     mock_run.side_effect = subprocess.CalledProcessError(1, 'pkill')
-    #     with self.assertRaises(StopWorkerTimeoutError):
-    #         agent._stop_timeout_handler(signal.SIGALRM, None)
-    #
-    #     # Test general exception
-    #     mock_run.side_effect = Exception("unexpected error")
-    #     with self.assertRaises(StopWorkerTimeoutError):
-    #         agent._stop_timeout_handler(signal.SIGALRM, None)
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr="permission denied"
+        )
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = subprocess.TimeoutExpired("pkill", 5)
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = subprocess.CalledProcessError(1, "pkill")
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = Exception("unexpected error")
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
 
     def test_diagnosis(self):
         agent = ElasticTrainingAgent(
