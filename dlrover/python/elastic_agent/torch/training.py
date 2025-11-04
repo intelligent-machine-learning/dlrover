@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -961,7 +962,24 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        raise StopWorkerTimeoutError("Timed out waiting for stopping workers.")
+        logger.warning(
+            "Use pkill to kill all sub-processes in 'stop_timeout_handler'."
+        )
+        try:
+            subprocess.run(
+                ["pkill", "-9", "-g", str(os.getpgid(os.getpid()))],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error in stop_timeout_handler when killing process: {e}"
+            )
+
+        raise StopWorkerTimeoutError(
+            "Timed out waiting for stopping workers, forcefully kill all sub-processes."
+        )
 
     def _set_numa_affinity(self):
         """set numa affinity to workers processes,
