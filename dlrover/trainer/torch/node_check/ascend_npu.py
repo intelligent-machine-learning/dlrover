@@ -65,10 +65,10 @@ def main():
                 torch_version=torch.__version__,
                 cann_version=torch.version.cann,
             )
-            logger.info(f"benchmark env: {bench_env}")
-            logger.info(
-                f"hccl env: {os.environ['HCCL_CONNECT_TIMEOUT']} {os.environ['HCCL_EXEC_TIMEOUT']}"
-            )
+            hccl_env = {
+                k: v for k, v in os.environ.items() if k.startswith("HCCL")
+            }
+            logger.info(f"benchmark env: {bench_env}, hccl env: {hccl_env}")
 
     try:
         # warmup
