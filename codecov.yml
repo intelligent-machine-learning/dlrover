@@ -8,7 +8,7 @@ coverage:
     - "dlrover/trainer/tests"  # test codes
     - "dlrover/python/tests" # test codes
     - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
-    - "dlrover/trainer/torch/node_check/utils.py"
+    - "dlrover/trainer/torch/node_check" # need xpu node
     - "dlrover/proto"  # protobuf auto generated
   status:
     changes: false
