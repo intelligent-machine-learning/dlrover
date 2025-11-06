@@ -524,6 +524,7 @@ class ApiTest(BaseTest):
         self.assertEqual(workload_builder._sub_stage, [])
         workload_builder.sub_stage([1])
         self.assertEqual(workload_builder._sub_stage, [1])
+        workload_builder = DLJobBuilder().workload("test", "m0.c0")
         workload_builder.end().build()  # success
 
         # Bad entrypoint
