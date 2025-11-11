@@ -962,19 +962,54 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        logger.warning(
-            "Use pkill to kill all sub-processes in 'stop_timeout_handler'."
-        )
+        current_pgid = os.getpgid(os.getpid())
+
+        def get_processes_by_pgid(pgid):
+            target_processes = []
+            for proc in psutil.process_iter(
+                ["pid", "ppid", "name", "cmdline"]
+            ):
+                try:
+                    if os.getpgid(proc.pid) == pgid:
+                        cmdline = (
+                            " ".join(proc.cmdline())
+                            if proc.cmdline()
+                            else proc.name()
+                        )
+                        target_processes.append(
+                            {
+                                "pid": proc.pid,
+                                "ppid": proc.ppid(),
+                                "name": proc.name(),
+                                "cmdline": cmdline,
+                            }
+                        )
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return target_processes
+
         try:
+            target_processes = get_processes_by_pgid(current_pgid)
+            logger.warning(
+                "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
+                f"Target pgid: {current_pgid}, processes: {target_processes}"
+            )
+
             subprocess.run(
-                ["pkill", "-9", "-g", str(os.getpgid(os.getpid()))],
+                ["pkill", "-9", "-g", str(current_pgid)],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-        except Exception as e:
-            logger.error(
-                f"Unexpected error in stop_timeout_handler when killing process: {e}"
+
+            target_processes = get_processes_by_pgid(current_pgid)
+            logger.warning(
+                "Remaining process after pkill in 'stop_timeout_handler', "
+                f"Target pgid: {current_pgid}, processes: {target_processes}"
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error in stop_timeout_handler when killing process."
             )
 
         raise StopWorkerTimeoutError(
