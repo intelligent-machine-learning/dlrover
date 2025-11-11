@@ -104,9 +104,9 @@ def retry(retry_times=10, retry_interval=5, raise_exception=True):
                         type(e), e, e.__traceback__, limit=3
                     )
                     logger.warning(
-                        f"Retry {i} to {class_name}.{func_name} with failure {e}, ",
-                        f"with traceback {tb}",
+                        f"Retry {i} to {class_name}.{func_name} with failure {e}"
                     )
+                    logger.debug(f"Caused traceback: {tb}")
                     exception = e
                     time.sleep(retry_interval)
             if exception:

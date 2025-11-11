@@ -195,6 +195,8 @@ class DistributedJobManager(JobManager):
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
         self._relaunched_groups: List[int] = []
+        self._group_relaunch_count = 0
+        self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
 
     def start(self):
         self._scaler.start()
@@ -917,6 +919,13 @@ class DistributedJobManager(JobManager):
             f"{self._enable_relaunch_node}, {node_check}, {job_ctx.get_job_stage()}"
         )
 
+        if self._group_relaunch_count > self._max_group_relaunch_count:
+            logger.info(
+                f"Node group {node_group} has exceeded max relaunch count: "
+                f"{self._group_relaunch_count}/{self._max_group_relaunch_count}"
+            )
+            return False
+
         return should_relaunch
 
     def _should_relaunch(
@@ -1089,6 +1098,7 @@ class DistributedJobManager(JobManager):
 
         self._relaunched_groups.append(node_group)
         self._scaler.scale(plan)
+        self._group_relaunch_count += 1
         return plan
 
     def clear_exited_nodes(self):

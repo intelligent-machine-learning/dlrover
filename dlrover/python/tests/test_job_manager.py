@@ -356,6 +356,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._init_nodes()
         manager._scaler.scale = mock.MagicMock(return_value=None)
 
+        manager._max_group_relaunch_count = -1
+        self.job_context.clear_job_node_groups()
+        node = Node(
+            NodeType.WORKER,
+            0,
+            rank_index=0,
+            status=NodeStatus.PENDING,
+            node_group=0,
+            node_group_size=1,
+            relaunchable=True,
+        )
+        self.job_context.update_job_node_by_group(node)
+        self.assertFalse(manager._should_relaunch_node_group(0))
+        manager._max_group_relaunch_count = 3
+
         self.job_context.clear_job_node_groups()
         node = Node(
             NodeType.WORKER,
