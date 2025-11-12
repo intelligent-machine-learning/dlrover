@@ -1363,8 +1363,10 @@ class DistributedJobManager(JobManager):
         node = self._job_context.job_node(node_type, node_id)
 
         if error_data:
+            # self detected reason override the reason from k8s pod
             node.set_exit_reason(error_data)
         else:
+            # inherit the reason from k8s pod
             error_data = node.exit_reason
         logger.info(f"Handle failed node: {node} with reason: {error_data}")
         if node.is_released:

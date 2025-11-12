@@ -80,6 +80,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     EventReportConstants,
     ScriptPath,
+    NodeExitReason,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
