@@ -1732,7 +1732,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeEventType.NODE_CHECK_FAILED,
+                NodeExitReason.CHECK_FAIL,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError(NodeExitDescription.NODE_FAILED_MSG)
