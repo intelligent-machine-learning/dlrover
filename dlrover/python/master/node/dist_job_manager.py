@@ -1361,7 +1361,14 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_context.job_node(node_type, node_id)
-        logger.info(f"Handle failed node: {node}")
+
+        if error_data:
+            # self detected reason override the reason from k8s pod
+            node.set_exit_reason(error_data)
+        else:
+            # inherit the reason from k8s pod
+            error_data = node.exit_reason
+        logger.info(f"Handle failed node: {node} with reason: {error_data}")
         if node.is_released:
             return
         relaunch_node = self._process_error(

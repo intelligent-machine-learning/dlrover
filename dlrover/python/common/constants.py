@@ -193,6 +193,7 @@ class NodeExitReason(object):
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
     RELAUNCHED = "Relaunched"
+    CHECK_FAIL = "CheckFailure"
 
 
 class NodeExitDescription(object):
