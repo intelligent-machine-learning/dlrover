@@ -328,7 +328,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
         self.assertEqual(self.job_context.get_failed_node_cnt(), 1)
         manager.handle_training_failure(
-            NodeType.WORKER, 1, level=TrainingExceptionLevel.NODE_ERROR
+            NodeType.WORKER,
+            1,
+            level=TrainingExceptionLevel.NODE_ERROR,
+            error_data="test_reason",
         )
         self.assertEqual(self.job_context.get_failed_node_cnt(), 2)
 

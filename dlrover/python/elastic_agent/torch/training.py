@@ -80,6 +80,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     EventReportConstants,
     ScriptPath,
+    NodeExitReason,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -1732,7 +1733,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeEventType.NODE_CHECK_FAILED,
+                NodeExitReason.CHECK_FAIL,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError(NodeExitDescription.NODE_FAILED_MSG)
