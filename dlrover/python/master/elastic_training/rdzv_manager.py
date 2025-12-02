@@ -314,7 +314,7 @@ class RendezvousManager(metaclass=ABCMeta):
             logger.info(
                 f"Worker node with id: {meta.node_id}, "
                 f"rank: {meta.node_rank} and ip: {meta.node_ip} "
-                f"joining rendezvous for round: {self._rdzv_round}."
+                f"joining {self._name} rendezvous for round: {self._rdzv_round}."
             )
             self._waiting_nodes[node_rank] = meta
             self._rdzv_nodes = OrderedDict()
@@ -687,13 +687,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         if len(self._reported_nodes) == len(self._rdzv_nodes):
             node_status = self._map_node_rank_to_id(self._node_status)
             logger.info(
-                f"Round {self._rdzv_round}: The node status "
+                f"{self._name} round {self._rdzv_round}: The node status "
                 f"are: {node_status}, "
                 f"the node group are: {self._get_print_node_groups()}"
             )
             node_check_times = self._map_node_rank_to_id(self._node_times)
             logger.info(
-                f"Round {self._rdzv_round}: The node elapsed time "
+                f"{self._name} round {self._rdzv_round}: The node elapsed time "
                 f"are {node_check_times}"
             )
             if self._event_reporter:

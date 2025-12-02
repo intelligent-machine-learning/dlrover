@@ -11,12 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import ray.actor
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
@@ -69,6 +71,8 @@ class ActorBase:
         """Initialize the actor with node information."""
         self.job_info = job_info
         self.actor_info = actor_info
+        logger.debug(f"Actor {actor_info.name} initiated with Python executable: {sys.executable}, Python path: {sys.path}, PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+
         init_main_loop()
 
         # Report restart if this actor was reconstructed.
