@@ -1,38 +1,41 @@
-from pydantic import Field
+from pydantic import (
+    Field,
+    BaseModel,
+)
 
 
-class NodeResource:
-    memory: int  # unit MB
-    cpu: float  # The number of cores
-    gpu: float
-    gpu_type: str
-    priority: int
+class NodeResource(BaseModel):
+    memory: int = 0
+    cpu: float = 0.0  # The number of cores
+    gpu: float = 0.0
+    gpu_type: str = ""
+    priority: int = 0
 
 
-class NodeGroupResource:
-    count: int
-    resource: NodeResource
+class NodeGroupResource(BaseModel):
+    count: int = 0
+    resource: NodeResource = NodeResource()
 
 
-class JobResource:
+class JobResource(BaseModel):
     node_group_resources: dict[str, NodeGroupResource] = Field(default_factory=dict)
     node_resources: dict[str, NodeResource] = Field(default_factory=dict)
 
 
-class JobMeta:
-    uuid: str
-    cluster: str
-    namespace: str
+class JobMeta(BaseModel):
+    uuid: str = ""
+    cluster: str = ""
+    namespace: str = ""
 
 
-class JobOptimizePlan:
-    timestamp: int
-    job_resource: JobResource
-    job_meta: JobMeta
+class JobOptimizePlan(BaseModel):
+    timestamp: int = 0
+    job_resource: JobResource = JobResource()
+    job_meta: JobMeta = JobMeta()
 
 
-class OptimizeConfig:
-    optimizer: str
+class OptimizeConfig(BaseModel):
+    optimizer: str = ""
     customized_config: dict[str, str] = Field(default_factory=dict)
 
 

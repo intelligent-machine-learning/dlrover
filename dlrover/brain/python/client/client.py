@@ -1,4 +1,3 @@
-# client.py
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -6,6 +5,8 @@ from dlrover.brain.python.common.http_schemas import (
     OptimizeRequest,
     OptimizeResponse,
 )
+from dlrover.brain.python.common.log import default_logger as logger
+from typing import Optional
 
 
 class BrainClient:
@@ -35,26 +36,21 @@ class BrainClient:
         session.mount("https://", adapter)
         return session
 
-    def optimize(self, request: OptimizeRequest) -> OptimizeResponse:
+    def optimize(self, request: OptimizeRequest) -> Optional[OptimizeResponse]:
         url = f"{self.base_url}/optimize"
 
         try:
-            # We dump the Pydantic model to a dict (JSON) automatically
             response = self.session.post(url, json=request.model_dump())
-            # Raise an error for 4xx or 5xx status codes
             response.raise_for_status()
 
-            # Validate response against our contract
-            # If server sends bad data, this will raise a validation error
             return OptimizeResponse(**response.json())
-
         except requests.exceptions.HTTPError as e:
-            print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
-            raise
+            logger.error(f"HTTP Error: {e.response.status_code} - {e.response.text}")
+            return None
         except requests.exceptions.ConnectionError:
-            print("Failed to connect to the Brain server.")
-            raise
+            logger.info("Failed to connect to the Brain server.")
+            return None
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            raise
+            logger.info(f"An unexpected error occurred: {e}")
+            return None
 

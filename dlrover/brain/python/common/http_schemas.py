@@ -3,22 +3,23 @@ from dlrover.brain.python.common.optimize import (
     OptimizeConfig,
     JobMeta,
 )
+from pydantic import BaseModel
 
 
-class Response:
-    success: bool
-    reason: str
+class Response(BaseModel):
+    success: bool = False
+    reason: str = ""
 
 
-class OptimizeResponse:
-    response: Response
-    job_opt_plan: JobOptimizePlan
+class OptimizeResponse(BaseModel):
+    response: Response = Response()
+    job_opt_plan: JobOptimizePlan = JobOptimizePlan()
 
 
-class OptimizeRequest:
-    type: str
-    config: OptimizeConfig
-    job: JobMeta
+class OptimizeRequest(BaseModel):
+    type: str = ""
+    config: OptimizeConfig = OptimizeConfig()
+    job: JobMeta = JobMeta()
 
 
 
