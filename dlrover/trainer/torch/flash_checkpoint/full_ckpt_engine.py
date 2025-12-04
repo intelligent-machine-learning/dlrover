@@ -64,6 +64,7 @@ class FullCheckpointEngine(CheckpointEngine):
             logger.info(f"Set global_shard_num to {local_shard_num}.")
         self._local_shard_num = local_shard_num
         self._global_shard_num = global_shard_num
+        self._rank = 0
         super().__init__(
             checkpoint_dir,
             storage,
@@ -97,7 +98,7 @@ class FullCheckpointEngine(CheckpointEngine):
         return DdpCheckpointSaver
 
     @timer
-    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
+    def save_to_memory(self, step, state_dict, paths: Dict[str, str],blocking=False):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -113,10 +114,10 @@ class FullCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        return self.save_state_dict_to_memory(state_dict, conf)
+        return self.save_state_dict_to_memory(state_dict, conf,blocking)
 
     @timer
-    def save_to_storage(self, step, state_dict, paths):
+    def save_to_storage(self, step, state_dict, paths,blocking=False):
         """
         Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
@@ -133,11 +134,11 @@ class FullCheckpointEngine(CheckpointEngine):
         """
         success = True
         if step > self._cached_step:
-            success = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths,blocking)
         # Only rank 0 persist the checkpoint to the storage.
         if dist.is_initialized():
             dist.barrier()
-        if success and self._rank == 0:
+        if success and self._local_rank==0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
         if success:
