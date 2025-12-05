@@ -39,7 +39,7 @@ from dlrover.python.util import k8s_util
 class NodeInconsistencyDiagnostician(Diagnostician):
     """
     NodeInconsistencyDiagnostician detect following conditions:
-    1. Same node
+    1. Same node but multiple instances.
     2. TODO
     """
 
