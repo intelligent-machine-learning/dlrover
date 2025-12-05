@@ -181,11 +181,9 @@ class EnvUtilsTest(unittest.TestCase):
             self.assertEqual(child_pids, [])
 
         # default parent_pid (current process)
-        with (
-            mock.patch("psutil.Process") as mock_process_class,
-            mock.patch("os.getpid", return_value=5000),
-        ):
-            mock_process_class.return_value.children.return_value = []
-            child_pids = env_utils.get_all_child_pids()
-            self.assertEqual(child_pids, [])
-            mock_process_class.assert_called_once_with(5000)
+        with mock.patch("psutil.Process") as mock_process_class:
+            with mock.patch("os.getpid", return_value=5000):
+                mock_process_class.return_value.children.return_value = []
+                child_pids = env_utils.get_all_child_pids()
+                self.assertEqual(child_pids, [])
+                mock_process_class.assert_called_once_with(5000)
