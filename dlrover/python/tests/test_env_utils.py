@@ -17,6 +17,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import psutil
+
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv
 
@@ -143,3 +145,47 @@ class EnvUtilsTest(unittest.TestCase):
             success, stack = env_utils.get_user_stack_pyspy(12345)
             self.assertFalse(success)
             self.assertIn("unexpected error", stack)
+
+    def test_get_all_child_pids(self):
+        mock_parent_process = mock.MagicMock()
+        mock_child1 = mock.MagicMock()
+        mock_child1.pid = 1001
+        mock_child2 = mock.MagicMock()
+        mock_child2.pid = 1002
+        mock_parent_process.children.return_value = [mock_child1, mock_child2]
+
+        with mock.patch("psutil.Process", return_value=mock_parent_process):
+            child_pids = env_utils.get_all_child_pids(1000)
+            self.assertEqual(child_pids, [1001, 1002])
+            mock_parent_process.children.assert_called_once_with(
+                recursive=False
+            )
+
+        # no children case
+        mock_parent_process.children.return_value = []
+        with mock.patch("psutil.Process", return_value=mock_parent_process):
+            child_pids = env_utils.get_all_child_pids(1000)
+            self.assertEqual(child_pids, [])
+
+        # NoSuchProcess exception
+        with mock.patch(
+            "psutil.Process",
+            side_effect=psutil.NoSuchProcess("No such process"),
+        ):
+            child_pids = env_utils.get_all_child_pids(9999)
+            self.assertEqual(child_pids, [])
+
+        # generic exception
+        with mock.patch("psutil.Process", side_effect=Exception("test error")):
+            child_pids = env_utils.get_all_child_pids(1000)
+            self.assertEqual(child_pids, [])
+
+        # default parent_pid (current process)
+        with (
+            mock.patch("psutil.Process") as mock_process_class,
+            mock.patch("os.getpid", return_value=5000),
+        ):
+            mock_process_class.return_value.children.return_value = []
+            child_pids = env_utils.get_all_child_pids()
+            self.assertEqual(child_pids, [])
+            mock_process_class.assert_called_once_with(5000)
