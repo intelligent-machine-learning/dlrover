@@ -74,15 +74,15 @@ class DiagnosisManagerTest(unittest.TestCase):
         action = mgr.diagnose(name)
         self.assertTrue((isinstance(action, EventAction)))
 
-        # test register_periodical_diagnosis
-        mgr.register_periodical_diagnostician("unknown", 60)
-        self.assertTrue(len(mgr._periodical_diagnosticians) == 0)
+        # test register diagnosis
+        mgr.register_diagnostician("unknown", Diagnostician(), 60)
+        self.assertEqual(len(mgr._diagnosticians), 2)
 
-        mgr.register_periodical_diagnostician(
-            name, DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
+        mgr.register_diagnostician(
+            name, Diagnostician(), DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
         )
         self.assertEqual(
-            mgr._periodical_diagnosticians[name],
+            mgr._diagnosticians[name][1],
             DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL,
         )
 
@@ -155,8 +155,8 @@ class DiagnosisManagerTest(unittest.TestCase):
         mgr = DiagnosisManager(context)
         diagnostician = Diagnostician()
         name = "test"
-        mgr.register_diagnostician(name, diagnostician)
-        mgr._periodical_diagnosticians[name] = 0.1
+        # use 0.1 for testing
+        mgr._diagnosticians[name] = (diagnostician, 0.1)
 
         with self.assertLogs(logger, level="ERROR") as log_capture:
             thread = threading.Thread(

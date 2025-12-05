@@ -13,9 +13,11 @@
 
 import os
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
@@ -25,6 +27,9 @@ from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
 )
+from dlrover.python.diagnosis.diagnostician.node_inconsistency import (
+    NodeInconsistencyDiagnostician,
+)
 from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (  # noqa: E501
     ResourceCollectionFailureDiagnostician,
 )
@@ -32,6 +37,7 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.scheduler.kubernetes import k8sClient
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.util.function_util import TimeoutException
 
@@ -94,3 +100,60 @@ class DiagnosticianTest(unittest.TestCase):
 
         action = diagnostician.diagnose(error_log=error_log)
         self.assertTrue(isinstance(action, EventAction))
+
+    def test_node_inconsistency_diagnostician(self):
+        job_args = MagicMock()
+        job_args.job_name = "test-job"
+        job_args.namespace = "default"
+
+        diagnostician = NodeInconsistencyDiagnostician(job_args)
+
+        with patch.object(k8sClient, "singleton_instance") as mock_k8s_client:
+            diagnostician._k8s_client = mock_k8s_client.return_value
+
+            # Test basic functionality
+            node1 = Node(
+                node_type=NodeType.WORKER,
+                node_id=0,
+                rank_index=0,
+                status=NodeStatus.RUNNING,
+            )
+            job_nodes = {NodeType.WORKER: {0: node1}}
+
+            # Test case 1: No inconsistency
+            mock_pod = MagicMock()
+            mock_pod.status.phase = NodeStatus.RUNNING
+            mock_pod.metadata.deletion_timestamp = None
+            mock_pods = MagicMock()
+            mock_pods.items = [mock_pod]
+            mock_k8s_client.return_value.list_namespaced_pod.return_value = (
+                mock_pods
+            )
+
+            observation = diagnostician.observe(job_nodes=job_nodes)
+            self.assertIsNone(observation)
+
+            # Test case 2: Multiple pods detected
+            mock_pods.items = [mock_pod, mock_pod]  # Two pods
+            mock_k8s_client.return_value.list_namespaced_pod.return_value = (
+                mock_pods
+            )
+
+            observation = diagnostician.observe(job_nodes=job_nodes)
+            self.assertIsNotNone(observation)
+            self.assertEqual(observation.observation, "Repeated node")
+
+            # Test resolve action
+            action = diagnostician.resolve(observation)
+            self.assertTrue(isinstance(action, EventAction))
+
+            # Test resolve with correct observation format
+            mock_problem = MagicMock()
+            mock_problem.observation = [DiagnosisErrorConstant.REPEATED_NODE]
+            action = diagnostician.resolve(mock_problem)
+            self.assertTrue(isinstance(action, EventAction))
+
+            # Test case 3: Empty nodes
+            empty_nodes = {}
+            observation = diagnostician.observe(job_nodes=empty_nodes)
+            self.assertIsNone(observation)
