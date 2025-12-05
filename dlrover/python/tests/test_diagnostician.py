@@ -22,11 +22,11 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
 )
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
-from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
+from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
-    ResourceCollectErrorDiagnostician,
+from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (  # noqa: E501
+    ResourceCollectionFailureDiagnostician,
 )
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -90,7 +90,7 @@ class DiagnosticianTest(unittest.TestCase):
     def test_resource_collect_error_diagnostician(self):
         error_log = "GPU is lost"
 
-        diagnostician = ResourceCollectErrorDiagnostician()
+        diagnostician = ResourceCollectionFailureDiagnostician()
 
         action = diagnostician.diagnose(error_log=error_log)
         self.assertTrue(isinstance(action, EventAction))

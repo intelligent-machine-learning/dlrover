@@ -24,7 +24,7 @@ from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
-    DiagnosisErrorConstant,
+    DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -41,11 +41,8 @@ from dlrover.python.diagnosis.datacollector.resource_collector import (
 from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
     XpuTimerMetricsCollector,
 )
-from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
+from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
-)
-from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
-    ResourceCollectErrorDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -67,18 +64,10 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         self._agent_context = get_agent_context()
 
         DiagnosisManager.__init__(self, self._agent_context)
+
         # register diagnostician
         self.register_diagnostician(
-            DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
-        )
-        self.register_diagnostician(
-            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR,
-            ResourceCollectErrorDiagnostician(),
-        )
-
-        # register periodical diagnosis
-        self.register_periodical_diagnosis(
-            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR, 30
+            DiagnosticianType.NODE_FAILURE, FailureNodeDiagnostician(), 30
         )
 
         # register periodical data collector
@@ -140,12 +129,12 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             self._agent_context.restart_count,
         )
         ob = self.observe(
-            DiagnosisErrorConstant.NODE_FAILED,
+            DiagnosticianType.NODE_FAILURE,
             log_file=self._training_log_file,
             errors=self._errors,
         )
 
-        node_failed = ob.observation == DiagnosisErrorConstant.NODE_FAILED
+        node_failed = ob.observation == DiagnosticianType.NODE_FAILURE
 
         if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(

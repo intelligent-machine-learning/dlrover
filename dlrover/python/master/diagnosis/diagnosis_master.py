@@ -14,7 +14,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -35,6 +35,7 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     DiagnosisResult,
     JobHangWatermark,
+    DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
@@ -43,6 +44,9 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
+)
+from dlrover.python.diagnosis.diagnostician.node_inconsistency import (
+    NodeInconsistencyDiagnostician,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import Inference
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
@@ -308,10 +312,21 @@ class DiagnosisMaster(DiagnosisManager):
 
             self._is_observing_paused = False
 
+    def get_diagnosis_inputs(self) -> Dict[str, Any]:
+        return {"job_nodes": self._job_context.job_nodes()}
+
     def start_observing(self):
         logger.info("Start to observing training...")
         self._is_observing_started = True
 
+        # register periodical diagnosis
+        self.register_diagnostician(
+            DiagnosticianType.NODE_INCONSISTENCY,
+            NodeInconsistencyDiagnostician(self._job_args),
+            60 * 5,
+        )
+
+        # TODO: need refactor
         self._diagnostician.register_training_problems(
             [
                 Inference(
@@ -329,6 +344,7 @@ class DiagnosisMaster(DiagnosisManager):
         )
 
         try:
+            # TODO: need refactor
             diag = threading.Thread(
                 target=self._diagnose,
                 name="diagnose_failures",
