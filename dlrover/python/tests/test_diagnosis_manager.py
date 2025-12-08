@@ -20,6 +20,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     DiagnosisErrorConstant,
+    DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
@@ -30,8 +31,8 @@ from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.datacollector.data_collector import (
     SimpleDataCollector,
 )
-from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
-    ResourceCollectErrorDiagnostician,
+from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (  # noqa: E501
+    ResourceCollectionFailureDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.util.function_util import TimeoutException
@@ -73,15 +74,15 @@ class DiagnosisManagerTest(unittest.TestCase):
         action = mgr.diagnose(name)
         self.assertTrue((isinstance(action, EventAction)))
 
-        # test register_periodical_diagnosis
-        mgr.register_periodical_diagnosis("unknown", 60)
-        self.assertTrue(len(mgr._periodical_diagnosis) == 0)
+        # test register diagnosis
+        mgr.register_diagnostician("unknown", Diagnostician(), 60)
+        self.assertEqual(len(mgr._diagnosticians), 2)
 
-        mgr.register_periodical_diagnosis(
-            name, DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
+        mgr.register_diagnostician(
+            name, Diagnostician(), DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
         )
         self.assertEqual(
-            mgr._periodical_diagnosis[name],
+            mgr._diagnosticians[name][1],
             DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL,
         )
 
@@ -154,12 +155,12 @@ class DiagnosisManagerTest(unittest.TestCase):
         mgr = DiagnosisManager(context)
         diagnostician = Diagnostician()
         name = "test"
-        mgr.register_diagnostician(name, diagnostician)
-        mgr._periodical_diagnosis[name] = 0.1
+        # use 0.1 for testing
+        mgr._diagnosticians[name] = (diagnostician, 0.1)
 
         with self.assertLogs(logger, level="ERROR") as log_capture:
             thread = threading.Thread(
-                target=mgr._start_periodical_diagnosis,
+                target=mgr._start_periodical_diagnosticians,
                 name="diagnosis_thread",
                 args=(name,),
                 daemon=True,
@@ -185,9 +186,9 @@ class DiagnosisManagerTest(unittest.TestCase):
 
         collector = SimpleDataCollector()
 
-        diagnostician = ResourceCollectErrorDiagnostician()
+        diagnostician = ResourceCollectionFailureDiagnostician()
         mgr.register_diagnostician(
-            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR, diagnostician
+            DiagnosticianType.RESOURCE_COLLECT_FAILURE, diagnostician
         )
 
         with self.assertLogs(logger, level="ERROR") as log_capture:
