@@ -242,10 +242,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id, host=False
         )
 
-
-
-       
-       
+        self.is_skip=False
         shard_num = self.get_global_shard_num()
         self._replica_manager = CkptReplicaManger.create_replica_manager(
             shard_num, replica_count
@@ -254,7 +251,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             "Checkpoint engine initialized with "
             f"local rank: {self._local_rank}, rank: {self._rank}."
         )
-        self.is_skip=False
+        
 
     def _init_sync_group(self, comm_backend):
         if not dist.is_initialized():
