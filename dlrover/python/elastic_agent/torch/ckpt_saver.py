@@ -112,7 +112,6 @@ class CheckpointConfig:
     world_size: int = 0
     step: int = 0
     writing_shm: bool = False
-    write_model: bool = True
     paths: Dict[str, str] = None  # type: ignore
 
 
@@ -1396,7 +1395,6 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         if ucp_device_type=="cpu":
              args = (
            deepspeed_dir+"/checkpoint/ds_to_universal.py",
-            # "/model/ljl/ds_to_universal_gpu.py",
             "--input_folder",
             f"{input_dir}",
             "--output_folder",
@@ -1406,7 +1404,6 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         else:
             args = (
             deepspeed_dir+"/checkpoint/ds_to_universal.py",
-                # "/model/ljl/ds_to_universal_gpu.py",
                 "--input_folder",
                 f"{input_dir}",
                 "--output_folder",

@@ -411,14 +411,6 @@ def _elastic_config_from_args(
     join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
     elastic_config.rdzv_configs["timeout"] = join_timeout
 
-    elastic_config.switchbox_check = getattr(args, "switchbox_check", False)
-    elastic_config.box_pairs = getattr(
-        args, "box_pairs", [(0, 1), (2, 4), (3, 5), (6, 7)]
-    )
-    elastic_config.min_bandwidth = getattr(args, "min_bandwidth", 10000)
-    elastic_config.min_channels = getattr(args, "min_channels", 2)
-    elastic_config.ucp_device_type=getattr(args, "ucp_device_type", "cpu")
-
     return elastic_config, cmd, cmd_args
 
 
