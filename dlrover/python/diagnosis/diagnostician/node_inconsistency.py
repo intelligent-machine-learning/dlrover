@@ -91,7 +91,7 @@ class NodeInconsistencyDiagnostician(Diagnostician):
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
     ) -> DiagnosisAction:
-        if problem.observation == [DiagnosisErrorConstant.REPEATED_NODE]:
+        if problem.observation in [DiagnosisErrorConstant.REPEATED_NODE]:
             return EventAction(
                 event_type=EventReportConstants.TYPE_WARN,
                 event_instance=f"{DiagnosisConstant.MASTER_INSTANCE}",

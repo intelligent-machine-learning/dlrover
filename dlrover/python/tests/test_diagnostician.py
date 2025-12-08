@@ -88,10 +88,10 @@ class DiagnosticianTest(unittest.TestCase):
         self.assertEqual(ob.observation, DiagnosisErrorConstant.NODE_FAILED)
 
         ob = diagnostician.observe(log_file=file_path)
-        self.assertTrue(len(ob.observation) == 0)
+        self.assertFalse(ob)
 
         ob = diagnostician.observe(errors=errors)
-        self.assertTrue(len(ob.observation) == 0)
+        self.assertFalse(ob)
 
     def test_resource_collect_error_diagnostician(self):
         error_log = "GPU is lost"
@@ -149,7 +149,7 @@ class DiagnosticianTest(unittest.TestCase):
 
             # Test resolve with correct observation format
             mock_problem = MagicMock()
-            mock_problem.observation = [DiagnosisErrorConstant.REPEATED_NODE]
+            mock_problem.observation = DiagnosisErrorConstant.REPEATED_NODE
             action = diagnostician.resolve(mock_problem)
             self.assertTrue(isinstance(action, EventAction))
 
