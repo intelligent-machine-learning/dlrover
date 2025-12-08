@@ -344,6 +344,8 @@ class DiagnosisMaster(DiagnosisManager):
         )
 
         try:
+            self.start_diagnosis()
+
             # TODO: need refactor
             diag = threading.Thread(
                 target=self._diagnose,
