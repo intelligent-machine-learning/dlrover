@@ -50,6 +50,7 @@ from dlrover.python.common.constants import (
     NodeEnv,
     NpuMetricEnum,
     RendezvousName,
+    RendezvousErrorType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -1357,6 +1358,59 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         except Exception:
             pass
 
+    @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
+    @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
+    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
+        self.assertFalse(ElasticTrainingAgent.is_device_checked())
+        ElasticTrainingAgent.set_device_checked()
+        self.assertTrue(ElasticTrainingAgent.is_device_checked())
+
+        config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
+
+        config.accelerator = Accelerators.GENERIC_CPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = []
+        config.accelerator = Accelerators.ASCEND_NPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+
+        mock_get_gpu_stats.return_value = []
+        config.accelerator = Accelerators.NVIDIA_GPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+        # skip cuz checked
+        _check_device(config)
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -1609,58 +1663,35 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
-    @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
-    @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
-    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
-        self.assertFalse(ElasticTrainingAgent.is_device_checked())
-        ElasticTrainingAgent.set_device_checked()
-        self.assertTrue(ElasticTrainingAgent.is_device_checked())
-
-        config = ElasticLaunchConfig(
-            min_nodes=1, max_nodes=1, nproc_per_node=1
+    def test_get_rdzv_error_data(self):
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
         )
-
-        config.accelerator = Accelerators.GENERIC_CPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
-
-        mock_get_hpu_stats.return_value = []
-        config.accelerator = Accelerators.ASCEND_NPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
-
-        mock_get_hpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=10)
-        ]
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
-
-        mock_get_hpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=50)
-        ]
-        with self.assertRaises(NodeCheckFailedError):
-            ElasticTrainingAgent.reset_device_checked()
-            _check_device(config)
-
-        mock_get_gpu_stats.return_value = []
-        config.accelerator = Accelerators.NVIDIA_GPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
-
-        mock_get_gpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=10)
-        ]
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
-
-        mock_get_gpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=50)
-        ]
-        with self.assertRaises(NodeCheckFailedError):
-            ElasticTrainingAgent.reset_device_checked()
-            _check_device(config)
-        # skip cuz checked
-        _check_device(config)
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        rdzv_eror = rdzv_handler._get_rdzv_error_data(
+            RendezvousErrorType.JOIN_TIMEOUT, "test123", 99
+        )
+        self.assertEqual(type(rdzv_eror), str)
+        self.assertEqual(len(json.loads(rdzv_eror)), 5)
 
 
 if __name__ == "__main__":

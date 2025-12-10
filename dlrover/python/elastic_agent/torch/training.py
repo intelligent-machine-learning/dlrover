@@ -81,6 +81,7 @@ from dlrover.python.common.constants import (
     EventReportConstants,
     ScriptPath,
     NodeExitReason,
+    RendezvousErrorType,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -362,6 +363,17 @@ class MasterRendezvousHandler(RendezvousHandler):
 
         return round
 
+    def _get_rdzv_error_data(self, err_type="", err_msg="", elapsed_time=-1):
+        return json.dumps(
+            {
+                "rdzv_name": self._name,
+                "node_rank": self._node_rank,
+                "err_type": err_type,
+                "err_message": err_msg,
+                "elapsed_time": elapsed_time,
+            }
+        )
+
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
@@ -408,6 +420,14 @@ class MasterRendezvousHandler(RendezvousHandler):
                         err_msg = (
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                        self._report_failure(
+                            self._get_rdzv_error_data(
+                                RendezvousErrorType.PEND_TIMEOUT,
+                                err_msg,
+                                int(self.pend_timeout),
+                            ),
+                            level=TrainingExceptionLevel.RDZV_ERROR,
+                        )
                         _rdzv_evt.fail(error=err_msg)
                         raise RendezvousTimeoutError(err_msg)
                     continue
@@ -418,7 +438,12 @@ class MasterRendezvousHandler(RendezvousHandler):
                     "to complete rendezvous."
                 )
                 self._report_failure(
-                    err_msg, level=TrainingExceptionLevel.RDZV_ERROR
+                    self._get_rdzv_error_data(
+                        RendezvousErrorType.JOIN_TIMEOUT,
+                        err_msg,
+                        self.join_timeout,
+                    ),
+                    level=TrainingExceptionLevel.RDZV_ERROR,
                 )
                 _rdzv_evt.fail(error=err_msg)
                 raise RendezvousTimeoutError(err_msg)
@@ -435,7 +460,10 @@ class MasterRendezvousHandler(RendezvousHandler):
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
-            self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
+            self._report_failure(
+                self._get_rdzv_error_data("", err_msg),
+                level=TrainingExceptionLevel.WARNING,
+            )
 
         _rdzv_evt.success(
             round=round,
