@@ -71,7 +71,11 @@ class ActorBase:
         """Initialize the actor with node information."""
         self.job_info = job_info
         self.actor_info = actor_info
-        logger.debug(f"Actor {actor_info.name} initiated with Python executable: {sys.executable}, Python path: {sys.path}, PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+        logger.debug(
+            f"Actor {actor_info.name} initiated with Python executable: {sys.executable}, "
+            f"Python path: {sys.path}, "
+            f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}"
+        )
 
         init_main_loop()
 
