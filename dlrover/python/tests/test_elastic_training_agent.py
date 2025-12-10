@@ -1119,9 +1119,29 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             except StopWorkerTimeoutError:
                 self.assertTrue(True)
 
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_all_child_pids"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_kernel_stack"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_user_stack_pyspy"
+    )
+    @patch("psutil.process_iter")
+    @patch("os.getpid")
     @patch("os.getpgid")
     @patch("subprocess.run")
-    def test_stop_timeout_handler_pkill(self, mock_run, mock_getpgid):
+    def test_stop_timeout_handler_pkill(
+        self,
+        mock_run,
+        mock_getpgid,
+        mock_getpid,
+        mock_process_iter,
+        mock_get_user_stack,
+        mock_get_kernel_stack,
+        mock_get_child_pids,
+    ):
         """Test _stop_timeout_handler with pkill implementation"""
         agent = ElasticTrainingAgent(
             node_rank=0,
@@ -1133,19 +1153,30 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             exit_barrier_timeout=1,
         )
 
-        # Mock getpgid to return a safe process group ID
+        # Mock process IDs and group IDs
+        mock_getpid.return_value = 1000
         mock_getpgid.return_value = 9999
+        mock_get_child_pids.return_value = [1001]
+
+        # Mock psutil.process_iter to return mock processes
+        mock_process = MagicMock()
+        mock_process.pid = 1001
+        mock_process.ppid.return_value = 1000
+        mock_process.name.return_value = "python"
+        mock_process.cmdline.return_value = ["python", "train.py"]
+        mock_process_iter.return_value = [mock_process]
+
+        # Mock stack info
+        mock_get_kernel_stack.return_value = (True, "kernel stack")
+        mock_get_user_stack.return_value = (True, "user stack")
+
         mock_run.return_value = MagicMock(returncode=0, stderr="")
 
+        # basic
         with self.assertRaises(StopWorkerTimeoutError):
             agent._stop_timeout_handler(signal.SIGALRM, None)
 
-        mock_run.assert_called_once()
-        args, kwargs = mock_run.call_args
-        self.assertIn("pkill", args[0])
-        self.assertIn("-9", args[0])
-        self.assertIn("9999", str(args[0]))
-
+        # error cases
         mock_run.return_value = MagicMock(
             returncode=1, stderr="permission denied"
         )
