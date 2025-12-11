@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 
 from dlrover.python.common.constants import DictKey, EventReportConstants
 from dlrover.python.diagnosis.common.constants import (
@@ -27,25 +28,27 @@ from dlrover.python.diagnosis.common.diagnostician import (
 )
 
 
-class ResourceCollectErrorDiagnostician(Diagnostician):
+class ResourceCollectionFailureDiagnostician(Diagnostician):
     """
-    ResourceCollectDiagnostician is to collect and report resource
+    ResourceCollectionFailureDiagnostician is to collect and report resource
     to the master and handle the errors during collection
     """
 
     def __init__(self):
         super().__init__()
 
-    def observe(self, **kwargs) -> DiagnosisObservation:
+    def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         error_log_arg = kwargs.get("error_log")
         error_log = str(error_log_arg)
 
         if DiagnosisErrorConstant.GPU_LOST in error_log:
-            ob = DiagnosisObservation(DiagnosisErrorConstant.GPU_LOST)
+            ob = DiagnosisObservation(
+                DiagnosisErrorConstant.GPU_LOST, {DictKey.LOGS: error_log}
+            )
             ob.extra_infos[DictKey.LOGS] = error_log
             return ob
-        else:
-            return DiagnosisObservation()
+
+        return None
 
     def resolve(
         self, problem: DiagnosisObservation, **kwargs

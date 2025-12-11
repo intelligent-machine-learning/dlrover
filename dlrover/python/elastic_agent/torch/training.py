@@ -991,7 +991,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        current_pgid = os.getpgid(os.getpid())
+        current_pid = os.getpid()
+        current_pgid = os.getpgid(current_pid)
 
         def get_processes_by_pgid(pgid):
             target_processes = []
@@ -1011,6 +1012,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
                                 "ppid": proc.ppid(),
                                 "name": proc.name(),
                                 "cmdline": cmdline,
+                                "kernel_stack": env_utils.get_kernel_stack(
+                                    proc.pid
+                                )[1],
+                                "user_stack": env_utils.get_user_stack_pyspy(
+                                    proc.pid
+                                )[1],
                             }
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -1018,24 +1025,48 @@ class ElasticTrainingAgent(LocalElasticAgent):
             return target_processes
 
         try:
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
+            # get all the subprocess's pgid by current pid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            child_pgids = set(
+                [os.getpgid(child_pid) for child_pid in child_pids]
             )
 
-            subprocess.run(
-                ["pkill", "-9", "-g", str(current_pgid)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            # kill child pg 1st
+            if child_pids and child_pgids:
+                for child_pgid in child_pgids:
+                    target_processes = get_processes_by_pgid(child_pgid)
 
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Remaining process after pkill in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
-            )
+                    # print target processes' stack info and do killing
+                    logger.warning(
+                        "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
+                        f"Target pgid: {child_pgid}, processes: {target_processes}"
+                    )
+                    subprocess.run(
+                        ["pkill", "-9", "-g", str(child_pgid)],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+            time.sleep(1)
+
+            # if still remain child process, kill current pgid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            if child_pids:
+                logger.warning(
+                    f"Still remaining process after pkill child process in 'stop_timeout_handler': {child_pids}"
+                )
+                target_processes = get_processes_by_pgid(current_pgid)
+                logger.warning(
+                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler', "
+                    f"Target pgid: {current_pgid}, processes: {target_processes}"
+                )
+                subprocess.run(
+                    ["pkill", "-9", "-g", str(current_pgid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
         except Exception:
             logger.exception(
                 "Unexpected error in stop_timeout_handler when killing process."
