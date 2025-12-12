@@ -427,6 +427,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                                 int(self.pend_timeout),
                             ),
                             level=TrainingExceptionLevel.RDZV_ERROR,
+                            rank0_only=False,
                         )
                         _rdzv_evt.fail(error=err_msg)
                         raise RendezvousTimeoutError(err_msg)
@@ -444,6 +445,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                         self.join_timeout,
                     ),
                     level=TrainingExceptionLevel.RDZV_ERROR,
+                    rank0_only=False,
                 )
                 _rdzv_evt.fail(error=err_msg)
                 raise RendezvousTimeoutError(err_msg)
@@ -491,8 +493,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         if num < 0:
             raise JobStoppingError("Exit rendezvous when job is stopping")
 
-    def _report_failure(self, err_msg, level):
-        if self._node_rank == 0:
+    def _report_failure(self, err_msg, level, rank0_only=True):
+        if rank0_only and not self._node_rank == 0:
+            return
+        else:
             self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
@@ -961,7 +965,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     raise e
             else:
-                logger.info("Finish initializing training workers.")
+                logger.info(
+                    f"Finish initializing training({self.__class__.__name__}) workers."
+                )
                 break
 
     @prof
