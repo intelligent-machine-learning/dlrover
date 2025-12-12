@@ -325,7 +325,7 @@ class EventReporter(Singleton):
         )
 
         self.report(
-            EventReportConstants.TYPE_ERROR,
+            EventReportConstants.TYPE_WARN,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_RDZV_TIMEOUT,
             f"{rdzv_type}={rdzv_round}",
