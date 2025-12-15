@@ -700,6 +700,18 @@ class MasterServicer(ABC):
             }
             if self._job_metric_collector:
                 self._job_metric_collector.collect_custom_data(custom_data)
+
+            rdzv_error_data = json.loads(message.error_data)
+            rdzv_name = rdzv_error_data["rdzv_name"]
+            node_rank = rdzv_error_data["node_rank"]
+            err_type = rdzv_error_data["err_type"]
+            err_message = rdzv_error_data["err_message"]
+            elapsed_time = rdzv_error_data["elapsed_time"]
+
+            self._rdzv_managers[rdzv_name].process_error(
+                node_id, node_rank, err_type, err_message, elapsed_time
+            )
+
         return True
 
     def _kv_store_set(self, message: comm.KeyValuePair):
