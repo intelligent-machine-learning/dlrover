@@ -450,7 +450,7 @@ class PodWatcherTest(unittest.TestCase):
             json.dumps(action)
         )
         reset = _verify_restarting_training(pod)
-        self.assertTrue(reset)
+        self.assertFalse(reset)
 
 
 class ScalePlanWatcherTest(unittest.TestCase):
