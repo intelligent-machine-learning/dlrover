@@ -385,6 +385,11 @@ class RendezvousName(object):
     NETWORK_CHECK = "network-check"
 
 
+class RendezvousErrorType(object):
+    PEND_TIMEOUT = "pend-timeout"
+    JOIN_TIMEOUT = "join-timeout"
+
+
 class NetworkFailureReason(object):
     NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
