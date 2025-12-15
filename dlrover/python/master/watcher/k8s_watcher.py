@@ -98,7 +98,7 @@ def _get_pod_exit_reason(pod):
             return NodeExitReason.UNKNOWN_ERROR
 
     # get extension info from labels if no reason
-    extension_reason = _dlrover_context.get_k8s_util_impl.resolve_extension_exit_reason_from_meta(
+    extension_reason = _dlrover_context.get_k8s_util_impl().resolve_extension_exit_reason_from_meta(
         pod.metadata
     )
     if extension_reason:
