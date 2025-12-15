@@ -97,6 +97,14 @@ def _get_pod_exit_reason(pod):
         else:
             return NodeExitReason.UNKNOWN_ERROR
 
+    # get extension info from labels if no reason
+    extension_reason = _dlrover_context.get_k8s_util_impl.resolve_extension_exit_reason_from_meta(
+        pod.metadata
+    )
+    if extension_reason:
+        logger.info(f"Got extension exit reason: {extension_reason}")
+        return extension_reason
+
     return ""
 
 
@@ -228,8 +236,9 @@ def _parse_container_resource(container):
 def _verify_restarting_training(pod):
     if not pod.metadata.annotations:
         return False
+
     action_str = pod.metadata.annotations.get(
-        "pod.sigma.ali/scheduled-action", ""
+        _dlrover_context.get_k8s_util_impl().get_annotation_scheduled_action()
     )
     if not action_str:
         return False
