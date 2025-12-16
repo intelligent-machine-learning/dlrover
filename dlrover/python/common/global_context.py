@@ -25,6 +25,7 @@ from dlrover.python.util.common_util import (
     find_free_port_in_range,
     find_free_port_in_set,
 )
+from dlrover.python.util.k8s_util import BaseK8sUtil
 
 
 class ConfigKeys(object):
@@ -279,3 +280,8 @@ class Context(Singleton):
                         return True
                 break
         return False
+
+    def get_k8s_util(self):
+        """Can be overridden by subclasses."""
+
+        return BaseK8sUtil
