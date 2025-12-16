@@ -281,7 +281,7 @@ class Context(Singleton):
                 break
         return False
 
-    def get_k8s_util_impl(self):
+    def get_k8s_util(self):
         """Can be overridden by subclasses."""
 
         return BaseK8sUtil

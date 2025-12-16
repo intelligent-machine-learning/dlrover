@@ -435,7 +435,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(exit_reason, NodeExitReason.UNKNOWN_ERROR)
 
         with patch(
-            "dlrover.python.common.global_context.Context.get_k8s_util_impl"
+            "dlrover.python.common.global_context.Context.get_k8s_util"
         ) as mock_get_k8s_util:
             mock_k8s_util = mock.MagicMock()
             mock_k8s_util.resolve_extension_exit_reason_from_meta.return_value = "EXTENSION_ERROR"
