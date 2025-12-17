@@ -82,7 +82,9 @@ def _get_pod_exit_reason(pod):
                 pod.metadata
             )
             if extension_reason:
-                logger.info(f"Got extension exit reason: {extension_reason} for exit code: {exit_code}")
+                logger.info(
+                    f"Got extension exit reason: {extension_reason} for exit code: {exit_code}"
+                )
                 return extension_reason
 
             return NodeExitReason.KILLED
