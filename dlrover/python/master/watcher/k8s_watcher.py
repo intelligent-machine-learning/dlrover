@@ -77,6 +77,14 @@ def _get_pod_exit_reason(pod):
         if terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE:
             return NodeExitReason.OOM
         elif exit_code in [ExitCode.KILLED_CODE, ExitCode.TERMED_CODE]:
+            # get extension info from pod meta
+            extension_reason = _dlrover_context.get_k8s_util().resolve_extension_exit_reason_from_meta(
+                pod.metadata
+            )
+            if extension_reason:
+                logger.info(f"Got extension exit reason: {extension_reason} for exit code: {exit_code}")
+                return extension_reason
+
             return NodeExitReason.KILLED
         elif exit_code in (
             ExitCode.FATAL_ERROR_CODE,
@@ -97,7 +105,7 @@ def _get_pod_exit_reason(pod):
         else:
             return NodeExitReason.UNKNOWN_ERROR
 
-    # get extension info from labels if no reason
+    # get extension info from pod meta if no exit code
     extension_reason = _dlrover_context.get_k8s_util().resolve_extension_exit_reason_from_meta(
         pod.metadata
     )
