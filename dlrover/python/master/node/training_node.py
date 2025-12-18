@@ -325,7 +325,7 @@ class TrainingNodeManager(object):
                 self._node_type
             )
             for node in training_nodes.values():
-                if node.status == NodeStatus.RUNNING:
+                if node.status == NodeStatus.RUNNING and not node.is_released:
                     nodes.append(node)
         return nodes
 
