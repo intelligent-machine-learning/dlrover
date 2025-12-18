@@ -196,18 +196,20 @@ def _convert_pod_yaml_to_node(pod):
         max_relaunch_count=_dlrover_context.max_relaunch_count,
     )
 
+    node.create_time = metadata.creation_timestamp
+    if NodeStatus.is_terminal_status(status):
+        node.set_exit_reason(_get_pod_exit_reason(pod))
+
     logger.debug(
         f"convert yaml to node: {node} "
         f"type {pod_type}, id {pod_id}, name {pod_name}, "
         f"rank {rank_id}, status {status}, "
         f"group {node_group}, group_size {node_group_size}, "
-        f"group_id {node_group_id}, resource_version {resource_version}, "
-        f"with meta {metadata.labels}"
+        f"group_id {node_group_id}, exit_reason {node.exit_reason}, "
+        f"with meta labels {metadata.labels} "
+        f"and meta annotations {metadata.annotations} "
+        f"by resource_version {resource_version}"
     )
-
-    node.create_time = metadata.creation_timestamp
-    if NodeStatus.is_terminal_status(status):
-        node.set_exit_reason(_get_pod_exit_reason(pod))
 
     return node
 
