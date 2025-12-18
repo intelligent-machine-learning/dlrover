@@ -127,6 +127,7 @@ def _convert_pod_yaml_to_node(pod):
     metadata: client.V1ObjectMeta = pod.metadata
     pod_name = metadata.name
     pod_type = metadata.labels[replica_type_key]
+    resource_version = metadata.resource_version
     labels = metadata.labels
     node_group = None
     node_group_size = None
@@ -200,7 +201,8 @@ def _convert_pod_yaml_to_node(pod):
         f"type {pod_type}, id {pod_id}, name {pod_name}, "
         f"rank {rank_id}, status {status}, "
         f"group {node_group}, group_size {node_group_size}, "
-        f"group_id {node_group_id}, with meta {metadata.labels}"
+        f"group_id {node_group_id}, resource_version {resource_version}, "
+        f"with meta {metadata.labels}"
     )
 
     node.create_time = metadata.creation_timestamp
