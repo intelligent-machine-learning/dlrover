@@ -10,13 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import ray.actor
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
@@ -67,8 +70,10 @@ class ActorBase:
 
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
+        self._actor_id = ""
         self.job_info = job_info
         self.actor_info = actor_info
+
         init_main_loop()
 
         # Report restart if this actor was reconstructed.
@@ -77,6 +82,28 @@ class ActorBase:
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
             self._report_restart()
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Actor {self.id}-{actor_info.name} initiated with "
+                f"Python executable: {sys.executable}, "
+                f"Python path: {sys.path}, "
+                f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}"
+            )
+        else:
+            logger.info(f"Actor {self.id}-{actor_info.name} initiated")
+
+    @property
+    def id(self):
+        if self._actor_id:
+            return self._actor_id
+
+        if ray.is_initialized() and ray.get_runtime_context():
+            actor_id = ray.get_runtime_context().get_actor_id()
+            if actor_id:
+                self._actor_id = actor_id
+                return self._actor_id
+        return ""
 
     @property
     def name(self) -> str:
