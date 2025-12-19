@@ -1079,8 +1079,6 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         if"safe_serialization" in state_dict:
             safe_serialization = state_dict.pop("safe_serialization")
         for state_name, sd in state_dict.items():
-            if not ckpt_config.write_model and state_name == CheckpointConstant.MODEL_STATES_NAME:
-                continue
             if sd and state_name in ckpt_config.paths:
                 from transformers.utils import ADAPTER_SAFE_WEIGHTS_NAME, ADAPTER_WEIGHTS_NAME, SAFE_WEIGHTS_NAME, WEIGHTS_NAME
                 from safetensors.torch import save_file as safe_save_file
