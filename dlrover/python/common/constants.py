@@ -193,6 +193,7 @@ class NodeExitReason(object):
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
     RELAUNCHED = "Relaunched"
+    CHECK_FAIL = "CheckFailure"
 
 
 class NodeExitDescription(object):
@@ -382,6 +383,11 @@ class k8sAPIExceptionReason(object):
 class RendezvousName(object):
     TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
+
+
+class RendezvousErrorType(object):
+    PEND_TIMEOUT = "pend-timeout"
+    JOIN_TIMEOUT = "join-timeout"
 
 
 class NetworkFailureReason(object):

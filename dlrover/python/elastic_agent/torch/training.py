@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -79,6 +80,8 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     EventReportConstants,
     ScriptPath,
+    NodeExitReason,
+    RendezvousErrorType,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -360,6 +363,17 @@ class MasterRendezvousHandler(RendezvousHandler):
 
         return round
 
+    def _get_rdzv_error_data(self, err_type="", err_msg="", elapsed_time=-1):
+        return json.dumps(
+            {
+                "rdzv_name": self._name,
+                "node_rank": self._node_rank,
+                "err_type": err_type,
+                "err_message": err_msg,
+                "elapsed_time": elapsed_time,
+            }
+        )
+
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
@@ -406,6 +420,15 @@ class MasterRendezvousHandler(RendezvousHandler):
                         err_msg = (
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                        self._report_failure(
+                            self._get_rdzv_error_data(
+                                RendezvousErrorType.PEND_TIMEOUT,
+                                err_msg,
+                                int(self.pend_timeout),
+                            ),
+                            level=TrainingExceptionLevel.RDZV_ERROR,
+                            rank0_only=False,
+                        )
                         _rdzv_evt.fail(error=err_msg)
                         raise RendezvousTimeoutError(err_msg)
                     continue
@@ -416,7 +439,13 @@ class MasterRendezvousHandler(RendezvousHandler):
                     "to complete rendezvous."
                 )
                 self._report_failure(
-                    err_msg, level=TrainingExceptionLevel.RDZV_ERROR
+                    self._get_rdzv_error_data(
+                        RendezvousErrorType.JOIN_TIMEOUT,
+                        err_msg,
+                        self.join_timeout,
+                    ),
+                    level=TrainingExceptionLevel.RDZV_ERROR,
+                    rank0_only=False,
                 )
                 _rdzv_evt.fail(error=err_msg)
                 raise RendezvousTimeoutError(err_msg)
@@ -433,7 +462,10 @@ class MasterRendezvousHandler(RendezvousHandler):
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
-            self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
+            self._report_failure(
+                self._get_rdzv_error_data("", err_msg),
+                level=TrainingExceptionLevel.WARNING,
+            )
 
         _rdzv_evt.success(
             round=round,
@@ -461,8 +493,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         if num < 0:
             raise JobStoppingError("Exit rendezvous when job is stopping")
 
-    def _report_failure(self, err_msg, level):
-        if self._node_rank == 0:
+    def _report_failure(self, err_msg, level, rank0_only=True):
+        if rank0_only and not self._node_rank == 0:
+            return
+        else:
             self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
@@ -931,7 +965,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     raise e
             else:
-                logger.info("Finish initializing training workers.")
+                logger.info(
+                    f"Finish initializing training({self.__class__.__name__}) workers."
+                )
                 break
 
     @prof
@@ -961,7 +997,90 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        raise StopWorkerTimeoutError("Timed out waiting for stopping workers.")
+        current_pid = os.getpid()
+        current_pgid = os.getpgid(current_pid)
+
+        def get_processes_by_pgid(pgid):
+            target_processes = []
+            for proc in psutil.process_iter(
+                ["pid", "ppid", "name", "cmdline"]
+            ):
+                try:
+                    if os.getpgid(proc.pid) == pgid:
+                        cmdline = (
+                            " ".join(proc.cmdline())
+                            if proc.cmdline()
+                            else proc.name()
+                        )
+                        target_processes.append(
+                            {
+                                "pid": proc.pid,
+                                "ppid": proc.ppid(),
+                                "name": proc.name(),
+                                "cmdline": cmdline,
+                                "kernel_stack": env_utils.get_kernel_stack(
+                                    proc.pid
+                                )[1],
+                                "user_stack": env_utils.get_user_stack_pyspy(
+                                    proc.pid
+                                )[1],
+                            }
+                        )
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return target_processes
+
+        try:
+            # get all the subprocess's pgid by current pid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            child_pgids = set(
+                [os.getpgid(child_pid) for child_pid in child_pids]
+            )
+
+            # kill child pg 1st
+            if child_pids and child_pgids:
+                for child_pgid in child_pgids:
+                    target_processes = get_processes_by_pgid(child_pgid)
+
+                    # print target processes' stack info and do killing
+                    logger.warning(
+                        "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
+                        f"Target pgid: {child_pgid}, processes: {target_processes}"
+                    )
+                    subprocess.run(
+                        ["pkill", "-9", "-g", str(child_pgid)],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+            time.sleep(1)
+
+            # if still remain child process, kill current pgid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            if child_pids:
+                logger.warning(
+                    f"Still remaining process after pkill child process in 'stop_timeout_handler': {child_pids}"
+                )
+                target_processes = get_processes_by_pgid(current_pgid)
+                logger.warning(
+                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler', "
+                    f"Target pgid: {current_pgid}, processes: {target_processes}"
+                )
+                subprocess.run(
+                    ["pkill", "-9", "-g", str(current_pgid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+        except Exception:
+            logger.exception(
+                "Unexpected error in stop_timeout_handler when killing process."
+            )
+
+        raise StopWorkerTimeoutError(
+            "Timed out waiting for stopping workers, forcefully kill all sub-processes."
+        )
 
     def _set_numa_affinity(self):
         """set numa affinity to workers processes,
@@ -1679,7 +1798,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
         if self._node_rank in fault_nodes:
             self._client.report_failures(
-                NodeEventType.NODE_CHECK_FAILED,
+                NodeExitReason.CHECK_FAIL,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
             raise NodeCheckFailedError(NodeExitDescription.NODE_FAILED_MSG)

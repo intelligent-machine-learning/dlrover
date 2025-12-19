@@ -25,6 +25,7 @@ from dlrover.python.util.common_util import (
     find_free_port_in_range,
     find_free_port_in_set,
 )
+from dlrover.python.util.k8s_util import BaseK8sUtil
 
 
 class ConfigKeys(object):
@@ -81,7 +82,8 @@ class DefaultValues(object):
     MAX_CKPT_THRESHOLD = 900  # seconds
     MAX_AVG_STEPS = 50
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
-    MAX_RELAUNCH_COUNT = 3
+    MAX_RELAUNCH_COUNT = 3  # maximum node relaunch count
+    MAX_GROUP_RELAUNCH_COUNT = 3  # maximum node group relaunch count
 
 
 class Context(Singleton):
@@ -145,6 +147,7 @@ class Context(Singleton):
         # pre-check args
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
         self.max_relaunch_count = DefaultValues.MAX_RELAUNCH_COUNT
+        self.max_group_relaunch_count = DefaultValues.MAX_GROUP_RELAUNCH_COUNT
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
@@ -277,3 +280,8 @@ class Context(Singleton):
                         return True
                 break
         return False
+
+    def get_k8s_util(self):
+        """Can be overridden by subclasses."""
+
+        return BaseK8sUtil
