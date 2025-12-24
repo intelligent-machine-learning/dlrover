@@ -62,7 +62,7 @@ class AsyncCheckpointAgent(CheckpointEngine):
         # create checkpoint on give tag for save/load.
         pass
 
-    def save(self, state_dict, path: str,**kwargs):
+    def save(self, state_dict, path: str, **kwargs):
         if not isinstance(path, str):
             torch_native_save(state_dict, path)
             return

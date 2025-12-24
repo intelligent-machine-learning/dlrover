@@ -423,7 +423,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         local_shard_num=1,
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
-        rank=0
+        rank=0,
     ) -> None:
         logger.info(
             "Initializing the AsyncSaver with arguments: "
@@ -437,7 +437,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self.local_shard_num = local_shard_num
         self.global_shard_num = global_shard_num
         self._node_rank = env_utils.get_rank()
-        self._rank=rank
+        self._rank = rank
         self._is_agent_rank_0 = self._rank == 0
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
@@ -505,18 +505,22 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
                 # use a lock to avoid concurrent creation of the saver
                 with threading.Lock():
-
                     # if the saver thread is alive, skip creating the saver
                     if (
                         cls._saver_instance
                         and saver_thread
                         and saver_thread.is_alive()
                     ):
-
-                        # bugfix 因为checkpoint dir 是每次训练都会变化的
-                        cls._saver_instance.checkpoint_dir=class_meta.kwargs.get("checkpoint_dir")
-                        cls._saver_instance._rank=class_meta.kwargs.get("rank")
-                        cls._saver_instance._is_agent_rank_0=cls._saver_instance._rank==0
+                        # bufix: because the checkpoint dir changes every time of training
+                        cls._saver_instance.checkpoint_dir = (
+                            class_meta.kwargs.get("checkpoint_dir")
+                        )
+                        cls._saver_instance._rank = class_meta.kwargs.get(
+                            "rank"
+                        )
+                        cls._saver_instance._is_agent_rank_0 = (
+                            cls._saver_instance._rank == 0
+                        )
                         continue
 
                     saver_thread = threading.Thread(
@@ -534,20 +538,21 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     @classmethod
     def get_ckpt_saver(cls):
         return cls._saver_instance
-    def ucp(self,input_dir:str,output_dir:str,ucp_device_type:str):
-        """universal checkpoint """
+
+    def ucp(self, input_dir: str, output_dir: str, ucp_device_type: str):
+        """universal checkpoint"""
         pass
+
     def get_latest_start_saving_step(self):
-        step=self._latest_step
-        steps=[]
+        step = self._latest_step
+        steps = []
         for shm_handler in self._shm_handlers:
             default_config = CheckpointConfig()
             config = shm_handler.get_checkpoint_config(default_config)
             steps.append(config.step)
-        if len(steps)>0:
+        if len(steps) > 0:
             step = steps[0]
-        return step 
-
+        return step
 
     def get_latest_success_save_dir(self):
         try:
@@ -557,10 +562,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             with open(tracker_file, "r") as f:
                 step = int(f.read())
         except FileNotFoundError:
-            return None,None
-        
-        return self.checkpoint_dir,step
-        
+            return None, None
+
+        return self.checkpoint_dir, step
+
     @classmethod
     def register_signal_handler(cls):
         sigint_handler = signal.getsignal(signal.SIGINT)
@@ -1075,29 +1080,39 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         self, local_shard_id: int, ckpt_config: CheckpointConfig
     ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        safe_serialization=None
-        if"safe_serialization" in state_dict:
+        safe_serialization = None
+        if "safe_serialization" in state_dict:
             safe_serialization = state_dict.pop("safe_serialization")
         for state_name, sd in state_dict.items():
             if sd and state_name in ckpt_config.paths:
-                from transformers.utils import ADAPTER_SAFE_WEIGHTS_NAME, ADAPTER_WEIGHTS_NAME, SAFE_WEIGHTS_NAME, WEIGHTS_NAME
+                from transformers.utils import (
+                    ADAPTER_SAFE_WEIGHTS_NAME,
+                    ADAPTER_WEIGHTS_NAME,
+                    SAFE_WEIGHTS_NAME,
+                    WEIGHTS_NAME,
+                )
                 from safetensors.torch import save_file as safe_save_file
                 import re
+
                 path = ckpt_config.paths[state_name]
                 reg = re.compile(r"(.*?)-\d{5}-of-\d{5}.bin")
                 match = reg.fullmatch(state_name)
-                if (safe_serialization):
+                if safe_serialization:
                     if state_name.endswith(ADAPTER_WEIGHTS_NAME):
-                        path = path.replace(ADAPTER_WEIGHTS_NAME, ADAPTER_SAFE_WEIGHTS_NAME)
+                        path = path.replace(
+                            ADAPTER_WEIGHTS_NAME, ADAPTER_SAFE_WEIGHTS_NAME
+                        )
                         self.storage.write_state_dict(sd, path, safe_save_file)
                     elif state_name.endswith(WEIGHTS_NAME):
                         path = path.replace(WEIGHTS_NAME, SAFE_WEIGHTS_NAME)
                         self.storage.write_state_dict(sd, path, safe_save_file)
                     elif match:
-                        path = path.replace("pytorch_model", "model").replace(".bin", ".safetensors")
+                        path = path.replace("pytorch_model", "model").replace(
+                            ".bin", ".safetensors"
+                        )
                         self.storage.write_state_dict(sd, path, safe_save_file)
                     else:
-                        self.storage.write_state_dict(sd, path, torch.save)      
+                        self.storage.write_state_dict(sd, path, torch.save)
                 else:
                     self.storage.write_state_dict(sd, path, torch.save)
 
@@ -1366,21 +1381,23 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
 
     def get_deepspeed_install_dir(self):
         spec = importlib.util.find_spec("deepspeed")
-        deepspeed_dir=""
+        deepspeed_dir = ""
         if spec and spec.origin:
             # spec.origin 指向 __init__.py 文件
             module_path = spec.origin
             deepspeed_dir = os.path.dirname(module_path)
         return deepspeed_dir
-    def ucp(self,input_dir:str,output_dir:str,ucp_device_type:str):
+
+    def ucp(self, input_dir: str, output_dir: str, ucp_device_type: str):
         import torch
         from packaging import version
-        from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
+        from torch.distributed.elastic.multiprocessing.api import (
+            SubprocessHandler,
+        )
 
         def version_less_than_230():
             current_version = version.parse(torch.__version__).base_version
             return version.parse(current_version) <= version.parse("2.2.2")
-
 
         def version_less_than_240():
             current_version = version.parse(torch.__version__).base_version
@@ -1388,52 +1405,52 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
 
         import sys
         import os
+
         cmd = os.getenv("PYTHON_EXEC", sys.executable)
-        deepspeed_dir =self.get_deepspeed_install_dir()
-        if ucp_device_type=="cpu":
-             args = (
-           deepspeed_dir+"/checkpoint/ds_to_universal.py",
-            "--input_folder",
-            f"{input_dir}",
-            "--output_folder",
-            f"{output_dir}",
-            "--inject_missing_state"
-        )
+        deepspeed_dir = self.get_deepspeed_install_dir()
+        if ucp_device_type == "cpu":
+            args = (
+                deepspeed_dir + "/checkpoint/ds_to_universal.py",
+                "--input_folder",
+                f"{input_dir}",
+                "--output_folder",
+                f"{output_dir}",
+                "--inject_missing_state",
+            )
         else:
             args = (
-            deepspeed_dir+"/checkpoint/ds_to_universal.py",
+                deepspeed_dir + "/checkpoint/ds_to_universal.py",
                 "--input_folder",
                 f"{input_dir}",
                 "--output_folder",
                 f"{output_dir}",
                 "--inject_missing_state",
                 "--device",
-                ucp_device_type
+                ucp_device_type,
             )
         if version_less_than_230():
             handler = SubprocessHandler(cmd, args, {}, "", "")
         else:
             handler = SubprocessHandler(cmd, args, {}, "", "", 0)
-        ret=handler.proc.wait()
-        if ret!=0:
+        ret = handler.proc.wait()
+        if ret != 0:
             print(f"subprocess returned non-zero exit code{ret}")
             return False
         else:
             return True
-    
+
     def get_latest_success_save_dir(self):
         try:
             tracker_file = os.path.join(
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
-       
+
             with open(tracker_file, "r") as f:
                 step = int(f.read())
         except FileNotFoundError:
-            return None,None
-        
-        return self.checkpoint_dir,step
+            return None, None
 
+        return self.checkpoint_dir, step
 
 
 class FsdpDcpSaver(CommonDirCheckpointSaver):

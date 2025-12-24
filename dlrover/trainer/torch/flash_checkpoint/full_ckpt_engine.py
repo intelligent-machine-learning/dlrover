@@ -98,7 +98,9 @@ class FullCheckpointEngine(CheckpointEngine):
         return DdpCheckpointSaver
 
     @timer
-    def save_to_memory(self, step, state_dict, paths: Dict[str, str],blocking=False):
+    def save_to_memory(
+        self, step, state_dict, paths: Dict[str, str], blocking=False
+    ):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -114,10 +116,10 @@ class FullCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        return self.save_state_dict_to_memory(state_dict, conf,blocking)
+        return self.save_state_dict_to_memory(state_dict, conf, blocking)
 
     @timer
-    def save_to_storage(self, step, state_dict, paths,blocking=False):
+    def save_to_storage(self, step, state_dict, paths, blocking=False):
         """
         Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
@@ -134,11 +136,11 @@ class FullCheckpointEngine(CheckpointEngine):
         """
         success = True
         if step > self._cached_step:
-            success = self.save_to_memory(step, state_dict, paths,blocking)
+            success = self.save_to_memory(step, state_dict, paths, blocking)
         # Only rank 0 persist the checkpoint to the storage.
         if dist.is_initialized():
             dist.barrier()
-        if success and self._local_rank==0:
+        if success and self._local_rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
         if success:

@@ -198,17 +198,17 @@ class MasterServicer(ABC):
             )
         elif isinstance(req_message, comm.HeartBeat):
             message = self._report_heartbeat(node_type, node_id, req_message)
-        elif isinstance(req_message,comm.UCPReadyRequest):
-            message= self.get_ucp_ready(req_message)
+        elif isinstance(req_message, comm.UCPReadyRequest):
+            message = self.get_ucp_ready(req_message)
 
         if message:
             response.data = message.serialize()
         return response
-    def get_ucp_ready(self,req_message):
-        rdzv_manager=self._rdzv_managers[RendezvousName.TRAINING]
-        ucp_ready =rdzv_manager.get_ucp_ready()
-        return comm.UCPReady(ready=ucp_ready)
 
+    def get_ucp_ready(self, req_message):
+        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
+        ucp_ready = rdzv_manager.get_ucp_ready()
+        return comm.UCPReady(ready=ucp_ready)
 
     def _get_task(self, node_type, node_id, request: comm.TaskRequest):
         if not self._start_training_time:
@@ -473,13 +473,13 @@ class MasterServicer(ABC):
             success = self._report_node_diagnosis_data(message)
         elif isinstance(message, comm.Event):
             success = self._report_event(message)
-        elif isinstance(message,comm.UCPReady):
+        elif isinstance(message, comm.UCPReady):
             success = self.set_ucp_ready(message)
-
 
         response.success = success
         return response
-    def set_ucp_ready(self,ucp_ready:comm.UCPReady):
+
+    def set_ucp_ready(self, ucp_ready: comm.UCPReady):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
         rdzv_manager.set_ucp_ready(ucp_ready.ready)
         return True

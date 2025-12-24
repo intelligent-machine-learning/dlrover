@@ -98,11 +98,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def get_waiting_timeout(self):
         return self._rdzv_params.waiting_timeout
-    def get_ucp_ready(self):
-        return self.ucp_ready
-    def set_ucp_ready(self,ucp_ready):
-        with self._lock:
-            self.ucp_ready=ucp_ready
+    @property
     def get_ucp_ready(self):
         return self.ucp_ready
     def set_ucp_ready(self,ucp_ready):
@@ -176,7 +172,8 @@ class RendezvousManager(metaclass=ABCMeta):
                 self.remove_alive_node(target_node)
 
         rdzv_completed = False
-        # 如果扩容前的universal checkpoint 没有就绪，下一轮rendezvou集会不能完成
+        # if the universal checkpoint before scaling out is not ready,
+        # the next round rendezvous cannot be completed
         if hasattr(self, "ucp_ready") and not self.ucp_ready:
             logger.info(f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
                              f"ucp_ready={self.ucp_ready}. Waiting for cleanup.")

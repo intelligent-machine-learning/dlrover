@@ -1663,5 +1663,493 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         _check_device(config)
 
 
+class ElasticTrainingAgentUcpTest(unittest.TestCase):
+    """Test cases for ucp method in ElasticTrainingAgent."""
+
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 0.5)
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        self.config.ucp_device_type = "cpu"
+
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+
+        master_addr = "127.0.0.1"
+
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
+
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=self.rdzv_handler,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            master_addr=master_addr,
+            local_addr=self.config.local_addr,
+            **logs_dict,
+        )
+
+    def tearDown(self):
+        self._master.stop()
+        os.environ.clear()
+
+    def test_ucp_method_success(self):
+        """Test the ucp method with successful checkpoint conversion."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create mock saver
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+
+            # Mock the get_ckpt_saver method
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                # Setup mock returns
+                # saver.get_latest_success_save_dir returns (checkpoint_dir, step)
+                # where checkpoint_dir is the parent directory containing checkpoint-{step}
+                checkpoint_parent_dir = tmpdir
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                # First call returns step=100, start_saving_step=101 (different)
+                # Second call returns step=100, start_saving_step=100 (same)
+                saver.get_latest_success_save_dir.side_effect = [
+                    (checkpoint_parent_dir, 100),
+                    (checkpoint_parent_dir, 100),
+                ]
+                saver.get_latest_start_saving_step.side_effect = [101, 100]
+                saver.ucp.return_value = True
+
+                # Create agent instance
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Mock time to avoid actual waiting
+                # We need more time.time() calls:
+                # 1. start = time.time() -> 0
+                # 2. elapsed_time = time.time() - start -> 1-0=1
+                # 3. time.time() in logger if exception occurs
+                # Let's provide enough values
+                with mock.patch(
+                    "time.time", side_effect=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                ):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # Verify calls - get_latest_success_save_dir is called twice in the loop
+                self.assertEqual(
+                    saver.get_latest_success_save_dir.call_count, 2
+                )
+                # get_latest_start_saving_step is also called twice
+                self.assertEqual(
+                    saver.get_latest_start_saving_step.call_count, 2
+                )
+
+                # Check ucp was called with correct arguments
+                expected_input_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "global_step100"
+                )
+                expected_output_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "ucp"
+                )
+                saver.ucp.assert_called_once_with(
+                    expected_input_dir, expected_output_dir, "cpu"
+                )
+
+                # Check ucp.txt was created
+                ucp_file = os.path.join(tmpdir, "ucp.txt")
+                self.assertTrue(os.path.exists(ucp_file))
+
+                # Verify content
+                with open(ucp_file, "r") as f:
+                    content = f.read()
+                    self.assertEqual(content, "100")
+
+    def test_ucp_method_no_checkpoint(self):
+        """Test ucp method when no checkpoint exists."""
+        with mock.patch(
+            "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+            return_value=None,
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="echo",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+                exit_barrier_timeout=1,
+            )
+
+            # Should not raise any exception when no saver exists
+            agent.ucp()
+
+    def test_ucp_method_ucp_fails(self):
+        """Test ucp method when ucp conversion fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
+                saver.get_latest_start_saving_step.return_value = 100
+                saver.ucp.return_value = False  # ucp fails
+
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Provide enough time.time() calls using itertools.count()
+                # to avoid StopIteration
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # ucp.txt should not be created if ucp fails
+                ucp_file = os.path.join(tmpdir, "ucp.txt")
+                self.assertFalse(os.path.exists(ucp_file))
+
+    def test_ucp_method_timeout(self):
+        """Test ucp method timeout scenario."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                # Simulate timeout by making start_saving_step != step
+                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
+                saver.get_latest_start_saving_step.return_value = (
+                    101  # Different from step
+                )
+
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Mock time to simulate timeout (start at 0, then 301 seconds later)
+                with mock.patch("time.time", side_effect=[0, 301]):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # ucp should not be called since timeout occurred
+                saver.ucp.assert_not_called()
+
+    def test_ucp_method_with_different_device_type(self):
+        """Test ucp method with different ucp_device_type."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                # Simulate the loop behavior:
+                # First iteration: start_saving_step != step (101 != 100) -> has_start_saved=True
+                # Second iteration: start_saving_step == step (100 == 100) -> condition met
+                saver.get_latest_success_save_dir.side_effect = [
+                    (tmpdir, 100),
+                    (tmpdir, 100),
+                ]
+                saver.get_latest_start_saving_step.side_effect = [101, 100]
+                saver.ucp.return_value = True
+
+                # Test with different device type
+                self.config.ucp_device_type = "gpu"
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Use itertools.count() to provide infinite time.time() values
+                # This ensures logger.info calls won't run out of values
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # Check ucp was called with gpu device type
+                expected_input_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "global_step100"
+                )
+                expected_output_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "ucp"
+                )
+                saver.ucp.assert_called_once_with(
+                    expected_input_dir, expected_output_dir, "gpu"
+                )
+
+
+class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
+    """Test cases for _graceful_exit_workers method in ElasticTrainingAgent."""
+
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 0.5)
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+
+        master_addr = "127.0.0.1"
+
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
+
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=self.rdzv_handler,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            master_addr=master_addr,
+            local_addr=self.config.local_addr,
+            **logs_dict,
+        )
+
+    def tearDown(self):
+        self._master.stop()
+        os.environ.clear()
+
+    def test_graceful_exit_workers_success(self):
+        """Test _graceful_exit_workers with successful signal sending."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with multiple PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001, 1: 1002}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill to verify it's called with correct arguments
+        with mock.patch("os.kill") as mock_kill:
+            # Create a mock worker group (not used in the method but required for signature)
+            worker_group = mock.MagicMock()
+
+            # Call the method
+            agent._graceful_exit_workers(worker_group)
+
+            # Verify os.kill was called with the first PID and SIGUSR1
+            mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+            # Verify logger.info was called
+            # We can check this by patching logger if needed, but for now just verify no exceptions
+
+    def test_graceful_exit_workers_no_pids(self):
+        """Test _graceful_exit_workers when no PIDs are available."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with empty PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pcontext.pids.return_value = {}
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            # This should not raise an exception
+            agent._graceful_exit_workers(worker_group)
+
+            # os.kill should not be called since there are no PIDs
+            mock_kill.assert_not_called()
+
+    def test_graceful_exit_workers_single_pid(self):
+        """Test _graceful_exit_workers with only one PID."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with single PID
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            agent._graceful_exit_workers(worker_group)
+
+            # Should still call os.kill with the single PID
+            mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+    def test_graceful_exit_workers_kill_exception(self):
+        """Test _graceful_exit_workers when os.kill raises an exception."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001, 1: 1002}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill to raise an exception
+        with mock.patch(
+            "os.kill", side_effect=OSError("No such process")
+        ) as mock_kill:
+            # Mock logger.warning to verify it's called
+            with mock.patch.object(logger, "warning") as mock_warning:
+                worker_group = mock.MagicMock()
+
+                # This should not raise an exception
+                agent._graceful_exit_workers(worker_group)
+
+                # Verify os.kill was attempted
+                mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+                # Verify logger.warning was called with the error
+                mock_warning.assert_called_once()
+                call_args = mock_warning.call_args[0][0]
+                self.assertIn("error when kill", call_args)
+                self.assertIn("No such process", call_args)
+
+    def test_graceful_exit_workers_with_none_pcontext(self):
+        """Test _graceful_exit_workers when _pcontext is None."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Set _pcontext to None
+        agent._pcontext = None
+
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            # This should not raise an exception
+            agent._graceful_exit_workers(worker_group)
+
+            # os.kill should not be called
+            mock_kill.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

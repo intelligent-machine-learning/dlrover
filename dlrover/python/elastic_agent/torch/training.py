@@ -27,7 +27,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import subprocess
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import psutil
@@ -222,7 +221,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
-    ucp_device_type:str="cpu"
+    ucp_device_type: str = "cpu"
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -617,16 +616,25 @@ class ElasticTrainingAgent(LocalElasticAgent):
         # print out a snapshot of all processes again
         env_utils.print_process_list()
 
-    def _graceful_exit_workers(self,worker_group:WorkerGroup):
+    def _graceful_exit_workers(self, worker_group: WorkerGroup):
         logger.info("try to gracefully exit workers")
+        if self._pcontext is None:
+            logger.warning(
+                "_pcontext is None, cannot send graceful exit signal"
+            )
+            return
         pc_pids = set(self._pcontext.pids().values())
-        pc_pids=list(pc_pids)
-        pc_pid=pc_pids[0]
+        pc_pids = list(pc_pids)
+        if not pc_pids:
+            logger.warning(
+                "No worker PIDs available, cannot send graceful exit signal"
+            )
+            return
+        pc_pid = pc_pids[0]
         try:
             os.kill(pc_pid, signal.SIGUSR1)
         except Exception as e:
             logger.warning(f"error when kill {pc_pid}: {str(e)}")
-
 
     @prof
     def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
@@ -1202,11 +1210,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
-                    self._graceful_exit_workers(worker_group=self._worker_group)
-                    
+                    self._graceful_exit_workers(
+                        worker_group=self._worker_group
+                    )
+
                     if self._worker_group.group_rank == 0:
                         self.set_ucp_ready(False)
-                    logger.info(f"self._worker_group.group_rank : {self._worker_group.group_rank}")
+                    logger.info(
+                        f"self._worker_group.group_rank : {self._worker_group.group_rank}"
+                    )
                     _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
                         restart_count=self._restart_count,
@@ -1216,7 +1228,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         failures=f"{run_result.failures}",
                     )
                     self._save_ckpt_to_storage()
-                    
+
                     if self._worker_group.group_rank == 0:
                         self.ucp()
                     if self._worker_group.group_rank == 0:
@@ -1311,35 +1323,57 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage, 60, self._client
             )
+
     def ucp(self):
         """
-        执行universal checkpoint 
+        执行universal checkpoint
         """
         try:
             saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
             if saver:
-                has_start_saved=False
+                has_start_saved = False
                 start = time.time()
                 while True:
-                    checkpoint_dir,step =saver.get_latest_success_save_dir()
-                    start_saving_step =saver.get_latest_start_saving_step()
-                    if start_saving_step is not None and step is not None and start_saving_step!=step:
-                        has_start_saved=True
-                    elapsed_time = time.time() - start   
-                    if (has_start_saved and  start_saving_step==step) or elapsed_time > 300:
+                    checkpoint_dir, step = saver.get_latest_success_save_dir()
+                    start_saving_step = saver.get_latest_start_saving_step()
+                    if (
+                        start_saving_step is not None
+                        and step is not None
+                        and start_saving_step != step
+                    ):
+                        has_start_saved = True
+                    elapsed_time = time.time() - start
+                    if (
+                        has_start_saved and start_saving_step == step
+                    ) or elapsed_time > 300:
                         break
-                    time.sleep(1)   
-                                
-                if checkpoint_dir:
-                    input_dir=os.path.join(checkpoint_dir,f"checkpoint-{step}",f"global_step{step}")
-                    output_dir=os.path.join(checkpoint_dir,f"checkpoint-{step}","ucp")
-                    res=saver.ucp(input_dir,output_dir,self._config.ucp_device_type)
+                    time.sleep(1)
+
+                if checkpoint_dir and (
+                    has_start_saved and start_saving_step == step
+                ):
+                    # Only call ucp if checkpoint is ready (not timeout)
+                    input_dir = os.path.join(
+                        checkpoint_dir,
+                        f"checkpoint-{step}",
+                        f"global_step{step}",
+                    )
+                    output_dir = os.path.join(
+                        checkpoint_dir, f"checkpoint-{step}", "ucp"
+                    )
+                    res = saver.ucp(
+                        input_dir, output_dir, self._config.ucp_device_type
+                    )
                     if res:
-                        with open(os.path.join(checkpoint_dir,"ucp.txt"),"w",encoding="utf-8") as f:
+                        with open(
+                            os.path.join(checkpoint_dir, "ucp.txt"),
+                            "w",
+                            encoding="utf-8",
+                        ) as f:
                             f.write(str(step))
         except Exception as e:
             logger.info(f"ucp failed:{e}")
-            raise 
+            raise
 
     def _stop_workers_to_restart(self):
         """
@@ -1445,14 +1479,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 elif resp.newport > 0:
                     start_port = resp.newport
                     port = 0
-                    
+
     def get_ucp_ready(self, time_out=1200):
-        """get universal checkpoint is ready
-        """
+        """get universal checkpoint is ready"""
         return self._client.get_ucp_ready()
-    def set_ucp_ready(self,ready):
+
+    def set_ucp_ready(self, ready):
         return self._client.set_ucp_ready(ready=ready)
-            
+
     def _dlrover_exit_barrier(self):
         logger.info(
             f"Local worker group finished {self._worker_group.state}. "

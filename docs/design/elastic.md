@@ -1,35 +1,35 @@
-# 弹性训练设计
+# Elastic Training Design
 
-## 概述
+## Overview
 
-本文档介绍 DLRover 与 DeepSpeed 结合的弹性训练设计方案，重点解决在弹性扩缩容场景下的 checkpoint 恢复、数据重划分和优化器状态恢复等问题。
+This document introduces the elastic training design solution combining DLRover with DeepSpeed, focusing on solving issues such as checkpoint recovery, data re-partitioning, and optimizer state recovery in elastic scaling scenarios.
 
-## 设计思想
+## Design Philosophy
 
-### 基本概念
+### Basic Concepts
 
-- **job**：整个训练任务
-- **node**：在本语境中，一台机器或者一个容器
-- **worker**：根据 WorkerSpec 创建出来的一个 worker instance，生命周期由 ElasticAgent 管理，可以理解为一个训练进程
-- **workergroup**：一组 worker 实例
-- **ElasticAgent**：是 TorchElastic 控制面组件，一个独立的进程，用于管理当前节点内的 worker 生命周期、响应成员加入退出、监控 worker 健康状态等生命活动
+- **job**: The entire training task
+- **node**: A physical instance or a container
+- **worker**: A worker instance created according to WorkerSpec, with its lifecycle managed by ElasticAgent. It can be understood as a training process
+- **workergroup**: A group of worker instances
+- **ElasticAgent**: A TorchElastic control plane component, an independent process used to manage the lifecycle of workers within the current node, respond to member join/exit events, monitor worker health status, and other lifecycle activities
 
 ## DeepSpeed Universal Checkpoint
 
-### 并行技术
+### Parallelism Techniques
 
-| 缩写   | 含义                 | 说明       |
-| ------ | -------------------- | ---------- |
-| **DP** | Data Parallelism     | 数据并行   |
-| **TP** | Tensor Parallelism   | 张量并行   |
-| **PP** | Pipeline Parallelism | 流水线并行 |
-| **SP** | Sequence Parallelism | 序列并行   |
+| Abbreviation | Description       |
+| ------------ |  ----------------- |
+| **DP**       | Data Parallel     |
+| **TP**       |  Tensor Parallel   |
+| **PP**       |  Pipeline Parallel |
+| **SP**       |  Sequence Parallel |
 
-每种并行方式在保存模型时，都会生成分布式 checkpoint（检查点文件），例如每个 GPU 上保存自己那份权重切片或优化器状态。问题在于：这些分布式 checkpoint 文件的结构彼此不同，无法直接互相加载。
+Each parallelism method generates distributed checkpoints (checkpoint files) when saving the model. For example, each GPU saves its own weight slice or optimizer state. The problem is: these distributed checkpoint files have different structures and cannot be directly loaded from one another.
 
-你在 8 张卡（TP=8）上训练好的 checkpoint，想在下一次实验中用 4 张卡（TP=4）继续训练。→ 传统做法要先"合并再拆分"，非常麻烦，不同的分片策略专门写一个脚本处理。
+You trained a checkpoint on 8 GPUs (TP=8) and want to continue training with 4 GPUs (TP=4) in the next experiment. → Traditional approach requires "merge then split", which is very cumbersome, requiring specialized scripts for different partitioning strategies.
 
-### Universal Checkpoint（以下简称 UCP）
+### Universal Checkpoint (hereinafter referred to as UCP)
 
 ```
 ┌────────────────────┐
@@ -38,63 +38,63 @@
            │
            ▼
    ┌──────────────────┐
-   │  UCP Atomic Files │  ← 每个参数独立存储（通用格式）
+   │  UCP Atomic Files │  ← Each parameter stored independently (universal format)
    └──────────┬────────┘
               │
               ▼
 ┌────────────────────────┐
-│  Target Checkpoint      │ (新配置：不同GPU数量或并行模式)
+│  Target Checkpoint      │ (New configuration: different GPU count or parallelism mode)
 └────────────────────────┘
 ```
 
-![UCP 架构图](../figures/universal-checkpoint.png)
+![UCP Architecture Diagram](../figures/universal-checkpoint.png)
 
-UCP 引入了一个中间层概念：
+UCP introduces an intermediate layer concept:
 
-**Atomic checkpoint** = 每个参数 + 优化器状态的独立、精细化存储文件，也就是说：不再按 GPU 保存分布式碎片，而是直接保存"每个模型参数"的完整副本，同时记录优化器状态（比如 Adam 的 momentum, variance）。
+**Atomic checkpoint** = Independent, fine-grained storage file for each parameter + optimizer state. This means: instead of saving distributed fragments per GPU, directly save a complete copy of "each model parameter", while recording optimizer states (such as Adam's momentum, variance).
 
-## 核心问题
+## Core Issues
 
-DLRover + DeepSpeed 弹性训练需要解决以下三个核心问题：
+DLRover + DeepSpeed elastic training needs to solve the following three core issues:
 
-1. **实现适用于 DeepSpeed 的 ElasticAgent**
-2. **扩缩容前后的数据如何重新划分**
-3. **扩缩容前后优化器状态、模型参数如何恢复**
+1. **Implement ElasticAgent suitable for DeepSpeed**
+2. **How to re-partition data before and after scaling**
+3. **How to recover optimizer states and model parameters before and after scaling**
 
-DLRover 与 Swift 的关系如下图所示：
+The relationship between DLRover and Swift is shown in the following diagram:
 
-![DLRover-Swift 架构图](../figures/dlrover-swift.jpg)
+![DLRover-Swift Architecture Diagram](../figures/dlrover-swift.png)
 
-## 解决方案
+## Solution
 
-### 1. 实现适用于 DeepSpeed 的 ElasticAgent（DLRover 侧）
+### 1. Implement ElasticAgent suitable for DeepSpeed (DLRover side)
 
-**ElasticAgent**：是 TorchElastic 控制面组件，一个独立的进程，用于管理当前节点内的 worker 生命周期、响应成员加入退出、监控 worker 健康状态等生命活动。每个训练节点上运行一个独立的 Agent 进程，负责启动和管理本地的 Worker 进程，它会分配每个进程的 WORLD_SIZE、RANK 等信息，并持续监控 Worker 的健康状态。当发现某个 Worker 失败或崩溃时，Elastic Agent 会终止当前所有 Worker，并根据新的节点成员情况重启所有进程；当有新节点加入时，也会触发 Agent 重新启动新的 Worker。
+**ElasticAgent**: A TorchElastic control plane component, an independent process used to manage the lifecycle of workers within the current node, respond to member join/exit events, monitor worker health status, and other lifecycle activities. Each training node runs an independent Agent process responsible for starting and managing local Worker processes. It assigns each process's WORLD_SIZE, RANK, and other information, and continuously monitors Worker health status. When a Worker fails or crashes, the Elastic Agent terminates all current Workers and restarts all processes according to the new node membership; when a new node joins, it also triggers the Agent to restart new Workers.
 
-从前文介绍中，ElasticAgent 是一个控制面组件，它控制着整个训练过程中 worker 的生命周期、成员的加入和退出。我们需要实现的逻辑是在检测到有新的 worker 加入（退出）时，做好 checkpoint 的保存工作（扩缩容前的收尾），做好新一轮训练的断点续训工作（扩缩容后的训练恢复）。我们需要在 worker 端和 ElasticAgent 都加入这部分收尾逻辑。
+From the previous introduction, ElasticAgent is a control plane component that controls the entire training process's worker lifecycle, member join and exit. The logic we need to implement is: when detecting new workers joining (or exiting), complete checkpoint saving work (wrapping up before scaling), and prepare for the next round of training resumption (training recovery after scaling). We need to add this wrapping-up logic to both the worker side and ElasticAgent.
 
-#### 1.1 Worker 端逻辑
+#### 1.1 Worker-side Logic
 
-ElasticAgent.invoke_run() 方法中检测到成员变化 → 发送 universal checkpoint（后简称 ucp）未就绪信号给 master 节点（只有 group_rank=0 发送）→ 执行 ucp 流程 → 发送 ucp 已完成信号到 master 节点。
+ElasticAgent.invoke_run() method detects member changes → sends universal checkpoint (hereinafter referred to as ucp) not-ready signal to master node (only group_rank=0 sends) → executes ucp process → sends ucp completed signal to master node.
 
-#### 1.2 Master 端逻辑
+#### 1.2 Master-side Logic
 
-利用 ucp（universal checkpoint）是否完成标识来调控 worker 组队轮次，如果收到 worker ucp 就绪的信号，可以开启下一轮 Rendezvous。
+Use the ucp (universal checkpoint) completion flag to regulate worker grouping rounds. If receiving worker ucp ready signal, can start the next round of Rendezvous.
 
-### 2. 实现 Elastic Trainer（Swift 侧）
+### 2. Implement Elastic Trainer (Swift side)
 
-#### 2.1 实现 ElasticSampler
+#### 2.1 Implement ElasticSampler
 
-需要剔除已有处理的数据，根据新的成员数目重新分配数据。
+Need to exclude already processed data and reallocate data according to new member count.
 
-- Swift 目前本身的数据加载器就具备这样的能力，只需要在重新恢复时，指定需要跳过的样本和新的 batch_size 即可。
+- Swift's current data loader already has this capability. It only needs to specify samples to skip and new batch_size when resuming.
 
-#### 2.2 成员数变化后，batchsize 和 lr 的处理
+#### 2.2 Handling batchsize and lr after member count changes
 
-通过调整 gradient accumulation 保证总 batchsize 不变，所以不用修改学习率。
+By adjusting gradient accumulation to keep total batchsize unchanged, so learning rate doesn't need modification.
 
-#### 2.3 成员数变化后，trainer 优化器状态等如何恢复
+#### 2.3 How to recover trainer optimizer states after member count changes
 
-在成员变化时 group_rank=0 的 worker 会使用 universal checkpoint（ds_to_universal.py）将 checkpoint 保存到指定路径下，重新拉起训练时增加 `--universal-checkpoint` 参数并从 universal checkpoint 保存的路径下加载 checkpoint 即可。
+When members change, the worker with group_rank=0 will use universal checkpoint (ds_to_universal.py) to save the checkpoint to the specified path. When restarting training, add the `--universal-checkpoint` parameter and load the checkpoint from the universal checkpoint saved path.
 
-ms-wift 侧实现：https://github.com/modelscope/ms-swift/pull/6955
+ms-swift side implementation: https://github.com/modelscope/ms-swift/pull/6955

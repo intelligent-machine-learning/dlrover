@@ -219,7 +219,7 @@ def parse_args(args):
         "--ucp_device_type",
         "--ucp_device_type",
         action=env,
-         default="cpu",
+        default="cpu",
         help="The device where universal checkpoint take place.",
     )
     return parser.parse_args(args)

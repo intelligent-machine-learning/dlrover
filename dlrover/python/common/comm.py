@@ -221,12 +221,18 @@ class GlobalStep(Message):
     timestamp: int = 0
     step: int = 1
     elapsed_time_per_step: float = 0.0
+
+
 @dataclass
 class UCPReady(Message):
-    ready:bool=True
+    ready: bool = True
+
+
 @dataclass
 class UCPReadyRequest(Message):
     pass
+
+
 @dataclass
 class HeartBeat(Message):
     timestamp: int = 0
