@@ -1873,6 +1873,7 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 saver.get_latest_start_saving_step.return_value = (
                     101  # Different from step
                 )
+                saver.ucp.return_value = True
 
                 agent = ElasticTrainingAgent(
                     node_rank=0,
@@ -1889,8 +1890,17 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     with mock.patch("time.sleep"):
                         agent.ucp()
 
-                # ucp should not be called since timeout occurred
-                saver.ucp.assert_not_called()
+                # ucp should be called even in timeout scenario
+                # because checkpoint_dir and step are not None
+                expected_input_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "global_step100"
+                )
+                expected_output_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "ucp"
+                )
+                saver.ucp.assert_called_once_with(
+                    expected_input_dir, expected_output_dir, "cpu"
+                )
 
     def test_ucp_method_with_different_device_type(self):
         """Test ucp method with different ucp_device_type."""

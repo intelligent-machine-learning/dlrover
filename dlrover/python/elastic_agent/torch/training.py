@@ -1326,7 +1326,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def ucp(self):
         """
-        执行universal checkpoint
+        do universal checkpoint
         """
         try:
             saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
@@ -1349,10 +1349,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         break
                     time.sleep(1)
 
-                if checkpoint_dir and (
-                    has_start_saved and start_saving_step == step
-                ):
-                    # Only call ucp if checkpoint is ready (not timeout)
+                if checkpoint_dir is not None and step is not None:
                     input_dir = os.path.join(
                         checkpoint_dir,
                         f"checkpoint-{step}",
@@ -1371,6 +1368,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                             encoding="utf-8",
                         ) as f:
                             f.write(str(step))
+                else:
+                    logger.info(
+                        "Skip ucp because checkpoint_dir or step is None"
+                    )
         except Exception as e:
             logger.info(f"ucp failed:{e}")
             raise

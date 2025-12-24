@@ -88,8 +88,8 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_sorter = DpTopologySorter()
         self._event_reporter = get_event_reporter()
         self.rendezvous_events: Dict[int, DurationSpan] = {}
-        self.ucp_ready=True
-        
+        self.ucp_ready = True
+
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
 
@@ -98,12 +98,15 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def get_waiting_timeout(self):
         return self._rdzv_params.waiting_timeout
+
     @property
     def get_ucp_ready(self):
         return self.ucp_ready
-    def set_ucp_ready(self,ucp_ready):
+
+    def set_ucp_ready(self, ucp_ready):
         with self._lock:
-            self.ucp_ready=ucp_ready
+            self.ucp_ready = ucp_ready
+
     def get_rdzv_round(self):
         return self._rdzv_round
 
@@ -175,8 +178,10 @@ class RendezvousManager(metaclass=ABCMeta):
         # if the universal checkpoint before scaling out is not ready,
         # the next round rendezvous cannot be completed
         if hasattr(self, "ucp_ready") and not self.ucp_ready:
-            logger.info(f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
-                             f"ucp_ready={self.ucp_ready}. Waiting for cleanup.")
+            logger.info(
+                f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
+                f"ucp_ready={self.ucp_ready}. Waiting for cleanup."
+            )
             return False
         waiting_num = len(self._waiting_nodes)
         if waiting_num == self._rdzv_params.max_nodes:
