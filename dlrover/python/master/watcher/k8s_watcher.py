@@ -77,6 +77,16 @@ def _get_pod_exit_reason(pod):
         if terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE:
             return NodeExitReason.OOM
         elif exit_code in [ExitCode.KILLED_CODE, ExitCode.TERMED_CODE]:
+            # get extension info from pod meta
+            extension_reason = _dlrover_context.get_k8s_util().resolve_extension_exit_reason_from_meta(
+                pod.metadata
+            )
+            if extension_reason:
+                logger.info(
+                    f"Got extension exit reason: {extension_reason} for exit code: {exit_code}"
+                )
+                return extension_reason
+
             return NodeExitReason.KILLED
         elif exit_code in (
             ExitCode.FATAL_ERROR_CODE,
@@ -97,6 +107,14 @@ def _get_pod_exit_reason(pod):
         else:
             return NodeExitReason.UNKNOWN_ERROR
 
+    # get extension info from pod meta if no exit code
+    extension_reason = _dlrover_context.get_k8s_util().resolve_extension_exit_reason_from_meta(
+        pod.metadata
+    )
+    if extension_reason:
+        logger.info(f"Got extension exit reason: {extension_reason}")
+        return extension_reason
+
     return ""
 
 
@@ -109,6 +127,7 @@ def _convert_pod_yaml_to_node(pod):
     metadata: client.V1ObjectMeta = pod.metadata
     pod_name = metadata.name
     pod_type = metadata.labels[replica_type_key]
+    resource_version = metadata.resource_version
     labels = metadata.labels
     node_group = None
     node_group_size = None
@@ -177,17 +196,20 @@ def _convert_pod_yaml_to_node(pod):
         max_relaunch_count=_dlrover_context.max_relaunch_count,
     )
 
+    node.create_time = metadata.creation_timestamp
+    if NodeStatus.is_terminal_status(status):
+        node.set_exit_reason(_get_pod_exit_reason(pod))
+
     logger.debug(
         f"convert yaml to node: {node} "
         f"type {pod_type}, id {pod_id}, name {pod_name}, "
         f"rank {rank_id}, status {status}, "
         f"group {node_group}, group_size {node_group_size}, "
-        f"group_id {node_group_id}, with meta {metadata.labels}"
+        f"group_id {node_group_id}, exit_reason {node.exit_reason}, "
+        f"with meta labels {metadata.labels} "
+        f"and meta annotations {metadata.annotations} "
+        f"by resource_version {resource_version}"
     )
-
-    node.create_time = metadata.creation_timestamp
-    if NodeStatus.is_terminal_status(status):
-        node.set_exit_reason(_get_pod_exit_reason(pod))
 
     return node
 
@@ -228,8 +250,9 @@ def _parse_container_resource(container):
 def _verify_restarting_training(pod):
     if not pod.metadata.annotations:
         return False
+
     action_str = pod.metadata.annotations.get(
-        "pod.sigma.ali/scheduled-action", ""
+        _dlrover_context.get_k8s_util().get_annotation_scheduled_action()
     )
     if not action_str:
         return False
