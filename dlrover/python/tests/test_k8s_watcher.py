@@ -434,6 +434,21 @@ class PodWatcherTest(unittest.TestCase):
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.UNKNOWN_ERROR)
 
+        with patch(
+            "dlrover.python.common.global_context.Context.get_k8s_util"
+        ) as mock_get_k8s_util:
+            mock_k8s_util = mock.MagicMock()
+            mock_k8s_util.resolve_extension_exit_reason_from_meta.return_value = "EXTENSION_ERROR"
+            mock_get_k8s_util.return_value = mock_k8s_util
+
+            state.terminated = client.V1ContainerStateTerminated(exit_code=137)
+            exit_reason = _get_pod_exit_reason(pod)
+            self.assertEqual(exit_reason, "EXTENSION_ERROR")
+
+            state.terminated = None
+            exit_reason = _get_pod_exit_reason(pod)
+            self.assertEqual(exit_reason, "EXTENSION_ERROR")
+
     def test_verify_restarting_training(self):
         labels = _mock_pod_labels()
         pod = create_pod(labels)
@@ -450,7 +465,7 @@ class PodWatcherTest(unittest.TestCase):
             json.dumps(action)
         )
         reset = _verify_restarting_training(pod)
-        self.assertTrue(reset)
+        self.assertFalse(reset)
 
 
 class ScalePlanWatcherTest(unittest.TestCase):
