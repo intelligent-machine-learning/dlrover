@@ -99,7 +99,6 @@ class RendezvousManager(metaclass=ABCMeta):
     def get_waiting_timeout(self):
         return self._rdzv_params.waiting_timeout
 
-    @property
     def get_ucp_ready(self):
         return self.ucp_ready
 

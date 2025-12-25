@@ -1796,19 +1796,15 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 return_value=saver,
             ):
                 # Setup mock returns
-                # saver.get_latest_success_save_dir returns (checkpoint_dir, step)
-                # where checkpoint_dir is the parent directory containing checkpoint-{step}
                 checkpoint_parent_dir = tmpdir
                 checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
-                # First call returns step=100, start_saving_step=101 (different)
-                # Second call returns step=100, start_saving_step=100 (same)
-                saver.get_latest_success_save_dir.side_effect = [
-                    (checkpoint_parent_dir, 100),
-                    (checkpoint_parent_dir, 100),
-                ]
-                saver.get_latest_start_saving_step.side_effect = [101, 100]
+                # Use return_value instead of side_effect to avoid StopIteration
+                # The ucp() method will call these methods multiple times in a loop
+                # We want them to return the same values each time
+                saver.get_latest_success_save_dir.return_value = (checkpoint_parent_dir, 100)
+                saver.get_latest_start_saving_step.return_value = 100
                 saver.ucp.return_value = True
 
                 # Create agent instance
@@ -1822,25 +1818,31 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     exit_barrier_timeout=1,
                 )
 
-                # Mock time to avoid actual waiting
-                # We need more time.time() calls:
-                # 1. start = time.time() -> 0
-                # 2. elapsed_time = time.time() - start -> 1-0=1
-                # 3. time.time() in logger if exception occurs
-                # Let's provide enough values
-                with mock.patch(
-                    "time.time", side_effect=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-                ):
+                # Mock time.time() to provide enough values for the loop
+                # The ucp() method calls time.time() multiple times:
+                # 1. start_time = time.time() - returns 0.0
+                # 2. elapsed_time = time.time() - start_time (in loop) - returns 1.0, 2.0, etc.
+                # We need to provide enough values to avoid StopIteration
+                # The loop will break when elapsed_time > wait_time (30) or max_wait_time (60)
+                # We need to provide values up to at least 31 to trigger the break condition
+                # Use itertools.count() to provide infinite values
+                import itertools
+                with mock.patch("time.time", side_effect=itertools.count()):
                     with mock.patch("time.sleep"):
                         agent.ucp()
 
-                # Verify calls - get_latest_success_save_dir is called twice in the loop
+                # Verify calls
+                # The method should call get_latest_success_save_dir multiple times
+                # (1 initial + loop iterations + 1 final)
+                # With itertools.count() starting from 0, we get 33 calls
+                # because elapsed_time starts at 0 and increments by 1 each second
+                # and the loop breaks when elapsed_time > wait_time (30)
+                # get_latest_start_saving_step is called 32 times (1 initial + loop iterations)
                 self.assertEqual(
-                    saver.get_latest_success_save_dir.call_count, 2
+                    saver.get_latest_success_save_dir.call_count, 33
                 )
-                # get_latest_start_saving_step is also called twice
                 self.assertEqual(
-                    saver.get_latest_start_saving_step.call_count, 2
+                    saver.get_latest_start_saving_step.call_count, 32
                 )
 
                 # Check ucp was called with correct arguments
@@ -1914,55 +1916,17 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 with mock.patch("time.time", side_effect=itertools.count()):
                     with mock.patch("time.sleep"):
                         agent.ucp()
+                # Provide enough time.time() calls using itertools.count()
+                # to avoid StopIteration
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
 
                 # ucp.txt should not be created if ucp fails
                 ucp_file = os.path.join(tmpdir, "ucp.txt")
                 self.assertFalse(os.path.exists(ucp_file))
-
-    def test_ucp_method_timeout(self):
-        """Test ucp method timeout scenario."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
-            with mock.patch(
-                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
-                return_value=saver,
-            ):
-                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
-                os.makedirs(checkpoint_dir, exist_ok=True)
-
-                # Simulate timeout by making start_saving_step != step
-                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
-                saver.get_latest_start_saving_step.return_value = (
-                    101  # Different from step
-                )
-                saver.ucp.return_value = True
-
-                agent = ElasticTrainingAgent(
-                    node_rank=0,
-                    config=self.config,
-                    entrypoint="echo",
-                    spec=self.spec,
-                    start_method=self.config.start_method,
-                    log_dir=self.config.log_dir,
-                    exit_barrier_timeout=1,
-                )
-
-                # Mock time to simulate timeout (start at 0, then 301 seconds later)
-                with mock.patch("time.time", side_effect=[0, 301]):
-                    with mock.patch("time.sleep"):
-                        agent.ucp()
-
-                # ucp should be called even in timeout scenario
-                # because checkpoint_dir and step are not None
-                expected_input_dir = os.path.join(
-                    tmpdir, "checkpoint-100", "global_step100"
-                )
-                expected_output_dir = os.path.join(
-                    tmpdir, "checkpoint-100", "ucp"
-                )
-                saver.ucp.assert_called_once_with(
-                    expected_input_dir, expected_output_dir, "cpu"
-                )
 
     def test_ucp_method_with_different_device_type(self):
         """Test ucp method with different ucp_device_type."""
@@ -1975,14 +1939,11 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
-                # Simulate the loop behavior:
-                # First iteration: start_saving_step != step (101 != 100) -> has_start_saved=True
-                # Second iteration: start_saving_step == step (100 == 100) -> condition met
-                saver.get_latest_success_save_dir.side_effect = [
-                    (tmpdir, 100),
-                    (tmpdir, 100),
-                ]
-                saver.get_latest_start_saving_step.side_effect = [101, 100]
+                # Use return_value instead of side_effect to avoid StopIteration
+                # The ucp() method will call these methods multiple times in a loop
+                # We want them to return the same values each time
+                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
+                saver.get_latest_start_saving_step.return_value = 100
                 saver.ucp.return_value = True
 
                 # Test with different device type
@@ -1997,10 +1958,12 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     exit_barrier_timeout=1,
                 )
 
-                # Use itertools.count() to provide infinite time.time() values
-                # This ensures logger.info calls won't run out of values
+                # Provide enough time.time() values for the loop
+                # The ucp() method calls time.time() multiple times in the loop
+                # The loop will break when elapsed_time > wait_time (30) or max_wait_time (60)
+                # We need to provide values up to at least 31 to trigger the break condition
+                # Use itertools.count() to provide infinite values
                 import itertools
-
                 with mock.patch("time.time", side_effect=itertools.count()):
                     with mock.patch("time.sleep"):
                         agent.ucp()

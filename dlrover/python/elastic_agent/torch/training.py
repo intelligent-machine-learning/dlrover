@@ -1278,8 +1278,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._graceful_exit_workers(
                         worker_group=self._worker_group
                     )
+                    enable_ucp = os.getenv(
+                        "DLROVER_UCP_RESTART", "false"
+                    ).lower()
 
-                    if self._worker_group.group_rank == 0:
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
                         self.set_ucp_ready(False)
                     logger.info(
                         f"self._worker_group.group_rank : {self._worker_group.group_rank}"
@@ -1294,9 +1300,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                     self._save_ckpt_to_storage()
 
-                    if self._worker_group.group_rank == 0:
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
                         self.ucp()
-                    if self._worker_group.group_rank == 0:
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
                         self.set_ucp_ready(True)
                     self._restart_workers(self._worker_group)
             else:
@@ -1391,54 +1403,107 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def ucp(self):
         """
-        do universal checkpoint
+        Do universal checkpoint.
+
+        Semantics:
+        - UCP must always operate on a successfully saved checkpoint.
+        - start_saving_step is only used to detect and wait for a new save.
         """
         try:
             saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
-            if saver:
-                has_start_saved = False
-                start = time.time()
-                while True:
-                    checkpoint_dir, step = saver.get_latest_success_save_dir()
-                    start_saving_step = saver.get_latest_start_saving_step()
-                    if (
-                        start_saving_step is not None
-                        and step is not None
-                        and start_saving_step != step
-                    ):
-                        has_start_saved = True
-                    elapsed_time = time.time() - start
-                    if (
-                        has_start_saved and start_saving_step == step
-                    ) or elapsed_time > 300:
-                        break
-                    time.sleep(1)
+            if not saver:
+                return
 
-                if checkpoint_dir is not None and step is not None:
-                    input_dir = os.path.join(
-                        checkpoint_dir,
-                        f"checkpoint-{step}",
-                        f"global_step{step}",
-                    )
-                    output_dir = os.path.join(
-                        checkpoint_dir, f"checkpoint-{step}", "ucp"
-                    )
-                    res = saver.ucp(
-                        input_dir, output_dir, self._config.ucp_device_type
-                    )
-                    if res:
-                        with open(
-                            os.path.join(checkpoint_dir, "ucp.txt"),
-                            "w",
-                            encoding="utf-8",
-                        ) as f:
-                            f.write(str(step))
-                else:
+            start_time = time.time()
+            max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
+            wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
+
+            # Initial snapshot
+            checkpoint_dir, last_success_step = (
+                saver.get_latest_success_save_dir()
+            )
+            start_saving_step = saver.get_latest_start_saving_step()
+
+            # If nothing has ever been saved or started, nothing to UCP
+            if last_success_step is None and start_saving_step is None:
+                logger.info("No checkpoint has ever been started, skip ucp.")
+                return
+            target_step = None
+            seen_new_saving = False
+
+            while True:
+                checkpoint_dir, success_step = (
+                    saver.get_latest_success_save_dir()
+                )
+                start_saving_step = saver.get_latest_start_saving_step()
+                elapsed_time = time.time() - start_time
+
+                # Detect that a NEW checkpoint saving has actually started
+                if (
+                    start_saving_step is not None
+                    and last_success_step is not None
+                    and start_saving_step > last_success_step
+                ):
+                    target_step = start_saving_step
+                    seen_new_saving = True
+
+                # If we have seen the new saving and it completed successfully
+                if seen_new_saving and success_step == target_step:
+                    break
+
+                # No new checkpoint triggered within wait_time
+                if not seen_new_saving and elapsed_time > wait_time:
                     logger.info(
-                        "Skip ucp because checkpoint_dir or step is None"
+                        "No new checkpoint triggered, "
+                        "using last successful step %s for ucp.",
+                        success_step,
                     )
-        except Exception as e:
-            logger.info(f"ucp failed:{e}")
+                    break
+
+                # Timeout waiting for the new checkpoint
+                if elapsed_time > max_wait_time:
+                    logger.warning(
+                        "Timeout waiting for checkpoint step %s. "
+                        "Fallback to last successful step %s.",
+                        target_step,
+                        success_step,
+                    )
+                    break
+
+                time.sleep(1)
+
+            # -------- Final decision: ONLY use successful checkpoint --------
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            if checkpoint_dir is None or step is None:
+                logger.error("No successful checkpoint available for ucp.")
+                return
+
+            input_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                f"global_step{step}",
+            )
+            output_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                "ucp",
+            )
+
+            res = saver.ucp(
+                input_dir,
+                output_dir,
+                self._config.ucp_device_type,
+            )
+            if res:
+                with open(
+                    os.path.join(checkpoint_dir, "ucp.txt"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(str(step))
+
+        except Exception:
+            logger.exception("ucp failed")
             raise
 
     def _stop_workers_to_restart(self):
