@@ -13,6 +13,8 @@ DLRover control plane.
 
 ## Minimal example
 
+- Single role:
+
 ```python
 from omegaconf import DictConfig
 from dlrover.python.unified.api.builder import DLJobBuilder
@@ -35,9 +37,32 @@ job = (
 job.submit(job_name="nanogpt")
 ```
 
-### Advanced examples (outline)
+### Advanced examples
 
-- Multiple roles (pseudo):
+- Multiple roles(outline):
+
+```python
+job = (
+    DLJobBuilder()
+    .node_num(worker_node_num)  # total machine number
+    .device_per_node(device_per_worker_node)  # device number per machine
+    .device_type("GPU")  # device type
+    .config({})  # global training variables setting
+    .global_env({"DLROVER_LOG_LEVEL": log_level})  # global environment variables setting
+    .role(xxx).run(xxx)  # any workloads
+      .resource(xxx)  # resource unit for this role group
+      .total(xxx)  # total workloads number for this role group
+      ...
+    .role(xxx).run(xxx)  # any workloads
+      ...
+    .workload("role","entrypoint")  # any workloads in another way
+      ...
+    ...
+    .build()
+)
+```
+
+- Use RL as a example:
 
 ```python
 job = (
@@ -64,11 +89,23 @@ version.)
 - workload(role, entrypoint): single method combine role + run
 - train(entrypoint): define a training workload with entrypoint (module path + function or command with python file), and return a sub builder.
 
-### Workload / role patterns
+### Workload / Role patterns
 
 - Training workload: use `train()` to define the main training entrypoint.
 - Non-training workload: use `run()` to define auxiliary entrypoints
   (data loader, evaluator, etc).
+- For each workload(any kind), the following can be configured(major parameters):
+  - total: Total number of the workload.
+  - resource: Resource unit for each workload. Format in dict, supported resource: 'cpu','memory','disk','gpu','disk','user_defined'.
+  - envs: Environment variables for each workload. Format in dict.
+  - For more parameters, please refer to class: 'BaseWorkloadDesc'.
+
+### Collocations
+
+Use the following builder method to control the affinity and anti-affinity between workloads:
+- with_collocation: Logical grouping (affinity) of workloads is determined by combining different roles.
+- per_group(workload pattern): Specify the number of the current workloads within each logical group.
+
 
 ### Best practices
 

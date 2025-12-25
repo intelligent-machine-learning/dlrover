@@ -756,6 +756,45 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertNotEqual(worker0.heartbeat_time, ts3)
 
+    def test_get_ucp_ready(self):
+        """Test get_ucp_ready method."""
+        # Test with UCPReadyRequest
+        message = comm.UCPReadyRequest()
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.get(request, self.grpc_server_context)
+        res_msg = comm.deserialize_message(response.data)
+        self.assertIsInstance(res_msg, comm.UCPReady)
+        # Default value should be True
+        self.assertTrue(res_msg.ready)
+
+        # Verify the rdzv_manager has ucp_ready attribute
+        rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
+        self.assertTrue(hasattr(rdzv_manager, "ucp_ready"))
+        self.assertTrue(rdzv_manager.get_ucp_ready())
+
+    def test_set_ucp_ready(self):
+        """Test set_ucp_ready method."""
+        # Test setting ucp_ready to False
+        message = comm.UCPReady(ready=False)
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.report(request, self.grpc_server_context)
+        self.assertTrue(response.success)
+
+        # Verify ucp_ready is set to False
+        rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
+        self.assertFalse(rdzv_manager.get_ucp_ready())
+
+        # Test setting ucp_ready to True
+        message = comm.UCPReady(ready=True)
+        request.data = message.serialize()
+        response = self.servicer.report(request, self.grpc_server_context)
+        self.assertTrue(response.success)
+
+        # Verify ucp_ready is set to True
+        self.assertTrue(rdzv_manager.get_ucp_ready())
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:

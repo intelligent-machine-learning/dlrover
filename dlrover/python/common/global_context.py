@@ -279,3 +279,10 @@ class Context(Singleton):
                         return True
                 break
         return False
+
+    def get_k8s_util(self):
+        """Can be overridden by subclasses."""
+
+        from dlrover.python.util.k8s_util import BaseK8sUtil
+
+        return BaseK8sUtil

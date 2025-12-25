@@ -81,6 +81,7 @@ from dlrover.python.common.constants import (
     EventReportConstants,
     ScriptPath,
     NodeExitReason,
+    RendezvousErrorType,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -221,6 +222,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    ucp_device_type: str = "cpu"
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -362,6 +364,17 @@ class MasterRendezvousHandler(RendezvousHandler):
 
         return round
 
+    def _get_rdzv_error_data(self, err_type="", err_msg="", elapsed_time=-1):
+        return json.dumps(
+            {
+                "rdzv_name": self._name,
+                "node_rank": self._node_rank,
+                "err_type": err_type,
+                "err_message": err_msg,
+                "elapsed_time": elapsed_time,
+            }
+        )
+
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
@@ -408,6 +421,15 @@ class MasterRendezvousHandler(RendezvousHandler):
                         err_msg = (
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                        self._report_failure(
+                            self._get_rdzv_error_data(
+                                RendezvousErrorType.PEND_TIMEOUT,
+                                err_msg,
+                                int(self.pend_timeout),
+                            ),
+                            level=TrainingExceptionLevel.RDZV_ERROR,
+                            rank0_only=False,
+                        )
                         _rdzv_evt.fail(error=err_msg)
                         raise RendezvousTimeoutError(err_msg)
                     continue
@@ -418,7 +440,13 @@ class MasterRendezvousHandler(RendezvousHandler):
                     "to complete rendezvous."
                 )
                 self._report_failure(
-                    err_msg, level=TrainingExceptionLevel.RDZV_ERROR
+                    self._get_rdzv_error_data(
+                        RendezvousErrorType.JOIN_TIMEOUT,
+                        err_msg,
+                        self.join_timeout,
+                    ),
+                    level=TrainingExceptionLevel.RDZV_ERROR,
+                    rank0_only=False,
                 )
                 _rdzv_evt.fail(error=err_msg)
                 raise RendezvousTimeoutError(err_msg)
@@ -435,7 +463,10 @@ class MasterRendezvousHandler(RendezvousHandler):
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
-            self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
+            self._report_failure(
+                self._get_rdzv_error_data("", err_msg),
+                level=TrainingExceptionLevel.WARNING,
+            )
 
         _rdzv_evt.success(
             round=round,
@@ -463,8 +494,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         if num < 0:
             raise JobStoppingError("Exit rendezvous when job is stopping")
 
-    def _report_failure(self, err_msg, level):
-        if self._node_rank == 0:
+    def _report_failure(self, err_msg, level, rank0_only=True):
+        if rank0_only and not self._node_rank == 0:
+            return
+        else:
             self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
@@ -614,6 +647,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         # print out a snapshot of all processes again
         env_utils.print_process_list()
+
+    def _graceful_exit_workers(self, worker_group: WorkerGroup):
+        logger.info("try to gracefully exit workers")
+        if self._pcontext is None:
+            logger.warning(
+                "_pcontext is None, cannot send graceful exit signal"
+            )
+            return
+        pc_pids = set(self._pcontext.pids().values())
+        pc_pids = list(pc_pids)
+        if not pc_pids:
+            logger.warning(
+                "No worker PIDs available, cannot send graceful exit signal"
+            )
+            return
+        pc_pid = pc_pids[0]
+        try:
+            os.kill(pc_pid, signal.SIGUSR1)
+        except Exception as e:
+            logger.warning(f"error when kill {pc_pid}: {str(e)}")
 
     @prof
     def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
@@ -933,7 +986,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     raise e
             else:
-                logger.info("Finish initializing training workers.")
+                logger.info(
+                    f"Finish initializing training({self.__class__.__name__}) workers."
+                )
                 break
 
     @prof
@@ -963,7 +1018,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        current_pgid = os.getpgid(os.getpid())
+        current_pid = os.getpid()
+        current_pgid = os.getpgid(current_pid)
 
         def get_processes_by_pgid(pgid):
             target_processes = []
@@ -983,6 +1039,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
                                 "ppid": proc.ppid(),
                                 "name": proc.name(),
                                 "cmdline": cmdline,
+                                "kernel_stack": env_utils.get_kernel_stack(
+                                    proc.pid
+                                )[1],
+                                "user_stack": env_utils.get_user_stack_pyspy(
+                                    proc.pid
+                                )[1],
                             }
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -990,24 +1052,48 @@ class ElasticTrainingAgent(LocalElasticAgent):
             return target_processes
 
         try:
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
+            # get all the subprocess's pgid by current pid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            child_pgids = set(
+                [os.getpgid(child_pid) for child_pid in child_pids]
             )
 
-            subprocess.run(
-                ["pkill", "-9", "-g", str(current_pgid)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            # kill child pg 1st
+            if child_pids and child_pgids:
+                for child_pgid in child_pgids:
+                    target_processes = get_processes_by_pgid(child_pgid)
 
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Remaining process after pkill in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
-            )
+                    # print target processes' stack info and do killing
+                    logger.warning(
+                        "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
+                        f"Target pgid: {child_pgid}, processes: {target_processes}"
+                    )
+                    subprocess.run(
+                        ["pkill", "-9", "-g", str(child_pgid)],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+            time.sleep(1)
+
+            # if still remain child process, kill current pgid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            if child_pids:
+                logger.warning(
+                    f"Still remaining process after pkill child process in 'stop_timeout_handler': {child_pids}"
+                )
+                target_processes = get_processes_by_pgid(current_pgid)
+                logger.warning(
+                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler', "
+                    f"Target pgid: {current_pgid}, processes: {target_processes}"
+                )
+                subprocess.run(
+                    ["pkill", "-9", "-g", str(current_pgid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
         except Exception:
             logger.exception(
                 "Unexpected error in stop_timeout_handler when killing process."
@@ -1189,6 +1275,21 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
+                    self._graceful_exit_workers(
+                        worker_group=self._worker_group
+                    )
+                    enable_ucp = os.getenv(
+                        "DLROVER_UCP_RESTART", "false"
+                    ).lower()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
+                        self.set_ucp_ready(False)
+                    logger.info(
+                        f"self._worker_group.group_rank : {self._worker_group.group_rank}"
+                    )
                     _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
                         restart_count=self._restart_count,
@@ -1198,6 +1299,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         failures=f"{run_result.failures}",
                     )
                     self._save_ckpt_to_storage()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
+                        self.ucp()
+                    if (
+                        self._worker_group.group_rank == 0
+                        and enable_ucp == "true"
+                    ):
+                        self.set_ucp_ready(True)
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
@@ -1288,6 +1400,111 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage, 60, self._client
             )
+
+    def ucp(self):
+        """
+        Do universal checkpoint.
+
+        Semantics:
+        - UCP must always operate on a successfully saved checkpoint.
+        - start_saving_step is only used to detect and wait for a new save.
+        """
+        try:
+            saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
+            if not saver:
+                return
+
+            start_time = time.time()
+            max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
+            wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
+
+            # Initial snapshot
+            checkpoint_dir, last_success_step = (
+                saver.get_latest_success_save_dir()
+            )
+            start_saving_step = saver.get_latest_start_saving_step()
+
+            # If nothing has ever been saved or started, nothing to UCP
+            if last_success_step is None and start_saving_step is None:
+                logger.info("No checkpoint has ever been started, skip ucp.")
+                return
+            target_step = None
+            seen_new_saving = False
+
+            while True:
+                checkpoint_dir, success_step = (
+                    saver.get_latest_success_save_dir()
+                )
+                start_saving_step = saver.get_latest_start_saving_step()
+                elapsed_time = time.time() - start_time
+
+                # Detect that a NEW checkpoint saving has actually started
+                if (
+                    start_saving_step is not None
+                    and last_success_step is not None
+                    and start_saving_step > last_success_step
+                ):
+                    target_step = start_saving_step
+                    seen_new_saving = True
+
+                # If we have seen the new saving and it completed successfully
+                if seen_new_saving and success_step == target_step:
+                    break
+
+                # No new checkpoint triggered within wait_time
+                if not seen_new_saving and elapsed_time > wait_time:
+                    logger.info(
+                        "No new checkpoint triggered, "
+                        "using last successful step %s for ucp.",
+                        success_step,
+                    )
+                    break
+
+                # Timeout waiting for the new checkpoint
+                if elapsed_time > max_wait_time:
+                    logger.warning(
+                        "Timeout waiting for checkpoint step %s. "
+                        "Fallback to last successful step %s.",
+                        target_step,
+                        success_step,
+                    )
+                    break
+
+                time.sleep(1)
+
+            # -------- Final decision: ONLY use successful checkpoint --------
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            if checkpoint_dir is None or step is None:
+                logger.error("No successful checkpoint available for ucp.")
+                return
+
+            input_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                f"global_step{step}",
+            )
+            output_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                "ucp",
+            )
+
+            res = saver.ucp(
+                input_dir,
+                output_dir,
+                self._config.ucp_device_type,
+            )
+            if res:
+                with open(
+                    os.path.join(checkpoint_dir, "ucp.txt"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(str(step))
+
+        except Exception:
+            logger.exception("ucp failed")
+            raise
 
     def _stop_workers_to_restart(self):
         """
@@ -1394,6 +1611,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
+    def get_ucp_ready(self, time_out=1200):
+        """get universal checkpoint is ready"""
+        return self._client.get_ucp_ready()
+
+    def set_ucp_ready(self, ready):
+        return self._client.set_ucp_ready(ready=ready)
+
     def _dlrover_exit_barrier(self):
         logger.info(
             f"Local worker group finished {self._worker_group.state}. "
@@ -1457,6 +1681,7 @@ def launch_agent(
         f"  failure_errors   : {config.failure_node_errors}\n"
         f"  numa_affinity    : {config.numa_affinity}\n"
         f"  accelerator      : {config.accelerator}\n"
+        f" ucp_device_type   : {config.ucp_device_type}\n"
     )
 
     _agent_evt.start(args=vars(config))

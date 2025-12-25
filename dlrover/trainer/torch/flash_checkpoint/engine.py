@@ -194,6 +194,23 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._local_rank = env_utils.get_local_rank()
         self._cached_step = -1
         self._restart_count = env_utils.get_torch_restart_count()
+        self._rank = 0
+        self._group_rank = 0
+        self._world_size = 1
+        self._loader_group = None
+        self._saver_group = None
+        self._saving_ranks: Optional[List[int]] = None
+
+        self._init_sync_group(comm_backend)
+
+        self._rank = 0
+        self._group_rank = 0
+        self._world_size = 1
+        self._loader_group = None
+        self._saver_group = None
+        self._saving_ranks: Optional[List[int]] = None
+
+        self._init_sync_group(comm_backend)
 
         # init saver
         self._notify_agent_to_create_saver()
@@ -222,13 +239,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
         )
-        self._rank = 0
-        self._group_rank = 0
-        self._world_size = 1
-        self._loader_group = None
-        self._saver_group = None
-        self._saving_ranks: Optional[List[int]] = None
-        self._init_sync_group(comm_backend)
+
+        self.is_skip = False
         shard_num = self.get_global_shard_num()
         self._replica_manager = CkptReplicaManger.create_replica_manager(
             shard_num, replica_count
@@ -309,6 +321,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
                 "save_timeout": self._save_timeout,
+                "rank": self._rank,
             },
         )
 
@@ -337,9 +350,14 @@ class CheckpointEngine(metaclass=ABCMeta):
             logger.info(f"Update saver config: {event.__dict__}")
             self._event_queue.put(event)
 
-    def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
+    def save_state_dict_to_memory(
+        self, state_dict, conf: CheckpointConfig, blocking=False
+    ):
         """Save the state dict into the memory."""
-        if self._local_rank != self.local_shard_id:
+        if (
+            self._saving_ranks is None
+            and self._local_rank != self.local_shard_id
+        ):
             return False
         if self._saving_ranks and self._rank not in self._saving_ranks:
             return False
@@ -348,13 +366,14 @@ class CheckpointEngine(metaclass=ABCMeta):
         conf.group_rank = self._group_rank
         conf.world_size = self._world_size
 
-        acquired = self._shm_lock.acquire(blocking=False)
+        acquired = self._shm_lock.acquire(blocking)
         logger.info(
             f"{self._rank}-{self._local_rank} acquired the lock of shared "
             f"memory: {acquired} for step: {conf.step}."
         )
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready or not state_dict:
+            self.is_skip = True
             logger.info(
                 f"Rank {self._rank} skips the save the checkpoint "
                 f"in CPU memory since it is saving the latest "
@@ -408,7 +427,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
         dist.barrier()
 
-    def wait_latest_checkpoint(self, timeout=1800):
+    def wait_latest_checkpoint(self, timeout=1800, max_steps=None):
         """
         Wait for the saver finish persisting the checkpoint of latest step.
         """
@@ -417,10 +436,17 @@ class CheckpointEngine(metaclass=ABCMeta):
             tracker_file = os.path.join(
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
-            with open(tracker_file, "r") as f:
-                step = int(f.read())
-                if step == self.latest_step:
-                    break
+
+            try:
+                with open(tracker_file, "r") as f:
+                    step = int(f.read())
+                    if step == self.latest_step:
+                        if max_steps is not None and step == max_steps:
+                            break
+                        if self.is_skip or max_steps is None:
+                            break
+            except FileNotFoundError:
+                pass
             if time.time() - start > timeout:
                 logger.info(
                     f"Timeout ({timeout})s to wait for the latest step checkpoint."
@@ -450,7 +476,9 @@ class CheckpointEngine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
+    def save_to_memory(
+        self, step, state_dict, paths: Dict[str, str], blocking=False
+    ):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory

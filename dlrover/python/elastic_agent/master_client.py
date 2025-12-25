@@ -515,6 +515,15 @@ class MasterClient(Singleton, ABC):
         )
         self._report(message)
 
+    def get_ucp_ready(self):
+        request = comm.UCPReadyRequest()
+        response: comm.UCPReady = self._get(request)
+        return response.ready
+
+    def set_ucp_ready(self, ready):
+        message = comm.UCPReady(ready=ready)
+        self._report(message)
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:

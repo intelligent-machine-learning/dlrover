@@ -13,6 +13,8 @@
 
 import os
 import socket
+import subprocess
+from typing import Tuple
 
 import psutil
 
@@ -134,6 +136,28 @@ def is_worker_process(pid):
         return False
 
 
+def get_all_child_pids(parent_pid=None):
+    """Get all child pids by parent pid."""
+
+    if parent_pid is None:
+        parent_pid = os.getpid()
+
+    child_pids = []
+
+    try:
+        parent = psutil.Process(parent_pid)
+        children = parent.children(recursive=False)
+        child_pids = [child.pid for child in children]
+    except psutil.NoSuchProcess:
+        logger.warning(f"No such process {parent_pid}")
+        return child_pids
+    except Exception as e:
+        logger.warning(f"Failed to get child processes by {parent_pid}, {e}")
+        return child_pids
+
+    return child_pids
+
+
 def get_hostname_and_ip():
     """Get the hostname and IP address."""
 
@@ -153,3 +177,61 @@ def is_ray_mode():
     ):
         return True
     return False
+
+
+def get_kernel_stack(pid: int) -> Tuple[bool, str]:
+    """
+    Get kernel stack info (/proc/<pid>/stack)
+
+    Args:
+        pid: process id
+
+    Returns:
+        Tuple[result, stack info]
+    """
+    try:
+        with open(f"/proc/{pid}/stack", "r") as f:
+            stack_content = f.read()
+        return True, stack_content
+    except FileNotFoundError:
+        error_msg = f"not exist: /proc/{pid}/stack"
+        logger.warning(error_msg)
+        return False, error_msg
+    except PermissionError:
+        error_msg = f"permission denied for: /proc/{pid}/stack"
+        logger.warning(error_msg)
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"unexpected error when reading: /proc/{pid}/stack, {e}"
+        logger.warning(error_msg)
+        return False, error_msg
+
+
+def get_user_stack_pyspy(pid: int) -> Tuple[bool, str]:
+    """
+    Use py-spy get stack info.
+
+    Args:
+        pid: process id
+
+    Returns:
+        Tuple[result, stack info]
+    """
+    cmd = ["py-spy", "dump", "--native", "--pid", str(pid)]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return True, result.stdout
+        else:
+            return False, result.stderr
+    except subprocess.TimeoutExpired:
+        return False, "py-spy timed out"
+    except FileNotFoundError:
+        return False, "py-spy not installed"
+    except Exception as e:
+        return False, f"unexpected error: {e}"

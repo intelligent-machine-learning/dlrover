@@ -279,6 +279,7 @@ class EventReporter(Singleton):
         """Report rendezvous complete."""
 
         node_ids = kwargs.get("node_ids", [])
+        node_rank = kwargs.get("node_rank", [])
         elapsed_time = kwargs.get("elapsed_time", -1)
         rdzv_evt.success(
             node_group=f"{node_ids}",
@@ -297,6 +298,7 @@ class EventReporter(Singleton):
                 "node_ids": f"{node_ids}",
                 "elapsed_time": f"{elapsed_time}",
                 "error_message": "",
+                "node_rank": node_rank,
             },
         )
 
@@ -311,15 +313,19 @@ class EventReporter(Singleton):
     ):
         """Report rendezvous timeout."""
 
+        node_id = kwargs.get("node_id", [])
+        node_rank = kwargs.get("node_rank", [])
         node_group = kwargs.get("node_group", [])
         elapsed_time = kwargs.get("elapsed_time", -1)
+        error_type = kwargs.get("error_type", "")
+        error_message = kwargs.get("error_message", "")
         rdzv_evt.fail(
             EventReportConstants.ACTION_RDZV_TIMEOUT,
             elapsed_time=f"{elapsed_time}",
         )
 
         self.report(
-            EventReportConstants.TYPE_ERROR,
+            EventReportConstants.TYPE_WARN,
             EventReportConstants.JOB_INSTANCE,
             EventReportConstants.ACTION_RDZV_TIMEOUT,
             f"{rdzv_type}={rdzv_round}",
@@ -330,7 +336,10 @@ class EventReporter(Singleton):
                 "min_nodes": f"{rdzv_params.min_nodes}",
                 "node_group": json.dumps(node_group),
                 "elapsed_time": f"{elapsed_time}",
-                "error_message": "",
+                "error_type": error_type,
+                "error_message": error_message,
+                "node_id": f"{node_id}",
+                "node_rank": f"{node_rank}",
             },
         )
 

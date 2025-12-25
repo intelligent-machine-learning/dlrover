@@ -545,3 +545,27 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertTrue(not rdzv_manager._rdzv_nodes)
 
         rdzv_manager.check_fault_node()
+
+    def test_process_error(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager.update_rdzv_params(2, 2, 60, 1)
+        rdzv_manager._alive_nodes = [0, 1]
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
+
+        rdzv_manager.process_error(
+            node_id=0,
+            node_rank=0,
+            err_type="timeout",
+            err_message="Rendezvous timeout occurred",
+            elapsed_time=30.5,
+        )
+
+        rdzv_manager._rdzv_round = 999
+        rdzv_manager.process_error(
+            node_id=1,
+            node_rank=1,
+            err_type="network_error",
+            err_message="Network connection failed",
+            elapsed_time=15.0,
+        )

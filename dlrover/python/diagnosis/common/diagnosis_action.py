@@ -43,7 +43,7 @@ class DiagnosisAction(metaclass=ABCMeta):
 
     def __init__(
         self,
-        action_type=DiagnosisActionType.NONE,
+        action_type: str = DiagnosisActionType.NONE,
         instance: int = DiagnosisConstant.LOCAL_INSTANCE,
         timestamp: int = 0,
         expired_time_period: int = 60 * 1000,

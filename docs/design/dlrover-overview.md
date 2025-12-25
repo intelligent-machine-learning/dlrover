@@ -175,6 +175,10 @@ This approach aligns with DLRover's design philosophy as an engineering
 application. Interested users can refer to existing examples to see how 
 DLRover can be easily integrated with algorithmic frameworks like OpenRLHF.  
 
+<div align="center">
+<img src="../figures/dlrover-overview-ray-pluggable.png" alt="Scenario" width="500">
+</div>
+
 However, this loosely coupled design also has certain drawbacks in complex 
 scenarios, primarily the inability to achieve deep-level engineering 
 optimizations (as such optimizations often require close integration with 

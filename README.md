@@ -204,5 +204,5 @@ The DingTalk QR is:
 </div>
 
 <div align="center">
-<img src="docs/figures/dlrover_ding_group_202408.png" alt="Editor" width="400">
+<img src="docs/figures/dlrover_ding_group_20251125.png" alt="Editor" width="400">
 </div>
