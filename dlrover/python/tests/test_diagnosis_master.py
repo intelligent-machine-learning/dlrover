@@ -123,42 +123,6 @@ class DiagnosisMasterTest(unittest.TestCase):
         mgr.start_observing()
         mgr.stop_observing()
 
-    # def test_diagnosis_master(self):
-    #     mgr = DiagnosisMaster()
-    #     problems: List[Inference] = [
-    #         Inference(
-    #             InferenceName.TRAINING,
-    #             InferenceAttribute.ISORNOT,
-    #             InferenceDescription.HANG,
-    #         )
-    #     ]
-    #     mgr._diagnostician.register_training_problems(problems)
-    #     self.assertEqual(len(mgr._diagnostician._training_problems), 1)
-    #
-    #     data_mgr = DiagnosisDataManager(10000)
-    #     operator = CheckTrainingHangOperator(data_mgr)
-    #     mgr._diagnostician.register_observers([operator])
-    #     self.assertEqual(len(mgr._diagnostician._observers), 1)
-    #
-    #     data = DiagnosisData(
-    #         data_type=DiagnosisDataType.XPU_TIMER_METRIC,
-    #         data_content="XPU_TIMER_COMMON_HANG",
-    #     )
-    #     data_mgr.store_data(data)
-    #
-    #     # mock training hang
-    #     mgr._diagnostician._observers[0].is_hang = mock.MagicMock(
-    #         return_value=True
-    #     )
-    #
-    #     # observe training problems
-    #     observed_problems = mgr._diagnostician.observe_training()
-    #     self.assertTrue(is_training_hanged(observed_problems[0]))
-    #
-    #     # explore solutions to observed problems
-    #     action = mgr._diagnostician.resolve_problems(observed_problems)
-    #     self.assertEqual(action.action_type, DiagnosisActionType.NONE)
-
     def test_gpu_tensor_drop_zero(self):
         args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
         args.xpu_type = Accelerators.NVIDIA_GPU
