@@ -146,7 +146,8 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 
 ## How to Use DLRover to Train Your Models?
 
-### Train a PyTorch Model
+### Under Kubernetes
+#### Train a PyTorch Model
 
 We can use `dlrover-run` to run the training script which
 `torchrun` or `torch.distributed.run` can run.
@@ -163,7 +164,7 @@ support elasticity and fault tolerance of Pod on k8s.
 - [Node detection tutorial](docs/tutorial/check_node_health.md) to check the fault or slow node in a distributed job.
 - [Flash Checkpoint](docs/blogs/flash_checkpoint.md) to speed up checkpoint during training.
 
-### Train a TensorFlow Model
+#### Train a TensorFlow Model
 
 We can use DLRover to train a TensorFlow by the following steps:
 
@@ -174,15 +175,26 @@ We can use DLRover to train a TensorFlow by the following steps:
 We can refer to the [estimator.md](docs/tutorial/estimator.md) to train
 a model with DLRover.
 
+### Under Ray
+
+Different from using Kubernetes, in the architecture based on Ray, not only can 
+PyTorch/TensorFlow be used for training, but more complex heterogeneous 
+computing scenarios are also supported.
+Users are free to explore and implement more general and complex deep learning 
+computations. 
+
+The differences between the two architectures(kubernetes <-> ray) can be found 
+here: [overview](docs/design/dlrover-overview.md)
+
+More detail tutorials please refer to: [unified tutorial](docs/tutorial/unified/README.md)
+
+
 ## What's Next?
 
-- Multi-node in-memory redundant backup checkpoint to fast failure recovery.
-- Fine-grained automatic distributed training for GPU Synchronous jobs
-  - hybrid-parallel mode
-  - adapted hyper parameters adjustment with dynamic resources
-  - more strategies for Fine-grained scenarioes
-- Full stack solution for Online Deep Learning
-- High performance extension library for Tensorflow/Pytorch to speed up training
+- Continuous evolution and improvement of large model training stability 
+  capabilities.
+- Ongoing iteration and deep integration of XPU-TIMER.
+- Full stack solution for Online Deep Learning based on Ray.
 - ...
 
 ## Contributing
@@ -190,6 +202,10 @@ a model with DLRover.
 Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
+
+[Train a GPT Model on Ray.](examples/unified/elastic/nanogpt/README.md)
+
+[RL with OpenRLHF-PPO on Ray.](examples/unified/rl/openrlhf/ppo/run.sh)
 
 [An Example of Flash Checkpoint.](examples/pytorch/fcp_demo.py)
 
