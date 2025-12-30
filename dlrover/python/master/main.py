@@ -81,6 +81,7 @@ def run(args):
     else:
         from dlrover.python.master.dist_master import DistributedJobMaster
 
+        job_args.dead_node_timeout = args.dead_node_timeout
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
