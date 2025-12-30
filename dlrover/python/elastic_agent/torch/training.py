@@ -118,6 +118,7 @@ from dlrover.trainer.torch.utils import (
     version_less_than_230,
     version_less_than_240,
     version_less_than_280,
+    is_run_in_volcano
 )
 
 _agent_evt = DLRoverAgentEvent().singleton_instance()
@@ -491,7 +492,12 @@ class MasterRendezvousHandler(RendezvousHandler):
                 )
 
         if num < 0:
-            raise JobStoppingError("Exit rendezvous when job is stopping")
+            if is_run_in_volcano():
+                # For volcano elastic job, some pod may be started after job is finished.
+                logger.info("Job is stopping, exit rendezvous.")
+                sys.exit(0)
+            else:
+                raise JobStoppingError("Exit rendezvous when job is stopping")
 
     def _report_failure(self, err_msg, level, rank0_only=True):
         if rank0_only and not self._node_rank == 0:
