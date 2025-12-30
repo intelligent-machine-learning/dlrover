@@ -43,6 +43,9 @@ from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.diagnostician.node_inconsistency import (
     NodeInconsistencyDiagnostician,
 )
+from dlrover.python.diagnosis.diagnostician.training_hang import (
+    TrainingHangDiagnostician,
+)
 from dlrover.python.master.diagnosis.diagnosis import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
@@ -302,6 +305,19 @@ class DiagnosisMaster(DiagnosisManager):
 
     def get_diagnosis_inputs(self) -> Dict[str, Any]:
         return {"job_nodes": self._job_context.job_nodes()}
+
+    def _register_diagnosticians(self):
+        self.register_diagnostician(
+            DiagnosticianType.NODE_INCONSISTENCY,
+            NodeInconsistencyDiagnostician(self._job_args),
+            60 * 5,
+        )
+
+        self.register_diagnostician(
+            DiagnosticianType.TRAINING_HANG,
+            TrainingHangDiagnostician(self._data_manager),
+            60 * 10,
+        )
 
     def start_observing(self):
         logger.info("Start to observing training...")

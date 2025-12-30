@@ -51,7 +51,9 @@ class DiagnosisDataManager:
             if data_type not in self.data:
                 self.data[data_type] = deque(maxlen=100000)
             self.data[data_type].append(data)
+            print(f"before clean data: {self.data}\n")
             self._clean_diagnosis_data(data_type)
+            print(f"after clean data: {self.data}\n")
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
         with self._lock:
