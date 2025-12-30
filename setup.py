@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -31,13 +31,13 @@ extra_require = {
 
 setup(
     name="dlrover",
-    version="0.6.0.dev0",
+    version="0.7.0.dev0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
     " say, hardware acceleration, distribute running, etc."
-    " It provides static and dynamic nodes' configuration automatically,"
-    ", before and during a model training job running on k8s",
+    " It provides static and dynamic workloads' configuration automatically,"
+    ", before and during a model training job running on k8s or ray.",
     long_description_content_type="text/markdown",
     author="Ant Group",
     url="https://github.com/intelligent-machine-learning/dlrover",
