@@ -45,6 +45,9 @@ from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
 from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
 )
+from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (
+    ResourceCollectionFailureDiagnostician,
+)
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.training_event.config import is_dlrover_event_enabled
@@ -68,7 +71,12 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
         # register diagnostician
         self.register_diagnostician(
-            DiagnosticianType.NODE_FAILURE, FailureNodeDiagnostician(), 30
+            DiagnosticianType.NODE_FAILURE, FailureNodeDiagnostician()
+        )
+        self.register_diagnostician(
+            DiagnosisErrorConstant.GPU_LOST,
+            ResourceCollectionFailureDiagnostician(),
+            30,
         )
 
         # register periodical data collector
