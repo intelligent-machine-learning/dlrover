@@ -133,6 +133,13 @@ class DiagnosisManager:
         diagnostician = self._diagnosticians[name][0]
         time_interval = self._diagnosticians[name][1]
 
+        if time_interval <= 0:
+            # not periodical diagnostician
+            logger.debug(
+                f"{diagnostician} no a periodical diagnostician, skip periodical running."
+            )
+            return
+
         while True:
             time.sleep(time_interval)
             try:
