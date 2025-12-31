@@ -469,7 +469,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         return None
 
     @timer
-    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
+    def _save_to_memory(self, step, state_dict, paths: Dict[str, str]):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -486,6 +486,11 @@ class FsdpCheckpointEngine(CheckpointEngine):
         """
         if self._local_rank != self.local_shard_id:
             return False
+
+        if self._checkpoint_event_step > 0:
+            notify_event = self._notify_queue.get()
+            assert notify_event.step == self._checkpoint_event_step
+            self._checkpoint_event_step = -1
 
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
@@ -549,6 +554,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
         if success:
+            self._checkpoint_event_step = step
             self.latest_step = step
 
     def get_saver_class(self):
