@@ -10,11 +10,11 @@
 
 To let DLRover know the group info, the k8s scheduler needs to add the following labels to pod:
 
-| label name                 | description                                                                   | format | example  |
-|----------------------------|-------------------------------------------------------------------------------|--------|----------|
-| scheduling/rack-group      | Index of group, start from 0. Such as: 0, 1, 2, 3...                          | int    | 3        |
-| scheduling/rack-id         | The name                                                                      | string | "xxx.xx" |
-| scheduling/rack-group-size | The total node group size(How many groups), start from 1. Such as: 1, 2, 4... | int    | 4        |
+| label name                 | description                                                                                                 | format | example  |
+|----------------------------|-------------------------------------------------------------------------------------------------------------|--------|----------|
+| scheduling/rack-group      | Index of group, start from 0. Such as: 0, 1, 2, 3...                                                        | int    | 3        |
+| scheduling/rack-id         | The name of the group. It typically refers to specific machines or racks that the scheduler can understand. | string | "xxx.xx" |
+| scheduling/rack-group-size | The total node group size(How many groups), start from 1. Such as: 1, 2, 4...                               | int    | 4        |
 
 DLRover ensures high affinity within node groups and maintains a continuous 
 rank distribution when handling training jobs involving node groups. So:
