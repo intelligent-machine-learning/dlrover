@@ -36,7 +36,7 @@ HANG_METRIC_PREFIX = "XPU_TIMER_COMMON_HANG"
 
 class TrainingHangDiagnostician(Diagnostician):
     """
-    TrainingHangDiagnostician is to observe and resolve the failure node problem
+    TrainingHangDiagnostician is to observe and resolve the training hang problem
     """
 
     def __init__(self, data_mgr):
@@ -47,7 +47,6 @@ class TrainingHangDiagnostician(Diagnostician):
         diagnosis_data = self._data_mgr.get_data(
             DiagnosisDataType.XPU_TIMER_METRIC
         )
-        print(f"diagnosis data: {diagnosis_data}\n")
 
         if (
             diagnosis_data
