@@ -25,7 +25,6 @@ class BrainServer:
         plan = self.optimizer_manager.optimize(request.job, request.config)
         return OptimizeResponse(
             job_opt_pan=plan,
-
         )
 
     def run(self, host="0.0.0.0", port=8000):

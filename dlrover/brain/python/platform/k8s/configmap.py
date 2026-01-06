@@ -19,7 +19,6 @@ class ConfigMapWatcher:
 
     def watch(self):
         resource_version = None
-        print("watch!!!")
 
         while True:
             try:

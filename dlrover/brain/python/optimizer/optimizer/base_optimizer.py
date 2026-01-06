@@ -9,4 +9,6 @@ class BaseOptimizer:
         pass
 
     def optimize(self, job: JobMeta) -> JobOptimizePlan:
-        return JobOptimizePlan()
+        return JobOptimizePlan(
+            
+        )
