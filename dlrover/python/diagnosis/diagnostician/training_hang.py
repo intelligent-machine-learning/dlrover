@@ -61,7 +61,7 @@ class TrainingHangDiagnostician(Diagnostician):
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
     ) -> DiagnosisAction:
-        if problem.observation == DiagnosisErrorConstant.TRAINING_IS_HANG:
+        if problem is not None and problem.observation == DiagnosisErrorConstant.TRAINING_IS_HANG:
             return EventAction(
                 event_type=EventReportConstants.TYPE_WARN,
                 event_instance=EventReportConstants.JOB_INSTANCE,

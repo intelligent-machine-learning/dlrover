@@ -324,11 +324,7 @@ class DiagnosisMaster(DiagnosisManager):
         self._is_observing_started = True
 
         # register periodical diagnosis
-        self.register_diagnostician(
-            DiagnosticianType.NODE_INCONSISTENCY,
-            NodeInconsistencyDiagnostician(self._job_args),
-            60 * 5,
-        )
+        self._register_diagnosticians()
         try:
             self.start_diagnosis()
 

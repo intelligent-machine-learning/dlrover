@@ -282,6 +282,10 @@ class DiagnosticianTest(unittest.TestCase):
         data_mgr = DiagnosisDataManager()
 
         diagnostician = TrainingHangDiagnostician(data_mgr)
+
+        action = diagnostician.diagnose()
+        self.assertTrue(isinstance(action, NoAction))
+
         diagnostician._get_hang_time_last_threshold = mock.MagicMock(
             return_value=0
         )
