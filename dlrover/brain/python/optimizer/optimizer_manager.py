@@ -13,7 +13,12 @@ class OptimizerManager:
     def __init__(self):
         self.optimizers: Dict[str, BaseOptimizer] = {}
 
-    def optimize(self, job: JobMeta, conf: OptimizeConfig) -> Optional[JobOptimizePlan, None]:
+        self.register_optimizers()
+
+    def register_optimizers(self):
+        self.optimizers[BaseOptimizer.get_name()] = BaseOptimizer()
+
+    def optimize(self, job: JobMeta, conf: OptimizeConfig) -> Optional[JobOptimizePlan]:
         if conf.optimizer not in self.optimizers:
             return None
 
@@ -21,5 +26,5 @@ class OptimizerManager:
             plan = self.optimizers[conf.optimizer].optimize(job)
             return plan
         except Exception as e:
-            logger.warning(f"Fail to optimize job: {job}: {e}")
+            logger.warning(f"Fail to optimize {job.uuid}: {e}")
             return None
