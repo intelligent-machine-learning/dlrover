@@ -16,6 +16,7 @@ import os
 from dlrover.proto import brain_pb2, brain_pb2_grpc
 from dlrover.python.common.comm import build_grpc_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
+from dlrover.brain.python.client.client import BrainClient as ExternalClient
 
 DATA_STORE = "base_datastore"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_request_processor"
@@ -72,7 +73,7 @@ class BrainClient(object):
         easydl_client.report(...)
     """
 
-    def __init__(self, brain_channel):
+    def __init__(self, brain_channel, protocol="grpc"):
         """Initialize an EasyDL client.
         Args:
             channel: grpc.Channel
