@@ -401,7 +401,6 @@ class CheckpointSaverTest(unittest.TestCase):
 
             # Test when shm_handlers have config with step
             for i in range(saver.local_shard_num):
-                default_config = CheckpointConfig()
                 config = CheckpointConfig(step=100 + i)
                 saver._shm_handlers[i].metadata.set(
                     {DLROVER_CKPT_CONFIG_KEY: config}

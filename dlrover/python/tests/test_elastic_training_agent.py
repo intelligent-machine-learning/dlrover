@@ -1803,7 +1803,10 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 # Use return_value instead of side_effect to avoid StopIteration
                 # The ucp() method will call these methods multiple times in a loop
                 # We want them to return the same values each time
-                saver.get_latest_success_save_dir.return_value = (checkpoint_parent_dir, 100)
+                saver.get_latest_success_save_dir.return_value = (
+                    checkpoint_parent_dir,
+                    100,
+                )
                 saver.get_latest_start_saving_step.return_value = 100
                 saver.ucp.return_value = True
 
@@ -1827,6 +1830,7 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 # We need to provide values up to at least 31 to trigger the break condition
                 # Use itertools.count() to provide infinite values
                 import itertools
+
                 with mock.patch("time.time", side_effect=itertools.count()):
                     with mock.patch("time.sleep"):
                         agent.ucp()
@@ -1964,6 +1968,7 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 # We need to provide values up to at least 31 to trigger the break condition
                 # Use itertools.count() to provide infinite values
                 import itertools
+
                 with mock.patch("time.time", side_effect=itertools.count()):
                     with mock.patch("time.sleep"):
                         agent.ucp()

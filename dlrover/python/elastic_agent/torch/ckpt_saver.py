@@ -270,6 +270,7 @@ class SharedMemoryHandler(object):
     def close(self):
         if self.shared_memory:
             self.shared_memory.close()
+            # self.shared_memory = None
 
     def unlink(self):
         if not self.shared_memory:
@@ -347,7 +348,7 @@ class SharedMemoryHandler(object):
             return {}
         if self.shared_memory is None or self._need_creation:
             self.init_shared_memory(create=False)
-        if not self.shared_memory:
+        if not self.shared_memory or self.shared_memory.buf is None:
             return {}
 
         report_local_event(
@@ -1131,6 +1132,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         local_shard_num=1,
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        rank=0,
     ) -> None:
         super().__init__(
             checkpoint_dir,
@@ -1138,6 +1140,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             local_shard_num,
             global_shard_num,
             save_timeout,
+            rank=rank,
         )
 
         if self._node_rank == 0:
