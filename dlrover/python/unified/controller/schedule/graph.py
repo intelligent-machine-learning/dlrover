@@ -83,7 +83,7 @@ class DLExecutionVertex(ABC):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
 
-    def node_group_failover_info(self) -> Optional[Tuple[str, int]]:
+    def get_node_group_failover_info(self) -> Optional[Tuple[str, int]]:
         """
         Whether the node group failover is enabled.
         Return group label and threshold if enabled otherwise None.
@@ -215,19 +215,15 @@ class DLWorkloadRole:
 
     def get_node_relaunch_demand(
         self,
-    ) -> Optional[Tuple[NodeInfo, Optional[str], Optional[str]]]:
+    ) -> Optional[Tuple[NodeInfo, Optional[str], Optional[int]]]:
         for instance in self.instances:
             if (
                 instance.per_node_failure_count
                 > instance.spec.per_node_max_failure
             ):
-                node_group_failover_info = instance.node_group_failover_info
+                node_group_failover_info = instance.get_node_group_failover_info()
                 if node_group_failover_info:
-                    return (
-                        instance.node_info,
-                        node_group_failover_info[0],
-                        node_group_failover_info[1],
-                    )
+                    return instance.node_info, node_group_failover_info[0], node_group_failover_info[1],
                 else:
                     return instance.node_info, None, None
         return None

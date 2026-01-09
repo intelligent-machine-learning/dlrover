@@ -312,7 +312,7 @@ class PrimeManager:
 
             # do node relaunch
             await self._relaunch_single_node(
-                actor.node_info, actor.node_group_failover_info()
+                actor.node_info, actor.get_node_group_failover_info()
             )
 
         # if the actor is sub-master, recover it directly
@@ -643,7 +643,7 @@ class PrimeManager:
             self._set_failover_stage(role_name)
 
             with_node_relaunch: Optional[
-                Tuple[NodeInfo, Optional[str], Optional[str]]
+                Tuple[NodeInfo, Optional[str], Optional[int]]
             ] = None
             for role in self.graph.roles.values():
                 with_node_relaunch = role.get_node_relaunch_demand()
