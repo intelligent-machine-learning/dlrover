@@ -245,7 +245,7 @@ async def test_request_stop_cases():
     # Case 2. node_restart_count exceeds the limit
     manager.request_stop = Mock()
     manager.state.node_restart_count = config.node_max_restart
-    await manager._relaunch_fault_nodes([])
+    await manager._relaunch_node([])
     assert manager.request_stop.called
     assert "node relaunch" in str(manager.request_stop.call_args[0][0])
 

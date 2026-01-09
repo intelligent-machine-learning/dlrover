@@ -12,7 +12,7 @@
 # limitations under the License.
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union, Tuple
 
 import ray
 from pydantic import (
@@ -171,6 +171,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
         description=(
             "If True, job will wait for this workload to complete. "
             "If False, job will not wait, suitable for RPC driven workloads."
+        ),
+    )
+    node_group_failover: Tuple[bool, str, int] = Field(
+        default=(False, "", 300),
+        description=(
+            "The 1st param represent whether node-group failover is enabled. "
+            "If True, will cascade failover for nodes who has the same "
+            "label(2nd param) when the origin failover node pending timeout(3rd param)."
         ),
     )
 

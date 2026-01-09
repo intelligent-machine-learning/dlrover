@@ -120,8 +120,8 @@ class ActorBase:
         # ActorClass, not instance
         if not hasattr(self, "actor_info"):
             return super().__repr__()
-        # We display the actor name in ray logging
-        return self.name
+        # We display the actor name and id in ray logging
+        return self.name + " " + self.id
 
     # region Hook methods for subclasses to implement
     def setup(self) -> None:

@@ -13,7 +13,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
@@ -82,6 +82,21 @@ class DLExecutionVertex(ABC):
     def inc_failure_count(self):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
+
+    def node_group_failover_info(self) -> Optional[Tuple[str, int]]:
+        """
+        Whether the node group failover is enabled.
+        Return group label and threshold if enabled otherwise None.
+        """
+
+        is_enabled = self.spec.node_group_failover[0]
+
+        if is_enabled:
+            return self.spec.node_group_failover[
+                1
+            ], self.spec.node_group_failover[2]
+        else:
+            return None
 
 
 @dataclass(kw_only=True)
@@ -197,6 +212,25 @@ class DLWorkloadRole:
         ):
             return True
         return False
+
+    def get_node_relaunch_demand(
+        self,
+    ) -> Optional[Tuple[NodeInfo, Optional[str], Optional[str]]]:
+        for instance in self.instances:
+            if (
+                instance.per_node_failure_count
+                > instance.spec.per_node_max_failure
+            ):
+                node_group_failover_info = instance.node_group_failover_info
+                if node_group_failover_info:
+                    return (
+                        instance.node_info,
+                        node_group_failover_info[0],
+                        node_group_failover_info[1],
+                    )
+                else:
+                    return instance.node_info, None, None
+        return None
 
 
 class DLExecutionGraph:

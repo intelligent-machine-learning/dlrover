@@ -18,6 +18,7 @@ class MasterStage(str, Enum):
     INIT = "INIT"
     READY = "READY"
     RUNNING = "RUNNING"
+    FAILOVER = "FAILOVER"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
 

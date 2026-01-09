@@ -238,7 +238,21 @@ class RoleBuilder(ABC, Generic[T]):
         """
         Set the current role is not driver.
         """
+
         self._params.is_driver = False
+        return self
+
+    def enable_node_group_failover(self, group_label, timeout=300):
+        """
+        Set the current role is not driver.
+
+        Args:
+            group_label (str): The label of the node group.
+            timeout (int): The group failover trigger threshold in seconds. Minimum value: 30.
+        """
+
+        if group_label and timeout and timeout >= 30:
+            self._params.node_group_failover = (True, group_label, timeout)
         return self
 
     def sub_stage(self, sub_stage=None):
