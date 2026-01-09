@@ -208,7 +208,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._world_size = 1
         self._loader_group = None
         self._saver_group = None
-        self._saving_ranks: Optional[List[int]] = None
 
         self._init_sync_group(comm_backend)
 

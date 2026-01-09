@@ -1411,26 +1411,17 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
 
         cmd = os.getenv("PYTHON_EXEC", sys.executable)
         deepspeed_dir = self.get_deepspeed_install_dir()
-        if ucp_device_type == "cpu":
-            args = (
-                deepspeed_dir + "/checkpoint/ds_to_universal.py",
-                "--input_folder",
-                f"{input_dir}",
-                "--output_folder",
-                f"{output_dir}",
-                "--inject_missing_state",
-            )
-        else:
-            args = (
-                deepspeed_dir + "/checkpoint/ds_to_universal.py",
-                "--input_folder",
-                f"{input_dir}",
-                "--output_folder",
-                f"{output_dir}",
-                "--inject_missing_state",
-                "--device",
-                ucp_device_type,
-            )
+        args_list = [
+            deepspeed_dir + "/checkpoint/ds_to_universal.py",
+            "--input_folder",
+            f"{input_dir}",
+            "--output_folder",
+            f"{output_dir}",
+            "--inject_missing_state",
+        ]
+        if ucp_device_type != "cpu":
+            args_list.extend(["--device", ucp_device_type])
+        args = tuple(args_list)
         if version_less_than_230():
             handler = SubprocessHandler(cmd, args, {}, "", "")
         else:
@@ -1500,3 +1491,4 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
             self.storage.write(str(ckpt_config.step), tracer_file)
+            dcp_metadata = meta_dict.get("dcp_metadata", {})

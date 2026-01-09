@@ -655,8 +655,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 "_pcontext is None, cannot send graceful exit signal"
             )
             return
-        pc_pids = set(self._pcontext.pids().values())
-        pc_pids = list(pc_pids)
+        pid_set = set(self._pcontext.pids().values())
+        pc_pids = list(pid_set)
         if not pc_pids:
             logger.warning(
                 "No worker PIDs available, cannot send graceful exit signal"
