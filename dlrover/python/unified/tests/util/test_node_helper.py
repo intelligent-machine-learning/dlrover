@@ -21,6 +21,7 @@ import dlrover.python.unified.util.node_helper as nh
 
 
 @pytest.mark.timeout(1, func_only=True)
+@pytest.mark.asyncio
 async def test_wait_ray_node_relaunching(mocker: MockerFixture):
     ray_node = mocker.patch("ray.nodes")
     ray_node.return_value = [
@@ -32,9 +33,15 @@ async def test_wait_ray_node_relaunching(mocker: MockerFixture):
         await asyncio.sleep(0.2)
         ray_node.return_value[1]["Alive"] = False
 
-    bg = asyncio.create_task(remove_node())
-    await nh.wait_ray_node_relaunching(["node2"], interval=0.1)
-    await bg
+    async def readd_node():
+        await asyncio.sleep(1)
+        ray_node.return_value[1]["Alive"] = True
+
+    bg_0 = asyncio.create_task(remove_node())
+    bg_1 = asyncio.create_task(readd_node())
+    await nh.wait_ray_node_relaunching(["node2"], 2, interval=0.1)
+    await bg_0
+    await bg_1
 
 
 def test_get_node_group(mocker: MockerFixture):

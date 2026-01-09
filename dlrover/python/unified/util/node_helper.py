@@ -22,7 +22,7 @@ from dlrover.python.common.log import default_logger as logger
 
 @log_execution("wait_ray_node_relaunch")
 async def wait_ray_node_relaunching(
-    nodes: List[str], total: int, interval: float = 5
+    nodes: List[str], total: int, interval: float = 10
 ):
     """
     Wait for Ray nodes to be relaunched.
@@ -37,6 +37,7 @@ async def wait_ray_node_relaunching(
         return
 
     nodes = nodes.copy()
+    to_be_relaunched_ids = [n for n in nodes]
     relaunched_size = len(nodes)
 
     # wait node removing
@@ -49,7 +50,9 @@ async def wait_ray_node_relaunching(
             logger.info(f"Waiting for ray nodes removing: {nodes}")
             await asyncio.sleep(interval)
 
-    logger.info(f"Nodes already removed for relaunching: {nodes}")
+    logger.info(
+        f"Nodes already removed for relaunching: {to_be_relaunched_ids}"
+    )
 
     # wait new node ready
     while True:
@@ -62,7 +65,8 @@ async def wait_ray_node_relaunching(
         )
         if running_size < total:
             logger.info(
-                f"Waiting for relaunched nodes to be ready, current: {running_size}, expected: {total}"
+                f"Waiting for relaunched nodes to be ready, current: {running_size}, "
+                f"expected: {total}, relaunched: {to_be_relaunched_ids}"
             )
             await asyncio.sleep(interval)
         else:

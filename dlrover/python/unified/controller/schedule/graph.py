@@ -221,9 +221,15 @@ class DLWorkloadRole:
                 instance.per_node_failure_count
                 > instance.spec.per_node_max_failure
             ):
-                node_group_failover_info = instance.get_node_group_failover_info()
+                node_group_failover_info = (
+                    instance.get_node_group_failover_info()
+                )
                 if node_group_failover_info:
-                    return instance.node_info, node_group_failover_info[0], node_group_failover_info[1],
+                    return (
+                        instance.node_info,
+                        node_group_failover_info[0],
+                        node_group_failover_info[1],
+                    )
                 else:
                     return instance.node_info, None, None
         return None

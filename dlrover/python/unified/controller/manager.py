@@ -24,7 +24,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.constant import (
     MASTER_STATE_KEY_PREFIX,
-    RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME,
+    RAY_NODE_RELAUNCH_WAIT_TIME,
     InternalDLWorkloadRole,
 )
 from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
@@ -224,9 +224,12 @@ class PrimeManager:
 
             await asyncio.sleep(1)
 
-        assert self.stage == MasterStage.STOPPING, (
-            f"Job stage should be STOPPING, but got {self.stage}."
-        )
+        if self.stage != MasterStage.STOPPING:
+            logger.info(
+                f"Job stage is {self.stage}, transitioning to STOPPING for cleanup."
+            )
+            self._update_stage(MasterStage.STOPPING)
+
         self._do_stop()
 
     async def restart_actors(self, actors: List[DLExecutionVertex]) -> None:
@@ -341,7 +344,7 @@ class PrimeManager:
         self._clear_failover_stage(role_name)
 
     async def _relaunch_nodes(
-        self, nodes: List[NodeInfo], timeout=RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
+        self, nodes: List[NodeInfo], timeout=RAY_NODE_RELAUNCH_WAIT_TIME
     ):
         """
         Relaunch ray nodes.
@@ -359,22 +362,28 @@ class PrimeManager:
 
         try:
             total_nodes_size = len(ray.nodes())
-            relaunched_nodes = await self.ext.relaunch_nodes_impl(nodes)
-            self.state.node_restart_count += len(relaunched_nodes)
 
-            # unset non-relaunched nodes
-            for node in nodes:
-                if node not in relaunched_nodes:
-                    self.state.removed_nodes.discard(node.id)
-            if not relaunched_nodes:
-                logger.info("No nodes were relaunched.")
-                return
+            async def _relaunch_and_wait():
+                relaunched_nodes_by_ext = await self.ext.relaunch_nodes_impl(
+                    nodes
+                )
+                self.state.node_restart_count += len(relaunched_nodes_by_ext)
 
-            await asyncio.wait_for(
-                wait_ray_node_relaunching(
-                    [n.id for n in relaunched_nodes], total_nodes_size
-                ),
-                timeout=timeout,
+                # unset non-relaunched nodes
+                for target_node in nodes:
+                    if target_node not in relaunched_nodes_by_ext:
+                        self.state.removed_nodes.discard(target_node.id)
+                if not relaunched_nodes_by_ext:
+                    logger.info("No nodes were relaunched.")
+                    return relaunched_nodes_by_ext
+
+                await wait_ray_node_relaunching(
+                    [n.id for n in relaunched_nodes_by_ext], total_nodes_size
+                )
+                return relaunched_nodes_by_ext
+
+            relaunched_nodes = await asyncio.wait_for(
+                _relaunch_and_wait(), timeout=timeout
             )
             logger.info(
                 f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
@@ -404,10 +413,10 @@ class PrimeManager:
         if node_group_failover_info and node_group_failover_info[0]:
             node_group_failover_timeout = node_group_failover_info[1]
             timeout = min(
-                RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME, node_group_failover_timeout
+                RAY_NODE_RELAUNCH_WAIT_TIME, node_group_failover_timeout
             )
         else:
-            timeout = RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME
+            timeout = RAY_NODE_RELAUNCH_WAIT_TIME
 
         try:
             return await self._relaunch_nodes([node], timeout)
@@ -415,7 +424,7 @@ class PrimeManager:
             if node_group_failover_info:
                 group_nodes = get_node_group(node, node_group_failover_info[0])
                 return await self._relaunch_nodes(
-                    group_nodes, timeout=RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME * 2
+                    group_nodes, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
                 )
 
     async def _relaunch_node_group(
@@ -431,7 +440,7 @@ class PrimeManager:
         logger.info(f"Relaunch node-group {node_group} due to: {root_node}.")
 
         return await self._relaunch_nodes(
-            node_group, timeout=RAY_SINGLE_NODE_RELAUNCH_WAIT_TIME * 2
+            node_group, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
         )
 
     async def restart_job(
@@ -477,6 +486,11 @@ class PrimeManager:
                 await self._task
             except asyncio.CancelledError:
                 logger.info("Monitor task cancelled, proceeding with restart.")
+            except RuntimeError:
+                logger.warning(
+                    f"Unexpected runtime error when await task: {type(self._task)}"
+                )
+
             logger.info("Restarting all actors...")
             await self.restart_actors(self.graph.vertices)
             logger.info("Restarted actors, re-checking their status.")
@@ -497,6 +511,8 @@ class PrimeManager:
 
         self.state.exit_code = code
         if self._in_running_stage():
+            # 注意：request_stop是同步方法，需要重构为异步或使用同步版本
+            # 暂时使用同步版本
             self._update_stage(MasterStage.STOPPING)
             self._notify_main_loop.release()
         else:
