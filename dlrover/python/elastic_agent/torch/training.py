@@ -222,7 +222,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
-    membind_policy: str = "preferred"
+    membind_policy: str = "none"
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
