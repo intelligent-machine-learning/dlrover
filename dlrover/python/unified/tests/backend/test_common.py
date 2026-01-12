@@ -21,8 +21,12 @@ import pytest
 
 from dlrover.python.unified.api.runtime.rpc_helper import RPC_REGISTRY, rpc
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
-from dlrover.python.unified.common.actor_base import ActorInfo, JobInfo
-from dlrover.python.unified.common.enums import ExecutionResult
+from dlrover.python.unified.common.actor_base import (
+    ActorInfo,
+    JobInfo,
+    ExecutionResult,
+)
+from dlrover.python.unified.common.enums import ExecutionResultType
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 
 
@@ -154,4 +158,6 @@ async def test_start_with_py_cmd_error_handling():
 
         while not worker._on_execution_end.called:
             await asyncio.sleep(0.1)
-        worker._on_execution_end.assert_called_once_with(ExecutionResult.FAIL)
+        worker._on_execution_end.assert_called_once_with(
+            ExecutionResult(ExecutionResultType.FAIL)
+        )

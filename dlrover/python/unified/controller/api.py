@@ -14,8 +14,8 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
-from dlrover.python.unified.common.actor_base import ActorInfo
-from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
+from dlrover.python.unified.common.actor_base import ActorInfo, ExecutionResult
+from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.util.actor_helper import actor_call
 
 MASTER_ACTOR_NAME = "__prime_master__"

@@ -18,16 +18,24 @@ class MasterStage(str, Enum):
     INIT = "INIT"
     READY = "READY"
     RUNNING = "RUNNING"
-    FAILOVER = "FAILOVER"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
 
 
-class ExecutionResult(str, Enum):
-    """Results of worker execution."""
+class ExecutionResultType(str, Enum):
+    """Result type of worker execution."""
 
     SUCCESS = "SUCCESS"  # Finished successfully
     FAIL = "FAIL"  # Finished with failure
+
+
+class ExecutionResultPriority(int, Enum):
+    """Result priority of worker execution."""
+
+    ROOT_CAUSE = 0  # confirm that it was caused by oneself.
+    RELATED = 1  # confirm that it is related to oneself
+    BE_AFFECTED = 2  # confirm that it has nothing to do with oneself
+    UNKNOWN = 3
 
 
 class ACCELERATOR_TYPE(str, Enum):

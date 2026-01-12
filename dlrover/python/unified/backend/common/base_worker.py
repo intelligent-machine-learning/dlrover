@@ -25,9 +25,9 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     export_rpc_instance,
 )
 from dlrover.python.unified.backend.common.events import BaseWorkerEvents
-from dlrover.python.unified.common.actor_base import ActorBase
+from dlrover.python.unified.common.actor_base import ActorBase, ExecutionResult
 from dlrover.python.unified.common.enums import (
-    ExecutionResult,
+    ExecutionResultType,
     WorkloadEntrypointType,
 )
 from dlrover.python.unified.controller.api import PrimeMasterApi
@@ -145,9 +145,9 @@ class BaseWorker(ActorBase):
             logger.exception(
                 f"Unexpected error occurred while executing user function({user_func})."
             )
-            self._on_execution_end(ExecutionResult.FAIL)
+            self._on_execution_end(ExecutionResult(ExecutionResultType.FAIL))
         else:
-            self._on_execution_end(ExecutionResult.SUCCESS)
+            self._on_execution_end(ExecutionResult())
 
     def _execute_user_command(self, command: str):
         """Execute the user command."""
@@ -172,18 +172,19 @@ class BaseWorker(ActorBase):
                     runpy.run_path(python_file, run_name="__main__")
             finally:
                 sys.argv = original_argv
-            self._on_execution_end(ExecutionResult.SUCCESS)
+            self._on_execution_end(ExecutionResult())
         except SystemExit as e:
             logger.info(f"User command exited with exit code: {e.code}")
             exit_code = 0 if e.code is None or e.code == 0 else 1
-            self._on_execution_end(
-                ExecutionResult.SUCCESS
-                if exit_code == 0
-                else ExecutionResult.FAIL
-            )
+
+            if exit_code == 0:
+                result = ExecutionResult()
+            else:
+                result = ExecutionResult(ExecutionResultType.FAIL)
+            self._on_execution_end(result)
         except Exception as e:
             logger.exception(f"Command execution failed: {e}")
-            self._on_execution_end(ExecutionResult.FAIL)
+            self._on_execution_end(ExecutionResult(ExecutionResultType.FAIL))
 
     # rpc
     async def _user_rpc_call(self, fn_name: str, *args, **kwargs):

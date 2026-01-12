@@ -22,7 +22,7 @@ from dlrover.python.common.log import default_logger as logger
 
 @log_execution("wait_ray_node_relaunch")
 async def wait_ray_node_relaunching(
-    nodes: List[str], total: int, interval: float = 10
+    nodes: List[str], total: int, interval: float = 30
 ):
     """
     Wait for Ray nodes to be relaunched.

@@ -21,13 +21,20 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import ray
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
+from dlrover.python.unified.common.actor_base import (
+    ActorBase,
+    NodeInfo,
+    ExecutionResult,
+)
 from dlrover.python.unified.common.constant import (
     MASTER_STATE_KEY_PREFIX,
     RAY_NODE_RELAUNCH_WAIT_TIME,
     InternalDLWorkloadRole,
 )
-from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
+from dlrover.python.unified.common.enums import (
+    ExecutionResultType,
+    MasterStage,
+)
 from dlrover.python.unified.controller.events import ControllerEvents
 from dlrover.python.unified.controller.extension import ManagerExtension
 from dlrover.python.unified.controller.state_backend import MasterStateBackend
@@ -40,7 +47,11 @@ from dlrover.python.unified.util.actor_helper import (
 )
 
 from ..common.config import JobConfig
-from .schedule.graph import DLExecutionGraph, DLExecutionVertex
+from .schedule.graph import (
+    DLExecutionGraph,
+    DLExecutionVertex,
+    DLExecutionWorkerVertex,
+)
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
 from ..util.node_helper import wait_ray_node_relaunching, get_node_group
@@ -191,46 +202,69 @@ class PrimeManager:
     async def _main_loop(self):
         """Monitor the actors' status."""
 
+        logger.info("Start main task loop...")
         while self._in_running_stage():
-            await self._notify_main_loop.acquire()
+            try:
+                await self._notify_main_loop.acquire()
 
-            any_failure = [
-                role.has_any_failure() for role in self.graph.roles.values()
-            ]
-            if any(any_failure):
-                if self.config.failover_trigger_strategy == 2:
-                    await self._process_failover(reason="got worker failure")
-                logger.info(
-                    "Failure detected, but since the failover-trigger-strategy is set to 0, failover will not be executed for now."
+                any_failure = [
+                    role.has_any_failure()
+                    for role in self.graph.roles.values()
+                ]
+                if any(any_failure):
+                    if self.config.failover_trigger_strategy == 2:
+                        logger.info(
+                            "Failure detected, process failover right now due "
+                            "to failover-trigger-strategy is set to 2."
+                        )
+                        await self._process_failover(
+                            reason="got worker failure"
+                        )
+                    elif self.config.failover_trigger_strategy == 1:
+                        logger.info(
+                            "Failure detected, but since the failover-trigger-strategy "
+                            "is set to 1, failover will not be executed for now."
+                        )
+                    else:
+                        logger.info(
+                            "Failure detected, but since the failover-trigger-strategy "
+                            "is set to 0, skip failover."
+                        )
+
+                # ignore non-driver roles
+                results = [
+                    role.get_result()
+                    for role in self.graph.roles.values()
+                    if role.spec.is_driver
+                ]
+
+                # all driver roles finished
+                if all(result is not None for result in results):
+                    if any(
+                        result == ExecutionResultType.FAIL
+                        for result in results
+                    ):
+                        await self._process_failover(
+                            reason="got failure result on finished"
+                        )
+                    else:
+                        self.request_stop(
+                            "All driver roles finished successfully.", code=0
+                        )
+                    break
+
+                await asyncio.sleep(1)
+            except Exception:
+                logger.exception(
+                    "Unexpected exception occurred in main task loop."
                 )
+                self._do_stop()
+                return
 
-            # ignore non-driver roles
-            results = [
-                role.get_result()
-                for role in self.graph.roles.values()
-                if role.spec.is_driver
-            ]
-            # all driver roles finished
-            if all(result is not None for result in results):
-                if any(result == ExecutionResult.FAIL for result in results):
-                    await self._process_failover(
-                        reason="got failure result on finished"
-                    )
-                else:
-                    self.request_stop(
-                        "All driver roles finished successfully.", code=0
-                    )
-                break
+        if self.stage == MasterStage.STOPPING:
+            self._do_stop()
 
-            await asyncio.sleep(1)
-
-        if self.stage != MasterStage.STOPPING:
-            logger.info(
-                f"Job stage is {self.stage}, transitioning to STOPPING for cleanup."
-            )
-            self._update_stage(MasterStage.STOPPING)
-
-        self._do_stop()
+        logger.info(f"Main task loop exited with stage: {self.stage}")
 
     async def restart_actors(self, actors: List[DLExecutionVertex]) -> None:
         """Restart the specified actors."""
@@ -248,6 +282,7 @@ class PrimeManager:
         await self._setup_actors(actors)
         for actor in actors:
             actor.restarting = False
+            actor.result = None
         logger.info(f"Restarted actors: {[actor.name for actor in actors]}")
         self.save()
 
@@ -268,7 +303,9 @@ class PrimeManager:
             return  # Actor is already restarting, no need to handle it again.
 
         # failover can only be executed in serial
-        if self.stage != MasterStage.RUNNING:
+        if not self._in_running_stage() or self.is_failover_stage(
+            actor.role.name
+        ):
             logger.info(
                 f"Current stage is {self.stage}, skipping failover "
                 f"handling by actor {actor.name}."
@@ -314,9 +351,7 @@ class PrimeManager:
             self._set_failover_stage(InternalDLWorkloadRole.GLOBAL_ROLE)
 
             # do node relaunch
-            await self._relaunch_single_node(
-                actor.node_info, actor.get_node_group_failover_info()
-            )
+            await self._relaunch_single_node_by_actor(actor)
 
         # if the actor is sub-master, recover it directly
         if actor is actor.role.sub_master:
@@ -388,16 +423,14 @@ class PrimeManager:
             logger.info(
                 f"Relaunched nodes: {[node.id for node in relaunched_nodes]}"
             )
+        except asyncio.TimeoutError as ate:
+            raise ate
         except Exception as e:
             for node in nodes:
                 self.state.removed_nodes.discard(node.id)
             raise e
 
-    async def _relaunch_single_node(
-        self,
-        node: NodeInfo,
-        node_group_failover_info: Optional[Tuple[str, int]] = None,
-    ):
+    async def _relaunch_single_node_by_actor(self, root_cause_actor: DLExecutionVertex):
         """
         For single node relaunch.
         This method, because it operates on only a single node, can determine
@@ -405,9 +438,14 @@ class PrimeManager:
         thereby supporting the advanced implementation of node group relaunch.
         """
 
+
+        node: NodeInfo = root_cause_actor.node_info
+        node_group_failover_info: Optional[Tuple[str, int]] = root_cause_actor.get_node_group_failover_info()
+
         logger.info(
             f"Relaunch node {node.id} "
-            f"with node_group_failover: {node_group_failover_info}."
+            f"with node_group_failover: {node_group_failover_info} "
+            f"due to {root_cause_actor.name}."
         )
 
         if node_group_failover_info and node_group_failover_info[0]:
@@ -419,13 +457,21 @@ class PrimeManager:
             timeout = RAY_NODE_RELAUNCH_WAIT_TIME
 
         try:
-            return await self._relaunch_nodes([node], timeout)
+            await self._relaunch_nodes([node], timeout)
+
+            # reset root cause actors failure info
+            root_cause_actor.reset_per_node_failure_count()
         except asyncio.TimeoutError:
             if node_group_failover_info:
                 group_nodes = get_node_group(node, node_group_failover_info[0])
                 return await self._relaunch_nodes(
                     group_nodes, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
                 )
+        except Exception:
+            logger.exception(
+                "Failed to relaunch node due to unexpected error. The following node relaunch may not be executed properly."
+            )
+            # TODO: may need to request stop due to configuration
 
     async def _relaunch_node_group(
         self, root_node: NodeInfo, node_group: List[NodeInfo]
@@ -439,12 +485,18 @@ class PrimeManager:
 
         logger.info(f"Relaunch node-group {node_group} due to: {root_node}.")
 
-        return await self._relaunch_nodes(
-            node_group, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
-        )
+        try:
+            return await self._relaunch_nodes(
+                node_group, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
+            )
+        except Exception:
+            logger.exception(
+                "Failed to relaunch node-group due to unexpected error. The following node relaunch may not be executed properly."
+            )
+            # TODO: may need to request stop due to configuration
 
     async def restart_job(
-        self, with_node_relaunch: Optional[Tuple[NodeInfo, str, int]] = None
+        self, with_node_relaunch: Optional[DLExecutionVertex] = None
     ):
         """
         Restart the job execution.
@@ -456,19 +508,14 @@ class PrimeManager:
 
         assert self._in_running_stage(), (
             f"Cannot restart job in stage {self.stage}. "
-            "Expected stage is RUNNING or FAILOVER."
+            "Expected stage is RUNNING."
         )
         assert self._task is not None
 
         # do node relaunch before restarting
         if with_node_relaunch:
-            target_node = with_node_relaunch[0]
-            node_group_failover_info = (
-                with_node_relaunch[1],
-                with_node_relaunch[2],
-            )
-            await self._relaunch_single_node(
-                target_node, node_group_failover_info
+            await self._relaunch_single_node_by_actor(
+                with_node_relaunch
             )
 
         # restarting
@@ -520,9 +567,9 @@ class PrimeManager:
             self._do_stop()
 
     def _in_running_stage(self):
-        """Including running and failover stages."""
+        """Including running stages."""
 
-        return self.stage in (MasterStage.RUNNING, MasterStage.FAILOVER)
+        return self.stage == MasterStage.RUNNING
 
     def _do_stop(self):
         with ControllerEvents.stopping():
@@ -599,25 +646,16 @@ class PrimeManager:
 
         logger.info(f"Actor {actor.name} reported result {result}.")
         actor.result = result
-
-        if actor.result == ExecutionResult.FAIL:
-            actor.inc_failure_count()
-
         self._notify_main_loop.release()
 
     def _set_failover_stage(self, role_name):
         with self._failover_lock:
-            self._update_stage(MasterStage.FAILOVER)
-
             if role_name not in self.state.failover_stage:
                 self.state.failover_stage[role_name] = int(time.time())
                 logger.debug(f"Setting failover stage: {role_name}")
 
     def _clear_failover_stage(self, role_name=""):
         with self._failover_lock:
-            if self.stage == MasterStage.FAILOVER:
-                self._update_stage(MasterStage.READY)
-
             if not role_name:
                 self.state.failover_stage.clear()
                 logger.debug("Clear all failover stage.")
@@ -627,24 +665,80 @@ class PrimeManager:
 
     def is_failover_stage(self, role_name=""):
         with self._failover_lock:
-            if self.stage != MasterStage.FAILOVER:
-                return False
+            if not role_name:
+                # is any role in failover stage
+                return len(self.state.failover_stage) == 0
             else:
                 if (
-                    not role_name
-                    or role_name == InternalDLWorkloadRole.GLOBAL_ROLE
+                    InternalDLWorkloadRole.GLOBAL_ROLE
+                    in self.state.failover_stage
+                    or role_name in self.state.failover_stage
                 ):
-                    # empty or default role name
                     return True
-                else:
-                    # specified role name
-                    if (
-                        InternalDLWorkloadRole.GLOBAL_ROLE
-                        in self.state.failover_stage
-                        or role_name in self.state.failover_stage
-                    ):
-                        return True
-                    return False
+                return False
+
+    def _record_failure(self, role_name):
+        """
+        Update failure info into context.
+
+        For now:
+        The number of update failures is not simply incremented by one.
+        Instead, it is determined by evaluating the execution results of all
+        actors associated with the current role, which are then sorted and
+        selected based on result priority and timestamp. The failure record of
+        the specified actor is then updated.
+
+        TODO: may need more diagnosis operations here
+        """
+
+        target_instances: List[DLExecutionWorkerVertex] = []
+        if role_name == InternalDLWorkloadRole.GLOBAL_ROLE:
+            for role in self.graph.roles.values():
+                target_instances.extend(role.instances)
+        else:
+            target_instances.extend(self.graph.roles[role_name].instances)
+
+        if any(
+            instance.result and instance.result.is_failure_responsibility
+            for instance in target_instances
+        ):
+            # update specified if there is a known cause
+            for instance in target_instances:
+                if (
+                    instance.result
+                    and instance.result.is_failure_responsibility
+                ):
+                    instance.inc_failure_count()
+        else:
+            # otherwise for all unknown or be affected: pick up the 1st failure as root
+            failed_instances = [
+                instance
+                for instance in target_instances
+                if instance.result and instance.result.is_failure
+            ]
+            failed_instances.sort(
+                key=lambda x: x.result.timestamp if x.result else int("inf")
+            )
+            if failed_instances:
+                failed_instances[0].inc_failure_count()
+
+    def _get_node_relaunch_demand(self, role_name):
+        if role_name == InternalDLWorkloadRole.GLOBAL_ROLE:
+            for role in self.graph.roles.values():
+                with_node_relaunch_demand_actor = role.get_node_relaunch_demand_actor()
+                if with_node_relaunch_demand_actor:
+                    break
+        else:
+            with_node_relaunch_demand_actor = self.graph.roles[
+                role_name
+            ].get_node_relaunch_demand_actor()
+
+        if with_node_relaunch_demand_actor:
+            logger.info(
+                f"Got node relaunch demand actor when processing failover: {with_node_relaunch_demand_actor.name}"
+            )
+
+        return with_node_relaunch_demand_actor
 
     async def _process_failover(
         self,
@@ -655,40 +749,37 @@ class PrimeManager:
             logger.info(
                 "Failover is already in progress, skip the following process."
             )
+            return
+
+        logger.info(f"Processing failover for {role_name}")
+        self._set_failover_stage(role_name)
+
+        # update failure info into context
+        self._record_failure(role_name)
+
+        # trigger node relaunch according to the failure info
+        node_relaunch_demand_actor: Optional[DLExecutionVertex] = self._get_node_relaunch_demand(role_name)
+
+        if self.config.failover_exec_strategy == 1:
+            # trigger job failover
+            logger.info(f"Trigger job failover, reason: {reason}.")
+            await self.restart_job(with_node_relaunch=node_relaunch_demand_actor)
+        elif self.config.failover_exec_strategy == 2:
+            # TODO: implement by role level failover
+            logger.info(
+                "Role level failover is not supported yet, do job failover instead, "
+                f"reason: {reason}."
+            )
+            await self.restart_job(with_node_relaunch=node_relaunch_demand_actor)
         else:
-            self._set_failover_stage(role_name)
+            logger.info(
+                "Skip failover for strategy(failover_strategy_when_failed) "
+                f"is: {self.config.failover_exec_strategy}, "
+                f"reason: {reason}."
+            )
+            # stop job
+            self.request_stop(
+                "All driver roles finished, but some workers failed."
+            )
 
-            with_node_relaunch: Optional[
-                Tuple[NodeInfo, Optional[str], Optional[int]]
-            ] = None
-            for role in self.graph.roles.values():
-                with_node_relaunch = role.get_node_relaunch_demand()
-                if with_node_relaunch:
-                    logger.info(
-                        f"Got node relaunch demand when processing failover: {with_node_relaunch}"
-                    )
-                    break
-
-            if self.config.failover_exec_strategy == 1:
-                # trigger job failover
-                logger.info(f"Trigger job failover, reason: {reason}.")
-                await self.restart_job(with_node_relaunch=with_node_relaunch)
-            elif self.config.failover_exec_strategy == 2:
-                # TODO: implement by role level failover
-                logger.info(
-                    "Role level failover is not supported yet, do job failover instead, "
-                    f"reason: {reason}."
-                )
-                await self.restart_job(with_node_relaunch=with_node_relaunch)
-            else:
-                logger.info(
-                    "Skip failover for strategy(failover_strategy_when_failed) "
-                    f"is: {self.config.failover_exec_strategy}, "
-                    f"reason: {reason}."
-                )
-                # stop job
-                self.request_stop(
-                    "All driver roles finished, but some workers failed."
-                )
-
-            self._clear_failover_stage(role_name)
+        self._clear_failover_stage(role_name)

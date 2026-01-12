@@ -18,8 +18,8 @@ import ray.actor
 from ray.exceptions import GetTimeoutError
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import ActorInfo
-from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
+from dlrover.python.unified.common.actor_base import ActorInfo, ExecutionResult
+from dlrover.python.unified.common.enums import MasterStage
 
 from ..common.config import JobConfig
 from .api import (

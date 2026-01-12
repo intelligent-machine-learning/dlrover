@@ -13,6 +13,7 @@
 import logging
 import os
 import sys
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -20,7 +21,11 @@ import ray.actor
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
+from dlrover.python.unified.common.enums import (
+    ACCELERATOR_TYPE,
+    ExecutionResultType,
+    ExecutionResultPriority,
+)
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 from dlrover.python.unified.util.decorators import (
@@ -63,6 +68,48 @@ class NodeInfo:
     hostname: Optional[str] = None
     ip_address: Optional[str] = None
     envs: dict[str, str] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        return f"NodeInfo(id='{self.id}', hostname={self.hostname}, ip_address={self.ip_address})"
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    """Result of worker execution."""
+
+    type: ExecutionResultType = ExecutionResultType.SUCCESS
+    priority: ExecutionResultPriority = ExecutionResultPriority.UNKNOWN
+    timestamp: int = int(time.time())
+    extra_msg: str = ""
+
+    def __repr__(self) -> str:
+        readable_time = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(self.timestamp)
+        )
+        return f"ExecutionResult(type='{self.type}', priority='{self.priority}', time={readable_time})"
+
+    @property
+    def is_success(self):
+        return self.type == ExecutionResultType.SUCCESS
+
+    @property
+    def is_failure(self):
+        return self.type == ExecutionResultType.FAIL
+
+    @property
+    def is_root_cause(self):
+        if self.is_success:
+            return False
+        return self.priority == ExecutionResultPriority.ROOT_CAUSE
+
+    @property
+    def is_failure_responsibility(self):
+        if self.is_success:
+            return False
+        return (
+            self.priority == ExecutionResultPriority.ROOT_CAUSE
+            or self.priority == ExecutionResultPriority.RELATED
+        )
 
 
 class ActorBase:

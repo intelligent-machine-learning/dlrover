@@ -20,9 +20,9 @@ import torch
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.backend.elastic.events import ElasticWorkerEvents
+from dlrover.python.unified.common.actor_base import ExecutionResult
 from dlrover.python.unified.common.enums import (
     ACCELERATOR_TYPE,
-    ExecutionResult,
 )
 from dlrover.python.util.common_util import (
     find_free_port_from_env_and_bind,

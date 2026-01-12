@@ -142,7 +142,7 @@ async def test_do_failover(mocker: MockerFixture, case):
         manager.restart_job = AsyncMock()  # noop
         relaunch = mocker.spy(manager, "_relaunch_single_node")
         mocker.patch(
-            "dlrover.python.unified.controller.manager.wait_ray_node_remove",
+            "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
             AsyncMock(return_value=None),
         )
 
@@ -150,38 +150,47 @@ async def test_do_failover(mocker: MockerFixture, case):
         worker.node_info = NodeInfo("node_1")
         worker.per_node_failure_count = 100  # Large enough
 
-        # Sub 1. relaunch_nodes not implemented
-        await manager._do_failover(worker)
-        assert relaunch.call_count == 1
-        assert len(manager.state.removed_nodes) == 0
+        with patch(
+            "dlrover.python.unified.controller.manager.ray.nodes"
+        ) as mock_nodes:
+            mock_nodes.return_value = [
+                {"NodeID": "node_1", "Alive": True},
+                {"NodeID": "node_2", "Alive": True},
+            ]
+            # Sub 1. relaunch_nodes not implemented
+            await manager._do_failover(worker)
+            assert relaunch.call_count == 1
+            assert len(manager.state.removed_nodes) == 0
 
-        # Sub 2. relaunch_nodes
-        manager.ext.relaunch_nodes_impl = AsyncMock(
-            return_value=[NodeInfo("node_1")]
-        )
-        await manager._do_failover(worker)
-        assert worker.node_info.id in manager.state.removed_nodes
-        assert manager.ext.relaunch_nodes_impl.called
-        assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
-            worker.node_info
-        ]
-        manager.state.removed_nodes.clear()
+            # Sub 2. relaunch_nodes
+            manager.ext.relaunch_nodes_impl = AsyncMock(
+                return_value=[NodeInfo("node_1")]
+            )
+            await manager._do_failover(worker)
+            assert worker.node_info.id in manager.state.removed_nodes
+            assert manager.ext.relaunch_nodes_impl.called
+            assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
+                worker.node_info
+            ]
+            manager.state.removed_nodes.clear()
 
-        # Sub 3. relaunch_nodes timeout
-        mocker.patch(
-            "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
-            AsyncMock(side_effect=asyncio.TimeoutError),
-        )
-        await manager._do_failover(worker)
-        assert (
-            worker.node_info.id in manager.state.removed_nodes
-        )  # assert relaunch success even timeout
+            # Sub 3. relaunch_nodes timeout
+            mocker.patch(
+                "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
+                AsyncMock(side_effect=asyncio.TimeoutError),
+            )
+            await manager._do_failover(worker)
+            assert (
+                worker.node_info.id in manager.state.removed_nodes
+            )  # assert relaunch success even timeout
 
-        # Sub 4. relaunch_nodes raise exception
-        manager.ext.relaunch_nodes_impl = AsyncMock(side_effect=Exception())
-        manager.state.removed_nodes = set()
-        await manager._do_failover(worker)
-        assert worker.node_info.id not in manager.state.removed_nodes
+            # Sub 4. relaunch_nodes raise exception
+            manager.ext.relaunch_nodes_impl = AsyncMock(
+                side_effect=Exception()
+            )
+            manager.state.removed_nodes = set()
+            await manager._do_failover(worker)
+            assert worker.node_info.id not in manager.state.removed_nodes
     # Case 4. SubMaster restarted
     elif case == 4:
         invoke_actor = mocker.patch(
@@ -249,7 +258,7 @@ async def test_request_stop_cases():
     # Case 2. node_restart_count exceeds the limit
     manager.request_stop = Mock()
     manager.state.node_restart_count = config.node_max_restart
-    await manager._relaunch_single_node(NodeInfo(id="test"), None)
+    await manager._relaunch_single_node_by_actor(NodeInfo(id="test"), None)
     assert manager.request_stop.called
     assert "node relaunch" in str(manager.request_stop.call_args[0][0])
 

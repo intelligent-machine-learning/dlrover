@@ -15,9 +15,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
+from dlrover.python.unified.common.actor_base import (
+    ActorInfo,
+    NodeInfo,
+    ExecutionResult,
+)
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
-from dlrover.python.unified.common.enums import ExecutionResult
+from dlrover.python.unified.common.enums import ExecutionResultType
+from dlrover.python.common.log import default_logger as logger
 
 # Develop Note: all classes in this file are state structures, owned by PrimeManager
 # 1. Only mutable inside PrimeManager, or passed from PrimeManager(e.g. Scheduler).
@@ -82,6 +87,30 @@ class DLExecutionVertex(ABC):
     def inc_failure_count(self):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
+
+        logger.debug(
+            f"{self.name} increase failure count: "
+            f"total_failure_count from {self.total_failure_count - 1} to {self.total_failure_count}, "
+            f"per_node_failure_count from {self.per_node_failure_count - 1} to {self.per_node_failure_count}."
+        )
+
+    def reset_failure_count(self):
+        logger.debug(
+            f"{self.name} reset failure count: "
+            f"total_failure_count from {self.total_failure_count} to 0, "
+            f"per_node_failure_count from {self.per_node_failure_count} to 0."
+        )
+
+        self.total_failure_count = 0
+        self.per_node_failure_count = 0
+
+    def reset_per_node_failure_count(self):
+        logger.debug(
+            f"{self.name} reset per-node failure count: "
+            f"per_node_failure_count from {self.per_node_failure_count} to 0."
+        )
+
+        self.per_node_failure_count = 0
 
     def get_node_group_failover_info(self) -> Optional[Tuple[str, int]]:
         """
@@ -195,43 +224,44 @@ class DLWorkloadRole:
                 role=self,
             )
 
-    def get_result(self) -> Optional[ExecutionResult]:
+    def get_result(self) -> Optional[ExecutionResultType]:
         if any(instance.result is None for instance in self.instances):
             return None
-        if any(
-            instance.result == ExecutionResult.FAIL
-            for instance in self.instances
-        ):
-            return ExecutionResult.FAIL
-        return ExecutionResult.SUCCESS
+        if self.has_any_failure():
+            return ExecutionResultType.FAIL
+        return ExecutionResultType.SUCCESS
 
     def has_any_failure(self) -> bool:
         if any(
-            instance.result == ExecutionResult.FAIL
+            instance.result is not None
+            and instance.result.type == ExecutionResultType.FAIL
             for instance in self.instances
         ):
             return True
         return False
 
-    def get_node_relaunch_demand(
+    def get_node_relaunch_demand_actor(
         self,
-    ) -> Optional[Tuple[NodeInfo, Optional[str], Optional[int]]]:
-        for instance in self.instances:
+    ) -> Optional[DLExecutionVertex]:
+        """
+        Get single node relaunch demand actor.
+
+        Returns:
+            has node relaunch demand if not none: root_cause_actor
+        """
+
+        # sort instances by per_node_failure_count descending
+        sorted_instances = sorted(
+            self.instances,
+            key=lambda x: x.per_node_failure_count,
+            reverse=True
+        )
+        for instance in sorted_instances:
             if (
                 instance.per_node_failure_count
                 > instance.spec.per_node_max_failure
             ):
-                node_group_failover_info = (
-                    instance.get_node_group_failover_info()
-                )
-                if node_group_failover_info:
-                    return (
-                        instance.node_info,
-                        node_group_failover_info[0],
-                        node_group_failover_info[1],
-                    )
-                else:
-                    return instance.node_info, None, None
+                return instance
         return None
 
 
