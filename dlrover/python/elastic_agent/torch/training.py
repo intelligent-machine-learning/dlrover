@@ -222,6 +222,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    membind_policy: str = "none"
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -1137,6 +1138,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
         if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            os.environ["DLROVER_MEMBIND_POLICY"] = self._config.membind_policy
             logger.info(
                 f"WorkerGroup before numa affinity: {self._worker_group.spec}"
             )

@@ -201,6 +201,15 @@ def parse_args(args):
         help="bool, set workers processes cpu numa affinity or not",
     )
 
+    parser.add_argument(
+        "--membind-policy",
+        "--membind_policy",
+        type=str,
+        action=env,
+        default="preferred",
+        help="The memory bind policy, bind or preferred",
+    )
+
     # deprecated arguments
     parser.add_argument(
         "--network-check",
@@ -379,6 +388,7 @@ def _elastic_config_from_args(
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
     elastic_config.numa_affinity = getattr(args, "numa_affinity", False)
+    elastic_config.membind_policy = getattr(args, "membind_policy", "none")
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.accelerator = getattr(

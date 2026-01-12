@@ -171,6 +171,8 @@ class ElasticRunTest(unittest.TestCase):
             "--training_port",
             "1000",
             "--numa-affinity",
+            "--membind-policy",
+            "preferred",
             "test.py",
             "--batch_size",
             "16",
@@ -193,6 +195,7 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue("bin/python" in cmd)
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
         self.assertTrue(config.numa_affinity)
+        self.assertEqual(config.membind_policy, "preferred")
         self.assertTrue(elastic._config.numa_affinity)
         self.assertFalse("dlrover_run_affinity.sh" in elastic._entrypoint)
 
