@@ -116,7 +116,7 @@ class NodeGroupFailoverDesc(BaseModel):
     group_label_key: str = ""
     timeout: int = Field(default=300, ge=60)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"NodeGroupFailoverDesc(enabled={self.enabled}, "
             f"group_label_key={self.group_label_key}, "
@@ -187,7 +187,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
         ),
     )
     node_group_failover: NodeGroupFailoverDesc = Field(
-        default=NodeGroupFailoverDesc,
+        default_factory=NodeGroupFailoverDesc,
         description=(
             "Whether node-group failover is enabled. "
             "DLRover will cascade failover for nodes who has the same "

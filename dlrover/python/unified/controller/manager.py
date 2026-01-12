@@ -259,7 +259,9 @@ class PrimeManager:
                 logger.exception(
                     "Unexpected exception occurred in main task loop."
                 )
-                self._do_stop()
+                self.request_stop(
+                    "Unexpected exception occurred in main task loop."
+                )
                 return
 
         if self.stage == MasterStage.STOPPING:
