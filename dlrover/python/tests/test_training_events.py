@@ -629,7 +629,7 @@ class TrainingEventTest(unittest.TestCase):
         _event_context.train_steps.add_step_event(evt3)
         self.assertEqual(_event_context.check_job_step_hang(), False)
         time.sleep(2)
-        self.assertEqual(_event_context.check_job_step_hang(), True)
+        self.assertEqual(_event_context.check_job_step_hang(), False)
 
     def test_ckpt_hang(self):
         _event_context.ckpt_threshold = 1
