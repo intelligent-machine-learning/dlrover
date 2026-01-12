@@ -16,7 +16,7 @@ import pickle
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import ray
 
@@ -54,6 +54,7 @@ from .schedule.graph import (
 )
 from .schedule.scheduler import Scheduler
 from .sync_manager import SyncManager
+from ..common.workload_desc import NodeGroupFailoverDesc
 from ..util.node_helper import wait_ray_node_relaunching, get_node_group
 
 
@@ -441,7 +442,7 @@ class PrimeManager:
         """
 
         node: Optional[NodeInfo] = root_cause_actor.node_info
-        node_group_failover_info: Optional[Tuple[str, int]] = (
+        node_group_failover_info: NodeGroupFailoverDesc = (
             root_cause_actor.get_node_group_failover_info()
         )
         if not node:
@@ -453,8 +454,11 @@ class PrimeManager:
             f"due to {root_cause_actor.name}."
         )
 
-        if node_group_failover_info and node_group_failover_info[0]:
-            node_group_failover_timeout = node_group_failover_info[1]
+        if (
+            node_group_failover_info.enabled
+            and node_group_failover_info.group_label_key
+        ):
+            node_group_failover_timeout = node_group_failover_info.timeout
             timeout = min(
                 RAY_NODE_RELAUNCH_WAIT_TIME, node_group_failover_timeout
             )
@@ -468,7 +472,9 @@ class PrimeManager:
             root_cause_actor.reset_per_node_failure_count()
         except asyncio.TimeoutError:
             if node_group_failover_info:
-                group_nodes = get_node_group(node, node_group_failover_info[0])
+                group_nodes = get_node_group(
+                    node, node_group_failover_info.group_label_key
+                )
                 await self._relaunch_nodes(
                     group_nodes, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
                 )

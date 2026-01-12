@@ -42,6 +42,7 @@ from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     SimpleWorkloadDesc,
     WorkloadDesc,
+    NodeGroupFailoverDesc,
 )
 from dlrover.python.unified.driver.main import submit
 from dlrover.python.unified.util.config_util import read_dict_from_envs
@@ -242,17 +243,19 @@ class RoleBuilder(ABC, Generic[T]):
         self._params.is_driver = False
         return self
 
-    def enable_node_group_failover(self, group_label, timeout=300):
+    def enable_node_group_failover(self, group_label_key, timeout=300):
         """
         Set the current role is not driver.
 
         Args:
-            group_label (str): The label of the node group.
+            group_label_key (str): The label key of the node group.
             timeout (int): The group failover trigger threshold in seconds. Minimum value: 30.
         """
 
-        if group_label and timeout and timeout >= 30:
-            self._params.node_group_failover = (True, group_label, timeout)
+        if group_label_key and timeout and timeout >= 30:
+            self._params.node_group_failover = NodeGroupFailoverDesc(
+                enabled=True, group_label_key=group_label_key, timeout=timeout
+            )
         return self
 
     def sub_stage(self, sub_stage=None):

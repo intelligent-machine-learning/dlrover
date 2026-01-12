@@ -13,7 +13,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from dlrover.python.unified.common.actor_base import (
     ActorInfo,
@@ -23,6 +23,8 @@ from dlrover.python.unified.common.actor_base import (
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
 from dlrover.python.unified.common.enums import ExecutionResultType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.workload_desc import NodeGroupFailoverDesc
+
 
 # Develop Note: all classes in this file are state structures, owned by PrimeManager
 # 1. Only mutable inside PrimeManager, or passed from PrimeManager(e.g. Scheduler).
@@ -112,20 +114,8 @@ class DLExecutionVertex(ABC):
 
         self.per_node_failure_count = 0
 
-    def get_node_group_failover_info(self) -> Optional[Tuple[str, int]]:
-        """
-        Whether the node group failover is enabled.
-        Return group label and threshold if enabled otherwise None.
-        """
-
-        is_enabled = self.spec.node_group_failover[0]
-
-        if is_enabled:
-            return self.spec.node_group_failover[
-                1
-            ], self.spec.node_group_failover[2]
-        else:
-            return None
+    def get_node_group_failover_info(self) -> NodeGroupFailoverDesc:
+        return self.spec.node_group_failover
 
 
 @dataclass(kw_only=True)
