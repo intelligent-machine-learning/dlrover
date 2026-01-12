@@ -443,7 +443,7 @@ class PrimeManager:
 
         node: Optional[NodeInfo] = root_cause_actor.node_info
         node_group_failover_info: NodeGroupFailoverDesc = (
-            root_cause_actor.get_node_group_failover_info()
+            root_cause_actor.spec.node_group_failover
         )
         if not node:
             return
