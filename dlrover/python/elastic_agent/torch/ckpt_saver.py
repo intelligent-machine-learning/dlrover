@@ -1079,6 +1079,11 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
     ):
+        if ckpt_config is None or not ckpt_config.paths:
+            logger.info(
+                "Skip persisting checkpoint because checkpoint config is missing."
+            )
+            return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         safe_serialization = None
         if "safe_serialization" in state_dict:
