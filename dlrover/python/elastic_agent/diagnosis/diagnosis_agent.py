@@ -98,6 +98,9 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             f"errors:               {self._errors}"
         )
 
+    def reset_atorch_collector(self):
+        self._atorch_collector.reset_first_step()
+
     def update_config(
         self, training_log_file: str = "", errors: str = "", rank: int = -1
     ):

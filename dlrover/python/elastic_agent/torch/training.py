@@ -721,6 +721,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
+        if self._diagnose_agent:
+            logger.info(
+                f"[{spec.role}] Reset event collector after rendezvous"
+            )
+            self._diagnose_agent.reset_atorch_collector()
+
     """
     The following function(copied from torch 230) is used to
     compatible with torch < 240

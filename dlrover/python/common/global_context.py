@@ -76,10 +76,10 @@ class DefaultValues(object):
         )
     ]
     HANG_DETECTION = 1
-    HANG_DOWNTIME = 10  # max downtime, unit is minute
+    HANG_DOWNTIME = 10  # default downtime, unit is minute
     MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
     MAX_CKPT_THRESHOLD = 900  # seconds
-    MAX_AVG_STEPS = 50
+    MAX_AVG_STEPS = 10  # deprecated
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
     MAX_RELAUNCH_COUNT = 3  # maximum node relaunch count
     MAX_GROUP_RELAUNCH_COUNT = 3  # maximum node group relaunch count
