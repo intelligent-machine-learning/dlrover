@@ -22,6 +22,18 @@ BUS_ID=${BUS_ID,,}
 NODE=$(cat /sys/bus/pci/devices/"${BUS_ID:4}"/numa_node)
 
 echo "Starting local rank $RANK on numa node $NODE"
-echo -n "Cmd: numactl --cpunodebind=${NODE} --membind=${NODE}"
-echo "$@"
-numactl --cpunodebind="${NODE}" --membind="${NODE}" "$@"
+echo "mempolicy: ${DLROVER_MEMBIND_POLICY}"
+
+if [ "${DLROVER_MEMBIND_POLICY}" = "bind" ]; then
+  echo -n "Cmd: numactl --cpunodebind=${NODE} --membind=${NODE} "
+  echo "$@"
+  numactl --cpunodebind="${NODE}" --membind="${NODE}" "$@"
+elif [ "${DLROVER_MEMBIND_POLICY}" = "preferred" ]; then
+  echo -n "Cmd: numactl --cpunodebind=${NODE} --preferred=${NODE} "
+  echo "$@"
+  numactl --cpunodebind="${NODE}" --preferred="${NODE}" "$@"
+else
+  echo -n "Cmd: numactl --cpunodebind=${NODE} "
+  echo "$@"
+  numactl --cpunodebind="${NODE}" "$@"
+fi
