@@ -55,8 +55,6 @@ def run(args):
     _dlrover_context.hang_downtime = args.hang_downtime
     if _dlrover_context.hang_downtime < DefaultValues.MIN_HANG_DOWNTIME:
         _dlrover_context.hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
-    elif _dlrover_context.hang_downtime > DefaultValues.HANG_DOWNTIME:
-        _dlrover_context.hang_downtime = DefaultValues.HANG_DOWNTIME
 
     _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
     _dlrover_context.pending_timeout = args.pending_timeout

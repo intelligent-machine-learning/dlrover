@@ -71,6 +71,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         errors = "error code is 11111"
 
         agent = DiagnosisAgent.singleton_instance()
+        agent.reset_atorch_collector()
         agent.update_config(file_path, errors)
 
         spec = _create_worker_spec(
