@@ -430,7 +430,9 @@ class PrimeManager:
                 self.state.removed_nodes.discard(node.id)
             raise e
 
-    async def _relaunch_single_node_by_actor(self, root_cause_actor: DLExecutionVertex):
+    async def _relaunch_single_node_by_actor(
+        self, root_cause_actor: DLExecutionVertex
+    ):
         """
         For single node relaunch.
         This method, because it operates on only a single node, can determine
@@ -438,9 +440,12 @@ class PrimeManager:
         thereby supporting the advanced implementation of node group relaunch.
         """
 
-
-        node: NodeInfo = root_cause_actor.node_info
-        node_group_failover_info: Optional[Tuple[str, int]] = root_cause_actor.get_node_group_failover_info()
+        node: Optional[NodeInfo] = root_cause_actor.node_info
+        node_group_failover_info: Optional[Tuple[str, int]] = (
+            root_cause_actor.get_node_group_failover_info()
+        )
+        if not node:
+            return
 
         logger.info(
             f"Relaunch node {node.id} "
@@ -464,7 +469,7 @@ class PrimeManager:
         except asyncio.TimeoutError:
             if node_group_failover_info:
                 group_nodes = get_node_group(node, node_group_failover_info[0])
-                return await self._relaunch_nodes(
+                await self._relaunch_nodes(
                     group_nodes, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
                 )
         except Exception:
@@ -514,9 +519,7 @@ class PrimeManager:
 
         # do node relaunch before restarting
         if with_node_relaunch:
-            await self._relaunch_single_node_by_actor(
-                with_node_relaunch
-            )
+            await self._relaunch_single_node_by_actor(with_node_relaunch)
 
         # restarting
         self.state.job_restart_count += 1
@@ -725,7 +728,9 @@ class PrimeManager:
     def _get_node_relaunch_demand(self, role_name):
         if role_name == InternalDLWorkloadRole.GLOBAL_ROLE:
             for role in self.graph.roles.values():
-                with_node_relaunch_demand_actor = role.get_node_relaunch_demand_actor()
+                with_node_relaunch_demand_actor = (
+                    role.get_node_relaunch_demand_actor()
+                )
                 if with_node_relaunch_demand_actor:
                     break
         else:
@@ -758,19 +763,25 @@ class PrimeManager:
         self._record_failure(role_name)
 
         # trigger node relaunch according to the failure info
-        node_relaunch_demand_actor: Optional[DLExecutionVertex] = self._get_node_relaunch_demand(role_name)
+        node_relaunch_demand_actor: Optional[DLExecutionVertex] = (
+            self._get_node_relaunch_demand(role_name)
+        )
 
         if self.config.failover_exec_strategy == 1:
             # trigger job failover
             logger.info(f"Trigger job failover, reason: {reason}.")
-            await self.restart_job(with_node_relaunch=node_relaunch_demand_actor)
+            await self.restart_job(
+                with_node_relaunch=node_relaunch_demand_actor
+            )
         elif self.config.failover_exec_strategy == 2:
             # TODO: implement by role level failover
             logger.info(
                 "Role level failover is not supported yet, do job failover instead, "
                 f"reason: {reason}."
             )
-            await self.restart_job(with_node_relaunch=node_relaunch_demand_actor)
+            await self.restart_job(
+                with_node_relaunch=node_relaunch_demand_actor
+            )
         else:
             logger.info(
                 "Skip failover for strategy(failover_strategy_when_failed) "

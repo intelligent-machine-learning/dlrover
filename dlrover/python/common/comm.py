@@ -68,7 +68,7 @@ def addr_connected(addr):
 
 def grpc_server_ready(channel) -> bool:
     try:
-        grpc.channel_ready_future(channel).type(timeout=TIMEOUT_SEC)
+        grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
         return True
     except grpc.FutureTimeoutError:
         return False

@@ -1185,7 +1185,7 @@ class DistributedJobManagerTest(unittest.TestCase):
                 )
 
             for future in futures:
-                future.type()
+                future.result()
 
         self.assertEqual(len(futures), worker_size)
         job_nodes = self.job_context.job_nodes()

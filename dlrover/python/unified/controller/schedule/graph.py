@@ -254,7 +254,7 @@ class DLWorkloadRole:
         sorted_instances = sorted(
             self.instances,
             key=lambda x: x.per_node_failure_count,
-            reverse=True
+            reverse=True,
         )
         for instance in sorted_instances:
             if (
