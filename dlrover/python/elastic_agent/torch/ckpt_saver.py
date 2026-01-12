@@ -270,7 +270,6 @@ class SharedMemoryHandler(object):
     def close(self):
         if self.shared_memory:
             self.shared_memory.close()
-            # self.shared_memory = None
 
     def unlink(self):
         if not self.shared_memory:
@@ -348,7 +347,7 @@ class SharedMemoryHandler(object):
             return {}
         if self.shared_memory is None or self._need_creation:
             self.init_shared_memory(create=False)
-        if not self.shared_memory or self.shared_memory.buf is None:
+        if not self.shared_memory:
             return {}
 
         report_local_event(
