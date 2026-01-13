@@ -593,6 +593,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
             )
+        else:
+            self._diagnose_agent = None
+
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -722,7 +725,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
-        if self._diagnose_agent:
+        if self._diagnose_agent is not None:
             logger.info(
                 f"[{spec.role}] Reset event collector after rendezvous"
             )
