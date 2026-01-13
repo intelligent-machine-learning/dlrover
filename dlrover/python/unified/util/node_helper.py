@@ -87,20 +87,24 @@ def get_node_group(target_node: NodeInfo, group_label: str) -> List[NodeInfo]:
     Returns: Node info(with id only) in list.
     """
 
-    ray_nodes = ray.nodes()
-    group_label_val = ""
+    try:
+        ray_nodes = ray.nodes()
+        group_label_val = ""
 
-    for node in ray_nodes:
-        if node["NodeID"] == target_node.id:
-            group_label_val = node["Labels"].get(group_label, "")
-            break
-
-    if group_label_val:
-        node_group = []
         for node in ray_nodes:
-            if node["Labels"].get(group_label, "") == group_label_val:
-                node_group.append(NodeInfo(id=node["NodeID"]))
-        return node_group
+            if node["NodeID"] == target_node.id:
+                group_label_val = node["Labels"].get(group_label, "")
+                break
+
+        if group_label_val:
+            node_group = []
+            for node in ray_nodes:
+                if node["Labels"].get(group_label, "") == group_label_val:
+                    node_group.append(NodeInfo(id=node["NodeID"]))
+            return node_group
+    except KeyError:
+        logger.warning(f"Failed to get node group by label: {group_label}")
+        pass
 
     # return current node if no group label value
     return [target_node]

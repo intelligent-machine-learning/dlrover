@@ -116,13 +116,6 @@ class NodeGroupFailoverDesc(BaseModel):
     group_label_key: str = ""
     timeout: int = Field(default=300, ge=60)
 
-    def __repr__(self) -> str:
-        return (
-            f"NodeGroupFailoverDesc(enabled={self.enabled}, "
-            f"group_label_key={self.group_label_key}, "
-            f"timeout={self.timeout})"
-        )
-
 
 class BaseWorkloadDesc(BaseModel, ABC):
     """

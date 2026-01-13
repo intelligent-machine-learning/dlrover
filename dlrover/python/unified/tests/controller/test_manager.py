@@ -21,6 +21,10 @@ from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 from dlrover.python.unified.controller.manager import PrimeManager, logger
+from dlrover.python.unified.controller.schedule.graph import (
+    DLExecutionWorkerVertex,
+    DLWorkloadRole,
+)
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
@@ -140,7 +144,7 @@ async def test_do_failover(mocker: MockerFixture, case):
     # Case 3. Worker failed cause node relaunch
     elif case == 3:
         manager.restart_job = AsyncMock()  # noop
-        relaunch = mocker.spy(manager, "_relaunch_single_node")
+        relaunch = mocker.spy(manager, "_relaunch_single_node_by_actor")
         mocker.patch(
             "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
             AsyncMock(return_value=None),
@@ -148,7 +152,6 @@ async def test_do_failover(mocker: MockerFixture, case):
 
         worker = manager.graph.roles["simple"].instances[0]
         worker.node_info = NodeInfo("node_1")
-        worker.per_node_failure_count = 100  # Large enough
 
         with patch(
             "dlrover.python.unified.controller.manager.ray.nodes"
@@ -158,14 +161,17 @@ async def test_do_failover(mocker: MockerFixture, case):
                 {"NodeID": "node_2", "Alive": True},
             ]
             # Sub 1. relaunch_nodes not implemented
+            worker.per_node_failure_count = 100  # Large enough
             await manager._do_failover(worker)
             assert relaunch.call_count == 1
             assert len(manager.state.removed_nodes) == 0
+            assert worker.per_node_failure_count == 0
 
             # Sub 2. relaunch_nodes
             manager.ext.relaunch_nodes_impl = AsyncMock(
                 return_value=[NodeInfo("node_1")]
             )
+            worker.per_node_failure_count = 100  # Large enough
             await manager._do_failover(worker)
             assert worker.node_info.id in manager.state.removed_nodes
             assert manager.ext.relaunch_nodes_impl.called
@@ -179,6 +185,7 @@ async def test_do_failover(mocker: MockerFixture, case):
                 "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
                 AsyncMock(side_effect=asyncio.TimeoutError),
             )
+            worker.per_node_failure_count = 100  # Large enough
             await manager._do_failover(worker)
             assert (
                 worker.node_info.id in manager.state.removed_nodes
@@ -189,6 +196,7 @@ async def test_do_failover(mocker: MockerFixture, case):
                 side_effect=Exception()
             )
             manager.state.removed_nodes = set()
+            worker.per_node_failure_count = 100  # Large enough
             await manager._do_failover(worker)
             assert worker.node_info.id not in manager.state.removed_nodes
     # Case 4. SubMaster restarted
@@ -258,7 +266,20 @@ async def test_request_stop_cases():
     # Case 2. node_restart_count exceeds the limit
     manager.request_stop = Mock()
     manager.state.node_restart_count = config.node_max_restart
-    await manager._relaunch_single_node_by_actor(NodeInfo(id="test"), None)
+    actor = DLExecutionWorkerVertex(
+        role=DLWorkloadRole(
+            name="test",
+            instance_number=1,
+            spec=SimpleWorkloadDesc(entry_point="test::test"),
+        ),
+        node_rank=0,
+        world_size=1,
+        rank=0,
+        local_world_size=1,
+        local_rank=0,
+    )
+    actor.node_info = NodeInfo(id="test")
+    await manager._relaunch_single_node_by_actor(actor)
     assert manager.request_stop.called
     assert "node relaunch" in str(manager.request_stop.call_args[0][0])
 

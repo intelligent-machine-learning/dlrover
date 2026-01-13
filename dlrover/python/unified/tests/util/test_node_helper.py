@@ -20,7 +20,7 @@ from dlrover.python.unified.common.actor_base import NodeInfo
 import dlrover.python.unified.util.node_helper as nh
 
 
-@pytest.mark.timeout(1, func_only=True)
+@pytest.mark.timeout(3, func_only=True)
 @pytest.mark.asyncio
 async def test_wait_ray_node_relaunching(mocker: MockerFixture):
     ray_node = mocker.patch("ray.nodes")

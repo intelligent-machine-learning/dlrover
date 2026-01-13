@@ -310,8 +310,8 @@ class PrimeManager:
             actor.role.name
         ):
             logger.info(
-                f"Current stage is {self.stage}, skipping failover "
-                f"handling by actor {actor.name}."
+                f"Current stage is {self.stage}(is failover: {self.is_failover_stage(actor.role.name)}), "
+                f"skipping failover handling by actor {actor.name}."
             )
             return
 
@@ -477,9 +477,7 @@ class PrimeManager:
                 group_nodes = get_node_group(
                     node, node_group_failover_info.group_label_key
                 )
-                await self._relaunch_nodes(
-                    group_nodes, timeout=RAY_NODE_RELAUNCH_WAIT_TIME * 2
-                )
+                await self._relaunch_node_group(node, group_nodes)
         except Exception:
             logger.exception(
                 "Failed to relaunch node due to unexpected error. The following node relaunch may not be executed properly."
