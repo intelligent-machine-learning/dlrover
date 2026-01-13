@@ -23,7 +23,6 @@ from dlrover.python.unified.common.actor_base import (
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
 from dlrover.python.unified.common.enums import ExecutionResultType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.workload_desc import NodeGroupFailoverDesc
 
 
 # Develop Note: all classes in this file are state structures, owned by PrimeManager
@@ -96,16 +95,6 @@ class DLExecutionVertex(ABC):
             f"per_node_failure_count from {self.per_node_failure_count - 1} to {self.per_node_failure_count}."
         )
 
-    def reset_failure_count(self):
-        logger.debug(
-            f"{self.name} reset failure count: "
-            f"total_failure_count from {self.total_failure_count} to 0, "
-            f"per_node_failure_count from {self.per_node_failure_count} to 0."
-        )
-
-        self.total_failure_count = 0
-        self.per_node_failure_count = 0
-
     def reset_per_node_failure_count(self):
         logger.debug(
             f"{self.name} reset per-node failure count: "
@@ -113,9 +102,6 @@ class DLExecutionVertex(ABC):
         )
 
         self.per_node_failure_count = 0
-
-    def get_node_group_failover_info(self) -> NodeGroupFailoverDesc:
-        return self.spec.node_group_failover
 
 
 @dataclass(kw_only=True)

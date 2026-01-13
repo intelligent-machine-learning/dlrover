@@ -567,8 +567,6 @@ class PrimeManager:
 
         self.state.exit_code = code
         if self._in_running_stage():
-            # 注意：request_stop是同步方法，需要重构为异步或使用同步版本
-            # 暂时使用同步版本
             self._update_stage(MasterStage.STOPPING)
             self._notify_main_loop.release()
         else:
