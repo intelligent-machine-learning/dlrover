@@ -250,6 +250,7 @@ class MasterClientTest(unittest.TestCase):
             retry_timeout=1,
         )
         collector._client = self._master_client
+        collector.reset_first_step()
         collector.start_collectors()
         time.sleep(1)
         collector.stop_collectors()

@@ -222,6 +222,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    membind_policy: str = "none"
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -721,6 +722,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
+        if self._diagnose_agent:
+            logger.info(
+                f"[{spec.role}] Reset event collector after rendezvous"
+            )
+            self._diagnose_agent.reset_atorch_collector()
+
     """
     The following function(copied from torch 230) is used to
     compatible with torch < 240
@@ -1137,6 +1144,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
         if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            os.environ["DLROVER_MEMBIND_POLICY"] = self._config.membind_policy
             logger.info(
                 f"WorkerGroup before numa affinity: {self._worker_group.spec}"
             )
