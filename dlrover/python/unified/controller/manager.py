@@ -25,6 +25,7 @@ from dlrover.python.unified.common.actor_base import (
     ActorBase,
     NodeInfo,
     ExecutionResult,
+    DiagnosticInfo,
 )
 from dlrover.python.unified.common.constant import (
     MASTER_STATE_KEY_PREFIX,
@@ -108,7 +109,6 @@ class PrimeManager:
             graph=DLExecutionGraph.create(config.dl_config),
         )
         self._state_lock = threading.Lock()
-        self._failover_lock = threading.Lock()
         self._notify_main_loop = asyncio.Semaphore()
         self._stopped_event = asyncio.Event()
         self._task = None
@@ -646,6 +646,14 @@ class PrimeManager:
             self._clear_failover_stage()
             self._do_stop()
 
+    async def deal_with_actor_diagnostic_report(
+        self, actor: DLExecutionVertex, diagnostic: DiagnosticInfo
+    ):
+        """Handle the actor diagnostic info reporting."""
+
+        logger.info(f"Actor {actor.name} reported diagnostic {diagnostic}.")
+        actor.diagnostic = diagnostic
+
     async def deal_with_actor_finished(
         self, actor: DLExecutionVertex, result: ExecutionResult
     ):
@@ -656,33 +664,29 @@ class PrimeManager:
         self._notify_main_loop.release()
 
     def _set_failover_stage(self, role_name):
-        with self._failover_lock:
-            if role_name not in self.state.failover_stage:
-                self.state.failover_stage[role_name] = int(time.time())
-                logger.debug(f"Setting failover stage: {role_name}")
+        if role_name not in self.state.failover_stage:
+            self.state.failover_stage[role_name] = int(time.time())
+            logger.debug(f"Setting failover stage: {role_name}")
 
     def _clear_failover_stage(self, role_name=""):
-        with self._failover_lock:
-            if not role_name:
-                self.state.failover_stage.clear()
-                logger.debug("Clear all failover stage.")
-            else:
-                self.state.failover_stage.pop(role_name)
-                logger.debug(f"Clear failover stage: {role_name}")
+        if not role_name:
+            self.state.failover_stage.clear()
+            logger.debug("Clear all failover stage.")
+        else:
+            self.state.failover_stage.pop(role_name)
+            logger.debug(f"Clear failover stage: {role_name}")
 
     def is_failover_stage(self, role_name=""):
-        with self._failover_lock:
-            if not role_name:
-                # is any role in failover stage
-                return len(self.state.failover_stage) == 0
-            else:
-                if (
-                    InternalDLWorkloadRole.GLOBAL_ROLE
-                    in self.state.failover_stage
-                    or role_name in self.state.failover_stage
-                ):
-                    return True
-                return False
+        if not role_name:
+            # is any role in failover stage
+            return len(self.state.failover_stage) == 0
+        else:
+            if (
+                InternalDLWorkloadRole.GLOBAL_ROLE in self.state.failover_stage
+                or role_name in self.state.failover_stage
+            ):
+                return True
+            return False
 
     def _record_failure(self, role_name):
         """
@@ -706,22 +710,19 @@ class PrimeManager:
             target_instances.extend(self.graph.roles[role_name].instances)
 
         if any(
-            instance.result and instance.result.is_failure_responsibility
+            instance.is_failure_responsibility()
             for instance in target_instances
         ):
             # update specified if there is a known cause
             for instance in target_instances:
-                if (
-                    instance.result
-                    and instance.result.is_failure_responsibility
-                ):
+                if instance.is_failure_responsibility():
                     instance.inc_failure_count()
         else:
             # otherwise for all unknown or be affected: pick up the 1st failure as root
             failed_instances = [
                 instance
                 for instance in target_instances
-                if instance.result and instance.result.is_failure
+                if instance.is_failure()
             ]
             failed_instances.sort(
                 key=lambda x: x.result.timestamp if x.result else int("inf")

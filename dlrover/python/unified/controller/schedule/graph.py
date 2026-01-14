@@ -19,9 +19,13 @@ from dlrover.python.unified.common.actor_base import (
     ActorInfo,
     NodeInfo,
     ExecutionResult,
+    DiagnosticInfo,
 )
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
-from dlrover.python.unified.common.enums import ExecutionResultType
+from dlrover.python.unified.common.enums import (
+    ExecutionResultType,
+    DiagnosticResponsibility,
+)
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -52,6 +56,7 @@ class DLExecutionVertex(ABC):
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
     result: Optional[ExecutionResult] = None
+    diagnostic: Optional[DiagnosticInfo] = None
     # Indicate whether the actor is ready to receive tasks, initialized is done by manager._setup_actors
     is_ready: asyncio.Event = field(default_factory=asyncio.Event)
 
@@ -102,6 +107,30 @@ class DLExecutionVertex(ABC):
         )
 
         self.per_node_failure_count = 0
+
+    def is_success(self):
+        return self.result and self.result.is_success
+
+    def is_failure(self):
+        return self.result and self.result.is_failure
+
+    def is_root_cause(self):
+        if self.is_success or not self.diagnostic:
+            return False
+        return (
+            self.diagnostic.responsibility
+            == DiagnosticResponsibility.ROOT_CAUSE
+        )
+
+    def is_failure_responsibility(self):
+        if self.is_success or not self.diagnostic:
+            return False
+
+        responsibility = self.diagnostic.responsibility
+        return (
+            responsibility == DiagnosticResponsibility.ROOT_CAUSE
+            or responsibility == DiagnosticResponsibility.RELATED
+        )
 
 
 @dataclass(kw_only=True)
@@ -208,11 +237,7 @@ class DLWorkloadRole:
         return ExecutionResultType.SUCCESS
 
     def has_any_failure(self) -> bool:
-        if any(
-            instance.result is not None
-            and instance.result.type == ExecutionResultType.FAIL
-            for instance in self.instances
-        ):
+        if any(instance.is_failure() for instance in self.instances):
             return True
         return False
 

@@ -22,20 +22,29 @@ class MasterStage(str, Enum):
     STOPPED = "STOPPED"
 
 
-class ExecutionResultType(str, Enum):
-    """Result type of worker execution."""
+class DiagnosticInfoType(str, Enum):
+    """Diagnostic info type of worker execution."""
 
-    SUCCESS = "SUCCESS"  # Finished successfully
-    FAIL = "FAIL"  # Finished with failure
+    NORMAL = "NORMAL"
+    FATAL = "FATAL"
+    ERROR = "ERROR"
+    WARNING = "WARNING"
 
 
-class ExecutionResultPriority(int, Enum):
-    """Result priority of worker execution."""
+class DiagnosticResponsibility(int, Enum):
+    """Diagnostic responsibility of worker abnormal execution."""
 
     ROOT_CAUSE = 0  # confirm that it was caused by oneself.
     RELATED = 1  # confirm that it is related to oneself
     BE_AFFECTED = 2  # confirm that it has nothing to do with oneself
     UNKNOWN = 3
+
+
+class ExecutionResultType(str, Enum):
+    """Result type of worker execution."""
+
+    SUCCESS = "SUCCESS"  # Finished successfully
+    FAIL = "FAIL"  # Finished with failure
 
 
 class ACCELERATOR_TYPE(str, Enum):

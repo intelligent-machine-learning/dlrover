@@ -25,10 +25,15 @@ from dlrover.python.unified.api.runtime.rpc_helper import (
     export_rpc_instance,
 )
 from dlrover.python.unified.backend.common.events import BaseWorkerEvents
-from dlrover.python.unified.common.actor_base import ActorBase, ExecutionResult
+from dlrover.python.unified.common.actor_base import (
+    ActorBase,
+    ExecutionResult,
+    DiagnosticInfo,
+)
 from dlrover.python.unified.common.enums import (
     ExecutionResultType,
     WorkloadEntrypointType,
+    DiagnosticInfoType,
 )
 from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.decorators import log_execution
@@ -70,6 +75,14 @@ class BaseWorker(ActorBase):
             self._start_with_module_func(entrypoint)
         elif entrypoint_type == WorkloadEntrypointType.PY_CMD:
             self._start_with_py_cmd(entrypoint)
+
+    def get_diagnostic(self) -> DiagnosticInfo:
+        """
+        Get the diagnostic info of the worker. Should be overridden by subclasses.
+        """
+
+        # by default
+        return DiagnosticInfo(type=DiagnosticInfoType.ERROR)
 
     def _start_with_module_func(self, entrypoint: str):
         try:
@@ -126,9 +139,17 @@ class BaseWorker(ActorBase):
             name="user_main_thread",
         ).start()
 
-    def _on_execution_end(self, result: ExecutionResult):
+    def _on_execution_end(self, result_type: ExecutionResultType):
         """Report the execution result to the prime master."""
-        PrimeMasterApi.report_execution_result(self.actor_info.name, result)
+
+        if result_type == ExecutionResultType.FAIL:
+            PrimeMasterApi.report_diagnostic_info(
+                self.actor_info.name, self.get_diagnostic()
+            )
+
+        PrimeMasterApi.report_execution_result(
+            self.actor_info.name, ExecutionResult(result=result_type)
+        )
 
     def _execute_user_function(self, user_func):
         """Execute the user function."""
@@ -145,9 +166,9 @@ class BaseWorker(ActorBase):
             logger.exception(
                 f"Unexpected error occurred while executing user function({user_func})."
             )
-            self._on_execution_end(ExecutionResult(ExecutionResultType.FAIL))
+            self._on_execution_end(ExecutionResultType.FAIL)
         else:
-            self._on_execution_end(ExecutionResult())
+            self._on_execution_end(ExecutionResultType.SUCCESS)
 
     def _execute_user_command(self, command: str):
         """Execute the user command."""
@@ -172,19 +193,17 @@ class BaseWorker(ActorBase):
                     runpy.run_path(python_file, run_name="__main__")
             finally:
                 sys.argv = original_argv
-            self._on_execution_end(ExecutionResult())
+            self._on_execution_end(ExecutionResultType.SUCCESS)
         except SystemExit as e:
             logger.info(f"User command exited with exit code: {e.code}")
-            exit_code = 0 if e.code is None or e.code == 0 else 1
-
-            if exit_code == 0:
-                result = ExecutionResult()
-            else:
-                result = ExecutionResult(ExecutionResultType.FAIL)
-            self._on_execution_end(result)
+            self._on_execution_end(
+                ExecutionResultType.SUCCESS
+            ) if e.code is None or e.code == 0 else self._on_execution_end(
+                ExecutionResultType.FAIL
+            )
         except Exception as e:
             logger.exception(f"Command execution failed: {e}")
-            self._on_execution_end(ExecutionResult(ExecutionResultType.FAIL))
+            self._on_execution_end(ExecutionResultType.FAIL)
 
     # rpc
     async def _user_rpc_call(self, fn_name: str, *args, **kwargs):

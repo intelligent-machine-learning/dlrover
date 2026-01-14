@@ -14,7 +14,11 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
-from dlrover.python.unified.common.actor_base import ActorInfo, ExecutionResult
+from dlrover.python.unified.common.actor_base import (
+    ActorInfo,
+    ExecutionResult,
+    DiagnosticInfo,
+)
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.util.actor_helper import actor_call
 
@@ -124,6 +128,12 @@ class PrimeMasterApi:
     @staticmethod
     def get_data_queue_owner(name: str) -> str:
         """Get the owner actor of a data queue. Waits if not available."""
+        raise NotImplementedError("stub")  # pragma: no cover
+
+    @actor_call
+    @staticmethod
+    def report_diagnostic_info(name: str, diagnostic: DiagnosticInfo):
+        """Report the diagnostic result from actor side."""
         raise NotImplementedError("stub")  # pragma: no cover
 
     @actor_call

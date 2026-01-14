@@ -24,7 +24,8 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.unified.common.enums import (
     ACCELERATOR_TYPE,
     ExecutionResultType,
-    ExecutionResultPriority,
+    DiagnosticInfoType,
+    DiagnosticResponsibility,
 )
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
@@ -73,43 +74,39 @@ class NodeInfo:
         return f"NodeInfo(id='{self.id}', hostname={self.hostname}, ip_address={self.ip_address})"
 
 
-@dataclass(frozen=True)
+@dataclass()
+class DiagnosticInfo:
+    """Diagnostic information of worker's execution."""
+
+    type: DiagnosticInfoType = DiagnosticInfoType.NORMAL
+    responsibility: DiagnosticResponsibility = DiagnosticResponsibility.UNKNOWN
+    code: int = 0  # may be defined later
+    reason: str = ""
+
+    log_content: str = ""
+    metric_content: dict = field(default_factory=dict)
+
+
+@dataclass()
 class ExecutionResult:
     """Result of worker execution."""
 
-    type: ExecutionResultType = ExecutionResultType.SUCCESS
-    priority: ExecutionResultPriority = ExecutionResultPriority.UNKNOWN
+    result: ExecutionResultType = ExecutionResultType.SUCCESS
     timestamp: int = int(time.time())
-    extra_msg: str = ""
 
     def __repr__(self) -> str:
         readable_time = time.strftime(
             "%Y-%m-%d %H:%M:%S", time.localtime(self.timestamp)
         )
-        return f"ExecutionResult(type='{self.type}', priority='{self.priority}', time={readable_time})"
+        return f"ExecutionResult(result='{self.result}', time={readable_time})"
 
     @property
     def is_success(self):
-        return self.type == ExecutionResultType.SUCCESS
+        return self.result == ExecutionResultType.SUCCESS
 
     @property
     def is_failure(self):
-        return self.type == ExecutionResultType.FAIL
-
-    @property
-    def is_root_cause(self):
-        if self.is_success:
-            return False
-        return self.priority == ExecutionResultPriority.ROOT_CAUSE
-
-    @property
-    def is_failure_responsibility(self):
-        if self.is_success:
-            return False
-        return (
-            self.priority == ExecutionResultPriority.ROOT_CAUSE
-            or self.priority == ExecutionResultPriority.RELATED
-        )
+        return self.result == ExecutionResultType.FAIL
 
 
 class ActorBase:
