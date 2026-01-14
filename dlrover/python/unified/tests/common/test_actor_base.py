@@ -114,7 +114,7 @@ sys.exit(0)
             mock_report.assert_called_once()
             args = mock_report.call_args[0]
             assert args[0] == "test_worker_exit"
-            assert args[1].type == ExecutionResultType.SUCCESS
+            assert args[1].result == ExecutionResultType.SUCCESS
     finally:
         os.unlink(test_script)
 
@@ -144,6 +144,7 @@ raise ValueError("Test exception in user command")
 
         with (
             patch("ray.is_initialized", return_value=True),
+            patch("ray.get_actor", return_value=MagicMock()),
             patch(
                 "ray.get_runtime_context", return_value=mock_runtime_context
             ),
@@ -167,6 +168,6 @@ raise ValueError("Test exception in user command")
             mock_report.assert_called_once()
             args = mock_report.call_args[0]
             assert args[0] == "test_worker_fail"
-            assert args[1].type == ExecutionResultType.FAIL
+            assert args[1].result == ExecutionResultType.FAIL
     finally:
         os.unlink(test_script)
