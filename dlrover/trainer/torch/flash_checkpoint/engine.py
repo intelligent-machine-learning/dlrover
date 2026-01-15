@@ -203,14 +203,6 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         self._init_sync_group(comm_backend)
 
-        self._rank = 0
-        self._group_rank = 0
-        self._world_size = 1
-        self._loader_group = None
-        self._saver_group = None
-
-        self._init_sync_group(comm_backend)
-
         # init saver
         self._notify_agent_to_create_saver()
 

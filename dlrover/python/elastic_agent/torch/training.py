@@ -1297,7 +1297,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         self._worker_group.group_rank == 0
                         and enable_ucp == "true"
                     ):
-                        self.set_ucp_ready(False)
+                        self.set_previous_round_completed(False)
                     logger.info(
                         f"self._worker_group.group_rank : {self._worker_group.group_rank}"
                     )
@@ -1320,7 +1320,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         self._worker_group.group_rank == 0
                         and enable_ucp == "true"
                     ):
-                        self.set_ucp_ready(True)
+                        self.set_previous_round_completed(True)
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
@@ -1622,12 +1622,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
-    def get_ucp_ready(self, time_out=1200):
-        """get universal checkpoint is ready"""
-        return self._client.get_ucp_ready()
+    def get_previous_round_completed(self, time_out=1200):
+        """Get whether the previous rendezvous round is completed."""
+        return self._client.get_previous_round_completed()
 
-    def set_ucp_ready(self, ready):
-        return self._client.set_ucp_ready(ready=ready)
+    def set_previous_round_completed(self, completed):
+        return self._client.set_previous_round_completed(completed=completed)
 
     def _dlrover_exit_barrier(self):
         logger.info(

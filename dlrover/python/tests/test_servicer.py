@@ -756,44 +756,44 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertNotEqual(worker0.heartbeat_time, ts3)
 
-    def test_get_ucp_ready(self):
-        """Test get_ucp_ready method."""
-        # Test with UCPReadyRequest
-        message = comm.UCPReadyRequest()
+    def test_get_previous_round_completed(self):
+        """Test get_previous_round_completed method."""
+        # Test with PreviousRoundCompletedRequest
+        message = comm.PreviousRoundCompletedRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         response = self.servicer.get(request, self.grpc_server_context)
         res_msg = comm.deserialize_message(response.data)
-        self.assertIsInstance(res_msg, comm.UCPReady)
+        self.assertIsInstance(res_msg, comm.PreviousRoundCompleted)
         # Default value should be True
-        self.assertTrue(res_msg.ready)
+        self.assertTrue(res_msg.completed)
 
-        # Verify the rdzv_manager has ucp_ready attribute
+        # Verify the rdzv_manager has previous_round_completed attribute
         rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
-        self.assertTrue(hasattr(rdzv_manager, "ucp_ready"))
-        self.assertTrue(rdzv_manager.get_ucp_ready())
+        self.assertTrue(hasattr(rdzv_manager, "previous_round_completed"))
+        self.assertTrue(rdzv_manager.get_previous_round_completed())
 
-    def test_set_ucp_ready(self):
-        """Test set_ucp_ready method."""
-        # Test setting ucp_ready to False
-        message = comm.UCPReady(ready=False)
+    def test_set_previous_round_completed(self):
+        """Test set_previous_round_completed method."""
+        # Test setting previous_round_completed to False
+        message = comm.PreviousRoundCompleted(completed=False)
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
-        # Verify ucp_ready is set to False
+        # Verify previous_round_completed is set to False
         rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
-        self.assertFalse(rdzv_manager.get_ucp_ready())
+        self.assertFalse(rdzv_manager.get_previous_round_completed())
 
-        # Test setting ucp_ready to True
-        message = comm.UCPReady(ready=True)
+        # Test setting previous_round_completed to True
+        message = comm.PreviousRoundCompleted(completed=True)
         request.data = message.serialize()
         response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
-        # Verify ucp_ready is set to True
-        self.assertTrue(rdzv_manager.get_ucp_ready())
+        # Verify previous_round_completed is set to True
+        self.assertTrue(rdzv_manager.get_previous_round_completed())
 
 
 class MasterServicerForRayTest(unittest.TestCase):

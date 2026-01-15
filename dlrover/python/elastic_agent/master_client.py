@@ -515,13 +515,13 @@ class MasterClient(Singleton, ABC):
         )
         self._report(message)
 
-    def get_ucp_ready(self):
-        request = comm.UCPReadyRequest()
-        response: comm.UCPReady = self._get(request)
-        return response.ready
+    def get_previous_round_completed(self):
+        request = comm.PreviousRoundCompletedRequest()
+        response: comm.PreviousRoundCompleted = self._get(request)
+        return response.completed
 
-    def set_ucp_ready(self, ready):
-        message = comm.UCPReady(ready=ready)
+    def set_previous_round_completed(self, completed):
+        message = comm.PreviousRoundCompleted(completed=completed)
         self._report(message)
 
     @classmethod

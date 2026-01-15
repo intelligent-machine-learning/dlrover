@@ -224,14 +224,14 @@ class GlobalStep(Message):
 
 
 @dataclass
-class UCPReady(Message):
-    """Indicate whether Universal checkpoint is ready on the node."""
+class PreviousRoundCompleted(Message):
+    """Indicate whether the previous rendezvous round is completed."""
 
-    ready: bool = True
+    completed: bool = True
 
 
 @dataclass
-class UCPReadyRequest(Message):
+class PreviousRoundCompletedRequest(Message):
     pass
 
 

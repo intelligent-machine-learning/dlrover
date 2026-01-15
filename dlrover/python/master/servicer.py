@@ -198,17 +198,17 @@ class MasterServicer(ABC):
             )
         elif isinstance(req_message, comm.HeartBeat):
             message = self._report_heartbeat(node_type, node_id, req_message)
-        elif isinstance(req_message, comm.UCPReadyRequest):
-            message = self.get_ucp_ready(req_message)
+        elif isinstance(req_message, comm.PreviousRoundCompletedRequest):
+            message = self.get_previous_round_completed(req_message)
 
         if message:
             response.data = message.serialize()
         return response
 
-    def get_ucp_ready(self, req_message):
+    def get_previous_round_completed(self, req_message):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
-        ucp_ready = rdzv_manager.get_ucp_ready()
-        return comm.UCPReady(ready=ucp_ready)
+        completed = rdzv_manager.get_previous_round_completed()
+        return comm.PreviousRoundCompleted(completed=completed)
 
     def _get_task(self, node_type, node_id, request: comm.TaskRequest):
         if not self._start_training_time:
@@ -473,15 +473,17 @@ class MasterServicer(ABC):
             success = self._report_node_diagnosis_data(message)
         elif isinstance(message, comm.Event):
             success = self._report_event(message)
-        elif isinstance(message, comm.UCPReady):
-            success = self.set_ucp_ready(message)
+        elif isinstance(message, comm.PreviousRoundCompleted):
+            success = self.set_previous_round_completed(message)
 
         response.success = success
         return response
 
-    def set_ucp_ready(self, ucp_ready: comm.UCPReady):
+    def set_previous_round_completed(
+        self, message: comm.PreviousRoundCompleted
+    ):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
-        rdzv_manager.set_ucp_ready(ucp_ready.ready)
+        rdzv_manager.set_previous_round_completed(message.completed)
         return True
 
     def _ready_for_ps_relaunch(self):

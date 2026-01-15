@@ -1,12 +1,14 @@
-# Elastic Training Design
+# Elastic LLM Training Design (Training with MS-Swift)
 
-## Overview
+## PyTorch LLM Scenario Overview
 
-This document introduces the elastic training design solution combining DLRover with DeepSpeed, focusing on solving issues such as checkpoint recovery, data re-partitioning, and optimizer state recovery in elastic scaling scenarios.
+This document introduces the elastic training design solution for large language model (LLM) training with PyTorch + DeepSpeed, focusing on checkpoint recovery, data re-partitioning, and optimizer state recovery in elastic scaling scenarios.
 
-## Design Philosophy
+Note: The "training elasticity" here is not the TensorFlow Parameter Server style of elasticity. We do not scale a central parameter server or push/pull model parameters dynamically; instead, we coordinate PyTorch worker group membership changes via rendezvous, then restore model and optimizer state from checkpoints.
 
-### Basic Concepts
+## PyTorch LLM Elasticity Philosophy
+
+### LLM Training Concepts
 
 - **job**: The entire training task
 - **node**: A physical instance or a container
@@ -14,7 +16,7 @@ This document introduces the elastic training design solution combining DLRover 
 - **workergroup**: A group of worker instances
 - **ElasticAgent**: A TorchElastic control plane component, an independent process used to manage the lifecycle of workers within the current node, respond to member join/exit events, monitor worker health status, and other lifecycle activities
 
-## DeepSpeed Universal Checkpoint
+## DeepSpeed Universal Checkpoint for PyTorch LLMs
 
 ### Parallelism Techniques
 
@@ -38,12 +40,12 @@ You trained a checkpoint on 8 GPUs (TP=8) and want to continue training with 4 G
            │
            ▼
    ┌──────────────────┐
-   │  UCP Atomic Files │  ← Each parameter stored independently (universal format)
-   └──────────┬────────┘
+   │  UCP Atomic Files│  ← Each parameter stored independently (universal format)
+   └──────────┬───────┘
               │
               ▼
 ┌────────────────────────┐
-│  Target Checkpoint      │ (New configuration: different GPU count or parallelism mode)
+│  Target Checkpoint     │ (New configuration: different GPU count or parallelism mode)
 └────────────────────────┘
 ```
 
@@ -53,7 +55,7 @@ UCP introduces an intermediate layer concept:
 
 **Atomic checkpoint** = Independent, fine-grained storage file for each parameter + optimizer state. This means: instead of saving distributed fragments per GPU, directly save a complete copy of "each model parameter", while recording optimizer states (such as Adam's momentum, variance).
 
-## Core Issues
+## Core Issues in PyTorch LLM Elasticity
 
 DLRover + DeepSpeed elastic training needs to solve the following three core issues:
 
@@ -65,9 +67,9 @@ The relationship between DLRover and Swift is shown in the following diagram:
 
 ![DLRover-Swift Architecture Diagram](../figures/dlrover-swift.png)
 
-## Solution
+## Solution for PyTorch LLM Elastic Training
 
-### 1. Implement ElasticAgent suitable for DeepSpeed (DLRover side)
+### 1. PyTorch LLM ElasticAgent for DeepSpeed (DLRover side)
 
 **ElasticAgent**: A TorchElastic control plane component, an independent process used to manage the lifecycle of workers within the current node, respond to member join/exit events, monitor worker health status, and other lifecycle activities. Each training node runs an independent Agent process responsible for starting and managing local Worker processes. It assigns each process's WORLD_SIZE, RANK, and other information, and continuously monitors Worker health status. When a Worker fails or crashes, the Elastic Agent terminates all current Workers and restarts all processes according to the new node membership; when a new node joins, it also triggers the Agent to restart new Workers.
 
@@ -75,13 +77,13 @@ From the previous introduction, ElasticAgent is a control plane component that c
 
 #### 1.1 Worker-side Logic
 
-ElasticAgent.invoke_run() method detects member changes → sends universal checkpoint (hereinafter referred to as ucp) not-ready signal to master node (only group_rank=0 sends) → executes ucp process → sends ucp completed signal to master node.
+ElasticAgent.invoke_run() method detects member changes → sends previous-round-completed=False to master node (only group_rank=0 sends) → executes ucp（save universal chechpoint） process → sends previous-round-completed=True to master node.
 
 #### 1.2 Master-side Logic
 
-Use the ucp (universal checkpoint) completion flag to regulate worker grouping rounds. If receiving worker ucp ready signal, can start the next round of Rendezvous.
+Use the previous-round-completed flag to regulate worker grouping rounds. If the flag is True, the next round of rendezvous can start.
 
-### 2. Implement Elastic Trainer (Swift side)
+### 2. PyTorch LLM Elastic Trainer (Swift side)
 
 #### 2.1 Implement ElasticSampler
 
