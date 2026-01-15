@@ -222,6 +222,7 @@ class ElasticLaunchConfig(LaunchConfig):
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    membind_policy: str = "none"
     ucp_device_type: str = "cpu"
 
     def set_node_unit(self, node_unit):
@@ -593,6 +594,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
             )
+        else:
+            self._diagnose_agent = None
+
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -741,6 +745,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+        if self._diagnose_agent is not None:
+            logger.info(
+                f"[{spec.role}] Reset event collector after rendezvous"
+            )
+            self._diagnose_agent.reset_atorch_collector()
 
     """
     The following function(copied from torch 230) is used to
@@ -1158,6 +1168,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
         if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            os.environ["DLROVER_MEMBIND_POLICY"] = self._config.membind_policy
             logger.info(
                 f"WorkerGroup before numa affinity: {self._worker_group.spec}"
             )

@@ -868,6 +868,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
     def test_invoke_run_with_numa_affinity(self):
         self.config.numa_affinity = True
+        self.config.membind_policy = "none"
         self.config.training_port = 0
         self.spec.entrypoint = "sleep"
         self.spec.args = tuple(["3"])
