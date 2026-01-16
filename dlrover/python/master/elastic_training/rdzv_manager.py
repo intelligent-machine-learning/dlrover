@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import math
-import os
 import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
@@ -26,6 +25,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.event.reporter import get_event_reporter
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
@@ -838,10 +838,12 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 def create_training_rdzv_manager() -> RendezvousManager:
     """Factory to create the training rendezvous manager.
 
-    Use env var DLROVER_TRAINING_ELASTIC_MODE to select the implementation.
-    Supported values: "base", "ucp". Default is "ucp".
+    Use master job args via global context to select the implementation.
+    Supported values: "base", "ucp". Default is "base".
     """
-    rdzv_type = os.getenv("DLROVER_TRAINING_ELASTIC_MODE", "base").lower()
+    rdzv_type = (
+        Context.singleton_instance().training_elastic_mode or "base"
+    ).lower()
     if rdzv_type == "base":
         return ElasticTrainingRendezvousManager()
     if rdzv_type == "ucp":
