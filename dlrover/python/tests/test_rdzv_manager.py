@@ -113,7 +113,6 @@ class MasterKVStoreTest(unittest.TestCase):
         with self.assertRaises(IndexError):
             kv_store.multi_set(["foo", "bar"], ["foo1"])
 
-
     def test_kv_store_timeout(self):
         kv_store = MasterKVStore("dlrover/torch/test")
         key1 = "alpha"
@@ -188,6 +187,7 @@ class TrainingRdzvManagerFactoryTest(unittest.TestCase):
         blocked, reason = manager.is_rdzv_blocked()
         self.assertTrue(blocked)
         self.assertTrue(reason)
+
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_rdzv_timeout(self):

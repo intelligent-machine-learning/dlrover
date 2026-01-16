@@ -231,8 +231,6 @@ class RdzvBlocked(Message):
     reason: str = ""
 
 
-
-
 @dataclass
 class HeartBeat(Message):
     timestamp: int = 0

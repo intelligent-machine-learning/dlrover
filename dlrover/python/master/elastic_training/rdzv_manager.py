@@ -118,7 +118,6 @@ class RendezvousManager(metaclass=ABCMeta):
                 return False, None
             return True, self._rdzv_block_reason or None
 
-
     def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
         """Hook to block rendezvous completion.
 
@@ -549,9 +548,7 @@ class UcpRdzvManager(ElasticTrainingRendezvousManager):
     def __init__(self):
         super().__init__()
 
-    def set_rdzv_blocked(
-        self, blocked: bool, reason: Optional[str] = None
-    ):
+    def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
         if blocked and not reason:
             reason = (
                 f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
