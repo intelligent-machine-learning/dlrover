@@ -104,6 +104,12 @@ def _build_master_args_parser():
         type=pos_int,
         help="The timeout value of worker task process(For PS type job).",
     )
+    parser.add_argument(
+        "--dynamic_failover_extension",
+        default=None,
+        type=str,
+        help="Users can inject custom fault tolerance logic through this parameter. The argument format is 'module::class'. The class should implement 'dlrover.python.elastic_agent.torch.dynamic_failover::DynamicFailoverExtension'.",
+    )
     return parser
 
 

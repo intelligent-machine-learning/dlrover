@@ -541,6 +541,17 @@ class HeartbeatResponse(Message):
     action: DiagnosisAction = field(default_factory=DiagnosisAction)
 
 
+@dataclass
+class ProcessFailureInfo(object):
+    rank: int = -1
+    local_rank: int = -1
+    node_rank: int = -1
+    pid: int = -1
+    exit_code: int = -999
+    log_content: str = ""
+    extra_info: dict = field(default_factory=dict)
+
+
 class TaskType(object):
     NONE = "NONE"
     TRAINING = "TRAINING"

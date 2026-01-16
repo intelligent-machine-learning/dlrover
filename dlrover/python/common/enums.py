@@ -17,3 +17,10 @@ from enum import Enum
 class ResourceType(Enum):
     CPU = "CPU"
     GPU = "GPU"
+
+
+class FailoverStrategy(Enum):
+    NORMAL_FAILOVER = "NORMAL_FAILOVER"
+    NODE_FAILOVER = "NODE_FAILOVER"
+    GLOBAL_FAILOVER = "GLOBAL_FAILOVER"
+    ABORTION_FAILOVER = "ABORTION_FAILOVER"
