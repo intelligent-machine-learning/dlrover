@@ -1289,13 +1289,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._graceful_exit_workers(
                         worker_group=self._worker_group
                     )
-                    enable_ucp = os.getenv(
-                        "DLROVER_UCP_RESTART", "false"
+                    elastic_mode = os.getenv(
+                        "DLROVER_TRAINING_ELASTIC_MODE", "base"
                     ).lower()
 
                     if (
                         self._worker_group.group_rank == 0
-                        and enable_ucp == "true"
+                        and elastic_mode == "ucp"
                     ):
                         self.set_previous_round_completed(False)
                     logger.info(
@@ -1313,12 +1313,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
                     if (
                         self._worker_group.group_rank == 0
-                        and enable_ucp == "true"
+                        and elastic_mode == "ucp"
                     ):
                         self.ucp()
                     if (
                         self._worker_group.group_rank == 0
-                        and enable_ucp == "true"
+                        and elastic_mode == "ucp"
                     ):
                         self.set_previous_round_completed(True)
                     self._restart_workers(self._worker_group)

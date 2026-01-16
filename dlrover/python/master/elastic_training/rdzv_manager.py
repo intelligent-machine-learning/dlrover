@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import math
+import os
 import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
@@ -88,7 +89,6 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_sorter = DpTopologySorter()
         self._event_reporter = get_event_reporter()
         self.rendezvous_events: Dict[int, DurationSpan] = {}
-        self.previous_round_completed = True
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -99,13 +99,6 @@ class RendezvousManager(metaclass=ABCMeta):
     def get_waiting_timeout(self):
         return self._rdzv_params.waiting_timeout
 
-    def get_previous_round_completed(self):
-        return self.previous_round_completed
-
-    def set_previous_round_completed(self, completed):
-        with self._lock:
-            self.previous_round_completed = completed
-
     def get_rdzv_round(self):
         return self._rdzv_round
 
@@ -115,16 +108,6 @@ class RendezvousManager(metaclass=ABCMeta):
         Returns:
             (blocked, reason). Subclasses can override to add custom checks.
         """
-        if (
-            hasattr(self, "previous_round_completed")
-            and not self.previous_round_completed
-        ):
-            reason = (
-                f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
-                f"previous_round_completed={self.previous_round_completed}. "
-                f"Waiting for previous round completion."
-            )
-            return True, reason
         return False, None
 
     def clear_waiting_nodes(self):
@@ -543,6 +526,31 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         return
 
 
+class UcpRdzvManager(ElasticTrainingRendezvousManager):
+    """UcpRdzvManager blocks rendezvous completion until previous round ends."""
+
+    def __init__(self):
+        super().__init__()
+        self.previous_round_completed = True
+
+    def get_previous_round_completed(self):
+        return self.previous_round_completed
+
+    def set_previous_round_completed(self, completed):
+        with self._lock:
+            self.previous_round_completed = completed
+
+    def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
+        if not self.previous_round_completed:
+            reason = (
+                f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
+                f"previous_round_completed={self.previous_round_completed}. "
+                f"Waiting for previous round completion."
+            )
+            return True, reason
+        return False, None
+
+
 class NetworkCheckRendezvousManager(RendezvousManager):
     """NcclCheckRendezvousManager runs on the DLRover master. The task
     to check network contains 2 round to execute allgather on all nodes.
@@ -818,3 +826,21 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             if t > med_time * 2:
                 stragglers[node_id] = t
         return stragglers
+
+
+def create_training_rdzv_manager() -> RendezvousManager:
+    """Factory to create the training rendezvous manager.
+
+    Use env var DLROVER_TRAINING_ELASTIC_MODE to select the implementation.
+    Supported values: "base", "ucp". Default is "ucp".
+    """
+    rdzv_type = os.getenv("DLROVER_TRAINING_ELASTIC_MODE", "base").lower()
+    if rdzv_type == "base":
+        return ElasticTrainingRendezvousManager()
+    if rdzv_type == "ucp":
+        return UcpRdzvManager()
+    logger.warning(
+        f"Unknown training rendezvous manager type '{rdzv_type}', "
+        "falling back to ElasticTrainingRendezvousManager."
+    )
+    return ElasticTrainingRendezvousManager()

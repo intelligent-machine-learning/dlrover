@@ -34,6 +34,8 @@ from dlrover.python.master.elastic_training.net_topology import (
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
+    UcpRdzvManager,
+    create_training_rdzv_manager,
 )
 from dlrover.python.tests.test_utils import start_local_master
 
@@ -110,6 +112,36 @@ class MasterKVStoreTest(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             kv_store.multi_set(["foo", "bar"], ["foo1"])
+
+
+class TrainingRdzvManagerFactoryTest(unittest.TestCase):
+    def test_create_training_rdzv_manager_base(self):
+        with patch.dict(
+            "os.environ", {"DLROVER_TRAINING_ELASTIC_MODE": "base"}
+        ):
+            manager = create_training_rdzv_manager()
+            self.assertIsInstance(manager, ElasticTrainingRendezvousManager)
+
+    def test_create_training_rdzv_manager_ucp(self):
+        with patch.dict(
+            "os.environ", {"DLROVER_TRAINING_ELASTIC_MODE": "ucp"}
+        ):
+            manager = create_training_rdzv_manager()
+            self.assertIsInstance(manager, UcpRdzvManager)
+
+    def test_create_training_rdzv_manager_unknown(self):
+        with patch.dict(
+            "os.environ", {"DLROVER_TRAINING_ELASTIC_MODE": "unknown"}
+        ):
+            manager = create_training_rdzv_manager()
+            self.assertIsInstance(manager, ElasticTrainingRendezvousManager)
+
+    def test_ucp_rdzv_blocks_when_incomplete(self):
+        manager = UcpRdzvManager()
+        manager.set_previous_round_completed(False)
+        blocked, reason = manager._pre_rdzv_check_hook()
+        self.assertTrue(blocked)
+        self.assertTrue(reason)
 
     def test_kv_store_timeout(self):
         kv_store = MasterKVStore("dlrover/torch/test")
