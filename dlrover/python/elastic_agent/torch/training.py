@@ -1440,7 +1440,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info("No checkpoint has ever been started, skip ucp.")
                 return
             target_step = None
-            seen_new_saving = False
+            need_new_saving = False
 
             while True:
                 checkpoint_dir, success_step = (
@@ -1456,14 +1456,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     and start_saving_step > last_success_step
                 ):
                     target_step = start_saving_step
-                    seen_new_saving = True
+                    need_new_saving = True
 
                 # If we have seen the new saving and it completed successfully
-                if seen_new_saving and success_step == target_step:
+                if need_new_saving and success_step == target_step:
                     break
 
                 # No new checkpoint triggered within wait_time
-                if not seen_new_saving and elapsed_time > wait_time:
+                if not need_new_saving and elapsed_time > wait_time:
                     logger.info(
                         "No new checkpoint triggered, "
                         "using last successful step %s for ucp.",
