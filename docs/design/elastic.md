@@ -77,11 +77,11 @@ From the previous introduction, ElasticAgent is a control plane component that c
 
 #### 1.1 Worker-side Logic
 
-ElasticAgent.invoke_run() method detects member changes → sends previous-round-completed=False to master node (only group_rank=0 sends) → executes ucp（save universal chechpoint） process → sends previous-round-completed=True to master node.
+ElasticAgent.invoke_run() method detects member changes → sends rdzv-blocked=True to master node (only group_rank=0 sends) → executes ucp (save universal checkpoint) process → sends rdzv-blocked=False to master node.
 
 #### 1.2 Master-side Logic
 
-Use the previous-round-completed flag to regulate worker grouping rounds. If the flag is True, the next round of rendezvous can start.
+Use the rdzv-blocked flag to regulate worker grouping rounds. If blocked is False, the next round of rendezvous can start.
 
 ### 2. PyTorch LLM Elastic Trainer (Swift side)
 

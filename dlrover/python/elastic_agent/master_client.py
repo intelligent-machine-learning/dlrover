@@ -515,13 +515,8 @@ class MasterClient(Singleton, ABC):
         )
         self._report(message)
 
-    def get_previous_round_completed(self):
-        request = comm.PreviousRoundCompletedRequest()
-        response: comm.PreviousRoundCompleted = self._get(request)
-        return response.completed
-
-    def set_previous_round_completed(self, completed):
-        message = comm.PreviousRoundCompleted(completed=completed)
+    def set_rdzv_blocked(self, blocked, reason=""):
+        message = comm.RdzvBlocked(blocked=blocked, reason=reason)
         self._report(message)
 
     @classmethod

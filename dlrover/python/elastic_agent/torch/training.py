@@ -1297,7 +1297,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         self._worker_group.group_rank == 0
                         and elastic_mode == "ucp"
                     ):
-                        self.set_previous_round_completed(False)
+                        self.set_rdzv_blocked(True)
                     logger.info(
                         f"self._worker_group.group_rank : {self._worker_group.group_rank}"
                     )
@@ -1320,7 +1320,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         self._worker_group.group_rank == 0
                         and elastic_mode == "ucp"
                     ):
-                        self.set_previous_round_completed(True)
+                        self.set_rdzv_blocked(False)
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
@@ -1622,12 +1622,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
-    def get_previous_round_completed(self, time_out=1200):
-        """Get whether the previous rendezvous round is completed."""
-        return self._client.get_previous_round_completed()
-
-    def set_previous_round_completed(self, completed):
-        return self._client.set_previous_round_completed(completed=completed)
+    def set_rdzv_blocked(self, blocked, reason=""):
+        return self._client.set_rdzv_blocked(blocked=blocked, reason=reason)
 
     def _dlrover_exit_barrier(self):
         logger.info(

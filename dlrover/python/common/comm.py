@@ -224,15 +224,13 @@ class GlobalStep(Message):
 
 
 @dataclass
-class PreviousRoundCompleted(Message):
-    """Indicate whether the previous rendezvous round is completed."""
+class RdzvBlocked(Message):
+    """Indicate whether rendezvous completion is blocked."""
 
-    completed: bool = True
+    blocked: bool = False
+    reason: str = ""
 
 
-@dataclass
-class PreviousRoundCompletedRequest(Message):
-    pass
 
 
 @dataclass

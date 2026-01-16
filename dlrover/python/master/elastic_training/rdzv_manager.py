@@ -89,6 +89,8 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_sorter = DpTopologySorter()
         self._event_reporter = get_event_reporter()
         self.rendezvous_events: Dict[int, DurationSpan] = {}
+        self._rdzv_blocked = False
+        self._rdzv_block_reason = ""
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -102,13 +104,28 @@ class RendezvousManager(metaclass=ABCMeta):
     def get_rdzv_round(self):
         return self._rdzv_round
 
+    def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
+        with self._lock:
+            self._rdzv_blocked = blocked
+            if blocked:
+                self._rdzv_block_reason = reason or ""
+            else:
+                self._rdzv_block_reason = ""
+
+    def is_rdzv_blocked(self) -> Tuple[bool, Optional[str]]:
+        with self._lock:
+            if not self._rdzv_blocked:
+                return False, None
+            return True, self._rdzv_block_reason or None
+
+
     def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
         """Hook to block rendezvous completion.
 
         Returns:
             (blocked, reason). Subclasses can override to add custom checks.
         """
-        return False, None
+        return self.is_rdzv_blocked()
 
     def clear_waiting_nodes(self):
         with self._lock:
@@ -531,24 +548,17 @@ class UcpRdzvManager(ElasticTrainingRendezvousManager):
 
     def __init__(self):
         super().__init__()
-        self.previous_round_completed = True
 
-    def get_previous_round_completed(self):
-        return self.previous_round_completed
-
-    def set_previous_round_completed(self, completed):
-        with self._lock:
-            self.previous_round_completed = completed
-
-    def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
-        if not self.previous_round_completed:
+    def set_rdzv_blocked(
+        self, blocked: bool, reason: Optional[str] = None
+    ):
+        if blocked and not reason:
             reason = (
                 f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
-                f"previous_round_completed={self.previous_round_completed}. "
+                f"blocked={blocked}. "
                 f"Waiting for previous round completion."
             )
-            return True, reason
-        return False, None
+        super().set_rdzv_blocked(blocked, reason)
 
 
 class NetworkCheckRendezvousManager(RendezvousManager):

@@ -198,17 +198,10 @@ class MasterServicer(ABC):
             )
         elif isinstance(req_message, comm.HeartBeat):
             message = self._report_heartbeat(node_type, node_id, req_message)
-        elif isinstance(req_message, comm.PreviousRoundCompletedRequest):
-            message = self.get_previous_round_completed(req_message)
 
         if message:
             response.data = message.serialize()
         return response
-
-    def get_previous_round_completed(self, req_message):
-        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
-        completed = rdzv_manager.get_previous_round_completed()
-        return comm.PreviousRoundCompleted(completed=completed)
 
     def _get_task(self, node_type, node_id, request: comm.TaskRequest):
         if not self._start_training_time:
@@ -473,17 +466,15 @@ class MasterServicer(ABC):
             success = self._report_node_diagnosis_data(message)
         elif isinstance(message, comm.Event):
             success = self._report_event(message)
-        elif isinstance(message, comm.PreviousRoundCompleted):
-            success = self.set_previous_round_completed(message)
+        elif isinstance(message, comm.RdzvBlocked):
+            success = self.set_rdzv_blocked(message)
 
         response.success = success
         return response
 
-    def set_previous_round_completed(
-        self, message: comm.PreviousRoundCompleted
-    ):
+    def set_rdzv_blocked(self, message: comm.RdzvBlocked):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
-        rdzv_manager.set_previous_round_completed(message.completed)
+        rdzv_manager.set_rdzv_blocked(message.blocked, message.reason)
         return True
 
     def _ready_for_ps_relaunch(self):

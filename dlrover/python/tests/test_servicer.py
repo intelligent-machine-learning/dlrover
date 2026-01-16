@@ -46,6 +46,7 @@ from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
+    UcpRdzvManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
@@ -221,7 +222,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             "1", "default", "local", "dlrover"
         )
         self.elastic_ps_service = ElasticPsService()
-        training_manager = ElasticTrainingRendezvousManager()
+        training_manager = UcpRdzvManager()
         rdzv_managers = {
             RendezvousName.TRAINING: training_manager,
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
@@ -756,44 +757,31 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertNotEqual(worker0.heartbeat_time, ts3)
 
-    def test_get_previous_round_completed(self):
-        """Test get_previous_round_completed method."""
-        # Test with PreviousRoundCompletedRequest
-        message = comm.PreviousRoundCompletedRequest()
-        request = elastic_training_pb2.Message()
-        request.data = message.serialize()
-        response = self.servicer.get(request, self.grpc_server_context)
-        res_msg = comm.deserialize_message(response.data)
-        self.assertIsInstance(res_msg, comm.PreviousRoundCompleted)
-        # Default value should be True
-        self.assertTrue(res_msg.completed)
-
-        # Verify the rdzv_manager has previous_round_completed attribute
-        rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
-        self.assertTrue(hasattr(rdzv_manager, "previous_round_completed"))
-        self.assertTrue(rdzv_manager.get_previous_round_completed())
-
-    def test_set_previous_round_completed(self):
-        """Test set_previous_round_completed method."""
-        # Test setting previous_round_completed to False
-        message = comm.PreviousRoundCompleted(completed=False)
+    def test_set_rdzv_blocked(self):
+        """Test set_rdzv_blocked method."""
+        # Test setting rdzv blocked
+        message = comm.RdzvBlocked(blocked=True)
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
-        # Verify previous_round_completed is set to False
+        # Verify rendezvous is blocked
         rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
-        self.assertFalse(rdzv_manager.get_previous_round_completed())
+        blocked, reason = rdzv_manager.is_rdzv_blocked()
+        self.assertTrue(blocked)
+        self.assertTrue(reason)
 
-        # Test setting previous_round_completed to True
-        message = comm.PreviousRoundCompleted(completed=True)
+        # Test unblocking rendezvous
+        message = comm.RdzvBlocked(blocked=False)
         request.data = message.serialize()
         response = self.servicer.report(request, self.grpc_server_context)
         self.assertTrue(response.success)
 
-        # Verify previous_round_completed is set to True
-        self.assertTrue(rdzv_manager.get_previous_round_completed())
+        # Verify rendezvous is unblocked
+        blocked, reason = rdzv_manager.is_rdzv_blocked()
+        self.assertFalse(blocked)
+        self.assertIsNone(reason)
 
 
 class MasterServicerForRayTest(unittest.TestCase):
