@@ -33,9 +33,9 @@ from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
     RendezvousManager,
+    create_training_rdzv_manager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster, get_service_type
@@ -146,7 +146,7 @@ class DistributedJobMaster(JobMaster):
         )
         elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(),
+            elastic_training: create_training_rdzv_manager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.diagnosis_manager = DiagnosisMaster(args)

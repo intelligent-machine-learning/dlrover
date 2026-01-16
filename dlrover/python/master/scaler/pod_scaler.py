@@ -550,6 +550,12 @@ class PodScaler(Scaler):
                 value=self._master_service_type,
             )
         )
+        env.append(
+            V1EnvVar(
+                name=NodeEnv.DLROVER_TRAINING_ELASTIC_MODE,
+                value=_dlrover_context.training_elastic_mode,
+            )
+        )
 
         env.append(
             V1EnvVar(
