@@ -542,10 +542,6 @@ class PrimeManager:
                 await self._task
             except asyncio.CancelledError:
                 logger.info("Monitor task cancelled, proceeding with restart.")
-            except RuntimeError:
-                logger.warning(
-                    f"Unexpected runtime error when await task: {type(self._task)}"
-                )
 
             logger.info("Restarting all actors...")
             await self.restart_actors(self.graph.vertices)
