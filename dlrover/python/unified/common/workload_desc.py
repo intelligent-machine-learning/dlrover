@@ -111,6 +111,12 @@ class ResourceDesc(BaseModel):
         )
 
 
+class NodeGroupFailoverDesc(BaseModel):
+    enabled: bool = False
+    group_label_key: str = ""
+    timeout: int = Field(default=300, ge=60)
+
+
 class BaseWorkloadDesc(BaseModel, ABC):
     """
     Base description of a workload.
@@ -171,6 +177,14 @@ class BaseWorkloadDesc(BaseModel, ABC):
         description=(
             "If True, job will wait for this workload to complete. "
             "If False, job will not wait, suitable for RPC driven workloads."
+        ),
+    )
+    node_group_failover: NodeGroupFailoverDesc = Field(
+        default_factory=NodeGroupFailoverDesc,
+        description=(
+            "Whether node-group failover is enabled. "
+            "DLRover will cascade failover for nodes who has the same "
+            "label when the origin failover node pending timeout if enabled."
         ),
     )
 
