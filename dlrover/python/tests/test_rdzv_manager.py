@@ -15,6 +15,7 @@ import datetime
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common.global_context import Context
