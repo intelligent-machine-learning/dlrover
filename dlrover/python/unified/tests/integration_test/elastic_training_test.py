@@ -241,6 +241,11 @@ def test_failover_training(tmp_ray, tmp_path: Path):
     workload.comm_pre_check = False  # Make test faster
     workload.envs["TMP_PATH"] = tmp_path.as_posix()
     workload.entry_point = f"{MODULE_NAME}._mock_node_crash_when_training"
+
+    job.failover_trigger_strategy = 2  # Enable failover on failure
+    job.failover_exec_strategy = 1  # Enable job-level failover
+    job.job_max_restart = 3  # Allow max 3 restarts
+
     master = PrimeMaster.create(job)
     assert master.get_status().stage == "INIT"
     master.start()
@@ -260,6 +265,7 @@ def test_failover_entire_job(tmp_ray):
     workload = job.dl_config.workloads["training"]
     assert workload.backend == "elastic"
     workload.comm_pre_check = False  # Make test faster
+
     master = PrimeMaster.create(job)
     assert master.get_status().stage == "INIT"
     master.start()
