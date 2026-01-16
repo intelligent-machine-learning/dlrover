@@ -421,6 +421,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     def wait_latest_checkpoint(self, timeout=1800, max_steps=None):
         """
         Wait for the saver finish persisting the checkpoint of latest step.
+        timeout: The timeout to wait.
+        max_steps: The max steps to wait ,in case the last step is not persisted successfully.
         """
         start = time.time()
         while True:
@@ -483,6 +485,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
+            blocking (bool): whether to block the main process to wait for
+                the saving process to finish.
         """
         pass
 

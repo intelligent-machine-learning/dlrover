@@ -1342,10 +1342,6 @@ class DdpCheckpointSaver(CommonDirCheckpointSaver):
     """Persist the checkpoint from CPU memory buffer into the storage."""
 
     def persist_to_storage(self, local_shard_id: int, ckpt_config):
-        # In the DDP (Distributed Data Parallel) scenario, some files that needs to be saved by all ranks such as rng_state_1.pth.
-        # if self._node_rank != 0:
-        #     logger.info("Skip and only rank 0 saves checkpoint in a DDP job.")
-        #     return
         super().persist_to_storage(local_shard_id, ckpt_config)
 
 
