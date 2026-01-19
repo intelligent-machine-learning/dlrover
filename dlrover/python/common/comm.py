@@ -1,4 +1,4 @@
-# Copyright 2020 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -539,17 +539,6 @@ class DiagnosisAction(Message):
 @dataclass
 class HeartbeatResponse(Message):
     action: DiagnosisAction = field(default_factory=DiagnosisAction)
-
-
-@dataclass
-class ProcessFailureInfo(object):
-    rank: int = -1
-    local_rank: int = -1
-    node_rank: int = -1
-    pid: int = -1
-    exit_code: int = -999
-    log_content: str = ""
-    extra_info: dict = field(default_factory=dict)
 
 
 class TaskType(object):

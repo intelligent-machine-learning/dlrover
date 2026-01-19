@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,7 +21,6 @@ from unittest.mock import ANY, MagicMock, patch
 
 import dlrover
 from dlrover.python.common import env_utils
-from dlrover.python.common.comm import ProcessFailureInfo
 from dlrover.python.common.constants import (
     JobConstant,
     NodeEnv,
@@ -34,6 +33,7 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
     DynamicFailoverExtension,
+    AgentFailureInfo,
 )
 from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 from dlrover.python.tests.test_utils import start_local_master
@@ -491,6 +491,6 @@ class TestMainFunction(unittest.TestCase):
 
 class TestDynamicFailoverExtension(DynamicFailoverExtension):
     def get_user_failover_strategy(
-        self, failure_info: ProcessFailureInfo
+        self, failure_info: AgentFailureInfo
     ) -> FailoverStrategy:
         return FailoverStrategy.ABORTION_FAILOVER

@@ -108,7 +108,9 @@ def _build_master_args_parser():
         "--dynamic_failover_extension",
         default=None,
         type=str,
-        help="Users can inject custom fault tolerance logic through this parameter. The argument format is 'module::class'. The class should implement 'dlrover.python.elastic_agent.torch.dynamic_failover::DynamicFailoverExtension'.",
+        help="Users can inject custom fault tolerance logic through this parameter. "
+        "The argument format is 'module::class'. The class should implement "
+        "'dlrover.python.elastic_agent.torch.dynamic_failover::DynamicFailoverExtension'.",
     )
     return parser
 

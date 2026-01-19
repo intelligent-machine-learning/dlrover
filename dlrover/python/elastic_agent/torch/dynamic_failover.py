@@ -10,10 +10,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 from abc import ABC, abstractmethod
 
-from dlrover.python.common.comm import ProcessFailureInfo
+from dataclasses import dataclass, field
 from dlrover.python.common.enums import FailoverStrategy
+
+
+USER_FAILOVER_TRIGGER_JOB_ABORTION = "USER_FAILOVER_TRIGGER_JOB_ABORTION"
+USER_FAILOVER_TRIGGER_JOB_RESTART = "USER_FAILOVER_TRIGGER_JOB_RESTART"
+
+
+@dataclass
+class AgentFailureInfo(object):
+    timestamp: int = int(time.time())
+    node_rank: int = -1
+    log_content: str = ""
+    extra_info: dict = field(default_factory=dict)
 
 
 class DynamicFailoverExtension(ABC):
@@ -23,7 +36,7 @@ class DynamicFailoverExtension(ABC):
 
     @abstractmethod
     def get_user_failover_strategy(
-        self, failure_info: ProcessFailureInfo
+        self, failure_info: AgentFailureInfo
     ) -> FailoverStrategy:
         """
         The user-side implementation to specify a failover-strategy to DLRover
@@ -34,7 +47,7 @@ class DynamicFailoverExtension(ABC):
         codes or complex logic calls involving external services or model inference.
 
         Args:
-            failure_info (ProcessFailureInfo): The basic information of process
+            failure_info (AgentFailureInfo): The basic information of process
                 when failure happens.
 
         Returns:

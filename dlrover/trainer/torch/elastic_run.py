@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -546,25 +546,27 @@ def _setup_dynamic_failover_extension(config: ElasticLaunchConfig):
             f"User's extension config for dynamic-failover is not valid: {extension_config}."
         )
         return
+    module_path = match.group(1)
+    class_name = match.group(2)
 
     # import module and class
     try:
-        module_path = match.group(1)
-        class_name = match.group(2)
         module = importlib.import_module(module_path)
         extension_class = getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        raise RuntimeError(
+        logger.warning(
             f"Failed to import dynamic failover extension class {class_name} from {module_path}: {e}"
         )
+        return
 
     if not issubclass(extension_class, DynamicFailoverExtension):
-        raise TypeError(
+        logger.warning(
             f"{class_name} must inherit from DynamicFailoverExtension"
         )
-
-    config.dynamic_failover_extension = extension_class
-    logger.info(f"Dynamic failover extension is setup: {extension_class}")
+        return
+    else:
+        config.dynamic_failover_extension = extension_class()
+        logger.info(f"Dynamic failover extension is setup: {extension_class}")
 
 
 def run(args):

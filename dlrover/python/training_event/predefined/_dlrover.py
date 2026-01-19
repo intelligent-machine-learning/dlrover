@@ -32,6 +32,8 @@ class DLRoverCommonEventName(Enum):
     DLROVER_FAULT_TOLERANCE = "#fault_tolerance"
     DLROVER_PRE_CHECK = "#pre_check"
     DLROVER_NETWORK_CHECK = "#network_check"
+    DLROVER_JOB_ABORTION = "#job_abortion"
+    DLROVER_JOB_RESTART = "#job_restart"
 
 
 class DLRoverMasterEventName(Enum):
@@ -396,6 +398,38 @@ class DLRoverAgentEvent(DLRoverCommonEvent):
             DLRoverCommonEventName.DLROVER_PROCESS_RESTART_MEMBERSHIP.value,
             {
                 "node_rank": node_rank,
+                **kwargs,
+            },
+        )
+
+    def job_abortion(
+        self,
+        node_rank: int,
+        reason: str,
+        **kwargs,
+    ):
+        """Job abortion event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_JOB_ABORTION.value,
+            {
+                "caused_node_rank": node_rank,
+                "reason": reason,
+                **kwargs,
+            },
+        )
+
+    def job_restart(
+        self,
+        node_rank: int,
+        reason: str,
+        **kwargs,
+    ):
+        """Job restart event"""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_JOB_RESTART.value,
+            {
+                "caused_node_rank": node_rank,
+                "reason": reason,
                 **kwargs,
             },
         )

@@ -515,6 +515,13 @@ class MasterClient(Singleton, ABC):
         )
         self._report(message)
 
+    def report_action(self, action: DiagnosisAction):
+        message = comm.DiagnosisAction(
+            action.__class__.__name__,
+            action.to_json(),
+        )
+        self._report(message)
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:
