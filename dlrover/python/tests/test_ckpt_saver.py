@@ -44,6 +44,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointSharedObjPrefix,
     ClassMeta,
     DdpCheckpointSaver,
+    DeepSpeedCheckpointSaver,
     FsdpDcpSaver,
     SharedMemoryHandler,
     TempDirCheckpointSaver,
@@ -389,6 +390,66 @@ class CheckpointSaverTest(unittest.TestCase):
                 self.assertTrue(saver._latest_step == step)
                 saver.close()
 
+    def test_get_latest_start_saving_step(self):
+        """Test get_latest_start_saving_step method."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+
+            # Test when no shm_handlers have config
+            step = saver.get_latest_start_saving_step()
+            self.assertEqual(step, 0)  # Should return _latest_step which is 0
+
+            # Test when shm_handlers have config with step
+            for i in range(saver.local_shard_num):
+                config = CheckpointConfig(step=100 + i)
+                saver._shm_handlers[i].metadata.set(
+                    {DLROVER_CKPT_CONFIG_KEY: config}
+                )
+
+            step = saver.get_latest_start_saving_step()
+            self.assertEqual(step, 100)  # Should return first step
+
+            # Test with _latest_step set
+            saver._latest_step = 200
+            step = saver.get_latest_start_saving_step()
+            self.assertEqual(
+                step, 100
+            )  # Should still return first step from shm_handlers
+
+            saver.close()
+
+    def test_get_latest_success_save_dir(self):
+        """Test get_latest_success_save_dir method."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+
+            # Test when tracker file doesn't exist
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            self.assertIsNone(checkpoint_dir)
+            self.assertIsNone(step)
+
+            # Test when tracker file exists
+            tracker_file = os.path.join(
+                tmpdir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            os.makedirs(os.path.dirname(tracker_file), exist_ok=True)
+            with open(tracker_file, "w") as f:
+                f.write("150")
+
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            self.assertEqual(checkpoint_dir, tmpdir)
+            self.assertEqual(step, 150)
+
+            # Test with invalid content in tracker file
+            with open(tracker_file, "w") as f:
+                f.write("not_a_number")
+
+            # Should raise ValueError when converting to int
+            with self.assertRaises(ValueError):
+                saver.get_latest_success_save_dir()
+
+            saver.close()
+
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -418,3 +479,309 @@ class FsdpCheckpointSaverTest(unittest.TestCase):
             saver.persist_to_storage(0, ckpt_config)
             files = sorted(os.listdir(os.path.dirname(path)))
             self.assertListEqual(files, [".metadata", "__0_0.dist_cp"])
+
+
+class DeepSpeedCheckpointSaverTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+        self.storage = PosixDiskStorage()
+
+    def tearDown(self) -> None:
+        self._master.stop()
+
+    def test_ucp_success_cpu(self):
+        """Test ucp method with successful conversion for CPU."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            # Mock importlib.util.find_spec to return a mock deepspeed module
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                # Mock SubprocessHandler
+                with mock.patch(
+                    "torch.distributed.elastic.multiprocessing.api.SubprocessHandler"
+                ) as mock_handler_class:
+                    mock_handler = mock.MagicMock()
+                    mock_handler.proc.wait.return_value = 0
+                    mock_handler_class.return_value = mock_handler
+
+                    # Mock packaging.version.parse to return a version object
+                    with mock.patch(
+                        "packaging.version.parse"
+                    ) as mock_version_parse:
+                        # Create a mock version object that can be compared
+                        mock_version = mock.MagicMock()
+                        mock_version.base_version = "2.2.0"
+                        # Make the mock version object comparable
+                        mock_version.__le__ = mock.MagicMock(return_value=True)
+                        mock_version_parse.return_value = mock_version
+
+                        # Mock sys.executable to return a predictable value
+                        # We need to mock sys.executable in the module where it's used
+                        with mock.patch("sys.executable", "/usr/bin/python"):
+                            # Test ucp with CPU device type
+                            input_dir = os.path.join(tmpdir, "input")
+                            output_dir = os.path.join(tmpdir, "output")
+                            result = saver.ucp(input_dir, output_dir, "cpu")
+
+                            # Verify result
+                            self.assertTrue(result)
+
+                            # Verify SubprocessHandler was called with correct arguments
+                            mock_handler_class.assert_called_once()
+                            args = mock_handler_class.call_args[0]
+                            self.assertEqual(args[0], "/usr/bin/python")
+                            self.assertEqual(
+                                args[1],
+                                (
+                                    "/fake/path/deepspeed/checkpoint/ds_to_universal.py",
+                                    "--input_folder",
+                                    input_dir,
+                                    "--output_folder",
+                                    output_dir,
+                                    "--inject_missing_state",
+                                ),
+                            )
+
+    def test_ucp_success_gpu(self):
+        """Test ucp method with successful conversion for GPU."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                with mock.patch(
+                    "torch.distributed.elastic.multiprocessing.api.SubprocessHandler"
+                ) as mock_handler_class:
+                    mock_handler = mock.MagicMock()
+                    mock_handler.proc.wait.return_value = 0
+                    mock_handler_class.return_value = mock_handler
+
+                    # Mock packaging.version.parse to return a version object
+                    with mock.patch(
+                        "packaging.version.parse"
+                    ) as mock_version_parse:
+                        # Create a mock version object that can be compared
+                        mock_version = mock.MagicMock()
+                        mock_version.base_version = "2.2.0"
+                        # Make the mock version object comparable
+                        mock_version.__le__ = mock.MagicMock(return_value=True)
+                        mock_version_parse.return_value = mock_version
+
+                        # Mock sys.executable to return a predictable value
+                        with mock.patch("sys.executable", "/usr/bin/python"):
+                            input_dir = os.path.join(tmpdir, "input")
+                            output_dir = os.path.join(tmpdir, "output")
+                            result = saver.ucp(input_dir, output_dir, "gpu")
+
+                            self.assertTrue(result)
+
+                            mock_handler_class.assert_called_once()
+                            args = mock_handler_class.call_args[0]
+                            self.assertEqual(args[0], "/usr/bin/python")
+                            self.assertEqual(
+                                args[1],
+                                (
+                                    "/fake/path/deepspeed/checkpoint/ds_to_universal.py",
+                                    "--input_folder",
+                                    input_dir,
+                                    "--output_folder",
+                                    output_dir,
+                                    "--inject_missing_state",
+                                    "--device",
+                                    "gpu",
+                                ),
+                            )
+
+    def test_ucp_failure(self):
+        """Test ucp method when conversion fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                with mock.patch(
+                    "torch.distributed.elastic.multiprocessing.api.SubprocessHandler"
+                ) as mock_handler_class:
+                    mock_handler = mock.MagicMock()
+                    mock_handler.proc.wait.return_value = (
+                        1  # Non-zero exit code
+                    )
+                    mock_handler_class.return_value = mock_handler
+
+                    # Mock packaging.version.parse to return a version object
+                    with mock.patch(
+                        "packaging.version.parse"
+                    ) as mock_version_parse:
+                        # Create a mock version object that can be compared
+                        mock_version = mock.MagicMock()
+                        mock_version.base_version = "2.2.0"
+                        # Make the mock version object comparable
+                        mock_version.__le__ = mock.MagicMock(return_value=True)
+                        mock_version_parse.return_value = mock_version
+
+                        # Mock sys.executable to return a predictable value
+                        with mock.patch("sys.executable", "/usr/bin/python"):
+                            input_dir = os.path.join(tmpdir, "input")
+                            output_dir = os.path.join(tmpdir, "output")
+                            result = saver.ucp(input_dir, output_dir, "cpu")
+
+                            # Should return False when subprocess fails
+                            self.assertFalse(result)
+
+    def test_ucp_torch_version_230_or_above(self):
+        """Test ucp method with torch version 2.3.0 or above."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                with mock.patch(
+                    "torch.distributed.elastic.multiprocessing.api.SubprocessHandler"
+                ) as mock_handler_class:
+                    mock_handler = mock.MagicMock()
+                    mock_handler.proc.wait.return_value = 0
+                    mock_handler_class.return_value = mock_handler
+
+                    # Mock packaging.version.parse to return a version object
+                    with mock.patch(
+                        "packaging.version.parse"
+                    ) as mock_version_parse:
+                        # Create a mock version object that can be compared
+                        mock_version = mock.MagicMock()
+                        mock_version.base_version = "2.3.0"
+                        # Make the mock version object comparable
+                        mock_version.__le__ = mock.MagicMock(
+                            return_value=False
+                        )
+                        mock_version_parse.return_value = mock_version
+
+                        # Mock sys.executable to return a predictable value
+                        with mock.patch("sys.executable", "/usr/bin/python"):
+                            input_dir = os.path.join(tmpdir, "input")
+                            output_dir = os.path.join(tmpdir, "output")
+                            result = saver.ucp(input_dir, output_dir, "cpu")
+
+                            self.assertTrue(result)
+
+                            # Should use the newer SubprocessHandler constructor
+                            mock_handler_class.assert_called_once()
+                            call_kwargs = mock_handler_class.call_args[1]
+                            # In newer torch versions, SubprocessHandler has additional parameters
+                            self.assertEqual(call_kwargs.get("stdout", ""), "")
+                            self.assertEqual(call_kwargs.get("stderr", ""), "")
+                            self.assertEqual(call_kwargs.get("stdin", 0), 0)
+
+    def test_ucp_torch_version_240_or_above(self):
+        """Test ucp method with torch version 2.4.0 or above."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                with mock.patch(
+                    "torch.distributed.elastic.multiprocessing.api.SubprocessHandler"
+                ) as mock_handler_class:
+                    mock_handler = mock.MagicMock()
+                    mock_handler.proc.wait.return_value = 0
+                    mock_handler_class.return_value = mock_handler
+
+                    # Mock packaging.version.parse to return a version object
+                    with mock.patch(
+                        "packaging.version.parse"
+                    ) as mock_version_parse:
+                        # Create a mock version object that can be compared
+                        mock_version = mock.MagicMock()
+                        mock_version.base_version = "2.4.0"
+                        # Make the mock version object comparable
+                        mock_version.__le__ = mock.MagicMock(
+                            return_value=False
+                        )
+                        mock_version_parse.return_value = mock_version
+
+                        # Mock sys.executable to return a predictable value
+                        with mock.patch("sys.executable", "/usr/bin/python"):
+                            input_dir = os.path.join(tmpdir, "input")
+                            output_dir = os.path.join(tmpdir, "output")
+                            result = saver.ucp(input_dir, output_dir, "cpu")
+
+                            self.assertTrue(result)
+
+                            # Should use the newer SubprocessHandler constructor
+                            mock_handler_class.assert_called_once()
+                            call_kwargs = mock_handler_class.call_args[1]
+                            self.assertEqual(call_kwargs.get("stdout", ""), "")
+                            self.assertEqual(call_kwargs.get("stderr", ""), "")
+                            self.assertEqual(call_kwargs.get("stdin", 0), 0)
+
+    def test_get_deepspeed_install_dir(self):
+        """Test get_deepspeed_install_dir method."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            # Test when deepspeed is found
+            with mock.patch("importlib.util.find_spec") as mock_find_spec:
+                mock_spec = mock.MagicMock()
+                mock_spec.origin = "/fake/path/deepspeed/__init__.py"
+                mock_find_spec.return_value = mock_spec
+
+                deepspeed_dir = saver.get_deepspeed_install_dir()
+                self.assertEqual(deepspeed_dir, "/fake/path/deepspeed")
+
+            # Test when deepspeed is not found
+            with mock.patch("importlib.util.find_spec", return_value=None):
+                deepspeed_dir = saver.get_deepspeed_install_dir()
+                self.assertEqual(deepspeed_dir, "")
+
+    def test_get_latest_success_save_dir(self):
+        """Test get_latest_success_save_dir method."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DeepSpeedCheckpointSaver(
+                tmpdir, self.storage.get_class_meta()
+            )
+
+            # Test when tracker file exists
+            tracker_file = os.path.join(
+                tmpdir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            os.makedirs(os.path.dirname(tracker_file), exist_ok=True)
+            with open(tracker_file, "w") as f:
+                f.write("100")
+
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            self.assertEqual(checkpoint_dir, tmpdir)
+            self.assertEqual(step, 100)
+
+            # Test when tracker file doesn't exist
+            os.remove(tracker_file)
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            self.assertIsNone(checkpoint_dir)
+            self.assertIsNone(step)
