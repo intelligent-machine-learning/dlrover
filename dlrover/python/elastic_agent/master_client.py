@@ -517,8 +517,8 @@ class MasterClient(Singleton, ABC):
 
     def report_action(self, action: DiagnosisAction):
         message = comm.DiagnosisAction(
-            action.__class__.__name__,
-            action.to_json(),
+            action_cls=action.__class__.__name__,
+            action_content=action.to_json(),
         )
         self._report(message)
 

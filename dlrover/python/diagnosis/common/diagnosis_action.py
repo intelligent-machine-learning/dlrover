@@ -290,6 +290,7 @@ class JobAbortionAction(JobAction):
         self,
         reason: str = "",
         msg: str = "",
+        **kwargs,
     ):
         super().__init__(
             action_type=DiagnosisActionType.JOB_ABORT,
@@ -303,6 +304,7 @@ class JobRestartAction(JobAction):
         self,
         reason: str = "",
         msg: str = "",
+        **kwargs,
     ):
         super().__init__(
             action_type=DiagnosisActionType.JOB_RESTART,
