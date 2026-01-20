@@ -1,4 +1,4 @@
-﻿# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -332,6 +332,7 @@ class SimpleWorkloadBuilder(RoleBuilder[T]):
             ),
         }
 
+
 def parse_args_ray(args):
     parser = get_args_parser()
 
@@ -341,12 +342,13 @@ def parse_args_ray(args):
         "--node-check",
         "--network-check",
         "--network_check",
-        action='store_true',
+        action="store_true",
         help="Whether to check node before starting training process.",
     )
     parser.allow_abbrev = False
 
     return parser.parse_args(args)
+
 
 class DLJobBuilder(object):
     def __init__(self):
@@ -586,7 +588,7 @@ class DLJobBuilder(object):
             cmd contains the parameters:
                 --nnodes: number of nodes
                 --nproc_per_node: number of processes per node
-                --node_check: Whether to check node before starting training process. 
+                --node_check: Whether to check node before starting training process.
                 entrypoint: the training script path with args
         """
         parts = shlex.split(cmd.strip())
@@ -599,15 +601,13 @@ class DLJobBuilder(object):
             )
 
         if launcher == "torchrun":
-
             parser = get_args_parser()
             args = parser.parse_args(args)
         else:
-
             args = parse_args_ray(args)
             if not args.node_check:
                 self = self.skip_node_check()
-        
+
         node_num = int(args.nnodes)
         device_per_node = int(args.nproc_per_node)
         nnodes = int(args.nnodes)
@@ -616,13 +616,13 @@ class DLJobBuilder(object):
         for arg in args.training_script_args:
             training_script += " " + arg
 
-        return (self        
-                .node_num(node_num)
-                .device_per_node(device_per_node)
-                .device_type()
-                .global_env({"eα": "ve", "DLROVER_LOG_LEVEL": "DEBUG"})
-                .train(training_script)
-                .nnodes(nnodes)
-                .nproc_per_node(nproc_per_node)
-                .end()
+        return (
+            self.node_num(node_num)
+            .device_per_node(device_per_node)
+            .device_type()
+            .global_env({"eα": "ve", "DLROVER_LOG_LEVEL": "DEBUG"})
+            .train(training_script)
+            .nnodes(nnodes)
+            .nproc_per_node(nproc_per_node)
+            .end()
         )
