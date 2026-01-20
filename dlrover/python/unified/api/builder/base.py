@@ -1,4 +1,4 @@
-﻿# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -334,11 +334,9 @@ class SimpleWorkloadBuilder(RoleBuilder[T]):
 
 
 def parse_run_cmd_argument(launcher, args):
-
-
     if launcher not in ["dlrover-run", "torchrun"]:
         raise ValueError(
-        f"Only 'dlrover-run' and 'torchrun' command is supported, got '{launcher}'"
+            f"Only 'dlrover-run' and 'torchrun' command is supported, got '{launcher}'"
         )
 
     if launcher == "torchrun":
@@ -609,7 +607,7 @@ class DLJobBuilder(object):
 
         args = parse_run_cmd_argument(launcher, args)
 
-        if launcher == 'dlrover-run' and not args.node_check:
+        if launcher == "dlrover-run" and not args.node_check:
             self = self.skip_node_check()
 
         node_num = int(args.nnodes)
