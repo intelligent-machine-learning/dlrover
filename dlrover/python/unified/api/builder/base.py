@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+﻿# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -333,21 +333,33 @@ class SimpleWorkloadBuilder(RoleBuilder[T]):
         }
 
 
-def parse_args_ray(args):
-    parser = get_args_parser()
+def parse_run_cmd_argument(launcher, args):
 
-    # deprecated arguments
-    parser.add_argument(
-        "--node_check",
-        "--node-check",
-        "--network-check",
-        "--network_check",
-        action="store_true",
-        help="Whether to check node before starting training process.",
-    )
-    parser.allow_abbrev = False
 
-    return parser.parse_args(args)
+    if launcher not in ["dlrover-run", "torchrun"]:
+        raise ValueError(
+        f"Only 'dlrover-run' and 'torchrun' command is supported, got '{launcher}'"
+        )
+
+    if launcher == "torchrun":
+        parser = get_args_parser()
+        args = parser.parse_args(args)
+    else:
+        parser = get_args_parser()
+
+        # deprecated arguments
+        parser.add_argument(
+            "--node_check",
+            "--node-check",
+            "--network-check",
+            "--network_check",
+            action="store_true",
+            help="Whether to check node before starting training process.",
+        )
+        parser.allow_abbrev = False
+        args = parser.parse_args(args)
+
+    return args
 
 
 class DLJobBuilder(object):
@@ -595,18 +607,10 @@ class DLJobBuilder(object):
         launcher = parts[0]  # dlrover-run or torchrun
         args = parts[1:]
 
-        if launcher not in ["dlrover-run", "torchrun"]:
-            raise ValueError(
-                f"Only 'dlrover-run' and 'torchrun' command is supported, got '{launcher}'"
-            )
+        args = parse_run_cmd_argument(launcher, args)
 
-        if launcher == "torchrun":
-            parser = get_args_parser()
-            args = parser.parse_args(args)
-        else:
-            args = parse_args_ray(args)
-            if not args.node_check:
-                self = self.skip_node_check()
+        if launcher == 'dlrover-run' and not args.node_check:
+            self = self.skip_node_check()
 
         node_num = int(args.nnodes)
         device_per_node = int(args.nproc_per_node)
