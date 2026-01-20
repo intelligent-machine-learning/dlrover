@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.constants import NetworkFailureReason, NodeEventType
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
@@ -34,6 +35,8 @@ from dlrover.python.master.elastic_training.net_topology import (
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
+    UcpRdzvManager,
+    create_training_rdzv_manager,
 )
 from dlrover.python.tests.test_utils import start_local_master
 
@@ -155,6 +158,33 @@ class MasterKVStoreTest(unittest.TestCase):
             self.assertIsInstance(e, LookupError)
         key = store_util._barrier_nonblocking(store, 2, key_prefix)
         self.assertEqual("<val_ignored>", store.get(key))
+
+
+class TrainingRdzvManagerFactoryTest(unittest.TestCase):
+    def test_create_training_rdzv_manager_base(self):
+        ctx = Context.singleton_instance()
+        ctx.training_elastic_mode = "base"
+        manager = create_training_rdzv_manager()
+        self.assertIsInstance(manager, ElasticTrainingRendezvousManager)
+
+    def test_create_training_rdzv_manager_ucp(self):
+        ctx = Context.singleton_instance()
+        ctx.training_elastic_mode = "ucp"
+        manager = create_training_rdzv_manager()
+        self.assertIsInstance(manager, UcpRdzvManager)
+
+    def test_create_training_rdzv_manager_unknown(self):
+        ctx = Context.singleton_instance()
+        ctx.training_elastic_mode = "unknown"
+        manager = create_training_rdzv_manager()
+        self.assertIsInstance(manager, ElasticTrainingRendezvousManager)
+
+    def test_ucp_rdzv_blocks_when_incomplete(self):
+        manager = UcpRdzvManager()
+        manager.set_rdzv_blocked(True)
+        blocked, reason = manager.is_rdzv_blocked()
+        self.assertTrue(blocked)
+        self.assertTrue(reason)
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
@@ -545,3 +575,27 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertTrue(not rdzv_manager._rdzv_nodes)
 
         rdzv_manager.check_fault_node()
+
+    def test_process_error(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager.update_rdzv_params(2, 2, 60, 1)
+        rdzv_manager._alive_nodes = [0, 1]
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
+
+        rdzv_manager.process_error(
+            node_id=0,
+            node_rank=0,
+            err_type="timeout",
+            err_message="Rendezvous timeout occurred",
+            elapsed_time=30.5,
+        )
+
+        rdzv_manager._rdzv_round = 999
+        rdzv_manager.process_error(
+            node_id=1,
+            node_rank=1,
+            err_type="network_error",
+            err_message="Network connection failed",
+            elapsed_time=15.0,
+        )

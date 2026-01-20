@@ -40,6 +40,7 @@ from dlrover.trainer.torch.elastic_run import (
     parse_args,
     run,
     wait_pre_check,
+    ElasticLaunch,
 )
 
 MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
@@ -169,12 +170,21 @@ class ElasticRunTest(unittest.TestCase):
             "4",
             "--training_port",
             "1000",
+            "--numa-affinity",
+            "--membind-policy",
+            "preferred",
             "test.py",
             "--batch_size",
             "16",
         ]
         args = parse_args(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
+        elastic = ElasticLaunch(
+            config=config,
+            entrypoint=cmd,
+            use_dlrover_launch=True,
+        )
+
         self.assertEqual(config.precheck, 1)
         self.assertTrue(config.network_check)
         self.assertFalse(config.comm_perf_test)
@@ -184,6 +194,10 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.training_port, 1000)
         self.assertTrue("bin/python" in cmd)
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
+        self.assertTrue(config.numa_affinity)
+        self.assertEqual(config.membind_policy, "preferred")
+        self.assertTrue(elastic._config.numa_affinity)
+        self.assertFalse("dlrover_run_affinity.sh" in elastic._entrypoint)
 
     @patch(f"{MC_PATH}.get_elastic_run_config")
     def test_elastic_config_from_master_1(self, mock_func):

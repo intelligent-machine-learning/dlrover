@@ -46,11 +46,19 @@ class DiagnosisConstant(object):
     MIN_DIAGNOSIS_INTERVAL = 15
 
 
+class DiagnosticianType(object):
+    NODE_FAILURE = "node_failure"
+    RESOURCE_COLLECT_FAILURE = "resource_collection_failure"
+    NODE_INCONSISTENCY = "node_inconsistency"
+    TRAINING_HANG = "training_hang"
+
+
 class DiagnosisErrorConstant(object):
     GPU_LOST = "GPU is lost"
     PRE_CHECK_FAILED = "Pre-check failed"
-    NODE_FAILED = "node_failed"
-    RESOURCE_COLLECT_ERROR = "resource_collect_error"
+    NODE_FAILED = "Node failed"
+    REPEATED_NODE = "Repeated node"
+    TRAINING_IS_HANG = "Training is hang"
 
 
 class DiagnosisDataType(object):

@@ -1,4 +1,4 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,77 +11,70 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
+from dlrover.python.diagnosis.common.diagnostician import (
+    DiagnosisObservation,
+    Diagnostician,
+)
 import re
 import sys
 from typing import Dict, List, Tuple
-
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
-from dlrover.python.diagnosis.common.inference_chain import (
-    Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-    InferenceOperator,
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    DiagnosisAction,
+    EventAction,
+    NoAction,
 )
+from dlrover.python.common.constants import EventReportConstants
 
 HANG_METRIC_PREFIX = "XPU_TIMER_COMMON_HANG"
 
 
-class CheckTrainingHangOperator(InferenceOperator):
+class TrainingHangDiagnostician(Diagnostician):
     """
-    CheckTrainingHangOperator is the operator to check
-    if training is hanged
+    TrainingHangDiagnostician is to observe and resolve the training hang problem
     """
 
-    def __init__(self, data_manager):
-        super().__init__(data_manager)
+    def __init__(self, data_mgr):
+        super().__init__()
+        self._data_mgr = data_mgr
 
-    def is_compatible(self, inference: Inference) -> bool:
-        if (
-            inference.name == InferenceName.TRAINING
-            and inference.attribution == InferenceAttribute.ISORNOT
-            and inference.description == InferenceDescription.HANG
-        ):
-            return True
-        else:
-            return False
-
-    def infer(self, inferences: List[Inference]) -> List[Inference]:
-        if not self.data_manager:
-            logger.info(
-                "Skip training-hang inference for there is no diagnosis data."
-            )
-            return [
-                Inference(
-                    name=InferenceName.TRAINING,
-                    attribution=InferenceAttribute.NOT,
-                    description=InferenceDescription.HANG,
-                )
-            ]
-
-        diagnosis_data = self._data_manager.get_data(
+    def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
+        diagnosis_data = self._data_mgr.get_data(
             DiagnosisDataType.XPU_TIMER_METRIC
         )
 
-        if diagnosis_data and self.is_hang(diagnosis_data):
-            logger.warning("Training might hanged.")
-            return [
-                Inference(
-                    name=InferenceName.TRAINING,
-                    attribution=InferenceAttribute.IS,
-                    description=InferenceDescription.HANG,
-                )
-            ]
-
-        return [
-            Inference(
-                name=InferenceName.TRAINING,
-                attribution=InferenceAttribute.NOT,
-                description=InferenceDescription.HANG,
+        if (
+            diagnosis_data
+            and len(diagnosis_data) > 0
+            and self.is_hang(diagnosis_data)
+        ):
+            return DiagnosisObservation(
+                observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
             )
-        ]
+        return None
+
+    def resolve(
+        self, problem: DiagnosisObservation, **kwargs
+    ) -> DiagnosisAction:
+        if (
+            problem is not None
+            and problem.observation == DiagnosisErrorConstant.TRAINING_IS_HANG
+        ):
+            return EventAction(
+                event_type=EventReportConstants.TYPE_WARN,
+                event_instance=EventReportConstants.JOB_INSTANCE,
+                event_action=problem.observation,
+                event_msg="",
+                event_labels={},
+                expired_time_period=120,
+            )
+        else:
+            return NoAction()
 
     def is_hang(self, diagnosis_data: List[DiagnosisData]):
         logger.debug(

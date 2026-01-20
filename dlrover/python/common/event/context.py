@@ -236,19 +236,9 @@ class JobEventContext(Singleton):
         self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD
 
     def check_job_step_hang(self):
-        # recalc hang threshold
-        avg_step_time = self.train_steps.last_steps_avg_time(
-            last_steps=DefaultValues.MAX_AVG_STEPS
-        )
-        if avg_step_time is None:
-            self.hang_threshold = _dlrover_context.hang_downtime * 60
-        else:
-            self.hang_threshold = 10 * avg_step_time
-
-            if self.hang_threshold > DefaultValues.HANG_DOWNTIME * 60:
-                self.hang_threshold = DefaultValues.HANG_DOWNTIME * 60
-            elif self.hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
-                self.hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
+        self.hang_threshold = _dlrover_context.hang_downtime * 60
+        if self.hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
+            self.hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
 
         now = int(datetime.now().timestamp())
 

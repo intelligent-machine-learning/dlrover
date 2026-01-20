@@ -193,6 +193,7 @@ class NodeExitReason(object):
     NO_HEARTBEAT = "NoHeartBeat"
     DIAG_FAIL = "DiagnosticFailure"
     RELAUNCHED = "Relaunched"
+    CHECK_FAIL = "CheckFailure"
 
 
 class NodeExitDescription(object):
@@ -314,6 +315,7 @@ class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     DLROVER_MASTER_SERVICE_TYPE = "DLROVER_MASTER_SERVICE_TYPE"
+    DLROVER_TRAINING_ELASTIC_MODE = "DLROVER_TRAINING_ELASTIC_MODE"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     GRPC_POLL_STRATEGY = "GRPC_POLL_STRATEGY"
     POD_NAME = "POD_NAME"
@@ -384,6 +386,11 @@ class RendezvousName(object):
     NETWORK_CHECK = "network-check"
 
 
+class RendezvousErrorType(object):
+    PEND_TIMEOUT = "pend-timeout"
+    JOIN_TIMEOUT = "join-timeout"
+
+
 class NetworkFailureReason(object):
     NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
@@ -405,6 +412,10 @@ class ConfigPath(object):
     ENV_RUNTIME_METRICS = "RUNTIME_METRICS_PATH"
     RUNTIME_METRICS = "/tmp/dlrover/runtime_metrics.json"
     NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"
+
+
+class ScriptPath(object):
+    RUN_AFFINITY_SCRIPT = "dlrover_run_affinity.sh"
 
 
 class CheckpointConstant(object):

@@ -42,6 +42,7 @@ from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     SimpleWorkloadDesc,
     WorkloadDesc,
+    NodeGroupFailoverDesc,
 )
 from dlrover.python.unified.driver.main import submit
 from dlrover.python.unified.util.config_util import read_dict_from_envs
@@ -238,7 +239,23 @@ class RoleBuilder(ABC, Generic[T]):
         """
         Set the current role is not driver.
         """
+
         self._params.is_driver = False
+        return self
+
+    def enable_node_group_failover(self, group_label_key, timeout=300):
+        """
+        Set the current role is not driver.
+
+        Args:
+            group_label_key (str): The label key of the node group.
+            timeout (int): The group failover trigger threshold in seconds. Minimum value: 30.
+        """
+
+        if group_label_key and timeout and timeout >= 30:
+            self._params.node_group_failover = NodeGroupFailoverDesc(
+                enabled=True, group_label_key=group_label_key, timeout=timeout
+            )
         return self
 
     def sub_stage(self, sub_stage=None):
@@ -448,6 +465,18 @@ class DLJobBuilder(object):
         self._env.update(env)
         return self
 
+    def workload(self, role: str, entrypoint: str):
+        """
+        Set user defined workload.
+
+        Args:
+            role (str): The role of workload.
+            entrypoint (str): The entrypoint of workload.
+        """
+
+        self.role(role)
+        return self.run(entrypoint=entrypoint)
+
     def role(self, role: str):
         """
         Set the last role for next workload definition.
@@ -464,7 +493,6 @@ class DLJobBuilder(object):
         Setup simple workload.
 
         Args:
-            role (str): The role name of workload.
             entrypoint (str): The entry point of workload.
         """
         if self._last_role is None:

@@ -104,6 +104,12 @@ def _build_master_args_parser():
         type=pos_int,
         help="The timeout value of worker task process(For PS type job).",
     )
+    parser.add_argument(
+        "--training_elastic_mode",
+        default=DefaultValues.TRAINING_ELASTIC_MODE,
+        type=str,
+        help="The training elastic mode: base or ucp.",
+    )
     return parser
 
 

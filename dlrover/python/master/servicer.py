@@ -1,3 +1,4 @@
+# 2025 - Modified by MetaX Integrated Circuits (Shanghai) Co., Ltd. All Rights Reserved.
 # Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -465,9 +466,16 @@ class MasterServicer(ABC):
             success = self._report_node_diagnosis_data(message)
         elif isinstance(message, comm.Event):
             success = self._report_event(message)
+        elif isinstance(message, comm.RdzvBlocked):
+            success = self.set_rdzv_blocked(message)
 
         response.success = success
         return response
+
+    def set_rdzv_blocked(self, message: comm.RdzvBlocked):
+        rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
+        rdzv_manager.set_rdzv_blocked(message.blocked, message.reason)
+        return True
 
     def _ready_for_ps_relaunch(self):
         self._job_manager.post_ps_ready()
@@ -700,6 +708,18 @@ class MasterServicer(ABC):
             }
             if self._job_metric_collector:
                 self._job_metric_collector.collect_custom_data(custom_data)
+
+            rdzv_error_data = json.loads(message.error_data)
+            rdzv_name = rdzv_error_data["rdzv_name"]
+            node_rank = rdzv_error_data["node_rank"]
+            err_type = rdzv_error_data["err_type"]
+            err_message = rdzv_error_data["err_message"]
+            elapsed_time = rdzv_error_data["elapsed_time"]
+
+            self._rdzv_managers[rdzv_name].process_error(
+                node_id, node_rank, err_type, err_message, elapsed_time
+            )
+
         return True
 
     def _kv_store_set(self, message: comm.KeyValuePair):

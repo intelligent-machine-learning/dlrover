@@ -13,12 +13,12 @@
 
 import threading
 import time
-from typing import Dict
+from typing import Dict, Tuple, Any
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
-    DiagnosisErrorConstant,
+    DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -36,28 +36,22 @@ class DiagnosisManager:
     MIN_DATA_COLLECT_INTERVAL = 30
 
     def __init__(self, context):
-        self._diagnosticians: Dict[str, Diagnostician] = {}
-        self._periodical_diagnosis: Dict[str, int] = {}
+        # name: (Diagnostician, interval time)
+        self._diagnosticians: Dict[str, Tuple[Diagnostician, int]] = {}
         self._lock = threading.Lock()
         self._context = context
         self._periodical_collector: Dict[DataCollector, int] = {}
 
-    def register_diagnostician(self, name: str, diagnostician: Diagnostician):
-        if diagnostician is None or len(name) == 0:
+    def register_diagnostician(
+        self, name: str, diagnostician: Diagnostician, time_interval: int = -1
+    ):
+        if diagnostician is None or not name:
             return
+        if 0 < time_interval < DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL:
+            time_interval = DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL
 
         with self._lock:
-            self._diagnosticians[name] = diagnostician
-
-    def register_periodical_diagnosis(self, name: str, time_interval: int):
-        with self._lock:
-            if name not in self._diagnosticians:
-                logger.error(f"The {name} is not registered")
-                return
-            if time_interval < DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL:
-                time_interval = DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL
-
-            self._periodical_diagnosis[name] = time_interval
+            self._diagnosticians[name] = (diagnostician, time_interval)
 
     def register_periodical_data_collector(
         self, collector: DataCollector, time_interval: int
@@ -70,14 +64,12 @@ class DiagnosisManager:
 
     def start_diagnosis(self):
         with self._lock:
-            logger.info(
-                f"Start periodical diagnosis: {self._periodical_diagnosis}"
-            )
-            for name in self._periodical_diagnosis.keys():
+            logger.info(f"Start periodical diagnosis: {self._diagnosticians}")
+            for name in self._diagnosticians.keys():
                 try:
                     thread_name = f"periodical_diagnose_{name}"
                     thread = threading.Thread(
-                        target=self._start_periodical_diagnosis,
+                        target=self._start_periodical_diagnosticians,
                         name=thread_name,
                         args=(name,),
                         daemon=True,
@@ -124,23 +116,34 @@ class DiagnosisManager:
     def diagnose(self, name: str, **kwargs) -> DiagnosisAction:
         if name not in self._diagnosticians:
             return NoAction()
-        diagnostician = self._diagnosticians[name]
+        diagnostician = self._diagnosticians[name][0]
         return diagnostician.diagnose(**kwargs)
 
-    def _start_periodical_diagnosis(self, name):
-        if name not in self._periodical_diagnosis:
+    def get_diagnosis_inputs(self) -> Dict[str, Any]:
+        """Should be implemented by subclasses."""
+        return {}
+
+    def _start_periodical_diagnosticians(self, name):
+        if name not in self._diagnosticians:
             logger.warning(
-                f"There is no periodical diagnosis registered for {name}"
+                f"There is no periodical diagnostician registered for {name}"
             )
             return
 
-        diagnostician = self._diagnosticians[name]
-        time_interval = self._periodical_diagnosis[name]
+        diagnostician = self._diagnosticians[name][0]
+        time_interval = self._diagnosticians[name][1]
+
+        if time_interval <= 0:
+            # not periodical diagnostician
+            logger.debug(
+                f"{diagnostician} no a periodical diagnostician, skip periodical running."
+            )
+            return
 
         while True:
             time.sleep(time_interval)
             try:
-                action = diagnostician.diagnose()
+                action = diagnostician.diagnose(**self.get_diagnosis_inputs())
                 if not isinstance(action, NoAction):
                     self._context.enqueue_diagnosis_action(action)
             except Exception as e:
@@ -160,7 +163,7 @@ class DiagnosisManager:
                 logger.error(f"The collector {name} is timeout.")
             except Exception as e:
                 action = self.diagnose(
-                    DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR,
+                    DiagnosticianType.RESOURCE_COLLECT_FAILURE,
                     error_log=f"{e}",
                 )
                 if not isinstance(action, NoAction):
@@ -172,11 +175,12 @@ class DiagnosisManager:
             logger.warning(f"No diagnostician is registered to observe {name}")
             return DiagnosisObservation()
 
+        diagnostician_instance = diagnostician[0]
         try:
-            return diagnostician.observe(**kwargs)
+            return diagnostician_instance.observe(**kwargs)
         except TimeoutException:
             logger.error(
-                f"{diagnostician.__class__.__name__}.observe is timeout"
+                f"{diagnostician_instance.__class__.__name__}.observe is timeout"
             )
             return DiagnosisObservation()
         except Exception as e:
@@ -191,11 +195,12 @@ class DiagnosisManager:
             logger.warning(f"No diagnostician is registered to resolve {name}")
             return NoAction()
 
+        diagnostician_instance = diagnostician[0]
         try:
-            return diagnostician.resolve(problem, **kwargs)
+            return diagnostician_instance.resolve(problem, **kwargs)
         except TimeoutException:
             logger.error(
-                f"{diagnostician.__class__.__name__}.resolve is timeout"
+                f"{diagnostician_instance.__class__.__name__}.resolve is timeout"
             )
             return NoAction()
         except Exception as e:

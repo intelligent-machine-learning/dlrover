@@ -50,6 +50,7 @@ from dlrover.python.common.constants import (
     NodeEnv,
     NpuMetricEnum,
     RendezvousName,
+    RendezvousErrorType,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -865,6 +866,25 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
 
+    def test_invoke_run_with_numa_affinity(self):
+        self.config.numa_affinity = True
+        self.config.membind_policy = "none"
+        self.config.training_port = 0
+        self.spec.entrypoint = "sleep"
+        self.spec.args = tuple(["3"])
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="sleep",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+        agent._initialize_workers = MagicMock(return_value=None)
+        with self.assertRaises(AssertionError):
+            agent._invoke_run()
+
     @unittest.skip("skip")
     def test_numa_affinity(self):
         with patch(
@@ -1063,7 +1083,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
         self.assertTrue(orphan_killed)
 
-    def test_stop_workers(self):
+    @patch("subprocess.run")
+    def test_stop_workers(self, mock_run):
         agent = ElasticTrainingAgent(
             node_rank=0,
             config=self.config,
@@ -1081,6 +1102,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             time.sleep(10)
 
         # with timeout
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
         with patch.object(
             LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds
         ):
@@ -1098,6 +1120,82 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 self.fail()
             except StopWorkerTimeoutError:
                 self.assertTrue(True)
+
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_all_child_pids"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_kernel_stack"
+    )
+    @patch(
+        "dlrover.python.elastic_agent.torch.training.env_utils.get_user_stack_pyspy"
+    )
+    @patch("psutil.process_iter")
+    @patch("os.getpid")
+    @patch("os.getpgid")
+    @patch("subprocess.run")
+    def test_stop_timeout_handler_pkill(
+        self,
+        mock_run,
+        mock_getpgid,
+        mock_getpid,
+        mock_process_iter,
+        mock_get_user_stack,
+        mock_get_kernel_stack,
+        mock_get_child_pids,
+    ):
+        """Test _stop_timeout_handler with pkill implementation"""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock process IDs and group IDs
+        mock_getpid.return_value = 1000
+        mock_getpgid.return_value = 9999
+        mock_get_child_pids.return_value = [1001]
+
+        # Mock psutil.process_iter to return mock processes
+        mock_process = MagicMock()
+        mock_process.pid = 1001
+        mock_process.ppid.return_value = 1000
+        mock_process.name.return_value = "python"
+        mock_process.cmdline.return_value = ["python", "train.py"]
+        mock_process_iter.return_value = [mock_process]
+
+        # Mock stack info
+        mock_get_kernel_stack.return_value = (True, "kernel stack")
+        mock_get_user_stack.return_value = (True, "user stack")
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        # basic
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        # error cases
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr="permission denied"
+        )
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = subprocess.TimeoutExpired("pkill", 5)
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = subprocess.CalledProcessError(1, "pkill")
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
+
+        mock_run.side_effect = Exception("unexpected error")
+        with self.assertRaises(StopWorkerTimeoutError):
+            agent._stop_timeout_handler(signal.SIGALRM, None)
 
     def test_diagnosis(self):
         agent = ElasticTrainingAgent(
@@ -1291,6 +1389,59 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             launch_agent(config, entrypoint, [])
         except Exception:
             pass
+
+    @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
+    @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
+    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
+        self.assertFalse(ElasticTrainingAgent.is_device_checked())
+        ElasticTrainingAgent.set_device_checked()
+        self.assertTrue(ElasticTrainingAgent.is_device_checked())
+
+        config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
+
+        config.accelerator = Accelerators.GENERIC_CPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = []
+        config.accelerator = Accelerators.ASCEND_NPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_hpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+
+        mock_get_gpu_stats.return_value = []
+        config.accelerator = Accelerators.NVIDIA_GPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_gpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+        # skip cuz checked
+        _check_device(config)
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
@@ -1544,58 +1695,501 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         with self.assertRaises(RendezvousTimeoutError):
             rdzv_handler.next_rendezvous()
 
-    @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
-    @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
-    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
-        self.assertFalse(ElasticTrainingAgent.is_device_checked())
-        ElasticTrainingAgent.set_device_checked()
-        self.assertTrue(ElasticTrainingAgent.is_device_checked())
+    def test_get_rdzv_error_data(self):
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        rdzv_eror = rdzv_handler._get_rdzv_error_data(
+            RendezvousErrorType.JOIN_TIMEOUT, "test123", 99
+        )
+        self.assertEqual(type(rdzv_eror), str)
+        self.assertEqual(len(json.loads(rdzv_eror)), 5)
 
-        config = ElasticLaunchConfig(
-            min_nodes=1, max_nodes=1, nproc_per_node=1
+
+class ElasticTrainingAgentUcpTest(unittest.TestCase):
+    """Test cases for ucp method in ElasticTrainingAgent."""
+
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 0.5)
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        self.config.ucp_device_type = "cpu"
+
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
         )
 
-        config.accelerator = Accelerators.GENERIC_CPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
+        master_addr = "127.0.0.1"
 
-        mock_get_hpu_stats.return_value = []
-        config.accelerator = Accelerators.ASCEND_NPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
 
-        mock_get_hpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=10)
-        ]
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=self.rdzv_handler,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            master_addr=master_addr,
+            local_addr=self.config.local_addr,
+            **logs_dict,
+        )
 
-        mock_get_hpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=50)
-        ]
-        with self.assertRaises(NodeCheckFailedError):
-            ElasticTrainingAgent.reset_device_checked()
-            _check_device(config)
+    def tearDown(self):
+        self._master.stop()
+        os.environ.clear()
 
-        mock_get_gpu_stats.return_value = []
-        config.accelerator = Accelerators.NVIDIA_GPU
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
+    def test_ucp_method_success(self):
+        """Test the ucp method with successful checkpoint conversion."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create mock saver
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
 
-        mock_get_gpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=10)
-        ]
-        ElasticTrainingAgent.reset_device_checked()
-        _check_device(config)
+            # Mock the get_ckpt_saver method
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                # Setup mock returns
+                checkpoint_parent_dir = tmpdir
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
 
-        mock_get_gpu_stats.return_value = [
-            GPUStats(total_memory_mb=100, used_memory_mb=50)
-        ]
-        with self.assertRaises(NodeCheckFailedError):
-            ElasticTrainingAgent.reset_device_checked()
-            _check_device(config)
-        # skip cuz checked
-        _check_device(config)
+                # Use return_value instead of side_effect to avoid StopIteration
+                # The ucp() method will call these methods multiple times in a loop
+                # We want them to return the same values each time
+                saver.get_latest_success_save_dir.return_value = (
+                    checkpoint_parent_dir,
+                    100,
+                )
+                saver.get_latest_start_saving_step.return_value = 100
+                saver.ucp.return_value = True
+
+                # Create agent instance
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Mock time.time() to provide enough values for the loop
+                # The ucp() method calls time.time() multiple times:
+                # 1. start_time = time.time() - returns 0.0
+                # 2. elapsed_time = time.time() - start_time (in loop) - returns 1.0, 2.0, etc.
+                # We need to provide enough values to avoid StopIteration
+                # The loop will break when elapsed_time > wait_time (30) or max_wait_time (60)
+                # We need to provide values up to at least 31 to trigger the break condition
+                # Use itertools.count() to provide infinite values
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # Verify calls
+                # The method should call get_latest_success_save_dir multiple times
+                # (1 initial + loop iterations + 1 final)
+                # With itertools.count() starting from 0, we get 33 calls
+                # because elapsed_time starts at 0 and increments by 1 each second
+                # and the loop breaks when elapsed_time > wait_time (30)
+                # get_latest_start_saving_step is called 32 times (1 initial + loop iterations)
+                self.assertEqual(
+                    saver.get_latest_success_save_dir.call_count, 33
+                )
+                self.assertEqual(
+                    saver.get_latest_start_saving_step.call_count, 32
+                )
+
+                # Check ucp was called with correct arguments
+                expected_input_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "global_step100"
+                )
+                expected_output_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "ucp"
+                )
+                saver.ucp.assert_called_once_with(
+                    expected_input_dir, expected_output_dir, "cpu"
+                )
+
+                # Check ucp.txt was created
+                ucp_file = os.path.join(tmpdir, "ucp.txt")
+                self.assertTrue(os.path.exists(ucp_file))
+
+                # Verify content
+                with open(ucp_file, "r") as f:
+                    content = f.read()
+                    self.assertEqual(content, "100")
+
+    def test_ucp_method_no_checkpoint(self):
+        """Test ucp method when no checkpoint exists."""
+        with mock.patch(
+            "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+            return_value=None,
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="echo",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+                exit_barrier_timeout=1,
+            )
+
+            # Should not raise any exception when no saver exists
+            agent.ucp()
+
+    def test_ucp_method_ucp_fails(self):
+        """Test ucp method when ucp conversion fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
+                saver.get_latest_start_saving_step.return_value = 100
+                saver.ucp.return_value = False  # ucp fails
+
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Provide enough time.time() calls using itertools.count()
+                # to avoid StopIteration
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+                # Provide enough time.time() calls using itertools.count()
+                # to avoid StopIteration
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # ucp.txt should not be created if ucp fails
+                ucp_file = os.path.join(tmpdir, "ucp.txt")
+                self.assertFalse(os.path.exists(ucp_file))
+
+    def test_ucp_method_with_different_device_type(self):
+        """Test ucp method with different ucp_device_type."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = mock.MagicMock(spec=AsyncCheckpointSaver)
+            with mock.patch(
+                "dlrover.python.elastic_agent.torch.training.AsyncCheckpointSaver.get_ckpt_saver",
+                return_value=saver,
+            ):
+                checkpoint_dir = os.path.join(tmpdir, "checkpoint-100")
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                # Use return_value instead of side_effect to avoid StopIteration
+                # The ucp() method will call these methods multiple times in a loop
+                # We want them to return the same values each time
+                saver.get_latest_success_save_dir.return_value = (tmpdir, 100)
+                saver.get_latest_start_saving_step.return_value = 100
+                saver.ucp.return_value = True
+
+                # Test with different device type
+                self.config.ucp_device_type = "gpu"
+                agent = ElasticTrainingAgent(
+                    node_rank=0,
+                    config=self.config,
+                    entrypoint="echo",
+                    spec=self.spec,
+                    start_method=self.config.start_method,
+                    log_dir=self.config.log_dir,
+                    exit_barrier_timeout=1,
+                )
+
+                # Provide enough time.time() values for the loop
+                # The ucp() method calls time.time() multiple times in the loop
+                # The loop will break when elapsed_time > wait_time (30) or max_wait_time (60)
+                # We need to provide values up to at least 31 to trigger the break condition
+                # Use itertools.count() to provide infinite values
+                import itertools
+
+                with mock.patch("time.time", side_effect=itertools.count()):
+                    with mock.patch("time.sleep"):
+                        agent.ucp()
+
+                # Check ucp was called with gpu device type
+                expected_input_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "global_step100"
+                )
+                expected_output_dir = os.path.join(
+                    tmpdir, "checkpoint-100", "ucp"
+                )
+                saver.ucp.assert_called_once_with(
+                    expected_input_dir, expected_output_dir, "gpu"
+                )
+
+
+class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
+    """Test cases for _graceful_exit_workers method in ElasticTrainingAgent."""
+
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 0.5)
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+
+        master_addr = "127.0.0.1"
+
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
+
+        if version_less_than_230():
+            logs_dict = {
+                "redirects": self.config.redirects,
+                "tee": self.config.tee,
+            }
+        else:
+            logs_dict = {}
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=self.rdzv_handler,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            master_addr=master_addr,
+            local_addr=self.config.local_addr,
+            **logs_dict,
+        )
+
+    def tearDown(self):
+        self._master.stop()
+        os.environ.clear()
+
+    def test_graceful_exit_workers_success(self):
+        """Test _graceful_exit_workers with successful signal sending."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with multiple PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001, 1: 1002}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill to verify it's called with correct arguments
+        with mock.patch("os.kill") as mock_kill:
+            # Create a mock worker group (not used in the method but required for signature)
+            worker_group = mock.MagicMock()
+
+            # Call the method
+            agent._graceful_exit_workers(worker_group)
+
+            # Verify os.kill was called with the first PID and SIGUSR1
+            mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+            # Verify logger.info was called
+            # We can check this by patching logger if needed, but for now just verify no exceptions
+
+    def test_graceful_exit_workers_no_pids(self):
+        """Test _graceful_exit_workers when no PIDs are available."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with empty PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pcontext.pids.return_value = {}
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            # This should not raise an exception
+            agent._graceful_exit_workers(worker_group)
+
+            # os.kill should not be called since there are no PIDs
+            mock_kill.assert_not_called()
+
+    def test_graceful_exit_workers_single_pid(self):
+        """Test _graceful_exit_workers with only one PID."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with single PID
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            agent._graceful_exit_workers(worker_group)
+
+            # Should still call os.kill with the single PID
+            mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+    def test_graceful_exit_workers_kill_exception(self):
+        """Test _graceful_exit_workers when os.kill raises an exception."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock pcontext with PIDs
+        mock_pcontext = mock.MagicMock()
+        mock_pids = {0: 1001, 1: 1002}
+        mock_pcontext.pids.return_value = mock_pids
+        agent._pcontext = mock_pcontext
+
+        # Mock os.kill to raise an exception
+        with mock.patch(
+            "os.kill", side_effect=OSError("No such process")
+        ) as mock_kill:
+            # Mock logger.warning to verify it's called
+            with mock.patch.object(logger, "warning") as mock_warning:
+                worker_group = mock.MagicMock()
+
+                # This should not raise an exception
+                agent._graceful_exit_workers(worker_group)
+
+                # Verify os.kill was attempted
+                mock_kill.assert_called_once_with(1001, signal.SIGUSR1)
+
+                # Verify logger.warning was called with the error
+                mock_warning.assert_called_once()
+                call_args = mock_warning.call_args[0][0]
+                self.assertIn("error when kill", call_args)
+                self.assertIn("No such process", call_args)
+
+    def test_graceful_exit_workers_with_none_pcontext(self):
+        """Test _graceful_exit_workers when _pcontext is None."""
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        # Set _pcontext to None
+        agent._pcontext = None
+
+        with mock.patch("os.kill") as mock_kill:
+            worker_group = mock.MagicMock()
+
+            # This should not raise an exception
+            agent._graceful_exit_workers(worker_group)
+
+            # os.kill should not be called
+            mock_kill.assert_not_called()
 
 
 if __name__ == "__main__":

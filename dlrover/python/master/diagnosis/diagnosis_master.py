@@ -14,7 +14,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -35,21 +35,16 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     DiagnosisResult,
     JobHangWatermark,
+    DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import NodeAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
-from dlrover.python.diagnosis.common.inference_chain import (
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
+from dlrover.python.diagnosis.diagnostician.node_inconsistency import (
+    NodeInconsistencyDiagnostician,
 )
-from dlrover.python.diagnosis.inferencechain.inference_chain import Inference
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.observer.check_training_hang_operator import (  # noqa: E501
-    CheckTrainingHangOperator,
-)
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.resolver.resolve_training_hang_operator import (  # noqa: E501
-    ResolveTrainingHangOperator,
+from dlrover.python.diagnosis.diagnostician.training_hang import (
+    TrainingHangDiagnostician,
 )
 from dlrover.python.master.diagnosis.diagnosis import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
@@ -308,35 +303,30 @@ class DiagnosisMaster(DiagnosisManager):
 
             self._is_observing_paused = False
 
+    def get_diagnosis_inputs(self) -> Dict[str, Any]:
+        return {"job_nodes": self._job_context.job_nodes()}
+
+    def _register_diagnosticians(self):
+        self.register_diagnostician(
+            DiagnosticianType.NODE_INCONSISTENCY,
+            NodeInconsistencyDiagnostician(self._job_args),
+            60 * 5,
+        )
+
+        self.register_diagnostician(
+            DiagnosticianType.TRAINING_HANG,
+            TrainingHangDiagnostician(self._data_manager),
+            60 * 10,
+        )
+
     def start_observing(self):
         logger.info("Start to observing training...")
         self._is_observing_started = True
 
-        self._diagnostician.register_training_problems(
-            [
-                Inference(
-                    InferenceName.TRAINING,
-                    InferenceAttribute.ISORNOT,
-                    InferenceDescription.HANG,
-                )
-            ]
-        )
-        self._diagnostician.register_observers(
-            [CheckTrainingHangOperator(self._data_manager)]
-        )
-        self._diagnostician.register_resolvers(
-            [ResolveTrainingHangOperator(self._data_manager)]
-        )
-
+        # register periodical diagnosis
+        self._register_diagnosticians()
         try:
-            diag = threading.Thread(
-                target=self._diagnose,
-                name="diagnose_failures",
-                daemon=True,
-            )
-            diag.start()
-            if diag.is_alive():
-                logger.info("_diagnose thread has started")
+            self.start_diagnosis()
 
             diag_metric = threading.Thread(
                 target=self._diagnose_metrics,
@@ -461,20 +451,3 @@ class DiagnosisMaster(DiagnosisManager):
                             )
 
             time.sleep(interval)
-
-    def _diagnose(self):
-        logger.info("_diagnose thread is running...")
-        while True:
-            if not self._is_observing_started:
-                logger.info(
-                    f"Stop _diagnose thread due to {self._is_observing_started}"
-                )
-                break
-
-            observed_problems = self._diagnostician.observe_training()
-            action = self._diagnostician.resolve_problems(observed_problems)
-            self._job_context.enqueue_diagnosis_action(action)
-
-            time.sleep(
-                DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
-            )
