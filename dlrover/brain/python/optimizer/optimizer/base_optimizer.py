@@ -26,7 +26,10 @@ class BaseOptimizer:
             job_resource=JobResource(
                 node_group_resources={
                     Node.NODE_TYPE_WORKER: NodeGroupResource(
-                        count=4,
+                        resource=NodeResource(
+                            cpu=4,
+                            memory=8 * 1024 * 1024,
+                        ),
                     )
                 },
             ),

@@ -16,13 +16,15 @@ import os
 from dlrover.proto import brain_pb2, brain_pb2_grpc
 from dlrover.python.common.comm import build_grpc_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
-from dlrover.brain.python.client.client import BrainClient as ExternalClient
+from dlrover.brain.python.client.client import BrainClient as HttpBrainClient
+import dlrover.brain.python.common.http_schemas as http_schemas
 
 DATA_STORE = "base_datastore"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_request_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
 _ENV_BRAIN_ADDR_KEY = "DLROVER_BRAIN_SERVICE_ADDR"
+_ENV_BRAIN_PROTOCOL_KEY = "DLROVER_BRAIN_PROTOCOL"
 _DEFAULT_BRAIN_ADDR = "dlrover-brain.dlrover.svc.cluster.local:50001"
 
 
@@ -73,26 +75,32 @@ class BrainClient(object):
         easydl_client.report(...)
     """
 
-    def __init__(self, brain_channel, protocol="grpc"):
+    def __init__(self, brain_addr, protocol="grpc"):
         """Initialize an EasyDL client.
         Args:
-            channel: grpc.Channel
-            the gRPC channel object connects to master gRPC server.
+            brain_addr: grpc.Channel (gRPC) or URL string (HTTP)
+                For gRPC, the gRPC channel object connects to master gRPC server.
+                For HTTP, the Brain URL string
 
-            job_name: string
-            the unique and ordered worker ID assigned
-            by dlrover command-line.
+            protocol: string
+                http or grpc
         """
-        if brain_channel:
-            self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
-        else:
-            self._brain_stub = None
+        self._protocol = protocol
+        self._brain_stub = None
+        if protocol == "grpc":
+            if brain_addr:
+                self._brain_stub = brain_pb2_grpc.BrainStub(brain_addr)
+        elif protocol == "http":
+            self._brain_stub = HttpBrainClient(brain_addr)
+
 
     def available(self):
         return self._brain_stub is not None
 
     def report_metrics(self, job_metrics):
         """Report job metrics to administer service"""
+        if self._protocol == "http":
+            return
         return self._brain_stub.persist_metrics(job_metrics)
 
     def get_job_metrics(self, job_uuid):
@@ -106,6 +114,8 @@ class BrainClient(object):
             metrics = json.loads(metrics_res.job_metrics)
             ```
         """
+        if self._protocol == "http":
+            return brain_pb2.JobMetrics()
         request = brain_pb2.JobMetricsRequest()
         request.job_uuid = job_uuid
         return self._brain_stub.get_job_metrics(request)
@@ -113,7 +123,43 @@ class BrainClient(object):
     def request_optimization(self, opt_request):
         """Get the optimization plan from the processor service"""
         logger.debug("Optimization request is %s", opt_request)
-        return self._brain_stub.optimize(opt_request)
+        if self._protocol == "grpc":
+            return self._brain_stub.optimize(opt_request)
+        elif self._protocol == "http":
+            http_opt_request = http_schemas.OptimizeRequest()
+            http_opt_request.type = opt_request.type
+
+            http_opt_request.config = http_schemas.OptimizeConfig(
+                optimizer=opt_request.config.brain_processor,
+            )
+            if len(opt_request.jobs) > 0:
+                http_opt_request.job = http_schemas.JobMeta(
+                    uuid=opt_request.jobs[0].uid,
+                    cluster=opt_request.jobs[0].cluster,
+                    namespace=opt_request.jobs[0].namespace,
+                )
+            http_resp = self._brain_stub.optimize(http_opt_request)
+            resp = brain_pb2.OptimizeResponse()
+
+            resp.response = brain_pb2.Response()
+            resp.response.success = http_resp.response.success
+            resp.response.reason = http_resp.response.reason
+
+            opt_plan = brain_pb2.JobOptimizePlan()
+            job_resource = brain_pb2.JobResource()
+            task_group_resources = {}
+            for name, res in http_resp.job_opt_plan.job_resource.node_group_resources.items():
+                tg_res = brain_pb2.TaskGroupResource()
+                tg_res.count = res.count
+                tg_res.resource.cpu = res.resource.cpu
+                tg_res.resource.memory = res.resource.memory
+                tg_res.resource.gpu = res.resource.gpu
+                task_group_resources[name] = tg_res
+            job_resource.task_group_resources = task_group_resources
+            opt_plan.resource = job_resource
+            resp.job_optimize_plans[0] = opt_plan
+
+            return resp
 
     def report_training_hyper_params(self, job_meta, hyper_params):
         job_metrics = init_job_metrics_message(job_meta)
@@ -264,17 +310,23 @@ def build_brain_client():
     Example:
         ```
         import os
-        os.environ["EASYDL_BRAIN_SERVICE_ADDR"] = "xxx"
+        os.environ["DLROVER_BRAIN_SERVICE_ADDR"] = "xxx"
+        os.environ["PROTOCOL"] = "grpc" or "http"
         client = build_brain_client()
         ```
     """
-    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, "")
-    channel = build_grpc_channel(brain_addr)
-    if channel and grpc_server_ready(channel):
-        return BrainClient(channel)
-    else:
-        logger.info("The GRPC service of brain is not available.")
-        return BrainClient(None)
+    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, _DEFAULT_BRAIN_ADDR)
+    protocol = os.getenv(_ENV_BRAIN_PROTOCOL_KEY, "grpc")
+
+    if protocol == "grpc":
+        channel = build_grpc_channel(brain_addr)
+        if channel and grpc_server_ready(channel):
+            return BrainClient(channel, protocol)
+        else:
+            logger.info("The GRPC service of brain is not available.")
+            return BrainClient(None)
+    elif protocol == "http":
+        return BrainClient(brain_addr, protocol)
 
 
 class GlobalBrainClient(object):
