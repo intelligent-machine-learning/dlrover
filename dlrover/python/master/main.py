@@ -39,6 +39,7 @@ def update_context(job_args: JobArgs):
     _dlrover_context.relaunch_always = job_args.relaunch_always
     if job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
         _dlrover_context.relaunch_always = True
+    _dlrover_context.training_elastic_mode = job_args.training_elastic_mode
     _dlrover_context.set_params_from_brain()
     _dlrover_context.print_config()
 
@@ -60,6 +61,7 @@ def run(args):
     _dlrover_context.pending_timeout = args.pending_timeout
     _dlrover_context.master_service_type = args.service_type
     _dlrover_context.pre_check_operators = args.pre_check_ops
+    job_args.training_elastic_mode = args.training_elastic_mode
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

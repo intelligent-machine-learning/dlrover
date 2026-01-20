@@ -82,6 +82,7 @@ class DefaultValues(object):
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
     MAX_RELAUNCH_COUNT = 3  # maximum node relaunch count
     MAX_GROUP_RELAUNCH_COUNT = 3  # maximum node group relaunch count
+    TRAINING_ELASTIC_MODE = "base"
 
 
 class Context(Singleton):
@@ -146,6 +147,7 @@ class Context(Singleton):
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
         self.max_relaunch_count = DefaultValues.MAX_RELAUNCH_COUNT
         self.max_group_relaunch_count = DefaultValues.MAX_GROUP_RELAUNCH_COUNT
+        self.training_elastic_mode = DefaultValues.TRAINING_ELASTIC_MODE
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
