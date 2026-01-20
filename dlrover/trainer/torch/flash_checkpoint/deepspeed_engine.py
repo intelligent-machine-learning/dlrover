@@ -56,6 +56,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
     ):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
+        self._rank = 0
         super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
 
     def get_saving_ranks(self):
@@ -74,7 +75,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         return save_ranks
 
     @timer
-    def save_to_memory(self, step, state_dict, paths):
+    def save_to_memory(self, step, state_dict, paths, blocking=False):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -90,11 +91,11 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        success = self.save_state_dict_to_memory(state_dict, conf)
+        success = self.save_state_dict_to_memory(state_dict, conf, blocking)
         return success
 
     @timer
-    def save_to_storage(self, step, state_dict, paths):
+    def save_to_storage(self, step, state_dict, paths, blocking=False):
         """
         Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
@@ -111,7 +112,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         """
         success = True
         if step > self._cached_step:
-            success = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths, blocking)
 
         if dist.is_initialized():
             dist.barrier()
