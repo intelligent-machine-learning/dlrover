@@ -515,6 +515,10 @@ class MasterClient(Singleton, ABC):
         )
         self._report(message)
 
+    def set_rdzv_blocked(self, blocked, reason=""):
+        message = comm.RdzvBlocked(blocked=blocked, reason=reason)
+        self._report(message)
+
     def report_action(self, action: DiagnosisAction):
         message = comm.DiagnosisAction(
             action_cls=action.__class__.__name__,

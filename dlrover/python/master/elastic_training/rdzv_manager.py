@@ -16,7 +16,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from threading import RLock
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from dlrover.python.common.constants import (
     EventReportConstants,
@@ -25,6 +25,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.event.reporter import get_event_reporter
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
@@ -88,6 +89,8 @@ class RendezvousManager(metaclass=ABCMeta):
         self._topology_sorter = DpTopologySorter()
         self._event_reporter = get_event_reporter()
         self.rendezvous_events: Dict[int, DurationSpan] = {}
+        self._rdzv_blocked = False
+        self._rdzv_block_reason = ""
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -100,6 +103,28 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def get_rdzv_round(self):
         return self._rdzv_round
+
+    def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
+        with self._lock:
+            self._rdzv_blocked = blocked
+            if blocked:
+                self._rdzv_block_reason = reason or ""
+            else:
+                self._rdzv_block_reason = ""
+
+    def is_rdzv_blocked(self) -> Tuple[bool, Optional[str]]:
+        with self._lock:
+            if not self._rdzv_blocked:
+                return False, None
+            return True, self._rdzv_block_reason or None
+
+    def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
+        """Hook to block rendezvous completion.
+
+        Returns:
+            (blocked, reason). Subclasses can override to add custom checks.
+        """
+        return self.is_rdzv_blocked()
 
     def clear_waiting_nodes(self):
         with self._lock:
@@ -166,6 +191,13 @@ class RendezvousManager(metaclass=ABCMeta):
                 self.remove_alive_node(target_node)
 
         rdzv_completed = False
+        # if the universal checkpoint before scaling out is not ready,
+        # the next round rendezvous cannot be completed
+        blocked, reason = self._pre_rdzv_check_hook()
+        if blocked:
+            if reason:
+                logger.info(reason)
+            return False
         waiting_num = len(self._waiting_nodes)
         if waiting_num == self._rdzv_params.max_nodes:
             rdzv_completed = True
@@ -510,6 +542,22 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         return
 
 
+class UcpRdzvManager(ElasticTrainingRendezvousManager):
+    """UcpRdzvManager blocks rendezvous completion until previous round ends."""
+
+    def __init__(self):
+        super().__init__()
+
+    def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
+        if blocked and not reason:
+            reason = (
+                f"Previous rendezvous round ({self._rdzv_round}) not finished yet. "
+                f"blocked={blocked}. "
+                f"Waiting for previous round completion."
+            )
+        super().set_rdzv_blocked(blocked, reason)
+
+
 class NetworkCheckRendezvousManager(RendezvousManager):
     """NcclCheckRendezvousManager runs on the DLRover master. The task
     to check network contains 2 round to execute allgather on all nodes.
@@ -785,3 +833,23 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             if t > med_time * 2:
                 stragglers[node_id] = t
         return stragglers
+
+
+def create_training_rdzv_manager() -> RendezvousManager:
+    """Factory to create the training rendezvous manager.
+
+    Use master job args via global context to select the implementation.
+    Supported values: "base", "ucp". Default is "base".
+    """
+    rdzv_type = (
+        Context.singleton_instance().training_elastic_mode or "base"
+    ).lower()
+    if rdzv_type == "base":
+        return ElasticTrainingRendezvousManager()
+    if rdzv_type == "ucp":
+        return UcpRdzvManager()
+    logger.warning(
+        f"Unknown training rendezvous manager type '{rdzv_type}', "
+        "falling back to ElasticTrainingRendezvousManager."
+    )
+    return ElasticTrainingRendezvousManager()

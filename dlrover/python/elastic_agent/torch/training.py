@@ -227,6 +227,7 @@ class ElasticLaunchConfig(LaunchConfig):
     failure_node_errors: str = ""
     numa_affinity: bool = False
     membind_policy: str = "none"
+    ucp_device_type: str = "cpu"
     dynamic_failover_extension: Optional[DynamicFailoverExtension] = None
 
     def set_node_unit(self, node_unit):
@@ -656,6 +657,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         # print out a snapshot of all processes again
         env_utils.print_process_list()
+
+    def _graceful_exit_workers(self, worker_group: WorkerGroup):
+        logger.info("try to gracefully exit workers")
+        if self._pcontext is None:
+            logger.warning(
+                "_pcontext is None, cannot send graceful exit signal"
+            )
+            return
+        pid_set = set(self._pcontext.pids().values())
+        pc_pids = list(pid_set)
+        if not pc_pids:
+            logger.warning(
+                "No worker PIDs available, cannot send graceful exit signal"
+            )
+            return
+        pc_pid = pc_pids[0]
+        try:
+            os.kill(pc_pid, signal.SIGUSR1)
+        except Exception as e:
+            logger.warning(f"error when kill {pc_pid}: {str(e)}")
 
     @prof
     def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
@@ -1287,6 +1308,21 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
+                    self._graceful_exit_workers(
+                        worker_group=self._worker_group
+                    )
+                    elastic_mode = os.getenv(
+                        "DLROVER_TRAINING_ELASTIC_MODE", "base"
+                    ).lower()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.set_rdzv_blocked(True)
+                    logger.info(
+                        f"self._worker_group.group_rank : {self._worker_group.group_rank}"
+                    )
                     _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
                         restart_count=self._restart_count,
@@ -1296,6 +1332,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         failures=f"{run_result.failures}",
                     )
                     self._save_ckpt_to_storage()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.ucp()
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.set_rdzv_blocked(False)
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
@@ -1395,6 +1442,111 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage, 60, self._client
             )
+
+    def ucp(self):
+        """
+        Do universal checkpoint.
+
+        Semantics:
+        - UCP must always operate on a successfully saved checkpoint.
+        - start_saving_step is only used to detect and wait for a new save.
+        """
+        try:
+            saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
+            if not saver:
+                return
+
+            start_time = time.time()
+            max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
+            wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
+
+            # Initial snapshot
+            checkpoint_dir, last_success_step = (
+                saver.get_latest_success_save_dir()
+            )
+            start_saving_step = saver.get_latest_start_saving_step()
+
+            # If nothing has ever been saved or started, nothing to UCP
+            if last_success_step is None and start_saving_step is None:
+                logger.info("No checkpoint has ever been started, skip ucp.")
+                return
+            target_step = None
+            need_new_saving = False
+
+            while True:
+                checkpoint_dir, success_step = (
+                    saver.get_latest_success_save_dir()
+                )
+                start_saving_step = saver.get_latest_start_saving_step()
+                elapsed_time = time.time() - start_time
+
+                # Detect that a NEW checkpoint saving has actually started
+                if (
+                    start_saving_step is not None
+                    and last_success_step is not None
+                    and start_saving_step > last_success_step
+                ):
+                    target_step = start_saving_step
+                    need_new_saving = True
+
+                # If we have seen the new saving and it completed successfully
+                if need_new_saving and success_step == target_step:
+                    break
+
+                # No new checkpoint triggered within wait_time
+                if not need_new_saving and elapsed_time > wait_time:
+                    logger.info(
+                        "No new checkpoint triggered, "
+                        "using last successful step %s for ucp.",
+                        success_step,
+                    )
+                    break
+
+                # Timeout waiting for the new checkpoint
+                if elapsed_time > max_wait_time:
+                    logger.warning(
+                        "Timeout waiting for checkpoint step %s. "
+                        "Fallback to last successful step %s.",
+                        target_step,
+                        success_step,
+                    )
+                    break
+
+                time.sleep(1)
+
+            # -------- Final decision: ONLY use successful checkpoint --------
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            if checkpoint_dir is None or step is None:
+                logger.error("No successful checkpoint available for ucp.")
+                return
+
+            input_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                f"global_step{step}",
+            )
+            output_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                "ucp",
+            )
+
+            res = saver.ucp(
+                input_dir,
+                output_dir,
+                self._config.ucp_device_type,
+            )
+            if res:
+                with open(
+                    os.path.join(checkpoint_dir, "ucp.txt"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(str(step))
+
+        except Exception:
+            logger.exception("ucp failed")
+            raise
 
     def _stop_workers_to_restart(self):
         """
@@ -1501,6 +1653,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
+    def set_rdzv_blocked(self, blocked, reason=""):
+        return self._client.set_rdzv_blocked(blocked=blocked, reason=reason)
+
     def _dlrover_exit_barrier(self):
         logger.info(
             f"Local worker group finished {self._worker_group.state}. "
@@ -1564,6 +1719,7 @@ def launch_agent(
         f"  failure_errors   : {config.failure_node_errors}\n"
         f"  numa_affinity    : {config.numa_affinity}\n"
         f"  accelerator      : {config.accelerator}\n"
+        f" ucp_device_type   : {config.ucp_device_type}\n"
     )
 
     _agent_evt.start(args=vars(config))

@@ -228,6 +228,14 @@ def parse_args(args):
         action=check_env,
         help="Whether to test the communication performance.",
     )
+
+    parser.add_argument(
+        "--ucp_device_type",
+        "--ucp_device_type",
+        action=env,
+        default="cpu",
+        help="The device where universal checkpoint take place.",
+    )
     return parser.parse_args(args)
 
 
@@ -417,6 +425,7 @@ def _elastic_config_from_args(
     elastic_config.rdzv_endpoint = ""
     join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
     elastic_config.rdzv_configs["timeout"] = join_timeout
+
     return elastic_config, cmd, cmd_args
 
 

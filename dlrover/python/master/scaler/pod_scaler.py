@@ -544,6 +544,13 @@ class PodScaler(Scaler):
         )
         env.append(
             V1EnvVar(
+                name=NodeEnv.DLROVER_TRAINING_ELASTIC_MODE,
+                value=_dlrover_context.training_elastic_mode,
+            )
+        )
+
+        env.append(
+            V1EnvVar(
                 name=NodeEnv.POD_NAME,
                 value_from=V1EnvVarSource(
                     field_ref=V1ObjectFieldSelector(field_path="metadata.name")

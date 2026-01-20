@@ -224,6 +224,14 @@ class GlobalStep(Message):
 
 
 @dataclass
+class RdzvBlocked(Message):
+    """Indicate whether rendezvous completion is blocked."""
+
+    blocked: bool = False
+    reason: str = ""
+
+
+@dataclass
 class HeartBeat(Message):
     timestamp: int = 0
 
