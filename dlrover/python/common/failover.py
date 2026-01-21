@@ -10,29 +10,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from abc import abstractmethod
-from dataclasses import dataclass
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any
 
 from dlrover.python.common.enums import FailoverStrategy
-from dlrover.python.common.failover import (
-    DynamicFailoverExtension,
-    FailureInfo,
-)
+
+
+USER_FAILOVER_TRIGGER_JOB_ABORTION = "USER_FAILOVER_TRIGGER_JOB_ABORTION"
+USER_FAILOVER_TRIGGER_JOB_RESTART = "USER_FAILOVER_TRIGGER_JOB_RESTART"
 
 
 @dataclass
-class AgentFailureInfo(FailureInfo):
-    node_rank: int = -1
+class FailureInfo(object):
+    timestamp: int = int(time.time())
+    log_content: str = ""
+    extra_info: dict = field(default_factory=dict)
 
 
-class DynamicAgentFailoverExtension(DynamicFailoverExtension):
+class DynamicFailoverExtension(ABC):
     """
-    Dynamic extension for agent(elastic agent) fault-tolerance execution.
+    Dynamic extension for fault-tolerance execution.
     """
 
     @abstractmethod
     def get_user_failover_strategy(
-        self, failure_info: AgentFailureInfo
+        self, failure_info: Any
     ) -> FailoverStrategy:
         """
         The user-side implementation to specify a failover-strategy to DLRover
@@ -43,8 +47,7 @@ class DynamicAgentFailoverExtension(DynamicFailoverExtension):
         codes or complex logic calls involving external services or model inference.
 
         Args:
-            failure_info (AgentFailureInfo): The basic failure context of agent
-                when failure happens.
+            failure_info (Any): The basic context when failure happens.
 
         Returns:
             FailoverStrategy: The failover strategy.

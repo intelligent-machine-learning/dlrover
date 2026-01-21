@@ -107,7 +107,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
-    DynamicFailoverExtension,
+    DynamicAgentFailoverExtension,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.training_event import DLRoverAgentEvent
@@ -228,7 +228,7 @@ class ElasticLaunchConfig(LaunchConfig):
     numa_affinity: bool = False
     membind_policy: str = "none"
     ucp_device_type: str = "cpu"
-    dynamic_failover_extension: Optional[DynamicFailoverExtension] = None
+    dynamic_failover_extension: Optional[DynamicAgentFailoverExtension] = None
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""

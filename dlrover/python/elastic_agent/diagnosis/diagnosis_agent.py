@@ -20,6 +20,10 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.enums import FailoverStrategy
 from dlrover.python.common.error import ProcessError
+from dlrover.python.common.failover import (
+    USER_FAILOVER_TRIGGER_JOB_ABORTION,
+    USER_FAILOVER_TRIGGER_JOB_RESTART,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
@@ -54,9 +58,7 @@ from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
-    DynamicFailoverExtension,
-    USER_FAILOVER_TRIGGER_JOB_ABORTION,
-    USER_FAILOVER_TRIGGER_JOB_RESTART,
+    DynamicAgentFailoverExtension,
     AgentFailureInfo,
 )
 from dlrover.python.training_event.config import is_dlrover_event_enabled
@@ -76,7 +78,9 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         self._errors = errors
         self._stopped = False
         self._agent_context = get_agent_context()
-        self._extension: DynamicFailoverExtension = dynamic_failover_extension
+        self._extension: DynamicAgentFailoverExtension = (
+            dynamic_failover_extension
+        )
 
         DiagnosisManager.__init__(self, self._agent_context)
 

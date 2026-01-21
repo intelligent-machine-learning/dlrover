@@ -116,7 +116,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
-    DynamicFailoverExtension,
+    DynamicAgentFailoverExtension,
 )
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
@@ -568,9 +568,9 @@ def _setup_dynamic_failover_extension(config: ElasticLaunchConfig):
         )
         return
 
-    if not issubclass(extension_class, DynamicFailoverExtension):
+    if not issubclass(extension_class, DynamicAgentFailoverExtension):
         logger.warning(
-            f"{class_name} must inherit from DynamicFailoverExtension"
+            f"{class_name} must inherit from DynamicAgentFailoverExtension"
         )
         return
     else:

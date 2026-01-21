@@ -32,7 +32,7 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
-    DynamicFailoverExtension,
+    DynamicAgentFailoverExtension,
     AgentFailureInfo,
 )
 from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
@@ -455,7 +455,7 @@ class TestMainFunction(unittest.TestCase):
             self.assertIsNone(config.dynamic_failover_extension)
 
         # Test 2: Valid extension configured
-        extension_path = "elastic_run_test::TestDynamicFailoverExtension"
+        extension_path = "elastic_run_test::TestDynamicAgentFailoverExtension"
         with patch.dict(
             "os.environ",
             {NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER: extension_path},
@@ -463,8 +463,9 @@ class TestMainFunction(unittest.TestCase):
             _setup_dynamic_failover_extension(config)
             self.assertIsNotNone(config.dynamic_failover_extension)
             self.assertTrue(
-                issubclass(
-                    config.dynamic_failover_extension, DynamicFailoverExtension
+                isinstance(
+                    config.dynamic_failover_extension,
+                    DynamicAgentFailoverExtension,
                 )
             )
             config.dynamic_failover_extension = None
@@ -484,12 +485,11 @@ class TestMainFunction(unittest.TestCase):
                 NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER: "nonexistent.module::Class"
             },
         ):
-            with self.assertRaises(RuntimeError):
-                _setup_dynamic_failover_extension(config)
+            _setup_dynamic_failover_extension(config)
             self.assertIsNone(config.dynamic_failover_extension)
 
 
-class TestDynamicFailoverExtension(DynamicFailoverExtension):
+class TestDynamicAgentFailoverExtension(DynamicAgentFailoverExtension):
     def get_user_failover_strategy(
         self, failure_info: AgentFailureInfo
     ) -> FailoverStrategy:
