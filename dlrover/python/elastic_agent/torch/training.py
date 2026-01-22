@@ -208,6 +208,10 @@ class ElasticLaunchConfig(LaunchConfig):
         training_log_file: the training log file of this training job
         failure_node_errors: the error information that indicate the node
             is a failure node
+        numa_affinity: whether numa affinity is enabled.
+        membind_policy: membind policy for numa affinity.
+        ucp_device_type: device type for unified checkpoint.
+        dynamic_failover_extension: extend implementation for dynamic failover.
     """
 
     precheck: int = 0
