@@ -156,7 +156,7 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             self._agent_context.restart_count,
         )
 
-        def transfer_failures_to_str(failures: dict):
+        def serialize_failures(failures: dict):
             try:
                 str_result = json.dumps(failures)
             except Exception:
@@ -165,7 +165,7 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
 
         failure_info = AgentFailureInfo(
             node_rank=self._node_rank,
-            log_content=transfer_failures_to_str(
+            log_content=serialize_failures(
                 self._agent_context.run_result.failures
             ),
         )
@@ -173,10 +173,17 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         if self._extension is not None:
             extension_cls_info = self._extension.__class__
 
-            # user strategy
-            user_strategy = self._extension.get_user_failover_strategy(
-                failure_info
-            )
+            try:
+                # user strategy
+                user_strategy = self._extension.get_user_failover_strategy(
+                    failure_info
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get user_strategy from extension: {extension_cls_info} "
+                    f"by exception: {e}. Use default dlrover failover processing."
+                )
+                user_strategy = FailoverStrategy.NORMAL_FAILOVER
 
             if user_strategy == FailoverStrategy.NODE_FAILOVER:
                 logger.info(

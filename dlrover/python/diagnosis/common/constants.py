@@ -82,6 +82,8 @@ class DiagnosisActionType(object):
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+
+    # job operation
     RESTART_JOB = "restart_job"
     ABORT_JOB = "abort_job"
 
