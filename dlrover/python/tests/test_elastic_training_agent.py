@@ -1472,7 +1472,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 failures={"error": "test failure"},
             )
             agent._monitor_workers = MagicMock(return_value=run_result)
-            agent._process_diagnosis_action = MagicMock()
+            agent._client.report_action = MagicMock()
 
             # Test JOB_ABORT action
             agent._diagnose_agent.diagnose_training_failure = MagicMock(

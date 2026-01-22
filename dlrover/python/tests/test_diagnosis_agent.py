@@ -234,6 +234,31 @@ class TestDiagnosisAgent(unittest.TestCase):
             action.action_type, DiagnosisActionType.RESTART_WORKER
         )
 
+        # Test user defined failover strategy - got exception
+        class MockNormalExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                raise RuntimeError
+
+        mock_normal_extension = MockNormalExtension()
+        agent_with_normal_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_normal_extension
+        )
+        agent_with_normal_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_normal_extension.diagnose_training_failure()
+        # Should fall back to default dlrover logic
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
+
         agent.stop()
         agent_with_extension.stop()
         agent_with_abortion_extension.stop()
