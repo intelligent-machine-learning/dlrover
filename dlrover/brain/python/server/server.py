@@ -2,10 +2,10 @@ from fastapi import FastAPI, status
 from dlrover.brain.python.common.http_schemas import (
     OptimizeRequest,
     OptimizeResponse,
-    Response,
 )
 import uvicorn
 from dlrover.brain.python.optimizer.optimizer_manager import OptimizerManager
+from dlrover.brain.python.common.args import get_parsed_args
 
 
 class BrainServer:
@@ -27,11 +27,13 @@ class BrainServer:
             job_opt_plan=plan,
         )
 
-    def run(self, host="0.0.0.0", port=8000):
-        uvicorn.run(self.server, host, port)
+    def run(self, args):
+        host = "0.0.0.0"
+        port = args.port
+        uvicorn.run(self.server, host=host, port=port)
 
 
 if __name__ == "__main__":
-    # Run with: python server.py
+    args = get_parsed_args()
     brain_server = BrainServer()
-    brain_server.run()
+    brain_server.run(args)
