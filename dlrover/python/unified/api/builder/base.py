@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+﻿# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -621,7 +621,8 @@ class DLJobBuilder(object):
         return (
             self.node_num(node_num)
             .device_per_node(device_per_node)
-            .device_type()
+            .device_type("CPU")
+            .config({"c1": "v1"})
             .global_env({"eα": "ve", "DLROVER_LOG_LEVEL": "DEBUG"})
             .train(training_script)
             .nnodes(nnodes)

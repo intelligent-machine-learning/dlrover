@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+﻿# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -78,8 +78,7 @@ def test_api_full_by_dlrover_run_cmd(tmp_ray):
             )
         )
     )
-
-    cmd = f"dlrover-run --nnodes=1 --nproc_per_node=1 {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+    cmd = f"dlrover-run --nnodes=2 --nproc_per_node=2 {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
 
     dl_job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
 
