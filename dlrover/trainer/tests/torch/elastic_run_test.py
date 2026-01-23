@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,9 +26,14 @@ from dlrover.python.common.constants import (
     NodeEnv,
     PreCheckStatus,
 )
+from dlrover.python.common.enums import FailoverStrategy
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
+)
+from dlrover.python.elastic_agent.torch.dynamic_failover import (
+    DynamicAgentFailoverExtension,
+    AgentFailureInfo,
 )
 from dlrover.python.elastic_agent.torch.training import ElasticLaunchConfig
 from dlrover.python.tests.test_utils import start_local_master
@@ -41,6 +46,7 @@ from dlrover.trainer.torch.elastic_run import (
     run,
     wait_pre_check,
     ElasticLaunch,
+    _setup_dynamic_failover_extension,
 )
 
 MC_PATH = "dlrover.python.elastic_agent.master_client.MasterClient"
@@ -437,3 +443,54 @@ class TestMainFunction(unittest.TestCase):
         mock_get_env.assert_called_once_with(NodeEnv.DLROVER_MASTER_ADDR)
         mock_dlrover_main.assert_not_called()
         mock_torch_main.assert_called_once()
+
+    def test_setup_dynamic_failover_extension(self):
+        config = ElasticLaunchConfig(
+            min_nodes=1, max_nodes=1, nproc_per_node=1
+        )
+
+        # Test 1: No extension configured
+        with patch.dict("os.environ", clear=True):
+            _setup_dynamic_failover_extension(config)
+            self.assertIsNone(config.dynamic_failover_extension)
+
+        # Test 2: Valid extension configured
+        extension_path = "elastic_run_test::TestDynamicAgentFailoverExtension"
+        with patch.dict(
+            "os.environ",
+            {NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER: extension_path},
+        ):
+            _setup_dynamic_failover_extension(config)
+            self.assertIsNotNone(config.dynamic_failover_extension)
+            self.assertTrue(
+                isinstance(
+                    config.dynamic_failover_extension,
+                    DynamicAgentFailoverExtension,
+                )
+            )
+            config.dynamic_failover_extension = None
+
+        # Test 3: Invalid extension format
+        with patch.dict(
+            "os.environ",
+            {NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER: "invalid_format"},
+        ):
+            _setup_dynamic_failover_extension(config)
+            self.assertIsNone(config.dynamic_failover_extension)
+
+        # Test 4: Non-existent module
+        with patch.dict(
+            "os.environ",
+            {
+                NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER: "nonexistent.module::Class"
+            },
+        ):
+            _setup_dynamic_failover_extension(config)
+            self.assertIsNone(config.dynamic_failover_extension)
+
+
+class TestDynamicAgentFailoverExtension(DynamicAgentFailoverExtension):
+    def get_user_failover_strategy(
+        self, failure_info: AgentFailureInfo
+    ) -> FailoverStrategy:
+        return FailoverStrategy.ABORTION_FAILOVER

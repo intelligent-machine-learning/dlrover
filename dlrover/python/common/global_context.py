@@ -148,6 +148,8 @@ class Context(Singleton):
         self.max_relaunch_count = DefaultValues.MAX_RELAUNCH_COUNT
         self.max_group_relaunch_count = DefaultValues.MAX_GROUP_RELAUNCH_COUNT
         self.training_elastic_mode = DefaultValues.TRAINING_ELASTIC_MODE
+        # extensions
+        self.dynamic_failover_extension = None
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(

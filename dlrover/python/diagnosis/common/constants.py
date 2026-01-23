@@ -75,12 +75,17 @@ class DiagnosisActionType(object):
 
     # master operation
     JOB_ABORT = "job_abortion"
+    JOB_RESTART = "job_restart"
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
 
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+
+    # job operation
+    RESTART_JOB = "restart_job"
+    ABORT_JOB = "abort_job"
 
 
 class DiagnosisResult(object):

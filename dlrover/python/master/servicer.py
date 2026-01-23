@@ -1,5 +1,5 @@
 # 2025 - Modified by MetaX Integrated Circuits (Shanghai) Co., Ltd. All Rights Reserved.
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -46,7 +46,11 @@ from dlrover.python.common.event.train_event import TrainEventName
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeEvent
-from dlrover.python.diagnosis.common.diagnosis_action import NoAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    NoAction,
+    JobRestartAction,
+    JobAbortionAction,
+)
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
@@ -79,7 +83,7 @@ _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 ray_event_queue = RayEventQueue.singleton_instance()
 _event_context = JobEventContext.singleton_instance()
-job_ctx = get_job_context()
+_job_ctx = get_job_context()
 
 
 class MasterServicer(ABC):
@@ -344,7 +348,7 @@ class MasterServicer(ABC):
 
         """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
-        if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+        if _job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
             logger.debug(
                 f"Job is stopping, set waiting_num {waiting_num} to -1"
             )
@@ -468,6 +472,8 @@ class MasterServicer(ABC):
             success = self._report_event(message)
         elif isinstance(message, comm.RdzvBlocked):
             success = self.set_rdzv_blocked(message)
+        elif isinstance(message, comm.DiagnosisAction):
+            success = self._report_action(message)
 
         response.success = success
         return response
@@ -815,6 +821,26 @@ class MasterServicer(ABC):
             action.to_json(),
         )
         return comm.HeartbeatResponse(action=grpc_action)
+
+    def _report_action(self, message: comm.DiagnosisAction):
+        if not message:
+            return False
+        action_cls = message.action_cls
+        action_content = message.action_content
+
+        if action_cls == JobRestartAction.__name__:
+            action = JobRestartAction.from_json(action_content)
+        elif action_cls == JobAbortionAction.__name__:
+            action = JobAbortionAction.from_json(action_content)
+        else:
+            # not supported for other type actions
+            return False
+
+        if action:
+            _job_ctx.enqueue_diagnosis_action(action)
+            return True
+
+        return False
 
 
 class RayMasterServicer(MasterServicer):
