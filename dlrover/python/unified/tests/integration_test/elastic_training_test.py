@@ -1,4 +1,4 @@
-﻿# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -85,6 +85,7 @@ def test_api_full_by_dlrover_run_cmd(tmp_ray):
     ret = dl_job.submit("test_cmd_api", master_cpu=1, master_memory=128)
     assert ret == 0, "Job submitted via by_dlrover_run_cmd should succeed"
 
+
 @pytest.mark.timeout(40, func_only=True)
 def test_api_full_by_torchrun_cmd(tmp_ray):
     root_dir = os.path.dirname(
@@ -100,6 +101,7 @@ def test_api_full_by_torchrun_cmd(tmp_ray):
 
     ret = dl_job.submit("test_cmd_api", master_cpu=1, master_memory=128)
     assert ret == 0, "Job submitted via by_dlrover_run_cmd should succeed"
+
 
 @pytest.mark.timeout(40, func_only=True)  # 25s in ci
 def test_api_full_with_cmd(tmp_ray):
