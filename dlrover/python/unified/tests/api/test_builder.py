@@ -29,6 +29,7 @@ from dlrover.python.unified.common.enums import (
     RLRoleType,
 )
 from dlrover.python.unified.tests.base import BaseTest
+import os
 
 
 class ApiTest(BaseTest):
@@ -117,6 +118,58 @@ class ApiTest(BaseTest):
         self.assertTrue(RLRoleType.ROLLOUT.name in rl_job.collocations[0])
 
         self.assertEqual(len(rl_job.workloads), 6)
+
+    def test_by_dlrover_run_cmd(self):
+        root_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                )
+            )
+        )
+        cmd = f"dlrover-run --nnodes=2 --nproc_per_node=2 --node_check {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+
+        dl_job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
+
+        for workload in dl_job.workloads.values():
+            if workload.backend == "elastic":
+                self.assertEqual(workload.comm_pre_check, True)
+
+        self.assertEqual(dl_job.node_num, 2)
+        self.assertEqual(dl_job.device_per_node, 2)
+        workload = dl_job.workloads["ELASTIC"]
+        self.assertEqual(
+            workload.entry_point,
+            f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0",
+        )
+        self.assertEqual(workload.total, 4)  # nnodes * nproc_per_node
+
+        # test unspported cases
+        with self.assertRaises(ValueError):
+            DLJobBuilder().by_dlrover_run_cmd(
+                "unsupported-run --nnodes=1 train.py"
+            )
+
+    def test_by_torchrun_cmd(self):
+        root_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                )
+            )
+        )
+        cmd = f"torchrun --nnodes=2 --nproc_per_node=2  {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+
+        dl_job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
+
+        self.assertEqual(dl_job.node_num, 2)
+        self.assertEqual(dl_job.device_per_node, 2)
+        workload = dl_job.workloads["ELASTIC"]
+        self.assertEqual(
+            workload.entry_point,
+            f"{root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0",
+        )
+        self.assertEqual(workload.total, 4)  # nnodes * nproc_per_node
 
     def test_extra_flag(self):
         job = (
