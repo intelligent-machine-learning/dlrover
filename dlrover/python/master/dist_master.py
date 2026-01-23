@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,7 +29,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
-from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    JobAbortionAction,
+    JobRestartAction,
+)
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -144,9 +147,8 @@ class DistributedJobMaster(JobMaster):
             if args.enable_dynamic_sharding
             else None
         )
-        elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: create_training_rdzv_manager(),
+            RendezvousName.TRAINING: create_training_rdzv_manager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.diagnosis_manager = DiagnosisMaster(args)
@@ -239,6 +241,11 @@ class DistributedJobMaster(JobMaster):
                     reason=action.reason,
                     msg=action.msg,
                 )
+            elif isinstance(action, JobRestartAction):
+                logger.warning(
+                    f"Got job restart action: {action}, not supported yet"
+                )
+                # TODO: implement restarting
             else:
                 self.job_manager.process_diagnosis_action(action)
 

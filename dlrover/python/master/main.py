@@ -61,6 +61,10 @@ def run(args):
     _dlrover_context.pending_timeout = args.pending_timeout
     _dlrover_context.master_service_type = args.service_type
     _dlrover_context.pre_check_operators = args.pre_check_ops
+    _dlrover_context.dynamic_failover_extension = (
+        args.dynamic_failover_extension
+    )
+
     job_args.training_elastic_mode = args.training_elastic_mode
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
