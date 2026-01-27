@@ -28,7 +28,6 @@ from unittest.mock import MagicMock, patch
 
 import psutil
 from dlrover.python.elastic_agent.torch.training import LogConfig
-from torch.distributed.elastic.multiprocessing import Std, DefaultLogsSpecs
 from torch.distributed.elastic.agent.server.api import (
     RunResult,
     WorkerSpec,
@@ -462,6 +461,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             agent._initialize_workers(agent._worker_group, max_errors=3)
 
     def test_log_config_setup_and_parsing(self):
+        from torch.distributed.elastic.multiprocessing import Std
+
         # test _parse_std_value
         log_config = LogConfig()
         result = LogConfig._parse_std_value(None)
@@ -491,18 +492,19 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             self.assertEqual(log_config.redirects, Std.ALL)
             self.assertEqual(log_config.tee, Std.ERR)
 
-            with patch(
-                "dlrover.python.elastic_agent.torch.training.version_less_than_230"
-            ) as mock_torch_version:
+            if not version_less_than_230():
                 # test torch >= 230
-                mock_torch_version.return_value = False
+                from torch.distributed.elastic.multiprocessing import (
+                    Std,
+                    DefaultLogsSpecs,
+                )
+
                 logs_specs = log_config.logs_specs
                 self.assertIsNotNone(logs_specs)
                 self.assertTrue(isinstance(logs_specs, DefaultLogsSpecs))
                 self.assertIsNotNone(logs_specs._run_log_dir)
-
+            else:
                 # test torch < 230
-                mock_torch_version.return_value = True
                 logs_specs = log_config.logs_specs
                 self.assertIsNotNone(logs_specs)
                 self.assertTrue(isinstance(logs_specs, dict))
