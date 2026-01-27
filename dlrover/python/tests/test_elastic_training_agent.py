@@ -142,8 +142,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 
         if version_less_than_230():
             logs_dict = {
-                "redirects": self.config.redirects,
-                "tee": self.config.tee,
+                "redirects": self.config.get_log_redirects(),
+                "tee": self.config.get_log_tee(),
             }
         else:
             logs_dict = {}
@@ -669,8 +669,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
         if version_less_than_230():
             logs_dict = {
-                "redirects": self.config.redirects,
-                "tee": self.config.tee,
+                "redirects": self.config.get_log_redirects(),
+                "tee": self.config.get_log_tee(),
             }
         else:
             logs_dict = {}
@@ -1518,8 +1518,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
 
         if version_less_than_230():
             logs_dict = {
-                "redirects": self.config.redirects,
-                "tee": self.config.tee,
+                "redirects": self.config.get_log_redirects(),
+                "tee": self.config.get_log_tee(),
             }
         else:
             logs_dict = {}
@@ -1802,8 +1802,8 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
 
         if version_less_than_230():
             logs_dict = {
-                "redirects": self.config.redirects,
-                "tee": self.config.tee,
+                "redirects": self.config.get_log_redirects(),
+                "tee": self.config.get_log_tee(),
             }
         else:
             logs_dict = {}
@@ -2057,8 +2057,8 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
 
         if version_less_than_230():
             logs_dict = {
-                "redirects": self.config.redirects,
-                "tee": self.config.tee,
+                "redirects": self.config.get_log_redirects(),
+                "tee": self.config.get_log_tee(),
             }
         else:
             logs_dict = {}
