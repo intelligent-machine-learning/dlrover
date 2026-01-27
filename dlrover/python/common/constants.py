@@ -14,6 +14,8 @@
 
 class BasicClass(object):
     LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+    LOG_ROOT_DIR_ENV = "DLROVER_LOG_ROOT_DIR"
+    LOG_AGENT_DIR_ENV = "DLROVER_LOG_AGENT_DIR"
 
 
 class PriorityClass(object):

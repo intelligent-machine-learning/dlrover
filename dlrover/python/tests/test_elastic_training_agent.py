@@ -244,7 +244,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -274,7 +273,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         # Mock node rank 0 joins the rendezvous.
@@ -319,7 +317,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         self.rdzv_handler._client._node_id = 1
@@ -336,7 +333,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         self.rdzv_handler._client._node_id = 1
@@ -357,7 +353,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
                 entrypoint="python",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
             self.rdzv_handler._client._node_id = 1
@@ -379,7 +374,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
                 entrypoint="python",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
             self.rdzv_handler._client._node_id = 1
@@ -406,7 +400,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._config.network_check = False
@@ -428,7 +421,6 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._config.network_check = False
@@ -709,7 +701,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._report_failure_to_master({})
@@ -726,7 +717,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._monitor_workers = MagicMock(
@@ -781,7 +771,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._wait_async_saver = mock.MagicMock(side_effect=[Exception])
@@ -817,7 +806,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -844,7 +832,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         storage = PosixDiskStorage()
@@ -878,7 +865,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="sleep",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._initialize_workers = MagicMock(return_value=None)
@@ -902,7 +888,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 entrypoint="sleep",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
             self.assertEqual(agent._rank_cpu_affinity[0], None)
@@ -927,7 +912,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 entrypoint="sleep",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
             self.assertEqual(agent._rank_cpu_affinity[0], None)
@@ -946,7 +930,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent.sync_training_ports(1)
@@ -964,7 +947,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -997,7 +979,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint=self.spec.entrypoint,
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -1091,7 +1072,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -1112,7 +1092,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 entrypoint="echo",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
             try:
@@ -1151,7 +1130,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -1204,7 +1182,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
         agent._stop_workers = mock.MagicMock(return_value=True)
@@ -1509,7 +1486,6 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
         )
         root = ConfigPath.NETWORK_CHECK_DATA_DIR
         if os.path.exists(root):
@@ -1818,7 +1794,6 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     entrypoint="echo",
                     spec=self.spec,
                     start_method=self.config.start_method,
-                    log_dir=self.config.log_dir,
                     exit_barrier_timeout=1,
                 )
 
@@ -1882,7 +1857,6 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 entrypoint="echo",
                 spec=self.spec,
                 start_method=self.config.start_method,
-                log_dir=self.config.log_dir,
                 exit_barrier_timeout=1,
             )
 
@@ -1910,7 +1884,6 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     entrypoint="echo",
                     spec=self.spec,
                     start_method=self.config.start_method,
-                    log_dir=self.config.log_dir,
                     exit_barrier_timeout=1,
                 )
 
@@ -1959,7 +1932,6 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                     entrypoint="echo",
                     spec=self.spec,
                     start_method=self.config.start_method,
-                    log_dir=self.config.log_dir,
                     exit_barrier_timeout=1,
                 )
 
@@ -2052,7 +2024,6 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -2084,7 +2055,6 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -2111,7 +2081,6 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -2137,7 +2106,6 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
@@ -2175,7 +2143,6 @@ class ElasticTrainingAgentGracefulExitTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
