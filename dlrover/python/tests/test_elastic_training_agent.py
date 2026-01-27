@@ -1433,7 +1433,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             entrypoint="echo",
             spec=self.spec,
             start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
             exit_barrier_timeout=1,
         )
 
