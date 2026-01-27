@@ -27,6 +27,8 @@ from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import psutil
+from dlrover.python.elastic_agent.torch.training import LogConfig
+from torch.distributed.elastic.multiprocessing import Std, DefaultLogsSpecs
 from torch.distributed.elastic.agent.server.api import (
     RunResult,
     WorkerSpec,
@@ -458,6 +460,54 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         with self.assertRaises(RuntimeError):
             agent._initialize_workers(agent._worker_group, max_errors=3)
+
+    def test_log_config_setup_and_parsing(self):
+        # test _parse_std_value
+        log_config = LogConfig()
+        result = LogConfig._parse_std_value(None)
+        self.assertEqual(result, Std.NONE)
+
+        result = LogConfig._parse_std_value("3")
+        self.assertEqual(result, Std.ALL)
+
+        result = LogConfig._parse_std_value("INVALID")
+        self.assertEqual(result, Std.NONE)
+
+        result = LogConfig._parse_std_value(Std.OUT)
+        self.assertEqual(result, Std.OUT)
+
+        result = LogConfig._parse_std_value(123)
+        self.assertEqual(result, Std.NONE)
+
+        # test setup
+        import tempfile
+        import shutil
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            log_config.setup(temp_dir, redirects="3", tee=Std.ERR)
+
+            self.assertEqual(log_config.log_dir, temp_dir)
+            self.assertEqual(log_config.redirects, Std.ALL)
+            self.assertEqual(log_config.tee, Std.ERR)
+
+            with patch(
+                "dlrover.python.elastic_agent.torch.training.version_less_than_230"
+            ) as mock_torch_version:
+                # test torch >= 230
+                mock_torch_version.return_value = False
+                logs_specs = log_config.logs_specs
+                self.assertIsNotNone(logs_specs)
+                self.assertTrue(isinstance(logs_specs, DefaultLogsSpecs))
+                self.assertIsNotNone(logs_specs._run_log_dir)
+
+                # test torch < 230
+                mock_torch_version.return_value = True
+                logs_specs = log_config.logs_specs
+                self.assertIsNotNone(logs_specs)
+                self.assertTrue(isinstance(logs_specs, dict))
+        finally:
+            shutil.rmtree(temp_dir)
 
 
 def mock_gpu_metric_collect(*args, **kwargs):

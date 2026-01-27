@@ -227,7 +227,9 @@ class LogConfig:
     @property
     def log_dir(self) -> Optional[str]:
         if not self._log_dir:
-            return "/tmp"
+            tmp_dir = "/tmp"
+            os.makedirs(tmp_dir, exist_ok=True)
+            return tmp_dir
         return self._log_dir
 
     @property
