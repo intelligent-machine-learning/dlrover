@@ -1,4 +1,4 @@
-# 02. Unified API Guide [Experimental]
+﻿# 02. Unified API Guide [Experimental]
 
 This section focuses on the DLJobBuilder and submission patterns: how to
 construct job configurations programmatically and submit them to the
@@ -36,7 +36,19 @@ job = (
 
 job.submit(job_name="nanogpt")
 ```
+- Single role(via CLI command): You can also initialize a single-role job by directly parsing a dlrover-run or
+torchrun command string. This automatically configures nnodes, nproc_per_node, 
+and the training entrypoint.
+```python
+from dlrover.python.unified.api.builder import DLJobBuilder
 
+# Conveniently convert a CLI command into a Ray job
+cmd = f"dlrover-run --nnodes=1 --nproc_per_node=1 {Your_dlrover_root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+
+job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
+
+job.submit("test_cmd_api", master_cpu=1, master_memory=128)
+```
 ### Advanced examples
 
 - Multiple roles(outline):
@@ -88,6 +100,7 @@ version.)
 - run(entrypoint): define a non-training workload with entrypoint, and return a sub builder.
 - workload(role, entrypoint): single method combine role + run
 - train(entrypoint): define a training workload with entrypoint (module path + function or command with python file), and return a sub builder.
+- by_dlrover_run_cmd(command_str): Parses a dlrover-run or torchrun command to set up a single-role training job.
 
 ### Workload / Role patterns
 

@@ -1420,6 +1420,69 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         # skip cuz checked
         _check_device(config)
 
+    def test_invoke_run_with_abort_restart_actions(self):
+        from dlrover.python.diagnosis.common.diagnosis_action import (
+            JobAbortionAction,
+            JobRestartAction,
+        )
+
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+            exit_barrier_timeout=1,
+        )
+
+        with patch(
+            "dlrover.python.elastic_agent.torch.training._agent_evt"
+        ) as mock_agent_evt:
+            mock_abort_action = JobAbortionAction(reason="test abort reason")
+            mock_agent_evt.job_abortion = MagicMock()
+
+            run_result = RunResult(
+                state=WorkerState.FAILED,
+                return_values={},
+                failures={"error": "test failure"},
+            )
+            agent._monitor_workers = MagicMock(return_value=run_result)
+            agent._client.report_action = MagicMock()
+
+            # Test JOB_ABORT action
+            agent._diagnose_agent.diagnose_training_failure = MagicMock(
+                return_value=mock_abort_action
+            )
+            agent._invoke_run()
+            mock_agent_evt.job_abortion.assert_called_once_with(
+                node_rank=0,
+                reason="test abort reason",
+                state="FAILED",
+                return_values="{}",
+                failures="{'error': 'test failure'}",
+            )
+
+            mock_agent_evt.job_abortion.reset_mock()
+            mock_agent_evt.job_restart = MagicMock()
+            mock_restart_action = JobRestartAction(
+                reason="test restart reason"
+            )
+
+            # Test JOB_RESTART action
+            agent._diagnose_agent.diagnose_training_failure = MagicMock(
+                return_value=mock_restart_action
+            )
+            agent._invoke_run()
+            mock_agent_evt.job_restart.assert_called_once_with(
+                node_rank=0,
+                reason="test restart reason",
+                state="FAILED",
+                return_values="{}",
+                failures="{'error': 'test failure'}",
+            )
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:

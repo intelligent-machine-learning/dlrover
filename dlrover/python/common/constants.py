@@ -352,6 +352,9 @@ class NodeEnv(object):
     # grpc env
     MASTER_CLIENT_TIMEOUT = "MASTER_CLIENT_TIMEOUT"
 
+    # extension env
+    DLROVER_EXTENSION_DYNAMIC_FAILOVER = "DLROVER_EXTENSION_DYNAMIC_FAILOVER"
+
 
 class DatasetType(object):
     TEXT = "text"

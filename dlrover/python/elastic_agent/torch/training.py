@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -93,6 +93,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
     NodeAction,
+    JobAction,
 )
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -104,6 +105,9 @@ from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
+from dlrover.python.elastic_agent.torch.dynamic_failover import (
+    DynamicAgentFailoverExtension,
+)
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.util.common_util import (
@@ -276,6 +280,10 @@ class ElasticLaunchConfig(LaunchConfig):
         training_log_file: the training log file of this training job
         failure_node_errors: the error information that indicate the node
             is a failure node
+        numa_affinity: whether numa affinity is enabled.
+        membind_policy: membind policy for numa affinity.
+        ucp_device_type: device type for unified checkpoint.
+        dynamic_failover_extension: extend implementation for dynamic failover.
     """
 
     precheck: int = 0
@@ -294,6 +302,7 @@ class ElasticLaunchConfig(LaunchConfig):
     numa_affinity: bool = False
     membind_policy: str = "none"
     ucp_device_type: str = "cpu"
+    dynamic_failover_extension: Optional[DynamicAgentFailoverExtension] = None
 
     def get_log_dir(self):
         return self.log_config.log_dir
@@ -690,6 +699,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 errors=failure_node_errors,
                 node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
+                dynamic_failover_extension=config.dynamic_failover_extension,
             )
         else:
             self._diagnose_agent = None
@@ -786,7 +796,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
-        r"""
+        """
         Runs rendezvous for the workers specified by worker spec.
         Assigns workers a new global rank and world size.
         Updates the rendezvous store for the worker group.
@@ -1374,6 +1384,22 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         return_values=f"{run_result.return_values}",
                         failures=f"{run_result.failures}",
                     )
+                elif action.action_type == DiagnosisActionType.JOB_ABORT:
+                    _agent_evt.job_abortion(
+                        node_rank=self._node_rank,
+                        reason=action.reason,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+                elif action.action_type == DiagnosisActionType.JOB_RESTART:
+                    _agent_evt.job_restart(
+                        node_rank=self._node_rank,
+                        reason=action.reason,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
 
                 self._process_diagnosis_action(action)
 
@@ -1423,11 +1449,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
+        if not action:
+            return
+        action_type = action.action_type
+
         if isinstance(action, NodeAction):
             action.__class__ = NodeAction
-            if action.action_type == DiagnosisActionType.RESTART_WORKER:
+            if action_type == DiagnosisActionType.RESTART_WORKER:
                 logger.info(
-                    f"Process diagnosis action: {action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action_type} {action.instance}"
                 )
                 if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
                     self._remaining_failovers -= 1
@@ -1435,9 +1465,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         f"Decrement remaining FO to {self._remaining_failovers}"
                     )
                 self._restart_workers(self._worker_group)
-            elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+            elif action_type == DiagnosisActionType.RELAUNCH_WORKER:
                 logger.info(
-                    f"Process diagnosis action: {action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action_type} {action.instance}"
                 )
                 self._stop_workers(self._worker_group)
                 self._worker_group.state = WorkerState.FAILED
@@ -1453,6 +1483,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 msg=action.event_msg,
                 labels=labels,
             )
+        elif isinstance(action, JobAction):
+            logger.info(
+                f"Report job action to master for following process: {action_type}."
+            )
+            self._client.report_action(action)
 
     def _check_and_process_diagnosis_action(self):
         for instance in [

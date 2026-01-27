@@ -125,7 +125,145 @@ class TestDiagnosisAgent(unittest.TestCase):
             action.action_type, DiagnosisActionType.RESTART_WORKER
         )
 
+        # Test user defined failover strategy - NODE_FAILOVER
+        from dlrover.python.common.enums import FailoverStrategy
+        from dlrover.python.elastic_agent.torch.dynamic_failover import (
+            DynamicAgentFailoverExtension,
+            AgentFailureInfo,
+        )
+
+        class MockDynamicExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                return FailoverStrategy.NODE_FAILOVER
+
+        mock_extension = MockDynamicExtension()
+        agent_with_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_extension
+        )
+        agent_with_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_extension.diagnose_training_failure()
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+        )
+        self.assertEqual(action.node_id, env_utils.get_node_id())
+        self.assertEqual(action.node_type, env_utils.get_node_type())
+
+        # Test user defined failover strategy - ABORTION_FAILOVER
+        class MockAbortionExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                return FailoverStrategy.ABORTION_FAILOVER
+
+        mock_abortion_extension = MockAbortionExtension()
+        agent_with_abortion_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_abortion_extension
+        )
+        agent_with_abortion_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_abortion_extension.diagnose_training_failure()
+        from dlrover.python.common.failover import (
+            USER_FAILOVER_TRIGGER_JOB_ABORTION,
+        )
+
+        self.assertEqual(action.reason, USER_FAILOVER_TRIGGER_JOB_ABORTION)
+
+        # Test user defined failover strategy - GLOBAL_FAILOVER
+        class MockGlobalExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                return FailoverStrategy.GLOBAL_FAILOVER
+
+        mock_global_extension = MockGlobalExtension()
+        agent_with_global_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_global_extension
+        )
+        agent_with_global_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_global_extension.diagnose_training_failure()
+        from dlrover.python.common.failover import (
+            USER_FAILOVER_TRIGGER_JOB_RESTART,
+        )
+
+        self.assertEqual(action.reason, USER_FAILOVER_TRIGGER_JOB_RESTART)
+
+        # Test user defined failover strategy - NORMAL_FAILOVER (default fallback)
+        class MockNormalExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                return FailoverStrategy.NORMAL_FAILOVER
+
+        mock_normal_extension = MockNormalExtension()
+        agent_with_normal_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_normal_extension
+        )
+        agent_with_normal_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_normal_extension.diagnose_training_failure()
+        # Should fall back to default dlrover logic
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
+
+        # Test user defined failover strategy - got exception
+        class MockNormalExtension(DynamicAgentFailoverExtension):
+            def get_user_failover_strategy(
+                self, failure_info: AgentFailureInfo
+            ):
+                raise RuntimeError
+
+        mock_normal_extension = MockNormalExtension()
+        agent_with_normal_extension = DiagnosisAgent(
+            dynamic_failover_extension=mock_normal_extension
+        )
+        agent_with_normal_extension.update_config(file_path, errors)
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+
+        action = agent_with_normal_extension.diagnose_training_failure()
+        # Should fall back to default dlrover logic
+        self.assertEqual(
+            action.action_type, DiagnosisActionType.RESTART_WORKER
+        )
+
         agent.stop()
+        agent_with_extension.stop()
+        agent_with_abortion_extension.stop()
+        agent_with_global_extension.stop()
+        agent_with_normal_extension.stop()
 
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(
