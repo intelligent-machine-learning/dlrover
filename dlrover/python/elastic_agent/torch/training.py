@@ -226,6 +226,8 @@ class LogConfig:
 
     @property
     def log_dir(self) -> Optional[str]:
+        if not self._log_dir:
+            return "/tmp"
         return self._log_dir
 
     @property
@@ -319,7 +321,6 @@ class ElasticLaunchConfig(LaunchConfig):
     def setup_log(self, log_dir, redirects=None, tee=None):
         if log_dir:
             logger.info(f"Initiate specified log directory: {log_dir}.")
-
             self.log_config.setup(log_dir, redirects=redirects, tee=tee)
         else:
             logger.info("No specified log directory is configured.")
