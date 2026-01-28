@@ -481,33 +481,40 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(result, Std.NONE)
 
         # test setup
-        import tempfile
-        import shutil
-
         temp_dir = tempfile.mkdtemp()
         try:
-            log_config.setup(temp_dir, redirects="3", tee=Std.ERR)
+            log_config.setup(None)
+            self.assertEqual(log_config.log_dir, "/tmp")
+            self.assertEqual(log_config.redirects, Std.NONE)
+            self.assertEqual(log_config.tee, Std.NONE)
 
+            log_config.setup(temp_dir)
+            self.assertEqual(log_config.log_dir, temp_dir)
+            self.assertEqual(log_config.redirects, Std.ALL)
+            self.assertEqual(log_config.tee, Std.ALL)
+
+            log_config.setup(temp_dir, redirects="3", tee=Std.ERR)
             self.assertEqual(log_config.log_dir, temp_dir)
             self.assertEqual(log_config.redirects, Std.ALL)
             self.assertEqual(log_config.tee, Std.ERR)
 
-            if not version_less_than_230():
-                # test torch >= 230
-                from torch.distributed.elastic.multiprocessing import (
-                    Std,
-                    DefaultLogsSpecs,
-                )
+            with patch(
+                "dlrover.python.elastic_agent.torch.training.version_less_than_230"
+            ) as mock_version:
+                # test torch < 230
+                mock_version.return_value = True
 
                 logs_specs = log_config.logs_specs
                 self.assertIsNotNone(logs_specs)
-                self.assertTrue(isinstance(logs_specs, DefaultLogsSpecs))
-                self.assertIsNotNone(logs_specs._run_log_dir)
-            else:
-                # test torch < 230
-                logs_specs = log_config.logs_specs
-                self.assertIsNotNone(logs_specs)
                 self.assertTrue(isinstance(logs_specs, dict))
+
+                # test torch >= 230
+                mock_version.return_value = False
+                with patch(
+                    "torch.distributed.elastic.multiprocessing.DefaultLogsSpecs"
+                ):
+                    logs_specs = log_config.logs_specs
+                    self.assertIsNotNone(logs_specs)
         finally:
             shutil.rmtree(temp_dir)
 
