@@ -87,8 +87,6 @@ def get_logger(
             handlers = [file_handler] + _DEFAULT_HANDLERS
         else:
             handlers = _DEFAULT_HANDLERS
-    elif len(handlers) == 0:
-        handlers = _DEFAULT_HANDLERS
     else:
         handlers.extend(_DEFAULT_HANDLERS)
 
