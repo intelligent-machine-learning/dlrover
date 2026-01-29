@@ -113,7 +113,10 @@ from dlrover.python.common.constants import (
     NodeEventType,
     PreCheckStatus,
 )
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.log import (
+    default_logger as logger,
+    get_agent_log_dir,
+)
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
     DynamicAgentFailoverExtension,
@@ -391,12 +394,14 @@ def _elastic_config_from_args(
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
 
+    logger.info(f"Setup ElasticLaunchConfig with: {config.__dict__}")
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
-    # PyTorch >= 2.3.0 remove log_dir in the LaunchConfig.
-    if not version_less_than_230():
-        elastic_config.log_dir = config.logs_specs.root_log_dir
-
+    elastic_config.setup_log(
+        getattr(args, "log_dir", None) or get_agent_log_dir(),
+        getattr(args, "redirects", None),
+        getattr(args, "tee", None),
+    )
     elastic_config.precheck = getattr(args, "precheck", False)
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
