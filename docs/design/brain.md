@@ -44,13 +44,13 @@ training in real-time.
 <img src="../figures/dlrover_brain_arch.jpg" alt="Async Checkpoint Classes" width="1000">
 </div>
 
-Brain is composed of three components: Server, Optimization, and Configuration.
+Brain is composed of three components: API, Optimization, and Configuration.
 
-### Server
+### API
 
-The Server is responsible for receiving requests from training tasks, dispatching 
+The API is responsible for receiving requests from training jobs, dispatching 
 them to the relevant components for processing, and finally returning the results to 
-the training tasks. Interaction between the training tasks and the Server occurs via 
+the training jobs. Interaction between the training jobs and the Server occurs via 
 the HTTP protocol.
 
 ### Optimization
