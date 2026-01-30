@@ -95,7 +95,3 @@ These configurations are not stored directly within Brain but on external storag
 such as databases (DB) or Kubernetes ConfigMaps. Brain Configuration periodically 
 synchronizes with the configurations on these media to ensure that training tasks can 
 access the latest settings.
-
-
-
-
