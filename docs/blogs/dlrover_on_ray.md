@@ -1,7 +1,7 @@
 # New Architecture: DLRover on Ray
 
 This is a table of contents-style document designed to help users progressively 
-understand DLRover's new practices on Ray.
+understand DLRover's new practices on [Ray](https://github.com/ray-project/ray).
 
 * [Background](../design/unified-mpmd-control-proposal.md)
 

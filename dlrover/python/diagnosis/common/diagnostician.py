@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
@@ -27,20 +26,26 @@ from dlrover.python.util.function_util import (
 )
 
 
-class DiagnosisObservation(metaclass=ABCMeta):
+class DiagnosisObservation:
     """
     DiagnosisObservation is to describe the problem observed
     by Diagnostician.observe
     """
 
-    def __init__(self, observation: str = ""):
+    def __init__(
+        self, observation: str = "", extra_infos: Dict[str, str] = {}
+    ):
         # The simple description info for the problem.
         self._observation: str = observation
-        self.extra_infos: Dict[str, str] = {}
+        self._extra_infos: Dict[str, str] = extra_infos
 
     @property
     def observation(self):
         return self._observation
+
+    @property
+    def extra_infos(self):
+        return self._extra_infos
 
 
 class Diagnostician:
@@ -59,7 +64,7 @@ class Diagnostician:
         pass
 
     @threading_timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
-    def observe(self, **kwargs) -> DiagnosisObservation:
+    def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         # observe if particular problem happened
         return DiagnosisObservation("unknown")
 
@@ -74,7 +79,9 @@ class Diagnostician:
         # define the diagnosis procedure
         try:
             ob = self.observe(**kwargs)
-            return self.resolve(ob, **kwargs)
+            if ob:
+                return self.resolve(ob, **kwargs)
+            return NoAction()
         except TimeoutException:
             logger.error(
                 f"The diagnosis of {self.__class__.__name__} is timeout."

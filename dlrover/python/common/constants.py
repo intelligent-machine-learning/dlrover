@@ -14,6 +14,8 @@
 
 class BasicClass(object):
     LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+    LOG_ROOT_DIR_ENV = "DLROVER_LOG_ROOT_DIR"
+    LOG_AGENT_DIR_ENV = "DLROVER_LOG_AGENT_DIR"
 
 
 class PriorityClass(object):
@@ -315,6 +317,7 @@ class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     DLROVER_MASTER_SERVICE_TYPE = "DLROVER_MASTER_SERVICE_TYPE"
+    DLROVER_TRAINING_ELASTIC_MODE = "DLROVER_TRAINING_ELASTIC_MODE"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     GRPC_POLL_STRATEGY = "GRPC_POLL_STRATEGY"
     POD_NAME = "POD_NAME"
@@ -348,6 +351,9 @@ class NodeEnv(object):
 
     # grpc env
     MASTER_CLIENT_TIMEOUT = "MASTER_CLIENT_TIMEOUT"
+
+    # extension env
+    DLROVER_EXTENSION_DYNAMIC_FAILOVER = "DLROVER_EXTENSION_DYNAMIC_FAILOVER"
 
 
 class DatasetType(object):
@@ -383,6 +389,11 @@ class k8sAPIExceptionReason(object):
 class RendezvousName(object):
     TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
+
+
+class RendezvousErrorType(object):
+    PEND_TIMEOUT = "pend-timeout"
+    JOIN_TIMEOUT = "join-timeout"
 
 
 class NetworkFailureReason(object):

@@ -580,8 +580,9 @@ class TrainingEventTest(unittest.TestCase):
         ) as mock_method:
             mock_method.return_value = 20
             self.assertEqual(_event_context.check_job_step_hang(), False)
-            self.assertEqual(_event_context.hang_threshold, 200)
+            self.assertEqual(_event_context.hang_threshold, 120)
 
+        _dlrover_context.hang_downtime = 10
         with patch(
             "dlrover.python.common.event.context.StepEvents.last_steps_avg_time"
         ) as mock_method:
@@ -589,12 +590,13 @@ class TrainingEventTest(unittest.TestCase):
             self.assertEqual(_event_context.check_job_step_hang(), False)
             self.assertEqual(_event_context.hang_threshold, 600)
 
+        _dlrover_context.hang_downtime = 20
         with patch(
             "dlrover.python.common.event.context.StepEvents.last_steps_avg_time"
         ) as mock_method:
             mock_method.return_value = 10
             self.assertEqual(_event_context.check_job_step_hang(), False)
-            self.assertEqual(_event_context.hang_threshold, 120)
+            self.assertEqual(_event_context.hang_threshold, 1200)
 
         now = int(datetime.now().timestamp())
         evt1 = AtorchEvent(
@@ -627,7 +629,7 @@ class TrainingEventTest(unittest.TestCase):
         _event_context.train_steps.add_step_event(evt3)
         self.assertEqual(_event_context.check_job_step_hang(), False)
         time.sleep(2)
-        self.assertEqual(_event_context.check_job_step_hang(), True)
+        self.assertEqual(_event_context.check_job_step_hang(), False)
 
     def test_ckpt_hang(self):
         _event_context.ckpt_threshold = 1

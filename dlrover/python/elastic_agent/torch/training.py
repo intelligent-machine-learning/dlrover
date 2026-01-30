@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,6 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 import traceback
 import uuid
@@ -81,6 +80,7 @@ from dlrover.python.common.constants import (
     EventReportConstants,
     ScriptPath,
     NodeExitReason,
+    RendezvousErrorType,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -93,6 +93,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
     NodeAction,
+    JobAction,
 )
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -104,6 +105,9 @@ from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
+from dlrover.python.elastic_agent.torch.dynamic_failover import (
+    DynamicAgentFailoverExtension,
+)
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.util.common_util import (
@@ -179,6 +183,83 @@ class StopWorkerTimeoutError(RuntimeError):
     pass
 
 
+class LogConfig:
+    _log_dir: Optional[str] = None
+    _redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    _tee: Union[Std, Dict[int, Std]] = Std.NONE
+
+    @classmethod
+    def _parse_std_value(cls, val) -> Std:
+        if val is None:
+            return Std.NONE
+
+        if isinstance(val, str):
+            try:
+                return Std.from_str(val)
+            except ValueError:
+                return Std.NONE
+        elif isinstance(val, Std):
+            return val
+
+        return Std.NONE
+
+    def setup(self, log_dir, redirects=None, tee=None):
+        if not log_dir:
+            return
+
+        self._log_dir = log_dir
+
+        redirects = self._parse_std_value(redirects)
+        tee = self._parse_std_value(tee)
+
+        if redirects == Std.NONE and tee == Std.NONE:
+            # override default when log dir is specified
+            self._redirects = Std.ALL
+            self._tee = Std.ALL
+        else:
+            self._redirects = redirects
+            self._tee = tee
+
+        logger.debug(
+            f"Log config: {self._log_dir}-{self._redirects}-{self._tee}"
+        )
+
+    @property
+    def log_dir(self) -> Optional[str]:
+        if not self._log_dir:
+            tmp_dir = "/tmp"
+            os.makedirs(tmp_dir, exist_ok=True)
+            return tmp_dir
+        return self._log_dir
+
+    @property
+    def redirects(self) -> Union[Std, Dict[int, Std]]:
+        return self._redirects
+
+    @property
+    def tee(self) -> Union[Std, Dict[int, Std]]:
+        return self._tee
+
+    @property
+    def logs_specs(self):
+        if version_less_than_230():
+            return {
+                "log_dir": self.log_dir,
+                "redirects": self.redirects,
+                "tee": self.tee,
+            }
+        else:
+            from torch.distributed.elastic.multiprocessing import (
+                DefaultLogsSpecs,
+            )
+
+            log_specs = DefaultLogsSpecs(
+                log_dir=self.log_dir, redirects=self.redirects, tee=self.tee
+            )
+            log_specs._run_log_dir = self.log_dir
+            return log_specs
+
+
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
@@ -203,6 +284,10 @@ class ElasticLaunchConfig(LaunchConfig):
         training_log_file: the training log file of this training job
         failure_node_errors: the error information that indicate the node
             is a failure node
+        numa_affinity: whether numa affinity is enabled.
+        membind_policy: membind policy for numa affinity.
+        ucp_device_type: device type for unified checkpoint.
+        dynamic_failover_extension: extend implementation for dynamic failover.
     """
 
     precheck: int = 0
@@ -215,12 +300,32 @@ class ElasticLaunchConfig(LaunchConfig):
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
     accelerator: str = ""
-    log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
-    redirects: Union[Std, Dict[int, Std]] = Std.NONE
-    tee: Union[Std, Dict[int, Std]] = Std.NONE
+    log_config: LogConfig = LogConfig()
     training_log_file: str = ""
     failure_node_errors: str = ""
     numa_affinity: bool = False
+    membind_policy: str = "none"
+    ucp_device_type: str = "cpu"
+    dynamic_failover_extension: Optional[DynamicAgentFailoverExtension] = None
+
+    def get_log_dir(self):
+        return self.log_config.log_dir
+
+    def get_log_tee(self):
+        return self.log_config.tee
+
+    def get_log_redirects(self):
+        return self.log_config.redirects
+
+    def get_log_specs(self):
+        return self.log_config.logs_specs
+
+    def setup_log(self, log_dir, redirects=None, tee=None):
+        if log_dir:
+            logger.info(f"Initiate specified log directory: {log_dir}.")
+            self.log_config.setup(log_dir, redirects=redirects, tee=tee)
+        else:
+            logger.info("No specified log directory is configured.")
 
     def set_node_unit(self, node_unit):
         """Set the number unit of nodes."""
@@ -362,6 +467,17 @@ class MasterRendezvousHandler(RendezvousHandler):
 
         return round
 
+    def _get_rdzv_error_data(self, err_type="", err_msg="", elapsed_time=-1):
+        return json.dumps(
+            {
+                "rdzv_name": self._name,
+                "node_rank": self._node_rank,
+                "err_type": err_type,
+                "err_message": err_msg,
+                "elapsed_time": elapsed_time,
+            }
+        )
+
     def next_rendezvous(self):
         """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
@@ -408,6 +524,15 @@ class MasterRendezvousHandler(RendezvousHandler):
                         err_msg = (
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                        self._report_failure(
+                            self._get_rdzv_error_data(
+                                RendezvousErrorType.PEND_TIMEOUT,
+                                err_msg,
+                                int(self.pend_timeout),
+                            ),
+                            level=TrainingExceptionLevel.RDZV_ERROR,
+                            rank0_only=False,
+                        )
                         _rdzv_evt.fail(error=err_msg)
                         raise RendezvousTimeoutError(err_msg)
                     continue
@@ -418,7 +543,13 @@ class MasterRendezvousHandler(RendezvousHandler):
                     "to complete rendezvous."
                 )
                 self._report_failure(
-                    err_msg, level=TrainingExceptionLevel.RDZV_ERROR
+                    self._get_rdzv_error_data(
+                        RendezvousErrorType.JOIN_TIMEOUT,
+                        err_msg,
+                        self.join_timeout,
+                    ),
+                    level=TrainingExceptionLevel.RDZV_ERROR,
+                    rank0_only=False,
                 )
                 _rdzv_evt.fail(error=err_msg)
                 raise RendezvousTimeoutError(err_msg)
@@ -435,7 +566,10 @@ class MasterRendezvousHandler(RendezvousHandler):
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
-            self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
+            self._report_failure(
+                self._get_rdzv_error_data("", err_msg),
+                level=TrainingExceptionLevel.WARNING,
+            )
 
         _rdzv_evt.success(
             round=round,
@@ -463,8 +597,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         if num < 0:
             raise JobStoppingError("Exit rendezvous when job is stopping")
 
-    def _report_failure(self, err_msg, level):
-        if self._node_rank == 0:
+    def _report_failure(self, err_msg, level, rank0_only=True):
+        if rank0_only and not self._node_rank == 0:
+            return
+        else:
             self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
@@ -520,7 +656,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         spec: WorkerSpec,
         start_method="spawn",
         exit_barrier_timeout: float = 300,
-        log_dir: Optional[str] = None,
         training_log_file: str = "",
         failure_node_errors: str = "",
         with_diagnostician: bool = True,
@@ -530,10 +665,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 spec=spec,
                 exit_barrier_timeout=exit_barrier_timeout,
             )
+            # compatible
+            # https://github.com/pytorch/pytorch/blob/39901f229520a5256505ec24782f716ee7ddc843/torch/distributed/elastic/agent/server/local_elastic_agent.py#L148C9-L148C22
+            self._log_dir = config.get_log_dir()
         else:
+            logger.info(
+                "Setup logging configuration for torch version>=230 with "
+                f"log_dir: {config.get_log_dir()}, "
+                f"redirections: {config.get_log_redirects()}, "
+                f"tee: {config.get_log_tee()}, log_specs: {config.get_log_specs().__dict__}"
+            )
             super().__init__(
                 spec=spec,
-                logs_specs=config.logs_specs,
+                logs_specs=config.get_log_specs(),
                 exit_barrier_timeout=exit_barrier_timeout,
             )
         self._node_rank = node_rank
@@ -541,7 +685,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._entrypoint = entrypoint
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
-        self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._restart_count = 0
         self._remaining_failovers = self._remaining_restarts
@@ -559,7 +702,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 errors=failure_node_errors,
                 node_rank=node_rank,
                 local_world_size=config.nproc_per_node,
+                dynamic_failover_extension=config.dynamic_failover_extension,
             )
+        else:
+            self._diagnose_agent = None
+
         self._agent_context = get_agent_context()
         self._rank_cpu_affinity = {}
         if self._config.numa_affinity:
@@ -615,6 +762,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
         # print out a snapshot of all processes again
         env_utils.print_process_list()
 
+    def _graceful_exit_workers(self, worker_group: WorkerGroup):
+        logger.info("try to gracefully exit workers")
+        if self._pcontext is None:
+            logger.warning(
+                "_pcontext is None, cannot send graceful exit signal"
+            )
+            return
+        pid_set = set(self._pcontext.pids().values())
+        pc_pids = list(pid_set)
+        if not pc_pids:
+            logger.warning(
+                "No worker PIDs available, cannot send graceful exit signal"
+            )
+            return
+        pc_pid = pc_pids[0]
+        try:
+            os.kill(pc_pid, signal.SIGUSR1)
+        except Exception as e:
+            logger.warning(f"error when kill {pc_pid}: {str(e)}")
+
     @prof
     def _stop_orphan_workers(self, wg: WorkerGroup) -> None:
         """How we define the orphan workers
@@ -632,7 +799,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
-        r"""
+        """
         Runs rendezvous for the workers specified by worker spec.
         Assigns workers a new global rank and world size.
         Updates the rendezvous store for the worker group.
@@ -688,6 +855,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+        if self._diagnose_agent is not None:
+            logger.info(
+                f"[{spec.role}] Reset event collector after rendezvous"
+            )
+            self._diagnose_agent.reset_atorch_collector()
 
     """
     The following function(copied from torch 230) is used to
@@ -933,7 +1106,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 else:
                     raise e
             else:
-                logger.info("Finish initializing training workers.")
+                logger.info(
+                    f"Finish initializing training({self.__class__.__name__}) workers."
+                )
                 break
 
     @prof
@@ -963,7 +1138,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(0)
 
     def _stop_timeout_handler(self, signum, frame):
-        current_pgid = os.getpgid(os.getpid())
+        current_pid = os.getpid()
+        current_pgid = os.getpgid(current_pid)
 
         def get_processes_by_pgid(pgid):
             target_processes = []
@@ -983,6 +1159,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
                                 "ppid": proc.ppid(),
                                 "name": proc.name(),
                                 "cmdline": cmdline,
+                                "kernel_stack": env_utils.get_kernel_stack(
+                                    proc.pid
+                                )[1],
+                                "user_stack": env_utils.get_user_stack_pyspy(
+                                    proc.pid
+                                )[1],
                             }
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -990,24 +1172,48 @@ class ElasticTrainingAgent(LocalElasticAgent):
             return target_processes
 
         try:
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
+            # get all the subprocess's pgid by current pid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            child_pgids = set(
+                [os.getpgid(child_pid) for child_pid in child_pids]
             )
 
-            subprocess.run(
-                ["pkill", "-9", "-g", str(current_pgid)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            # kill child pg 1st
+            if child_pids and child_pgids:
+                for child_pgid in child_pgids:
+                    target_processes = get_processes_by_pgid(child_pgid)
 
-            target_processes = get_processes_by_pgid(current_pgid)
-            logger.warning(
-                "Remaining process after pkill in 'stop_timeout_handler', "
-                f"Target pgid: {current_pgid}, processes: {target_processes}"
-            )
+                    # print target processes' stack info and do killing
+                    logger.warning(
+                        "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
+                        f"Target pgid: {child_pgid}, processes: {target_processes}"
+                    )
+                    subprocess.run(
+                        ["pkill", "-9", "-g", str(child_pgid)],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+            time.sleep(1)
+
+            # if still remain child process, kill current pgid
+            child_pids = env_utils.get_all_child_pids(current_pid)
+            if child_pids:
+                logger.warning(
+                    f"Still remaining process after pkill child process in 'stop_timeout_handler': {child_pids}"
+                )
+                target_processes = get_processes_by_pgid(current_pgid)
+                logger.warning(
+                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler', "
+                    f"Target pgid: {current_pgid}, processes: {target_processes}"
+                )
+                subprocess.run(
+                    ["pkill", "-9", "-g", str(current_pgid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
         except Exception:
             logger.exception(
                 "Unexpected error in stop_timeout_handler when killing process."
@@ -1072,6 +1278,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
         if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+            os.environ["DLROVER_MEMBIND_POLICY"] = self._config.membind_policy
             logger.info(
                 f"WorkerGroup before numa affinity: {self._worker_group.spec}"
             )
@@ -1180,6 +1387,22 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         return_values=f"{run_result.return_values}",
                         failures=f"{run_result.failures}",
                     )
+                elif action.action_type == DiagnosisActionType.JOB_ABORT:
+                    _agent_evt.job_abortion(
+                        node_rank=self._node_rank,
+                        reason=action.reason,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
+                elif action.action_type == DiagnosisActionType.JOB_RESTART:
+                    _agent_evt.job_restart(
+                        node_rank=self._node_rank,
+                        reason=action.reason,
+                        state=f"{run_result.state.name}",
+                        return_values=f"{run_result.return_values}",
+                        failures=f"{run_result.failures}",
+                    )
 
                 self._process_diagnosis_action(action)
 
@@ -1189,6 +1412,21 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
+                    self._graceful_exit_workers(
+                        worker_group=self._worker_group
+                    )
+                    elastic_mode = os.getenv(
+                        "DLROVER_TRAINING_ELASTIC_MODE", "base"
+                    ).lower()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.set_rdzv_blocked(True)
+                    logger.info(
+                        f"self._worker_group.group_rank : {self._worker_group.group_rank}"
+                    )
                     _agent_evt.process_restart_membership(
                         node_rank=self._node_rank,
                         restart_count=self._restart_count,
@@ -1198,16 +1436,31 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         failures=f"{run_result.failures}",
                     )
                     self._save_ckpt_to_storage()
+
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.ucp()
+                    if (
+                        self._worker_group.group_rank == 0
+                        and elastic_mode == "ucp"
+                    ):
+                        self.set_rdzv_blocked(False)
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
+        if not action:
+            return
+        action_type = action.action_type
+
         if isinstance(action, NodeAction):
             action.__class__ = NodeAction
-            if action.action_type == DiagnosisActionType.RESTART_WORKER:
+            if action_type == DiagnosisActionType.RESTART_WORKER:
                 logger.info(
-                    f"Process diagnosis action: {action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action_type} {action.instance}"
                 )
                 if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
                     self._remaining_failovers -= 1
@@ -1215,9 +1468,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         f"Decrement remaining FO to {self._remaining_failovers}"
                     )
                 self._restart_workers(self._worker_group)
-            elif action.action_type == DiagnosisActionType.RELAUNCH_WORKER:
+            elif action_type == DiagnosisActionType.RELAUNCH_WORKER:
                 logger.info(
-                    f"Process diagnosis action: {action.action_type} {action.instance}"
+                    f"Process diagnosis action: {action_type} {action.instance}"
                 )
                 self._stop_workers(self._worker_group)
                 self._worker_group.state = WorkerState.FAILED
@@ -1233,6 +1486,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 msg=action.event_msg,
                 labels=labels,
             )
+        elif isinstance(action, JobAction):
+            logger.info(
+                f"Report job action to master for following process: {action_type}."
+            )
+            self._client.report_action(action)
 
     def _check_and_process_diagnosis_action(self):
         for instance in [
@@ -1288,6 +1546,111 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage, 60, self._client
             )
+
+    def ucp(self):
+        """
+        Do universal checkpoint.
+
+        Semantics:
+        - UCP must always operate on a successfully saved checkpoint.
+        - start_saving_step is only used to detect and wait for a new save.
+        """
+        try:
+            saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
+            if not saver:
+                return
+
+            start_time = time.time()
+            max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
+            wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
+
+            # Initial snapshot
+            checkpoint_dir, last_success_step = (
+                saver.get_latest_success_save_dir()
+            )
+            start_saving_step = saver.get_latest_start_saving_step()
+
+            # If nothing has ever been saved or started, nothing to UCP
+            if last_success_step is None and start_saving_step is None:
+                logger.info("No checkpoint has ever been started, skip ucp.")
+                return
+            target_step = None
+            need_new_saving = False
+
+            while True:
+                checkpoint_dir, success_step = (
+                    saver.get_latest_success_save_dir()
+                )
+                start_saving_step = saver.get_latest_start_saving_step()
+                elapsed_time = time.time() - start_time
+
+                # Detect that a NEW checkpoint saving has actually started
+                if (
+                    start_saving_step is not None
+                    and last_success_step is not None
+                    and start_saving_step > last_success_step
+                ):
+                    target_step = start_saving_step
+                    need_new_saving = True
+
+                # If we have seen the new saving and it completed successfully
+                if need_new_saving and success_step == target_step:
+                    break
+
+                # No new checkpoint triggered within wait_time
+                if not need_new_saving and elapsed_time > wait_time:
+                    logger.info(
+                        "No new checkpoint triggered, "
+                        "using last successful step %s for ucp.",
+                        success_step,
+                    )
+                    break
+
+                # Timeout waiting for the new checkpoint
+                if elapsed_time > max_wait_time:
+                    logger.warning(
+                        "Timeout waiting for checkpoint step %s. "
+                        "Fallback to last successful step %s.",
+                        target_step,
+                        success_step,
+                    )
+                    break
+
+                time.sleep(1)
+
+            # -------- Final decision: ONLY use successful checkpoint --------
+            checkpoint_dir, step = saver.get_latest_success_save_dir()
+            if checkpoint_dir is None or step is None:
+                logger.error("No successful checkpoint available for ucp.")
+                return
+
+            input_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                f"global_step{step}",
+            )
+            output_dir = os.path.join(
+                checkpoint_dir,
+                f"checkpoint-{step}",
+                "ucp",
+            )
+
+            res = saver.ucp(
+                input_dir,
+                output_dir,
+                self._config.ucp_device_type,
+            )
+            if res:
+                with open(
+                    os.path.join(checkpoint_dir, "ucp.txt"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(str(step))
+
+        except Exception:
+            logger.exception("ucp failed")
+            raise
 
     def _stop_workers_to_restart(self):
         """
@@ -1394,6 +1757,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
+    def set_rdzv_blocked(self, blocked, reason=""):
+        return self._client.set_rdzv_blocked(blocked=blocked, reason=reason)
+
     def _dlrover_exit_barrier(self):
         logger.info(
             f"Local worker group finished {self._worker_group.state}. "
@@ -1451,12 +1817,13 @@ def launch_agent(
         f"  rdzv_configs     : {config.rdzv_configs}\n"
         f"  max_restarts     : {config.max_restarts}\n"
         f"  monitor_interval : {config.monitor_interval}\n"
-        f"  log_dir          : {config.log_dir}\n"
+        f"  log_dir          : {config.get_log_dir()}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
         f"  training_log     : {config.training_log_file}\n"
         f"  failure_errors   : {config.failure_node_errors}\n"
         f"  numa_affinity    : {config.numa_affinity}\n"
         f"  accelerator      : {config.accelerator}\n"
+        f" ucp_device_type   : {config.ucp_device_type}\n"
     )
 
     _agent_evt.start(args=vars(config))
@@ -1480,7 +1847,6 @@ def launch_agent(
         entrypoint=entrypoint,
         spec=spec,
         start_method=config.start_method,
-        log_dir=config.log_dir,
         training_log_file=config.training_log_file,
         failure_node_errors=config.failure_node_errors,
         exit_barrier_timeout=900,
@@ -1594,10 +1960,16 @@ def _create_worker_spec(
         master_addr=master_addr,
     )
 
+    # for torch < 230, the tee and redirects config for log is located in spec
     if version_less_than_230():
-        spec.redirects = config.redirects
-        spec.tee = config.tee
-
+        spec.redirects = config.get_log_redirects()
+        spec.tee = config.get_log_tee()
+        logger.info(
+            "Setup logging configuration for torch version<230 with "
+            f"log_dir: {config.get_log_dir()}, "
+            f"redirections: {config.get_log_redirects()}, "
+            f"tee: {config.get_log_tee()}"
+        )
     return spec
 
 
@@ -1626,7 +1998,6 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         spec: WorkerSpec,
         start_method="spawn",
         exit_barrier_timeout: float = 300,
-        log_dir: Optional[str] = None,
         check_round=1,
     ):
         super().__init__(
@@ -1636,10 +2007,8 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             spec,
             start_method,
             exit_barrier_timeout,
-            log_dir,
             with_diagnostician=False,
         )
-        self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
         self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
@@ -1831,7 +2200,7 @@ def _create_check_agent(
         f"  rdzv_configs     : {config.rdzv_configs}\n"
         f"  max_restarts     : {config.max_restarts}\n"
         f"  monitor_interval : {config.monitor_interval}\n"
-        f"  log_dir          : {config.log_dir}\n"
+        f"  log_dir          : {config.get_log_dir()}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 

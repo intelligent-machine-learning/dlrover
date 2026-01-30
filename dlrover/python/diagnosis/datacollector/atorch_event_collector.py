@@ -62,6 +62,12 @@ class AtorchEventCollector(Singleton):
         self._threads = []
         self._first_step = None
 
+    def reset_first_step(self):
+        logger.info(
+            f"AtorchEventCollector: reset first step {self._first_step} to None"
+        )
+        self._first_step = None
+
     def parse_line(self, line):
         match = re.findall(self._prefix_pattern, line)
         if not match:

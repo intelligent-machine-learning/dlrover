@@ -18,8 +18,12 @@ import ray.actor
 from ray.exceptions import GetTimeoutError
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.unified.common.actor_base import ActorInfo
-from dlrover.python.unified.common.enums import ExecutionResult, MasterStage
+from dlrover.python.unified.common.actor_base import (
+    ActorInfo,
+    ExecutionResult,
+    DiagnosticInfo,
+)
+from dlrover.python.unified.common.enums import MasterStage
 
 from ..common.config import JobConfig
 from .api import (
@@ -129,6 +133,15 @@ class PrimeMaster:
     async def get_data_queue_owner(self, name: str) -> str:
         """Get the owner actor of a data queue. Waits if not available."""
         return await self.manager.sync_manager.get_data_queue_owner(name)
+
+    async def report_diagnostic_info(
+        self, name: str, diagnostic: DiagnosticInfo
+    ):
+        """Report the diagnostic result from actor side."""
+        actor = self.manager.graph.by_name.get(name)
+        if actor is None:
+            raise ValueError(f"Actor {name} not found.")
+        await self.manager.deal_with_actor_diagnostic_report(actor, diagnostic)
 
     async def report_execution_result(
         self, name: str, result: ExecutionResult

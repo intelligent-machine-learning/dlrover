@@ -1,4 +1,4 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,17 +18,25 @@ from datetime import datetime
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
+from dlrover.python.common.enums import FailoverStrategy
 from dlrover.python.common.error import ProcessError
+from dlrover.python.common.failover import (
+    USER_FAILOVER_TRIGGER_JOB_ABORTION,
+    USER_FAILOVER_TRIGGER_JOB_RESTART,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisActionType,
     DiagnosisConstant,
+    DiagnosticianType,
     DiagnosisErrorConstant,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NodeAction,
+    JobAbortionAction,
+    JobRestartAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
@@ -41,14 +49,18 @@ from dlrover.python.diagnosis.datacollector.resource_collector import (
 from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
     XpuTimerMetricsCollector,
 )
-from dlrover.python.diagnosis.diagnostician.failure_node_diagnostician import (
+from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
 )
-from dlrover.python.diagnosis.diagnostician.resource_collect_error_diagnostician import (  # noqa: E501
-    ResourceCollectErrorDiagnostician,
+from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (
+    ResourceCollectionFailureDiagnostician,
 )
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.elastic_agent.torch.dynamic_failover import (
+    DynamicAgentFailoverExtension,
+    AgentFailureInfo,
+)
 from dlrover.python.training_event.config import is_dlrover_event_enabled
 
 
@@ -59,26 +71,27 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         errors="",
         node_rank=-1,
         local_world_size=0,
+        dynamic_failover_extension=None,
     ):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
         self._stopped = False
         self._agent_context = get_agent_context()
+        self._extension: DynamicAgentFailoverExtension = (
+            dynamic_failover_extension
+        )
 
         DiagnosisManager.__init__(self, self._agent_context)
+
         # register diagnostician
         self.register_diagnostician(
-            DiagnosisErrorConstant.NODE_FAILED, FailureNodeDiagnostician()
+            DiagnosticianType.NODE_FAILURE, FailureNodeDiagnostician()
         )
         self.register_diagnostician(
-            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR,
-            ResourceCollectErrorDiagnostician(),
-        )
-
-        # register periodical diagnosis
-        self.register_periodical_diagnosis(
-            DiagnosisErrorConstant.RESOURCE_COLLECT_ERROR, 30
+            DiagnosisErrorConstant.GPU_LOST,
+            ResourceCollectionFailureDiagnostician(),
+            30,
         )
 
         # register periodical data collector
@@ -99,6 +112,9 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             f"training_log_file:    {self._training_log_file}\n"
             f"errors:               {self._errors}"
         )
+
+    def reset_atorch_collector(self):
+        self._atorch_collector.reset_first_step()
 
     def update_config(
         self, training_log_file: str = "", errors: str = "", rank: int = -1
@@ -139,13 +155,81 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             self._agent_context.run_result.failures,
             self._agent_context.restart_count,
         )
+
+        def serialize_failures(failures: dict):
+            try:
+                str_result = json.dumps(failures)
+            except Exception:
+                str_result = str(failures)
+            return str_result
+
+        failure_info = AgentFailureInfo(
+            node_rank=self._node_rank,
+            log_content=serialize_failures(
+                self._agent_context.run_result.failures
+            ),
+        )
+
+        if self._extension is not None:
+            extension_cls_info = self._extension.__class__
+
+            try:
+                # user strategy
+                user_strategy = self._extension.get_user_failover_strategy(
+                    failure_info
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get user_strategy from extension: {extension_cls_info} "
+                    f"by exception: {e}. Use default dlrover failover processing."
+                )
+                user_strategy = FailoverStrategy.NORMAL_FAILOVER
+
+            if user_strategy == FailoverStrategy.NODE_FAILOVER:
+                logger.info(
+                    f"[{self._agent_context.worker_spec.role}] Worker group "
+                    f"{self._agent_context.run_result.state.name}, "
+                    f"will relaunch node by user strategy: {extension_cls_info}."
+                )
+                return NodeAction(
+                    node_id=env_utils.get_node_id(),
+                    node_type=env_utils.get_node_type(),
+                    instance=DiagnosisConstant.LOCAL_INSTANCE,
+                    action_type=DiagnosisActionType.RELAUNCH_WORKER,
+                )
+            elif user_strategy == FailoverStrategy.ABORTION_FAILOVER:
+                logger.info(
+                    f"[{self._agent_context.worker_spec.role}] Worker group "
+                    f"{self._agent_context.run_result.state.name}, "
+                    f"will abort job by user strategy: {extension_cls_info}."
+                )
+                return JobAbortionAction(
+                    reason=USER_FAILOVER_TRIGGER_JOB_ABORTION
+                )
+            elif user_strategy == FailoverStrategy.GLOBAL_FAILOVER:
+                logger.info(
+                    f"[{self._agent_context.worker_spec.role}] Worker group "
+                    f"{self._agent_context.run_result.state.name}, "
+                    f"will relaunch job by user strategy: {extension_cls_info}."
+                )
+                return JobRestartAction(
+                    reason=USER_FAILOVER_TRIGGER_JOB_RESTART
+                )
+            else:
+                # FailoverStrategy.NORMAL_FAILOVER: continue with dlrover default logic
+                pass
+
+        # dlrover default logic
         ob = self.observe(
-            DiagnosisErrorConstant.NODE_FAILED,
+            DiagnosticianType.NODE_FAILURE,
             log_file=self._training_log_file,
             errors=self._errors,
         )
 
-        node_failed = ob.observation == DiagnosisErrorConstant.NODE_FAILED
+        if ob:
+            node_failed = ob.observation == DiagnosisErrorConstant.NODE_FAILED
+        else:
+            node_failed = False
 
         if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(

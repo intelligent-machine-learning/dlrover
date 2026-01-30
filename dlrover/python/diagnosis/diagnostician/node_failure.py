@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
@@ -25,22 +26,26 @@ from dlrover.python.diagnosis.datacollector.training_log_collector import (
 class FailureNodeDiagnostician(Diagnostician):
     """
     FailureNodeDiagnostician is to observe and resolve the failure node problem
+    by logging.
     """
 
     def __init__(self):
         super().__init__()
 
-    def observe(self, **kwargs) -> DiagnosisObservation:
+    def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         log_file_arg = kwargs.get("log_file")
-        if log_file_arg is None or not isinstance(log_file_arg, str):
-            logger.error(f"Invalid log_file: {log_file_arg}")
-            return DiagnosisObservation()
+        if not log_file_arg:
+            return None
+
+        if log_file_arg is not None and not isinstance(log_file_arg, str):
+            logger.warning(f"Invalid log_file: {log_file_arg}")
+            return None
         log_file = str(log_file_arg)
 
         errors_arg = kwargs.get("errors")
         if errors_arg is None or not isinstance(errors_arg, str):
-            logger.error(f"Invalid errors: {errors_arg}")
-            return DiagnosisObservation()
+            logger.warning(f"Invalid errors: {errors_arg}")
+            return None
         errors = str(errors_arg)
         # temp usage: express the env for specified error info
         # e.g.
@@ -54,7 +59,7 @@ class FailureNodeDiagnostician(Diagnostician):
         logs = training_log.logs
         if not logs or len(logs) == 0:
             logger.warning(f"fail to collect training logs from {log_file}")
-            return DiagnosisObservation()
+            return None
 
         is_failure_node = False
         for log in logs:
@@ -71,4 +76,4 @@ class FailureNodeDiagnostician(Diagnostician):
             return DiagnosisObservation(
                 observation=DiagnosisErrorConstant.NODE_FAILED,
             )
-        return DiagnosisObservation()
+        return None

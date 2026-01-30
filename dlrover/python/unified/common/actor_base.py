@@ -10,14 +10,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
+import sys
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import ray.actor
 
 from dlrover.python.common import env_utils
-from dlrover.python.unified.common.enums import ACCELERATOR_TYPE
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.unified.common.enums import (
+    ACCELERATOR_TYPE,
+    ExecutionResultType,
+    DiagnosticInfoType,
+    DiagnosticResponsibility,
+)
 from dlrover.python.unified.common.workload_desc import WorkloadDesc
 from dlrover.python.unified.util.async_helper import init_main_loop
 from dlrover.python.unified.util.decorators import (
@@ -61,14 +70,54 @@ class NodeInfo:
     ip_address: Optional[str] = None
     envs: dict[str, str] = field(default_factory=dict)
 
+    def __repr__(self) -> str:
+        return f"NodeInfo(id='{self.id}', hostname={self.hostname}, ip_address={self.ip_address})"
+
+
+@dataclass()
+class DiagnosticInfo:
+    """Diagnostic information of worker's execution."""
+
+    type: DiagnosticInfoType = DiagnosticInfoType.NORMAL
+    responsibility: DiagnosticResponsibility = DiagnosticResponsibility.UNKNOWN
+    code: int = 0  # may be defined later
+    reason: str = ""
+
+    log_content: str = ""
+    metric_content: dict = field(default_factory=dict)
+
+
+@dataclass()
+class ExecutionResult:
+    """Result of worker execution."""
+
+    result: ExecutionResultType = ExecutionResultType.SUCCESS
+    timestamp: int = int(time.time())
+
+    def __repr__(self) -> str:
+        readable_time = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(self.timestamp)
+        )
+        return f"ExecutionResult(result='{self.result}', time={readable_time})"
+
+    @property
+    def is_success(self):
+        return self.result == ExecutionResultType.SUCCESS
+
+    @property
+    def is_failure(self):
+        return self.result == ExecutionResultType.FAIL
+
 
 class ActorBase:
     """Base class for all actors in the DLRover system."""
 
     def __init__(self, job_info: JobInfo, actor_info: ActorInfo) -> None:
         """Initialize the actor with node information."""
+        self._actor_id = ""
         self.job_info = job_info
         self.actor_info = actor_info
+
         init_main_loop()
 
         # Report restart if this actor was reconstructed.
@@ -77,6 +126,28 @@ class ActorBase:
             and ray.get_runtime_context().was_current_actor_reconstructed
         ):
             self._report_restart()
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Actor {self.id}-{actor_info.name} initiated with "
+                f"Python executable: {sys.executable}, "
+                f"Python path: {sys.path}, "
+                f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}"
+            )
+        else:
+            logger.info(f"Actor {self.id}-{actor_info.name} initiated")
+
+    @property
+    def id(self):
+        if self._actor_id:
+            return self._actor_id
+
+        if ray.is_initialized() and ray.get_runtime_context():
+            actor_id = ray.get_runtime_context().get_actor_id()
+            if actor_id:
+                self._actor_id = actor_id
+                return self._actor_id
+        return ""
 
     @property
     def name(self) -> str:
@@ -93,8 +164,8 @@ class ActorBase:
         # ActorClass, not instance
         if not hasattr(self, "actor_info"):
             return super().__repr__()
-        # We display the actor name in ray logging
-        return self.name
+        # We display the actor name and id in ray logging
+        return self.name + " " + self.id
 
     # region Hook methods for subclasses to implement
     def setup(self) -> None:

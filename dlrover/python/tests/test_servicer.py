@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -44,8 +44,8 @@ from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
+    UcpRdzvManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
@@ -221,7 +221,7 @@ class MasterServicerFunctionalTest(unittest.TestCase):
             "1", "default", "local", "dlrover"
         )
         self.elastic_ps_service = ElasticPsService()
-        training_manager = ElasticTrainingRendezvousManager()
+        training_manager = UcpRdzvManager()
         rdzv_managers = {
             RendezvousName.TRAINING: training_manager,
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
@@ -755,6 +755,72 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.servicer.get(request, context)
         worker0 = self.job_context.job_node(NodeType.WORKER, 0)
         self.assertNotEqual(worker0.heartbeat_time, ts3)
+
+    def test_report_action(self):
+        # Test with JobRestartAction
+        from dlrover.python.diagnosis.common.diagnosis_action import (
+            JobRestartAction,
+        )
+
+        restart_action = JobRestartAction(
+            reason="test_restart", msg="Test restart"
+        )
+        message = comm.DiagnosisAction(
+            action_cls=JobRestartAction.__name__,
+            action_content=restart_action.to_json(),
+        )
+        success = self.servicer._report_action(message)
+        self.assertTrue(success)
+
+        # Test with JobAbortionAction
+        from dlrover.python.diagnosis.common.diagnosis_action import (
+            JobAbortionAction,
+        )
+
+        abort_action = JobAbortionAction(reason="test_abort", msg="Test abort")
+        message = comm.DiagnosisAction(
+            action_cls=JobAbortionAction.__name__,
+            action_content=abort_action.to_json(),
+        )
+        success = self.servicer._report_action(message)
+        self.assertTrue(success)
+
+        # Test with unsupported action type
+        message = comm.DiagnosisAction(
+            action_cls="UnsupportedAction", action_content="{}"
+        )
+        success = self.servicer._report_action(message)
+        self.assertFalse(success)
+
+        # Test with empty message
+        success = self.servicer._report_action(None)
+        self.assertFalse(success)
+
+    def test_set_rdzv_blocked(self):
+        """Test set_rdzv_blocked method."""
+        # Test setting rdzv blocked
+        message = comm.RdzvBlocked(blocked=True)
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.report(request, self.grpc_server_context)
+        self.assertTrue(response.success)
+
+        # Verify rendezvous is blocked
+        rdzv_manager = self.servicer._rdzv_managers[RendezvousName.TRAINING]
+        blocked, reason = rdzv_manager.is_rdzv_blocked()
+        self.assertTrue(blocked)
+        self.assertTrue(reason)
+
+        # Test unblocking rendezvous
+        message = comm.RdzvBlocked(blocked=False)
+        request.data = message.serialize()
+        response = self.servicer.report(request, self.grpc_server_context)
+        self.assertTrue(response.success)
+
+        # Verify rendezvous is unblocked
+        blocked, reason = rdzv_manager.is_rdzv_blocked()
+        self.assertFalse(blocked)
+        self.assertIsNone(reason)
 
 
 class MasterServicerForRayTest(unittest.TestCase):

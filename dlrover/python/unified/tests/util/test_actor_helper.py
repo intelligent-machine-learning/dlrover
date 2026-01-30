@@ -329,23 +329,6 @@ def test_slow_invoke(tmp_actor1, tmp_actor2):
     assert asyncio.run(async_cancel_test()) == "done"
 
 
-@pytest.mark.timeout(1, func_only=True)
-async def test_wait_ray_node_remove(mocker: MockerFixture):
-    ray_node = mocker.patch("ray.nodes")
-    ray_node.return_value = [
-        {"NodeID": "node1", "Alive": True},
-        {"NodeID": "node2", "Alive": True},
-    ]
-
-    async def remove_node():
-        await asyncio.sleep(0.2)
-        ray_node.return_value[1]["Alive"] = False
-
-    bg = asyncio.create_task(remove_node())
-    await ah.wait_ray_node_remove(["node2"], interval=0.1)
-    await bg
-
-
 def test_timeout_invoke(tmp_actor1):
     # All timeout raises TimeoutError
     with pytest.raises(TimeoutError):

@@ -21,6 +21,10 @@ from dlrover.python.unified.common.actor_base import ActorBase, NodeInfo
 from dlrover.python.unified.common.enums import MasterStage
 from dlrover.python.unified.common.workload_desc import SimpleWorkloadDesc
 from dlrover.python.unified.controller.manager import PrimeManager, logger
+from dlrover.python.unified.controller.schedule.graph import (
+    DLExecutionWorkerVertex,
+    DLWorkloadRole,
+)
 from dlrover.python.unified.tests.fixtures.example_jobs import (
     elastic_training_job,
 )
@@ -65,6 +69,7 @@ def test_manager_failover(mocker):
     assert create_main_task.called
 
 
+@pytest.mark.asyncio
 async def test_deal_with_actor_restarting(mocker: MockerFixture):
     config = elastic_training_job()
     manager = PrimeManager(config)
@@ -97,10 +102,11 @@ async def test_deal_with_actor_restarting(mocker: MockerFixture):
     await manager.deal_with_actor_restarting(worker)
     assert worker.per_node_failure_count == 0
     assert worker.total_failure_count == 1
-    assert manager._do_failover.called
+    assert not manager._do_failover.called
 
 
 @pytest.mark.parametrize("case", [1, 2, 3, 4])
+@pytest.mark.asyncio
 async def test_do_failover(mocker: MockerFixture, case):
     config = elastic_training_job()
     config.dl_config.workloads["simple"] = SimpleWorkloadDesc(
@@ -138,48 +144,61 @@ async def test_do_failover(mocker: MockerFixture, case):
     # Case 3. Worker failed cause node relaunch
     elif case == 3:
         manager.restart_job = AsyncMock()  # noop
-        relaunch = mocker.spy(manager, "_relaunch_fault_nodes")
+        relaunch = mocker.spy(manager, "_relaunch_single_node_by_actor")
         mocker.patch(
-            "dlrover.python.unified.controller.manager.wait_ray_node_remove",
+            "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
             AsyncMock(return_value=None),
         )
 
         worker = manager.graph.roles["simple"].instances[0]
         worker.node_info = NodeInfo("node_1")
-        worker.per_node_failure_count = 100  # Large enough
 
-        # Sub 1. relaunch_nodes not implemented
-        await manager._do_failover(worker)
-        assert relaunch.call_count == 1
-        assert len(manager.state.removed_nodes) == 0
+        with patch(
+            "dlrover.python.unified.controller.manager.ray.nodes"
+        ) as mock_nodes:
+            mock_nodes.return_value = [
+                {"NodeID": "node_1", "Alive": True},
+                {"NodeID": "node_2", "Alive": True},
+            ]
+            # Sub 1. relaunch_nodes not implemented
+            worker.per_node_failure_count = 100  # Large enough
+            await manager._do_failover(worker)
+            assert relaunch.call_count == 1
+            assert len(manager.state.removed_nodes) == 0
+            assert worker.per_node_failure_count == 0
 
-        # Sub 2. relaunch_nodes
-        manager.ext.relaunch_nodes_impl = AsyncMock(
-            return_value=[NodeInfo("node_1")]
-        )
-        await manager._do_failover(worker)
-        assert worker.node_info.id in manager.state.removed_nodes
-        assert manager.ext.relaunch_nodes_impl.called
-        assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
-            worker.node_info
-        ]
-        manager.state.removed_nodes.clear()
+            # Sub 2. relaunch_nodes
+            manager.ext.relaunch_nodes_impl = AsyncMock(
+                return_value=[NodeInfo("node_1")]
+            )
+            worker.per_node_failure_count = 100  # Large enough
+            await manager._do_failover(worker)
+            assert worker.node_info.id in manager.state.removed_nodes
+            assert manager.ext.relaunch_nodes_impl.called
+            assert manager.ext.relaunch_nodes_impl.call_args[0][0] == [
+                worker.node_info
+            ]
+            manager.state.removed_nodes.clear()
 
-        # Sub 3. relaunch_nodes timeout
-        mocker.patch(
-            "dlrover.python.unified.controller.manager.wait_ray_node_remove",
-            AsyncMock(side_effect=asyncio.TimeoutError),
-        )
-        await manager._do_failover(worker)
-        assert (
-            worker.node_info.id in manager.state.removed_nodes
-        )  # assert relaunch success even timeout
+            # Sub 3. relaunch_nodes timeout
+            mocker.patch(
+                "dlrover.python.unified.controller.manager.wait_ray_node_relaunching",
+                AsyncMock(side_effect=asyncio.TimeoutError),
+            )
+            worker.per_node_failure_count = 100  # Large enough
+            await manager._do_failover(worker)
+            assert (
+                worker.node_info.id in manager.state.removed_nodes
+            )  # assert relaunch success even timeout
 
-        # Sub 4. relaunch_nodes raise exception
-        manager.ext.relaunch_nodes_impl = AsyncMock(side_effect=Exception())
-        manager.state.removed_nodes = set()
-        await manager._do_failover(worker)
-        assert worker.node_info.id not in manager.state.removed_nodes
+            # Sub 4. relaunch_nodes raise exception
+            manager.ext.relaunch_nodes_impl = AsyncMock(
+                side_effect=Exception()
+            )
+            manager.state.removed_nodes = set()
+            worker.per_node_failure_count = 100  # Large enough
+            await manager._do_failover(worker)
+            assert worker.node_info.id not in manager.state.removed_nodes
     # Case 4. SubMaster restarted
     elif case == 4:
         invoke_actor = mocker.patch(
@@ -200,6 +219,7 @@ async def test_do_failover(mocker: MockerFixture, case):
         assert invoke_actor.call_args[0][0] is ActorBase.recover_running
 
 
+@pytest.mark.asyncio
 async def test_some_misc_cases(mocker: MockerFixture):
     config = elastic_training_job()
     manager = PrimeManager(config)
@@ -230,6 +250,7 @@ async def test_some_misc_cases(mocker: MockerFixture):
     assert mock_log.call_args[0][0] == "Failed to load state"
 
 
+@pytest.mark.asyncio
 async def test_request_stop_cases():
     config = elastic_training_job()
     manager = PrimeManager(config)
@@ -245,7 +266,20 @@ async def test_request_stop_cases():
     # Case 2. node_restart_count exceeds the limit
     manager.request_stop = Mock()
     manager.state.node_restart_count = config.node_max_restart
-    await manager._relaunch_fault_nodes([])
+    actor = DLExecutionWorkerVertex(
+        role=DLWorkloadRole(
+            name="test",
+            instance_number=1,
+            spec=SimpleWorkloadDesc(entry_point="test::test"),
+        ),
+        node_rank=0,
+        world_size=1,
+        rank=0,
+        local_world_size=1,
+        local_rank=0,
+    )
+    actor.node_info = NodeInfo(id="test")
+    await manager._relaunch_single_node_by_actor(actor)
     assert manager.request_stop.called
     assert "node relaunch" in str(manager.request_stop.call_args[0][0])
 

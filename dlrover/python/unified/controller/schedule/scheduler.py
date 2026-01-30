@@ -57,8 +57,12 @@ class Scheduler:
         bundles: List[ResourceDesc] = []
         for group in self._config.dl_config.workload_group:
             bundle_id_start = len(bundles)
+
+            # generate bundles
             for _ in range(group.num):
                 bundles.append(group.resource)
+
+            # allocate bundle
             for workload in group.workloads:
                 role = graph.roles[workload]
                 for worker in role.instances:

@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -45,6 +45,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
+    JobAbortionAction,
 )
 from dlrover.python.diagnosis.datacollector.atorch_event_collector import (
     AtorchEventCollector,
@@ -250,6 +251,7 @@ class MasterClientTest(unittest.TestCase):
             retry_timeout=1,
         )
         collector._client = self._master_client
+        collector.reset_first_step()
         collector.start_collectors()
         time.sleep(1)
         collector.stop_collectors()
@@ -364,6 +366,9 @@ class MasterClientTest(unittest.TestCase):
             importlib.import_module(
                 "dlrover.python.elastic_agent.master_client.GrpcMasterClient"
             )
+
+    def test_report_action(self):
+        self._master_client.report_action(JobAbortionAction(reason="test"))
 
 
 class MasterClientBuildTest(unittest.TestCase):

@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import time
 import unittest
 
@@ -26,6 +25,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
     NoAction,
     NodeAction,
+    JobRestartAction,
 )
 
 
@@ -111,7 +111,20 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertEqual(job_abortion_action.reason, "test123")
         self.assertEqual(job_abortion_action.msg, "test321")
-        logging.info(job_abortion_action)
+
+        job_restart_action = JobRestartAction("test123", "test321")
+        self.assertEqual(
+            job_restart_action.action_type,
+            DiagnosisActionType.JOB_RESTART,
+        )
+        self.assertEqual(
+            job_restart_action._instance, DiagnosisConstant.MASTER_INSTANCE
+        )
+        self.assertEqual(job_abortion_action.reason, "test123")
+        self.assertEqual(job_restart_action.msg, "test321")
+        self.assertTrue(
+            JobRestartAction.from_json(job_restart_action.to_json())
+        )
 
     def test_action_queue(self):
         action_queue = DiagnosisActionQueue()

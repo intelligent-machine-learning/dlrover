@@ -63,19 +63,15 @@ class HfFlashCheckpointer(object):
         self.ckpt_agent = AsyncCheckpointAgent(self.storage)
         self.async_save_engine: Optional[CheckpointEngine] = None
 
-    def save_checkpoint_to_memory(self, step):
+    def save_checkpoint_to_memory(self, step, blocking=False):
         success = self.async_save_engine.save_to_memory(
-            step,
-            self.ckpt_agent.state_dict,
-            self.ckpt_agent.paths,
+            step, self.ckpt_agent.state_dict, self.ckpt_agent.paths, blocking
         )
         return success
 
-    def save_checkpoint_to_storage(self, step):
+    def save_checkpoint_to_storage(self, step, blocking=False):
         success = self.async_save_engine.save_to_storage(
-            step,
-            self.ckpt_agent.state_dict,
-            self.ckpt_agent.paths,
+            step, self.ckpt_agent.state_dict, self.ckpt_agent.paths, blocking
         )
         return success
 

@@ -47,6 +47,7 @@ const (
 	serviceType            = "service_type"
 	preCheckOperatorsArg   = "pre_check_ops"
 	preCheckBypassArg      = "pre_check_bypass"
+	trainingElasticModeArg = "training_elastic_mode"
 )
 
 // ReconcileJobMasterPod reconciles the job master Pods.
@@ -100,7 +101,14 @@ func newJobMasterName(jobName string, replicaIndex int32) string {
 }
 
 func getMasterArguments() []string {
-	return []string{pendingTimeoutArg, pendingFailStrategyArg, serviceType, preCheckOperatorsArg, preCheckBypassArg}
+	return []string{
+		pendingTimeoutArg,
+		pendingFailStrategyArg,
+		serviceType,
+		preCheckOperatorsArg,
+		preCheckBypassArg,
+		trainingElasticModeArg,
+	}
 }
 
 // SetDefaultMasterTemplateToJob sets configurations to the master template of a job.

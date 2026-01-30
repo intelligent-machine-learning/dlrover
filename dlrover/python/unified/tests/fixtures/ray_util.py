@@ -72,7 +72,7 @@ def _setup_ray(**kwargs):
             f"Ray is initialized with additional parameters: {kwargs}"
         )
     setup_hook, setup_envs = _ray_setup_hooks.get_args()
-    print(f"Setting up ray setup hooks: {setup_hook}")
+    logger.info(f"Setting up ray setup hooks: {setup_hook}")
     ray.init(
         namespace="dlrover_test",
         num_cpus=8,  # Default CPU count for tests

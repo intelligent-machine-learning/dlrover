@@ -22,8 +22,8 @@ from dlrover.python.unified.backend.common.base_worker import BaseWorker
 from dlrover.python.unified.backend.elastic.events import ElasticWorkerEvents
 from dlrover.python.unified.common.enums import (
     ACCELERATOR_TYPE,
-    ExecutionResult,
 )
+from dlrover.python.unified.common.enums import ExecutionResultType
 from dlrover.python.util.common_util import (
     find_free_port_from_env_and_bind,
 )
@@ -212,6 +212,6 @@ class ElasticWorker(BaseWorker):
         logger.info(f"Starting elastic worker {self.actor_info.name}.")
         super().start()
 
-    def _on_execution_end(self, result: "ExecutionResult"):
+    def _on_execution_end(self, result: "ExecutionResultType"):
         self.destroy_torch_process_group()
         super()._on_execution_end(result)

@@ -27,6 +27,10 @@ from typing import (
 
 from pydantic import Field, model_validator
 
+import shlex
+
+from torch.distributed.run import get_args_parser
+
 from dlrover.python.unified.common.config import (
     DLConfig,
     JobConfig,
@@ -42,6 +46,7 @@ from dlrover.python.unified.common.workload_desc import (
     ResourceDesc,
     SimpleWorkloadDesc,
     WorkloadDesc,
+    NodeGroupFailoverDesc,
 )
 from dlrover.python.unified.driver.main import submit
 from dlrover.python.unified.util.config_util import read_dict_from_envs
@@ -238,7 +243,23 @@ class RoleBuilder(ABC, Generic[T]):
         """
         Set the current role is not driver.
         """
+
         self._params.is_driver = False
+        return self
+
+    def enable_node_group_failover(self, group_label_key, timeout=300):
+        """
+        Set the current role is not driver.
+
+        Args:
+            group_label_key (str): The label key of the node group.
+            timeout (int): The group failover trigger threshold in seconds. Minimum value: 30.
+        """
+
+        if group_label_key and timeout and timeout >= 30:
+            self._params.node_group_failover = NodeGroupFailoverDesc(
+                enabled=True, group_label_key=group_label_key, timeout=timeout
+            )
         return self
 
     def sub_stage(self, sub_stage=None):
@@ -310,6 +331,33 @@ class SimpleWorkloadBuilder(RoleBuilder[T]):
                 **self._params.__dict__,
             ),
         }
+
+
+def parse_run_cmd_argument(launcher, args):
+    if launcher not in ["dlrover-run", "torchrun"]:
+        raise ValueError(
+            f"Only 'dlrover-run' and 'torchrun' command is supported, got '{launcher}'"
+        )
+
+    if launcher == "torchrun":
+        parser = get_args_parser()
+        args = parser.parse_args(args)
+    else:
+        parser = get_args_parser()
+
+        # deprecated arguments
+        parser.add_argument(
+            "--node_check",
+            "--node-check",
+            "--network-check",
+            "--network_check",
+            action="store_true",
+            help="Whether to check node before starting training process.",
+        )
+        parser.allow_abbrev = False
+        args = parser.parse_args(args)
+
+    return args
 
 
 class DLJobBuilder(object):
@@ -538,3 +586,46 @@ class DLJobBuilder(object):
             roles.add(role)
         self._collocations.append(roles)
         return self
+
+    def by_dlrover_run_cmd(self, cmd: str):
+        """
+        Automatically build DLJob from dlrover run command.
+        Args:
+            cmd: The dlrover run command string to build the job.
+                e.g.
+                "dlrover-run --nnodes=2 --nproc_per_node=2 ./dlrover/python/unified/tests/integration_test/dummy_run.py"
+
+            cmd contains the parameters:
+                --nnodes: number of nodes
+                --nproc_per_node: number of processes per node
+                --node_check: Whether to check node before starting training process.
+                entrypoint: the training script path with args
+        """
+        parts = shlex.split(cmd.strip())
+        launcher = parts[0]  # dlrover-run or torchrun
+        args = parts[1:]
+
+        args = parse_run_cmd_argument(launcher, args)
+
+        if launcher == "dlrover-run" and not args.node_check:
+            self = self.skip_node_check()
+
+        node_num = int(args.nnodes)
+        device_per_node = int(args.nproc_per_node)
+        nnodes = int(args.nnodes)
+        nproc_per_node = int(args.nproc_per_node)
+        training_script = args.training_script
+        for arg in args.training_script_args:
+            training_script += " " + arg
+
+        return (
+            self.node_num(node_num)
+            .device_per_node(device_per_node)
+            .device_type("CPU")
+            .config({"c1": "v1"})
+            .global_env({"eα": "ve", "DLROVER_LOG_LEVEL": "DEBUG"})
+            .train(training_script)
+            .nnodes(nnodes)
+            .nproc_per_node(nproc_per_node)
+            .end()
+        )

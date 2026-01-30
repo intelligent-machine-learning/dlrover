@@ -15,6 +15,7 @@ import logging
 import os
 import sys
 import typing
+from logging.handlers import RotatingFileHandler
 
 from dlrover.python.common.constants import BasicClass
 
@@ -31,7 +32,7 @@ _DEFAULT_FORMATTER = logging.Formatter(
 _ch = logging.StreamHandler(stream=sys.stderr)
 _ch.setFormatter(_DEFAULT_FORMATTER)
 
-_DEFAULT_HANDLERS = [_ch]
+_DEFAULT_HANDLERS: typing.List[logging.Handler] = [_ch]
 
 _LOGGER_CACHE: typing.Dict[str, logging.Logger] = {}
 
@@ -43,14 +44,53 @@ def get_log_level():
     return log_level
 
 
-def get_logger(name, handlers=None, update=False):
+def get_base_log_dir():
+    log_dir = os.getenv(BasicClass.LOG_ROOT_DIR_ENV, "")
+    return log_dir
+
+
+def get_agent_log_dir():
+    log_dir = os.getenv(BasicClass.LOG_AGENT_DIR_ENV, "")
+    return log_dir
+
+
+def get_base_log_file():
+    log_dir = get_base_log_dir()
+    log_file = ""
+    if log_dir:
+        log_file = os.path.join(log_dir, "dlrover.log")
+        os.makedirs(log_dir, exist_ok=True)
+    return log_file
+
+
+def get_logger(
+    name,
+    handlers: typing.Optional[typing.List[logging.Handler]] = None,
+    update=False,
+):
     __setup_extra_logger()
 
     if name in _LOGGER_CACHE and not update:
         return _LOGGER_CACHE[name]
     logger = logging.getLogger(name)
     logger.setLevel(get_log_level())
-    logger.handlers = handlers or _DEFAULT_HANDLERS
+
+    if handlers is None:
+        base_log_file = get_base_log_file()
+        if base_log_file:
+            file_handler = RotatingFileHandler(
+                base_log_file,
+                maxBytes=200 * 1024 * 1024,  # 200MB
+                backupCount=3,
+            )
+            file_handler.setFormatter(_DEFAULT_FORMATTER)
+            handlers = [file_handler] + _DEFAULT_HANDLERS
+        else:
+            handlers = _DEFAULT_HANDLERS
+    else:
+        handlers.extend(_DEFAULT_HANDLERS)
+
+    logger.handlers = list(handlers)
     logger.propagate = False
     return logger
 

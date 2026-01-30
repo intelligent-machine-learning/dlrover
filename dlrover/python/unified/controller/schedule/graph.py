@@ -15,9 +15,19 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional
 
-from dlrover.python.unified.common.actor_base import ActorInfo, NodeInfo
+from dlrover.python.unified.common.actor_base import (
+    ActorInfo,
+    NodeInfo,
+    ExecutionResult,
+    DiagnosticInfo,
+)
 from dlrover.python.unified.common.config import DLConfig, WorkloadDesc
-from dlrover.python.unified.common.enums import ExecutionResult
+from dlrover.python.unified.common.enums import (
+    ExecutionResultType,
+    DiagnosticResponsibility,
+)
+from dlrover.python.common.log import default_logger as logger
+
 
 # Develop Note: all classes in this file are state structures, owned by PrimeManager
 # 1. Only mutable inside PrimeManager, or passed from PrimeManager(e.g. Scheduler).
@@ -46,6 +56,7 @@ class DLExecutionVertex(ABC):
     restarting: bool = False
     node_info: Optional[NodeInfo] = None
     result: Optional[ExecutionResult] = None
+    diagnostic: Optional[DiagnosticInfo] = None
     # Indicate whether the actor is ready to receive tasks, initialized is done by manager._setup_actors
     is_ready: asyncio.Event = field(default_factory=asyncio.Event)
 
@@ -82,6 +93,44 @@ class DLExecutionVertex(ABC):
     def inc_failure_count(self):
         self.total_failure_count += 1
         self.per_node_failure_count += 1
+
+        logger.debug(
+            f"{self.name} increase failure count: "
+            f"total_failure_count from {self.total_failure_count - 1} to {self.total_failure_count}, "
+            f"per_node_failure_count from {self.per_node_failure_count - 1} to {self.per_node_failure_count}."
+        )
+
+    def reset_per_node_failure_count(self):
+        logger.debug(
+            f"{self.name} reset per-node failure count: "
+            f"per_node_failure_count from {self.per_node_failure_count} to 0."
+        )
+
+        self.per_node_failure_count = 0
+
+    def is_success(self):
+        return self.result and self.result.is_success
+
+    def is_failure(self):
+        return self.result and self.result.is_failure
+
+    def is_root_cause(self):
+        if self.is_success or not self.diagnostic:
+            return False
+        return (
+            self.diagnostic.responsibility
+            == DiagnosticResponsibility.ROOT_CAUSE
+        )
+
+    def is_failure_responsibility(self):
+        if self.is_success or not self.diagnostic:
+            return False
+
+        responsibility = self.diagnostic.responsibility
+        return (
+            responsibility == DiagnosticResponsibility.ROOT_CAUSE
+            or responsibility == DiagnosticResponsibility.RELATED
+        )
 
 
 @dataclass(kw_only=True)
@@ -180,23 +229,41 @@ class DLWorkloadRole:
                 role=self,
             )
 
-    def get_result(self) -> Optional[ExecutionResult]:
+    def get_result(self) -> Optional[ExecutionResultType]:
         if any(instance.result is None for instance in self.instances):
             return None
-        if any(
-            instance.result == ExecutionResult.FAIL
-            for instance in self.instances
-        ):
-            return ExecutionResult.FAIL
-        return ExecutionResult.SUCCESS
+        if self.has_any_failure():
+            return ExecutionResultType.FAIL
+        return ExecutionResultType.SUCCESS
 
     def has_any_failure(self) -> bool:
-        if any(
-            instance.result == ExecutionResult.FAIL
-            for instance in self.instances
-        ):
+        if any(instance.is_failure() for instance in self.instances):
             return True
         return False
+
+    def get_node_relaunch_demand_actor(
+        self,
+    ) -> Optional[DLExecutionVertex]:
+        """
+        Get single node relaunch demand actor.
+
+        Returns:
+            has node relaunch demand if not none: root_cause_actor
+        """
+
+        # sort instances by per_node_failure_count descending
+        sorted_instances = sorted(
+            self.instances,
+            key=lambda x: x.per_node_failure_count,
+            reverse=True,
+        )
+        for instance in sorted_instances:
+            if (
+                instance.per_node_failure_count
+                > instance.spec.per_node_max_failure
+            ):
+                return instance
+        return None
 
 
 class DLExecutionGraph:
