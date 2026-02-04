@@ -621,7 +621,7 @@ class MusaPatchImportTest(unittest.TestCase):
             ElasticLaunchConfig,
         )
 
-        # Create a config to ensure the module is functional
+        # Create a jobmanagement to ensure the module is functional
         config = ElasticLaunchConfig(
             min_nodes=1, max_nodes=1, nproc_per_node=1, run_id="test"
         )
@@ -659,7 +659,7 @@ class MusaPatchImportTest(unittest.TestCase):
             ElasticLaunchConfig,
         )
 
-        # Test creating and using a basic configuration
+        # Test creating and using a basic jobmanagement
         config = ElasticLaunchConfig(
             min_nodes=2,
             max_nodes=4,
@@ -667,13 +667,13 @@ class MusaPatchImportTest(unittest.TestCase):
             run_id="test_resilience",
         )
 
-        # Test basic configuration properties
+        # Test basic jobmanagement properties
         self.assertEqual(config.min_nodes, 2)
         self.assertEqual(config.max_nodes, 4)
         self.assertEqual(config.nproc_per_node, 8)
         self.assertEqual(config.run_id, "test_resilience")
 
-        # Test auto-configuration doesn't break
+        # Test auto-jobmanagement doesn't break
         try:
             config.auto_configure_params()
             # Should not raise exception even if musa_patch is not available

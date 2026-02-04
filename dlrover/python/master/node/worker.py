@@ -49,7 +49,7 @@ class ChiefManager(TrainingNodeManager):
     ):
         """
         Args:
-            job_resource: the resource configuration of a job.
+            job_resource: the resource jobmanagement of a job.
             max_relaunch_num: The maximum relaunch number of a chief.
             new_service_fn: A callable function to generate a server name of
                 chief.
@@ -81,7 +81,7 @@ class EvaluatorManager(TrainingNodeManager):
     ):
         """
         Args:
-            job_resource: the resource configuration of a job.
+            job_resource: the resource jobmanagement of a job.
             max_relaunch_num: The maximum relaunch number of an evaluator.
             new_service_fn: A callable function to generate a server name of
                 evaluator.
@@ -115,7 +115,7 @@ class WorkerManager(TrainingNodeManager):
     ):
         """
         Args:
-            job_resource: the resource configuration of a job.
+            job_resource: the resource jobmanagement of a job.
             max_relaunch_num: The maximum relaunch number of worker.
             new_service_fn: A callable function to generate a server name of
                 worker.

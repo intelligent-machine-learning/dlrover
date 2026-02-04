@@ -79,7 +79,7 @@ def test_driver():
 
         main([job.model_dump_json()])
         assert mock_submit.called
-        config = mock_submit.call_args.kwargs["config"]
+        config = mock_submit.call_args.kwargs["jobmanagement"]
 
         assert isinstance(config, JobConfig)
         assert config == job

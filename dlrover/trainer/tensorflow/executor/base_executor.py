@@ -31,7 +31,7 @@ tf.disable_v2_behavior()
 
 class BaseExecutor:
     """BaseExecutor is a wrapper for tensorflow model.
-    It helps prepare cluster spec, session config and
+    It helps prepare cluster spec, session jobmanagement and
     tf.estimator.RunConfig and starts server.
     """
 
@@ -139,7 +139,7 @@ class BaseExecutor:
                 self.address = ip + ":" + grpc_address.split(":")[-1]
 
     def get_config(self, cluster_spec):
-        """build session config and estimator.RunConfig"""
+        """build session jobmanagement and estimator.RunConfig"""
         config = tf.estimator.RunConfig()
         tf_config = os.environ["TF_CONFIG"]
         tf_config = json.loads(tf_config)

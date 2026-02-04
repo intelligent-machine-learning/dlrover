@@ -84,8 +84,8 @@ if __name__ == "__main__":
     state_dict = checkpointer.load_checkpoint()
     if "model" in state_dict:
         model.load_state_dict(state_dict["model"])
-    if "optimizer" in state_dict:
-        optimizer.load_state_dict(state_dict["optimizer"])
+    if "optimization" in state_dict:
+        optimizer.load_state_dict(state_dict["optimization"])
 
     step = state_dict.get("step", 0)
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         if step % 50 == 0:
             state_dict = {
                 "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
+                "optimization": optimizer.state_dict(),
             }
             # Save checkpoint to memory.
             checkpointer.save_checkpoint(
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         if step % 200 == 0:
             state_dict = {
                 "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
+                "optimization": optimizer.state_dict(),
                 "step": step,
             }
             # Save checkpoint to storage.

@@ -8,7 +8,7 @@ class TestConfigMapWatcher(unittest.TestCase):
 
     @patch("dlrover.brain.python.platform.k8s.configmap.watch.Watch")
     @patch("dlrover.brain.python.platform.k8s.configmap.client.CoreV1Api")
-    @patch("dlrover.brain.python.platform.k8s.configmap.config")
+    @patch("dlrover.brain.python.platform.k8s.configmap.jobmanagement")
     def test_watch_calls_callback_on_modified(self, mock_config, mock_api_cls, mock_watch_cls):
         """
         Scenario: The watcher receives a 'MODIFIED' event.
@@ -37,7 +37,7 @@ class TestConfigMapWatcher(unittest.TestCase):
         ]
 
         # 4. Initialize the Class
-        watcher = ConfigMapWatcher("default", "brain-config", mock_callback)
+        watcher = ConfigMapWatcher("default", "brain-jobmanagement", mock_callback)
 
         # --- EXECUTION ---
         try:
@@ -47,7 +47,7 @@ class TestConfigMapWatcher(unittest.TestCase):
 
         # --- ASSERTIONS ---
 
-        # A. Verify K8s config was loaded
+        # A. Verify K8s jobmanagement was loaded
         # It should try incluster first, or kube_config if that fails.
         assert mock_config.load_incluster_config.called or mock_config.load_kube_config.called
 
@@ -66,7 +66,7 @@ class TestConfigMapWatcher(unittest.TestCase):
 
     @patch("dlrover.brain.python.platform.k8s.configmap.time.sleep")
     @patch("dlrover.brain.python.platform.k8s.configmap.watch.Watch")
-    @patch("dlrover.brain.python.platform.k8s.configmap.config")
+    @patch("dlrover.brain.python.platform.k8s.configmap.jobmanagement")
     def test_retry_on_connection_error(self, mock_config, mock_watch_cls, mock_sleep):
         """
         Scenario: The K8s API raises an exception (e.g. 410 Gone or Network Error).
@@ -85,7 +85,7 @@ class TestConfigMapWatcher(unittest.TestCase):
             KeyboardInterrupt
         ]
 
-        watcher = ConfigMapWatcher("default", "brain-config", mock_callback)
+        watcher = ConfigMapWatcher("default", "brain-jobmanagement", mock_callback)
 
         try:
             watcher.watch()

@@ -201,8 +201,8 @@ def print_args(args, exclude_args=[], groups=None):
         exclude_args: the arguments which won't be printed.
         groups: It is a list of a list. It controls which options should be
         printed together. For example, we expect all model specifications such
-        as `optimizer`, `loss` are better printed together.
-        groups = [["optimizer", "loss"]]
+        as `optimization`, `loss` are better printed together.
+        groups = [["optimization", "loss"]]
     """
 
     def _get_attr(instance, attribute):

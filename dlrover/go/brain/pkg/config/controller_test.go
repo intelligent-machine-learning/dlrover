@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-// TestController tests config controller
+// TestController tests jobmanagement controller
 func TestController(t *testing.T) {
 	var err error
 	var k8sCM, getCM, createCM *v1.ConfigMap

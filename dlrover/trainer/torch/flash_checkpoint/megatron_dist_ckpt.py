@@ -98,9 +98,9 @@ class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
         )
         storage = PosixStorageWithDeletion(keep_strategy)
         iteration, num_floating_point_operations_so_far = load_checkpoint(
-            model, optimizer, opt_param_scheduler, storage=storage
+            model, optimization, opt_param_scheduler, storage=storage
         )
-        save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
+        save_checkpoint(iteration, model, optimization, opt_param_scheduler,
                         num_floating_point_operations_so_far, storage=storage)
 
     """
@@ -231,7 +231,7 @@ def save_checkpoint(
     model_state_dict = {}
     dist_opter_state = {}
 
-    # Save distributed optimizer's custom parameter state.
+    # Save distributed optimization's custom parameter state.
     if (
         args.use_distributed_optimizer
         and not args.no_save_optim
@@ -268,7 +268,7 @@ def save_checkpoint(
         # Optimizer stuff.
         if not args.no_save_optim:
             if optimizer is not None:
-                model_state_dict["optimizer"] = optimizer.state_dict()
+                model_state_dict["optimization"] = optimizer.state_dict()
             if opt_param_scheduler is not None:
                 model_state_dict["opt_param_scheduler"] = (
                     opt_param_scheduler.state_dict()
@@ -314,10 +314,10 @@ def get_dist_optimizer_checkpoint_name(
 
 
 def get_parameter_state(dist_optimizer):
-    """Get parameter state (i.e., parameter & optimizer tensors).
+    """Get parameter state (i.e., parameter & optimization tensors).
 
     This method performs three steps:
-    - For each DP rank, copy param & optimizer shards to contiguous CPU
+    - For each DP rank, copy param & optimization shards to contiguous CPU
         buffers. (e.g., one buffer each for main_param, exp_avg, and
         exp_avg_sq).
     - Gather contiguous buffers on DP rank 0 and concatenate to world
@@ -337,7 +337,7 @@ def get_parameter_state(dist_optimizer):
                 for model_param, param_range_map in gbuf_range_map[
                     "param_map"
                 ].items():
-                    # Main param & optimizer states.
+                    # Main param & optimization states.
                     (
                         group_index,
                         group_order,
@@ -499,7 +499,7 @@ def load_checkpoint(
         try:
             # Load state dict.
             if optimizer is not None:
-                optimizer.load_state_dict(model_state_dict["optimizer"])
+                optimizer.load_state_dict(model_state_dict["optimization"])
             if args.use_distributed_optimizer:
                 if isinstance(optimizer, ChainedOptimizer):
                     load_chained_optimizer_parameter_state(
@@ -522,9 +522,9 @@ def load_checkpoint(
                     )
         except KeyError:
             print_rank_0(
-                "Unable to load optimizer from checkpoint {}. "
+                "Unable to load optimization from checkpoint {}. "
                 "Specify --no-load-optim or --finetune to prevent "
-                "attempting to load the optimizer state, "
+                "attempting to load the optimization state, "
                 "exiting ...".format(checkpoint_name)
             )
             sys.exit()
@@ -652,7 +652,7 @@ def _load_base_checkpoint(load_dir, rank0=False):
 
 
 def load_parameter_state_from_state_dict(dist_optimizer, state_dict):
-    """Load parameter state (i.e., parameter & optimizer tensors)."""
+    """Load parameter state (i.e., parameter & optimization tensors)."""
     # Scatter tensors to all DP ranks.
     for gbuf_idx, gbuf_range_maps in enumerate(dist_optimizer.gbuf_ranges):
         for dtype, gbuf_range_map_for_all_buckets in gbuf_range_maps.items():

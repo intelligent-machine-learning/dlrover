@@ -27,8 +27,8 @@ from dlrover.python.master.hyperparams.strategy_generator import (
 )
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 
-# TODO This is a mock model card configuration. We need to replace it with real
-# model card configuration from model config reporter
+# TODO This is a mock model card jobmanagement. We need to replace it with real
+# model card jobmanagement from model jobmanagement reporter
 mock_model_config = {
     "block_size": 128,
     "n_layer": 20,
@@ -73,7 +73,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 paral_configs[node.id] = ParallelConfig(dataloader, optimizer)
                 node.paral_config = paral_configs[node.id]
         if not paral_configs:
-            logger.debug("No parallel config.")
+            logger.debug("No parallel jobmanagement.")
             return None
         else:
             logger.debug(f"paral_configs: {paral_configs}")
@@ -92,12 +92,12 @@ class SimpleStrategyGenerator(StrategyGenerator):
         # into OOM We set the minimum remaining memory to greater than 2400 MB
         # TODO: We need to replace 2400 with a more reasonable value
         if min_remain_memory > 2400:
-            # Update dataloader configuration version
+            # Update dataloader jobmanagement version
             updated_version = dataloader_config.version + 1
-            # Extract dataloader configuration values
+            # Extract dataloader jobmanagement values
             batch_size = dataloader_config.batch_size
 
-            # Extract model configuration values
+            # Extract model jobmanagement values
             block_size = model_config["block_size"]
             n_layer = model_config["n_layer"]
             n_heads = model_config["n_heads"]

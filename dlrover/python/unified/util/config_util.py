@@ -16,12 +16,12 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 
 def args_2_omega_conf(args: argparse.Namespace) -> DictConfig:
-    """Transfer args from argparse to omega config."""
+    """Transfer args from argparse to omega jobmanagement."""
     return OmegaConf.create(vars(args))
 
 
 def omega_conf_2_args(conf: DictConfig) -> argparse.Namespace:
-    """Transfer omega config to args."""
+    """Transfer omega jobmanagement to args."""
     return argparse.Namespace(**conf)
 
 
@@ -29,7 +29,7 @@ def convert_str_values(
     config: DictConfig, convert_none=True, convert_digit=True
 ):
     """
-    Optimize omega config for str values.
+    Optimize omega jobmanagement for str values.
     """
 
     if isinstance(config, DictConfig):

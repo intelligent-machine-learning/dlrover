@@ -62,7 +62,7 @@ def _build_master_args_parser():
         "--pre-check-ops",
         default=DefaultValues.PRE_CHECK_OPS,
         type=parse_tuple_list,
-        help="The pre-check operators configuration, "
+        help="The pre-check operators jobmanagement, "
         "format: [(${module_name}, ${class_name}, ${boolean}), ...]. "
         "The boolean value represent 'bypass or not'. If set to False "
         "it indicates a bypass, otherwise it indicates normal execution.",

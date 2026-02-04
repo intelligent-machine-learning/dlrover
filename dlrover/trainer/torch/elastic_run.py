@@ -30,10 +30,10 @@ Run in the worker Pod with GPU of ElasticJob.
 ::
 
     dlrover-run
-        --auto-config
+        --auto-jobmanagement
         YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
 
-auto-config will set the nnodes as the number of nodes in a job,
+auto-jobmanagement will set the nnodes as the number of nodes in a job,
 nproc_per_node as the number of available GPUs. If the number of
 nodes >= 4, it will set the network-check as True. If network-check is True,
 dlrover-run will launch simple tasks on each node to check whether
@@ -82,7 +82,7 @@ For multi-node training you need to specify:
 2. ``--rdzv-conf``: We can set timeout into rdzv_conf like
     ```--rdzv-conf join_timeout=600,lastcall_timeout=60,pend_timeout=3600`.
 
-For auto-tuning parallelism configuration, you need to specify:
+For auto-tuning parallelism jobmanagement, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
@@ -156,7 +156,7 @@ def parse_args(args):
     )
     parser.add_argument(
         "--auto_config",
-        "--auto-config",
+        "--auto-jobmanagement",
         action=check_env,
         help="Whether to automatically configure the nnodes and nproc_per_nodes.",
     )
@@ -164,7 +164,7 @@ def parse_args(args):
         "--auto_tunning",
         "--auto-tunning",
         action=check_env,
-        help="Whether to auto-tune the parallel configuration.",
+        help="Whether to auto-tune the parallel jobmanagement.",
     )
     parser.add_argument(
         "--exclude-straggler",
@@ -437,15 +437,15 @@ def _elastic_config_from_args(
 def _merge_elastic_config_from_master(config: ElasticLaunchConfig):
     _client = MasterClient.singleton_instance()
     try:
-        logger.info("try to get elastic run config from master")
+        logger.info("try to get elastic run jobmanagement from master")
         master_configs = _client.get_elastic_run_config()
     except Exception as e:
-        logger.error(f"fail to get elastic config from master: {e}")
+        logger.error(f"fail to get elastic jobmanagement from master: {e}")
         master_configs = {}
 
     # if "precheck" in master_configs:
     # logger.info("Enable precheck by master")
-    # config.precheck = True
+    # jobmanagement.precheck = True
 
     if "network_check" in master_configs:
         logger.info("Enable network checking by master")
@@ -557,7 +557,7 @@ def _setup_dynamic_failover_extension(config: ElasticLaunchConfig):
     match = re.match(pattern, extension_config)
     if not match:
         logger.warning(
-            f"User's extension config for dynamic-failover is not valid: {extension_config}."
+            f"User's extension jobmanagement for dynamic-failover is not valid: {extension_config}."
         )
         return
     module_path = match.group(1)

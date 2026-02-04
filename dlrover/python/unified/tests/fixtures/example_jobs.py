@@ -24,7 +24,7 @@ from dlrover.python.unified.common.workload_desc import (
 
 
 def elastic_training_job():
-    """Example job configuration for elastic training."""
+    """Example job jobmanagement for elastic training."""
 
     dl_config = DLConfig(
         workloads={

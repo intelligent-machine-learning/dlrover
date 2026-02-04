@@ -55,7 +55,7 @@ func NewK8sClient(kubeConfigPath string, namespace string) *K8sClient {
 		namespace: namespace,
 	}
 
-	// creates the in-cluster config
+	// creates the in-cluster jobmanagement
 	if kubeConfigPath == "" {
 		config, err := rest.InClusterConfig()
 		if err != nil {

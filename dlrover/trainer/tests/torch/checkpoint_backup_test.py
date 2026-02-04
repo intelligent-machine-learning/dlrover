@@ -71,7 +71,7 @@ def run_checkpoint_backup(rank, world_size):
     config = CheckpointConfig(rank=rank, world_size=world_size)
     state_dict = {
         "model": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
+        "optimization": optimizer.state_dict(),
         DLROVER_CKPT_CONFIG_KEY: config,
     }
     shm_hanlder.save_state_dict(state_dict)

@@ -1436,7 +1436,7 @@ spec:
                                     description: 'Container image name. More info:
                                       https://kubernetes.io/docs/concepts/containers/images
                                       This field is optional to allow higher level
-                                      config management to default or override container
+                                      jobmanagement management to default or override container
                                       images in workload controllers like Deployments
                                       and StatefulSets.'
                                     type: string
@@ -2069,7 +2069,7 @@ spec:
                                     type: object
                                   resources:
                                     description: 'Compute Resources required by this
-                                      container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                      container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                     properties:
                                       limits:
                                         additionalProperties:
@@ -2080,7 +2080,7 @@ spec:
                                           x-kubernetes-int-or-string: true
                                         description: 'Limits describes the maximum
                                           amount of compute resources allowed. More
-                                          info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                       requests:
                                         additionalProperties:
@@ -2094,7 +2094,7 @@ spec:
                                           Requests is omitted for a container, it
                                           defaults to Limits if that is explicitly
                                           specified, otherwise to an implementation-defined
-                                          value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          value. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                     type: object
                                   securityContext:
@@ -2608,7 +2608,7 @@ spec:
                             dnsConfig:
                               description: Specifies the DNS parameters of a pod.
                                 Parameters specified here will be merged to the generated
-                                DNS configuration based on DNSPolicy.
+                                DNS jobmanagement based on DNSPolicy.
                               properties:
                                 nameservers:
                                   description: A list of DNS name server IP addresses.
@@ -3532,7 +3532,7 @@ spec:
                                           x-kubernetes-int-or-string: true
                                         description: 'Limits describes the maximum
                                           amount of compute resources allowed. More
-                                          info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                       requests:
                                         additionalProperties:
@@ -3546,7 +3546,7 @@ spec:
                                           Requests is omitted for a container, it
                                           defaults to Limits if that is explicitly
                                           specified, otherwise to an implementation-defined
-                                          value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          value. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                     type: object
                                   securityContext:
@@ -4357,7 +4357,7 @@ spec:
                                     description: 'Container image name. More info:
                                       https://kubernetes.io/docs/concepts/containers/images
                                       This field is optional to allow higher level
-                                      config management to default or override container
+                                      jobmanagement management to default or override container
                                       images in workload controllers like Deployments
                                       and StatefulSets.'
                                     type: string
@@ -4990,7 +4990,7 @@ spec:
                                     type: object
                                   resources:
                                     description: 'Compute Resources required by this
-                                      container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                      container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                     properties:
                                       limits:
                                         additionalProperties:
@@ -5001,7 +5001,7 @@ spec:
                                           x-kubernetes-int-or-string: true
                                         description: 'Limits describes the maximum
                                           amount of compute resources allowed. More
-                                          info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                       requests:
                                         additionalProperties:
@@ -5015,7 +5015,7 @@ spec:
                                           Requests is omitted for a container, it
                                           defaults to Limits if that is explicitly
                                           specified, otherwise to an implementation-defined
-                                          value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                          value. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                         type: object
                                     type: object
                                   securityContext:
@@ -5538,7 +5538,7 @@ spec:
                               description: 'NodeSelector is a selector which must
                                 be true for the pod to fit on a node. Selector which
                                 must match a node''s labels for the pod to be scheduled
-                                on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
+                                on that node. More info: https://kubernetes.io/docs/concepts/jobmanagement/assign-pod-node/'
                               type: object
                               x-kubernetes-map-type: atomic
                             os:
@@ -5566,7 +5566,7 @@ spec:
                                   description: 'Name is the name of the operating
                                     system. The currently supported values are linux
                                     and windows. Additional value may be defined in
-                                    future and can be one of: https://github.com/opencontainers/runtime-spec/blob/master/config.md#platform-specific-configuration
+                                    future and can be one of: https://github.com/opencontainers/runtime-spec/blob/master/jobmanagement.md#platform-specific-jobmanagement
                                     Clients should expect to handle additional values
                                     and treat unrecognized values in this field as
                                     os: null'
@@ -6421,7 +6421,7 @@ spec:
                                         x-kubernetes-map-type: atomic
                                       readOnly:
                                         description: readOnly specifies a read-only
-                                          configuration for the volume. Defaults to
+                                          jobmanagement for the volume. Defaults to
                                           false (read/write).
                                         type: boolean
                                       volumeAttributes:
@@ -6754,7 +6754,7 @@ spec:
                                                     description: 'Limits describes
                                                       the maximum amount of compute
                                                       resources allowed. More info:
-                                                      https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                                      https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                                     type: object
                                                   requests:
                                                     additionalProperties:
@@ -6770,7 +6770,7 @@ spec:
                                                       it defaults to Limits if that
                                                       is explicitly specified, otherwise
                                                       to an implementation-defined
-                                                      value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                                      value. More info: https://kubernetes.io/docs/concepts/jobmanagement/manage-resources-containers/'
                                                     type: object
                                                 type: object
                                               selector:
@@ -7881,7 +7881,7 @@ spec:
                       type: object
                   type: object
                 description: 'A map of ReplicaType (type) to ReplicaSpec (value).
-                  Specifies the training cluster configuration. For example, { "PS":
+                  Specifies the training cluster jobmanagement. For example, { "PS":
                   ReplicaSpec, "Worker": ReplicaSpec, }'
                 type: object
               resourceLimits:

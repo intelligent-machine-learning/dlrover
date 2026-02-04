@@ -30,7 +30,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 class ParalConfigTuner(Singleton):
     def __init__(self):
         """
-        Parallelism config tuner for updating parallelism config file.
+        Parallelism jobmanagement tuner for updating parallelism jobmanagement file.
         """
         self._master_client = MasterClient.singleton_instance()
         self.config_dir = os.path.dirname(
@@ -45,15 +45,15 @@ class ParalConfigTuner(Singleton):
             return
         threading.Thread(
             target=self._periodically_update_paral_config,
-            name="config-updater",
+            name="jobmanagement-updater",
             daemon=True,
         ).start()
-        logger.info("Started parallelism config tuner.")
+        logger.info("Started parallelism jobmanagement tuner.")
         self._started = True
 
     def _periodically_update_paral_config(self):
         """
-        Updates the parallelism configuration every 30 seconds. This method is
+        Updates the parallelism jobmanagement every 30 seconds. This method is
         intended to run on a separate thread started by `self.start`.
         """
         while True:
@@ -69,7 +69,7 @@ class ParalConfigTuner(Singleton):
 
     def _create_paral_config_file(self):
         """
-        Create a parallelism configuration file.
+        Create a parallelism jobmanagement file.
         """
         config = ParallelConfig()
         with open(self.config_path, "w") as f:
@@ -77,7 +77,7 @@ class ParalConfigTuner(Singleton):
 
     def _read_paral_config(self, config_path):
         """
-        Read the parallelism configuration from a JSON file.
+        Read the parallelism jobmanagement from a JSON file.
         """
         try:
             with open(config_path, "r") as json_file:
@@ -87,7 +87,7 @@ class ParalConfigTuner(Singleton):
             for key, value in json_data.items():
                 if key == "dataloader":
                     dataloader = DataLoaderConfig(**(value))
-                elif key == "optimizer":
+                elif key == "optimization":
                     optimizer = OptimizerConfig(**(value))
             self.config = ParallelConfig(
                 dataloader=dataloader, optimizer=optimizer

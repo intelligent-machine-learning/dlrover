@@ -109,7 +109,7 @@ class NodeResource(JsonSerializable):
 
     @classmethod
     def resource_str_to_node_resource(cls, resource_str):
-        """Convert the resource configuration like "memory=100Mi,cpu=5"
+        """Convert the resource jobmanagement like "memory=100Mi,cpu=5"
         to a NodeResource instance."""
         resource = {}
         if not resource_str:

@@ -39,7 +39,7 @@ from dlrover.python.master.resource.optimizer import (
 )
 from dlrover.python.scheduler.job import ResourceLimits
 
-_WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
+_WORKER_OPTIMIZE_PHASE = "optimization.worker.optimize-phase"
 
 _dlrover_context = Context.singleton_instance()
 
@@ -48,21 +48,21 @@ def new_ps_resource_optimizer(
     optimize_mode: str, job_uuid, resource_limits: ResourceLimits
 ):
     logger.info(
-        "New %s resource optimizer for job %s", optimize_mode, job_uuid
+        "New %s resource optimization for job %s", optimize_mode, job_uuid
     )
     if optimize_mode == OptimizeMode.CLUSTER:
         if GlobalBrainClient.BRAIN_CLIENT.available():
             return BrainResoureOptimizer(job_uuid, resource_limits)
         else:
             logger.warning(
-                "Brain service is not available, use a local optimizer"
+                "Brain service is not available, use a local optimization"
             )
             return PSLocalOptimizer(job_uuid, resource_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
         return PSLocalOptimizer(job_uuid, resource_limits)
     else:
         logger.warning(
-            "Not support optimization mode %s, use a simple optimizer",
+            "Not support optimization mode %s, use a simple optimization",
             optimize_mode,
         )
         return SimpleOptimizer(job_uuid, resource_limits)
@@ -175,7 +175,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def init_job_resource(self, job_resource: JobResource):
-        """Initialize resource configuration for a job."""
+        """Initialize resource jobmanagement for a job."""
         pass
 
     @abstractmethod
@@ -185,7 +185,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def adjust_oom_resource(self, node: Node):
-        """Adjust the resource configuration for OOM nodes"""
+        """Adjust the resource jobmanagement for OOM nodes"""
         pass
 
     @abstractmethod
@@ -194,7 +194,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
 
 class PSJobResourceOptimizer(JobResourceOptimizer):
-    """It generates resource configuration for a PS job."""
+    """It generates resource jobmanagement for a PS job."""
 
     def __init__(
         self,
@@ -273,7 +273,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
         Args:
-            job_resource: node resource configuration of a job.
+            job_resource: node resource jobmanagement of a job.
         """
         self._init_job_resource_by_optimizer()
         job_resource.update_node_group_resource(
@@ -491,7 +491,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     ):
         """Abandon the optimization result if users have set the resource."""
         #  Users may worry about that the increasing number of worker hurts the
-        #  accuracy, so the max number of worker is the configuration.
+        #  accuracy, so the max number of worker is the jobmanagement.
         original_resource = self._original_worker_resource.node_resource
         if self._original_worker_resource.count > 0:
             resource.count = self._original_worker_resource.count
@@ -514,7 +514,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
 
 
 class AllreduceJobResourceOptimizer(JobResourceOptimizer):
-    """It generates resource configuration for a job."""
+    """It generates resource jobmanagement for a job."""
 
     def __init__(
         self,
@@ -552,7 +552,7 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         return 0
 
     def adjust_oom_resource(self, node: Node):
-        """Adjust the resource configuration for OOM nodes"""
+        """Adjust the resource jobmanagement for OOM nodes"""
         # no adjustment for now(for allreduce type)
         pass
 

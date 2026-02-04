@@ -46,7 +46,7 @@ func TestOptimizer(t *testing.T) {
 			OptimizerConfigRetriever: "base_config_retriever",
 			BrainProcessor:           "base_optimize_processor",
 			CustomizedConfig: map[string]string{
-				"optimizer": "base_optimizer",
+				"optimization": "base_optimizer",
 			},
 		},
 	}

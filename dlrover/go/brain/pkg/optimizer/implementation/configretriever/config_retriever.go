@@ -18,7 +18,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"sync"
 )
@@ -53,20 +53,20 @@ func createConfigRetriever(name string, conf *config.Config) (api.ConfigRetrieve
 	}
 	retriever, err := newFunc(conf)
 	if err != nil {
-		log.Errorf("fail to create config retriever %s: %v", name, err)
+		log.Errorf("fail to create jobmanagement retriever %s: %v", name, err)
 		return nil, err
 	}
 	return retriever, nil
 }
 
-// Manager is the struct of config retriever manager
+// Manager is the struct of jobmanagement retriever manager
 type Manager struct {
 	conf       *config.Config
 	retrievers map[string]api.ConfigRetriever
 	locker     *sync.RWMutex
 }
 
-// NewConfigRetrieverManager returns a new config retriever manager
+// NewConfigRetrieverManager returns a new jobmanagement retriever manager
 func NewConfigRetrieverManager(conf *config.Config) *Manager {
 	return &Manager{
 		conf:       conf,
@@ -75,7 +75,7 @@ func NewConfigRetrieverManager(conf *config.Config) *Manager {
 	}
 }
 
-// RetrieveOptimizerConfig retrieves optimizer config from pb optimize config
+// RetrieveOptimizerConfig retrieves optimization jobmanagement from pb optimize jobmanagement
 func (m *Manager) RetrieveOptimizerConfig(conf *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error) {
 	var err error
 	name := conf.OptimizerConfigRetriever

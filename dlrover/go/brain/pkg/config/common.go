@@ -14,133 +14,133 @@
 package config
 
 const (
-	// Namespace is the config key of namespace
+	// Namespace is the jobmanagement key of namespace
 	Namespace = "namespace"
-	// KubeClientInterface is the config key of kube client
+	// KubeClientInterface is the jobmanagement key of kube client
 	KubeClientInterface = "kube.client.interface"
-	// Cluster is the config key of cluster
+	// Cluster is the jobmanagement key of cluster
 	Cluster = "cluster"
 
-	// DBUser is the config key of database user
+	// DBUser is the jobmanagement key of database user
 	DBUser = "db.user"
-	// DBPassword is the config key of database password
+	// DBPassword is the jobmanagement key of database password
 	DBPassword = "db.password"
-	// DBEngineType is the config key of database engine type, e.g., mysql
+	// DBEngineType is the jobmanagement key of database engine type, e.g., mysql
 	DBEngineType = "db.engine.type"
-	// DBURL is the config key of database url
+	// DBURL is the jobmanagement key of database url
 	DBURL = "db.url"
 
-	// DataStoreConfigMapName is the name of data store config map
-	DataStoreConfigMapName = "data-store.config-map.name"
-	// DataStoreConfigMapKey is the key of data store config map
-	DataStoreConfigMapKey = "data-store.config-map.key"
+	// DataStoreConfigMapName is the name of data store jobmanagement map
+	DataStoreConfigMapName = "data-store.jobmanagement-map.name"
+	// DataStoreConfigMapKey is the key of data store jobmanagement map
+	DataStoreConfigMapKey = "data-store.jobmanagement-map.key"
 	// DataStoreName is the name of a data store
 	DataStoreName = "data-store.name"
 
-	// OptimizerConfigMapName is the name of optimizer config map
-	OptimizerConfigMapName = "optimizer.config-map.name"
-	// OptimizerConfigMapKey is the key of optimizer config map
-	OptimizerConfigMapKey = "optimizer.config-map.key"
+	// OptimizerConfigMapName is the name of optimization jobmanagement map
+	OptimizerConfigMapName = "optimization.jobmanagement-map.name"
+	// OptimizerConfigMapKey is the key of optimization jobmanagement map
+	OptimizerConfigMapKey = "optimization.jobmanagement-map.key"
 
-	// KubeWatcherConfigMapName is the name of kube watcher config map
-	KubeWatcherConfigMapName = "kube-watcher.config-map.name"
-	// KubeWatcherConfigMapKey is the key of kube watcher config map
-	KubeWatcherConfigMapKey = "kube-watcher.config-map.key"
+	// KubeWatcherConfigMapName is the name of kube watcher jobmanagement map
+	KubeWatcherConfigMapName = "kube-watcher.jobmanagement-map.name"
+	// KubeWatcherConfigMapKey is the key of kube watcher jobmanagement map
+	KubeWatcherConfigMapKey = "kube-watcher.jobmanagement-map.key"
 	// KubeWatcherMetricsAddress is the address of kube watcher metrics
 	KubeWatcherMetricsAddress = "kube-watcher.metrics-address"
 	// KubeWatcherEnableLeaderElect is key of if enable leader select of kube watcher
 	KubeWatcherEnableLeaderElect = "kube-watcher.leader-elect.enable"
-	// KubeWatcherHandlerConfigMapName is the name of kube watcher handler config map
-	KubeWatcherHandlerConfigMapName = "kube-watcher.handler.config-map.name"
-	// KubeWatcherHandlerConfigMapKey is the key of kube watcher handler config map
-	KubeWatcherHandlerConfigMapKey = "kube-watcher.handler.config-map.key"
+	// KubeWatcherHandlerConfigMapName is the name of kube watcher handler jobmanagement map
+	KubeWatcherHandlerConfigMapName = "kube-watcher.handler.jobmanagement-map.name"
+	// KubeWatcherHandlerConfigMapKey is the key of kube watcher handler jobmanagement map
+	KubeWatcherHandlerConfigMapKey = "kube-watcher.handler.jobmanagement-map.key"
 
-	// BrainServerConfigMapName is the name of brain server config map
-	BrainServerConfigMapName = "brain.server.config-map.name"
-	// BrainServerConfigMapKey is the name of brain server config key
-	BrainServerConfigMapKey = "brain.server.config-map.key"
+	// BrainServerConfigMapName is the name of brain server jobmanagement map
+	BrainServerConfigMapName = "brain.server.jobmanagement-map.name"
+	// BrainServerConfigMapKey is the name of brain server jobmanagement key
+	BrainServerConfigMapKey = "brain.server.jobmanagement-map.key"
 
-	// QueryBackwardTimePeriodInHour is the config key for query backward time period in hour
+	// QueryBackwardTimePeriodInHour is the jobmanagement key for query backward time period in hour
 	QueryBackwardTimePeriodInHour = "query.backward.time-period.hour"
 
-	// JobNodeMemoryMarginPercent is the config key for job node memory margin percent
+	// JobNodeMemoryMarginPercent is the jobmanagement key for job node memory margin percent
 	JobNodeMemoryMarginPercent = "job.node.memory.margin.percent"
-	// JobNodeCPUMargin is the config key for job node cpu margin
+	// JobNodeCPUMargin is the jobmanagement key for job node cpu margin
 	JobNodeCPUMargin = "job-node.cpu.margin"
 
 	// OptimizerMinWorkerCreateCPU is the key of min CPU of the first worker
-	OptimizerMinWorkerCreateCPU = "optimizer.worker.create.cpu.min"
-	// OptimizerWorkerOomMemoryMarginPercent is the config key of oom worker memory margin percent
-	OptimizerWorkerOomMemoryMarginPercent = "optimizer.worker.oom.memory.margin-percent"
-	// OptimizerWorkerOomMemoryMinIncrease is the config key of oom worker memory margin percent
-	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
-	// OptimizerWorkerMemoryMarginPercent is the config key of worker memory margin percent
-	OptimizerWorkerMemoryMarginPercent = "optimizer.worker.memory.margin-percent"
-	// OptimizerWorkerMaxReplicaCount is the config key of the maximum number of workers
-	OptimizerWorkerMaxReplicaCount = "optimizer.worker.max.replica-count"
-	// OptimizerWorkerReplicaDecreaseCount is the config key of worker replica decrease count each time
-	OptimizerWorkerReplicaDecreaseCount = "optimizer.worker.replica.decrease-count"
-	// OptimizerWorkerMaxInitCountPerStep is the config key of first max worker increase count
-	OptimizerWorkerMaxInitCountPerStep = "optimizer.worker.max.init-count-per-step"
-	// OptimizerWorkerMaxCountPerStep is the config key of max worker increase count per step
-	OptimizerWorkerMaxCountPerStep = "optimizer.worker.max.count-per-step"
-	// OptimizerWorkerCPUMarginCore is the config key of worker cpu margin cores
-	OptimizerWorkerCPUMarginCore = "optimizer.worker.cpu.margin-core"
-	// OptimizerWorkerCPUUtilCompCount is the config key of worker cpu util compare count
-	OptimizerWorkerCPUUtilCompCount = "optimizer.worker.cpu-util.comp-count"
-	// OptimizerWorkerCPUUtilLessPercent is the config key of worker cpu util less percent
-	OptimizerWorkerCPUUtilLessPercent = "optimizer.worker.cpu-util.less-percent"
+	OptimizerMinWorkerCreateCPU = "optimization.worker.create.cpu.min"
+	// OptimizerWorkerOomMemoryMarginPercent is the jobmanagement key of oom worker memory margin percent
+	OptimizerWorkerOomMemoryMarginPercent = "optimization.worker.oom.memory.margin-percent"
+	// OptimizerWorkerOomMemoryMinIncrease is the jobmanagement key of oom worker memory margin percent
+	OptimizerWorkerOomMemoryMinIncrease = "optimization.worker.oom.memory.min-increase"
+	// OptimizerWorkerMemoryMarginPercent is the jobmanagement key of worker memory margin percent
+	OptimizerWorkerMemoryMarginPercent = "optimization.worker.memory.margin-percent"
+	// OptimizerWorkerMaxReplicaCount is the jobmanagement key of the maximum number of workers
+	OptimizerWorkerMaxReplicaCount = "optimization.worker.max.replica-count"
+	// OptimizerWorkerReplicaDecreaseCount is the jobmanagement key of worker replica decrease count each time
+	OptimizerWorkerReplicaDecreaseCount = "optimization.worker.replica.decrease-count"
+	// OptimizerWorkerMaxInitCountPerStep is the jobmanagement key of first max worker increase count
+	OptimizerWorkerMaxInitCountPerStep = "optimization.worker.max.init-count-per-step"
+	// OptimizerWorkerMaxCountPerStep is the jobmanagement key of max worker increase count per step
+	OptimizerWorkerMaxCountPerStep = "optimization.worker.max.count-per-step"
+	// OptimizerWorkerCPUMarginCore is the jobmanagement key of worker cpu margin cores
+	OptimizerWorkerCPUMarginCore = "optimization.worker.cpu.margin-core"
+	// OptimizerWorkerCPUUtilCompCount is the jobmanagement key of worker cpu util compare count
+	OptimizerWorkerCPUUtilCompCount = "optimization.worker.cpu-util.comp-count"
+	// OptimizerWorkerCPUUtilLessPercent is the jobmanagement key of worker cpu util less percent
+	OptimizerWorkerCPUUtilLessPercent = "optimization.worker.cpu-util.less-percent"
 
-	// OptimizerPSMemoryMarginPercent is the config key of cold job initial ps memory
-	OptimizerPSMemoryMarginPercent = "optimizer.ps.memory.margin.percent"
-	// OptimizerPSCPUMarginPercent is the config key of cold job initial ps memory
-	OptimizerPSCPUMarginPercent = "optimizer.ps.cpu.margin.percent"
-	// OptimizerPSMaxCount is the config key of the max number of PS
-	OptimizerPSMaxCount = "optimizer.ps.count.maximum"
-	// OptimizerPSMinCPUCore is the config key of ps min cpu
-	OptimizerPSMinCPUCore = "optimizer.ps.min.cpu"
-	// OptimizerPSColdMemory is the config key of cold job initial ps memory
-	OptimizerPSColdMemory = "optimizer.ps.cold.memory"
-	// OptimizerPSColdCPU is the config key of cold job initial ps cpu
-	OptimizerPSColdCPU = "optimizer.ps.cold.cpu"
-	// OptimizerPSColdReplica is the config key of cold job initial ps replica
-	OptimizerPSColdReplica = "optimizer.ps.cold.replica"
+	// OptimizerPSMemoryMarginPercent is the jobmanagement key of cold job initial ps memory
+	OptimizerPSMemoryMarginPercent = "optimization.ps.memory.margin.percent"
+	// OptimizerPSCPUMarginPercent is the jobmanagement key of cold job initial ps memory
+	OptimizerPSCPUMarginPercent = "optimization.ps.cpu.margin.percent"
+	// OptimizerPSMaxCount is the jobmanagement key of the max number of PS
+	OptimizerPSMaxCount = "optimization.ps.count.maximum"
+	// OptimizerPSMinCPUCore is the jobmanagement key of ps min cpu
+	OptimizerPSMinCPUCore = "optimization.ps.min.cpu"
+	// OptimizerPSColdMemory is the jobmanagement key of cold job initial ps memory
+	OptimizerPSColdMemory = "optimization.ps.cold.memory"
+	// OptimizerPSColdCPU is the jobmanagement key of cold job initial ps cpu
+	OptimizerPSColdCPU = "optimization.ps.cold.cpu"
+	// OptimizerPSColdReplica is the jobmanagement key of cold job initial ps replica
+	OptimizerPSColdReplica = "optimization.ps.cold.replica"
 	// OptimizerPSInitAdjustTargetWorkerCount is the target count of workers supporting by PS CPU.
-	OptimizerPSInitAdjustTargetWorkerCount = "optimizer.ps.init-adjust.target-worker-count"
-	// OptimizerPSMarginCPU is the config key of the ps margin cpu
-	OptimizerPSMarginCPU = "optimizer.ps.cpu.margin"
-	// OptimizerPSCPUOverload is the config key of ps cpu overloaded threshold
-	OptimizerPSCPUOverload = "optimizer.ps.cpu.overload"
-	// OptimizerPSMemoryWorkloadUnbalancePercent is the config key of ps memory workload unbalance percent
-	OptimizerPSMemoryWorkloadUnbalancePercent = "optimizer.ps.memory.workload-balance-percent"
-	// OptimizerHotPSCPUThreshold is the config key of ps overloaded threshold
-	OptimizerHotPSCPUThreshold = "optimizer.ps.cpu.hot-threshold"
-	// OptimizerHotPSCPUTargetWorkerCount is the config key of adjust overloaded ps cpu
-	OptimizerHotPSCPUTargetWorkerCount = "optimizer.ps.cpu.hot-target-worker-count"
-	// OptimizerHotPSMemoryThreshold is the config key of ps overloaded threshold
-	OptimizerHotPSMemoryThreshold = "optimizer.ps.memory.hot-threshold"
-	// OptimizerHotPSMemoryAdjust is the config key of adjust overloaded ps memory
-	OptimizerHotPSMemoryAdjust = "optimizer.ps.memory.hot-adjust"
-	// OptimizerLowPSCPUThreshold is the config key of ps overloaded threshold
-	OptimizerLowPSCPUThreshold = "optimizer.ps.cpu.low-threshold"
-	// OptimizerPSCPUExhaustedThreshold is the config key of ps cpu overloaded threshold
-	OptimizerPSCPUExhaustedThreshold = "optimizer.ps.cpu.exhausted-threshold"
+	OptimizerPSInitAdjustTargetWorkerCount = "optimization.ps.init-adjust.target-worker-count"
+	// OptimizerPSMarginCPU is the jobmanagement key of the ps margin cpu
+	OptimizerPSMarginCPU = "optimization.ps.cpu.margin"
+	// OptimizerPSCPUOverload is the jobmanagement key of ps cpu overloaded threshold
+	OptimizerPSCPUOverload = "optimization.ps.cpu.overload"
+	// OptimizerPSMemoryWorkloadUnbalancePercent is the jobmanagement key of ps memory workload unbalance percent
+	OptimizerPSMemoryWorkloadUnbalancePercent = "optimization.ps.memory.workload-balance-percent"
+	// OptimizerHotPSCPUThreshold is the jobmanagement key of ps overloaded threshold
+	OptimizerHotPSCPUThreshold = "optimization.ps.cpu.hot-threshold"
+	// OptimizerHotPSCPUTargetWorkerCount is the jobmanagement key of adjust overloaded ps cpu
+	OptimizerHotPSCPUTargetWorkerCount = "optimization.ps.cpu.hot-target-worker-count"
+	// OptimizerHotPSMemoryThreshold is the jobmanagement key of ps overloaded threshold
+	OptimizerHotPSMemoryThreshold = "optimization.ps.memory.hot-threshold"
+	// OptimizerHotPSMemoryAdjust is the jobmanagement key of adjust overloaded ps memory
+	OptimizerHotPSMemoryAdjust = "optimization.ps.memory.hot-adjust"
+	// OptimizerLowPSCPUThreshold is the jobmanagement key of ps overloaded threshold
+	OptimizerLowPSCPUThreshold = "optimization.ps.cpu.low-threshold"
+	// OptimizerPSCPUExhaustedThreshold is the jobmanagement key of ps cpu overloaded threshold
+	OptimizerPSCPUExhaustedThreshold = "optimization.ps.cpu.exhausted-threshold"
 
-	// OptimizerStepCountThreshold is the config key of step count threshold
-	OptimizerStepCountThreshold = "optimizer.step.count.threshold"
-	// OptimizerTrainingSpeedLessPercent is the config key of training speed less comparison percent
-	OptimizerTrainingSpeedLessPercent = "optimizer.training-speed.less-percent"
-	// OptimizerWorkerOptimizePhase is the config key of worker optimize phase
-	OptimizerWorkerOptimizePhase = "optimizer.worker.optimize-phase"
-	// OptimizerWorkerOptimizePhaseSample is the config value of sample optimize phase
+	// OptimizerStepCountThreshold is the jobmanagement key of step count threshold
+	OptimizerStepCountThreshold = "optimization.step.count.threshold"
+	// OptimizerTrainingSpeedLessPercent is the jobmanagement key of training speed less comparison percent
+	OptimizerTrainingSpeedLessPercent = "optimization.training-speed.less-percent"
+	// OptimizerWorkerOptimizePhase is the jobmanagement key of worker optimize phase
+	OptimizerWorkerOptimizePhase = "optimization.worker.optimize-phase"
+	// OptimizerWorkerOptimizePhaseSample is the jobmanagement value of sample optimize phase
 	OptimizerWorkerOptimizePhaseSample = "sample"
-	// OptimizerWorkerOptimizePhaseInitial is the config value of initial optimize phase
+	// OptimizerWorkerOptimizePhaseInitial is the jobmanagement value of initial optimize phase
 	OptimizerWorkerOptimizePhaseInitial = "initial"
-	// OptimizerWorkerOptimizePhaseStable is the config value of stable optimize phase
+	// OptimizerWorkerOptimizePhaseStable is the jobmanagement value of stable optimize phase
 	OptimizerWorkerOptimizePhaseStable = "stable"
 
-	// OptimizeRequestProcessorConfigMapName is the name of optimize request processor config map
-	OptimizeRequestProcessorConfigMapName = "optimize-request-processor.config-map.name"
-	// OptimizeRequestProcessorConfigMapKey is the key of optimize request processor config map
-	OptimizeRequestProcessorConfigMapKey = "optimize-request-processor.config-map.key"
+	// OptimizeRequestProcessorConfigMapName is the name of optimize request processor jobmanagement map
+	OptimizeRequestProcessorConfigMapName = "optimize-request-processor.jobmanagement-map.name"
+	// OptimizeRequestProcessorConfigMapKey is the key of optimize request processor jobmanagement map
+	OptimizeRequestProcessorConfigMapKey = "optimize-request-processor.jobmanagement-map.key"
 )

@@ -66,13 +66,13 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 	log.Infof("start to run brain server")
 	err := s.configManager.Run(ctx, errReporter)
 	if err != nil {
-		err = fmt.Errorf("[%s] failed to initialize config manager: %v", logName, err)
+		err = fmt.Errorf("[%s] failed to initialize jobmanagement manager: %v", logName, err)
 		log.Error(err)
 		return err
 	}
 	s.conf, err = s.configManager.GetConfig()
 	if err != nil {
-		log.Errorf("[%s] fail to get brain server config: %v", logName, err)
+		log.Errorf("[%s] fail to get brain server jobmanagement: %v", logName, err)
 		return err
 	}
 	s.conf.Set(config.KubeClientInterface, s.kubeClientSet)

@@ -4,7 +4,7 @@ from dlrover.brain.python.common.http_schemas import (
     OptimizeResponse,
 )
 import uvicorn
-from dlrover.brain.python.optimizer.optimizer_manager import OptimizerManager
+from dlrover.brain.python.optimization.optimizer_manager import OptimizerManager
 from dlrover.brain.python.common.args import get_parsed_args
 
 

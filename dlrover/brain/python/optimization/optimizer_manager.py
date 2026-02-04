@@ -5,13 +5,15 @@ from dlrover.brain.python.common.optimize import (
     OptimizeConfig,
     JobOptimizePlan,
 )
-from dlrover.brain.python.optimizer.optimizer.base_optimizer import BaseOptimizer
+from dlrover.brain.python.optimization.optimizer.base_optimizer import BaseOptimizer
 from dlrover.brain.python.common.log import default_logger as logger
+from dlrover.brain.python.optimization.optimizer_router import OptimizerRouter
 
 
 class OptimizerManager:
     def __init__(self):
         self.optimizers: Dict[str, BaseOptimizer] = {}
+        self.router = OptimizerRouter()
 
         self.register_optimizers()
 
@@ -19,7 +21,9 @@ class OptimizerManager:
         self.optimizers[BaseOptimizer.get_name()] = BaseOptimizer()
 
     def optimize(self, job: JobMeta, conf: OptimizeConfig) -> Optional[JobOptimizePlan]:
-        if conf.optimizer not in self.optimizers:
+        optimizer_name = self.router.route(job, conf)
+
+        if optimizer_name not in self.optimizers:
             return None
 
         try:

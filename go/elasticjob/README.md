@@ -21,7 +21,7 @@ your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
 1. Install Instances of Custom Resources:
 
 ```sh
-kubectl apply -f config/crd/bases
+kubectl apply -f jobmanagement/crd/bases
 ```
 
 We can deploy the controller with a released image.

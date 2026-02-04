@@ -21,9 +21,9 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
-	implconfigretriever "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/configretriever"
-	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optimizer"
+	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/common"
+	implconfigretriever "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/configretriever"
+	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/optimization"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"sync"
@@ -90,11 +90,11 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 	var err error
 
 	if err = m.processorConfigManager.Run(ctx, errReporter); err != nil {
-		log.Errorf("[%s] fail to run optimize request processor config manager: %v", loggerName, err)
+		log.Errorf("[%s] fail to run optimize request processor jobmanagement manager: %v", loggerName, err)
 		return err
 	}
 	if m.processorConfig, err = m.processorConfigManager.GetConfig(); err != nil {
-		log.Errorf("[%s] fail to get processor config: %v", loggerName, err)
+		log.Errorf("[%s] fail to get processor jobmanagement: %v", loggerName, err)
 		return err
 	}
 	m.processorConfigManager.RegisterConfigObserver("dlrover-optimize-request-processor", m.OptimizeRequestProcessorConfigUpdateNotify)
@@ -105,7 +105,7 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 	}
 
 	if err = m.optimizerManager.Run(ctx, errReporter); err != nil {
-		log.Errorf("[%s] fail to run optimizer manager: %v", loggerName, err)
+		log.Errorf("[%s] fail to run optimization manager: %v", loggerName, err)
 		return err
 	}
 
@@ -128,7 +128,7 @@ func (m *Manager) ProcessOptimizeRequest(ctx context.Context, request *pb.Optimi
 
 	optimizerConfig, err := m.configRetrieverManager.RetrieveOptimizerConfig(request.Config)
 	if err != nil {
-		log.Errorf("[%s] fail to retrieve optimizer config from %v: %v", loggerName, request, err)
+		log.Errorf("[%s] fail to retrieve optimization jobmanagement from %v: %v", loggerName, request, err)
 		return nil, err
 	}
 
@@ -166,7 +166,7 @@ func (m *Manager) ProcessOptimizeRequest(ctx context.Context, request *pb.Optimi
 	return plans, nil
 }
 
-// OptimizeRequestProcessorConfigUpdateNotify update processors when observe the config is updated
+// OptimizeRequestProcessorConfigUpdateNotify update processors when observe the jobmanagement is updated
 func (m *Manager) OptimizeRequestProcessorConfigUpdateNotify(newConf *config.Config) error {
 	m.locker.Lock()
 	defer m.locker.Unlock()
@@ -194,13 +194,13 @@ func createOptimizeRequestProcessor(name string, conf *config.Config, dsManager 
 
 func createOptimizeRequestProcessors(conf *config.Config, dsManager *datastore.Manager,
 	optimizerManager *imploptimizer.Manager) map[string]api.OptimizeRequestProcessor {
-	log.Infof("[%s] create optimize request processors according to config: %v", loggerName, conf)
+	log.Infof("[%s] create optimize request processors according to jobmanagement: %v", loggerName, conf)
 	processorNames := conf.GetKeys()
 	processors := make(map[string]api.OptimizeRequestProcessor)
 	for _, name := range processorNames {
 		processorConfig := conf.GetConfig(name)
 		if conf == nil {
-			log.Errorf("[%s] no config for optimize request processor %s", loggerName, name)
+			log.Errorf("[%s] no jobmanagement for optimize request processor %s", loggerName, name)
 			continue
 		}
 		processor, err := createOptimizeRequestProcessor(name, processorConfig, dsManager, optimizerManager)

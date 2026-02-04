@@ -22,7 +22,7 @@ class BaseOptimizer:
 
     def optimize(self, job: JobMeta) -> JobOptimizePlan:
         return JobOptimizePlan(
-            time=int(time.time() * 1000),
+            timestamp=int(time.time() * 1000),
             job_resource=JobResource(
                 node_group_resources={
                     Node.NODE_TYPE_WORKER: NodeGroupResource(

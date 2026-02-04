@@ -155,8 +155,8 @@ def train(args):
     state_dict = checkpointer.load_checkpoint()
     if "model" in state_dict:
         model.load_state_dict(state_dict["model"])
-    if "optimizer" in state_dict:
-        optimizer.load_state_dict(state_dict["optimizer"])
+    if "optimization" in state_dict:
+        optimizer.load_state_dict(state_dict["optimization"])
     if "sampler" in state_dict:
         train_loader.sampler.load_state_dict(state_dict["sampler"])
     step = state_dict.get("step", 0)
@@ -225,7 +225,7 @@ def train_epoch(
                 sd = {
                     "step": train_step,
                     "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
+                    "optimization": optimizer.state_dict(),
                 }
                 if isinstance(train_loader.sampler, ElasticDistributedSampler):
                     sd["sampler"] = train_loader.sampler.state_dict(

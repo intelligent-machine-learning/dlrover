@@ -35,7 +35,7 @@ type KubeWatchOptions struct {
 	WaitForCacheSyncTimeout int
 }
 
-// WatchOptions is a structure to configure the watching configuration of KubeWatcher.
+// WatchOptions is a structure to configure the watching jobmanagement of KubeWatcher.
 type WatchOptions struct {
 	ControllerName          string
 	Predicates              []predicate.Predicate
@@ -43,7 +43,7 @@ type WatchOptions struct {
 	MaxConcurrentReconciles int
 }
 
-// WatchOption configures how we set up the kube-watch configuration.
+// WatchOption configures how we set up the kube-watch jobmanagement.
 // It can guide the kube-watch how to watch the KubeResource
 type WatchOption interface {
 	Apply(*WatchOptions)

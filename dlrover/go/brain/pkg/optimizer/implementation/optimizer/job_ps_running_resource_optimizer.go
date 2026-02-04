@@ -20,9 +20,9 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
-	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
+	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"strconv"
@@ -39,7 +39,7 @@ const (
 	defaultLowCPUThreshold           = 0.4
 )
 
-// JobPSRunningResourceOptimizer is the optimizer which optimizes job ps create resources
+// JobPSRunningResourceOptimizer is the optimization which optimizes job ps create resources
 type JobPSRunningResourceOptimizer struct {
 	dataStore datastoreapi.DataStore
 	config    *config.Config
@@ -59,7 +59,7 @@ func newJobPSRunningResourceOptimizer(dataStore datastoreapi.DataStore, config *
 // Optimize optimizes the chief worker initial resources
 func (optimizer *JobPSRunningResourceOptimizer) Optimize(conf *optconfig.OptimizerConfig, jobMetas []*common.JobMeta) ([]*common.OptimizePlan, error) {
 	if conf == nil || conf.OptimizeAlgorithmConfig == nil {
-		err := fmt.Errorf("invalid optimizer config: %v", conf)
+		err := fmt.Errorf("invalid optimization jobmanagement: %v", conf)
 		return nil, err
 	}
 	if len(jobMetas) == 0 {

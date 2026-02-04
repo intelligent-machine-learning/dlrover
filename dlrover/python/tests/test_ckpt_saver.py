@@ -395,11 +395,11 @@ class CheckpointSaverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
 
-            # Test when no shm_handlers have config
+            # Test when no shm_handlers have jobmanagement
             step = saver.get_latest_start_saving_step()
             self.assertEqual(step, 0)  # Should return _latest_step which is 0
 
-            # Test when shm_handlers have config with step
+            # Test when shm_handlers have jobmanagement with step
             for i in range(saver.local_shard_num):
                 config = CheckpointConfig(step=100 + i)
                 saver._shm_handlers[i].metadata.set(

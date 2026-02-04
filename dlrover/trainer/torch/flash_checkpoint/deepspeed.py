@@ -49,7 +49,7 @@ class AsyncCheckpointAgent(CheckpointEngine):
     Attributes:
         model_sd: the state dict of a PyTorch model.
         model_path (str): the storage path to save the model state dict.
-        optim_sd: the state dict of a DeepSpeed optimizer.
+        optim_sd: the state dict of a DeepSpeed optimization.
         optim_path (str): the storage path to save the optim state dict.
     """
 

@@ -38,11 +38,11 @@ class Checkpointer(metaclass=ABCMeta):
         self, step, state_dict, path, storage_type=StorageType.DISK
     ):
         """
-        Save the checkpoint of model, optimizer and sampler.
+        Save the checkpoint of model, optimization and sampler.
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of model and optimization to save.
             path (str): the storage path to save the state dict.
                 Note, the path is used to save the state dict to storage
                 only if the training process fails.
@@ -54,7 +54,7 @@ class Checkpointer(metaclass=ABCMeta):
     def load_checkpoint(self, resuming_path=None):
         """
         The manager loads the states from the files in the
-        checkpoint directory to the model, optimizer and sampler.
+        checkpoint directory to the model, optimization and sampler.
         Args:
             resuming_path (str, optional): The manager will load checkpoint
                 from the path. If the path is None, the manager will load

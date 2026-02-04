@@ -2303,8 +2303,8 @@ _OPTIMIZEREQUEST = _descriptor.Descriptor(
             create_key=_descriptor._internal_create_key,
         ),
         _descriptor.FieldDescriptor(
-            name="config",
-            full_name="brain.OptimizeRequest.config",
+            name="jobmanagement",
+            full_name="brain.OptimizeRequest.jobmanagement",
             index=1,
             number=2,
             type=11,
@@ -2819,8 +2819,8 @@ _JOBOPTIMIZATION = _descriptor.Descriptor(
             create_key=_descriptor._internal_create_key,
         ),
         _descriptor.FieldDescriptor(
-            name="config",
-            full_name="brain.JobOptimization.config",
+            name="jobmanagement",
+            full_name="brain.JobOptimization.jobmanagement",
             index=1,
             number=2,
             type=11,
@@ -3210,7 +3210,7 @@ _JOBSTATE.fields_by_name[
     "customized_data"
 ].message_type = _JOBSTATE_CUSTOMIZEDDATAENTRY
 _OPTIMIZEJOBMETA.fields_by_name["state"].message_type = _JOBSTATE
-_OPTIMIZEREQUEST.fields_by_name["config"].message_type = _OPTIMIZECONFIG
+_OPTIMIZEREQUEST.fields_by_name["jobmanagement"].message_type = _OPTIMIZECONFIG
 _OPTIMIZEREQUEST.fields_by_name["jobs"].message_type = _OPTIMIZEJOBMETA
 _TASKGROUPRESOURCE.fields_by_name["resource"].message_type = _PODRESOURCE
 _JOBRESOURCE_TASKGROUPRESOURCESENTRY.fields_by_name[
@@ -3229,7 +3229,7 @@ _JOBRESOURCE.fields_by_name[
 ].message_type = _JOBRESOURCE_PODRESOURCESENTRY
 _JOBOPTIMIZEPLAN.fields_by_name["resource"].message_type = _JOBRESOURCE
 _JOBOPTIMIZEPLAN.fields_by_name["job"].message_type = _OPTIMIZEJOBMETA
-_JOBOPTIMIZATION.fields_by_name["config"].message_type = _OPTIMIZECONFIG
+_JOBOPTIMIZATION.fields_by_name["jobmanagement"].message_type = _OPTIMIZECONFIG
 _JOBOPTIMIZATION.fields_by_name["plan"].message_type = _JOBOPTIMIZEPLAN
 _JOBOPTIMIZATION.fields_by_name["job_states"].message_type = _JOBSTATE
 _OPTIMIZERESPONSE.fields_by_name["response"].message_type = _RESPONSE

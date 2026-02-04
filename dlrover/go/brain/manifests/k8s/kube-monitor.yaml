@@ -25,7 +25,7 @@ spec:
             - -c
             - (/root/k8smonitor -alsologtostderr --namespace dlrover
               --serviceConfigMapName dlrover-kube-monitor
-              --serviceConfigMapKey config 2>&1) |
+              --serviceConfigMapKey jobmanagement 2>&1) |
               tee /root/logs/kube-monitor.log; exit ${PIPESTATUS[0]}
           image: registry.cn-hangzhou.aliyuncs.com/dlrover/brain:test
           imagePullPolicy: Always

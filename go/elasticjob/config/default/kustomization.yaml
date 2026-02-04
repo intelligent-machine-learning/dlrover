@@ -30,7 +30,7 @@ patchesStrategicMerge:
 # endpoint w/o any authn/z, please comment the following line.
 - manager_auth_proxy_patch.yaml
 
-# Mount the controller config file for loading manager configurations
+# Mount the controller jobmanagement file for loading manager configurations
 # through a ComponentConfig type
 #- manager_config_patch.yaml
 
@@ -43,7 +43,7 @@ patchesStrategicMerge:
 # 'CERTMANAGER' needs to be enabled to use ca injection
 #- webhookcainjection_patch.yaml
 
-# the following config is for teaching kustomize how to do var substitution
+# the following jobmanagement is for teaching kustomize how to do var substitution
 vars:
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 #- name: CERTIFICATE_NAMESPACE # namespace of the certificate CR

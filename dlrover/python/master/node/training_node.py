@@ -536,6 +536,6 @@ class TrainingNodeConfig:
 
     def get_elastic_run_configs(self) -> Dict[str, str]:
         if not self._external_config:
-            logger.warning("External config not set")
+            logger.warning("External jobmanagement not set")
             return {}
         return self._external_config.get_elastic_run_configs()

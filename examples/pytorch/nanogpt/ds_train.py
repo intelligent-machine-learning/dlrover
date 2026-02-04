@@ -71,7 +71,7 @@ def train(args, train_params):
     grad_accum_steps = model_params["grad_accum_steps"]
     total_steps = model_params["total_steps"]  # The only mutable variable.
     train_loader = model_params["train_loader"]
-    optimizer = model_params["optimizer"]
+    optimizer = model_params["optimization"]
 
     previous_mfu = -1.0
     total_time = 0.0
@@ -218,8 +218,8 @@ def setup_train_params(args) -> tuple:
     )
     model = gpt_init(vocab_size, args=args)
 
-    # Set up the optimizer.
-    log_rank0(f"Creating optimizer... {model.parameters()}")
+    # Set up the optimization.
+    log_rank0(f"Creating optimization... {model.parameters()}")
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
         weight_decay=args.weight_decay,
@@ -264,7 +264,7 @@ def setup_train_params(args) -> tuple:
         "grad_accum_steps": grad_accum_steps,
         "total_steps": 0,
         "train_loader": train_loader,
-        "optimizer": optimizer,
+        "optimization": optimizer,
     }
 
     ckpt_params = {

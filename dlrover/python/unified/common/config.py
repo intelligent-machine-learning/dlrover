@@ -45,13 +45,13 @@ class WorkloadGroup:
 
 
 class DLConfig(BaseModel):
-    """Description of training configuration.
+    """Description of training jobmanagement.
     This class defines the configurations for algorithm users.
     """
 
     user_config: Any = Field(
         default_factory=dict,
-        description="User-defined configuration for the deep learning job.",
+        description="User-defined jobmanagement for the deep learning job.",
     )
     workloads: Dict[str, WorkloadDesc]
     global_envs: Dict[str, str] = Field(default_factory=dict)
@@ -156,7 +156,7 @@ class DLConfig(BaseModel):
 
 
 class JobConfig(BaseModel):
-    """Description of all job configuration."""
+    """Description of all job jobmanagement."""
 
     job_name: str = Field(description="Name of the job.")
     dl_config: DLConfig = Field()
@@ -177,7 +177,7 @@ class JobConfig(BaseModel):
     )
     master_state_backend_config: Dict = Field(
         default_factory=dict,
-        description="The configuration of the master state backend, "
+        description="The jobmanagement of the master state backend, "
         "like: path and so on.",
     )
     node_max_restart: int = Field(

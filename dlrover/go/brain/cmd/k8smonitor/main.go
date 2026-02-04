@@ -34,7 +34,7 @@ func main() {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(mConfig.APIServer, mConfig.KubeConfig)
 	if err != nil {
-		log.Fatalf("Error building kube config: %v", err)
+		log.Fatalf("Error building kube jobmanagement: %v", err)
 	}
 
 	kubeClient, err := kubeclientset.NewForConfig(cfg)

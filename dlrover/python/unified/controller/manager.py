@@ -482,7 +482,7 @@ class PrimeManager:
             logger.exception(
                 "Failed to relaunch node due to unexpected error. The following node relaunch may not be executed properly."
             )
-            # TODO: may need to request stop due to configuration
+            # TODO: may need to request stop due to jobmanagement
 
     async def _relaunch_node_group(
         self, root_node: NodeInfo, node_group: List[NodeInfo]
@@ -504,7 +504,7 @@ class PrimeManager:
             logger.exception(
                 "Failed to relaunch node-group due to unexpected error. The following node relaunch may not be executed properly."
             )
-            # TODO: may need to request stop due to configuration
+            # TODO: may need to request stop due to jobmanagement
 
     async def restart_job(
         self, with_node_relaunch: Optional[DLExecutionVertex] = None

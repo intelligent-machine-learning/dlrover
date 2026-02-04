@@ -16,8 +16,8 @@ package configretriever
 import (
 	"fmt"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
-	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 )
 
@@ -39,10 +39,10 @@ func newBaseConfigRetriever(conf *config.Config) (optapi.ConfigRetriever, error)
 	}, nil
 }
 
-// Retrieve retrieve optimizer config from pb optimize config
+// Retrieve retrieve optimization jobmanagement from pb optimize jobmanagement
 func (r *baseConfigRetriever) Retrieve(c *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error) {
 	if c == nil {
-		err := fmt.Errorf("the config is nil")
+		err := fmt.Errorf("the jobmanagement is nil")
 		return nil, err
 	}
 

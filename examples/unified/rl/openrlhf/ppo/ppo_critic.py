@@ -85,7 +85,7 @@ class CriticModelRayActor(BaseActor):
                 use_fast=not strategy.args.disable_fast_tokenizer,
             )
 
-        # configure optimizer
+        # configure optimization
         critic_optim = strategy.create_optimizer(
             critic,
             lr=args.critic_learning_rate,

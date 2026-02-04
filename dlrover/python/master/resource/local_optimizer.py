@@ -64,7 +64,7 @@ class ProcessResourceRequirement(JsonSerializable):
 
 
 class PSLocalOptimizer(ResourceOptimizer):
-    """PS Local optimizer stores runtime statistics locally and optimize
+    """PS Local optimization stores runtime statistics locally and optimize
     the resource of a training job without cluster information.
     """
 
@@ -108,7 +108,7 @@ class PSLocalOptimizer(ResourceOptimizer):
         return plan
 
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
-        """Generate a resource plan by an optimizer."""
+        """Generate a resource plan by an optimization."""
         return ResourcePlan.new_default_plan()
 
     def _generate_job_create_resource(self):

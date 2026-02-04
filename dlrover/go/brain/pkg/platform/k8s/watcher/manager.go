@@ -75,16 +75,16 @@ func (manager *Manager) CleanUp() error {
 func (manager *Manager) Run(ctx context.Context, errReporter common.ErrorReporter, errHandler common.ErrorHandler) error {
 	err := manager.watcherConfigManager.Run(ctx, errReporter)
 	if err != nil {
-		err = fmt.Errorf("[%s] failed to initialize watch handler config manager: %v", logName, err)
+		err = fmt.Errorf("[%s] failed to initialize watch handler jobmanagement manager: %v", logName, err)
 		log.Error(err)
 		return err
 	}
 	manager.watcherConf, err = manager.watcherConfigManager.GetConfig()
 	if err != nil {
-		log.Errorf("[%s] fail to get watch handler config: %v", logName, err)
+		log.Errorf("[%s] fail to get watch handler jobmanagement: %v", logName, err)
 		return err
 	}
-	log.Infof("[%s] k8s watcher config: %v", logName, manager.watcherConf)
+	log.Infof("[%s] k8s watcher jobmanagement: %v", logName, manager.watcherConf)
 
 	opts := watchercommon.KubeWatchOptions{
 		Options: k8smanager.Options{
@@ -128,13 +128,13 @@ func (manager *Manager) Run(ctx context.Context, errReporter common.ErrorReporte
 	manager.handlerConfigManager = config.NewManager(namespace, configMapName, configMapKey, kubeClientSet)
 	err = manager.handlerConfigManager.Run(ctx, errReporter)
 	if err != nil {
-		log.Errorf("[%s] fail to run k8s watcher handler config manager: %v", logName, err)
+		log.Errorf("[%s] fail to run k8s watcher handler jobmanagement manager: %v", logName, err)
 		return err
 	}
 
 	manager.handlerConf, err = manager.handlerConfigManager.GetConfig()
 	if err != nil {
-		log.Errorf("[%s] fail to get k8s watcher handler config: %v", logName, err)
+		log.Errorf("[%s] fail to get k8s watcher handler jobmanagement: %v", logName, err)
 		return err
 	}
 
@@ -164,7 +164,7 @@ func (manager *Manager) createAndRegisterWatchHandler(name string, conf *config.
 	return nil
 }
 
-// Update watch handler according to the configuration
+// Update watch handler according to the jobmanagement
 func (manager *Manager) registerWatchHandlers(ctx context.Context) error {
 	manager.managerMutex.Lock()
 	defer manager.managerMutex.Unlock()
@@ -174,10 +174,10 @@ func (manager *Manager) registerWatchHandlers(ctx context.Context) error {
 	for _, watchHandlerName := range watchHandlerNames {
 		watchHandlerConfig := manager.handlerConf.GetConfig(watchHandlerName)
 		if watchHandlerConfig == nil {
-			log.Errorf("Fail to get the config for watch handler %s", watchHandlerName)
+			log.Errorf("Fail to get the jobmanagement for watch handler %s", watchHandlerName)
 			continue
 		}
-		log.Infof("watch handler %s config: %v", watchHandlerName, watchHandlerConfig)
+		log.Infof("watch handler %s jobmanagement: %v", watchHandlerName, watchHandlerConfig)
 
 		if err := manager.createAndRegisterWatchHandler(watchHandlerName, watchHandlerConfig); err != nil {
 			log.Errorf("Fail to create and register WatchHandler %s: %v", watchHandlerName, err)

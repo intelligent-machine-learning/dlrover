@@ -32,10 +32,10 @@ const (
 	maxInitTimeout    = 5 * time.Minute
 )
 
-// This func will be called when updating config.
+// This func will be called when updating jobmanagement.
 type configUpdateNotify func(newConfig *Config) error
 
-// Manager is the struct of config manager
+// Manager is the struct of jobmanagement manager
 type Manager struct {
 	sync.RWMutex
 
@@ -49,9 +49,9 @@ type Manager struct {
 	configObservers map[string]configUpdateNotify
 }
 
-// NewManager create an instance of config map manager by the specified opts of config manager.
+// NewManager create an instance of jobmanagement map manager by the specified opts of jobmanagement manager.
 func NewManager(namespace string, configMapName string, configMapKey string, kubeClientSet kubernetes.Interface) *Manager {
-	log.Infof("Create config manager with namespace: %s, configMapName: %s, configMapKey: %s", namespace, configMapName, configMapKey)
+	log.Infof("Create jobmanagement manager with namespace: %s, configMapName: %s, configMapKey: %s", namespace, configMapName, configMapKey)
 	return &Manager{
 		controller:      NewController(namespace, configMapName, kubeClientSet),
 		configmapKey:    configMapKey,
@@ -60,7 +60,7 @@ func NewManager(namespace string, configMapName string, configMapKey string, kub
 	}
 }
 
-// RegisterConfigObserver registers a function which will be called when the config is updated
+// RegisterConfigObserver registers a function which will be called when the jobmanagement is updated
 func (m *Manager) RegisterConfigObserver(observerName string, notify configUpdateNotify) {
 	m.Lock()
 	defer m.Unlock()
@@ -74,20 +74,20 @@ func (m *Manager) RegisterConfigObserver(observerName string, notify configUpdat
 }
 
 // Run start to run the k8s configmap manager. It will start the configmap controller and try to
-// get the initial config. After that, any changes during runtime will trigger the configmap
-// controller to update the config.
+// get the initial jobmanagement. After that, any changes during runtime will trigger the configmap
+// controller to update the jobmanagement.
 func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) error {
 	m.ctx = ctx
 	m.errReporter = errReporter
 	m.config = NewEmptyConfig()
 	currConf, err := m.getConfigMap()
 	if err != nil {
-		log.Errorf("fail to get config %s: %v", m.configmapName, err)
+		log.Errorf("fail to get jobmanagement %s: %v", m.configmapName, err)
 		return err
 	}
 	log.Infof("currConf: %v", currConf)
 	m.config.SetConfig(currConf)
-	log.Infof("start with config: %v", m.config)
+	log.Infof("start with jobmanagement: %v", m.config)
 
 	m.controller.Run(ctx, func(newCM *corev1.ConfigMap) error {
 		conf, err := parseConfigMap(newCM, m.configmapKey)
@@ -98,33 +98,33 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 
 	})
 
-	// Wait until the initialization of config is done. If none configs was retrieved in a specified
+	// Wait until the initialization of jobmanagement is done. If none configs was retrieved in a specified
 	// MaxInitTimeout, an error will be raised to notified the master/executor server for the further
 	// error handling.
 	success := utils.WaitForCondition(
 		func() bool { return m.config != nil && !m.config.IsEmpty() },
 		initCheckInterval, maxInitTimeout)
 	if !success {
-		return errors.New("failed to get configuration when initialization")
+		return errors.New("failed to get jobmanagement when initialization")
 	}
 	return nil
 }
 
-// GetConfig returns the config
+// GetConfig returns the jobmanagement
 func (m *Manager) GetConfig() (*Config, error) {
 	m.RLock()
 	defer m.RUnlock()
 
 	if m.config == nil {
-		return nil, errors.New("initialization of config has NOT been finished yet")
+		return nil, errors.New("initialization of jobmanagement has NOT been finished yet")
 	}
 	return m.config.Clone(), nil
 }
 
-// UpdateConfig updates the config
+// UpdateConfig updates the jobmanagement
 func (m *Manager) UpdateConfig(newConfig *Config) error {
 	if newConfig == nil {
-		err := errors.New("the new config is NIL; skip the updating")
+		err := errors.New("the new jobmanagement is NIL; skip the updating")
 		log.Error(err)
 		return err
 	}
@@ -132,7 +132,7 @@ func (m *Manager) UpdateConfig(newConfig *Config) error {
 	m.Lock()
 	defer m.Unlock()
 
-	log.Infof("Start to update config.\nOld config: %v\n.New config: %v\n", m.config, newConfig)
+	log.Infof("Start to update jobmanagement.\nOld jobmanagement: %v\n.New jobmanagement: %v\n", m.config, newConfig)
 	m.config.SetConfig(newConfig)
 
 	cloneConf := m.config.Clone()
@@ -146,7 +146,7 @@ func (m *Manager) UpdateConfig(newConfig *Config) error {
 	return nil
 }
 
-// Get the latest configuration from config map directly.
+// Get the latest jobmanagement from config map directly.
 func (m *Manager) getConfigMap() (*Config, error) {
 	configMap, err := m.controller.Get(m.ctx)
 	if err != nil {
@@ -157,17 +157,17 @@ func (m *Manager) getConfigMap() (*Config, error) {
 		log.Errorf("Parse ConfigMap error: %v", err)
 		return nil, err
 	}
-	log.Infof("get config: %v", conf)
+	log.Infof("get jobmanagement: %v", conf)
 	m.config.SetData(conf)
 	return m.config.Clone(), nil
 }
 
-// Retrieve server configuration from ConfigMap by config key.
-// The config retrieved from configmap will be parsed first and then converted to the Config.
+// Retrieve server jobmanagement from ConfigMap by jobmanagement key.
+// The jobmanagement retrieved from configmap will be parsed first and then converted to the Config.
 func parseConfigMap(cm *corev1.ConfigMap, configKey string) (map[string]interface{}, error) {
 	rawData, exist := cm.Data[configKey]
 	if !exist {
-		return nil, fmt.Errorf("not set config[key=%s] in ConfigMap[%v]", configKey, cm.Data)
+		return nil, fmt.Errorf("not set jobmanagement[key=%s] in ConfigMap[%v]", configKey, cm.Data)
 	}
 
 	// Content encoding is expected to be YAML.

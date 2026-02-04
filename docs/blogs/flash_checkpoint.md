@@ -116,7 +116,7 @@ checkpointer = DdpCheckpointer(checkpoint_dir)
 
 state_dict = {
     "model": model.state_dict(),
-    "optimizer": optimizer.state_dict(),
+    "optimization": optimizer.state_dict(),
     "step": step,
 }
 # The path of storage.
@@ -136,7 +136,7 @@ if iter_num % save_storage_interval == 0:
     )
 ckpt_dict = checkpointer.load_checkpoint()
 model.load_state_dict(ckpt_dict["model"])
-optimizer.load_state_dict(ckpt_dict["optimizer"]
+optimizer.load_state_dict(ckpt_dict["optimization"]
 
 ```
 

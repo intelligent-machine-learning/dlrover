@@ -33,7 +33,7 @@ MOCKED_CONFIG = {
         "pin_memory": 0,
         "version": 1,
     },
-    "optimizer": {
+    "optimization": {
         "learning_rate": 0.0,
         "optimizer_name": "simple_optimizer",
         "version": 5,
@@ -56,7 +56,7 @@ MOCK_PARAL_CONFIG = ParallelConfig(
 
 def _set_paral_config():
     """
-    Set up the directory and path for the parallelism configuration.
+    Set up the directory and path for the parallelism jobmanagement.
     """
     config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
     os.makedirs(config_dir, exist_ok=True)

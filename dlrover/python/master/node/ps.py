@@ -46,7 +46,7 @@ class ParameterServerManager(TrainingNodeManager):
     ):
         """
         Args:
-            job_resource: the resource configuration of a job.
+            job_resource: the resource jobmanagement of a job.
             max_relaunch_num: The maximum relaunch number of PS.
             new_service_fn: A callable function to generate a server name of
                 PS.

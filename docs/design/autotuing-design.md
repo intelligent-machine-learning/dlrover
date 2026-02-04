@@ -186,7 +186,7 @@ def get_gpu_stats(gpus=[]):
 
 ```python
 def tune_hyper_params(gpu_stats=[], hyper_param_args=[]):
-    """Tune a good hyper_paras config"""
+    """Tune a good hyper_paras jobmanagement"""
 
     # Iterate through each hyperparameter and call the corresponding tuning method
     for hyper_param in hyper_param_args:

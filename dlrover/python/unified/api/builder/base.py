@@ -121,7 +121,7 @@ class DLJob(DLConfig):
                 complete. Defaults is True.
             **kwargs: Any extra arguments to override the JobConfig
                 Also could set through envs with prefix 'DLROVER_UNIFIED_'.
-                See 'dlrover.python.unified.common.config.JobConfig' for details.
+                See 'dlrover.python.unified.common.jobmanagement.JobConfig' for details.
 
         Returns:
             int: The exit code of the job. 0 means success, other means
@@ -131,7 +131,7 @@ class DLJob(DLConfig):
         default_name = f"dlrover-{random.randbytes(3).hex()}"
 
         from_env = read_dict_from_envs(JOB_OPTIONS_ENV_PREFIX)
-        logger.info(f"Got submitting config from env: {from_env}")
+        logger.info(f"Got submitting jobmanagement from env: {from_env}")
 
         if job_name is not None:
             kwargs["job_name"] = job_name
@@ -395,13 +395,13 @@ class DLJobBuilder(object):
 
     def build(self):
         """
-        Build DLJob by builder's configuration.
+        Build DLJob by builder's jobmanagement.
 
         Returns:
             DLJob: Unified deep learning object.
 
         Raises:
-            pydantic.ValidationError: If validation on configuration failed.
+            pydantic.ValidationError: If validation on jobmanagement failed.
         """
 
         # build roles
@@ -478,10 +478,10 @@ class DLJobBuilder(object):
 
     def config(self, config: Any):
         """
-        Set the training configuration.
+        Set the training jobmanagement.
 
         Args:
-            config (dict): The full configuration of training in dict format.
+            config (dict): The full jobmanagement of training in dict format.
         """
         self._params.user_config = config
         return self

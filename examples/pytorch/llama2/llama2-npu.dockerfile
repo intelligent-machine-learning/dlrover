@@ -7,8 +7,8 @@ WORKDIR /tmp
 
 # 系统包
 RUN apt update && \
-    apt install -y --no-install-recommends wget vim sudo bzip2 wget make tar curl g++ pkg-config unzip numactl \
-    libopenblas-dev libblas3 liblapack3 liblapack-dev libblas-dev gfortran libhdf5-dev libffi-dev libicu60 libxml2 libbz2-dev libssl-dev git patch libfreetype6-dev pkg-config libpng-dev libgl1-mesa-glx liblzma-dev less htop && \
+    apt install -y --no-install-recommends wget vim sudo bzip2 wget make tar curl g++ pkg-jobmanagement unzip numactl \
+    libopenblas-dev libblas3 liblapack3 liblapack-dev libblas-dev gfortran libhdf5-dev libffi-dev libicu60 libxml2 libbz2-dev libssl-dev git patch libfreetype6-dev pkg-jobmanagement libpng-dev libgl1-mesa-glx liblzma-dev less htop && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 

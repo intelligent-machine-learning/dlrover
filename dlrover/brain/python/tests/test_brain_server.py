@@ -27,8 +27,8 @@ class TestBrainServer(unittest.TestCase):
                 "cluster": "prod-cluster",
                 "namespace": "default"
             },
-            "config": {
-                "optimizer": "genetic_algo",
+            "jobmanagement": {
+                "optimization": "genetic_algo",
                 "customized_config": {"pop_size": "50"}
             }
         }

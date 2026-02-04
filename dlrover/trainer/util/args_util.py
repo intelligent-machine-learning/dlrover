@@ -38,7 +38,7 @@ def add_platform_args(parser):
     )
 
     parser.add_argument(
-        "--conf", help="configuration for training", default=None
+        "--conf", help="jobmanagement for training", default=None
     )
 
     parser.add_argument("--task_id", help="worker id", type=int)
@@ -49,7 +49,7 @@ def add_platform_args(parser):
 
     parser.add_argument(
         "--enable_auto_scaling",
-        help="configuration for elastic training",
+        help="jobmanagement for elastic training",
         type=bool,
         default=False,
     )

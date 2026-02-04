@@ -96,7 +96,7 @@ if __name__ == "__main__":
         "--dry_run",
         action="store_true",
         default=False,
-        help="only create the job and print the config, do not submit the job",
+        help="only create the job and print the jobmanagement, do not submit the job",
     )
 
     # Ray and vLLM
@@ -488,7 +488,7 @@ if __name__ == "__main__":
         type=float,
         nargs=2,
         default=(0.9, 0.95),
-        help="Betas for Adam optimizer",
+        help="Betas for Adam optimization",
     )
     parser.add_argument(
         "--reward_clip_range",

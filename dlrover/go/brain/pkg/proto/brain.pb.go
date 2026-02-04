@@ -1300,7 +1300,7 @@ type OptimizeRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	Type   string             `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	Config *OptimizeConfig    `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
+	Config *OptimizeConfig    `protobuf:"bytes,2,opt,name=jobmanagement,proto3" json:"jobmanagement,omitempty"`
 	Jobs   []*OptimizeJobMeta `protobuf:"bytes,3,rep,name=jobs,proto3" json:"jobs,omitempty"`
 }
 
@@ -1615,7 +1615,7 @@ type JobOptimization struct {
 	unknownFields protoimpl.UnknownFields
 
 	Timestamp int64            `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Config    *OptimizeConfig  `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
+	Config    *OptimizeConfig  `protobuf:"bytes,2,opt,name=jobmanagement,proto3" json:"jobmanagement,omitempty"`
 	Plan      *JobOptimizePlan `protobuf:"bytes,3,opt,name=plan,proto3" json:"plan,omitempty"`
 	JobStates []*JobState      `protobuf:"bytes,4,rep,name=job_states,json=jobStates,proto3" json:"job_states,omitempty"`
 }
@@ -2315,14 +2315,14 @@ var file_dlrover_proto_brain_proto_depIdxs = []int32{
 	26, // 14: brain.JobState.pods:type_name -> brain.JobState.PodsEntry
 	27, // 15: brain.JobState.customized_data:type_name -> brain.JobState.CustomizedDataEntry
 	11, // 16: brain.OptimizeJobMeta.state:type_name -> brain.JobState
-	9,  // 17: brain.OptimizeRequest.config:type_name -> brain.OptimizeConfig
+	9,  // 17: brain.OptimizeRequest.jobmanagement:type_name -> brain.OptimizeConfig
 	12, // 18: brain.OptimizeRequest.jobs:type_name -> brain.OptimizeJobMeta
 	14, // 19: brain.TaskGroupResource.resource:type_name -> brain.PodResource
 	28, // 20: brain.JobResource.task_group_resources:type_name -> brain.JobResource.TaskGroupResourcesEntry
 	29, // 21: brain.JobResource.pod_resources:type_name -> brain.JobResource.PodResourcesEntry
 	16, // 22: brain.JobOptimizePlan.resource:type_name -> brain.JobResource
 	12, // 23: brain.JobOptimizePlan.job:type_name -> brain.OptimizeJobMeta
-	9,  // 24: brain.JobOptimization.config:type_name -> brain.OptimizeConfig
+	9,  // 24: brain.JobOptimization.jobmanagement:type_name -> brain.OptimizeConfig
 	17, // 25: brain.JobOptimization.plan:type_name -> brain.JobOptimizePlan
 	11, // 26: brain.JobOptimization.job_states:type_name -> brain.JobState
 	19, // 27: brain.OptimizeResponse.response:type_name -> brain.Response

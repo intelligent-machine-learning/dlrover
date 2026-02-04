@@ -148,7 +148,7 @@ class RayElasticJob(ElasticJob):
     def __init__(self, job_name, namespace):
         """
         ElasticJob manages Pods by K8s Python APIs. The example of an elastic
-        job is in dlrover/go/elasticjob_operator/config/samples/
+        job is in dlrover/go/elasticjob_operator/jobmanagement/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
             image_name: Docker image path for ElasticDL pod.

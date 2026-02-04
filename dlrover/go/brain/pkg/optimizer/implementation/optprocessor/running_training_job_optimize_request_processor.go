@@ -20,10 +20,10 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore"
-	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optcommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
+	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
+	optcommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
-	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optimizer"
+	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/optimization"
 )
 
 const (

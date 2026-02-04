@@ -40,7 +40,7 @@ spec:
             - -c
             - (/root/brain -alsologtostderr --namespace dlrover
               --serviceConfigMapName dlrover-brain-service
-              --serviceConfigMapKey config 2>&1) |
+              --serviceConfigMapKey jobmanagement 2>&1) |
               tee /root/logs/brain.log; exit ${PIPESTATUS[0]}
           image: registry.cn-hangzhou.aliyuncs.com/dlrover/brain:test
           imagePullPolicy: Always

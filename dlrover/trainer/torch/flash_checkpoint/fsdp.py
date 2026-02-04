@@ -82,12 +82,12 @@ class FsdpShardCheckpointer(Checkpointer):
         storage_type=StorageType.DISK,
     ):
         """
-        Save a fsdp model and optimizer.
+        Save a fsdp model and optimization.
 
         Args:
             step(int): the iteration step.
             model: A FSDP module.
-            optimizer: An optimizer to train a FSDP model.
+            optimizer: An optimization to train a FSDP model.
             extra_sd(dict): A dict to store customized arguments
                 in the checkpoint.
             path(str): A path to store the checkpoint.
@@ -120,7 +120,7 @@ class FsdpShardCheckpointer(Checkpointer):
             state_dict = {
                 "model": model.state_dict(),
                 "step": 0,
-                # cannot load the optimizer state_dict together
+                # cannot load the optimization state_dict together
                 # with the model state_dict
             }
             storage_reader = self._engine.load(resume_path)
@@ -181,9 +181,9 @@ class FsdpFullCheckpointer(Checkpointer):
         >>>     path = f"/tmp/checkpoint-{step}.pt"
         >>>     if step % 100 == 0:
         >>>         checkpointer.save_checkpoint(
-        >>>             step, model, optimizer, extra_sd, path
+        >>>             step, model, optimization, extra_sd, path
         >>>         )
-        >>> sate_dict = checkpointer.load_checkpoint(model, optimizer)
+        >>> sate_dict = checkpointer.load_checkpoint(model, optimization)
     """
 
     def __init__(
@@ -218,12 +218,12 @@ class FsdpFullCheckpointer(Checkpointer):
         storage_type=StorageType.DISK,
     ):
         """
-        Save a fsdp model and optimizer.
+        Save a fsdp model and optimization.
 
         Args:
             step(int): the iteration step.
             model: A FSDP module.
-            optimizer: An optimizer to train a FSDP model.
+            optimizer: An optimization to train a FSDP model.
             extra_sd(dict): A dict to store customized arguments
                 in the checkpoint.
             path(str): A path to store the checkpoint.
@@ -243,7 +243,7 @@ class FsdpFullCheckpointer(Checkpointer):
         ):
             msd = model.state_dict()
             osd = FSDP.optim_state_dict(model, optimizer)
-        state_dict = {"model": msd, "optimizer": osd}
+        state_dict = {"model": msd, "optimization": osd}
         state_dict.update(extra_sd)
 
         state_dict = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
@@ -263,18 +263,18 @@ class FsdpFullCheckpointer(Checkpointer):
 
     def load_checkpoint(self, model, optimizer, resume_path=""):
         """
-        Load a fsdp model and optimizer.
+        Load a fsdp model and optimization.
 
         Args:
             model: A FSDP module.
-            optimizer: An optimizer to train a FSDP model.
+            optimizer: An optimization to train a FSDP model.
             resume_path (str): the path to restore the checkpoint.
         """
         state_dict = self._engine.load(resume_path)
         if not state_dict:
             return {}
         model_state_dict = state_dict.pop("model", {})
-        optim_state_dict = state_dict.pop("optimizer", {})
+        optim_state_dict = state_dict.pop("optimization", {})
 
         with FSDP.state_dict_type(
             model,

@@ -48,7 +48,7 @@ type ReplicaConfig struct {
 	Rank int32
 }
 
-// PodConfig contains the replica config and pod template spec.
+// PodConfig contains the replica jobmanagement and pod template spec.
 type PodConfig struct {
 	Replica      *ReplicaConfig
 	TemplateSpec *corev1.PodTemplateSpec

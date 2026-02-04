@@ -82,7 +82,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
 
         plan_msg = res.job_optimize_plans[0]
         logger.info(
-            "The optimization plan of %s with config %s is %s",
+            "The optimization plan of %s with jobmanagement %s is %s",
             stage,
             config,
             plan_msg,

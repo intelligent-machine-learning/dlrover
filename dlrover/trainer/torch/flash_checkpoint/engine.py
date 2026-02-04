@@ -324,7 +324,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         queue.put(class_meta)
 
     def _update_saver_config(self):
-        """Update the sharding configuration to the saver."""
+        """Update the sharding jobmanagement to the saver."""
         if self._local_rank == 0:
             global_shard_num = self.get_global_shard_num()
             event: CheckpointEvent = CheckpointEvent(
@@ -481,7 +481,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of model and optimization to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
@@ -502,7 +502,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of model and optimization to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.

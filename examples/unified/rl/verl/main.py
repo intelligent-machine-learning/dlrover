@@ -24,12 +24,12 @@ from dlrover.python.unified.api.builder.base import DLJobBuilder
 
 
 @hydra.main(
-    config_path="pkg://verl/trainer/config",
+    config_path="pkg://verl/trainer/jobmanagement",
     config_name="ppo_trainer",
     version_base=None,
 )
 def main(config):
-    # 1. Ensure the config is resolved, raise early if not
+    # 1. Ensure the jobmanagement is resolved, raise early if not
     OmegaConf.resolve(config)
 
     nodes = config.trainer.nnodes

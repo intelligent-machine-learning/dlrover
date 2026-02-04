@@ -32,7 +32,7 @@ make deploy IMG=easydl/elasticjob-controller:master  # GO 1.18
 3. Grant permission for the DLRover master to Access CRDs.
 
 ```bash
-kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
+kubectl -n dlrover apply -f jobmanagement/manifests/bases/default-role.yaml
 ```
 
 ## Submit a Job

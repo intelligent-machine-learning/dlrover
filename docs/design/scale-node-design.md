@@ -68,7 +68,7 @@ The `ResourceOptimizer` contains the following interfaces.
 class ResourceOptimizer(metaclass=ABCMeta):
     @abstractmethod
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
-        """Generate a resource configuration plan"""
+        """Generate a resource jobmanagement plan"""
         pass
 
     @abstractmethod
@@ -80,7 +80,7 @@ class ResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
-        """Generate a resource plan by an optimizer"""
+        """Generate a resource plan by an optimization"""
         pass
 ```
 

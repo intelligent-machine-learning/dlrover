@@ -71,7 +71,7 @@ from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
     _write_memory_from_list,
 )
 
-_OPTIMIZER_KEY = "optimizer.params.group"
+_OPTIMIZER_KEY = "optimization.params.group"
 _MODEL_TENSOR_KEY = "model.weights"
 
 

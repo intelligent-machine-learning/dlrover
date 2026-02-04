@@ -21,7 +21,7 @@ and is where most user code starts.
 
   def run():
       args = current_worker().job_info.user_config
-      # prepare data, model, optimizer using args
+      # prepare data, model, optimization using args
       train(args)
   ```
 

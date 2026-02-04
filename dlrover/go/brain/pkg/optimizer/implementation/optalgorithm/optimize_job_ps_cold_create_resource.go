@@ -19,7 +19,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
 	"strconv"
 )
 
@@ -37,7 +37,7 @@ func OptimizeJobPSColdCreateResource(dataStore datastoreapi.DataStore, conf *opt
 	historyJobs []*common.OptimizeJobMeta) (*common.AlgorithmOptimizePlan, error) {
 
 	if conf == nil || conf.CustomizedConfig == nil {
-		err := fmt.Errorf("Invalid config: %v", conf)
+		err := fmt.Errorf("Invalid jobmanagement: %v", conf)
 		return nil, err
 	}
 

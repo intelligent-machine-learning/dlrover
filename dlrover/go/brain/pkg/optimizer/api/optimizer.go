@@ -16,8 +16,8 @@ package api
 import (
 	"context"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
-	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/common"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
 )
 
 // Optimizer is the interface of optimizers

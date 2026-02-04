@@ -21,7 +21,7 @@ class _ControllerEvents:
         self.__emitter = CommonPredefined("DLROVER_Controller")
 
     def inited(self, config: JobConfig):
-        self.__emitter.instant("#inited", {"config": config})
+        self.__emitter.instant("#inited", {"jobmanagement": config})
 
     def stage_updated(self, old_stage: MasterStage, new_stage: MasterStage):
         self.__emitter.instant(
