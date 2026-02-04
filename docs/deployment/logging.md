@@ -28,6 +28,18 @@ DLROVER_LOG_ROOT_DIR
 `.
 The default value is empty, meaning logs will not be redirected to any log file.
 
+Use the following env to control the max size of each rotate file
+(minimum: 1MB, default: 200MB):
+`
+DLROVER_LOG_ROTATE_MAX_BYTES
+`
+
+Use the following env to control the backup file number:
+(minimum: 1, default: 5):
+`
+DLROVER_LOG_ROTATE_BACKUP_COUNT
+`.
+
 ### Training Log
 
 Support: Only Kubernetes Job(torchrun mode)
