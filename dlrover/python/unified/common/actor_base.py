@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+﻿# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -89,11 +89,11 @@ class DiagnosticInfo:
 
     type: DiagnosticInfoType = DiagnosticInfoType.NORMAL
     responsibility: DiagnosticResponsibility = DiagnosticResponsibility.UNKNOWN
-    code: int = 0  # Error code, see class docstring for mapping
-    reason: str = ""  # Human-readable error reason
+    code: int = 0  
+    reason: str = ""  
 
-    log_content: str = ""  # Actor log content for diagnosis
-    metric_content: dict = field(default_factory=dict)  # Reserved for future use
+    log_content: str = ""  
+    metric_content: dict = field(default_factory=dict)  
 
 
 @dataclass()
