@@ -76,15 +76,24 @@ class NodeInfo:
 
 @dataclass()
 class DiagnosticInfo:
-    """Diagnostic information of worker's execution."""
+    """Diagnostic information of worker's execution.
+
+    Error Code and Reason Mapping:
+    - code=0: Normal execution, reason="" (empty)
+    - code=1: Unknown error, reason="Unknown error occurred"
+    - code=1001: CUDA out of memory error, reason="GPU memory insufficient"
+    - code=1002: NCCL communication error, reason="Distributed communication failure"
+    - code=2001: User code exception, reason="User function execution failed"
+    - code=3001: System/OOM killed, reason="Process killed by system OOM"
+    """
 
     type: DiagnosticInfoType = DiagnosticInfoType.NORMAL
     responsibility: DiagnosticResponsibility = DiagnosticResponsibility.UNKNOWN
-    code: int = 0  # may be defined later
-    reason: str = ""
+    code: int = 0  # Error code, see class docstring for mapping
+    reason: str = ""  # Human-readable error reason
 
-    log_content: str = ""
-    metric_content: dict = field(default_factory=dict)
+    log_content: str = ""  # Actor log content for diagnosis
+    metric_content: dict = field(default_factory=dict)  # Reserved for future use
 
 
 @dataclass()
