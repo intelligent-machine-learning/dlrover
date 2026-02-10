@@ -224,7 +224,7 @@ class PodScaler(Scaler):
         while self._started:
             if (
                 len(self._create_node_queue) > 0
-                and not _job_context.is_request_stopped()
+                and not _job_context.is_stopped()
             ):
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
@@ -533,14 +533,6 @@ class PodScaler(Scaler):
             )
             env.append(V1EnvVar(name=NodeEnv.RANK, value=str(node.rank_index)))
 
-        # Deprecated env vars
-        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
-
-        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
-        env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
-        env.append(
-            V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
-        )
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=self._master_addr)
         )
@@ -548,6 +540,12 @@ class PodScaler(Scaler):
             V1EnvVar(
                 name=NodeEnv.DLROVER_MASTER_SERVICE_TYPE,
                 value=self._master_service_type,
+            )
+        )
+        env.append(
+            V1EnvVar(
+                name=NodeEnv.DLROVER_TRAINING_ELASTIC_MODE,
+                value=_dlrover_context.training_elastic_mode,
             )
         )
 
@@ -558,6 +556,20 @@ class PodScaler(Scaler):
                     field_ref=V1ObjectFieldSelector(field_path="metadata.name")
                 ),
             )
+        )
+        env.append(
+            V1EnvVar(
+                name=NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER,
+                value=_dlrover_context.dynamic_failover_extension,
+            )
+        )
+
+        # Deprecated env vars
+        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
+        env.append(
+            V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
 
         node_type = node.type

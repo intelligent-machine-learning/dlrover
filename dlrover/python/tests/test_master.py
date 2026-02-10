@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,6 +30,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
     NoAction,
+    JobRestartAction,
 )
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.args import parse_master_args
@@ -73,8 +74,8 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
         self.job_context.update_job_nodes(job_nodes)
         self.master.run()
-        self.assertEqual(self.master._exit_code, 0)
-        self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+        self.assertEqual(self.master.exit_code, 0)
+        self.assertEqual(self.master.exit_reason, JobExitReason.SUCCEEDED)
 
     def test_exit_by_tasks(self):
         self.master.job_manager._init_nodes()
@@ -105,8 +106,8 @@ class DistributedJobMasterTest(unittest.TestCase):
             dataset.doing.clear()
             dataset._dataset_splitter.epoch = 10
         self.master.run()
-        self.assertEqual(self.master._exit_code, 0)
-        self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+        self.assertEqual(self.master.exit_code, 0)
+        self.assertEqual(self.master.exit_reason, JobExitReason.SUCCEEDED)
 
     def test_early_stop(self):
         self.master.job_manager._init_nodes()
@@ -172,6 +173,7 @@ class DistributedJobMasterTest(unittest.TestCase):
         threading.Thread(target=stop_master).start()
 
         # test actions
+        get_job_context().enqueue_diagnosis_action(JobRestartAction())
         get_job_context().enqueue_diagnosis_action(JobAbortionAction())
         get_job_context().enqueue_diagnosis_action(NoAction())
         self.master._diagnose_job()

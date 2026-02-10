@@ -112,6 +112,18 @@ class AtorchEventCollector(Singleton):
         text = literal_eval(re.sub(self._prefix_pattern, "", line))
         if isinstance(text, dict):
             event_step = int(text["global_step"])
+            if "step_type" in text:  # backward compatible
+                event_step_type = text["step_type"]
+                if (
+                    event_type == EventTypeName.BEGIN
+                    and event_target == EventTargetName.TRAINER
+                    and event_name == TrainEventName.TRAIN_EVT_STEP
+                    and event_step_type != "train"
+                ):
+                    logger.debug(
+                        f"Invalid step type {event_step_type} in line {line}"
+                    )
+                    raise AtorchInvalidException()
         else:
             logger.debug(f"Invalid text format {text} in line {line}")
             raise ValueError

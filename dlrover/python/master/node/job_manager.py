@@ -69,6 +69,10 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def restart(self):
+        pass
+
+    @abstractmethod
     def add_node_event_callback(self, node_event_callback):
         pass
 

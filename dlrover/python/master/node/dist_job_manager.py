@@ -256,6 +256,56 @@ class DistributedJobManager(JobManager):
             == DistributionStrategy.ALLREDUCE
         )
 
+    def restart(self):
+        if not self.is_all_reduce_type_job():
+            logger.warning(
+                "Job restarting is only supported for ALLREDUCE type."
+            )
+            return
+
+        restart_count = job_ctx.inc_job_restart_count()
+        if restart_count > _dlrover_context.job_max_restart_count:
+            logger.warning(
+                f"Job restarting count over limit({restart_count}/{_dlrover_context.job_max_restart_count}), "
+                f"request stop directly."
+            )
+            job_ctx.request_stop(1, JobExitReason.RESTART_OVER_LIMIT)
+            return
+
+        logger.info("Restarting job by relaunch all nodes.")
+        target_nodes: List[Node] = []
+        target_ranks = set([i for i in range(self.get_worker_num())])
+        to_release_nodes: List[Node] = []
+        for _, node in sorted(
+            self._job_context.job_nodes_by_type(NodeType.WORKER).items(),
+            key=lambda x: x[0],
+            reverse=True,
+        ):
+            node_rank = node.rank_index
+            if node_rank in target_ranks:
+                logger.debug(
+                    f"Add node {node.id} with rank {node.rank_index} for restarting relaunch."
+                )
+                target_nodes.append(node)
+                target_ranks.remove(node_rank)
+            else:
+                if node.status in [
+                    NodeStatus.PENDING,
+                    NodeStatus.RUNNING,
+                    NodeStatus.FINISHED,
+                    NodeStatus.FAILED,
+                ]:
+                    logger.debug(
+                        f"Add node {node.id} to release for restarting relaunch."
+                    )
+                    to_release_nodes.append(node)
+
+        plan = self._worker_manager.relaunch_nodes(target_nodes, True)
+        for to_release_node in to_release_nodes:
+            plan.remove_nodes.append(to_release_node)
+
+        self._scaler.scale(plan)
+
     def should_early_stop(self):
         # node-check all failed
         if (
@@ -912,7 +962,7 @@ class DistributedJobManager(JobManager):
         should_relaunch = (
             self._enable_relaunch_node
             and node_check
-            and job_ctx.get_job_stage() != JobStage.JOB_STOPPING
+            and not job_ctx.is_stopping()
         )
         logger.info(
             f"Recheck node_group {node_group} can relaunch: {should_relaunch} with "
@@ -943,11 +993,17 @@ class DistributedJobManager(JobManager):
                 f"resource: {node.config_resource.to_resource_dict()}, "
                 f"job_stage: {job_ctx.get_job_stage()}"
             )
-            if job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+            if job_ctx.is_stopping():
                 should_relaunch = False
                 msg = "Disable relaunch when job is stopping"
                 logger.warning(
                     f"Disable {node.name}/{node.id} relaunch when job is stopping."
+                )
+            elif job_ctx.is_restarting():
+                should_relaunch = False
+                msg = "Disable relaunch when job is restarting"
+                logger.warning(
+                    f"Disable {node.name}/{node.id} relaunch when job is restarting."
                 )
             elif (
                 node.exit_reason == NodeExitReason.FATAL_ERROR

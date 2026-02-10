@@ -249,15 +249,16 @@ class NodeAction(DiagnosisAction):
         )
 
 
-class JobAbortionAction(DiagnosisAction):
+class JobAction(DiagnosisAction):
     def __init__(
         self,
+        action_type: str,
         reason: str = "",
         msg: str = "",
         **kwargs,
     ):
         super().__init__(
-            DiagnosisActionType.JOB_ABORT,
+            action_type,
             DiagnosisConstant.MASTER_INSTANCE,
             0,
             0,
@@ -281,6 +282,34 @@ class JobAbortionAction(DiagnosisAction):
             f"expired_time_period:{self._expired_time_period};"
             f"reason:{self._reason};"
             f"msg:{self._msg}"
+        )
+
+
+class JobAbortionAction(JobAction):
+    def __init__(
+        self,
+        reason: str = "",
+        msg: str = "",
+        **kwargs,
+    ):
+        super().__init__(
+            action_type=DiagnosisActionType.JOB_ABORT,
+            reason=reason,
+            msg=msg,
+        )
+
+
+class JobRestartAction(JobAction):
+    def __init__(
+        self,
+        reason: str = "",
+        msg: str = "",
+        **kwargs,
+    ):
+        super().__init__(
+            action_type=DiagnosisActionType.JOB_RESTART,
+            reason=reason,
+            msg=msg,
         )
 
 

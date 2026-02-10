@@ -27,10 +27,15 @@ import (
 func TestCreateMasterPod(t *testing.T) {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ps",
-			Namespace:   "dlrover",
-			Annotations: map[string]string{"pending_timeout": "300", "service_type": "http", "pre_check_ops": "[]"},
-			Labels:      map[string]string{},
+			Name:      "test-ps",
+			Namespace: "dlrover",
+			Annotations: map[string]string{
+				"pending_timeout":       "300",
+				"service_type":          "http",
+				"pre_check_ops":         "[]",
+				"training_elastic_mode": "ucp",
+			},
+			Labels: map[string]string{},
 		},
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
@@ -44,6 +49,7 @@ func TestCreateMasterPod(t *testing.T) {
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--pending_timeout 300"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--service_type http"))
+	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--training_elastic_mode ucp"))
 }
 
 func TestCreateMasterPodWithImage(t *testing.T) {

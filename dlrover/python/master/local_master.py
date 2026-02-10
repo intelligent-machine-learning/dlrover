@@ -24,9 +24,9 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
     RendezvousManager,
+    create_training_rdzv_manager,
 )
 from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
@@ -46,7 +46,7 @@ class LocalJobMaster(JobMaster):
         self.diagnosis_manager = DiagnosisMaster(args)
         elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(),
+            elastic_training: create_training_rdzv_manager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.job_metric_collector = self._create_metric_collector_if_needed(

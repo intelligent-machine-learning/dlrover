@@ -1,4 +1,4 @@
-# Copyright 2020 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -221,6 +221,14 @@ class GlobalStep(Message):
     timestamp: int = 0
     step: int = 1
     elapsed_time_per_step: float = 0.0
+
+
+@dataclass
+class RdzvBlocked(Message):
+    """Indicate whether rendezvous completion is blocked."""
+
+    blocked: bool = False
+    reason: str = ""
 
 
 @dataclass

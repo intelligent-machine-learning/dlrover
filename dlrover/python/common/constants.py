@@ -14,6 +14,10 @@
 
 class BasicClass(object):
     LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+    LOG_ROOT_DIR_ENV = "DLROVER_LOG_ROOT_DIR"
+    LOG_ROTATE_MAX_BYTES_ENV = "DLROVER_LOG_ROTATE_MAX_BYTES"  # unit: bytes
+    LOG_ROTATE_BACKUP_COUNT_ENV = "DLROVER_LOG_ROTATE_BACKUP_COUNT"
+    LOG_AGENT_DIR_ENV = "DLROVER_LOG_AGENT_DIR"
 
 
 class PriorityClass(object):
@@ -217,6 +221,8 @@ class JobExitReason(object):
     PENDING_TIMEOUT = "PendingTimeout"
     UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
     NODE_CHECK_FAILED = "NodeCheckFailed"
+    BY_INTERNAL_SUGGESTION = "ByInternalSuggestion"
+    RESTART_OVER_LIMIT = "RestartOverLimit"
 
 
 class CustomMetricKeys:
@@ -315,6 +321,7 @@ class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     DLROVER_MASTER_SERVICE_TYPE = "DLROVER_MASTER_SERVICE_TYPE"
+    DLROVER_TRAINING_ELASTIC_MODE = "DLROVER_TRAINING_ELASTIC_MODE"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     GRPC_POLL_STRATEGY = "GRPC_POLL_STRATEGY"
     POD_NAME = "POD_NAME"
@@ -348,6 +355,9 @@ class NodeEnv(object):
 
     # grpc env
     MASTER_CLIENT_TIMEOUT = "MASTER_CLIENT_TIMEOUT"
+
+    # extension env
+    DLROVER_EXTENSION_DYNAMIC_FAILOVER = "DLROVER_EXTENSION_DYNAMIC_FAILOVER"
 
 
 class DatasetType(object):
@@ -499,6 +509,7 @@ class EventReportConstants(object):
     ACTION_STATUS_UPDATE = "status_update"
     ACTION_EARLY_STOP = "early_stop"
     ACTION_STOP = "stop"
+    ACTION_RESTART = "restart"
     ACTION_RELAUNCH = "relaunch_worker"
     ACTION_NOT_RELAUNCH = "not_relaunch_worker"
     ACTION_GLOBAL_STEP = "global_step"
@@ -546,6 +557,7 @@ class JobStage(object):
     JOB_STOPPING = "stopping"
     JOB_STOPPED = "stopped"
     JOB_SUSPENDED = "suspended"
+    JOB_RESTARTING = "restarting"
 
 
 class KeyValueOps(object):

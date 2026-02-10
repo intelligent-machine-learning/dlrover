@@ -69,6 +69,40 @@ def test_api_full(tmp_ray):
     assert ret == 0, "Job should succeed"
 
 
+@pytest.mark.timeout(40, func_only=True)
+def test_api_full_by_dlrover_run_cmd(tmp_ray):
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
+    cmd = f"dlrover-run --nnodes=2 --nproc_per_node=2 {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+
+    dl_job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
+
+    ret = dl_job.submit("test_cmd_api", master_cpu=1, master_memory=128)
+    assert ret == 0, "Job submitted via by_dlrover_run_cmd should succeed"
+
+
+@pytest.mark.timeout(40, func_only=True)
+def test_api_full_by_torchrun_cmd(tmp_ray):
+    root_dir = os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            )
+        )
+    )
+    cmd = f"torchrun --nnodes=2 --nproc_per_node=2 {root_dir}/dlrover/python/unified/tests/integration_test/dummy_run.py --test 0"
+
+    dl_job = DLJobBuilder().by_dlrover_run_cmd(cmd).build()
+
+    ret = dl_job.submit("test_cmd_api", master_cpu=1, master_memory=128)
+    assert ret == 0, "Job submitted via by_dlrover_run_cmd should succeed"
+
+
 @pytest.mark.timeout(40, func_only=True)  # 25s in ci
 def test_api_full_with_cmd(tmp_ray):
     root_dir = os.path.dirname(

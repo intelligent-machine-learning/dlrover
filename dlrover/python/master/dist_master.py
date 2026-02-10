@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,13 +29,16 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
-from dlrover.python.diagnosis.common.diagnosis_action import JobAbortionAction
+from dlrover.python.diagnosis.common.diagnosis_action import (
+    JobAbortionAction,
+    JobRestartAction,
+)
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
     RendezvousManager,
+    create_training_rdzv_manager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster, get_service_type
@@ -144,9 +147,8 @@ class DistributedJobMaster(JobMaster):
             if args.enable_dynamic_sharding
             else None
         )
-        elastic_training = RendezvousName.TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(),
+            RendezvousName.TRAINING: create_training_rdzv_manager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         self.diagnosis_manager = DiagnosisMaster(args)
@@ -158,12 +160,22 @@ class DistributedJobMaster(JobMaster):
         self.sync_service = SyncService(self.job_manager)
         self._master_server = self._create_master_service(port, args)
         self._job_args = args
-        self._exit_code = 0
-        self._exit_reason = None
         self._job_evt = _master_evt.train_job(
             job_name=args.job_name, args=vars(args)
         )
         self._elasticjob_watcher = new_elasticjob_watcher(args)
+
+    @property
+    def exit_code(self):
+        return self._job_ctx.get_exit_code()
+
+    @property
+    def exit_reason(self):
+        return self._job_ctx.get_exit_reason()
+
+    def set_exit(self, exit_code, exit_reason=""):
+        self._job_ctx.set_exit_code(exit_code)
+        self._job_ctx.set_exit_reason(exit_reason)
 
     def _create_master_service(self, port, params: JobArgs):
         return create_master_service(
@@ -223,7 +235,7 @@ class DistributedJobMaster(JobMaster):
     def _diagnose_job(self):
         logger.info("Start diagnosing the job.")
         while True:
-            if self._job_ctx.is_request_stopped():
+            if self._job_ctx.is_stopped():
                 logger.info("Stop diagnosing job.")
                 break
 
@@ -239,6 +251,10 @@ class DistributedJobMaster(JobMaster):
                     reason=action.reason,
                     msg=action.msg,
                 )
+            elif isinstance(action, JobRestartAction):
+                if not self._job_ctx.is_restarting():
+                    logger.warning(f"Got job restart action: {action}")
+                    self.request_restart(action.reason, action.msg)
             else:
                 self.job_manager.process_diagnosis_action(action)
 
@@ -296,11 +312,17 @@ class DistributedJobMaster(JobMaster):
         # into running loop
         try:
             while True:
-                if self._job_ctx.is_request_stopped():
+                if self._job_ctx.is_stopped():
                     logger.info(
                         f"Job is stopped: {self._job_ctx.get_job_stage()}"
                     )
                     break
+                elif self._job_ctx.is_restarting():
+                    logger.info("Trigger job restarting.")
+
+                    # sync implement to restart job
+                    self.job_manager.restart()
+
                 should_stop, reason, msg = self.job_manager.should_early_stop()
                 if should_stop:
                     self._job_evt.fail(
@@ -316,8 +338,7 @@ class DistributedJobMaster(JobMaster):
                         continue
                     if self.job_manager.all_workers_failed():
                         logger.error("All workers failed")
-                        self._exit_code = 1
-                        self._exit_reason = JobExitReason.UNKNOWN_ERROR
+                        self.set_exit(1, JobExitReason.UNKNOWN_ERROR)
                     elif (
                         self.task_manager
                         and not self.task_manager.finished()
@@ -333,8 +354,7 @@ class DistributedJobMaster(JobMaster):
                     and self.task_manager.task_hanged()
                 ):
                     logger.error("All nodes hanged")
-                    self._exit_code = 1
-                    self._exit_reason = JobExitReason.HANG_ERROR
+                    self.set_exit(1, JobExitReason.HANG_ERROR)
 
                 if (
                     self.task_manager
@@ -358,16 +378,16 @@ class DistributedJobMaster(JobMaster):
                 self.diagnosis_manager.stop_observing()
             self.stop()
 
-        if self._exit_code == 0:
+        if self.exit_code == 0:
             self._event_reporter.report_job_success(
                 self._job_evt, self._job_args
             )
         else:
             self._event_reporter.report_job_fail(
-                self._job_evt, self._job_args, self._exit_reason
+                self._job_evt, self._job_args, self.exit_reason
             )
 
-        return self._exit_code
+        return self.exit_code
 
     def _remove_not_participated_workers(self):
         """Remove workers who do not participate training."""
@@ -381,13 +401,11 @@ class DistributedJobMaster(JobMaster):
         Stop all the components.
         Make sure that the created services and components are shut down.
         """
-        if self._exit_code == 0 and not self._exit_reason:
-            self._exit_reason = JobExitReason.SUCCEEDED
-        logger.info("Job exit with the reason {}".format(self._exit_reason))
+        if self.exit_code == 0 and not self.exit_reason:
+            self.set_exit(0, JobExitReason.SUCCEEDED)
+        logger.info("Job exit with the reason {}".format(self.exit_reason))
         if self.job_metric_collector:
-            self.job_metric_collector.collect_job_exit_reason(
-                self._exit_reason
-            )
+            self.job_metric_collector.collect_job_exit_reason(self.exit_reason)
         logger.info("Stopping master")
         logger.info("Stopping RPC server")
         self._master_server.stop(grace=None)
@@ -395,14 +413,11 @@ class DistributedJobMaster(JobMaster):
         logger.info("Master stopped")
 
     def request_stop(self, success, reason, msg=""):
-        self._exit_reason = reason
         if success:
-            self._exit_code = 0
             logger.info(
                 f"Request to stop. Success: {success}, reason: {reason}, msg: {msg}."
             )
         else:
-            self._exit_code = 1
             logger.error(
                 f"Request to stop. Success: {success}, reason: {reason}, msg: {msg}."
             )
@@ -421,4 +436,20 @@ class DistributedJobMaster(JobMaster):
                     "success": f"{success}",
                 },
             )
-        self._job_ctx.request_stop()
+        exit_code = 0 if success else 1
+        self._job_ctx.request_stop(exit_code, reason)
+
+    def request_restart(self, reason, msg=""):
+        logger.info(f"Request to restart. Reason: {reason}, msg: {msg}.")
+
+        if self._event_reporter:
+            self._event_reporter.report(
+                event_type=EventReportConstants.TYPE_WARN,
+                instance="job",
+                action=EventReportConstants.ACTION_RESTART,
+                msg=msg,
+                labels={
+                    "reason": reason,
+                },
+            )
+        self._job_ctx.request_restart()

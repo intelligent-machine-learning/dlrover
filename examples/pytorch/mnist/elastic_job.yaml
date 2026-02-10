@@ -4,6 +4,8 @@ kind: ElasticJob
 metadata:
   name: torch-mnist
   namespace: dlrover
+  annotations:
+    training_elastic_mode: "ucp"
 spec:
   distributionStrategy: AllreduceStrategy
   optimizeMode: single-job

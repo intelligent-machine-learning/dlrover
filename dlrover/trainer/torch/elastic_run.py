@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -87,7 +87,9 @@ For auto-tuning parallelism configuration, you need to specify:
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
 
+import importlib
 import os
+import re
 import socket
 import sys
 import telnetlib
@@ -111,8 +113,14 @@ from dlrover.python.common.constants import (
     NodeEventType,
     PreCheckStatus,
 )
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.log import (
+    default_logger as logger,
+    get_agent_log_dir,
+)
 from dlrover.python.elastic_agent.master_client import MasterClient
+from dlrover.python.elastic_agent.torch.dynamic_failover import (
+    DynamicAgentFailoverExtension,
+)
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
@@ -222,6 +230,14 @@ def parse_args(args):
         "--comm_perf_test",
         action=check_env,
         help="Whether to test the communication performance.",
+    )
+
+    parser.add_argument(
+        "--ucp_device_type",
+        "--ucp_device_type",
+        action=env,
+        default="cpu",
+        help="The device where universal checkpoint take place.",
     )
     return parser.parse_args(args)
 
@@ -378,12 +394,14 @@ def _elastic_config_from_args(
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
 
+    logger.info(f"Setup ElasticLaunchConfig with: {config.__dict__}")
     elastic_config = ElasticLaunchConfig(**config.__dict__)
 
-    # PyTorch >= 2.3.0 remove log_dir in the LaunchConfig.
-    if not version_less_than_230():
-        elastic_config.log_dir = config.logs_specs.root_log_dir
-
+    elastic_config.setup_log(
+        getattr(args, "log_dir", None) or get_agent_log_dir(),
+        getattr(args, "redirects", None),
+        getattr(args, "tee", None),
+    )
     elastic_config.precheck = getattr(args, "precheck", False)
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
@@ -412,6 +430,7 @@ def _elastic_config_from_args(
     elastic_config.rdzv_endpoint = ""
     join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
     elastic_config.rdzv_configs["timeout"] = join_timeout
+
     return elastic_config, cmd, cmd_args
 
 
@@ -527,6 +546,43 @@ def _check_to_use_dlrover_run(job_name, is_standalone=False):
         return True, None
 
 
+def _setup_dynamic_failover_extension(config: ElasticLaunchConfig):
+    extension_config = env_utils.get_env(
+        NodeEnv.DLROVER_EXTENSION_DYNAMIC_FAILOVER
+    )
+    if not extension_config:
+        return
+
+    pattern = r"^([^:]+?(?:\.[^:]+)*)::(\w+)$"
+    match = re.match(pattern, extension_config)
+    if not match:
+        logger.warning(
+            f"User's extension config for dynamic-failover is not valid: {extension_config}."
+        )
+        return
+    module_path = match.group(1)
+    class_name = match.group(2)
+
+    # import module and class
+    try:
+        module = importlib.import_module(module_path)
+        extension_class = getattr(module, class_name)
+    except (ImportError, AttributeError) as e:
+        logger.warning(
+            f"Failed to import dynamic failover extension class {class_name} from {module_path}: {e}"
+        )
+        return
+
+    if not issubclass(extension_class, DynamicAgentFailoverExtension):
+        logger.warning(
+            f"{class_name} must inherit from DynamicAgentFailoverExtension"
+        )
+        return
+    else:
+        config.dynamic_failover_extension = extension_class()
+        logger.info(f"Dynamic failover extension is setup: {extension_class}")
+
+
 def run(args):
     # export event for dlrover agent
     agent = DLRoverAgentEvent.singleton_instance()
@@ -560,6 +616,11 @@ def run(args):
     config, cmd, cmd_args = _elastic_config_from_args(args)
     config.run_id = job_name
     config.role = "dlrover-trainer"
+
+    # load custom extension:
+    # dynamic failover extension
+    _setup_dynamic_failover_extension(config)
+
     try:
         ElasticLaunch(
             config=config,

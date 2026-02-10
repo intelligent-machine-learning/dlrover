@@ -48,12 +48,12 @@ class NodeInconsistencyDiagnostician(Diagnostician):
         self._job_args = job_args
         self._k8s_client = k8sClient.singleton_instance(job_args.namespace)
 
+    # by type+index
     def _get_pod_unique_labels(self, node: Node):
         return {
             ElasticJobLabel.JOB_KEY: self._job_args.job_name,
             ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
             ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
-            ElasticJobLabel.REPLICA_INDEX_KEY: node.id,
         }
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
