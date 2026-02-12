@@ -1,4 +1,4 @@
-# Copyright 2026 The DLRover Authors. All rights reserved.
+﻿# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -98,7 +98,7 @@ class BaseWorker(ActorBase):
         if actor_id:
             try:
                 log_lines = []
-                for line in get_log(actor_id=actor_id):
+                for line in get_log(actor_id=actor_id, tail=10000):
                     log_lines.append(line)
                 log_content = "".join(log_lines)
                 # Limit log content size to avoid excessive memory usage
@@ -107,10 +107,10 @@ class BaseWorker(ActorBase):
                     log_content = log_content[-max_log_size:]
                     log_content = "...[truncated]...\n" + log_content
             except Exception as e:
-                logger.warning(f"Failed to get logs for actor {actor_id}: {e}")
-                log_content = f"[Failed to retrieve logs: {e}]"
+                logger.warning("Failed to get logs for actor {actor_id}: {e}")
+                log_content = ""
         else:
-            log_content = "[Actor ID not available, cannot retrieve logs]"
+            log_content = ""
         
         # Parse logs to determine error type, code and reason
         diag_type, code, reason = self._parse_diagnostic_info(log_content)
