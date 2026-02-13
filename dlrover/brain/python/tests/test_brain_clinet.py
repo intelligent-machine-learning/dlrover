@@ -7,7 +7,7 @@ from dlrover.brain.python.common.http_schemas import (
     OptimizeResponse,
     Response,
 )
-from dlrover.brain.python.common.optimize import (
+from dlrover.brain.python.common.job import (
     JobMeta,
     JobOptimizePlan,
 )

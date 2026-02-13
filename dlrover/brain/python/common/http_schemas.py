@@ -1,4 +1,7 @@
-from dlrover.brain.python.common.optimize import (
+from dataclasses import field
+from typing import Dict
+
+from dlrover.brain.python.common.job import (
     JobOptimizePlan,
     OptimizeConfig,
     JobMeta,
@@ -12,16 +15,21 @@ class Response(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
-    response: Response = Response()
-    job_opt_plan: JobOptimizePlan = JobOptimizePlan()
+    response: Response = field(default_factory=Response)
+    job_opt_plan: JobOptimizePlan = field(default_factory=JobOptimizePlan)
 
 
 class OptimizeRequest(BaseModel):
     type: str = ""
-    config: OptimizeConfig = OptimizeConfig()
-    job: JobMeta = JobMeta()
+    config: OptimizeConfig = field(default_factory=OptimizeConfig)
+    job: JobMeta = field(default_factory=JobMeta)
 
 
+class JobConfigRequest(BaseModel):
+    type: str = ""
+    job: JobMeta = field(default_factory=JobMeta)
 
 
-
+class JobConfigResponse(BaseModel):
+    response: Response = field(default_factory=Response)
+    job_configs: Dict[str, str] = field(default_factory=dict)

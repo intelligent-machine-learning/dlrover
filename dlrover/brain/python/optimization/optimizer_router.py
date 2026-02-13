@@ -1,4 +1,4 @@
-from dlrover.brain.python.common.optimize import (
+from dlrover.brain.python.common.job import (
     JobMeta,
     OptimizeConfig,
 )

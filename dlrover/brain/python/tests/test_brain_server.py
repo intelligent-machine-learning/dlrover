@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from dlrover.brain.python.server.server import BrainServer
-from dlrover.brain.python.common.optimize import (
+from dlrover.brain.python.common.job import (
     NodeResource,
     NodeGroupResource,
     JobResource,

@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from dlrover.brain.python.optimization.optimizer_manager import OptimizerManager
 from dlrover.brain.python.optimization.optimizer.base_optimizer import BaseOptimizer
-from dlrover.brain.python.common.optimize import (
+from dlrover.brain.python.common.job import (
     JobMeta,
     OptimizeConfig,
 )
