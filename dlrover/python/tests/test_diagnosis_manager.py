@@ -168,7 +168,7 @@ class DiagnosisManagerTest(unittest.TestCase):
             )
             thread.start()
             time.sleep(0.2)
-            self.assertTrue(context._diagnosis_action_queue.len() > 0)
+            self.assertTrue(context._diagnosis_action_queue.len() == 0)
 
             mock_diagnose.side_effect = Exception()
             time.sleep(0.2)

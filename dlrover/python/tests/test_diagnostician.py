@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import os
 import time
 import unittest
@@ -23,8 +23,12 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     MthreadsGPUMetricEnum,
     Accelerators,
+    GpuMetricEnum,
+    PlatformType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.metric.metric import GpuNodeMetric, GpuMetric
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisErrorConstant,
@@ -53,8 +57,9 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.scheduler.job import JobArgs
-from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.scheduler.kubernetes import k8sClient, K8sJobArgs
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.util.function_util import TimeoutException
 from typing import Dict, List, Tuple, OrderedDict
@@ -790,4 +795,129 @@ class DiagnosticianTest(unittest.TestCase):
         mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
             MthreadsGPUMetricEnum.GPU_TENSOR_UTIL,
             50,  # Clamped to max_metric_records
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
+    )
+    @patch(
+        "dlrover.python.common.event.context.JobEventContext.check_job_step_hang",
+    )
+    def test_diagnose_metrics(
+        self, mock_check_job_step_hang, mock_dlrover_context
+    ):
+        metric_context = JobMetricContext.singleton_instance()
+        mock_check_job_step_hang.return_value = True
+
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        mgr = DiagnosisMaster(job_args=args)
+        diagnostician = TrainingHangDiagnostician(args, mgr)
+        metric_context.clear_node_metrics()
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
+
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        ts = int(datetime.now().timestamp())
+        for _ in range(30):
+            ts = ts + 60
+            metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(10)[0],
+            DiagnosisResult.DIAG_HANG,
+        )
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(29)[0],
+            DiagnosisResult.DIAG_HANG,
+        )
+
+        mock_dlrover_context.hang_downtime = 10
+        mock_dlrover_context.hang_detection = 2
+
+        diagnostician.diagnose()
+
+        mgr._job_context.clear_job_nodes()
+        mgr._job_context.clear_actions()
+        metric_context.clear_node_metrics()
+
+    def test_gpu_tensor_drop_zero(self):
+        metric_context = JobMetricContext.singleton_instance()
+        args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
+        args.xpu_type = Accelerators.NVIDIA_GPU
+        mgr = DiagnosisMaster(job_args=args)
+        diagnostician = TrainingHangDiagnostician(args, mgr)
+        metric_context.clear_node_metrics()
+
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.307
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        ts = int(datetime.now().timestamp())
+        metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(10)[0],
+            DiagnosisResult.DIAG_WAITING,
+        )
+
+        for _ in range(10):
+            ts = ts + 60
+            metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(10)[0],
+            DiagnosisResult.DIAG_HEALTHY,
+        )
+
+        job_metrics = {}
+        metric = GpuNodeMetric()
+        for i in range(8):
+            metric.node_metrics[i] = GpuMetric()
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_FREE_MEM, 0)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_USED_MEM, 80)
+            metric.node_metrics[i].set_metric(GpuMetricEnum.GPU_UTIL, 99.5)
+            metric.node_metrics[i].set_metric(
+                GpuMetricEnum.GPU_TENSOR_UTIL, 0.0002
+            )
+        metric.update_avg_metrics()
+        job_metrics["worker-1"] = copy.deepcopy(metric)
+        job_metrics["worker-2"] = copy.deepcopy(metric)
+        job_metrics["worker-3"] = copy.deepcopy(metric)
+        job_metrics["worker-4"] = copy.deepcopy(metric)
+
+        for _ in range(30):
+            ts = ts + 60
+            metric_context.add_node_metrics(ts, job_metrics)
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(10)[0],
+            DiagnosisResult.DIAG_HANG,
+        )
+        self.assertEqual(
+            diagnostician._check_tensor_drop_zero(29)[0],
+            DiagnosisResult.DIAG_HANG,
         )
