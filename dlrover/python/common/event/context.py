@@ -128,7 +128,7 @@ class StepEvents(object):
                 step_event.begin_timestamp = event.timestamp
                 step_event.localtime = int(time.time())
                 self._step_events[event.timestamp] = step_event
-                logger.debug(
+                logger.info(
                     f"Add BEGIN event with {event.timestamp}, {step_event}"
                 )
 
@@ -160,7 +160,7 @@ class StepEvents(object):
                 step_event.event_state = TrainEventState.TRAIN_EVT_END
                 step_event.localtime = int(time.time())
                 self._step_events[last_key] = step_event
-                logger.debug(
+                logger.info(
                     f"Add END event with {event.timestamp}, {step_event}"
                 )
 
@@ -193,6 +193,9 @@ class StepEvents(object):
                 step_event.begin_timestamp = event.timestamp
                 step_event.localtime = int(time.time())
                 self._step_events[event.timestamp] = step_event
+                logger.info(
+                    f"Add BEGIN event with {event.timestamp}, {step_event}"
+                )
 
             elif event.type == EventTypeName.END:
                 if not len(keys):
@@ -221,6 +224,9 @@ class StepEvents(object):
                 step_event.event_state = TrainEventState.TRAIN_EVT_END
                 step_event.localtime = int(time.time())
                 self._step_events[last_key] = step_event
+                logger.info(
+                    f"Add END event with {event.timestamp}, {step_event}"
+                )
 
 
 class JobEventContext(Singleton):
@@ -263,6 +269,10 @@ class JobEventContext(Singleton):
             return False
 
     def check_ckpt_hang(self):
+        self.ckpt_threshold = _dlrover_context.hang_downtime * 60
+        if self.ckpt_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
+            self.ckpt_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
+
         now = int(datetime.now().timestamp())
 
         step = self.ckpt_steps.get_last_step_event()
@@ -270,6 +280,9 @@ class JobEventContext(Singleton):
             return False
         elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
             if now - step.localtime < self.ckpt_threshold:
+                logger.debug(
+                    f"No ckpt hang detected: {now} {self.ckpt_threshold} {step}"
+                )
                 return False
             else:
                 logger.warning(
@@ -277,6 +290,7 @@ class JobEventContext(Singleton):
                 )
                 return True
         else:
+            logger.debug(f"No new ckpt: {now} {self.ckpt_threshold} {step}")
             return False
 
 
