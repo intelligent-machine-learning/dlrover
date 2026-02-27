@@ -125,7 +125,7 @@ class AtorchEventCollector(Singleton):
                     )
                     raise AtorchInvalidException()
         else:
-            logger.debug(f"Invalid text format {text} in line {line}")
+            logger.warning(f"Invalid text format {text} in line {line}")
             raise ValueError
 
         return event_ts, event_target, event_name, event_type, event_step
@@ -154,7 +154,7 @@ class AtorchEventCollector(Singleton):
                     ts, target, event_name, event_type, step = self.parse_line(
                         line
                     )
-                    logger.debug(
+                    logger.info(
                         f"Parse line output: "
                         f"{ts} {target} {event_name} {event_type} {step}"
                     )
