@@ -1469,12 +1469,11 @@ class DistributedJobManager(JobManager):
             self._job_context.update_job_node(node)
             action = self._job_context.next_action(instance=node_id)
             if not action or isinstance(action, NoAction):
-                return self._job_context.next_action(
-                    instance=DiagnosisConstant.ANY_INSTANCE
+                action = self._job_context.next_action(
+                    instance=DiagnosisConstant.ANY_WORKER_INSTANCE
                 )
-            else:
-                logger.debug(f"Collect action from {node_id}: {action}")
-                return action
+            logger.debug(f"Collect action for {node_id}: {action}")
+            return action
 
     def update_node_required_info_callback(self):
         self._worker_manager.update_node_required_info(self._nodes_required)

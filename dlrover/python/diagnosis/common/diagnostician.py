@@ -11,13 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
-    EventAction,
     NoAction,
 )
 from dlrover.python.util.function_util import (
@@ -60,33 +59,37 @@ class Diagnostician:
     a particular problem.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, job_args=None):
+        self._job_args = job_args
 
-    @threading_timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
+    @threading_timeout(
+        secs=DiagnosisConstant.MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT
+    )
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         # observe if particular problem happened
         return DiagnosisObservation("unknown")
 
-    @threading_timeout(secs=DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL)
+    @threading_timeout(
+        secs=DiagnosisConstant.MAX_DIAGNOSTICIAN_RESOLVE_TIME_LIMIT
+    )
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
-    ) -> DiagnosisAction:
+    ) -> List[DiagnosisAction]:
         # explore the solution to resolve the problem
-        return EventAction()
+        return [NoAction()]
 
-    def diagnose(self, **kwargs) -> DiagnosisAction:
+    def diagnose(self, **kwargs) -> List[DiagnosisAction]:
         # define the diagnosis procedure
         try:
             ob = self.observe(**kwargs)
             if ob:
                 return self.resolve(ob, **kwargs)
-            return NoAction()
+            return [NoAction()]
         except TimeoutException:
             logger.error(
                 f"The diagnosis of {self.__class__.__name__} is timeout."
             )
-            return NoAction()
+            return [NoAction()]
         except Exception as e:
             logger.error(f"Fail to diagnose the problem: {e}")
-            return NoAction()
+            return [NoAction()]

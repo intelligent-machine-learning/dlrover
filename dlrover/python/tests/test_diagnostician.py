@@ -14,15 +14,27 @@
 import os
 import time
 import unittest
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    NodeStatus,
+    NodeType,
+    DistributionStrategy,
+    MthreadsGPUMetricEnum,
+    Accelerators,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisErrorConstant,
+    DiagnosisResult,
+    DiagnosisActionType,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
+    NodeAction,
 )
 from dlrover.python.diagnosis.common.diagnostician import Diagnostician
 from dlrover.python.diagnosis.diagnostician.node_failure import (
@@ -41,10 +53,11 @@ from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.util.function_util import TimeoutException
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, OrderedDict
 from unittest import mock
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.constants import (
@@ -65,20 +78,20 @@ class DiagnosticianTest(unittest.TestCase):
         self._master.stop()
 
     def test_diagnostician(self):
-        diagnostician = Diagnostician()
+        diagnostician = Diagnostician(None)
 
         ob = diagnostician.observe()
         self.assertEqual(ob.observation, "unknown")
 
-        action = diagnostician.resolve(ob)
-        self.assertTrue(isinstance(action, EventAction))
+        actions = diagnostician.resolve(ob)
+        self.assertTrue(isinstance(actions[0], NoAction))
 
-        action = diagnostician.diagnose()
-        self.assertTrue(isinstance(action, EventAction))
+        actions = diagnostician.diagnose()
+        self.assertTrue(isinstance(actions[0], NoAction))
 
         diagnostician.resolve = MagicMock(side_effect=Exception())
-        action = diagnostician.diagnose()
-        self.assertTrue(isinstance(action, NoAction))
+        actions = diagnostician.diagnose()
+        self.assertTrue(isinstance(actions[0], NoAction))
 
         with self.assertLogs(logger, level="ERROR") as log_capture:
             diagnostician.observe = MagicMock(side_effect=TimeoutException())
@@ -111,8 +124,8 @@ class DiagnosticianTest(unittest.TestCase):
 
         diagnostician = ResourceCollectionFailureDiagnostician()
 
-        action = diagnostician.diagnose(error_log=error_log)
-        self.assertTrue(isinstance(action, EventAction))
+        actions = diagnostician.diagnose(error_log=error_log)
+        self.assertTrue(isinstance(actions[0], EventAction))
 
     def test_node_inconsistency_diagnostician(self):
         job_args = MagicMock()
@@ -157,14 +170,14 @@ class DiagnosticianTest(unittest.TestCase):
             self.assertEqual(observation.observation, "Repeated node")
 
             # Test resolve action
-            action = diagnostician.resolve(observation)
-            self.assertTrue(isinstance(action, EventAction))
+            actions = diagnostician.resolve(observation)
+            self.assertTrue(isinstance(actions[0], EventAction))
 
             # Test resolve with correct observation format
             mock_problem = MagicMock()
             mock_problem.observation = DiagnosisErrorConstant.REPEATED_NODE
-            action = diagnostician.resolve(mock_problem)
-            self.assertTrue(isinstance(action, EventAction))
+            actions = diagnostician.resolve(mock_problem)
+            self.assertTrue(isinstance(actions[0], EventAction))
 
             # Test case 3: Empty nodes
             empty_nodes = {}
@@ -172,7 +185,7 @@ class DiagnosticianTest(unittest.TestCase):
             self.assertIsNone(observation)
 
     def test_training_hang_diagnostician_find_intersection(self):
-        diagnostician = TrainingHangDiagnostician(None)
+        diagnostician = TrainingHangDiagnostician(None, None)
 
         test_metric: Dict[int, List[Tuple[int, bool]]] = {
             1: [(1, True), (2, False), (3, True), (4, True), (5, True)],
@@ -278,15 +291,17 @@ class DiagnosticianTest(unittest.TestCase):
             diagnostician._get_hang_overlaps(test_metric), (-1, -1)
         )
 
-    def test_training_hang_diagnostician_is_hang(self):
+    def test_training_hang_diagnostician_is_hang_by_xpu_timer(self):
+        job_args = JobArgs("local", "test", "test")
+        job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
         data_mgr = DiagnosisDataManager()
 
-        diagnostician = TrainingHangDiagnostician(data_mgr)
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
 
         ob = diagnostician.observe()
         self.assertIsNone(ob)
-        action = diagnostician.resolve(ob)
-        self.assertTrue(isinstance(action, NoAction))
+        actions = diagnostician.resolve(ob)
+        self.assertTrue(isinstance(actions[0], NoAction))
 
         diagnostician._get_hang_time_last_threshold = mock.MagicMock(
             return_value=0
@@ -348,7 +363,7 @@ class DiagnosticianTest(unittest.TestCase):
         )
         test_data = [w0_t1, w1_t1, w0_t2, w1_t2]
 
-        self.assertFalse(diagnostician.is_hang(test_data))
+        self.assertFalse(diagnostician.is_hang_by_xpu_timer_metric(test_data))
         test_data.clear()
 
         # test data0: 1 of 2 worker hang
@@ -386,7 +401,7 @@ class DiagnosticianTest(unittest.TestCase):
         )
         test_data = [w0_t1, w1_t1, w0_t2, w1_t2]
 
-        self.assertFalse(diagnostician.is_hang(test_data))
+        self.assertFalse(diagnostician.is_hang_by_xpu_timer_metric(test_data))
         test_data.clear()
 
         # test data: 2 of 2 worker hang
@@ -433,5 +448,346 @@ class DiagnosticianTest(unittest.TestCase):
             ob.observation, DiagnosisErrorConstant.TRAINING_IS_HANG
         )
 
-        action = diagnostician.resolve(ob)
-        self.assertTrue(isinstance(action, EventAction))
+        actions = diagnostician.resolve(ob)
+        self.assertTrue(isinstance(actions[0], EventAction))
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
+    )
+    @patch("dlrover.python.diagnosis.diagnostician.training_hang._job_context")
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._event_context"
+    )
+    def test_training_hang_diagnostician_is_hang_by_others(
+        self, mock_event_context, mock_job_context, mock_dlrover_context
+    ):
+        job_args = JobArgs("local", "test", "test")
+        job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # test observe
+
+        # tensor_drop_zero: false + step_hang: false
+        diagnostician._check_tensor_drop_zero = MagicMock(
+            return_value=(DiagnosisResult.DIAG_HEALTHY, 0, 0)
+        )
+        mock_event_context.check_job_step_hang = MagicMock(return_value=False)
+        self.assertIsNone(diagnostician.observe())
+
+        # tensor_drop_zero: true + step_hang: false
+        diagnostician._check_tensor_drop_zero = MagicMock(
+            return_value=(DiagnosisResult.DIAG_HANG, 1, 2)
+        )
+        self.assertIsNone(diagnostician.observe())
+
+        # tensor_drop_zero: true + step_hang: true
+        mock_event_context.check_job_step_hang = MagicMock(return_value=True)
+        ob = diagnostician.observe()
+        self.assertIsNotNone(ob)
+        self.assertEqual(
+            ob.observation, DiagnosisErrorConstant.TRAINING_IS_HANG
+        )
+
+        # test resolve
+        total_nodes_num = 4
+        mock_job_context.get_total_worker_num = MagicMock(
+            return_value=total_nodes_num
+        )
+
+        # hang detection level 0
+        mock_dlrover_context.hang_detection = 0
+        actions = diagnostician.resolve(ob)
+        self.assertEqual(len(actions), total_nodes_num)
+        for action in actions:
+            self.assertTrue(isinstance(action, NodeAction))
+            self.assertEqual(
+                action.action_type, DiagnosisActionType.COLLECT_METRIC
+            )
+
+        # hang detection level 1
+        mock_dlrover_context.hang_detection = 1
+        actions = diagnostician.resolve(ob)
+        self.assertEqual(len(actions), total_nodes_num + 1)
+        for i, action in enumerate(actions):
+            if i < total_nodes_num:
+                self.assertTrue(isinstance(action, NodeAction))
+                self.assertEqual(
+                    action.action_type, DiagnosisActionType.COLLECT_METRIC
+                )
+            else:
+                self.assertTrue(isinstance(action, EventAction))
+
+        # hang detection level 2
+        mock_dlrover_context.hang_detection = 2
+        actions = diagnostician.resolve(ob)
+        self.assertEqual(len(actions), total_nodes_num + 1)
+        for i, action in enumerate(actions):
+            if i < total_nodes_num:
+                self.assertTrue(isinstance(action, NodeAction))
+                self.assertEqual(
+                    action.action_type, DiagnosisActionType.COLLECT_METRIC
+                )
+            else:
+                self.assertTrue(isinstance(action, NodeAction))
+                self.assertEqual(
+                    action.action_type, DiagnosisActionType.RESTART_WORKER
+                )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_healthy(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for healthy mthreads GPU nodes."""
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock healthy metrics - simulate tensor utilization above threshold
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics over time with high utilization
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                0.85  # High utilization (well above 0.001 threshold)
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # Should return healthy result
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+        self.assertIsNotNone(start_ts)
+        self.assertIsNotNone(end_ts)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_low_utilization(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU with low tensor utilization."""
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock low utilization metrics
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics over time with low utilization (below threshold of 0.001)
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                0.0005  # Very low, below 0.001 threshold
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # Should detect hanging due to low utilization
+        self.assertEqual(result, DiagnosisResult.DIAG_HANG)
+        self.assertIsNotNone(start_ts)
+        self.assertIsNotNone(end_ts)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_no_metrics(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU when no metrics available."""
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock no metrics available
+        mock_metric_context.backtrace_avg_metrics.return_value = None
+        mock_metric_context.max_metric_records = 100
+
+        # Test with no metrics
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # Should return error when no metrics
+        self.assertEqual(result, DiagnosisResult.DIAG_ERROR)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_waiting_state(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU in waiting state."""
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock insufficient metrics (less than requested duration)
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Only 3 metric points (less than requested 10)
+        for i in range(3):
+            mock_metrics[current_time - i * 60] = (
+                0.70  # Above threshold, but insufficient data
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with duration longer than available metrics
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # Should return waiting state
+        self.assertEqual(result, DiagnosisResult.DIAG_WAITING)
+
+        # Verify correct metric enum was used
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, 10
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_edge_threshold(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU at edge of utilization threshold."""
+        from dlrover.python.diagnosis.diagnostician.training_hang import (
+            JobHangWatermark,
+        )
+
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock metrics at exactly the threshold
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Create metrics at threshold level
+        for i in range(15):
+            mock_metrics[current_time - i * 60] = (
+                JobHangWatermark.TENSOR_UTIL_LOW_WM
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # At threshold should still be considered hanging
+        self.assertEqual(result, DiagnosisResult.DIAG_HANG)
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_mixed_utilization(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero for mthreads GPU with mixed utilization over time."""
+        from dlrover.python.diagnosis.diagnostician.training_hang import (
+            JobHangWatermark,
+        )
+
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Mock varying metrics over time
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+
+        # Most recent metric is high (healthy), but older ones are low
+        mock_metrics[current_time] = (
+            JobHangWatermark.TENSOR_UTIL_LOW_WM + 0.01
+        )  # High (recent)
+        for i in range(1, 10):
+            mock_metrics[current_time - i * 60] = (
+                0.0005  # Low (older, below threshold)
+            )
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+        mock_metric_context.max_metric_records = 100
+
+        # Test with sufficient duration
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(10)
+
+        # Should return healthy because most recent metric is above threshold
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
+    )
+    def test_check_tensor_drop_zero_mthreads_max_duration_limit(
+        self, mock_metric_context
+    ):
+        """Test check_tensor_drop_zero respects max metric records limit."""
+        job_args = JobArgs("local", "test", "test")
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+        data_mgr = DiagnosisDataManager()
+
+        diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
+
+        # Test with duration exceeding max_metric_records
+        mock_metric_context.max_metric_records = 50
+        excessive_duration = 150  # More than max_metric_records
+
+        # Mock metrics
+        mock_metrics = OrderedDict()
+        current_time = int(datetime.now().timestamp())
+        for i in range(60):  # More metrics than max_metric_records
+            mock_metrics[current_time - i * 60] = 0.80  # High utilization
+
+        mock_metric_context.backtrace_avg_metrics.return_value = mock_metrics
+
+        # Test with excessive duration
+        result, start_ts, end_ts = diagnostician._check_tensor_drop_zero(
+            excessive_duration
+        )
+
+        # Should still work (duration gets clamped to max_metric_records)
+        self.assertEqual(result, DiagnosisResult.DIAG_HEALTHY)
+
+        # Verify duration was clamped to max_metric_records
+        mock_metric_context.backtrace_avg_metrics.assert_called_once_with(
+            MthreadsGPUMetricEnum.GPU_TENSOR_UTIL,
+            50,  # Clamped to max_metric_records
+        )

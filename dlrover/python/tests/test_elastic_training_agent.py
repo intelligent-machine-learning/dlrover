@@ -523,6 +523,106 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    @patch("dlrover.python.elastic_agent.torch.training.psutil.Process")
+    @patch("dlrover.python.common.env_utils.get_all_child_pids")
+    @patch("dlrover.python.common.env_utils.get_kernel_stack")
+    @patch("dlrover.python.common.env_utils.get_user_stack_pyspy")
+    def test_collect_metric(
+        self,
+        mock_user_stack,
+        mock_kernel_stack,
+        mock_get_child_pids,
+        mock_process,
+    ):
+        # Create agent instance
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            exit_barrier_timeout=1,
+        )
+
+        # Mock child processes
+        mock_child_pids = [1234, 5678]
+        mock_get_child_pids.return_value = mock_child_pids
+
+        # Mock process objects
+        mock_proc1 = mock.MagicMock()
+        mock_proc1.cmdline.return_value = None
+        mock_proc1.pid = 1234
+        mock_proc1.ppid.return_value = 1000
+        mock_proc1.name.return_value = "python"
+        mock_proc1.cmdline.return_value = ["python", "train.py"]
+        mock_proc1.cpu_percent.return_value = 15.5
+        mock_proc1.memory_info.return_value = mock.MagicMock()
+        mock_proc1.memory_info.return_value.rss = 1024 * 1024 * 500  # 500MB
+
+        mock_proc2 = mock.MagicMock()
+        mock_proc2.cmdline.return_value = None
+        mock_proc2.pid = 5678
+        mock_proc2.ppid.return_value = 1000
+        mock_proc2.name.return_value = "cuda_app"
+        mock_proc2.cmdline.return_value = []
+        mock_proc2.cpu_percent.return_value = 25.3
+        mock_proc2.memory_info.return_value = mock.MagicMock()
+        mock_proc2.memory_info.return_value.rss = 1024 * 1024 * 1000  # 1000MB
+
+        # Mock process_iter to return our processes
+        def side_effect_func(pid):
+            if pid == 1234:
+                return mock_proc1
+            elif pid == 5678:
+                return mock_proc2
+            else:
+                return None
+
+        mock_process.side_effect = side_effect_func
+
+        # Mock stack trace functions
+        mock_kernel_stack.return_value = (True, "kernel_stack_data")
+        mock_user_stack.return_value = (True, "user_stack_data")
+
+        # Call _collect_metric with log_only=False to get result
+        result = agent._collect_metric(log_only=False)
+
+        # Verify result structure
+        self.assertIsNotNone(result)
+        self.assertIn("process_metric", result)
+        self.assertIn("node_metric", result)
+        self.assertIn("other_metric", result)
+
+        # Verify process metrics
+        process_metric = result["process_metric"]
+        self.assertEqual(len(process_metric), 2)
+
+        # Check first process metrics
+        self.assertIn(1234, process_metric)
+        proc1_metric = process_metric[1234]
+        self.assertEqual(proc1_metric["ppid"], 1000)
+        self.assertEqual(proc1_metric["name"], "python")
+        self.assertEqual(proc1_metric["cmdline"], "python train.py")
+        self.assertEqual(proc1_metric["cpu"], 15.5)
+        self.assertAlmostEqual(proc1_metric["memory"], 500.0, places=1)
+        self.assertEqual(proc1_metric["kernel_stack"], "kernel_stack_data")
+        self.assertEqual(proc1_metric["user_stack"], "user_stack_data")
+
+        # Check second process metrics
+        self.assertIn(5678, process_metric)
+        proc2_metric = process_metric[5678]
+        self.assertEqual(proc2_metric["name"], "cuda_app")
+        self.assertEqual(proc2_metric["cmdline"], "cuda_app")
+        self.assertEqual(proc2_metric["cpu"], 25.3)
+        self.assertAlmostEqual(proc2_metric["memory"], 1000.0, places=1)
+
+        # Verify mock calls
+        mock_get_child_pids.assert_called_once_with(os.getpid())
+        self.assertEqual(mock_kernel_stack.call_count, 2)
+        self.assertEqual(mock_user_stack.call_count, 2)
+
+        agent._collect_metric(log_only=True)
+
 
 def mock_gpu_metric_collect(*args, **kwargs):
     logger.info("mock gpu metric collector is running...")
@@ -1281,13 +1381,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             node_id=0,
             node_type="worker",
             action_type=DiagnosisActionType.RESTART_WORKER,
-            instance=DiagnosisConstant.ANY_INSTANCE,
+            instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
         )
         context.enqueue_diagnosis_action(action)
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
-                    DiagnosisConstant.ANY_INSTANCE
+                    DiagnosisConstant.ANY_WORKER_INSTANCE
                 ]
             ),
             1,
@@ -1297,7 +1397,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
-                    DiagnosisConstant.ANY_INSTANCE
+                    DiagnosisConstant.ANY_WORKER_INSTANCE
                 ]
             ),
             0,
@@ -1358,13 +1458,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         action = EventAction(
-            expired_time_period=600, instance=DiagnosisConstant.ANY_INSTANCE
+            expired_time_period=600,
+            instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
         )
         context.enqueue_diagnosis_action(action)
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
-                    DiagnosisConstant.ANY_INSTANCE
+                    DiagnosisConstant.ANY_WORKER_INSTANCE
                 ]
             ),
             1,
@@ -1374,7 +1475,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertEqual(
             len(
                 context._diagnosis_action_queue._actions[
-                    DiagnosisConstant.ANY_INSTANCE
+                    DiagnosisConstant.ANY_WORKER_INSTANCE
                 ]
             ),
             1,

@@ -644,7 +644,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_times = {}
 
     def _group_nodes(self, round):
-        """Group nodes into goups.
+        """Group nodes into groups.
         Round 0: group all nodes into a group like {0:8, 1:8, 2:8, 3:8}.
         Round 1: Split nodes into groups and each group contains
             two nodes, like [{0:8, 1:8},{2:8, 3:8}].
