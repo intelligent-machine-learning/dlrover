@@ -81,6 +81,7 @@ class DefaultValues(object):
     MAX_CKPT_THRESHOLD = 900  # seconds
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
     MAX_RELAUNCH_COUNT = 3  # maximum node relaunch count
+    MAX_JOB_RESTART_COUNT = 3  # maximum job restart count
     MAX_GROUP_RELAUNCH_COUNT = 3  # maximum node group relaunch count
     TRAINING_ELASTIC_MODE = "base"
 
@@ -147,6 +148,7 @@ class Context(Singleton):
         self.pre_check_operators = DefaultValues.PRE_CHECK_OPS
         self.max_relaunch_count = DefaultValues.MAX_RELAUNCH_COUNT
         self.max_group_relaunch_count = DefaultValues.MAX_GROUP_RELAUNCH_COUNT
+        self.job_max_restart_count = DefaultValues.MAX_JOB_RESTART_COUNT
         self.training_elastic_mode = DefaultValues.TRAINING_ELASTIC_MODE
         # extensions
         self.dynamic_failover_extension = None

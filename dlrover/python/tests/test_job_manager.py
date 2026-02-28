@@ -1300,6 +1300,67 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(forth_event.node.id, 1)
         self.assertEqual(forth_event.node.rank_index, 1)
 
+    def test_restart_allreduce_job(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+
+        # Mock job context methods
+        job_context = get_job_context()
+        job_context.inc_job_restart_count = mock.MagicMock(return_value=1)
+        job_context.request_stop = mock.MagicMock(return_value=None)
+
+        # Set initial job stage
+        job_context.update_job_stage(JobStage.JOB_RUNNING)
+
+        # Set worker nodes to various statuses to test different scenarios
+        job_nodes = job_context.job_nodes()
+        job_nodes[NodeType.WORKER][0].status = NodeStatus.RUNNING
+        job_nodes[NodeType.WORKER][0].rank_index = 0
+        job_nodes[NodeType.WORKER][1].status = NodeStatus.PENDING
+        job_nodes[NodeType.WORKER][1].rank_index = 1
+        job_nodes[NodeType.WORKER][2].status = NodeStatus.FINISHED
+        job_nodes[NodeType.WORKER][2].rank_index = 2
+        job_nodes[NodeType.WORKER][3].status = NodeStatus.FINISHED
+        job_nodes[NodeType.WORKER][3].rank_index = 0
+
+        manager.restart()
+        manager._scaler.scale.assert_called_once()
+        call_args_list = manager._scaler.scale.call_args[0][0]
+        self.assertGreaterEqual(len(call_args_list.launch_nodes), 3)
+
+    def test_restart_non_allreduce_job(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+
+        manager.restart()
+        manager._scaler.scale.assert_not_called()
+
+    def test_restart_over_limit(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+
+        job_context = get_job_context()
+        job_context.inc_job_restart_count = mock.MagicMock(return_value=10)
+        job_context.request_stop = mock.MagicMock(return_value=None)
+
+        # Set global max restart count to a low value
+        from dlrover.python.common.global_context import Context
+
+        dlrover_context = Context.singleton_instance()
+        dlrover_context.job_max_restart_count = 5
+
+        manager.restart()
+        job_context.request_stop.assert_called_once()
+        manager._scaler.scale.assert_not_called()
+
 
 class JobContextTest(unittest.TestCase):
     def setUp(self):
@@ -1419,9 +1480,13 @@ class LocalJobManagerTest(unittest.TestCase):
         job_context.update_total_worker_num(123)
         self.assertEqual(job_context.get_total_worker_num(), 123)
 
-        self.assertFalse(job_context.is_request_stopped())
+        self.assertFalse(job_context.is_stopped())
         job_context.request_stop()
-        self.assertTrue(job_context.is_request_stopped())
+        self.assertTrue(job_context.is_stopped())
+
+        job_manager.restart()
+        job_manager.stop()
+        self.assertEqual(job_manager._stopped, True)
 
     def test_suspend_unsuspend_job_context(self):
         job_context = get_job_context()
@@ -1443,3 +1508,8 @@ class LocalJobManagerTest(unittest.TestCase):
 
         job_context.request_suspend()
         self.assertEqual(job_context.get_job_stage(), JobStage.JOB_STOPPED)
+
+    def test_job_restart_job_context(self):
+        job_context = get_job_context()
+        self.assertEqual(job_context.get_job_restart_count(), 0)
+        self.assertEqual(job_context.inc_job_restart_count(), 1)

@@ -29,7 +29,6 @@ from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
     JobConstant,
-    JobStage,
     KeyValueOps,
     NodeEventType,
     NodeType,
@@ -348,7 +347,7 @@ class MasterServicer(ABC):
 
         """
         waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
-        if _job_ctx.get_job_stage() == JobStage.JOB_STOPPING:
+        if _job_ctx.is_stopping():
             logger.debug(
                 f"Job is stopping, set waiting_num {waiting_num} to -1"
             )

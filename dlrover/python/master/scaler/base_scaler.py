@@ -63,6 +63,6 @@ class Scaler(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def scale(self, plan: ScalePlan):
+    def scale(self, plan: ScalePlan, **kwargs):
         """Scale the job with the plan."""
         pass

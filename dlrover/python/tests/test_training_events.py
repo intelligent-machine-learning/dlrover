@@ -144,9 +144,16 @@ class TrainingEventTest(unittest.TestCase):
 
     def test_atorch_parse_line(self):
         collector = AtorchEventCollector()
+        with self.assertRaises(AtorchInvalidException):
+            line = (
+                "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
+                '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004, "step_type": "train,inspect" }'
+            )
+            collector.parse_line(line)
+
         line = (
             "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
-            '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004}'
+            '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004, "step_type": "train"}'
         )
         events = collector.parse_line(line)
         self.assertEqual(

@@ -137,7 +137,7 @@ class DiagnosisMaster(DiagnosisManager):
         while True:
             logger.info(f"Pre-check round: {round}")
             for index, pre_check_op in enumerate(pre_check_ops):
-                if self._job_context.is_request_stopped():
+                if self._job_context.is_stopped():
                     logger.info(
                         f"Training pre-check({round}) interrupted, "
                         f"total time cost:{time.time() - start:.2f}s."

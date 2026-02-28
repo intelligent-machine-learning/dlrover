@@ -115,6 +115,9 @@ class LocalJobManager(JobManager):
     def stop(self):
         self._stopped = True
 
+    def restart(self):
+        pass
+
     def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
 

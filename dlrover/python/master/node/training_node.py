@@ -257,7 +257,7 @@ class TrainingNodeManager(object):
             relaunch_node = node.generate_relaunch_node(new_id, new_name)
             self._update_node(relaunch_node)
         logger.info(
-            f"Relaunch node {node.name} to {new_id}: "
+            f"Relaunch node {node.name} to {new_id} with relaunch count: "
             f"{node.relaunch_count}/{node.max_relaunch_count}"
         )
         plan.launch_nodes.append(relaunch_node)

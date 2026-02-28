@@ -179,7 +179,7 @@ class ElasticJobScaler(Scaler):
                 time.sleep(5)
         raise ValueError("Cannot get the training job %s", self._job_name)
 
-    def scale(self, plan: ScalePlan):
+    def scale(self, plan: ScalePlan, **kwargs):
         scale_plan_crd = self._generate_scale_plan_crd(plan)
         self._client.create_custom_resource(
             group=ElasticJobApi.GROUP,

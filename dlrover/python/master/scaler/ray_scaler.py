@@ -48,7 +48,7 @@ class ActorScaler(Scaler):
     def start(self):
         pass
 
-    def scale(self, plan: ScalePlan):
+    def scale(self, plan: ScalePlan, **kwargs):
         self._plan = plan
         logger.info("Scale the job by plan %s", plan.to_json())
         with self._lock:

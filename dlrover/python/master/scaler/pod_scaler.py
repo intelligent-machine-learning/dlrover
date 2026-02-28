@@ -111,6 +111,12 @@ class PodScaler(Scaler):
         self._started = False
         self._job_context = get_job_context()
 
+        # for concurrency scaling
+        self._pending_plan: Optional[ScalePlan] = None
+        self._plan_merge_lock = threading.Lock()
+        self._current_scaling: Optional[Future] = None
+        self._scaling_executor = ThreadPoolExecutor(max_workers=1)
+
     def start(self):
         self._job = self._retry_to_get_job()
         if not self._job:
@@ -204,13 +210,80 @@ class PodScaler(Scaler):
                 time.sleep(5)
         return None
 
-    def scale(self, plan: ScalePlan):
-        """Scale in/out Pods by a ScalePlan."""
+    def scale(self, plan: ScalePlan, **kwargs):
+        """
+        Scale with automatic plan merging and execution(set with_merge=True).
+        If a scaling task is running, merge the new plan into pending plan.
+        When current task finishes, automatically execute the merged pending plan.
 
+        Args:
+            plan (ScalePlan): The scaling plan to execute
+            with_merge (bool, optional): If true, enable automatic plan merging.
+                Defaults to False.
+        """
+
+        with_merge = kwargs.pop("with_merge", False)
+
+        if with_merge:
+            with self._plan_merge_lock:
+                if (
+                    self._current_scaling is None
+                    or self._current_scaling.done()
+                ):
+                    # no scaling running, execute immediately
+                    self._current_scaling = self._scaling_executor.submit(
+                        self._execute_scale_with_pending, plan
+                    )
+                else:
+                    # scaling is running, merge into pending plan
+                    if self._pending_plan is None:
+                        self._pending_plan = copy.deepcopy(plan)
+                    else:
+                        self._pending_plan.merge(plan)
+                    logger.info(
+                        "Merged plan into pending, "
+                        f"current launch nodes: {len(self._pending_plan.launch_nodes)}, "
+                        f"remove nodes: {len(self._pending_plan.remove_nodes)}"
+                        f"full plan: {self._pending_plan.to_json()}"
+                    )
+        else:
+            self._scale(plan)
+
+    def _execute_scale_with_pending(self, plan: ScalePlan):
+        """
+        Execute scale plan and handle pending plans after completion.
+        This method ensures pending plans are executed in sequence.
+        """
+
+        try:
+            # execute the current plan
+            self._scale(plan)
+        except Exception:
+            logger.exception(f"Failed to execute scale plan: {plan.to_json()}")
+        finally:
+            # after completion, check and execute any pending plans
+            with self._plan_merge_lock:
+                if self._pending_plan is None or self._pending_plan.empty():
+                    # no more pending plans, mark as completed
+                    self._current_scaling = None
+                    return
+
+                # get the pending plan and clear it
+                next_plan = copy.deepcopy(self._pending_plan)
+                self._pending_plan = None
+
+            logger.info(f"Executing pending plan: {next_plan.to_json()}")
+
+            # execute the pending plan
+            self._current_scaling = self._scaling_executor.submit(
+                self._execute_scale_with_pending, next_plan
+            )
+
+    def _scale(self, plan: ScalePlan):
         if not self._elasticjob_exists():
             plan_json = plan.to_json()
             logger.info(
-                f"Skip the scaleplan {plan_json} because the job does not exist."
+                f"Skip the scale plan {plan_json} because the job does not exist."
             )
             return
 
@@ -224,7 +297,7 @@ class PodScaler(Scaler):
         while self._started:
             if (
                 len(self._create_node_queue) > 0
-                and not _job_context.is_request_stopped()
+                and not _job_context.is_stopped()
             ):
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
@@ -234,11 +307,11 @@ class PodScaler(Scaler):
                 if all(future.done() for future in self._create_node_futures):
                     # wait async pod creation completed
                     logger.debug("Async pod creation finished.")
-                    time.sleep(5)
+                    time.sleep(1)
                     break
                 else:
                     logger.debug("Waiting for async pod creation...")
-                    time.sleep(5)
+                    time.sleep(1)
                     continue
 
         with self._scaling_lock:

@@ -74,8 +74,8 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
         self.job_context.update_job_nodes(job_nodes)
         self.master.run()
-        self.assertEqual(self.master._exit_code, 0)
-        self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+        self.assertEqual(self.master.exit_code, 0)
+        self.assertEqual(self.master.exit_reason, JobExitReason.SUCCEEDED)
 
     def test_exit_by_tasks(self):
         self.master.job_manager._init_nodes()
@@ -106,8 +106,8 @@ class DistributedJobMasterTest(unittest.TestCase):
             dataset.doing.clear()
             dataset._dataset_splitter.epoch = 10
         self.master.run()
-        self.assertEqual(self.master._exit_code, 0)
-        self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+        self.assertEqual(self.master.exit_code, 0)
+        self.assertEqual(self.master.exit_reason, JobExitReason.SUCCEEDED)
 
     def test_early_stop(self):
         self.master.job_manager._init_nodes()

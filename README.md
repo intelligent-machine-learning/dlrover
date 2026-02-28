@@ -34,6 +34,7 @@ Furthermore, DLRover offers extension libraries for PyTorch and TensorFlow to ex
 
 - [2025/12] [DLRover on Ray's new architecture achieves its first official release.](docs/blogs/dlrover_on_ray.md)
 - [2025/08] [Practice: Gang Scheduling with DLRover.](docs/tutorial/gang_scheduling.md)
+- [2025/03] [Paper: How XPU-Timer working](https://arxiv.org/pdf/2502.05413)
 - [2025/01] [EDiT: A Local-SGD-Based Efficient Distributed Training Method for Large Language Models, ICLR'25.](https://arxiv.org/abs/2412.07210)
 - [2024/06] [DLRover-RM has been accepted by VLDB'24.](docs/blogs/dlrover_rm.md)
 - [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md#huggingface-transformerstrainer)

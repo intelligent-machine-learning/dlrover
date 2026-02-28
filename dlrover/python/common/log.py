@@ -63,6 +63,30 @@ def get_base_log_file():
     return log_file
 
 
+def get_file_handler_max_bytes():
+    max_bytes_str = os.getenv(BasicClass.LOG_ROTATE_MAX_BYTES_ENV, "")
+    if (
+        max_bytes_str
+        and max_bytes_str.isdigit()
+        and int(max_bytes_str) >= 1024 * 1024
+    ):
+        # must >= 1mb
+        return int(max_bytes_str)
+    return 200 * 1024 * 1024  # default: 200MB
+
+
+def get_file_handler_backup_count():
+    backup_count_str = os.getenv(BasicClass.LOG_ROTATE_BACKUP_COUNT_ENV, "")
+    if (
+        backup_count_str
+        and backup_count_str.isdigit()
+        and int(backup_count_str) >= 1
+    ):
+        # must >= 1
+        return int(backup_count_str)
+    return 5  # default: 5
+
+
 def get_logger(
     name,
     handlers: typing.Optional[typing.List[logging.Handler]] = None,
@@ -80,8 +104,8 @@ def get_logger(
         if base_log_file:
             file_handler = RotatingFileHandler(
                 base_log_file,
-                maxBytes=200 * 1024 * 1024,  # 200MB
-                backupCount=3,
+                maxBytes=get_file_handler_max_bytes(),
+                backupCount=get_file_handler_backup_count(),
             )
             file_handler.setFormatter(_DEFAULT_FORMATTER)
             handlers = [file_handler] + _DEFAULT_HANDLERS

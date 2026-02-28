@@ -90,6 +90,9 @@ def get_gpu_stats(gpus=[]):
                 )
             )
         return gpu_stats
+    except pynvml.NVMLError_LibraryNotFound:
+        logger.debug("Not nv environment, skip getting gpu stats.")
+        return []
     except Exception as e:
         logger.warning(f"Got unexpected error when getting gpu stats: {e}")
         return []

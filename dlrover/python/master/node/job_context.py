@@ -47,8 +47,12 @@ class JobContext(Singleton):
     """
 
     def __init__(self):
+        self._exit_code = 0
+        self._exit_reason = None
+
         self._action_queue = DiagnosisActionQueue()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._job_restart_count = 0
         self._total_worker_num = 0
         self._failed_nodes: Dict[int, int] = {}
 
@@ -64,6 +68,18 @@ class JobContext(Singleton):
         # the value is a dict with rank_index as key
         self._job_node_groups: Dict[int, Dict[int, Node]] = {}
         self._max_group_idx = DefaultValues.FIRST_GROUP_IDX
+
+    def get_exit_code(self):
+        return self._exit_code
+
+    def get_exit_reason(self):
+        return self._exit_reason
+
+    def set_exit_code(self, exit_code):
+        self._exit_code = exit_code
+
+    def set_exit_reason(self, exit_reason):
+        self._exit_reason = exit_reason
 
     def next_group_idx(self):
         with self._locker:
@@ -302,6 +318,13 @@ class JobContext(Singleton):
             if node_id not in self._failed_nodes:
                 self._failed_nodes[node_id] = int(time.time())
 
+    def get_job_restart_count(self):
+        return self._job_restart_count
+
+    def inc_job_restart_count(self):
+        self._job_restart_count += 1
+        return self._job_restart_count
+
     def get_failed_node_cnt(self):
         return len(self._failed_nodes)
 
@@ -317,11 +340,23 @@ class JobContext(Singleton):
     def get_total_worker_num(self):
         return self._total_worker_num
 
-    def request_stop(self):
+    def request_stop(self, exit_code=-1, exit_reason=""):
         self._job_stage = JobStage.JOB_STOPPED
+        if exit_code >= 0:
+            self.set_exit_code(exit_code)
+            self.set_exit_reason(exit_reason)
 
-    def is_request_stopped(self):
+    def request_restart(self):
+        self._job_stage = JobStage.JOB_RESTARTING
+
+    def is_stopping(self):
+        return self._job_stage == JobStage.JOB_STOPPING
+
+    def is_stopped(self):
         return self._job_stage == JobStage.JOB_STOPPED
+
+    def is_restarting(self):
+        return self._job_stage == JobStage.JOB_RESTARTING
 
     def request_suspend(self):
         with self._locker:
