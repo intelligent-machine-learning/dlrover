@@ -75,7 +75,7 @@ class AtorchEventCollector(Singleton):
                 f"No pattern {self._prefix_pattern} match in line {line}"
             )
             raise AtorchNotFoundException()
-        if len(match) != Event.max_event_prefix:
+        if len(match) < Event.max_event_prefix:
             logger.debug(f"Incorrect prefix {match} in line {line}")
             raise AtorchInvalidException()
 
