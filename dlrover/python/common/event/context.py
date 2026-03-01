@@ -277,6 +277,7 @@ class JobEventContext(Singleton):
 
         step = self.ckpt_steps.get_last_step_event()
         if step is None:
+            logger.debug("Skip ckpt hang detection since no step collected")
             return False
         elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
             if now - step.localtime < self.ckpt_threshold:
