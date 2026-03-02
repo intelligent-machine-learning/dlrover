@@ -638,6 +638,11 @@ class TrainingEventTest(unittest.TestCase):
         time.sleep(2)
         self.assertEqual(_event_context.check_job_step_hang(), False)
 
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
+    @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
     def test_ckpt_hang(self):
         _event_context.ckpt_threshold = 1
 
@@ -654,7 +659,7 @@ class TrainingEventTest(unittest.TestCase):
         )
         _event_context.ckpt_steps.add_ckpt_event(ckpt1)
         self.assertEqual(_event_context.check_ckpt_hang(), False)
-        time.sleep(1.2)
+        time.sleep(3.2)
         self.assertEqual(_event_context.check_ckpt_hang(), True)
 
         ckpt2 = AtorchEvent(
