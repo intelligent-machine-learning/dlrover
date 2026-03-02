@@ -652,7 +652,7 @@ class MasterServicer(ABC):
             logger.debug(f"Add step event: {message}")
             _event_context.train_steps.add_step_event(message)
         elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
-            logger.debug(f"Add ckpt event: {message}")
+            logger.info(f"Add ckpt event: {message}")
             _event_context.ckpt_steps.add_ckpt_event(message)
 
         return True

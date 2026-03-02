@@ -75,7 +75,7 @@ class AtorchEventCollector(Singleton):
                 f"No pattern {self._prefix_pattern} match in line {line}"
             )
             raise AtorchNotFoundException()
-        if len(match) != Event.max_event_prefix:
+        if len(match) < Event.max_event_prefix:
             logger.debug(f"Incorrect prefix {match} in line {line}")
             raise AtorchInvalidException()
 
@@ -109,24 +109,40 @@ class AtorchEventCollector(Singleton):
             logger.debug(f"Invalid event type {event_type} in line {line}")
             raise AtorchNotFoundException()
 
-        text = literal_eval(re.sub(self._prefix_pattern, "", line))
-        if isinstance(text, dict):
-            event_step = int(text["global_step"])
-            if "step_type" in text:  # backward compatible
-                event_step_type = text["step_type"]
-                if (
-                    event_type == EventTypeName.BEGIN
-                    and event_target == EventTargetName.TRAINER
-                    and event_name == TrainEventName.TRAIN_EVT_STEP
-                    and event_step_type != "train"
-                ):
-                    logger.debug(
-                        f"Invalid step type {event_step_type} in line {line}"
-                    )
-                    raise AtorchInvalidException()
-        else:
-            logger.debug(f"Invalid text format {text} in line {line}")
-            raise ValueError
+        if event_name == TrainEventName.TRAIN_EVT_STEP:
+            text = literal_eval(re.sub(self._prefix_pattern, "", line))
+            if isinstance(text, dict):
+                event_step = int(text["global_step"])
+                if "step_type" in text:  # backward compatible
+                    event_step_type = text["step_type"]
+                    if (
+                        event_type == EventTypeName.BEGIN
+                        and event_target == EventTargetName.TRAINER
+                        and event_name == TrainEventName.TRAIN_EVT_STEP
+                        and event_step_type != "train"
+                    ):
+                        logger.debug(
+                            f"Invalid step type {event_step_type} in line {line}"
+                        )
+                        raise AtorchInvalidException()
+            else:
+                logger.warning(f"Invalid text format {text} in line {line}")
+                raise ValueError
+        elif event_name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
+            # text = literal_eval(re.sub(self._prefix_pattern, "", line))
+            try:
+                event_step = int(
+                    re.search(r'"global_step"\s*:\s*(\d+)', line).group(1)
+                )
+                logger.debug(f"Parse global_step {event_step} from {line}")
+            except (AttributeError, ValueError, SyntaxError):
+                logger.warning(f"Invalid parsing global_step error in {line}")
+                raise ValueError
+            except Exception as e:
+                logger.warning(
+                    f"Invalid parsing global_step unexpected error in {line}"
+                )
+                raise e
 
         return event_ts, event_target, event_name, event_type, event_step
 
@@ -154,7 +170,7 @@ class AtorchEventCollector(Singleton):
                     ts, target, event_name, event_type, step = self.parse_line(
                         line
                     )
-                    logger.debug(
+                    logger.info(
                         f"Parse line output: "
                         f"{ts} {target} {event_name} {event_type} {step}"
                     )
