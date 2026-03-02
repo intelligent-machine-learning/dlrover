@@ -135,12 +135,9 @@ class AtorchEventCollector(Singleton):
                     re.search(r'"global_step"\s*:\s*(\d+)', line).group(1)
                 )
                 logger.debug(f"Parse global_step {event_step} from {line}")
-            except (AttributeError, ValueError, SyntaxError):
-                logger.warning(f"Invalid parsing global_step error in {line}")
-                raise ValueError
             except Exception as e:
                 logger.warning(
-                    f"Invalid parsing global_step unexpected error in {line}"
+                    f"Invalid parsing global_step error {e} in {line}"
                 )
                 raise e
 
