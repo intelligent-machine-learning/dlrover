@@ -473,22 +473,31 @@ class DiagnosticianTest(unittest.TestCase):
         diagnostician = TrainingHangDiagnostician(job_args, data_mgr)
 
         # test observe
-
-        # tensor_drop_zero: false + step_hang: false
+        # tensor_drop_zero: false + step_hang: false + ckpt_hang: false
         diagnostician._check_tensor_drop_zero = MagicMock(
             return_value=(DiagnosisResult.DIAG_HEALTHY, 0, 0)
         )
         mock_event_context.check_job_step_hang = MagicMock(return_value=False)
+        mock_event_context.check_ckpt_hang = MagicMock(return_value=False)
         self.assertIsNone(diagnostician.observe())
 
-        # tensor_drop_zero: true + step_hang: false
+        # tensor_drop_zero: true + step_hang: false + ckpt_hang: false
         diagnostician._check_tensor_drop_zero = MagicMock(
             return_value=(DiagnosisResult.DIAG_HANG, 1, 2)
         )
         self.assertIsNone(diagnostician.observe())
 
-        # tensor_drop_zero: true + step_hang: true
+        # tensor_drop_zero: true + step_hang: true + ckpt_hang: false
         mock_event_context.check_job_step_hang = MagicMock(return_value=True)
+        ob = diagnostician.observe()
+        self.assertIsNotNone(ob)
+        self.assertEqual(
+            ob.observation, DiagnosisErrorConstant.TRAINING_IS_HANG
+        )
+
+        # tensor_drop_zero: true + step_hang: false + ckpt_hang: true
+        mock_event_context.check_job_step_hang = MagicMock(return_value=False)
+        mock_event_context.check_ckpt_hang = MagicMock(return_value=True)
         ob = diagnostician.observe()
         self.assertIsNotNone(ob)
         self.assertEqual(
