@@ -201,6 +201,7 @@ class TrainingHangDiagnostician(Diagnostician):
             hang_downtime
         )
         step_hang = _event_context.check_job_step_hang()
+        ckpt_hang = _event_context.check_ckpt_hang()
 
         if is_tensor_drop_zero == DiagnosisResult.DIAG_HANG:
             time_format = "%Y-%m-%d %H:%M:%S"
@@ -208,11 +209,12 @@ class TrainingHangDiagnostician(Diagnostician):
             end_dt = datetime.fromtimestamp(end).strftime(time_format)
             logger.warning(
                 f"Detect job hang by tensor drop zero: "
-                f"{start_dt}-{end_dt}, step hang is {step_hang}"
+                f"{start_dt}-{end_dt}, step hang is {step_hang}, "
+                f"ckpt hang is {ckpt_hang}"
             )
 
-            # set to hang when both is_tensor_drop_zero and step_hang
-            if step_hang:
+            # set to hang when both is_tensor_drop_zero and (step_hang or ckpt_hang)
+            if step_hang or ckpt_hang:
                 return True
         return False
 

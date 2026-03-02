@@ -621,7 +621,15 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(mock_kernel_stack.call_count, 2)
         self.assertEqual(mock_user_stack.call_count, 2)
 
+        # Test with log_only
         agent._collect_metric(log_only=True)
+
+        # Test with exception in 'get_child_process_metric'
+        with patch(
+            "dlrover.python.elastic_agent.torch.training.env_utils.get_all_child_pids"
+        ) as mock_get_child_pids:
+            mock_get_child_pids.side_effect = RuntimeError("testing")
+            self.assertIsNone(agent._collect_metric(log_only=False))
 
 
 def mock_gpu_metric_collect(*args, **kwargs):
