@@ -222,6 +222,13 @@ class TrainingEventTest(unittest.TestCase):
             )
             collector.parse_line(line)
 
+        with self.assertRaises(Exception):
+            line = (
+                "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
+                '[#save] [BEGIN] {"global_step": abc, "epoch": 0.004}'
+            )
+            collector.parse_line(line)
+
     def test_atorch_parse_log(self):
         events = StepEvents()
         ckpts = StepEvents()
@@ -638,6 +645,11 @@ class TrainingEventTest(unittest.TestCase):
         time.sleep(2)
         self.assertEqual(_event_context.check_job_step_hang(), False)
 
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
+    @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
     def test_ckpt_hang(self):
         _event_context.ckpt_threshold = 1
 
@@ -654,9 +666,10 @@ class TrainingEventTest(unittest.TestCase):
         )
         _event_context.ckpt_steps.add_ckpt_event(ckpt1)
         self.assertEqual(_event_context.check_ckpt_hang(), False)
-        time.sleep(1.2)
+        time.sleep(3.2)
         self.assertEqual(_event_context.check_ckpt_hang(), True)
 
+        now = int(datetime.now().timestamp())
         ckpt2 = AtorchEvent(
             timestamp=now,
             target=EventTargetName.TRAINER,
@@ -664,7 +677,7 @@ class TrainingEventTest(unittest.TestCase):
             type=EventTypeName.END,
             step=2,
         )
-        _event_context.train_steps.add_ckpt_event(ckpt2)
-        self.assertEqual(_event_context.check_job_step_hang(), False)
+        _event_context.ckpt_steps.add_ckpt_event(ckpt2)
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
         time.sleep(1.2)
-        self.assertEqual(_event_context.check_job_step_hang(), False)
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
