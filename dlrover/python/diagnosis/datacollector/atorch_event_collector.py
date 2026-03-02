@@ -129,7 +129,6 @@ class AtorchEventCollector(Singleton):
                 logger.warning(f"Invalid text format {text} in line {line}")
                 raise ValueError
         elif event_name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
-            # text = literal_eval(re.sub(self._prefix_pattern, "", line))
             try:
                 event_step = int(
                     re.search(r'"global_step"\s*:\s*(\d+)', line).group(1)
