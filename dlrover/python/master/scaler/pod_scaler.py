@@ -302,7 +302,7 @@ class PodScaler(Scaler):
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
                 )
-                time.sleep(15)
+                time.sleep(5)
             else:
                 if all(future.done() for future in self._create_node_futures):
                     # wait async pod creation completed
