@@ -18,7 +18,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
 	"math"
 	"reflect"

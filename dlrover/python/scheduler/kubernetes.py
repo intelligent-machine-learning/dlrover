@@ -139,14 +139,14 @@ class k8sClient(Singleton):
             if os.getenv("KUBERNETES_SERVICE_HOST"):
                 # We are running inside a k8s cluster
                 config.load_incluster_config()
-                logger.info("Load the incluster jobmanagement.")
+                logger.info("Load the incluster config.")
             else:
-                # Use user's kube jobmanagement
+                # Use user's kube config
                 config.load_kube_config()
-                logger.info("Load the kube jobmanagement file.")
+                logger.info("Load the kube config file.")
         except Exception as ex:
             logger.error(
-                "Failed to load jobmanagement for Kubernetes:\n%s", ex
+                "Failed to load config for Kubernetes:\n%s", ex
             )
 
         self.client = client.CoreV1Api()
@@ -375,7 +375,7 @@ class K8sElasticJob(ElasticJob):
     def __init__(self, job_name, namespace):
         """
         ElasticJob manages Pods by K8s Python APIs. The example of an elastic
-        job is in dlrover/go/elasticjob_operator/jobmanagement/samples/
+        job is in dlrover/go/elasticjob_operator/config/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
             image_name: Docker image path for DLRover pod.

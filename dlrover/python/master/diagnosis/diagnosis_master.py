@@ -100,7 +100,7 @@ class DiagnosisMaster(DiagnosisManager):
                 EventReportConstants.ACTION_PRE_CHECK_DISABLE,
             )
             logger.info(
-                "Pre-check operator jobmanagement is empty, pre-check disabled."
+                "Pre-check operator config is empty, pre-check disabled."
             )
             self._job_context.set_pre_check_status(PreCheckStatus.DISABLED)
             return

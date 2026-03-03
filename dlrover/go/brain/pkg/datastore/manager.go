@@ -51,13 +51,13 @@ func NewManager(conf *config.Config) *Manager {
 // Run starts data store manager
 func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) error {
 	if err := m.configManager.Run(ctx, errReporter); err != nil {
-		log.Errorf("[DataStore Manager] fail to run jobmanagement manager: %v", err)
+		log.Errorf("[DataStore Manager] fail to run config manager: %v", err)
 		return err
 	}
 
 	conf, err := m.configManager.GetConfig()
 	if err != nil {
-		log.Errorf("[DataStore Manager] fail to get data store jobmanagement: %v", err)
+		log.Errorf("[DataStore Manager] fail to get data store config: %v", err)
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (m *Manager) CreateDataStore(name string) (datastoreapi.DataStore, error) {
 
 	conf := m.conf.GetConfig(name)
 	if conf == nil {
-		err := fmt.Errorf("There is no jobmanagement for data store %s", name)
+		err := fmt.Errorf("There is no config for data store %s", name)
 		return nil, err
 	}
 

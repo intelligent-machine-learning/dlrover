@@ -23,7 +23,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"

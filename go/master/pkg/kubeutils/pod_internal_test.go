@@ -80,7 +80,7 @@ var _ = Describe("Pod", func() {
 
 		configPath := os.Getenv("KUBERNETES_CONFIG_PATH")
 		if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
-			Skip(fmt.Sprintf("The jobmanagement file %s is not exist.", configPath))
+			Skip(fmt.Sprintf("The config file %s is not exist.", configPath))
 		}
 
 		k8sClient := NewK8sClient(configPath, "dlrover")

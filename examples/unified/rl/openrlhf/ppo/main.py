@@ -96,7 +96,7 @@ if __name__ == "__main__":
         "--dry_run",
         action="store_true",
         default=False,
-        help="only create the job and print the jobmanagement, do not submit the job",
+        help="only create the job and print the config, do not submit the job",
     )
 
     # Ray and vLLM

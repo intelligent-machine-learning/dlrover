@@ -26,32 +26,32 @@ logger = logging.getLogger(__name__)
 class ElasticDataLoader(DataLoader):
     """
     A DataLoader class based on PyTorch's DataLoader that allows dynamic
-    adjustment of batch size and optionally loads jobmanagement settings from a
+    adjustment of batch size and optionally loads config settings from a
     file.
 
     This DataLoader inherits from PyTorch's DataLoader and extends its
     functionality by enabling the user to change the batch size during runtime.
-    Additionally, it provides an option to load jobmanagement settings from a
+    Additionally, it provides an option to load config settings from a
     JSON file to initialize the batch size.
 
     Args:
         constructor. config_file (str, optional): The path to a JSON
-        jobmanagement file that specifies
+        config file that specifies
             the initial batch size (default: None).
 
     Attributes:
-        config_file (str): The path to the jobmanagement file if
+        config_file (str): The path to the config file if
         provided.
 
     Methods:
-        load_config(): Load the batch size jobmanagement from the specified
+        load_config(): Load the batch size config from the specified
         JSON file.
         update_batch_size(batch_size): Dynamically set the batch size.
 
     Usage Example:
-        >>> # create a elastic dataloader with jobmanagement.json
+        >>> # create a elastic dataloader with config.json
         >>> loader = ElasticDataLoader(dataset, shuffle=True,
-        >>>     config_file="jobmanagement.json")
+        >>>     config_file="config.json")
         >>> # Dynamically change the batch size to 64.
         >>> loader.update_params()
         >>> for batch in loader:
@@ -83,7 +83,7 @@ class ElasticDataLoader(DataLoader):
                 content = json_file.read()
                 config = json.loads(content)
             except json.decoder.JSONDecodeError:
-                logger.warning(f"Fail to load jobmanagement {content}")
+                logger.warning(f"Fail to load config {content}")
                 return
         dl_config = config.get("dataloader", {})
         batch_size = config.get("batch_size", 0)
@@ -96,10 +96,10 @@ class ElasticDataLoader(DataLoader):
 
     def load_config(self, config_file=None):
         """
-        Load the batch size jobmanagement from a JSON file specified by
+        Load the batch size config from a JSON file specified by
         `config_file`.
 
-        If the jobmanagement file contains a 'batch_size' key, it will be used
+        If the config file contains a 'batch_size' key, it will be used
         to set the initial batch size for the DataLoader.
 
         Note:
@@ -113,7 +113,7 @@ class ElasticDataLoader(DataLoader):
                 content = f.read()
                 config = json.loads(content)
             except json.decoder.JSONDecodeError:
-                logger.warning(f"Fail to load jobmanagement {content}")
+                logger.warning(f"Fail to load config {content}")
                 return
             if "dataloader" not in config:
                 return
@@ -133,7 +133,7 @@ class ElasticDataLoader(DataLoader):
     def update_batch_size(self, batch_size=None):
         """
         Update parameters like batch size, num_workers of the dataloader
-        From the parallelism jobmanagement file.
+        From the parallelism config file.
         """
         if batch_size:
             self.batch_sampler.batch_size = batch_size

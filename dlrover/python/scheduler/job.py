@@ -27,7 +27,7 @@ class ElasticJob(metaclass=ABCMeta):
     def __init__(self, namespace, job_name):
         """
         ElasticJob manages Pods by K8s Python APIs. The example of an elastic
-        job is in dlrover/go/elasticjob_operator/jobmanagement/samples/
+        job is in dlrover/go/elasticjob_operator/config/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
             namespace: The name of the Kubernetes namespace where DLRover

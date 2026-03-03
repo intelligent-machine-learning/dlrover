@@ -29,8 +29,8 @@ class StoreManager:
         self.config = config
 
     def build_store_manager(self):
-        # state_config = StateConfig(self.jobmanagement)
-        # logger.info(f"Build store manager jobmanagement : {self.jobmanagement}")
+        # state_config = StateConfig(self.config)
+        # logger.info(f"Build store manager config : {self.config}")
         # todo :: 这里设计成constant
         if state_backend_type() == "Memory":
             # logger.info("create memory manager")

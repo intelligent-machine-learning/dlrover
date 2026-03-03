@@ -54,7 +54,7 @@ class TestElasticDataLoader(unittest.TestCase):
             config = ParallelConfig()
             config.dataloader.batch_size = 128
             config.dataloader.version = 1
-            config_file = os.path.join(tmpdirname, "jobmanagement.json")
+            config_file = os.path.join(tmpdirname, "config.json")
             with open(config_file, "w") as f:
                 f.write(config.to_json())
 
@@ -76,7 +76,7 @@ class TestElasticDataLoader(unittest.TestCase):
         config = ParallelConfig()
         config.dataloader.batch_size = 128
         with tempfile.TemporaryDirectory() as tmpdirname:
-            config_file = os.path.join(tmpdirname, "jobmanagement.json")
+            config_file = os.path.join(tmpdirname, "config.json")
             with open(config_file, "w") as f:
                 f.write(config.to_json())
 

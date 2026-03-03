@@ -175,7 +175,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def init_job_resource(self, job_resource: JobResource):
-        """Initialize resource jobmanagement for a job."""
+        """Initialize resource config for a job."""
         pass
 
     @abstractmethod
@@ -185,7 +185,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def adjust_oom_resource(self, node: Node):
-        """Adjust the resource jobmanagement for OOM nodes"""
+        """Adjust the resource config for OOM nodes"""
         pass
 
     @abstractmethod
@@ -194,7 +194,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
 
 
 class PSJobResourceOptimizer(JobResourceOptimizer):
-    """It generates resource jobmanagement for a PS job."""
+    """It generates resource config for a PS job."""
 
     def __init__(
         self,
@@ -273,7 +273,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
         Args:
-            job_resource: node resource jobmanagement of a job.
+            job_resource: node resource config of a job.
         """
         self._init_job_resource_by_optimizer()
         job_resource.update_node_group_resource(
@@ -491,7 +491,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     ):
         """Abandon the optimization result if users have set the resource."""
         #  Users may worry about that the increasing number of worker hurts the
-        #  accuracy, so the max number of worker is the jobmanagement.
+        #  accuracy, so the max number of worker is the config.
         original_resource = self._original_worker_resource.node_resource
         if self._original_worker_resource.count > 0:
             resource.count = self._original_worker_resource.count
@@ -514,7 +514,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
 
 
 class AllreduceJobResourceOptimizer(JobResourceOptimizer):
-    """It generates resource jobmanagement for a job."""
+    """It generates resource config for a job."""
 
     def __init__(
         self,
@@ -552,7 +552,7 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         return 0
 
     def adjust_oom_resource(self, node: Node):
-        """Adjust the resource jobmanagement for OOM nodes"""
+        """Adjust the resource config for OOM nodes"""
         # no adjustment for now(for allreduce type)
         pass
 

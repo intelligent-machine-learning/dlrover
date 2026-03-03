@@ -20,7 +20,7 @@ class _ElasticMasterEvents:
         self.__emitter = CommonPredefined("DLROVER_elastic_master")
 
     def inited(self, spec: ElasticWorkloadDesc):
-        self.__emitter.instant("#inited", {"jobmanagement": spec})
+        self.__emitter.instant("#inited", {"config": spec})
 
     def checking_workers(self):
         return self.__emitter.duration("#checking_workers")

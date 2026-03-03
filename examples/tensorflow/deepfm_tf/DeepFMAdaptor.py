@@ -25,7 +25,7 @@ class DeepFMAdaptor(tf.estimator.Estimator):
     """Adaptor"""
 
     def __init__(self, model_dir, config=None, params=None):
-        logger.info("jobmanagement is %s", config)
+        logger.info("config is %s", config)
         self.run_config = config
         self.estimator = None
 

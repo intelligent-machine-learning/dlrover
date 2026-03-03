@@ -97,7 +97,7 @@ class TensorMeta:
 @dataclass
 class CheckpointConfig:
     """
-    The jobmanagement of a checkpointing shard on the training process.
+    The config of a checkpointing shard on the training process.
 
     Attributes:
         step (int): the global interation step.
@@ -385,7 +385,7 @@ class SharedMemoryHandler(object):
 
     def get_checkpoint_config(self, default_config):
         """
-        Get the jobmanagement of checkpointing state dict in the shared
+        Get the config of checkpointing state dict in the shared
         memory.
 
         Returns:
@@ -905,7 +905,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
         Args:
             local_shard_id (int): the index of local shard.
-            ckpt_config : the checkpoint jobmanagement with the path to
+            ckpt_config : the checkpoint config with the path to
                 save the storage.
         """
         pass
@@ -1081,7 +1081,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     ):
         if ckpt_config is None or not ckpt_config.paths:
             logger.info(
-                "Skip persisting checkpoint because checkpoint jobmanagement is missing."
+                "Skip persisting checkpoint because checkpoint config is missing."
             )
             return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
@@ -1460,7 +1460,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
 
         Args:
             local_shard_id (int): the index of local shard.
-            ckpt_config : the checkpoint jobmanagement with the path to
+            ckpt_config : the checkpoint config with the path to
                 save the storage.
         """
 

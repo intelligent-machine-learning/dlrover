@@ -16,13 +16,13 @@ package config
 import "flag"
 
 const (
-	// SpecKubeConfigName is the spec name of kube jobmanagement
+	// SpecKubeConfigName is the spec name of kube config
 	SpecKubeConfigName = "kubeConfig"
 	// SpecMasterName is the spec name of master name
 	SpecMasterName = "apiServer"
-	// SpecServiceConfigMapName is the spec name of service jobmanagement map name
+	// SpecServiceConfigMapName is the spec name of service config map name
 	SpecServiceConfigMapName = "serviceConfigMapName"
-	// SpecServiceConfigMapKey is the spec name of service jobmanagement map key
+	// SpecServiceConfigMapKey is the spec name of service config map key
 	SpecServiceConfigMapKey = "serviceConfigMapKey"
 	// SpecNamespaceName is the spec name of namespace
 	SpecNamespaceName = "namespace"
@@ -34,11 +34,11 @@ const (
 type Spec struct {
 	// ApiServer is the api server
 	APIServer string
-	// KubeConfig is the kube jobmanagement
+	// KubeConfig is the kube config
 	KubeConfig string
-	// ServiceConfigMapName is the service jobmanagement map name
+	// ServiceConfigMapName is the service config map name
 	ServiceConfigMapName string
-	// ServiceConfigMapKey is the service jobmanagement map key
+	// ServiceConfigMapKey is the service config map key
 	ServiceConfigMapKey string
 	// Namespace is the namespace
 	Namespace string
@@ -61,11 +61,11 @@ func init() {
 	flag.StringVar(&CommandConfig.ServiceConfigMapName,
 		SpecServiceConfigMapName,
 		"",
-		"The name of k8s jobmanagement map")
+		"The name of k8s config map")
 	flag.StringVar(&CommandConfig.ServiceConfigMapKey,
 		SpecServiceConfigMapKey,
 		"",
-		"The key of k8s jobmanagement map")
+		"The key of k8s config map")
 	flag.StringVar(&CommandConfig.Namespace,
 		SpecNamespaceName,
 		"",

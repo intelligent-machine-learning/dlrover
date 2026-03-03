@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	"sync"
 )
 
@@ -51,7 +51,7 @@ func registerOptimizeAlgorithm(name string, optAlgorithm optimizeAlgorithm) erro
 func Optimize(dataStore datastoreapi.DataStore, conf *optconfig.OptimizeAlgorithmConfig, job *common.OptimizeJobMeta,
 	jobs []*common.OptimizeJobMeta) (*common.AlgorithmOptimizePlan, error) {
 	if conf == nil {
-		err := fmt.Errorf("resource optimize jobmanagement is nil")
+		err := fmt.Errorf("resource optimize config is nil")
 		return nil, err
 	}
 	locker.RLock()

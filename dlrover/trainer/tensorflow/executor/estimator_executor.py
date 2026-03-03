@@ -52,7 +52,7 @@ except Exception:
 class EstimatorExecutor(BaseExecutor):
     """
     EstimatorExecutor is a wrapper for tensorflow estimator.
-    It helps prepare estimator which speicified in the jobmanagement
+    It helps prepare estimator which speicified in the config
     by relcecting method, parse inputs, build train_spec, eval_spec.
     """
 
@@ -201,7 +201,7 @@ class EstimatorExecutor(BaseExecutor):
         params["columns"] = train_set.columns
         hook_estimator_call_model_fn(params)
         user_params = {}
-        logger.info("jobmanagement is {}".format(config))
+        logger.info("config is {}".format(config))
         return config, user_params
 
     def _prepare_train_dataset(self):

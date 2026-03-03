@@ -324,7 +324,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         queue.put(class_meta)
 
     def _update_saver_config(self):
-        """Update the sharding jobmanagement to the saver."""
+        """Update the sharding config to the saver."""
         if self._local_rank == 0:
             global_shard_num = self.get_global_shard_num()
             event: CheckpointEvent = CheckpointEvent(

@@ -21,7 +21,7 @@ import (
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
@@ -59,7 +59,7 @@ func newJobPSRunningResourceOptimizer(dataStore datastoreapi.DataStore, config *
 // Optimize optimizes the chief worker initial resources
 func (optimizer *JobPSRunningResourceOptimizer) Optimize(conf *optconfig.OptimizerConfig, jobMetas []*common.JobMeta) ([]*common.OptimizePlan, error) {
 	if conf == nil || conf.OptimizeAlgorithmConfig == nil {
-		err := fmt.Errorf("invalid optimization jobmanagement: %v", conf)
+		err := fmt.Errorf("invalid optimization config: %v", conf)
 		return nil, err
 	}
 	if len(jobMetas) == 0 {

@@ -14,11 +14,11 @@
 package api
 
 import (
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 )
 
-// ConfigRetriever is the interface of jobmanagement retriever
+// ConfigRetriever is the interface of config retriever
 type ConfigRetriever interface {
 	Retrieve(conf *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error)
 }

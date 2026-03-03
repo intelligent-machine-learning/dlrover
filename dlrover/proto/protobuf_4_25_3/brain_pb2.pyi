@@ -499,7 +499,7 @@ class OptimizeJobMeta(_message.Message):
     ) -> None: ...
 
 class OptimizeRequest(_message.Message):
-    __slots__ = ["type", "jobmanagement", "jobs"]
+    __slots__ = ["type", "config", "jobs"]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     CONFIG_FIELD_NUMBER: _ClassVar[int]
     JOBS_FIELD_NUMBER: _ClassVar[int]
@@ -601,7 +601,7 @@ class JobOptimizePlan(_message.Message):
     ) -> None: ...
 
 class JobOptimization(_message.Message):
-    __slots__ = ["timestamp", "jobmanagement", "plan", "job_states"]
+    __slots__ = ["timestamp", "config", "plan", "job_states"]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     CONFIG_FIELD_NUMBER: _ClassVar[int]
     PLAN_FIELD_NUMBER: _ClassVar[int]

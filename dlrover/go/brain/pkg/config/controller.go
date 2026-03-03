@@ -26,10 +26,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// OnConfigMapChange is the function to be executed when observe the update of a given jobmanagement map
+// OnConfigMapChange is the function to be executed when observe the update of a given config map
 type OnConfigMapChange func(newCM *corev1.ConfigMap) error
 
-// Controller is the struct of jobmanagement controller
+// Controller is the struct of config controller
 type Controller struct {
 	namespace     string
 	name          string
@@ -82,7 +82,7 @@ func (cc *Controller) Run(ctx context.Context, onChangeFunc OnConfigMapChange) {
 				log.Infof("Detected ConfigMap update.")
 				err := onChangeFunc(newCM)
 				if err != nil {
-					log.Errorf("Update of jobmanagement failed due to: %v", err)
+					log.Errorf("Update of config failed due to: %v", err)
 				}
 			},
 		})

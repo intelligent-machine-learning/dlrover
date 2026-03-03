@@ -708,7 +708,7 @@ try:
             return request
 
         def get_elastic_run_config(self) -> Dict[str, str]:
-            # no need to get jobmanagement from master
+            # no need to get config from master
             return {}
 
 except (ImportError, TypeError):

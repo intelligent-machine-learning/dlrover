@@ -21,7 +21,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
 	"strconv"
 )
@@ -40,7 +40,7 @@ func OptimizeJobPSOomResource(dataStore datastoreapi.DataStore, conf *optconfig.
 	historyJobs []*common.OptimizeJobMeta) (*common.AlgorithmOptimizePlan, error) {
 
 	if conf == nil || conf.CustomizedConfig == nil {
-		err := fmt.Errorf("invalid jobmanagement: %v", conf)
+		err := fmt.Errorf("invalid config: %v", conf)
 		return nil, err
 	}
 

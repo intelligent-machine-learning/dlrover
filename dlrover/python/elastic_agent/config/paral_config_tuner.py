@@ -30,7 +30,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 class ParalConfigTuner(Singleton):
     def __init__(self):
         """
-        Parallelism jobmanagement tuner for updating parallelism jobmanagement file.
+        Parallelism config tuner for updating parallelism config file.
         """
         self._master_client = MasterClient.singleton_instance()
         self.config_dir = os.path.dirname(
@@ -45,15 +45,15 @@ class ParalConfigTuner(Singleton):
             return
         threading.Thread(
             target=self._periodically_update_paral_config,
-            name="jobmanagement-updater",
+            name="config-updater",
             daemon=True,
         ).start()
-        logger.info("Started parallelism jobmanagement tuner.")
+        logger.info("Started parallelism config tuner.")
         self._started = True
 
     def _periodically_update_paral_config(self):
         """
-        Updates the parallelism jobmanagement every 30 seconds. This method is
+        Updates the parallelism config every 30 seconds. This method is
         intended to run on a separate thread started by `self.start`.
         """
         while True:
@@ -69,7 +69,7 @@ class ParalConfigTuner(Singleton):
 
     def _create_paral_config_file(self):
         """
-        Create a parallelism jobmanagement file.
+        Create a parallelism config file.
         """
         config = ParallelConfig()
         with open(self.config_path, "w") as f:
@@ -77,7 +77,7 @@ class ParalConfigTuner(Singleton):
 
     def _read_paral_config(self, config_path):
         """
-        Read the parallelism jobmanagement from a JSON file.
+        Read the parallelism config from a JSON file.
         """
         try:
             with open(config_path, "r") as json_file:

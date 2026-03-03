@@ -743,7 +743,7 @@ class MasterServicer(ABC):
     ):
         if self._job_manager:
             logger.debug(
-                "Update parallel jobmanagement for %s-%s: %s",
+                "Update parallel config for %s-%s: %s",
                 node_type,
                 node_id,
                 message,

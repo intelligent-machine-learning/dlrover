@@ -805,7 +805,7 @@ class PodScaler(Scaler):
         main_container: Optional[client.V1Container] = get_main_container(pod)
 
         if main_container is None:
-            raise ValueError("The Pod jobmanagement must have a main container.")
+            raise ValueError("The Pod config must have a main container.")
         set_container_resource(
             main_container, resource_requests, resource_limits
         )
@@ -856,7 +856,7 @@ def new_tf_config(
     index_key,
     ps_addrs,
 ):
-    """Get tf.estimator jobmanagement spec data. The detail is in
+    """Get tf.estimator config spec data. The detail is in
     https://www.tensorflow.org/api_docs/python/tf/estimator/RunConfig
     """
     cluster_dict = {}

@@ -47,7 +47,7 @@ type ElasticJobSpec struct {
 	// It is only used when optimizeMode is cluster.
 	BrainService string `json:"brainService,omitempty"`
 
-	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the training cluster jobmanagement.
+	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the training cluster config.
 	// For example,
 	//   {
 	//     "PS": ReplicaSpec,

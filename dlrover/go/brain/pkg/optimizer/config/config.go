@@ -14,26 +14,26 @@
 package config
 
 const (
-	// ConfigRetrieverConfigKeyOptimizerName is the jobmanagement key of optimization name in jobmanagement retriever
+	// ConfigRetrieverConfigKeyOptimizerName is the config key of optimization name in config retriever
 	ConfigRetrieverConfigKeyOptimizerName = "optimization"
-	// ConfigRetrieverConfigKeyOptimizeAlgorithm is the jobmanagement key of optimize algorithm in jobmanagement retriever
+	// ConfigRetrieverConfigKeyOptimizeAlgorithm is the config key of optimize algorithm in config retriever
 	ConfigRetrieverConfigKeyOptimizeAlgorithm = "optimize-algorithm"
 )
 
-// OptimizeAlgorithmConfig is the jobmanagement of optimize algorithm
+// OptimizeAlgorithmConfig is the config of optimize algorithm
 type OptimizeAlgorithmConfig struct {
-	// Name is the name of optimize jobmanagement
+	// Name is the name of optimize config
 	Name string
 	// CustomizedConfig is the customized configure
 	CustomizedConfig map[string]string
 }
 
-// OptimizerConfig is the jobmanagement of optimization
+// OptimizerConfig is the config of optimization
 type OptimizerConfig struct {
 	// Name is the name of optimization
 	Name string
 	// CustomizedConfig is the customized configure of the optimization
 	CustomizedConfig map[string]string
-	// ResOptFuncConfig is the jobmanagement of resource optimize function
+	// ResOptFuncConfig is the config of resource optimize function
 	OptimizeAlgorithmConfig *OptimizeAlgorithmConfig
 }

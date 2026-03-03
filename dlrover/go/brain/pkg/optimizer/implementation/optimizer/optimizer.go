@@ -22,7 +22,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/jobmanagement"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
 	"sync"
 )
 
@@ -93,12 +93,12 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 	var err error
 
 	if err = m.configManager.Run(ctx, errReporter); err != nil {
-		log.Errorf("[Optimizer Manager] fail to run optimization jobmanagement manager: %v", err)
+		log.Errorf("[Optimizer Manager] fail to run optimization config manager: %v", err)
 		return err
 	}
 
 	if m.conf, err = m.configManager.GetConfig(); err != nil {
-		log.Errorf("[%s] fail to get optimization jobmanagement: %v", loggerName, err)
+		log.Errorf("[%s] fail to get optimization config: %v", loggerName, err)
 		return err
 	}
 	m.configManager.RegisterConfigObserver("dlrover-optimizers", m.OptimizersConfigUpdateNotify)
@@ -129,7 +129,7 @@ func (m *Manager) Optimize(conf *optconfig.OptimizerConfig, jobs []*common.JobMe
 	return plans, nil
 }
 
-// OptimizersConfigUpdateNotify update optimizers when observe the jobmanagement is updated
+// OptimizersConfigUpdateNotify update optimizers when observe the config is updated
 func (m *Manager) OptimizersConfigUpdateNotify(newConf *config.Config) error {
 	m.locker.Lock()
 	defer m.locker.Unlock()
@@ -141,13 +141,13 @@ func (m *Manager) OptimizersConfigUpdateNotify(newConf *config.Config) error {
 }
 
 func createOptimizers(optimizersConf *config.Config, dsManager *datastore.Manager) map[string]api.Optimizer {
-	log.Infof("create optimizers for jobmanagement: %v", optimizersConf)
+	log.Infof("create optimizers for config: %v", optimizersConf)
 	optimizerNames := optimizersConf.GetKeys()
 	optimizers := make(map[string]api.Optimizer)
 	for _, name := range optimizerNames {
 		conf := optimizersConf.GetConfig(name)
 		if conf == nil {
-			log.Errorf("[%s] no jobmanagement for optimization %s", loggerName, name)
+			log.Errorf("[%s] no config for optimization %s", loggerName, name)
 			continue
 		}
 		dataStoreName := conf.GetString(config.DataStoreName)

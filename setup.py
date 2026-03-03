@@ -36,7 +36,7 @@ setup(
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
     " say, hardware acceleration, distribute running, etc."
-    " It provides static and dynamic workloads' jobmanagement automatically,"
+    " It provides static and dynamic workloads' config automatically,"
     ", before and during a model training job running on k8s or ray.",
     long_description_content_type="text/markdown",
     author="Ant Group",

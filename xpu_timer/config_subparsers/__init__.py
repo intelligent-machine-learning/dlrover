@@ -91,7 +91,7 @@ class BaseBuildRender(ABC):
             build:release --cxxopt=-O2
             build:release --cxxopt=-DNDEBUG
             build:release --strip=always
-            build --jobmanagement=release
+            build --config=release
             build --workspace_status_command "bash version.sh release"
             """
         )
@@ -103,7 +103,7 @@ class BaseBuildRender(ABC):
             build:debug --copt=-DXPU_DEBUG
             build:debug --cxxopt=-DXPU_DEBUG
             build:debug --strip=never
-            build --jobmanagement=debug
+            build --config=debug
             build --workspace_status_command "bash version.sh debug"
             """
         )

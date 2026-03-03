@@ -184,7 +184,7 @@ class ConfigurationManagerMeta(type):
 
 
 class ConfigurationManagerInterface(metaclass=ConfigurationManagerMeta):
-    """only for jobmanagement class to inherit"""
+    """only for config class to inherit"""
 
     pass
 

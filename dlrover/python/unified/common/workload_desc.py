@@ -161,7 +161,7 @@ class BaseWorkloadDesc(BaseModel, ABC):
     )
     config: Dict[str, Any] = Field(
         default_factory=dict,
-        description="The jobmanagement for the workload. "
+        description="The config for the workload. "
         "This is used to pass additional parameters to the workload.",
     )
 

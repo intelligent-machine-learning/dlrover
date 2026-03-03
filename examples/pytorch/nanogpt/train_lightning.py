@@ -127,7 +127,7 @@ class Nanogpt(pl.LightningModule):
         if ckpt_dir is not None:
             # Load the existing meta_vocab_size
             # Attempt to derive vocab_size from the dataset
-            config_path = os.path.join(ckpt_dir, "jobmanagement.json")
+            config_path = os.path.join(ckpt_dir, "config.json")
             meta_vocab_size = None
             with open(config_path) as f:
                 config = json.load(f)

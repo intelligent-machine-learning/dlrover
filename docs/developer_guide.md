@@ -79,7 +79,7 @@ $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
     --version=0.13.0 \
     --namespace nvidia-device-plugin \
     --create-namespace \
-    --set-file jobmanagement.map.jobmanagement=./go/elasticjob/jobmanagement/gpu/nvidia-device-plugin-gpu-shared.yaml
+    --set-file config.map.config=./go/elasticjob/config/gpu/nvidia-device-plugin-gpu-shared.yaml
 ```
 
 Then test your GPU resources by
@@ -162,7 +162,7 @@ We can configure the operator to run locally using the configuration available i
 a K8s cluster. Set your environment:
 
 ```sh
-export KUBECONFIG=$(echo ~/.kube/jobmanagement)
+export KUBECONFIG=$(echo ~/.kube/config)
 export KUBEFLOW_NAMESPACE=$(your_namespace)
 ```
 
@@ -195,7 +195,7 @@ and move the kustomize bin to `go/elasticjob/bin/`
 ### 3. Grant Permission for the DLRover Master to Access CRDs
 
 ```bash
-kubectl apply -f go/elasticjob/jobmanagement/manifests/bases/default-role.yaml
+kubectl apply -f go/elasticjob/config/manifests/bases/default-role.yaml
 ```
 
 ### 4. Build the Image

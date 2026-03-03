@@ -67,7 +67,7 @@ class ElasticWorker(BaseWorker):
     def _setup_envs(self):
         """Setup environment variables for the worker."""
 
-        # referenced ray.train.torch.jobmanagement.py
+        # referenced ray.train.torch.config.py
 
         os.environ["NAME"] = self.actor_info.name
         os.environ["LOCAL_RANK"] = str(self.actor_info.local_rank)

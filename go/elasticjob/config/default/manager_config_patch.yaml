@@ -9,12 +9,12 @@ spec:
       containers:
       - name: manager
         args:
-        - "--jobmanagement=controller_manager_config.yaml"
+        - "--config=controller_manager_config.yaml"
         volumeMounts:
-        - name: manager-jobmanagement
+        - name: manager-config
           mountPath: /controller_manager_config.yaml
           subPath: controller_manager_config.yaml
       volumes:
-      - name: manager-jobmanagement
+      - name: manager-config
         configMap:
-          name: manager-jobmanagement
+          name: manager-config

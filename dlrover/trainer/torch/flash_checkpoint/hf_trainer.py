@@ -124,7 +124,7 @@ class FlashCkptTrainer(Trainer):
     blocked when saving the checkpoint to the storage.
 
     Note:: The trainer creates a directory and saves json files of training
-    jobmanagement like `jobmanagement.json`, `trainer_state.json` and
+    config like `config.json`, `trainer_state.json` and
     `generation_config.json` to the directory when saving a checkpoint.
     There might not be model weights and optimization states in the
     checkpoint directory because the trainer asynchronously save them into the
@@ -266,7 +266,7 @@ class FlashCkptTrainer(Trainer):
             if not is_peft_available()
             else (PreTrainedModel, PeftModel)
         )
-        # Save a trained model and jobmanagement using `save_pretrained()`.
+        # Save a trained model and config using `save_pretrained()`.
         # They can then be reloaded using `from_pretrained()`
         if self.args.save_safetensors:
             logger.warn(

@@ -56,7 +56,7 @@ MOCK_PARAL_CONFIG = ParallelConfig(
 
 def _set_paral_config():
     """
-    Set up the directory and path for the parallelism jobmanagement.
+    Set up the directory and path for the parallelism config.
     """
     config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
     os.makedirs(config_dir, exist_ok=True)

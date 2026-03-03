@@ -142,7 +142,7 @@ _DLROVER_TERMINAL_STATE_SYNC_ID = "torchelastic/agent/terminal_state"
 
 def _set_paral_config():
     """
-    Set up the directory and path for the parallelism jobmanagement.
+    Set up the directory and path for the parallelism config.
     """
     config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
     os.makedirs(config_dir, exist_ok=True)
@@ -221,7 +221,7 @@ class LogConfig:
             self._tee = tee
 
         logger.debug(
-            f"Log jobmanagement: {self._log_dir}-{self._redirects}-{self._tee}"
+            f"Log config: {self._log_dir}-{self._redirects}-{self._tee}"
         )
 
     @property
@@ -263,7 +263,7 @@ class LogConfig:
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
-    Creates a rendezvous jobmanagement of elastic training.
+    Creates a rendezvous config of elastic training.
 
     Args:
         precheck: the level to run pre-check task before starting
@@ -274,7 +274,7 @@ class ElasticLaunchConfig(LaunchConfig):
             a multiple of node_unit.
         auto_config: indicate if automatically configure the nnodes and
             nproc_per_node.
-        auto_tunning: whether to auto-tune the parallelism jobmanagement.
+        auto_tunning: whether to auto-tune the parallelism config.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
         save_at_breakpoint: indicate if save the checkpoint from the shared
@@ -401,7 +401,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         name: the name of rendezvous.
         node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
-            rendezvous in the rdzv_params.jobmanagement. Now we set:
+            rendezvous in the rdzv_params.config. Now we set:
             join_timeout: the timeout to join the rendezvous. The timeout
                 happens if the number of nodes is less than min_nodes
                 in the join_timeout.
@@ -670,7 +670,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._log_dir = config.get_log_dir()
         else:
             logger.info(
-                "Setup logging jobmanagement for torch version>=230 with "
+                "Setup logging config for torch version>=230 with "
                 f"log_dir: {config.get_log_dir()}, "
                 f"redirections: {config.get_log_redirects()}, "
                 f"tee: {config.get_log_tee()}, log_specs: {config.get_log_specs().__dict__}"
@@ -998,9 +998,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         Determines proper ranks for worker processes. The rank assignment
         is done according to the following algorithm:
 
-        1. Each agent writes its jobmanagement(group_rank, group_world_size
+        1. Each agent writes its config(group_rank, group_world_size
            , num_workers) to the common store.
-        2. Each agent retrieves jobmanagement for all agents
+        2. Each agent retrieves config for all agents
            and performs two level sort using role and rank.
         3. Determine the global rank: the global rank of workers for the
            current agent is the offset of  infos array up to group_rank
@@ -1748,7 +1748,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if not resp:
                     continue
                 if resp.port > 0:
-                    logger.info(f"jobmanagement hccl port: {resp.port}")
+                    logger.info(f"config hccl port: {resp.port}")
                     os.environ[AscendConstants.HCCL_PORT_START] = str(
                         resp.port
                     )
@@ -1794,7 +1794,7 @@ def launch_agent(
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
         logger.warning(
-            f"jobmanagement has no run_id, generated a random run_id: {run_id}"
+            f"config has no run_id, generated a random run_id: {run_id}"
         )
         config.run_id = run_id
 
@@ -1960,12 +1960,12 @@ def _create_worker_spec(
         master_addr=master_addr,
     )
 
-    # for torch < 230, the tee and redirects jobmanagement for log is located in spec
+    # for torch < 230, the tee and redirects config for log is located in spec
     if version_less_than_230():
         spec.redirects = config.get_log_redirects()
         spec.tee = config.get_log_tee()
         logger.info(
-            "Setup logging jobmanagement for torch version<230 with "
+            "Setup logging config for torch version<230 with "
             f"log_dir: {config.get_log_dir()}, "
             f"redirections: {config.get_log_redirects()}, "
             f"tee: {config.get_log_tee()}"
@@ -2182,7 +2182,7 @@ def _create_check_agent(
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
         logger.warning(
-            f"jobmanagement has no run_id, generated a random run_id: {run_id}"
+            f"config has no run_id, generated a random run_id: {run_id}"
         )
         config.run_id = run_id
 

@@ -39,7 +39,7 @@ def wait_for_session_and_get_session(
     initialized or recovered from a checkpoint.  It's expected that
     another thread or process will make the model ready, and that this
     is intended to be used by threads/processes that participate in a
-    distributed training jobmanagement where a different thread/process
+    distributed training config where a different thread/process
     is responsible for initializing or recovering the model being trained.
 
     NB: The amount of time this method waits for the session is bounded
@@ -52,7 +52,7 @@ def wait_for_session_and_get_session(
 
     Returns:
       A `Session`. May be None if the operation exceeds the timeout
-      specified by jobmanagement.operation_timeout_in_ms.
+      specified by config.operation_timeout_in_ms.
 
     Raises:
       tf.DeadlineExceededError: if the session is not available after

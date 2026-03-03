@@ -46,7 +46,7 @@ def _limit_memory(memory):
 
 
 class ResourcePlan(JsonSerializable):
-    """A resource jobmanagement plan."""
+    """A resource config plan."""
 
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
@@ -141,7 +141,7 @@ class ResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
-        """Generate a resource jobmanagement plan"""
+        """Generate a resource config plan"""
         pass
 
     @abstractmethod
@@ -166,7 +166,7 @@ class SimpleOptimizer(ResourceOptimizer):
         self._job_uuid = job_uuid
 
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
-        """Generate a resource jobmanagement plan"""
+        """Generate a resource config plan"""
         return ResourcePlan()
 
     def generate_oom_recovery_plan(

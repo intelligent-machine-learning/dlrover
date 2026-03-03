@@ -212,7 +212,7 @@ class ApiTest(BaseTest):
                 "mem"
             ).build()
 
-        # without jobmanagement
+        # without config
         with self.assertRaises(ValidationError):
             DLJobBuilder().node_num(1).device_per_node(1).build()
 
@@ -607,7 +607,7 @@ class ApiTest(BaseTest):
 
 
 def test_submit(monkeypatch):
-    # mock submit, just return the jobmanagement
+    # mock submit, just return the config
     dl_job = (
         DLJobBuilder()
         .node_num(1)

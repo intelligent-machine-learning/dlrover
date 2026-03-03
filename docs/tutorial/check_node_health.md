@@ -51,7 +51,7 @@ git clone git@github.com:intelligent-machine-learning/dlrover.git
 cd dlrover/go/elasticjob
 make deploy IMG=easydl/elasticjob-controller:master  # GO 1.18.
 # Grant permission for the DLRover master to Access CRDs.
-kubectl -n dlrover apply -f jobmanagement/manifests/bases/default-role.yaml
+kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
 ```
 
 After deploying the ElasticJob, we can submit a distributed job with

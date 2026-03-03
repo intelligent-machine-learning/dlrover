@@ -20,26 +20,26 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Config is the struct of the jobmanagement
+// Config is the struct of the config
 type Config struct {
 	data map[string]interface{}
 }
 
-// NewEmptyConfig returns a new empty jobmanagement
+// NewEmptyConfig returns a new empty config
 func NewEmptyConfig() *Config {
 	return &Config{
 		data: make(map[string]interface{}),
 	}
 }
 
-// NewConfig Return a jobmanagement instance with the specified jobmanagement.
+// NewConfig Return a config instance with the specified config.
 func NewConfig(conf map[string]interface{}) *Config {
 	config := NewEmptyConfig()
 	config.SetData(conf)
 	return config
 }
 
-// SetConfig sets the jobmanagement
+// SetConfig sets the config
 func (c *Config) SetConfig(config *Config) {
 	c.data = make(map[string]interface{})
 	for key, val := range config.data {
@@ -47,7 +47,7 @@ func (c *Config) SetConfig(config *Config) {
 	}
 }
 
-// SetData sets the jobmanagement data
+// SetData sets the config data
 func (c *Config) SetData(data map[string]interface{}) error {
 	c.data = make(map[string]interface{})
 	if data == nil {
@@ -60,7 +60,7 @@ func (c *Config) SetData(data map[string]interface{}) error {
 	return nil
 }
 
-// Clone returns a copy of the jobmanagement
+// Clone returns a copy of the config
 func (c *Config) Clone() *Config {
 	conf := NewEmptyConfig()
 	conf.SetConfig(c)
@@ -73,7 +73,7 @@ func (c *Config) Contains(key string) bool {
 	return exist
 }
 
-// IsEmpty check if the jobmanagement is empty
+// IsEmpty check if the config is empty
 func (c *Config) IsEmpty() bool {
 	return len(c.data) == 0
 }
@@ -170,7 +170,7 @@ func (c *Config) GetKubeClientInterface() kubernetes.Interface {
 	return c.data[KubeClientInterface].(kubernetes.Interface)
 }
 
-// GetConfig returns the jobmanagement for a given key
+// GetConfig returns the config for a given key
 func (c *Config) GetConfig(key string) *Config {
 	value, exist := c.data[key]
 	if !exist {
@@ -190,7 +190,7 @@ func (c *Config) GetConfig(key string) *Config {
 	return NewConfig(mapVal)
 }
 
-// GetKeys returns all keys in the jobmanagement
+// GetKeys returns all keys in the config
 func (c *Config) GetKeys() []string {
 	keys := make([]string, 0)
 	for key := range c.data {

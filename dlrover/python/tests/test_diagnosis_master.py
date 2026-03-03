@@ -339,7 +339,7 @@ class DiagnosisMasterMthreadsTest(unittest.TestCase):
     """Test class for mthreads GPU diagnosis functionality."""
 
     def setUp(self):
-        """Set up test fixtures with mthreads GPU jobmanagement."""
+        """Set up test fixtures with mthreads GPU config."""
         self.job_name = "test-job"
 
         # Set up job args for mthreads GPU
