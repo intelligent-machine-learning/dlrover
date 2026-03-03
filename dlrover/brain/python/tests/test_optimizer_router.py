@@ -1,5 +1,5 @@
 import unittest
-from dlrover.brain.python.optimizer.optimizer_router import OptimizerRouter
+from dlrover.brain.python.optimization.optimizer_router import OptimizerRouter
 from dlrover.brain.python.common.job import (
     JobMeta,
     OptimizeConfig,
