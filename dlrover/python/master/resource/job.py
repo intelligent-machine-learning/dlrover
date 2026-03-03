@@ -39,7 +39,7 @@ from dlrover.python.master.resource.optimizer import (
 )
 from dlrover.python.scheduler.job import ResourceLimits
 
-_WORKER_OPTIMIZE_PHASE = "optimization.worker.optimize-phase"
+_WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 
 _dlrover_context = Context.singleton_instance()
 
@@ -48,21 +48,21 @@ def new_ps_resource_optimizer(
     optimize_mode: str, job_uuid, resource_limits: ResourceLimits
 ):
     logger.info(
-        "New %s resource optimization for job %s", optimize_mode, job_uuid
+        "New %s resource optimizer for job %s", optimize_mode, job_uuid
     )
     if optimize_mode == OptimizeMode.CLUSTER:
         if GlobalBrainClient.BRAIN_CLIENT.available():
             return BrainResoureOptimizer(job_uuid, resource_limits)
         else:
             logger.warning(
-                "Brain service is not available, use a local optimization"
+                "Brain service is not available, use a local optimizer"
             )
             return PSLocalOptimizer(job_uuid, resource_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
         return PSLocalOptimizer(job_uuid, resource_limits)
     else:
         logger.warning(
-            "Not support optimization mode %s, use a simple optimization",
+            "Not support optimizer mode %s, use a simple optimizer",
             optimize_mode,
         )
         return SimpleOptimizer(job_uuid, resource_limits)
@@ -489,7 +489,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     def _check_ignore_original_worker_resource(
         self, resource: NodeGroupResource
     ):
-        """Abandon the optimization result if users have set the resource."""
+        """Abandon the optimizer result if users have set the resource."""
         #  Users may worry about that the increasing number of worker hurts the
         #  accuracy, so the max number of worker is the config.
         original_resource = self._original_worker_resource.node_resource
@@ -502,7 +502,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         return resource
 
     def _check_ignore_original_ps_resource(self, resource: NodeGroupResource):
-        """Abandon the optimization result if users have set the resource."""
+        """Abandon the optimizer result if users have set the resource."""
         original_resource = self._original_ps_resource.node_resource
         if self._original_ps_resource.count > 0:
             resource.count = self._original_ps_resource.count

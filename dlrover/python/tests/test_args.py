@@ -89,7 +89,7 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.xpu_type, "mthreads")
 
         # test print
-        print_args(parsed_args, groups=[["optimization", "loss"]])
+        print_args(parsed_args, groups=[["optimizer", "loss"]])
 
         # test invalid
         original_args = [

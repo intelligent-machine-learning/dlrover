@@ -125,7 +125,7 @@ class HyperParams:
     """The rate at which the model's parameters are updated during training."""
     
     optimizer: str
-    """The optimization algorithm used to adjust the model's parameters."""
+    """The optimizer algorithm used to adjust the model's parameters."""
     
     scheduler: str
     """The learning rate scheduler used to dynamically adjust the learning rate during training."""

@@ -19,9 +19,9 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
-	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
-	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/utils"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
+	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/utils"
 	"math"
 	"reflect"
 	"strconv"
@@ -207,7 +207,7 @@ func OptimizeJobWorkerResource(dataStore datastoreapi.DataStore, conf *optconfig
 	}
 	memory = memory + addMemory
 	if cpuCore > 0.0 {
-		// cpuCore = 0.0 is an invalid optimization result
+		// cpuCore = 0.0 is an invalid optimizer result
 		cpuCore = math.Ceil(cpuCore + workerCPUMarginCores)
 	}
 

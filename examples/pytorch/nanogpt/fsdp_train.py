@@ -80,7 +80,7 @@ def train(args, train_params):
     total_steps = model_params["total_steps"]  # The only mutable variable.
     train_loader = model_params["train_loader"]
     elastic_trainer = model_params["elastic_trainer"]
-    optimizer = model_params["optimization"]
+    optimizer = model_params["optimizer"]
 
     previous_mfu = -1.0
     total_time = 0.0
@@ -259,8 +259,8 @@ def setup_train_params(args) -> tuple:
     else:
         raise ValueError("FSDP can only runs on CUDA.")
 
-    # Set up the optimization.
-    log_rank0(f"Creating optimization... {model.parameters()}")
+    # Set up the optimizer.
+    log_rank0(f"Creating optimizer... {model.parameters()}")
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
         weight_decay=args.weight_decay,
@@ -295,7 +295,7 @@ def setup_train_params(args) -> tuple:
         "total_steps": 0,
         "train_loader": train_loader,
         "elastic_trainer": elastic_trainer,
-        "optimization": optimizer,
+        "optimizer": optimizer,
     }
 
     ckpt_params = {
@@ -348,7 +348,7 @@ def load_checkpoint(model_params, ckpt_params):
     """
     loaded = False
     model = model_params["model"]
-    optimizer = model_params["optimization"]
+    optimizer = model_params["optimizer"]
     checkpoint_dir = ckpt_params["checkpoint_dir"]
     os.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -361,7 +361,7 @@ def load_checkpoint(model_params, ckpt_params):
                 state_dict = {
                     "model": model.state_dict(),
                     "step": 0,
-                    # Cannot load the optimization state_dict
+                    # Cannot load the optimizer state_dict
                     # together with the model state_dict.
                 }
             storage_reader = dist_ckpt.FileSystemReader(path)
@@ -371,7 +371,7 @@ def load_checkpoint(model_params, ckpt_params):
             )
             model.load_state_dict(state_dict["model"])
 
-            # Load optimization state dict.
+            # Load optimizer state dict.
             optim_state = load_sharded_optimizer_state_dict(
                 model_state_dict=state_dict["model"],
                 optimizer_key="optim",
@@ -384,7 +384,7 @@ def load_checkpoint(model_params, ckpt_params):
 
             # Update model params.
             model_params["model"] = model
-            model_params["optimization"] = optimizer
+            model_params["optimizer"] = optimizer
             model_params["total_steps"] = state_dict["step"]
             loaded = True
 
@@ -415,7 +415,7 @@ def save_checkpoint(model_params, ckpt_params):
     saved = False
     model = model_params["model"]
     steps = model_params["total_steps"]
-    optimizer = model_params["optimization"]
+    optimizer = model_params["optimizer"]
     checkpointer = ckpt_params["checkpointer"]
     checkpoint_dir = ckpt_params["checkpoint_dir"]
 

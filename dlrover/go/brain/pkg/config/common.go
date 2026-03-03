@@ -37,10 +37,10 @@ const (
 	// DataStoreName is the name of a data store
 	DataStoreName = "data-store.name"
 
-	// OptimizerConfigMapName is the name of optimization config map
-	OptimizerConfigMapName = "optimization.config-map.name"
-	// OptimizerConfigMapKey is the key of optimization config map
-	OptimizerConfigMapKey = "optimization.config-map.key"
+	// OptimizerConfigMapName is the name of optimizer config map
+	OptimizerConfigMapName = "optimizer.config-map.name"
+	// OptimizerConfigMapKey is the key of optimizer config map
+	OptimizerConfigMapKey = "optimizer.config-map.key"
 
 	// KubeWatcherConfigMapName is the name of kube watcher config map
 	KubeWatcherConfigMapName = "kube-watcher.config-map.name"
@@ -69,69 +69,69 @@ const (
 	JobNodeCPUMargin = "job-node.cpu.margin"
 
 	// OptimizerMinWorkerCreateCPU is the key of min CPU of the first worker
-	OptimizerMinWorkerCreateCPU = "optimization.worker.create.cpu.min"
+	OptimizerMinWorkerCreateCPU = "optimizer.worker.create.cpu.min"
 	// OptimizerWorkerOomMemoryMarginPercent is the config key of oom worker memory margin percent
-	OptimizerWorkerOomMemoryMarginPercent = "optimization.worker.oom.memory.margin-percent"
+	OptimizerWorkerOomMemoryMarginPercent = "optimizer.worker.oom.memory.margin-percent"
 	// OptimizerWorkerOomMemoryMinIncrease is the config key of oom worker memory margin percent
-	OptimizerWorkerOomMemoryMinIncrease = "optimization.worker.oom.memory.min-increase"
+	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
 	// OptimizerWorkerMemoryMarginPercent is the config key of worker memory margin percent
-	OptimizerWorkerMemoryMarginPercent = "optimization.worker.memory.margin-percent"
+	OptimizerWorkerMemoryMarginPercent = "optimizer.worker.memory.margin-percent"
 	// OptimizerWorkerMaxReplicaCount is the config key of the maximum number of workers
-	OptimizerWorkerMaxReplicaCount = "optimization.worker.max.replica-count"
+	OptimizerWorkerMaxReplicaCount = "optimizer.worker.max.replica-count"
 	// OptimizerWorkerReplicaDecreaseCount is the config key of worker replica decrease count each time
-	OptimizerWorkerReplicaDecreaseCount = "optimization.worker.replica.decrease-count"
+	OptimizerWorkerReplicaDecreaseCount = "optimizer.worker.replica.decrease-count"
 	// OptimizerWorkerMaxInitCountPerStep is the config key of first max worker increase count
-	OptimizerWorkerMaxInitCountPerStep = "optimization.worker.max.init-count-per-step"
+	OptimizerWorkerMaxInitCountPerStep = "optimizer.worker.max.init-count-per-step"
 	// OptimizerWorkerMaxCountPerStep is the config key of max worker increase count per step
-	OptimizerWorkerMaxCountPerStep = "optimization.worker.max.count-per-step"
+	OptimizerWorkerMaxCountPerStep = "optimizer.worker.max.count-per-step"
 	// OptimizerWorkerCPUMarginCore is the config key of worker cpu margin cores
-	OptimizerWorkerCPUMarginCore = "optimization.worker.cpu.margin-core"
+	OptimizerWorkerCPUMarginCore = "optimizer.worker.cpu.margin-core"
 	// OptimizerWorkerCPUUtilCompCount is the config key of worker cpu util compare count
-	OptimizerWorkerCPUUtilCompCount = "optimization.worker.cpu-util.comp-count"
+	OptimizerWorkerCPUUtilCompCount = "optimizer.worker.cpu-util.comp-count"
 	// OptimizerWorkerCPUUtilLessPercent is the config key of worker cpu util less percent
-	OptimizerWorkerCPUUtilLessPercent = "optimization.worker.cpu-util.less-percent"
+	OptimizerWorkerCPUUtilLessPercent = "optimizer.worker.cpu-util.less-percent"
 
 	// OptimizerPSMemoryMarginPercent is the config key of cold job initial ps memory
-	OptimizerPSMemoryMarginPercent = "optimization.ps.memory.margin.percent"
+	OptimizerPSMemoryMarginPercent = "optimizer.ps.memory.margin.percent"
 	// OptimizerPSCPUMarginPercent is the config key of cold job initial ps memory
-	OptimizerPSCPUMarginPercent = "optimization.ps.cpu.margin.percent"
+	OptimizerPSCPUMarginPercent = "optimizer.ps.cpu.margin.percent"
 	// OptimizerPSMaxCount is the config key of the max number of PS
-	OptimizerPSMaxCount = "optimization.ps.count.maximum"
+	OptimizerPSMaxCount = "optimizer.ps.count.maximum"
 	// OptimizerPSMinCPUCore is the config key of ps min cpu
-	OptimizerPSMinCPUCore = "optimization.ps.min.cpu"
+	OptimizerPSMinCPUCore = "optimizer.ps.min.cpu"
 	// OptimizerPSColdMemory is the config key of cold job initial ps memory
-	OptimizerPSColdMemory = "optimization.ps.cold.memory"
+	OptimizerPSColdMemory = "optimizer.ps.cold.memory"
 	// OptimizerPSColdCPU is the config key of cold job initial ps cpu
-	OptimizerPSColdCPU = "optimization.ps.cold.cpu"
+	OptimizerPSColdCPU = "optimizer.ps.cold.cpu"
 	// OptimizerPSColdReplica is the config key of cold job initial ps replica
-	OptimizerPSColdReplica = "optimization.ps.cold.replica"
+	OptimizerPSColdReplica = "optimizer.ps.cold.replica"
 	// OptimizerPSInitAdjustTargetWorkerCount is the target count of workers supporting by PS CPU.
-	OptimizerPSInitAdjustTargetWorkerCount = "optimization.ps.init-adjust.target-worker-count"
+	OptimizerPSInitAdjustTargetWorkerCount = "optimizer.ps.init-adjust.target-worker-count"
 	// OptimizerPSMarginCPU is the config key of the ps margin cpu
-	OptimizerPSMarginCPU = "optimization.ps.cpu.margin"
+	OptimizerPSMarginCPU = "optimizer.ps.cpu.margin"
 	// OptimizerPSCPUOverload is the config key of ps cpu overloaded threshold
-	OptimizerPSCPUOverload = "optimization.ps.cpu.overload"
+	OptimizerPSCPUOverload = "optimizer.ps.cpu.overload"
 	// OptimizerPSMemoryWorkloadUnbalancePercent is the config key of ps memory workload unbalance percent
-	OptimizerPSMemoryWorkloadUnbalancePercent = "optimization.ps.memory.workload-balance-percent"
+	OptimizerPSMemoryWorkloadUnbalancePercent = "optimizer.ps.memory.workload-balance-percent"
 	// OptimizerHotPSCPUThreshold is the config key of ps overloaded threshold
-	OptimizerHotPSCPUThreshold = "optimization.ps.cpu.hot-threshold"
+	OptimizerHotPSCPUThreshold = "optimizer.ps.cpu.hot-threshold"
 	// OptimizerHotPSCPUTargetWorkerCount is the config key of adjust overloaded ps cpu
-	OptimizerHotPSCPUTargetWorkerCount = "optimization.ps.cpu.hot-target-worker-count"
+	OptimizerHotPSCPUTargetWorkerCount = "optimizer.ps.cpu.hot-target-worker-count"
 	// OptimizerHotPSMemoryThreshold is the config key of ps overloaded threshold
-	OptimizerHotPSMemoryThreshold = "optimization.ps.memory.hot-threshold"
+	OptimizerHotPSMemoryThreshold = "optimizer.ps.memory.hot-threshold"
 	// OptimizerHotPSMemoryAdjust is the config key of adjust overloaded ps memory
-	OptimizerHotPSMemoryAdjust = "optimization.ps.memory.hot-adjust"
+	OptimizerHotPSMemoryAdjust = "optimizer.ps.memory.hot-adjust"
 	// OptimizerLowPSCPUThreshold is the config key of ps overloaded threshold
-	OptimizerLowPSCPUThreshold = "optimization.ps.cpu.low-threshold"
+	OptimizerLowPSCPUThreshold = "optimizer.ps.cpu.low-threshold"
 	// OptimizerPSCPUExhaustedThreshold is the config key of ps cpu overloaded threshold
-	OptimizerPSCPUExhaustedThreshold = "optimization.ps.cpu.exhausted-threshold"
+	OptimizerPSCPUExhaustedThreshold = "optimizer.ps.cpu.exhausted-threshold"
 
 	// OptimizerStepCountThreshold is the config key of step count threshold
-	OptimizerStepCountThreshold = "optimization.step.count.threshold"
+	OptimizerStepCountThreshold = "optimizer.step.count.threshold"
 	// OptimizerTrainingSpeedLessPercent is the config key of training speed less comparison percent
-	OptimizerTrainingSpeedLessPercent = "optimization.training-speed.less-percent"
+	OptimizerTrainingSpeedLessPercent = "optimizer.training-speed.less-percent"
 	// OptimizerWorkerOptimizePhase is the config key of worker optimize phase
-	OptimizerWorkerOptimizePhase = "optimization.worker.optimize-phase"
+	OptimizerWorkerOptimizePhase = "optimizer.worker.optimize-phase"
 	// OptimizerWorkerOptimizePhaseSample is the config value of sample optimize phase
 	OptimizerWorkerOptimizePhaseSample = "sample"
 	// OptimizerWorkerOptimizePhaseInitial is the config value of initial optimize phase

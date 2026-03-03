@@ -14,8 +14,8 @@
 package config
 
 const (
-	// ConfigRetrieverConfigKeyOptimizerName is the config key of optimization name in config retriever
-	ConfigRetrieverConfigKeyOptimizerName = "optimization"
+	// ConfigRetrieverConfigKeyOptimizerName is the config key of optimizer name in config retriever
+	ConfigRetrieverConfigKeyOptimizerName = "optimizer"
 	// ConfigRetrieverConfigKeyOptimizeAlgorithm is the config key of optimize algorithm in config retriever
 	ConfigRetrieverConfigKeyOptimizeAlgorithm = "optimize-algorithm"
 )
@@ -28,11 +28,11 @@ type OptimizeAlgorithmConfig struct {
 	CustomizedConfig map[string]string
 }
 
-// OptimizerConfig is the config of optimization
+// OptimizerConfig is the config of optimizer
 type OptimizerConfig struct {
-	// Name is the name of optimization
+	// Name is the name of optimizer
 	Name string
-	// CustomizedConfig is the customized configure of the optimization
+	// CustomizedConfig is the customized configure of the optimizer
 	CustomizedConfig map[string]string
 	// ResOptFuncConfig is the config of resource optimize function
 	OptimizeAlgorithmConfig *OptimizeAlgorithmConfig

@@ -18,7 +18,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"sync"
 )
@@ -75,7 +75,7 @@ func NewConfigRetrieverManager(conf *config.Config) *Manager {
 	}
 }
 
-// RetrieveOptimizerConfig retrieves optimization config from pb optimize config
+// RetrieveOptimizerConfig retrieves optimizer config from pb optimize config
 func (m *Manager) RetrieveOptimizerConfig(conf *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error) {
 	var err error
 	name := conf.OptimizerConfigRetriever

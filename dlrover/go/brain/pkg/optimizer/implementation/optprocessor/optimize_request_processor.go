@@ -21,9 +21,9 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
-	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/common"
-	implconfigretriever "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/configretriever"
-	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/optimization"
+	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
+	implconfigretriever "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/configretriever"
+	imploptimizer "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optimizer"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"sync"
@@ -105,7 +105,7 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 	}
 
 	if err = m.optimizerManager.Run(ctx, errReporter); err != nil {
-		log.Errorf("[%s] fail to run optimization manager: %v", loggerName, err)
+		log.Errorf("[%s] fail to run optimizer manager: %v", loggerName, err)
 		return err
 	}
 
@@ -128,7 +128,7 @@ func (m *Manager) ProcessOptimizeRequest(ctx context.Context, request *pb.Optimi
 
 	optimizerConfig, err := m.configRetrieverManager.RetrieveOptimizerConfig(request.Config)
 	if err != nil {
-		log.Errorf("[%s] fail to retrieve optimization config from %v: %v", loggerName, request, err)
+		log.Errorf("[%s] fail to retrieve optimizer config from %v: %v", loggerName, request, err)
 		return nil, err
 	}
 

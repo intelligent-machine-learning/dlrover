@@ -16,7 +16,7 @@ package utils
 import (
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
-	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
 )
 
 // CalculateJobNodeAvgResources get the avg resources for each job node from the runtime infos

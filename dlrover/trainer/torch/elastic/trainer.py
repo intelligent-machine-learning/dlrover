@@ -88,11 +88,11 @@ class GradientState(object):
 
 class _ElasticOptimizer(torch.optim.Optimizer):
     """
-    Internal wrapper around a torch optimization.
+    Internal wrapper around a torch optimizer.
     Perform `step` and `zero_grad` if gradients should be synchronized.
     Args:
-        optimizer (`torch.optim.optimization.Optimizer`):
-            The optimization to wrap.
+        optimizer (`torch.optim.optimizer.Optimizer`):
+            The optimizer to wrap.
     """
 
     def __init__(self, optimizer: torch.optim.Optimizer) -> None:
@@ -150,7 +150,7 @@ class _ElasticOptimizer(torch.optim.Optimizer):
 class _ElasticLRScheduler(object):
     """A wrapper around a learning rate scheduler that will only
     step after the gradients are sychronizing across all processes and
-    the optimization steps."""
+    the optimizer steps."""
 
     def __init__(
         self, scheduler: torch.optim.lr_scheduler._LRScheduler
@@ -227,7 +227,7 @@ class ElasticTrainer(object):
 
     def prepare(self, optimizer, lr_scheduler=None):
         """
-        Prepare optimization and learning rate scheduler in elastic training.
+        Prepare optimizer and learning rate scheduler in elastic training.
         """
         self._set_gradient_accumulation_steps()
         optimizer = _ElasticOptimizer(optimizer)
@@ -245,7 +245,7 @@ class ElasticTrainer(object):
 
         Args:
             fix_total_batch_size (`bool`): Whether to keep the total
-            batch size fixed when the optimization steps. If True,
+            batch size fixed when the optimizer steps. If True,
             the context manager will perform gradient accumulation and
             synchronize gradients when the accumulated batch size if
             equal to the global batch size.
@@ -254,17 +254,17 @@ class ElasticTrainer(object):
         ```python
         >>> from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
         >>> elastic_trainer = ElasticTrainer(model)
-        >>> optimization, scheduler = elastic_trainer.prepare(
-                optimization, scheduler
+        >>> optimizer, scheduler = elastic_trainer.prepare(
+                optimizer, scheduler
             )
         >>> for input, output in dataloader:
         ...     with elastic_trainer.step():
         ...         outputs = model(input)
         ...         loss = loss_func(outputs)
         ...         loss.backward()
-        ...         optimization.step()
+        ...         optimizer.step()
         ...         scheduler.step()
-        ...         optimization.zero_grad()
+        ...         optimizer.zero_grad()
         ```
         """
         self._before_step(fix_total_batch_size)

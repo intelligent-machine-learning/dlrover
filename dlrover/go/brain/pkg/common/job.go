@@ -65,7 +65,7 @@ type JobMetrics struct {
 	CustomizedData     string
 }
 
-// OptimizeJobMeta includes required information for optimization
+// OptimizeJobMeta includes required information for optimizer
 type OptimizeJobMeta struct {
 	JobMeta        *JobMeta
 	Metrics        *JobMetrics

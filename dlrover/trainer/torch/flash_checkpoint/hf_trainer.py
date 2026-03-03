@@ -119,14 +119,14 @@ class HfDdpCheckpointer(HfFlashCheckpointer):
 class FlashCkptTrainer(Trainer):
     """
     The flash checkpoint trainer synchronously saves the model weights
-    and optimization states of checkpoint into the memory and asynchronously
+    and optimizer states of checkpoint into the memory and asynchronously
     saves the checkpoint from the memory to the storage. The training is not
     blocked when saving the checkpoint to the storage.
 
     Note:: The trainer creates a directory and saves json files of training
     config like `config.json`, `trainer_state.json` and
     `generation_config.json` to the directory when saving a checkpoint.
-    There might not be model weights and optimization states in the
+    There might not be model weights and optimizer states in the
     checkpoint directory because the trainer asynchronously save them into the
     directory. We can get the last step of complete checkpoint directory
     by the step int the file `dlrover_latest.txt` in the `OUTPUT_DIR` of

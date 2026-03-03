@@ -104,7 +104,7 @@ class PolicyModelActor(BaseActor):
         else:
             ema_model = None
 
-        # configure optimization
+        # configure optimizer
         actor_optim = strategy.create_optimizer(
             actor,
             lr=args.actor_learning_rate,

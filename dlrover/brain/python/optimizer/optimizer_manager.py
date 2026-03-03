@@ -5,9 +5,9 @@ from dlrover.brain.python.common.job import (
     OptimizeConfig,
     JobOptimizePlan,
 )
-from dlrover.brain.python.optimization.optimizer.base_optimizer import BaseOptimizer
+from dlrover.brain.python.optimizer.optimizer.base_optimizer import BaseOptimizer
 from dlrover.brain.python.common.log import default_logger as logger
-from dlrover.brain.python.optimization.optimizer_router import OptimizerRouter
+from dlrover.brain.python.optimizer.optimizer_router import OptimizerRouter
 
 
 class OptimizerManager:

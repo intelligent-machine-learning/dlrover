@@ -86,7 +86,7 @@ checkpointer = DdpCheckpointer(checkpoint_dir)
 
 state_dict = {
     "model": model.state_dict(),
-    "optimization": optimizer.state_dict(),
+    "optimizer": optimizer.state_dict(),
     "step": step,
 }
 # 存储系统的 path
@@ -106,7 +106,7 @@ if iter_num % save_storage_interval == 0:
     )
 ckpt_dict = checkpointer.load_checkpoint()
 model.load_state_dict(ckpt_dict["model"])
-optimizer.load_state_dict(ckpt_dict["optimization"]
+optimizer.load_state_dict(ckpt_dict["optimizer"]
 
 # Wait for the latest checkpoint before exit. The process to asynchronously
 # persist the checkpoint from the memory to the storage will exist if the

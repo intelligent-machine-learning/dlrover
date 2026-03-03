@@ -39,7 +39,7 @@ mock_model_config = {
 
 class SimpleStrategyGenerator(StrategyGenerator):
     """
-    A simple strategy generator for local optimization.
+    A simple strategy generator for local optimizer.
     This class is responsible for generating optimal configurations for data
     loaders and optimizers
     """

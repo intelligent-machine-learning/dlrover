@@ -13,7 +13,7 @@
 
 package common
 
-// AlgorithmOptimizePlan is the plan of resource optimization
+// AlgorithmOptimizePlan is the plan of resource optimizer
 type AlgorithmOptimizePlan struct {
 	JobRes *JobResource
 }

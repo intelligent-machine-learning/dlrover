@@ -73,7 +73,7 @@ def train(args, train_params):
     total_steps = model_params["total_steps"]  # The only mutable variable.
     train_loader = model_params["train_loader"]
     elastic_trainer = model_params["elastic_trainer"]
-    optimizer = model_params["optimization"]
+    optimizer = model_params["optimizer"]
 
     previous_mfu = -1.0
     total_time = 0.0
@@ -258,8 +258,8 @@ def setup_train_params(args) -> tuple:
         dataloader=train_loader,
     )
 
-    # Set up the optimization.
-    log_rank0(f"Creating optimization... {model.parameters()}")
+    # Set up the optimizer.
+    log_rank0(f"Creating optimizer... {model.parameters()}")
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
         weight_decay=args.weight_decay,
@@ -283,7 +283,7 @@ def setup_train_params(args) -> tuple:
         "total_steps": 0,
         "train_loader": train_loader,
         "elastic_trainer": elastic_trainer,
-        "optimization": optimizer,
+        "optimizer": optimizer,
     }
 
     ckpt_params = {
@@ -334,7 +334,7 @@ def load_checkpoint(model_params, ckpt_params):
             This result is mainly used by the "timer" decorator.
     """
     model = model_params["model"]
-    optimizer = model_params["optimization"]
+    optimizer = model_params["optimizer"]
     train_loader = model_params["train_loader"]
     checkpointer = ckpt_params["checkpointer"]
     checkpoint_dir = ckpt_params["checkpoint_dir"]
@@ -349,14 +349,14 @@ def load_checkpoint(model_params, ckpt_params):
 
     if "model" in ckpt_dict:
         model.load_state_dict(ckpt_dict["model"])
-    if "optimization" in ckpt_dict:
-        optimizer.load_state_dict(ckpt_dict["optimization"])
+    if "optimizer" in ckpt_dict:
+        optimizer.load_state_dict(ckpt_dict["optimizer"])
     if "sampler" in ckpt_dict:
         train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
     # Update dict.
     model_params["total_steps"] = ckpt_dict.get("step", 0)
     model_params["model"] = model
-    model_params["optimization"] = optimizer
+    model_params["optimizer"] = optimizer
     model_params["train_loader"] = train_loader
     return True
 
@@ -378,7 +378,7 @@ def save_checkpoint(model_params, ckpt_params):
         """
         state_dict = {
             "model": model_params["model"].state_dict(),
-            "optimization": model_params["optimization"].state_dict(),
+            "optimizer": model_params["optimizer"].state_dict(),
             "step": steps,
         }
 

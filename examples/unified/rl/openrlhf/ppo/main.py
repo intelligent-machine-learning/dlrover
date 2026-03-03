@@ -488,7 +488,7 @@ if __name__ == "__main__":
         type=float,
         nargs=2,
         default=(0.9, 0.95),
-        help="Betas for Adam optimization",
+        help="Betas for Adam optimizer",
     )
     parser.add_argument(
         "--reward_clip_range",

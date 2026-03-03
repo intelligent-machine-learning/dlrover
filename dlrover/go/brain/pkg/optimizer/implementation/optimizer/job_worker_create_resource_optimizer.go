@@ -22,23 +22,23 @@ import (
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
-	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
+	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"time"
 )
 
 const (
-	// JobWorkerCreateResourceOptimizerName is the name of optimization to optimize the resources of the first worker
+	// JobWorkerCreateResourceOptimizerName is the name of optimizer to optimize the resources of the first worker
 	JobWorkerCreateResourceOptimizerName = "job_worker_create_resource_optimizer"
 
 	defaultOptimizerWorkerOomMemoryMarginPercent = 0.2
 	defaultOptimizerWorkerOomMemoryMinIncrease   = 4000000000
 )
 
-// JobWorkerCreateResourceOptimizer is the optimization which optimizes the resources of job's first worker
+// JobWorkerCreateResourceOptimizer is the optimizer which optimizes the resources of job's first worker
 type JobWorkerCreateResourceOptimizer struct {
 	dataStore datastoreapi.DataStore
 	conf      *config.Config

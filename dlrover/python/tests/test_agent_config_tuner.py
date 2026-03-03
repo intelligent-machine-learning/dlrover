@@ -33,7 +33,7 @@ MOCKED_CONFIG = {
         "pin_memory": 0,
         "version": 1,
     },
-    "optimization": {
+    "optimizer": {
         "learning_rate": 0.0,
         "optimizer_name": "simple_optimizer",
         "version": 5,

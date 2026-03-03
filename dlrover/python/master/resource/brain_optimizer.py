@@ -77,12 +77,12 @@ class BrainResoureOptimizer(ResourceOptimizer):
             config,
         )
         if not res or not res.job_optimize_plans:
-            logger.info("No any optimization plan for PS")
+            logger.info("No any optimizer plan for PS")
             return ResourcePlan()
 
         plan_msg = res.job_optimize_plans[0]
         logger.info(
-            "The optimization plan of %s with config %s is %s",
+            "The optimizer plan of %s with config %s is %s",
             stage,
             config,
             plan_msg,
@@ -100,11 +100,11 @@ class BrainResoureOptimizer(ResourceOptimizer):
             config,
         )
         if not res or not res.job_optimize_plans:
-            logger.info("No any optimization plan for PS")
+            logger.info("No any optimizer plan for PS")
             return
 
         plan_msg = res.job_optimize_plans[0]
-        logger.info("The optimization plan of %s is %s", stage, plan_msg)
+        logger.info("The optimizer plan of %s is %s", stage, plan_msg)
         plan = convert_plan_msg(plan_msg)
         return plan
 

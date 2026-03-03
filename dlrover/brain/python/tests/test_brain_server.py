@@ -28,7 +28,7 @@ class TestBrainServer(unittest.TestCase):
                 "namespace": "default"
             },
             "config": {
-                "optimization": "genetic_algo",
+                "optimizer": "genetic_algo",
                 "customized_config": {"pop_size": "50"}
             }
         }

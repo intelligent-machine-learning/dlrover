@@ -267,7 +267,7 @@ class GPT(nn.Module):
                 ignore_index=-1,
             )
         else:
-            # Inference-time mini-optimization: only forward the lm_head
+            # Inference-time mini-optimizer: only forward the lm_head
             # on the very last position
             logits = self.lm_head(
                 x[:, [-1], :]
@@ -397,7 +397,7 @@ class GPT(nn.Module):
             f"num non-decayed parameter tensors: {len(nodecay_params)},"
             f" with {num_nodecay_params:,} parameters"
         )
-        # Create AdamW optimization and use the fused version if it is
+        # Create AdamW optimizer and use the fused version if it is
         # available
         fused_available = (
             "fused" in inspect.signature(torch.optim.AdamW).parameters

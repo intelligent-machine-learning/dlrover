@@ -407,9 +407,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         storage_meta (tuple[str]): the first element is the module path of the
             storage class and the second element is the name of
             the storage class.
-        local_shard_num (int): the number of model/optimization shards
+        local_shard_num (int): the number of model/optimizer shards
             on the node.
-        global_shard_num (int): the number of model/optimization shards
+        global_shard_num (int): the number of model/optimizer shards
             across all nodes.
     """
 

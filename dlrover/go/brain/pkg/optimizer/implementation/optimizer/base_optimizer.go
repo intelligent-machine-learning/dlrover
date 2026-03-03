@@ -18,8 +18,8 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 	BaseOptimizerName = "base_optimizer"
 )
 
-// BaseOptimizer is the basic optimization
+// BaseOptimizer is the basic optimizer
 type BaseOptimizer struct {
 	dataStore datastoreapi.DataStore
 	config    *config.Config
@@ -46,6 +46,6 @@ func newBaseOptimizer(dataStore datastoreapi.DataStore, config *config.Config) o
 
 // Optimize optimizes the chief worker initial resources
 func (optimizer *BaseOptimizer) Optimize(conf *optconfig.OptimizerConfig, jobs []*common.JobMeta) ([]*common.OptimizePlan, error) {
-	log.Infof("base optimization current config: %v", optimizer.config)
+	log.Infof("base optimizer current config: %v", optimizer.config)
 	return nil, nil
 }

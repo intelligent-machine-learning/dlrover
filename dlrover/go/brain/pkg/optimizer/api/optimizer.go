@@ -16,13 +16,13 @@ package api
 import (
 	"context"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
-	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/common"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 )
 
 // Optimizer is the interface of optimizers
 type Optimizer interface {
-	// Optimize generates optimization plan for a given job
+	// Optimize generates optimizer plan for a given job
 	Optimize(config *optconfig.OptimizerConfig, jobs []*common.JobMeta) ([]*common.OptimizePlan, error)
 }
 

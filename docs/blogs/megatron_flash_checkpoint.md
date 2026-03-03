@@ -123,7 +123,7 @@ DATA_PATH=<Specify path and file prefix>_text_document
 dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE --max_restarts=3 pretrain_gpt.py \
        --tensor-model-parallel-size 8 \
        --pipeline-model-parallel-size 1 \
-       --use-distributed-optimization \
+       --use-distributed-optimizer \
        --num-layers 48 \
        --hidden-size 1600 \
        --num-attention-heads 16 \

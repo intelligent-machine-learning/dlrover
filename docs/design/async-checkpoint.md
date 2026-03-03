@@ -161,9 +161,9 @@ class CheckpointEngine(object):
         checkpoint_dir: str, the directory to save the checkpoint.
         max_to_keep: int, the number of checkpoint files to keep.
         save_mem_interval: int, the interval of iteration steps to save the model and
-            optimization states into the CPU memory.
+            optimizer states into the CPU memory.
         save_storage_interval: int, the interval of iteration steps to save the model
-            and optimization states from CPU memory to the storage.
+            and optimizer states from CPU memory to the storage.
     """
 
     def __init__(

@@ -18,7 +18,7 @@ class OperationStats(object):
     """Collect the stats of TensorFlow operations.
     op_count: the total count of operations in a graph.
     recv_op_count: the total count of RecvTensor on the chief in a graph.
-    update_op_count: the total count of the updation ops in optimization to
+    update_op_count: the total count of the updation ops in optimizer to
         update weights with gradients.
     input_fetch_dur: the time (microsecond) of the IterationGetNext to get
         the batch input data.

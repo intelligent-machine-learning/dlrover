@@ -481,7 +481,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
@@ -502,7 +502,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.

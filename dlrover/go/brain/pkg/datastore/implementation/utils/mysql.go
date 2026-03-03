@@ -296,7 +296,7 @@ func persistOptimization(client *mysql.Client, jobMetrics *mysql.JobMetrics, in 
 	if jobMetrics.Optimization != "" {
 		err := json.Unmarshal([]byte(jobMetrics.Optimization), &jobOptimizations)
 		if err != nil {
-			log.Errorf("Fail to unmarshal %s optimization json: %v", jobMetrics.UID, err)
+			log.Errorf("Fail to unmarshal %s optimizer json: %v", jobMetrics.UID, err)
 		}
 	}
 
@@ -312,7 +312,7 @@ func persistOptimization(client *mysql.Client, jobMetrics *mysql.JobMetrics, in 
 
 	optimizationVal, err := json.Marshal(jobOptimizations)
 	if err != nil {
-		log.Errorf("Fail to dump %s optimization json: %v", jobMetrics.UID, err)
+		log.Errorf("Fail to dump %s optimizer json: %v", jobMetrics.UID, err)
 	}
 
 	jobMetrics.Optimization = string(optimizationVal)

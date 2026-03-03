@@ -19,7 +19,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"

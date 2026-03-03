@@ -106,7 +106,7 @@ class JobAutoScaler(metaclass=ABCMeta):
     def execute_job_optimization_plan(self, plan: ResourcePlan):
         """Scale nodes of a job by a ResourcePlan"""
         if plan and not plan.empty():
-            logger.info(f"Execute job optimization plan: {plan.to_json()}.")
+            logger.info(f"Execute job optimizer plan: {plan.to_json()}.")
 
 
 class PSTrainingAutoScaler(JobAutoScaler):
@@ -202,7 +202,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
             time.sleep(self._scale_interval)
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
-        """Execute the optimization plan of the training job.
+        """Execute the optimizer plan of the training job.
         The plan may adjust the number of PS and workers or
         adjust the cpu and memory of nodes.
         """
@@ -349,7 +349,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         return worker_num
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
-        """Execute the optimization plan of the training job.
+        """Execute the optimizer plan of the training job.
         The plan may adjust the number of PS and workers or
         adjust the cpu and memory of nodes.
         """

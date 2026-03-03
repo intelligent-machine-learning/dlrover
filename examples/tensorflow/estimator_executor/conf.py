@@ -58,7 +58,7 @@ class TrainConf(object):
         "l1": 0.0,
         "l21": 0.0,
         "l2": 0.0,
-        "optimization": "group_adam",
+        "optimizer": "group_adam",
         "log_steps": 100,
     }
 

@@ -20,8 +20,8 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
-	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/utils"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/utils"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"strconv"
@@ -123,7 +123,7 @@ func OptimizeJobWorkerCreateOomResource(dataStore datastoreapi.DataStore, conf *
 			}
 		}
 	} else {
-		log.Warningf("fail to unmarshal job %s optimization info %s: %v", optJob.JobMeta.Name, optJob.Metrics.Optimization, err)
+		log.Warningf("fail to unmarshal job %s optimizer info %s: %v", optJob.JobMeta.Name, optJob.Metrics.Optimization, err)
 	}
 
 	if lastOptWorkerMemory == 0 {

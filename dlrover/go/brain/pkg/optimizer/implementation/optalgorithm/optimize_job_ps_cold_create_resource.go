@@ -19,7 +19,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 	"strconv"
 )
 

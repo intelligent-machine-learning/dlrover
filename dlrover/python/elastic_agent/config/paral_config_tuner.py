@@ -87,7 +87,7 @@ class ParalConfigTuner(Singleton):
             for key, value in json_data.items():
                 if key == "dataloader":
                     dataloader = DataLoaderConfig(**(value))
-                elif key == "optimization":
+                elif key == "optimizer":
                     optimizer = OptimizerConfig(**(value))
             self.config = ParallelConfig(
                 dataloader=dataloader, optimizer=optimizer

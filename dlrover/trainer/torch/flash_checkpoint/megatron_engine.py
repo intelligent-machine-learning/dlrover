@@ -28,7 +28,7 @@ from .engine import CheckpointEngine, timer
 class MegatronCheckpointEngine(CheckpointEngine):
     """
     The checkpoint engine synchronously writes the state dict of
-    Megatron-LM model and optimization into
+    Megatron-LM model and optimizer into
     the shared memory and notify the agent in main process to
     asynchronously save the state dict from the shared memory into
     the storage.
@@ -95,7 +95,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
@@ -114,7 +114,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
@@ -160,7 +160,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
 class MegatronDistCheckpointEngine(CheckpointEngine):
     """
     The checkpoint engine synchronously writes the state dict of
-    Megatron-LM model and optimization into
+    Megatron-LM model and optimizer into
     the shared memory and notify the agent in main process to
     asynchronously save the state dict from the shared memory into
     the storage.
@@ -213,7 +213,7 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
@@ -232,7 +232,7 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimization to save.
+            state_dict (dict): the state dict of model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.

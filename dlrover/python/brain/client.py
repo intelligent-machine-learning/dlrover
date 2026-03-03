@@ -121,7 +121,7 @@ class BrainClient(object):
         return self._brain_stub.get_job_metrics(request)
 
     def request_optimization(self, opt_request):
-        """Get the optimization plan from the processor service"""
+        """Get the optimizer plan from the processor service"""
         logger.debug("Optimization request is %s", opt_request)
         if self._protocol == "grpc":
             return self._brain_stub.optimize(opt_request)

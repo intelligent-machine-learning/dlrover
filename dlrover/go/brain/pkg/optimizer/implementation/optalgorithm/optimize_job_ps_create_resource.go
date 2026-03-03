@@ -16,8 +16,8 @@ package optalgorithm
 import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
-	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/utils"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/utils"
 )
 
 const (

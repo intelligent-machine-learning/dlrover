@@ -84,10 +84,10 @@ class Nanogpt(pl.LightningModule):
         loss = loss / self.trainer.accumulate_grad_batches
         # Manually compute gradients
         self.manual_backward(loss)
-        # Check if it's time for an optimization step
+        # Check if it's time for an optimizer step
         accumulate_grad_batches = self.trainer.accumulate_grad_batches
         if ((self.trainer.global_step + 1) % accumulate_grad_batches) == 0:
-            # Perform optimization step and zero_grad
+            # Perform optimizer step and zero_grad
             self.optimizers().step()
             self.optimizers().zero_grad()
         return loss

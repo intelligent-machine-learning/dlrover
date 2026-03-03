@@ -153,7 +153,7 @@ class ResourceOptimizer(metaclass=ABCMeta):
 
     @abstractmethod
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
-        """Generate a resource plan by an optimization"""
+        """Generate a resource plan by an optimizer"""
         pass
 
 

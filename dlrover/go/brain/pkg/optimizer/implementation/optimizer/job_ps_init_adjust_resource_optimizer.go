@@ -21,16 +21,16 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
-	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
-	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/implementation/common"
+	optimizerapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/optalgorithm"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"strconv"
 )
 
 const (
-	// JobPSInitAdjustResourceOptimizerName is the name of optimization which optimize jpb ps resources when it is just running
+	// JobPSInitAdjustResourceOptimizerName is the name of optimizer which optimize jpb ps resources when it is just running
 	JobPSInitAdjustResourceOptimizerName = "job_ps_init_adjust_resource_optimizer"
 
 	defaultPSCPUMargin                               = 4
@@ -38,7 +38,7 @@ const (
 	defaultOptimizerTargetWorkerCount                = 20
 )
 
-// JobPSInitAdjustResourceOptimizer is the optimization which optimizes job ps resources when it is just running
+// JobPSInitAdjustResourceOptimizer is the optimizer which optimizes job ps resources when it is just running
 type JobPSInitAdjustResourceOptimizer struct {
 	dataStore datastoreapi.DataStore
 	config    *config.Config
@@ -58,7 +58,7 @@ func newJobPSInitAdjustResourceOptimizer(dataStore datastoreapi.DataStore, confi
 // Optimize optimizes the chief worker initial resources
 func (optimizer *JobPSInitAdjustResourceOptimizer) Optimize(conf *optconfig.OptimizerConfig, jobMetas []*common.JobMeta) ([]*common.OptimizePlan, error) {
 	if conf == nil || conf.OptimizeAlgorithmConfig == nil {
-		err := fmt.Errorf("invalid optimization config: %v", conf)
+		err := fmt.Errorf("invalid optimizer config: %v", conf)
 		return nil, err
 	}
 	if len(jobMetas) == 0 {

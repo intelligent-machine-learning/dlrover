@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
-	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimization/config"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 	"sync"
 )
 
@@ -47,7 +47,7 @@ func registerOptimizeAlgorithm(name string, optAlgorithm optimizeAlgorithm) erro
 	return nil
 }
 
-// Optimize calls responding resource optimization function to generate resource optimize plan
+// Optimize calls responding resource optimizer function to generate resource optimize plan
 func Optimize(dataStore datastoreapi.DataStore, conf *optconfig.OptimizeAlgorithmConfig, job *common.OptimizeJobMeta,
 	jobs []*common.OptimizeJobMeta) (*common.AlgorithmOptimizePlan, error) {
 	if conf == nil {

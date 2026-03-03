@@ -40,7 +40,7 @@ the model.
 ```python
 checkpoint = {
     "model": model.state_dict(),
-    "optimization": optimizer.state_dict(),
+    "optimizer": optimizer.state_dict(),
     "sampler": train_loader.sampler.state_dict(
         step, train_loader.batch_size
     ),  # Checkpoint sampler
@@ -54,7 +54,7 @@ from a checkpoint file.
 ```Python
 checkpoint = load_checkpoint(CHEKPOINT_PATH)
 model.load_state_dict(checkpoint.get("model", {}))
-optimizer.load_state_dict(checkpoint.get("optimization", {}))
+optimizer.load_state_dict(checkpoint.get("optimizer", {}))
 #  Restore sampler from checkpoint.
 train_loader.sampler.load_state_dict(checkpoint.get("sampler", {})
 ```
@@ -84,7 +84,7 @@ model = DDP(model)
 elastic_trainer = ElasticTrainer(model, train_loader)
 optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
-# Load checkpoint to restore the model and optimization states.
+# Load checkpoint to restore the model and optimizer states.
 load_checkpoint(model, optimizer)
 
 for _, (data, target) in enumerate(train_loader):
@@ -104,7 +104,7 @@ for _, (data, target) in enumerate(train_loader):
         if elastic_trainer.num_steps % 200 == 0:
             model_checkpoint = {
                 "model": model.state_dict(),
-                "optimization": optimizer.state_dict(),
+                "optimizer": optimizer.state_dict(),
                 "sampler": train_loader.sampler.state_dict(
                         train_step, train_loader.batch_size
                     ),  # Checkpoint sampler
