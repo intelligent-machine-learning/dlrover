@@ -1,5 +1,18 @@
+# Copyright 2026 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from dlrover.brain.python.server.server import BrainServer
 from dlrover.brain.python.common.job import (
@@ -25,12 +38,12 @@ class TestBrainServer(unittest.TestCase):
             "job": {
                 "uuid": "job-uuid-123",
                 "cluster": "prod-cluster",
-                "namespace": "default"
+                "namespace": "default",
             },
             "config": {
                 "optimizer": "genetic_algo",
-                "customized_config": {"pop_size": "50"}
-            }
+                "customized_config": {"pop_size": "50"},
+            },
         }
 
         # --- B. Setup Expected "Internal" Result ---
@@ -38,17 +51,10 @@ class TestBrainServer(unittest.TestCase):
 
         # 1. Define resources for a "worker" group
         worker_resource = NodeResource(
-            cpu=8.0,
-            memory=32000,
-            gpu=1.0,
-            gpu_type="nvidia-v100",
-            priority=1
+            cpu=8.0, memory=32000, gpu=1.0, gpu_type="nvidia-v100", priority=1
         )
 
-        worker_group = NodeGroupResource(
-            count=4,
-            resource=worker_resource
-        )
+        worker_group = NodeGroupResource(count=4, resource=worker_resource)
 
         # 2. Put it into the JobResource
         # Note: Pydantic expects a dict for 'node_group_resources'
@@ -60,7 +66,7 @@ class TestBrainServer(unittest.TestCase):
         fake_plan = JobOptimizePlan(
             timestamp=1700000000,
             job_meta=JobMeta(uuid="job-uuid-123"),
-            job_resource=job_resources
+            job_resource=job_resources,
         )
 
         # --- C. Configure Mock ---
@@ -86,7 +92,9 @@ class TestBrainServer(unittest.TestCase):
         self.assertEqual(plan_data["timestamp"], 1700000000)
 
         # Check Node Resources (Drill down: Plan -> JobResource -> Dict -> NodeGroup -> NodeResource)
-        worker_data = plan_data["job_resource"]["node_group_resources"]["worker"]
+        worker_data = plan_data["job_resource"]["node_group_resources"][
+            "worker"
+        ]
 
         self.assertEqual(worker_data["count"], 4)
         self.assertEqual(worker_data["resource"]["cpu"], 8.0)
@@ -97,9 +105,9 @@ class TestBrainServer(unittest.TestCase):
         args, _ = self.mock_manager_instance.optimize.call_args
 
         # Verify the Input Pydantic models were parsed correctly
-        self.assertEqual(args[0].uuid, "job-uuid-123")         # JobMeta
+        self.assertEqual(args[0].uuid, "job-uuid-123")  # JobMeta
         self.assertEqual(args[1].optimizer, "genetic_algo")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

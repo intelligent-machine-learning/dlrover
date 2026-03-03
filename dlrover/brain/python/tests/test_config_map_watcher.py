@@ -1,15 +1,28 @@
+# Copyright 2026 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest
 from unittest.mock import patch, MagicMock
-from kubernetes import client
 from dlrover.brain.python.platform.k8s.configmap import ConfigMapWatcher
 
 
 class TestConfigMapWatcher(unittest.TestCase):
-
     @patch("dlrover.brain.python.platform.k8s.configmap.watch.Watch")
     @patch("dlrover.brain.python.platform.k8s.configmap.client.CoreV1Api")
     @patch("dlrover.brain.python.platform.k8s.configmap.config")
-    def test_watch_calls_callback_on_modified(self, mock_config, mock_api_cls, mock_watch_cls):
+    def test_watch_calls_callback_on_modified(
+        self, mock_config, mock_api_cls, mock_watch_cls
+    ):
         """
         Scenario: The watcher receives a 'MODIFIED' event.
         Goal: Verify that 'on_update_callback' is called with the correct data.
@@ -23,8 +36,10 @@ class TestConfigMapWatcher(unittest.TestCase):
         # 2. Create a Fake Event
         fake_data = {"learning_rate": "0.01", "batch_size": "32"}
         fake_event = {
-            'type': 'MODIFIED',
-            'object': MagicMock(data=fake_data, metadata=MagicMock(resource_version="500"))
+            "type": "MODIFIED",
+            "object": MagicMock(
+                data=fake_data, metadata=MagicMock(resource_version="500")
+            ),
         }
 
         # 3. Setup the Watcher Mock to BREAK the infinite loop
@@ -32,8 +47,8 @@ class TestConfigMapWatcher(unittest.TestCase):
         # - Iteration 2: Raises KeyboardInterrupt (The loop crashes so the test finishes)
         mock_watch_instance = mock_watch_cls.return_value
         mock_watch_instance.stream.side_effect = [
-            [fake_event],      # First call returns the list of events
-            KeyboardInterrupt  # Second call raises exception to stop the "while True"
+            [fake_event],  # First call returns the list of events
+            KeyboardInterrupt,  # Second call raises exception to stop the "while True"
         ]
 
         # 4. Initialize the Class
@@ -49,7 +64,10 @@ class TestConfigMapWatcher(unittest.TestCase):
 
         # A. Verify K8s config was loaded
         # It should try incluster first, or kube_config if that fails.
-        assert mock_config.load_incluster_config.called or mock_config.load_kube_config.called
+        assert (
+            mock_config.load_incluster_config.called
+            or mock_config.load_kube_config.called
+        )
 
         # B. Verify correct API method was passed to stream()
         # The first argument to w.stream MUST be the list function
@@ -59,7 +77,9 @@ class TestConfigMapWatcher(unittest.TestCase):
         call_args = mock_watch_instance.stream.call_args
         passed_func = call_args[0][0]  # First arg of the call
 
-        self.assertEqual(passed_func, mock_api_instance.list_namespaced_config_map)
+        self.assertEqual(
+            passed_func, mock_api_instance.list_namespaced_config_map
+        )
 
         # C. Verify the callback received the data
         mock_callback.assert_called_once_with(fake_data)
@@ -67,7 +87,9 @@ class TestConfigMapWatcher(unittest.TestCase):
     @patch("dlrover.brain.python.platform.k8s.configmap.time.sleep")
     @patch("dlrover.brain.python.platform.k8s.configmap.watch.Watch")
     @patch("dlrover.brain.python.platform.k8s.configmap.config")
-    def test_retry_on_connection_error(self, mock_config, mock_watch_cls, mock_sleep):
+    def test_retry_on_connection_error(
+        self, mock_config, mock_watch_cls, mock_sleep
+    ):
         """
         Scenario: The K8s API raises an exception (e.g. 410 Gone or Network Error).
         Goal: Verify the code sleeps and retries.
@@ -82,7 +104,7 @@ class TestConfigMapWatcher(unittest.TestCase):
         # 3. Second call -> Raises KeyboardInterrupt -> Test ends
         mock_watch_instance.stream.side_effect = [
             Exception("Network Error"),
-            KeyboardInterrupt
+            KeyboardInterrupt,
         ]
 
         watcher = ConfigMapWatcher("default", "brain-config", mock_callback)
@@ -97,5 +119,5 @@ class TestConfigMapWatcher(unittest.TestCase):
         print("SUCCESS: Retry logic triggered sleep(5).")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
