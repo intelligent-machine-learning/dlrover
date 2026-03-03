@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -453,3 +453,55 @@ class PodScalerTest(unittest.TestCase):
             self.assertEqual(scaler._scale.call_count, 2)  # initial + pending
         finally:
             scaler.stop()
+
+    def test_scale_waiting_for_node_creation_queue(self):
+        scaler = PodScaler("test", "default")
+        scaler._remove_nodes = mock.MagicMock()
+        scaler._elasticjob_exists = mock.MagicMock(return_value=True)
+        scaler._job_context.is_suspended = mock.MagicMock(return_value=False)
+        scaler._job_context.is_stopped = mock.MagicMock(return_value=False)
+        scaler._list_job_pods = mock.MagicMock(return_value=[])
+
+        # Add nodes to queue
+        test_nodes = [
+            Node(NodeType.WORKER, 1, NodeResource(1, 1024)),
+            Node(NodeType.WORKER, 2, NodeResource(1, 1024)),
+        ]
+        for node in test_nodes:
+            scaler._create_node_queue.append(node)
+
+        # Track sleep calls to verify behavior
+        sleep_calls = []
+
+        def mock_sleep(seconds):
+            sleep_calls.append(seconds)
+            # After 2 sleep calls (10 seconds), clear queue to exit
+            if len(sleep_calls) >= 2:
+                scaler._create_node_queue.clear()
+
+        # Mock sleep and run scale
+        with mock.patch("time.sleep", side_effect=mock_sleep):
+            scaler._started = True
+
+            # Create a simple plan
+            plan = ScalePlan()
+            plan.launch_nodes = test_nodes
+
+            # Run scale (this should hit the waiting loop)
+            import threading
+
+            scale_thread = threading.Thread(target=scaler._scale, args=(plan,))
+            scale_thread.daemon = True
+            scale_thread.start()
+
+            # Wait briefly for execution
+            scale_thread.join(timeout=0.5)
+
+            # Stop the scaler
+            scaler._started = False
+
+        # Verify 5-second sleep was called for queue waiting
+        sleep_5_calls = [s for s in sleep_calls if s == 5]
+        self.assertGreater(
+            len(sleep_5_calls), 0, "Expected 5-second sleep calls"
+        )
