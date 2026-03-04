@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node Details - DLRover Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #4B5563 #E5E7EB;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #E5E7EB;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4B5563;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #374151;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div id="app" class="flex flex-col flex-1">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <button @click="goBack" class="flex items-center hover:bg-white/20 px-3 py-2 rounded-lg transition">
+                            <span class="mr-2">←</span> Back to Dashboard
+                        </button>
+                        <h1 class="text-3xl font-bold">Node Details</h1>
+                        <span class="bg-blue-500 text-white px-2 py-1 rounded text-xs font-semibold">{{ nodeType }}</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-white/20 px-3 py-1 rounded-full">
+                            <span class="text-sm">Total: {{ nodes.length }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8 flex-1">
+            <!-- Node List -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div v-for="node in nodes" :key="node.id" class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+                    <!-- Node Header -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-xl font-semibold">{{ node.name }}</h3>
+                            <span :class="getStatusClass(node.status)" class="px-3 py-1 rounded-full text-sm font-medium">
+                                {{ node.status }}
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-gray-700">#{{ node.id }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Node Details -->
+                    <div class="space-y-3">
+                        <div v-if="node.service_addr" class="flex items-center justify-between">
+                            <span class="text-gray-600">Address:</span>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ node.service_addr }}</code>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Type:</span>
+                            <span class="text-sm font-medium">{{ node.type }}</span>
+                        </div>
+
+                        <div v-if="node.exit_reason" class="p-3 bg-red-50 border-l-4 border-red-500">
+                            <div class="text-sm">
+                                <span class="font-medium text-red-800">Exit Reason:</span>
+                                <p class="text-red-700 mt-1">{{ node.exit_reason }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="node.relaunch_count > 0" class="flex items-center justify-between">
+                            <span class="text-gray-600">Restart Count:</span>
+                            <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-medium">
+                                {{ node.relaunch_count }}
+                            </span>
+                        </div>
+
+                        <div v-if="node.start_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Start Time:</span>
+                            <span class="text-sm">{{ formatTime(node.start_time) }}</span>
+                        </div>
+
+                        <div v-if="node.relaunch_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Last Restart:</span>
+                            <span class="text-sm">{{ formatTime(node.relaunch_time) }}</span>
+                        </div>
+
+                        <div v-if="node.succession" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Succession Information</div>
+                            <div class="bg-blue-50 p-3 rounded">
+                                <p class="text-sm">This node is a replacement for {{ node.succession.predecessor }}</p>
+                                <p class="text-sm text-gray-600">Succession reason: {{ node.succession.reason }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="node.resource_spec" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Resource Specification</div>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div v-if="node.resource_spec.cpu">
+                                    <span class="text-gray-600">CPU:</span>
+                                    <span class="font-medium">{{ node.resource_spec.cpu }} cores</span>
+                                </div>
+                                <div v-if="node.resource_spec.memory">
+                                    <span class="text-gray-600">Memory:</span>
+                                    <span class="font-medium">{{ formatMemory(node.resource_spec.memory) }}</span>
+                                </div>
+                                <div v-if="node.resource_spec.gpu">
+                                    <span class="text-gray-600">GPU:</span>
+                                    <span class="font-medium">{{ node.resource_spec.gpu }} units</span>
+                                </div>
+                                <div v-if="node.resource_spec.disk">
+                                    <span class="text-gray-600">Disk:</span>
+                                    <span class="font-medium">{{ formatMemory(node.resource_spec.disk) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="node.health_check && node.health_check.status" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Health Status</div>
+                            <div class="flex items-center space-x-2">
+                                <span :class="node.health_check.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                      class="px-2 py-1 rounded text-xs">
+                                    {{ node.health_check.status }}
+                                </span>
+                                <span class="text-xs text-gray-600">{{ node.health_check.last_check }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-2 mt-4 pt-4 border-t">
+                        <button @click="viewLogs(node)" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition">
+                            View Logs
+                        </button>
+                        <button v-if="node.status === 'PENDING' || node.status === 'FAILED'" @click="restartNode(node)"
+                                class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded transition">
+                            Restart
+                        </button>
+                        <button v-if="node.status === 'RUNNING'" @click="stopNode(node)"
+                                class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition">
+                            Stop
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No Nodes Message -->
+            <div v-if="!nodes || nodes.length === 0" class="text-center py-12">
+                <div class="text-gray-400 text-6xl mb-4">🖥️</div>
+                <h3 class="text-xl font-medium text-gray-600 mb-2">No {{ nodeType }} Nodes Found</h3>
+                <p class="text-gray-500">No nodes of type {{ nodeType }} are currently available.</p>
+            </div>
+        </main>
+
+        <!-- Logs Modal -->
+        <div v-if="showLogs" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-xl w-11/12 max-w-4xl max-h-3/4 max-h-screen">
+                <div class="p-6 border-b">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">Node Logs - {{ selectedNode?.name || 'N/A' }}</h2>
+                        <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700">
+                            <span class="text-2xl">✕</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-y-auto max-h-96">
+                    <div class="bg-gray-900 text-gray-100 p-4 rounded-lg custom-scrollbar overflow-x-auto">
+                        <pre class="text-sm font-mono" v-html="currentLogs || 'No logs available'"></pre>
+                    </div>
+                </div>
+                <div class="p-6 border-t">
+                    <button @click="refreshLogs" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded mr-2">
+                        Refresh
+                    </button>
+                    <button @click="showLogs = false" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const nodeType = ref('');
+                const nodes = ref([]);
+                const selectedNode = ref(null);
+                const showLogs = ref(false);
+                const currentLogs = ref('');
+
+                // Helper functions
+                const getStatusClass = (status) => {
+                    const classes = {
+                        'RUNNING': 'bg-green-100 text-green-800',
+                        'SUCCEEDED': 'bg-blue-100 text-blue-800',
+                        'FAILED': 'bg-red-100 text-red-800',
+                        'PENDING': 'bg-yellow-100 text-yellow-800',
+                        'FINISHED': 'bg-gray-100 text-gray-800',
+                        'STOPPED': 'bg-gray-100 text-gray-800'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-800';
+                };
+
+                const formatTime = (timestamp) => {
+                    if (!timestamp) return 'N/A';
+                    if (typeof timestamp === 'number') {
+                        timestamp = timestamp * 1000; // Convert Unix timestamp to milliseconds
+                    }
+                    return new Date(timestamp).toLocaleString();
+                };
+
+                const formatMemory = (bytes) => {
+                    if (!bytes) return 'N/A';
+                    const gb = bytes / (1024 * 1024 * 1024);
+                    return gb.toFixed(1) + ' GB';
+                };
+
+                const getNodeTypeFromURL = () => {
+                    const params = new URLSearchParams(window.location.search);
+                    return params.get('type') || 'WORKER';
+                };
+
+                const goBack = () => {
+                    window.history.back();
+                };
+
+                const viewLogs = async (node) => {
+                    selectedNode.value = node;
+                    showLogs.value = true;
+                    await refreshLogs();
+                };
+
+                const refreshLogs = async () => {
+                    if (!selectedNode.value) return;
+                    try {
+                        // Try to fetch logs from API first
+                        const response = await fetch(`/api/logs/${selectedNode.value.name}`);
+                        if (!response.ok) {
+                            throw new Error('Unable to fetch logs');
+                        }
+                        const data = await response.json();
+                        currentLogs.value = data.logs || 'No logs available';
+                    } catch (error) {
+                        console.error('Error fetching logs:', error);
+                        // Generate mock logs for testing
+                        currentLogs.value = generateMockLogs(selectedNode.value.name);
+                    }
+                };
+
+                const generateMockLogs = (nodeName) => {
+                    const statuses = ['INFO', 'DEBUG', 'WARN', 'ERROR'];
+                    const messages = [
+                        'Starting node initialization...',
+                        'Loading TensorFlow model',
+                        'Connecting to parameter servers',
+                        'Worker registration complete',
+                        'Beginning training loop',
+                        'Saving checkpoint to /data/checkpoints/model.ckpt',
+                        '[ERROR] Connection timeout to ps-0',
+                        '[WARN] High memory usage detected',
+                        'Restarting after connection failure',
+                        'Training step 10000 completed'
+                    ];
+
+                    let logs = '';
+                    const offset = nodeName.charCodeAt(nodeName.length - 1) % 5; // Add some variation
+
+                    for (let i = 0; i < 50; i++) {
+                        const status = statuses[Math.floor(Math.random() * statuses.length)];
+                        const message = messages[Math.floor(Math.random() * messages.length)];
+                        const time = new Date(Date.now() - (49 - i) * 1000).toTimeString().split(' ')[0];
+
+                        let logLine = '';
+                        if (status === 'ERROR') {
+                            logLine = `<span class="text-red-400">${time} [ERROR] ${message}</span>`;
+                        } else if (status === 'WARN') {
+                            logLine = `<span class="text-yellow-400">${time} [WARN] ${message}</span>`;
+                        } else if (status === 'DEBUG') {
+                            logLine = `<span class="text-blue-400">${time} [DEBUG] ${message}</span>`;
+                        } else {
+                            logLine = `${time} [INFO] ${message}`;
+                        }
+
+                        logs += logLine + '\n';
+                    }
+
+                    return logs || 'No logs available';
+                };
+
+                const restartNode = async (node) => {
+                    if (confirm(`Are you sure you want to restart ${node.name}?`)) {
+                        try {
+                            // Make API call to restart node
+                            const response = await fetch(`/api/restart/${node.name}`, {
+                                method: 'POST'
+                            });
+                            if (response.ok) {
+                                console.log(`Node ${node.name} restarted successfully`);
+                                // Refresh data
+                                await fetchNodesForType();
+                            } else {
+                                throw new Error('Failed to restart node');
+                            }
+                        } catch (error) {
+                            console.error('Error restarting node:', error);
+                            alert('Failed to restart node. Please check logs.');
+                        }
+                    }
+                };
+
+                const stopNode = async (node) => {
+                    if (confirm(`Are you sure you want to stop ${node.name}?`)) {
+                        try {
+                            const response = await fetch(`/api/stop/${node.name}`, {
+                                method: 'POST'
+                            });
+                            if (response.ok) {
+                                console.log(`Node ${node.name} stopped successfully`);
+                                // Refresh data
+                                await fetchNodesForType();
+                            } else {
+                                throw new Error('Failed to stop node');
+                            }
+                        } catch (error) {
+                            console.error('Error stopping node:', error);
+                            alert('Failed to stop node. Please check logs.');
+                        }
+                    }
+                };
+
+                const fetchNodesForType = async () => {
+                    try {
+                        const mockMode = new URLSearchParams(window.location.search).get('mock') === 'true';
+                        if (mockMode) {
+                            // Generate mock data
+                            generateMockNodesForType();
+                            return;
+                        }
+
+                        // Try to fetch from actual API
+                        const response = await fetch('/api/nodes');
+                        if (response.ok) {
+                            const data = await response.json();
+                            nodes.value = data[nodeType.value] || [];
+                        } else {
+                            throw new Error('Failed to fetch nodes');
+                        }
+                    } catch (error) {
+                        console.error('Error fetching nodes:', error);
+                        // Fallback to mock data
+                        generateMockNodesForType();
+                    }
+                };
+
+                const generateMockNodesForType = () => {
+                    // Generate realistic mock data based on node type
+                    const mockNodes = [];
+                    const count = nodeType.value === 'WORKER' ? 4 : 2;
+
+                    for (let i = 0; i < count; i++) {
+                        const node = {
+                            id: i,
+                            name: `${nodeType.value.toLowerCase()}-${i}`,
+                            type: nodeType.value,
+                            status: i === 0 ? 'FAILED' : 'RUNNING',
+                            service_addr: i === 0 ? '' : `${nodeType.value.toLowerCase()}-${i}:2222`,
+                            start_time: Date.now() - (3600 + i * 60) * 1000,
+                            exit_reason: i === 0 ? 'Container exited with code 137' : '',
+                            relaunch_count: i === 0 ? 2 : 0
+                        };
+
+                        // Add mock resource specs
+                        if (nodeType.value === 'WORKER' && i > 0) {
+                            node.resource_spec = {
+                                cpu: 2,
+                                memory: 8192 * 1024 * 1024,
+                                gpu: 1,
+                                disk: 100 * 1024 * 1024 * 1024
+                            };
+                        }
+
+                        // Add succession info for restarted nodes
+                        if (i === 0 && node.relaunch_count > 0) {
+                            node.succession = {
+                                predecessor: `${nodeType.value.toLowerCase()}-${i}-v1`,
+                                reason: 'Container failure',
+                                time: Date.now() - 1800000
+                            };
+                        }
+
+                        // Add health check
+                        if (node.status === 'RUNNING') {
+                            node.health_check = {
+                                status: 'healthy',
+                                last_check: '2 minutes ago'
+                            };
+                        }
+
+                        mockNodes.push(node);
+                    }
+                    nodes.value = mockNodes;
+                };
+
+                // Navigate back when browser back button is pressed
+                window.addEventListener('popstate', () => {
+                    const newType = getNodeTypeFromURL();
+                    if (newType !== nodeType.value) {
+                        nodeType.value = newType;
+                        fetchNodesForType();
+                    }
+                });
+
+                onMounted(() => {
+                    nodeType.value = getNodeTypeFromURL();
+                    fetchNodesForType();
+                });
+
+                watch(nodeType, () => {
+                    fetchNodesForType();
+                });
+
+                return {
+                    nodeType,
+                    nodes,
+                    selectedNode,
+                    showLogs,
+                    currentLogs,
+                    getStatusClass,
+                    goBack,
+                    formatTime,
+                    formatMemory,
+                    viewLogs,
+                    refreshLogs,
+                    restartNode,
+                    stopNode
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

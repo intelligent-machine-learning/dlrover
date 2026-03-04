@@ -328,6 +328,17 @@ class JobContext(Singleton):
     def get_failed_node_cnt(self):
         return len(self._failed_nodes)
 
+    def get_running_node_size(self):
+        """Get number of running nodes across all types."""
+        running_count = 0
+        with self._locker:
+            for node_type in [NodeType.WORKER, NodeType.PS, NodeType.CHIEF, NodeType.EVALUATOR]:
+                if node_type in self._job_nodes:
+                    for node in self._job_nodes[node_type].values():
+                        if node.status == NodeStatus.RUNNING:
+                            running_count += 1
+        return running_count
+
     def set_pre_check_status(self, status: str):
         self._pre_check_status = status
 
