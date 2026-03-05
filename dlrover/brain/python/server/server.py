@@ -33,18 +33,20 @@ class BrainServer:
         self._optimizer_manager = OptimizerManager()
         self._config_manager = JobConfigManager()
 
+        self.register_routes()
+
     def register_routes(self):
         # We map the URL to the class method 'self.optimize'
-        self._server.get(
+        self._server.post(
             "/optimize",
             response_model=OptimizeResponse,
             status_code=status.HTTP_201_CREATED,
         )(self.optimize)
 
-        self._server.get(
+        self._server.post(
             "/job_config",
             response_model=JobConfigResponse,
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_200_OK,
         )(self.job_config)
 
     def optimize(self, request: OptimizeRequest):
@@ -55,8 +57,12 @@ class BrainServer:
 
     def job_config(self, request: JobConfigRequest):
         config = self._config_manager.get_job_config(request.job)
+        if config is None:
+            vals = {}
+        else:
+            vals = config.get_config_values()
         return JobConfigResponse(
-            job_configs=config.convert_to_dict(),
+            job_configs=vals,
         )
 
     def run(self, args):

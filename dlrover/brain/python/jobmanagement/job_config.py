@@ -17,34 +17,52 @@ from dlrover.brain.python.common.job import JobMeta
 
 
 class JobConfigValues:
-    def __init__(self):
-        pass
+    def __init__(self, configs: Optional[Dict[str, str]] = None):
+        if configs is None:
+            self._configs: Dict[str, str] = {}
+        else:
+            self._configs: Dict[str, str] = configs
 
-    def convert_to_dict(self) -> Dict[str, str]:
-        return {}
+    def get_config_values(self) -> Dict[str, str]:
+        return self._configs
 
 
 class JobConfigScope:
     def __init__(
         self,
+        conds: Optional[Dict[str, List[str]]] = None,
     ):
-        pass
+        if conds is None:
+            self._conds: Dict[str, List[str]] = {}
+        else:
+            self._conds: Dict[str, List[str]] = conds
 
-    def inscope(self, job: JobMeta) -> bool:
-        return True
+    def in_scope(self, job: JobMeta) -> bool:
+       if "user" in self._conds and not job.user in self._conds["user"]:
+           return False
+       if "namespace" in self._conds and not job.namespace in self._conds["namespace"]:
+           return False
+       if "cluster" in self._conds and not job.cluster in self._conds["cluster"]:
+           return False
+       if "app" in self._conds and not job.app in self._conds["app"]:
+           return False
+       return True
 
 
 class JobConfig:
-    def __init__(self):
+    def __init__(
+            self,
+            include_scope: Optional[JobConfigScope] = None,
+            exclude_scope: Optional[JobConfigScope] = None,
+    ):
         self._name = ""
-        self._include_scope: JobConfigScope = JobConfigScope()
-        self._exclude_scope: JobConfigScope = JobConfigScope()
+        self._include_scope: Optional[JobConfigScope] = include_scope
+        self._exclude_scope: Optional[JobConfigScope] = exclude_scope
         self._config_values: JobConfigValues = JobConfigValues()
 
-    def inscope(self, job: JobMeta) -> bool:
-        return self._include_scope.inscope(
-            job
-        ) and not self._exclude_scope.inscope(job)
+    def in_scope(self, job: JobMeta) -> bool:
+        return ((self._include_scope is None or self._include_scope.in_scope(job)) and
+            (self._exclude_scope is None or not self._exclude_scope.in_scope(job)))
 
     @property
     def config_values(self) -> JobConfigValues:
@@ -57,6 +75,6 @@ class JobConfigManager:
 
     def get_job_config(self, job: JobMeta) -> Optional[JobConfigValues]:
         for config in self._configs:
-            if config.inscope(job):
+            if config.in_scope(job):
                 return config.config_values
         return None

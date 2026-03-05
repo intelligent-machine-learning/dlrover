@@ -41,6 +41,8 @@ class JobMeta(BaseModel):
     uuid: str = ""
     cluster: str = ""
     namespace: str = ""
+    user: str = ""
+    app: str = ""
 
 
 class JobOptimizePlan(BaseModel):

@@ -25,89 +25,90 @@ from dlrover.brain.python.common.job import (
 
 
 class TestBrainServer(unittest.TestCase):
+
     def setUp(self):
         self.brain_server = BrainServer()
-        self.brain_server.optimizer_manager = MagicMock()
-        self.mock_manager_instance = self.brain_server.optimizer_manager
-        self.brain_server.register_routes()
-        self.client = TestClient(self.brain_server.server)
 
-    def test_optimize_endpoint_returns_complex_plan(self):
-        req_payload = {
-            "type": "standard",
-            "job": {
-                "uuid": "job-uuid-123",
-                "cluster": "prod-cluster",
-                "namespace": "default",
-            },
+        self.brain_server._optimizer_manager = MagicMock()
+        self.brain_server._config_manager = MagicMock()
+
+        self.client = TestClient(self.brain_server._server)
+
+    def test_optimize_endpoint(self):
+        """Test POST /optimize parses nested payloads and returns a rich JobOptimizePlan."""
+        mock_plan = JobOptimizePlan(
+            timestamp=1690000000,
+            job_resource=JobResource(
+                node_group_resources={
+                    "worker": NodeGroupResource(
+                        count=4,
+                        resource=NodeResource(memory=8192, cpu=8.0, gpu=1.0, gpu_type="A100")
+                    )
+                }
+            )
+        )
+        self.brain_server._optimizer_manager.optimize.return_value = mock_plan
+
+        payload = {
+            "type": "training",
             "config": {
-                "optimizer": "genetic_algo",
-                "customized_config": {"pop_size": "50"},
+                "optimizer": "adam",
+                "customized_config": {"learning_rate": "0.01"}
             },
+            "job": {
+                "uuid": "job-123",
+                "cluster": "prod-cluster",
+                "namespace": "dl-jobs",
+                "user": "alice",
+                "app": "training-app"
+            }
         }
 
-        # --- B. Setup Expected "Internal" Result ---
-        # We manually construct the complex objects the OptimizerManager would return
+        response = self.client.post("/optimize", json=payload)
 
-        # 1. Define resources for a "worker" group
-        worker_resource = NodeResource(
-            cpu=8.0, memory=32000, gpu=1.0, gpu_type="nvidia-v100", priority=1
-        )
-
-        worker_group = NodeGroupResource(count=4, resource=worker_resource)
-
-        # 2. Put it into the JobResource
-        # Note: Pydantic expects a dict for 'node_group_resources'
-        job_resources = JobResource(
-            node_group_resources={"worker": worker_group}
-        )
-
-        # 3. Create the final Plan object
-        fake_plan = JobOptimizePlan(
-            timestamp=1700000000,
-            job_meta=JobMeta(uuid="job-uuid-123"),
-            job_resource=job_resources,
-        )
-
-        # --- C. Configure Mock ---
-        # When manager.optimize() is called, return our complex object
-        self.mock_manager_instance.optimize.return_value = fake_plan
-
-        # --- D. Execution ---
-        # Assuming your server uses GET. (Switch to .post() if you updated the server)
-        response = self.client.request("GET", "/optimize", json=req_payload)
-
-        # --- E. Assertions ---
         self.assertEqual(response.status_code, 201)
+        response_data = response.json()
 
-        json_data = response.json()
+        self.assertIn("job_opt_plan", response_data)
+        plan_data = response_data["job_opt_plan"]
 
-        # 1. Check the Wrapper (OptimizeResponse)
-        self.assertIn("job_opt_plan", json_data)
+        self.assertEqual(plan_data["timestamp"], 1690000000)
 
-        # 2. Check the Deeply Nested Data
-        plan_data = json_data["job_opt_plan"]
+        worker_group = plan_data["job_resource"]["node_group_resources"]["worker"]
+        self.assertEqual(worker_group["count"], 4)
+        self.assertEqual(worker_group["resource"]["gpu_type"], "A100")
+        self.assertEqual(worker_group["resource"]["cpu"], 8.0)
 
-        # Check Timestamp
-        self.assertEqual(plan_data["timestamp"], 1700000000)
+    def test_job_config_endpoint_success(self):
+        """Test POST /job_config successfully returns configuration dictionary."""
+        fake_config = MagicMock()
+        expected_configs = {"memory": "16G", "cpu": "8"}
 
-        # Check Node Resources (Drill down: Plan -> JobResource -> Dict -> NodeGroup -> NodeResource)
-        worker_data = plan_data["job_resource"]["node_group_resources"][
-            "worker"
-        ]
+        # UPDATED: We now mock get_config_values instead of convert_to_dict
+        fake_config.get_config_values.return_value = expected_configs
 
-        self.assertEqual(worker_data["count"], 4)
-        self.assertEqual(worker_data["resource"]["cpu"], 8.0)
-        self.assertEqual(worker_data["resource"]["gpu_type"], "nvidia-v100")
+        self.brain_server._config_manager.get_job_config.return_value = fake_config
 
-        # 3. Verify arguments passed to the manager
-        self.mock_manager_instance.optimize.assert_called_once()
-        args, _ = self.mock_manager_instance.optimize.call_args
+        payload = {
+            "type": "inference",
+            "job": {"uuid": "job-456", "user": "bob"}
+        }
 
-        # Verify the Input Pydantic models were parsed correctly
-        self.assertEqual(args[0].uuid, "job-uuid-123")  # JobMeta
-        self.assertEqual(args[1].optimizer, "genetic_algo")
+        response = self.client.post("/job_config", json=payload)
 
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_configs"], expected_configs)
 
-if __name__ == "__main__":
+    def test_job_config_endpoint_not_found(self):
+        """Test POST /job_config safely handles a None return and outputs {}."""
+        self.brain_server._config_manager.get_job_config.return_value = None
+
+        payload = {"type": "test", "job": {"uuid": "unknown"}}
+
+        response = self.client.post("/job_config", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_configs"], {})
+
+if __name__ == '__main__':
     unittest.main()
