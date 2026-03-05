@@ -368,7 +368,7 @@ def create_dashboard_app():
 
     app = web.Application([
         (r"/", IndexHandler),
-        (r"/nodes", NodeDetailHandler),
+        (r"/node_detail.html", NodeDetailHandler),
         (r"/api/job", JobInfoHandler),
         (r"/api/nodes", NodesHandler),
         (r"/api/logs/(.+)", LogsHandler),

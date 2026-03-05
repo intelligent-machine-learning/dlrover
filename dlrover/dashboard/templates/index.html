@@ -98,7 +98,9 @@
                 <div class="bg-white rounded-xl shadow-md p-6 mb-6">
                     <h2 class="text-xl font-semibold mb-4">Node Status</h2>
                     <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                        <div class="bg-blue-50 rounded-lg p-4" v-for="nodeType in ['WORKER', 'PS', 'CHIEF', 'EVALUATOR']" :key="nodeType">
+                        <div class="bg-blue-50 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition" 
+                             v-for="nodeType in ['WORKER', 'PS', 'CHIEF', 'EVALUATOR']" :key="nodeType"
+                             @click="goToNodeDetails(nodeType)">
                             <h3 class="text-lg font-semibold text-blue-900">{{ nodeType }}</h3>
                             <p class="text-sm text-gray-600 mt-2">Total: {{ nodes[nodeType].length }}</p>
                             <div class="mt-3 space-y-1 text-sm">
@@ -270,6 +272,16 @@
                         }
                     };
 
+                    // Navigate to node detail page
+                    const goToNodeDetails = (nodeType) => {
+                        const url = new URL('/node_detail.html', window.location.origin);
+                        url.searchParams.set('type', nodeType);
+                        if (mockModeEnabled.value) {
+                            url.searchParams.set('mock', 'true');
+                        }
+                        window.location.href = url.toString();
+                    };
+
                     const refreshData = async () => {
                         try {
                             if (mockModeEnabled.value) {
@@ -336,7 +348,8 @@
                         currentYear,
                         refreshData,
                         getNodeCountByStatus,
-                        toggleMockMode
+                        toggleMockMode,
+                        goToNodeDetails
                     };
                 }
             }).mount('#app');
