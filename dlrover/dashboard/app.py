@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.node.job_context import JobContext, get_job_context
 from dlrover.python.common.constants import NodeType, NodeStatus
+from dlrover.python.common.global_context import Context
 from dlrover.dashboard.service_integration import get_dashboard_service
 
 
@@ -355,6 +356,30 @@ class WebSocketHandler(websocket.WebSocketHandler):
                 cls.clients.discard(client)
 
 
+class ContextHandler(BaseHandler):
+    """Handle requests for Context configuration data."""
+
+    def get(self):
+        """Get Context object fields as JSON."""
+        try:
+            context = Context.singleton_instance()
+            # Convert to dict, excluding private methods and non-serializable objects
+            context_data = {}
+            for k, v in context.__dict__.items():
+                if k.startswith('_') or callable(v):
+                    continue
+                # Convert non-serializable types to strings
+                if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                    context_data[k] = v
+                else:
+                    context_data[k] = str(v)
+
+            self.write(json.dumps(context_data))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"error": str(e)}))
+
+
 def create_dashboard_app():
     """Create the dashboard application."""
     # Initialize test data if no real job context exists
@@ -376,6 +401,7 @@ def create_dashboard_app():
         (r"/api/stop/(.+)", StopNodeHandler),
         (r"/api/diagnosis", DiagnosisHandler),
         (r"/api/metrics", MetricsHandler),
+        (r"/api/context", ContextHandler),
         (r"/ws", WebSocketHandler),
         (r"/static/(.*)", web.StaticFileHandler, {"path": settings["static_path"]}),
     ], **settings)

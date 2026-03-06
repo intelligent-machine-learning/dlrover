@@ -30,6 +30,21 @@
             max-height: 400px;
             overflow-y: auto;
         }
+        /* Custom scrollbar for modal content */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 8px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -74,12 +89,21 @@
                     </div>
                 </div>
 
-                <!-- Job Stats Cards -->
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Row 1: Job Status and Job Configuration -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     <div class="bg-white rounded-xl shadow-md p-6">
                         <p class="text-gray-600 text-sm">Job Status</p>
                         <p class="text-2xl font-bold mt-1">{{ jobInfo.job_stage }}</p>
                     </div>
+                    <div @click="showConfigModal = true"
+                         class="bg-white rounded-xl shadow-md p-6 cursor-pointer border-l-4 border-blue-500 hover:shadow-lg transition-all duration-200 hover:transform hover:-translate-y-1">
+                        <p class="text-gray-600 text-sm">Job Configuration</p>
+                        <p class="text-2xl font-bold mt-1">View Details</p>
+                    </div>
+                </div>
+
+                <!-- Row 2: Running Nodes, Failed Nodes, Training Speed -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <div class="bg-white rounded-xl shadow-md p-6">
                         <p class="text-gray-600 text-sm">Running Nodes</p>
                         <p class="text-2xl font-bold mt-1">{{ jobInfo.running_nodes }}</p>
@@ -94,11 +118,11 @@
                     </div>
                 </div>
 
-                <!-- Node Management -->
+                <!-- Row 3: Node Status (unchanged) -->
                 <div class="bg-white rounded-xl shadow-md p-6 mb-6">
                     <h2 class="text-xl font-semibold mb-4">Node Status</h2>
                     <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                        <div class="bg-blue-50 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition" 
+                        <div class="bg-blue-50 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition"
                              v-for="nodeType in ['WORKER', 'PS', 'CHIEF', 'EVALUATOR']" :key="nodeType"
                              @click="goToNodeDetails(nodeType)">
                             <h3 class="text-lg font-semibold text-blue-900">{{ nodeType }}</h3>
@@ -115,6 +139,31 @@
                 </div>
             </div>
         </main>
+
+        <!-- Configuration Modal -->
+        <div v-if="showConfigModal"
+             @click.self="showConfigModal = false"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-xl p-6 max-w-4xl mx-4 my-8 flex flex-col"
+                 style="max-height: min(90vh, 800px);">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                    <h2 class="text-2xl font-bold text-blue-900">Job Configuration</h2>
+                    <button @click="showConfigModal = false"
+                            class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+                        &times;
+                    </button>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 overflow-y-auto flex-1 min-h-0">
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ configData }}</pre>
+                </div>
+                <div class="mt-4 text-right flex-shrink-0">
+                    <button @click="showConfigModal = false"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- Footer -->
         <footer class="bg-gray-800 text-white py-3 mt-auto">
@@ -225,7 +274,7 @@
         if (typeof Vue === 'undefined') {
             document.body.innerHTML = '<div style="padding:20px;color:red;font-size:24px">Error: Vue.js failed to load. Please check browser console.</div>';
         } else {
-            const { createApp, ref, reactive, onMounted } = Vue;
+            const { createApp, ref, reactive, onMounted, watch } = Vue;
 
             createApp({
                 setup() {
@@ -261,6 +310,8 @@
                     });
 
                     const currentYear = new Date().getFullYear();
+                    const showConfigModal = ref(false);
+                    const configData = ref('');
 
                     // Check for mock mode in URL
                     const checkMockMode = () => {
@@ -344,11 +395,65 @@
                         return nodes[type].filter(n => n.status === status).length;
                     };
 
+                    const fetchConfig = async () => {
+                        if (mockModeEnabled.value) {
+                            // Use mock configuration data in mock mode
+                            configData.value = JSON.stringify({
+                                "master_service_type": "grpc",
+                                "train_speed_record_num": 50,
+                                "seconds_to_autoscale_worker": 90,
+                                "step_to_adjust_worker": 200,
+                                "optimize_worker_cpu_threshold": 20,
+                                "seconds_for_stable_worker_count": 60,
+                                "seconds_interval_to_optimize": 300,
+                                "seconds_to_wait_pending_pod": 900,
+                                "seconds_huge_training_threshold": 1800,
+                                "sample_count_to_adjust_worker": 5,
+                                "hang_cpu_usage_percentage": 0.05,
+                                "seconds_interval_to_change_ps": 3600,
+                                "seconds_to_wait_failed_ps": 600,
+                                "auto_worker_enabled": false,
+                                "auto_ps_enabled": false,
+                                "is_tfv1_ps": false,
+                                "relaunch_always": false,
+                                "hang_detection": 1,
+                                "hang_downtime": 10,
+                                "gpu_per_node": 8,
+                                "npu_per_node": 16,
+                                "max_relaunch_count": 3,
+                                "job_max_restart_count": 3,
+                                "max_group_relaunch_count": 3,
+                                "training_elastic_mode": "base",
+                                "enable_dashboard": false,
+                                "dashboard_port": 8080
+                            }, null, 2);
+                        } else {
+                            try {
+                                const response = await fetch('/api/context');
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    configData.value = JSON.stringify(data, null, 2);
+                                } else {
+                                    configData.value = 'Error loading configuration: ' + response.statusText;
+                                }
+                            } catch (error) {
+                                configData.value = 'Error loading configuration: ' + error.message;
+                            }
+                        }
+                    };
+
                     onMounted(async () => {
                         checkMockMode();
                         dashboardLoaded.value = true;
                         await refreshData();
                         setInterval(refreshData, 5000);
+                    });
+
+                    // Watch for modal opening to fetch config data
+                    watch(showConfigModal, (newVal) => {
+                        if (newVal) {
+                            fetchConfig();
+                        }
                     });
 
                     return {
@@ -359,10 +464,13 @@
                         metrics,
                         diagnosis,
                         currentYear,
+                        showConfigModal,
+                        configData,
                         refreshData,
                         getNodeCountByStatus,
                         toggleMockMode,
-                        goToNodeDetails
+                        goToNodeDetails,
+                        fetchConfig
                     };
                 }
             }).mount('#app');
