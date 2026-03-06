@@ -191,6 +191,7 @@ def parse_args(args):
             Accelerators.NVIDIA_GPU,
             Accelerators.ASCEND_NPU,
             Accelerators.MTHREADS_GPU,
+            Accelerators.METAX_GPU,
         ],
         help="The type of accelerator chip of the machine.",
     )

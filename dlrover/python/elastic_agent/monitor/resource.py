@@ -157,6 +157,54 @@ def get_hpu_stats(hpus=[]):
         acl.finalize()
 
 
+def get_metaxgpu_stats(gpus=[]):
+    """Get the used metax gpu info of the container"""
+
+    try:
+        import pymxsml.mxsml_extension as sml
+    except ImportError:
+        logger.warning("No pymxsml is available, skip getting gpu stats.")
+        return []
+
+    try:
+        sml.mxSmlExInit()
+
+        if not gpus:
+            try:
+                device_count = sml.mxSmlExDeviceGetCount()
+            except Exception as e:
+                logger.warning(f"No GPU is available. {e}")
+                device_count = 0
+            gpus = list(range(device_count))
+        gpu_stats: list[GPUStats] = []
+        for i in gpus:
+            handle = sml.mxSmlExDeviceGetHandleByIndex(i)
+            memory_info = sml.mxSmlExDeviceGetMemoryInfo(handle)
+            total_memory = memory_info.total / (1024**2)
+            used_memory = memory_info.used / (1024**2)
+
+            utilization = sml.mxSmlExDeviceGetUtilizationRates(handle)
+            gpu_utilization = utilization.gpu
+
+            gpu_stats.append(
+                GPUStats(
+                    index=i,
+                    total_memory_mb=total_memory,
+                    used_memory_mb=used_memory,
+                    gpu_utilization=gpu_utilization,
+                )
+            )
+        return gpu_stats
+    except Exception as e:
+        logger.warning(f"Got unexpected error when getting gpu stats: {e}")
+        return []
+    finally:
+        try:
+            sml.mxSmlExShutdown()
+        except Exception:
+            pass
+
+
 class ResourceMonitor(Singleton):
     def __init__(self, gpu_type: str = Accelerators.NVIDIA_GPU):
         """
@@ -205,6 +253,8 @@ class ResourceMonitor(Singleton):
             self._gpu_stats = get_gpu_stats()
         elif self._gpu_type == Accelerators.ASCEND_NPU:
             self._gpu_stats = get_hpu_stats()
+        elif self._gpu_type == Accelerators.METAX_GPU:
+            self._gpu_stats = get_metaxgpu_stats()
         else:
             # not supported for others
             pass

@@ -423,10 +423,6 @@ class ConfigPath(object):
     NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"
 
 
-class ScriptPath(object):
-    RUN_AFFINITY_SCRIPT = "dlrover_run_affinity.sh"
-
-
 class CheckpointConstant(object):
     TRACER_FILE_NAME = "dlrover_latest.txt"
     MODEL_STATES_NAME = "model_states"
@@ -479,7 +475,16 @@ class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
     MTHREADS_GPU = "mthreads.com/gpu"
+    METAX_GPU = "metax-tech.com/gpu"
     GENERIC_CPU = "cpu"
+
+    RUN_AFFINITY_SCRIPT = {
+        NVIDIA_GPU: "dlrover_run_affinity.sh",
+        ASCEND_NPU: None,
+        MTHREADS_GPU: None,
+        METAX_GPU: "dlrover_run_affinity_metax.sh",
+        GENERIC_CPU: None,
+    }
 
 
 class AscendConstants(object):
