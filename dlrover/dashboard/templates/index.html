@@ -267,18 +267,31 @@
                         const urlParams = new URLSearchParams(window.location.search);
                         const mockParam = urlParams.get('mock');
                         mockModeEnabled.value = mockParam && mockParam.toLowerCase() === 'true';
-                        if (mockModeEnabled.value) {
-                            console.log('Mock mode enabled via URL');
+
+                        // Clear any previous session storage on normal navigation
+                        if (!mockModeEnabled.value) {
+                            sessionStorage.removeItem('dlrover_mock_mode');
+                            console.log('Normal mode - cleared mock mode session');
+                        } else {
+                            // Store mock mode state for persistence only when requested via URL
+                            sessionStorage.setItem('dlrover_mock_mode', 'true');
+                            console.log('Mock mode enabled via URL and stored in session');
                         }
                     };
 
                     // Navigate to node detail page
                     const goToNodeDetails = (nodeType) => {
+                        // Debug logging
+                        console.log('goToNodeDetails called with:', nodeType);
+                        console.log('mockModeEnabled.value:', mockModeEnabled.value);
+
                         const url = new URL('/node_detail.html', window.location.origin);
                         url.searchParams.set('type', nodeType);
                         if (mockModeEnabled.value) {
                             url.searchParams.set('mock', 'true');
+                            console.log('Adding mock=true to navigation URL');
                         }
+                        console.log('Navigating to:', url.href);
                         window.location.href = url.toString();
                     };
 

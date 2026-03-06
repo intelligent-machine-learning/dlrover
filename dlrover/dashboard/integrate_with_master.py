@@ -112,38 +112,41 @@ class DashboardManager:
                 time.sleep(5)
 
 
-def add_dashboard_to_master(master_server, dashboard_config=None):
+def add_dashboard_to_master(master_instance, dashboard_config=None):
     """Add dashboard support to DLRover Master server.
 
     Args:
-        master_server: The DLRover Master server instance
+        master_instance: The DLRover Master server instance
         dashboard_config: Optional configuration for dashboard
     """
     if not dashboard_config:
         dashboard_config = {"enable": True, "host": "0.0.0.0", "port": 8080}
 
-    # Create dashboard manager
-    manager = DashboardManager(
+    if not dashboard_config["enable"]:
+        return None
+
+    # Create dashboard instance
+    instance = DashboardManager(
         host=dashboard_config.get("host", "0.0.0.0"),
         port=dashboard_config.get("port", 8080),
         enable=dashboard_config.get("enable", True),
-        perf_monitor=getattr(master_server, "perf_monitor", None)
+        perf_monitor=getattr(master_instance, "perf_monitor", None)
     )
 
     # Store on master server
-    master_server._dashboard_manager = manager
+    master_instance._dashboard_instance = instance
 
     # Add hooks to master lifecycle
-    original_start = master_server.start
-    original_stop = master_server.stop
+    original_start = master_instance.prepare
+    original_stop = master_instance.stop
 
     def start_with_dashboard(self):
         """Start master with dashboard."""
         logger.info("Starting DLRover Master with Dashboard support")
 
         # Start dashboard first
-        if self._dashboard_manager:
-            self._dashboard_manager.start()
+        if self._dashboard_instance:
+            self._dashboard_instance.start()
             time.sleep(1)  # Give dashboard time to start
 
         # Start original master
@@ -157,12 +160,12 @@ def add_dashboard_to_master(master_server, dashboard_config=None):
         original_stop()
 
         # Stop dashboard
-        if self._dashboard_manager:
-            self._dashboard_manager.stop()
+        if self._dashboard_instance:
+            self._dashboard_instance.stop()
 
     # Replace methods
-    master_server.start = lambda: start_with_dashboard(master_server)
-    master_server.stop = lambda: stop_with_dashboard(master_server)
+    master_instance.start = lambda: start_with_dashboard(master_instance)
+    master_instance.stop = lambda: stop_with_dashboard(master_instance)
 
-    logger.info(f"Dashboard integration added to master on port {manager.port}")
-    return manager
+    logger.info(f"Dashboard integration added to master on port {instance.port}")
+    return instance

@@ -13,6 +13,7 @@
 
 import os
 
+from dlrover.dashboard.integrate_with_master import add_dashboard_to_master
 from dlrover.python.common.constants import (
     Accelerators,
     DistributionStrategy,
@@ -89,6 +90,16 @@ def run(args):
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
     master.pre_check()
+
+    # Add dashboard
+    dashboard_config = {
+        "enable": _dlrover_context.enable_dashboard,
+        "host": "0.0.0.0",
+        "port": _dlrover_context.dashboard_port
+    }
+    logger.info(f"Dashboard config: {dashboard_config}")
+    add_dashboard_to_master(master, dashboard_config)
+
     return master.run()
 
 

@@ -46,6 +46,12 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #374151;
         }
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -63,7 +69,7 @@
                     </div>
                     <div class="flex items-center space-x-4">
                         <div class="bg-white/20 px-3 py-1 rounded-full">
-                            <span class="text-sm">Total: {{ nodes.length }}</span>
+                            <span class="text-sm">Total: {{ filteredNodes.length }}</span>
                         </div>
                     </div>
                 </div>
@@ -72,9 +78,50 @@
 
         <!-- Main Content -->
         <main class="container mx-auto px-4 py-8 flex-1">
+            <!-- Search Bar -->
+            <div class="mb-6 bg-white rounded-lg shadow-md p-4">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1 relative">
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Search by Node ID, Name, or Status..."
+                            class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            @keyup.enter="handleSearch"
+                        >
+                        <div v-if="searchQuery" @click="clearSearch" class="absolute right-3 top-2.5 cursor-pointer text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            @click="handleSearch"
+                            class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            Search
+                        </button>
+                        <button
+                            @click="clearSearch"
+                            class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-gray-600">
+                    Showing {{ filteredNodes.length }} of {{ nodes.length }} nodes
+                    <span v-if="searchQuery" class="ml-2">| Search results for "<span class="font-medium">{{ searchQuery }}</span>"</span>
+                </div>
+            </div>
+
             <!-- Node List -->
             <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                <div v-for="node in nodes" :key="node.id" class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+                <div v-for="node in paginatedNodes" :key="node.id" class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
                     <!-- Node Header -->
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-3">
@@ -93,11 +140,6 @@
                         <div v-if="node.service_addr" class="flex items-center justify-between">
                             <span class="text-gray-600">Address:</span>
                             <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ node.service_addr }}</code>
-                        </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Type:</span>
-                            <span class="text-sm font-medium">{{ node.type }}</span>
                         </div>
 
                         <div v-if="node.exit_reason" class="p-3 bg-red-50 border-l-4 border-red-500">
@@ -122,6 +164,11 @@
                         <div v-if="node.relaunch_time" class="flex items-center justify-between">
                             <span class="text-gray-600">Last Restart:</span>
                             <span class="text-sm">{{ formatTime(node.relaunch_time) }}</span>
+                        </div>
+
+                        <div v-if="isTerminalState(node.status) && node.finish_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Finish Time:</span>
+                            <span class="text-sm">{{ formatTime(node.finish_time) }}</span>
                         </div>
 
                         <div v-if="node.succession" class="border-t pt-3 mt-3">
@@ -191,6 +238,104 @@
             </div>
         </main>
 
+        <!-- Pagination Controls -->
+        <div v-if="filteredNodes.length > 0" class="bg-white border-t shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <!-- Left side - Results info -->
+                    <div class="text-sm text-gray-600">
+                        Showing {{ startItem }} - {{ endItem }} of {{ filteredNodes.length }} nodes
+                    </div>
+
+                    <!-- Right side - Controls -->
+                    <div class="flex items-center gap-4">
+                        <!-- Items per page -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm text-gray-600">Items per page:</label>
+                            <select
+                                v-model="itemsPerPage"
+                                class="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                @change="currentPage = 1"
+                            >
+                                <option :value="10">10</option>
+                                <option :value="20">20</option>
+                                <option :value="50">50</option>
+                                <option :value="100">100</option>
+                            </select>
+                        </div>
+
+                        <!-- Page navigation -->
+                        <div class="flex items-center gap-2">
+                            <button
+                                @click="currentPage--"
+                                :disabled="currentPage === 1"
+                                class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                Previous
+                            </button>
+
+                            <!-- Page numbers -->
+                            <div class="flex items-center gap-1">
+                                <button
+                                    v-if="currentPage > 3"
+                                    @click="currentPage = 1"
+                                    class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 transition"
+                                >
+                                    1
+                                </button>
+                                <span v-if="currentPage > 4" class="px-1">...</span>
+
+                                <button
+                                    v-for="page in visiblePages"
+                                    :key="page"
+                                    @click="currentPage = page"
+                                    :class="[
+                                        'px-3 py-1 border rounded transition',
+                                        currentPage === page
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                    ]"
+                                >
+                                    {{ page }}
+                                </button>
+
+                                <span v-if="currentPage < totalPages - 3" class="px-1">...</span>
+                                <button
+                                    v-if="currentPage < totalPages - 2"
+                                    @click="currentPage = totalPages"
+                                    class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 transition"
+                                >
+                                    {{ totalPages }}
+                                </button>
+                            </div>
+
+                            <button
+                                @click="currentPage++"
+                                :disabled="currentPage === totalPages"
+                                class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                Next
+                            </button>
+                        </div>
+
+                        <!-- Page input -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Page</span>
+                            <input
+                                type="number"
+                                v-model.number="currentPage"
+                                :min="1"
+                                :max="totalPages"
+                                class="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                @keyup.enter="handlePageInput"
+                            >
+                            <span class="text-sm text-gray-600">of {{ totalPages }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Logs Modal -->
         <div v-if="showLogs" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white rounded-xl shadow-xl w-11/12 max-w-4xl max-h-3/4 max-h-screen">
@@ -230,6 +375,12 @@
                 const showLogs = ref(false);
                 const currentLogs = ref('');
 
+                // Search and pagination
+                const searchQuery = ref('');
+                const currentPage = ref(1);
+                const itemsPerPage = ref(20);
+                const searchedQuery = ref('');
+
                 // Helper functions
                 const getStatusClass = (status) => {
                     const classes = {
@@ -243,12 +394,31 @@
                     return classes[status] || 'bg-gray-100 text-gray-800';
                 };
 
+                const checkForMockMode = () => {
+                    // Only check URL param - do NOT fall back to sessionStorage
+                    const urlMock = new URLSearchParams(window.location.search).get('mock') === 'true';
+
+                    if (urlMock) {
+                        sessionStorage.setItem('dlrover_mock_mode', 'true');
+                        return true;
+                    }
+
+                    // Explicitly clear session when not in mock mode
+                    sessionStorage.removeItem('dlrover_mock_mode');
+                    return false;
+                };
+
                 const formatTime = (timestamp) => {
                     if (!timestamp) return 'N/A';
                     if (typeof timestamp === 'number') {
                         timestamp = timestamp * 1000; // Convert Unix timestamp to milliseconds
                     }
                     return new Date(timestamp).toLocaleString();
+                };
+
+                const isTerminalState = (status) => {
+                    const terminalStates = ['FAILED', 'SUCCEEDED', 'FINISHED', 'STOPPED', 'DELETED'];
+                    return terminalStates.includes(status);
                 };
 
                 const formatMemory = (bytes) => {
@@ -332,6 +502,7 @@
                 const restartNode = async (node) => {
                     if (confirm(`Are you sure you want to restart ${node.name}?`)) {
                         try {
+                            console.log(`restartNode: Restarting ${node.name}`);
                             // Make API call to restart node
                             const response = await fetch(`/api/restart/${node.name}`, {
                                 method: 'POST'
@@ -353,6 +524,7 @@
                 const stopNode = async (node) => {
                     if (confirm(`Are you sure you want to stop ${node.name}?`)) {
                         try {
+                            console.log(`stopNode: Stopping ${node.name}`);
                             const response = await fetch(`/api/stop/${node.name}`, {
                                 method: 'POST'
                             });
@@ -372,92 +544,184 @@
 
                 const fetchNodesForType = async () => {
                     try {
-                        const mockMode = new URLSearchParams(window.location.search).get('mock') === 'true';
+                        const mockMode = checkForMockMode();
+                        console.log('fetchNodesForType: Current URL:', window.location.href);
+                        console.log('fetchNodesForType: Mock mode detected:', mockMode);
+
                         if (mockMode) {
                             // Generate mock data
+                            console.log('fetchNodesForType: Loading mock data');
                             generateMockNodesForType();
                             return;
                         }
 
+                        console.log('fetchNodesForType: Attempting API fetch');
                         // Try to fetch from actual API
                         const response = await fetch('/api/nodes');
                         if (response.ok) {
                             const data = await response.json();
+                            console.log('fetchNodesForType: API data received:', Object.keys(data));
                             nodes.value = data[nodeType.value] || [];
+                            console.log('fetchNodesForType: Nodes set:', nodes.value.length);
                         } else {
                             throw new Error('Failed to fetch nodes');
                         }
                     } catch (error) {
                         console.error('Error fetching nodes:', error);
-                        // Fallback to mock data
-                        generateMockNodesForType();
+                        // Fallback to mock data - only when in mock mode
+                        if (checkForMockMode()) {
+                            console.log('fetchNodesForType: Fallback to mock data');
+                            generateMockNodesForType();
+                        }
                     }
+                };
+
+                // Utility functions - ensure they're synchronous and don't reference other functions undefined
+                const checkLinkHealth = (node) => {
+                    return node.status === 'RUNNING' ? 'healthy' : 'unkown';
                 };
 
                 const generateMockNodesForType = () => {
-                    // Generate realistic mock data based on node type
-                    const mockNodes = [];
-                    const count = nodeType.value === 'WORKER' ? 4 : 2;
+                    try {
+                        // Generate realistic mock data based on node type
+                        const mockNodes = [];
+                        const count = nodeType.value === 'WORKER' ? 25 : 12;
 
-                    for (let i = 0; i < count; i++) {
-                        const node = {
-                            id: i,
-                            name: `${nodeType.value.toLowerCase()}-${i}`,
-                            type: nodeType.value,
-                            status: i === 0 ? 'FAILED' : 'RUNNING',
-                            service_addr: i === 0 ? '' : `${nodeType.value.toLowerCase()}-${i}:2222`,
-                            start_time: Date.now() - (3600 + i * 60) * 1000,
-                            exit_reason: i === 0 ? 'Container exited with code 137' : '',
-                            relaunch_count: i === 0 ? 2 : 0
-                        };
-
-                        // Add mock resource specs
-                        if (nodeType.value === 'WORKER' && i > 0) {
-                            node.resource_spec = {
-                                cpu: 2,
-                                memory: 8192 * 1024 * 1024,
-                                gpu: 1,
-                                disk: 100 * 1024 * 1024 * 1024
+                        for (let i = 0; i < count; i++) {
+                            const node = {
+                                id: i,
+                                name: `${nodeType.value.toLowerCase()}-${i}`,
+                                type: nodeType.value,
+                                status: i === 0 ? 'FAILED' : (i % 5 === 0 ? 'PENDING' : 'RUNNING'),
+                                service_addr: i === 0 ? '' : `${nodeType.value.toLowerCase()}-${i}:2222`,
+                                start_time: Date.now() - (3600 + i * 60) * 1000,
+                                exit_reason: i === 0 ? 'Container exited with code 137' : '',
+                                relaunch_count: i === 0 ? 2 : 0
                             };
+
+                            // Add finish_time for terminal states
+                            if (isTerminalState(node.status)) {
+                                const finishTimeOffset = (30 + i * 3) * 60 * 1000; // 30-120 minutes ago
+                                node.finish_time = Date.now() - finishTimeOffset;
+                            }
+
+                            // Add mock resource specs
+                            if (nodeType.value === 'WORKER' && i > 0) {
+                                node.resource_spec = {
+                                    cpu: 2 + (i % 3),
+                                    memory: (8192 + i * 512) * 1024 * 1024,
+                                    gpu: i % 2,
+                                    disk: (100 + i * 10) * 1024 * 1024 * 1024
+                                };
+                            }
+
+                            // Add succession info for restarted nodes
+                            if (i === 0 && node.relaunch_count > 0) {
+                                node.succession = {
+                                    predecessor: `${nodeType.value.toLowerCase()}-${i}-v1`,
+                                    reason: 'Container failure',
+                                    time: Date.now() - 1800000
+                                };
+                            }
+
+                            // Add health check
+                            if (node.status === 'RUNNING') {
+                                node.health_check = {
+                                    status: 'healthy',
+                                    last_check: '2 minutes ago'
+                                };
+                            }
+
+                            mockNodes.push(node);
                         }
 
-                        // Add succession info for restarted nodes
-                        if (i === 0 && node.relaunch_count > 0) {
-                            node.succession = {
-                                predecessor: `${nodeType.value.toLowerCase()}-${i}-v1`,
-                                reason: 'Container failure',
-                                time: Date.now() - 1800000
-                            };
-                        }
+                        console.log('generateMockNodesForType: Generated', mockNodes.length, 'mock nodes');
+                        nodes.value = mockNodes;
 
-                        // Add health check
-                        if (node.status === 'RUNNING') {
-                            node.health_check = {
-                                status: 'healthy',
-                                last_check: '2 minutes ago'
-                            };
-                        }
-
-                        mockNodes.push(node);
+                    } catch (error) {
+                        console.error('Error generating mock nodes:', error);
+                        // Fallback to simplest possible data
+                        nodes.value = [{
+                            id: 0,
+                            name: 'test-node-0',
+                            type: 'WORKER',
+                            status: 'RUNNING'
+                        }];
                     }
-                    nodes.value = mockNodes;
                 };
 
-                // Navigate back when browser back button is pressed
-                window.addEventListener('popstate', () => {
-                    const newType = getNodeTypeFromURL();
-                    if (newType !== nodeType.value) {
-                        nodeType.value = newType;
-                        fetchNodesForType();
+                // Search functionality
+                const handleSearch = () => {
+                    searchedQuery.value = searchQuery.value.toLowerCase().trim();
+                    currentPage.value = 1;
+                };
+
+                const clearSearch = () => {
+                    searchQuery.value = '';
+                    searchedQuery.value = '';
+                    currentPage.value = 1;
+                };
+
+                // Computed properties
+                const filteredNodes = computed(() => {
+                    if (!searchedQuery.value) return nodes.value;
+
+                    return nodes.value.filter(node => {
+                        const query = searchedQuery.value;
+                        return (
+                            node.id.toString().includes(query) ||
+                            node.name.toLowerCase().includes(query) ||
+                            node.status.toLowerCase().includes(query)
+                        );
+                    });
+                });
+
+                const totalPages = computed(() => {
+                    return Math.ceil(filteredNodes.value.length / itemsPerPage.value);
+                });
+
+                const paginatedNodes = computed(() => {
+                    const start = (currentPage.value - 1) * itemsPerPage.value;
+                    const end = start + itemsPerPage.value;
+                    return filteredNodes.value.slice(start, end);
+                });
+
+                const startItem = computed(() => {
+                    if (filteredNodes.value.length === 0) return 0;
+                    return (currentPage.value - 1) * itemsPerPage.value + 1;
+                });
+
+                const endItem = computed(() => {
+                    return Math.min(currentPage.value * itemsPerPage.value, filteredNodes.value.length);
+                });
+
+                const visiblePages = computed(() => {
+                    const pages = [];
+                    const start = Math.max(1, currentPage.value - 2);
+                    const end = Math.min(totalPages.value, currentPage.value + 2);
+
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
                     }
+                    return pages;
+                });
+
+                const handlePageInput = () => {
+                    if (currentPage.value < 1) currentPage.value = 1;
+                    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+                };
+
+                // Watch for node type changes
+                watch(nodeType, () => {
+                    fetchNodesForType();
+                    clearSearch();
                 });
 
                 onMounted(() => {
+                    console.log('node_detail page mounted');
+                    console.log('URL params:', window.location.search);
                     nodeType.value = getNodeTypeFromURL();
-                    fetchNodesForType();
-                });
-
-                watch(nodeType, () => {
+                    console.log('Detected node type:', nodeType.value);
                     fetchNodesForType();
                 });
 
@@ -467,14 +731,27 @@
                     selectedNode,
                     showLogs,
                     currentLogs,
+                    searchQuery,
+                    currentPage,
+                    itemsPerPage,
+                    filteredNodes,
+                    paginatedNodes,
+                    totalPages,
+                    startItem,
+                    endItem,
+                    visiblePages,
                     getStatusClass,
-                    goBack,
+                    isTerminalState,
                     formatTime,
                     formatMemory,
+                    goBack,
                     viewLogs,
                     refreshLogs,
                     restartNode,
-                    stopNode
+                    stopNode,
+                    handleSearch,
+                    clearSearch,
+                    handlePageInput
                 };
             }
         }).mount('#app');
