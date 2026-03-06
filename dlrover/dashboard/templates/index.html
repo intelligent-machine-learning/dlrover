@@ -45,6 +45,10 @@
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8;
         }
+        /* Tab button focus styles */
+        .tab-button:focus {
+            outline: none;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -153,8 +157,28 @@
                         &times;
                     </button>
                 </div>
+
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-200 mb-4 flex-shrink-0">
+                    <button @click="activeTab = 'global'"
+                            :class="['px-4 py-2 font-medium text-sm transition',
+                                     activeTab === 'global'
+                                     ? 'text-blue-600 border-b-2 border-blue-600'
+                                     : 'text-gray-500 hover:text-gray-700']">
+                        View Global Configs
+                    </button>
+                    <button @click="activeTab = 'args'"
+                            :class="['px-4 py-2 font-medium text-sm transition',
+                                     activeTab === 'args'
+                                     ? 'text-blue-600 border-b-2 border-blue-600'
+                                     : 'text-gray-500 hover:text-gray-700']">
+                        View Job Arguments
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
                 <div class="bg-gray-50 rounded-lg p-4 overflow-y-auto flex-1 min-h-0">
-                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ configData }}</pre>
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ activeTab === 'global' ? configData : jobArgsData }}</pre>
                 </div>
                 <div class="mt-4 text-right flex-shrink-0">
                     <button @click="showConfigModal = false"
@@ -312,6 +336,8 @@
                     const currentYear = new Date().getFullYear();
                     const showConfigModal = ref(false);
                     const configData = ref('');
+                    const jobArgsData = ref('');
+                    const activeTab = ref('global');
 
                     // Check for mock mode in URL
                     const checkMockMode = () => {
@@ -395,6 +421,61 @@
                         return nodes[type].filter(n => n.status === status).length;
                     };
 
+                    const fetchJobArgs = async () => {
+                        if (mockModeEnabled.value) {
+                            // Mock JobArgs data
+                            const mockJobArgs = {
+                                "platform": "kubernetes",
+                                "namespace": "default",
+                                "job_name": "mock-training-job",
+                                "enable_dynamic_sharding": true,
+                                "enable_elastic_scheduling": true,
+                                "distribution_strategy": "PS",
+                                "job_uuid": "12345678-1234-1234-1234-123456789012",
+                                "user": "test-user",
+                                "cluster": "test-cluster",
+                                "optimize_mode": "single-job",
+                                "relaunch_always": true,
+                                "remove_exited_node": false,
+                                "cordon_fault_node": false,
+                                "xpu_type": "GENERIC_CPU",
+                                "enable_suspended": false,
+                                "training_elastic_mode": "base",
+                                "node_args": {
+                                    "worker": {
+                                        "num_workers": 4,
+                                        "resources": {
+                                            "cpu": 2,
+                                            "memory": "4Gi",
+                                            "gpu": 0
+                                        }
+                                    },
+                                    "ps": {
+                                        "num_servers": 2,
+                                        "resources": {
+                                            "cpu": 4,
+                                            "memory": "8Gi",
+                                            "gpu": 0
+                                        }
+                                    }
+                                }
+                            };
+                            jobArgsData.value = JSON.stringify(mockJobArgs, null, 2);
+                        } else {
+                            try {
+                                const response = await fetch('/api/jobargs');
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    jobArgsData.value = JSON.stringify(data, null, 2);
+                                } else {
+                                    jobArgsData.value = 'Error loading job arguments: ' + response.statusText;
+                                }
+                            } catch (error) {
+                                jobArgsData.value = 'Error loading job arguments: ' + error.message;
+                            }
+                        }
+                    };
+
                     const fetchConfig = async () => {
                         if (mockModeEnabled.value) {
                             // Use mock configuration data in mock mode
@@ -453,6 +534,7 @@
                     watch(showConfigModal, (newVal) => {
                         if (newVal) {
                             fetchConfig();
+                            fetchJobArgs();
                         }
                     });
 
@@ -466,11 +548,14 @@
                         currentYear,
                         showConfigModal,
                         configData,
+                        jobArgsData,
+                        activeTab,
                         refreshData,
                         getNodeCountByStatus,
                         toggleMockMode,
                         goToNodeDetails,
-                        fetchConfig
+                        fetchConfig,
+                        fetchJobArgs
                     };
                 }
             }).mount('#app');

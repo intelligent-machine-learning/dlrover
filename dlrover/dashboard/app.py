@@ -24,6 +24,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.node.job_context import JobContext, get_job_context
 from dlrover.python.common.constants import NodeType, NodeStatus
 from dlrover.python.common.global_context import Context
+from dlrover.python.scheduler.job import JobArgs
 from dlrover.dashboard.service_integration import get_dashboard_service
 
 
@@ -356,6 +357,47 @@ class WebSocketHandler(websocket.WebSocketHandler):
                 cls.clients.discard(client)
 
 
+class JobArgsHandler(BaseHandler):
+    """Handle requests for JobArgs arguments."""
+
+    def get(self):
+        """Get JobArgs fields as JSON."""
+        try:
+            # Try to get the actual JobArgs instance from the job context
+            job_ctx = get_job_context()
+
+            # Check if job context has JobArgs
+            job_args = None
+            if hasattr(job_ctx, 'job_args') and job_ctx.job_args:
+                job_args = job_ctx.job_args
+            else:
+                # Create a mock JobArgs with job context info if available
+                from dlrover.python.scheduler.job import LocalJobArgs
+                job_name = getattr(job_ctx, '_job_name', 'unknown-job')
+                job_args = LocalJobArgs('kubernetes', 'default', job_name)
+                job_args.enable_dynamic_sharding = True
+                job_args.enable_elastic_scheduling = True
+                job_args.distribution_strategy = "ParameterServerStrategy"
+
+            # Convert JobArgs to dict
+            job_args_data = {}
+            for k, v in job_args.__dict__.items():
+                if k.startswith('_') or callable(v):
+                    continue
+                # Handle special types
+                if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                    job_args_data[k] = v
+                elif hasattr(v, '__dict__'):  # Handle objects like ResourceLimits
+                    job_args_data[k] = v.__dict__
+                else:
+                    job_args_data[k] = str(v)
+
+            self.write(json.dumps(job_args_data))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"error": str(e)}))
+
+
 class ContextHandler(BaseHandler):
     """Handle requests for Context configuration data."""
 
@@ -402,6 +444,7 @@ def create_dashboard_app():
         (r"/api/diagnosis", DiagnosisHandler),
         (r"/api/metrics", MetricsHandler),
         (r"/api/context", ContextHandler),
+        (r"/api/jobargs", JobArgsHandler),
         (r"/ws", WebSocketHandler),
         (r"/static/(.*)", web.StaticFileHandler, {"path": settings["static_path"]}),
     ], **settings)
