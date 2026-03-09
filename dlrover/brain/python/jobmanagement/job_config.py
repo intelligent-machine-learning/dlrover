@@ -18,10 +18,9 @@ from dlrover.brain.python.common.job import JobMeta
 
 class JobConfigValues:
     def __init__(self, configs: Optional[Dict[str, str]] = None):
-        if configs is None:
-            self._configs: Dict[str, str] = {}
-        else:
-            self._configs: Dict[str, str] = configs
+        self._configs: Dict[str, str] = {}
+        if configs is not None:
+            self._configs = configs
 
     def get_config_values(self) -> Dict[str, str]:
         return self._configs
@@ -32,28 +31,33 @@ class JobConfigScope:
         self,
         conds: Optional[Dict[str, List[str]]] = None,
     ):
-        if conds is None:
-            self._conds: Dict[str, List[str]] = {}
-        else:
-            self._conds: Dict[str, List[str]] = conds
+        self._conds: Dict[str, List[str]] = {}
+        if conds is not None:
+            self._conds = conds
 
     def in_scope(self, job: JobMeta) -> bool:
-       if "user" in self._conds and not job.user in self._conds["user"]:
-           return False
-       if "namespace" in self._conds and not job.namespace in self._conds["namespace"]:
-           return False
-       if "cluster" in self._conds and not job.cluster in self._conds["cluster"]:
-           return False
-       if "app" in self._conds and not job.app in self._conds["app"]:
-           return False
-       return True
+        if "user" in self._conds and job.user not in self._conds["user"]:
+            return False
+        if (
+            "namespace" in self._conds
+            and job.namespace not in self._conds["namespace"]
+        ):
+            return False
+        if (
+            "cluster" in self._conds
+            and job.cluster not in self._conds["cluster"]
+        ):
+            return False
+        if "app" in self._conds and job.app not in self._conds["app"]:
+            return False
+        return True
 
 
 class JobConfig:
     def __init__(
-            self,
-            include_scope: Optional[JobConfigScope] = None,
-            exclude_scope: Optional[JobConfigScope] = None,
+        self,
+        include_scope: Optional[JobConfigScope] = None,
+        exclude_scope: Optional[JobConfigScope] = None,
     ):
         self._name = ""
         self._include_scope: Optional[JobConfigScope] = include_scope
@@ -61,8 +65,12 @@ class JobConfig:
         self._config_values: JobConfigValues = JobConfigValues()
 
     def in_scope(self, job: JobMeta) -> bool:
-        return ((self._include_scope is None or self._include_scope.in_scope(job)) and
-            (self._exclude_scope is None or not self._exclude_scope.in_scope(job)))
+        return (
+            self._include_scope is None or self._include_scope.in_scope(job)
+        ) and (
+            self._exclude_scope is None
+            or not self._exclude_scope.in_scope(job)
+        )
 
     @property
     def config_values(self) -> JobConfigValues:

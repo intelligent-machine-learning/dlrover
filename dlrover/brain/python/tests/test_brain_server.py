@@ -20,12 +20,10 @@ from dlrover.brain.python.common.job import (
     NodeGroupResource,
     JobResource,
     JobOptimizePlan,
-    JobMeta,
 )
 
 
 class TestBrainServer(unittest.TestCase):
-
     def setUp(self):
         self.brain_server = BrainServer()
 
@@ -42,10 +40,12 @@ class TestBrainServer(unittest.TestCase):
                 node_group_resources={
                     "worker": NodeGroupResource(
                         count=4,
-                        resource=NodeResource(memory=8192, cpu=8.0, gpu=1.0, gpu_type="A100")
+                        resource=NodeResource(
+                            memory=8192, cpu=8.0, gpu=1.0, gpu_type="A100"
+                        ),
                     )
                 }
-            )
+            ),
         )
         self.brain_server._optimizer_manager.optimize.return_value = mock_plan
 
@@ -53,15 +53,15 @@ class TestBrainServer(unittest.TestCase):
             "type": "training",
             "config": {
                 "optimizer": "adam",
-                "customized_config": {"learning_rate": "0.01"}
+                "customized_config": {"learning_rate": "0.01"},
             },
             "job": {
                 "uuid": "job-123",
                 "cluster": "prod-cluster",
                 "namespace": "dl-jobs",
                 "user": "alice",
-                "app": "training-app"
-            }
+                "app": "training-app",
+            },
         }
 
         response = self.client.post("/optimize", json=payload)
@@ -74,7 +74,9 @@ class TestBrainServer(unittest.TestCase):
 
         self.assertEqual(plan_data["timestamp"], 1690000000)
 
-        worker_group = plan_data["job_resource"]["node_group_resources"]["worker"]
+        worker_group = plan_data["job_resource"]["node_group_resources"][
+            "worker"
+        ]
         self.assertEqual(worker_group["count"], 4)
         self.assertEqual(worker_group["resource"]["gpu_type"], "A100")
         self.assertEqual(worker_group["resource"]["cpu"], 8.0)
@@ -87,11 +89,13 @@ class TestBrainServer(unittest.TestCase):
         # UPDATED: We now mock get_config_values instead of convert_to_dict
         fake_config.get_config_values.return_value = expected_configs
 
-        self.brain_server._config_manager.get_job_config.return_value = fake_config
+        self.brain_server._config_manager.get_job_config.return_value = (
+            fake_config
+        )
 
         payload = {
             "type": "inference",
-            "job": {"uuid": "job-456", "user": "bob"}
+            "job": {"uuid": "job-456", "user": "bob"},
         }
 
         response = self.client.post("/job_config", json=payload)
@@ -110,5 +114,6 @@ class TestBrainServer(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["job_configs"], {})
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

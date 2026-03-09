@@ -42,7 +42,10 @@ class TestOptimizerManager(unittest.TestCase):
         plan = self.manager.optimize(job, conf)
         job_resource = plan.job_resource
         self.assertEqual(
-            job_resource.node_group_resources[Node.NODE_TYPE_WORKER].resource.cpu, 4
+            job_resource.node_group_resources[
+                Node.NODE_TYPE_WORKER
+            ].resource.cpu,
+            4,
         )
 
         conf.optimizer = "unknown"

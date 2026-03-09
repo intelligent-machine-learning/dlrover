@@ -1,14 +1,32 @@
+# Copyright 2026 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import unittest
-from typing import Optional, Dict, List
-from dlrover.brain.python.jobmanagement.job_config import JobConfig, JobConfigScope, JobConfigManager, JobConfigValues
+from dlrover.brain.python.jobmanagement.job_config import (
+    JobConfig,
+    JobConfigScope,
+    JobConfigManager,
+    JobConfigValues,
+)
 from dlrover.brain.python.common.job import JobMeta
 
 
 class TestJobConfigSystem(unittest.TestCase):
     def test_job_config_scope(self):
         """Test if the scope correctly matches JobMeta attributes."""
-        job = JobMeta(user="alice", namespace="default", cluster="prod", app="training")
+        job = JobMeta(
+            user="alice", namespace="default", cluster="prod", app="training"
+        )
 
         # Case 1: Empty scope should match everything
         empty_scope = JobConfigScope()
@@ -26,7 +44,9 @@ class TestJobConfigSystem(unittest.TestCase):
         multi_scope = JobConfigScope({"user": ["alice"], "cluster": ["prod"]})
         self.assertTrue(multi_scope.in_scope(job))
 
-        multi_scope_wrong = JobConfigScope({"user": ["alice"], "cluster": ["dev"]})
+        multi_scope_wrong = JobConfigScope(
+            {"user": ["alice"], "cluster": ["dev"]}
+        )
         self.assertFalse(multi_scope_wrong.in_scope(job))
 
     def test_job_config_include_exclude_logic(self):
@@ -42,10 +62,14 @@ class TestJobConfigSystem(unittest.TestCase):
 
         # Case 2: Exclude only (Matches if it doesn't trigger the exclude scope)
         config_exc = JobConfig(exclude_scope=exc_scope)
-        self.assertFalse(config_exc.in_scope(job)) # Excluded because cluster="prod"
+        self.assertFalse(
+            config_exc.in_scope(job)
+        )  # Excluded because cluster="prod"
 
         # Case 3: Both Include and Exclude (Exclude overrides Include)
-        config_both = JobConfig(include_scope=inc_scope, exclude_scope=exc_scope)
+        config_both = JobConfig(
+            include_scope=inc_scope, exclude_scope=exc_scope
+        )
         self.assertFalse(config_both.in_scope(job))
 
     def test_job_config_manager_resolution(self):
@@ -54,7 +78,9 @@ class TestJobConfigSystem(unittest.TestCase):
 
         # Setup Config 1 (For 'bob')
         c1 = JobConfig(include_scope=JobConfigScope({"user": ["bob"]}))
-        c1._config_values = JobConfigValues({"memory": "4G"}) # Manually setting for test
+        c1._config_values = JobConfigValues(
+            {"memory": "4G"}
+        )  # Manually setting for test
 
         # Setup Config 2 (For 'alice')
         c2 = JobConfig(include_scope=JobConfigScope({"user": ["alice"]}))
@@ -98,5 +124,6 @@ class TestJobConfigSystem(unittest.TestCase):
         # Should return None because 'guest' doesn't match 'admin' and there is no fallback
         self.assertIsNone(res_guest)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
