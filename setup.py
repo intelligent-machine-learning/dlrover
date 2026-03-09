@@ -56,6 +56,5 @@ setup(
     entry_points={
         "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]
     },
-    data_files=[("bin", ["scripts/dlrover_run_affinity.sh",
-                         "scripts/dlrover_run_affinity_metax.sh"])],
+    data_files=[("bin", ["scripts/dlrover_run_affinity.sh"])],
 )
