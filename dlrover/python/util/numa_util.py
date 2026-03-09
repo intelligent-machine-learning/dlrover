@@ -124,7 +124,9 @@ def get_metaxgpu_pci_bus(rank):
     Returns:
         gpu pci bus info, None if failed
     """
-    cmd = "mx-smi -i {} --show-pcie | grep 'GPU#' | awk '{{print $3}}'".format(rank)
+    cmd = "mx-smi -i {} --show-pcie | grep 'GPU#' | awk '{{print $3}}'".format(
+        rank
+    )
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode == 0:
         return result.stdout.lower().strip()
