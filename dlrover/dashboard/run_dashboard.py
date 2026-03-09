@@ -25,19 +25,19 @@ def main():
         "--host",
         type=str,
         default="0.0.0.0",
-        help="Host to bind the server (default: 0.0.0.0)"
+        help="Host to bind the server (default: 0.0.0.0)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8080,
-        help="Port to bind the server (default: 8080)"
+        help="Port to bind the server (default: 8080)",
     )
     parser.add_argument(
         "--log-dir",
         type=str,
         default="/tmp/dlrover",
-        help="Directory for log files (default: /tmp/dlrover)"
+        help="Directory for log files (default: /tmp/dlrover)",
     )
 
     args = parser.parse_args()
@@ -54,7 +54,7 @@ def main():
         logger.info("Dashboard server stopped by user.")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Failed to start dashboard server: {e}")
+        logger.error(f"Failed to start dashboard server: {e}", exc_info=True)
         sys.exit(1)
 
 

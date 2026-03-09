@@ -224,6 +224,7 @@
                 const status = i === 0 ? 'FAILED' : (i < 7 ? 'RUNNING' : 'PENDING');
                 nodes.WORKER.push({
                     id: i,
+                    rank_index: i,
                     name: `worker-${i}`,
                     type: 'WORKER',
                     status: status,
@@ -238,6 +239,7 @@
             for (let i = 0; i < 2; i++) {
                 nodes.PS.push({
                     id: i,
+                    rank_index: i,
                     name: `ps-${i}`,
                     type: 'PS',
                     status: 'RUNNING',
@@ -251,6 +253,7 @@
             // Generate Chief
             nodes.CHIEF.push({
                 id: 0,
+                rank_index: 0,
                 name: 'chief-0',
                 type: 'CHIEF',
                 status: 'RUNNING',
@@ -263,6 +266,7 @@
             // Generate Evaluator
             nodes.EVALUATOR.push({
                 id: 0,
+                rank_index: 0,
                 name: 'evaluator-0',
                 type: 'EVALUATOR',
                 status: 'SUCCEEDED',

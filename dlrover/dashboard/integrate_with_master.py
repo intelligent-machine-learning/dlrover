@@ -20,14 +20,16 @@ from dlrover.python.master.node.job_context import JobContext
 from dlrover.dashboard.app import create_dashboard_app, WebSocketHandler
 from dlrover.dashboard.service_integration import (
     start_dashboard_service,
-    stop_dashboard_service
+    stop_dashboard_service,
 )
 
 
 class DashboardManager:
     """Manager for dashboard integration in DLRover Master."""
 
-    def __init__(self, host="0.0.0.0", port=8080, enable=True, perf_monitor=None):
+    def __init__(
+        self, host="0.0.0.0", port=8080, enable=True, perf_monitor=None
+    ):
         self.host = host
         self.port = port
         self.enable = enable
@@ -44,17 +46,23 @@ class DashboardManager:
 
         try:
             # Start dashboard service with perf monitor
-            self._dashboard_service = start_dashboard_service(self._perf_monitor)
+            self._dashboard_service = start_dashboard_service(
+                self._perf_monitor
+            )
 
             # Start dashboard server in a separate thread
-            self._dashboard_thread = threading.Thread(target=self._run_dashboard_server)
+            self._dashboard_thread = threading.Thread(
+                target=self._run_dashboard_server
+            )
             self._dashboard_thread.daemon = True
             self._dashboard_thread.start()
 
             # Start broadcast thread for real-time updates
             self._executor.submit(self._broadcast_loop)
 
-            logger.info(f"Dashboard manager started on {self.host}:{self.port}")
+            logger.info(
+                f"Dashboard manager started on {self.host}:{self.port}"
+            )
         except Exception as e:
             logger.error(f"Failed to start dashboard manager: {e}")
 
@@ -79,7 +87,9 @@ class DashboardManager:
             server = HTTPServer(app)
             server.listen(self.port, self.host)
 
-            logger.info(f"Dashboard server listening on http://{self.host}:{self.port}")
+            logger.info(
+                f"Dashboard server listening on http://{self.host}:{self.port}"
+            )
             IOLoop.current().start()
         except Exception as e:
             logger.error(f"Dashboard server error: {e}")
@@ -98,8 +108,8 @@ class DashboardManager:
                         "job_stage": job_ctx.get_job_stage(),
                         "running_nodes": job_ctx.get_running_node_size(),
                         "failed_nodes": job_ctx.get_failed_node_size(),
-                        "total_nodes": job_ctx.get_total_node_size()
-                    }
+                        "total_nodes": job_ctx.get_total_node_size(),
+                    },
                 }
 
                 # Broadcast to all WebSocket clients
@@ -119,10 +129,11 @@ def add_dashboard_to_master(master_instance, dashboard_config=None):
         master_instance: The DLRover Master server instance
         dashboard_config: Optional configuration for dashboard
     """
+    if not master_instance:
+        return None
     if not dashboard_config:
         dashboard_config = {"enable": True, "host": "0.0.0.0", "port": 8080}
-
-    if not dashboard_config["enable"]:
+    if not dashboard_config.get("enable", True):
         return None
 
     # Create dashboard instance
@@ -130,7 +141,7 @@ def add_dashboard_to_master(master_instance, dashboard_config=None):
         host=dashboard_config.get("host", "0.0.0.0"),
         port=dashboard_config.get("port", 8080),
         enable=dashboard_config.get("enable", True),
-        perf_monitor=getattr(master_instance, "perf_monitor", None)
+        perf_monitor=getattr(master_instance, "perf_monitor", None),
     )
 
     # Store on master server
@@ -167,5 +178,7 @@ def add_dashboard_to_master(master_instance, dashboard_config=None):
     master_instance.start = lambda: start_with_dashboard(master_instance)
     master_instance.stop = lambda: stop_with_dashboard(master_instance)
 
-    logger.info(f"Dashboard integration added to master on port {instance.port}")
+    logger.info(
+        f"Dashboard integration added to master on port {instance.port}"
+    )
     return instance

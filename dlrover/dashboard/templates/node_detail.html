@@ -137,6 +137,11 @@
 
                     <!-- Node Details -->
                     <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Rank:</span>
+                            <span class="font-medium">{{ node.rank_index ?? 'N/A' }}</span>
+                        </div>
+
                         <div v-if="node.service_addr" class="flex items-center justify-between">
                             <span class="text-gray-600">Address:</span>
                             <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ node.service_addr }}</code>
@@ -209,6 +214,19 @@
                                     {{ node.health_check.status }}
                                 </span>
                                 <span class="text-xs text-gray-600">{{ node.health_check.last_check }}</span>
+                            </div>
+                        </div>
+
+                        <div v-if="node.consanguinity" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Consanguinity</div>
+                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <div class="flex items-center space-x-2 text-sm">
+                                    <span class="text-gray-600">Lineage:</span>
+                                    <span class="font-mono font-bold text-blue-700">{{ node.consanguinity }}</span>
+                                </div>
+                                <div class="text-gray-500 text-xs mt-1">
+                                    Node fault tolerance evolution based on type and rank
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -583,26 +601,75 @@
 
                 const generateMockNodesForType = () => {
                     try {
-                        // Generate realistic mock data based on node type
                         const mockNodes = [];
                         const count = nodeType.value === 'WORKER' ? 25 : 12;
 
+                        // Define which rank_index values have multiple instances (fault tolerance occurred)
+                        // key: rank_index, value: [id1, id2, ...] ordered by creation time
+                        const multiInstanceRanks = {
+                            0: [0, 12, 24],      // rank_index=0 has 3 instances: id=0 failed -> id=12 failed -> id=24 running
+                            3: [3, 18],          // rank_index=3 has 2 instances: id=3 failed -> id=18 running
+                        };
+
+                        // Generate nodes
                         for (let i = 0; i < count; i++) {
+                            // Determine rank_index (logical identity)
+                            let rank_index = i;
+                            let instanceIndex = 0;
+                            for (const [rank, ids] of Object.entries(multiInstanceRanks)) {
+                                const idx = ids.indexOf(i);
+                                if (idx !== -1) {
+                                    rank_index = parseInt(rank);
+                                    instanceIndex = idx;
+                                    break;
+                                }
+                            }
+
                             const node = {
                                 id: i,
                                 name: `${nodeType.value.toLowerCase()}-${i}`,
                                 type: nodeType.value,
-                                status: i === 0 ? 'FAILED' : (i % 5 === 0 ? 'PENDING' : 'RUNNING'),
-                                service_addr: i === 0 ? '' : `${nodeType.value.toLowerCase()}-${i}:2222`,
-                                start_time: Date.now() - (3600 + i * 60) * 1000,
-                                exit_reason: i === 0 ? 'Container exited with code 137' : '',
-                                relaunch_count: i === 0 ? 2 : 0
+                                rank_index: rank_index,
+                                status: 'RUNNING',
+                                service_addr: `${nodeType.value.toLowerCase()}-${i}:2222`,
+                                start_time: Date.now() - (3600 + i * 60 + instanceIndex * 300) * 1000,
+                                exit_reason: '',
+                                relaunch_count: instanceIndex
                             };
 
+                            // Set status for multi-instance nodes
+                            if (multiInstanceRanks[rank_index]) {
+                                const ids = multiInstanceRanks[rank_index];
+                                const totalInstances = ids.length;
+                                const myInstanceIndex = ids.indexOf(i);
+
+                                if (myInstanceIndex < totalInstances - 1) {
+                                    // Not the last instance -> already failed
+                                    node.status = 'FAILED';
+                                    node.exit_reason = 'Container exited with code 137';
+                                    node.service_addr = '';
+                                    // Failed nodes have finish_time
+                                    node.finish_time = Date.now() - (3000 + i * 60) * 1000;
+                                } else {
+                                    // Last instance -> currently running
+                                    node.status = 'RUNNING';
+                                }
+                            } else {
+                                // Single-instance nodes: set different status based on id
+                                if (i === 0) {
+                                    node.status = 'FAILED';
+                                    node.exit_reason = 'Container exited with code 137';
+                                    node.service_addr = '';
+                                } else if (i % 7 === 0) {
+                                    node.status = 'PENDING';
+                                } else {
+                                    node.status = 'RUNNING';
+                                }
+                            }
+
                             // Add finish_time for terminal states
-                            if (isTerminalState(node.status)) {
-                                const finishTimeOffset = (30 + i * 3) * 60 * 1000; // 30-120 minutes ago
-                                node.finish_time = Date.now() - finishTimeOffset;
+                            if (isTerminalState(node.status) && !node.finish_time) {
+                                node.finish_time = Date.now() - (30 + i * 3) * 60 * 1000;
                             }
 
                             // Add mock resource specs
@@ -615,16 +682,7 @@
                                 };
                             }
 
-                            // Add succession info for restarted nodes
-                            if (i === 0 && node.relaunch_count > 0) {
-                                node.succession = {
-                                    predecessor: `${nodeType.value.toLowerCase()}-${i}-v1`,
-                                    reason: 'Container failure',
-                                    time: Date.now() - 1800000
-                                };
-                            }
-
-                            // Add health check
+                            // Add health check for running nodes
                             if (node.status === 'RUNNING') {
                                 node.health_check = {
                                     status: 'healthy',
@@ -633,6 +691,30 @@
                             }
 
                             mockNodes.push(node);
+                        }
+
+                        // Generate Consanguinity (fault tolerance lineage)
+                        // Group by rank_index, sort by start_time, generate lineage chain
+                        const rankGroups = {};
+                        for (const node of mockNodes) {
+                            if (!rankGroups[node.rank_index]) {
+                                rankGroups[node.rank_index] = [];
+                            }
+                            rankGroups[node.rank_index].push(node);
+                        }
+
+                        // Sort each group by start_time and generate Consanguinity
+                        for (const nodes of Object.values(rankGroups)) {
+                            nodes.sort((a, b) => a.start_time - b.start_time);
+
+                            if (nodes.length > 1) {
+                                // Multiple instances -> generate lineage chain
+                                const chain = nodes.map(n => n.id).join(' -> ');
+                                for (const node of nodes) {
+                                    node.consanguinity = chain;
+                                }
+                            }
+                            // If only one instance, don't set consanguinity (display empty)
                         }
 
                         console.log('generateMockNodesForType: Generated', mockNodes.length, 'mock nodes');

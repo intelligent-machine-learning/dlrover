@@ -95,7 +95,7 @@ def run(args):
     dashboard_config = {
         "enable": _dlrover_context.enable_dashboard,
         "host": "0.0.0.0",
-        "port": _dlrover_context.dashboard_port
+        "port": _dlrover_context.dashboard_port,
     }
     logger.info(f"Dashboard config: {dashboard_config}")
     add_dashboard_to_master(master, dashboard_config)

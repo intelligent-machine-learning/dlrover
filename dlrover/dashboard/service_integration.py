@@ -17,8 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.node.job_context import JobContext, get_job_context
+from dlrover.python.master.node.job_context import JobContext
 
 
 class DashboardService:
@@ -64,8 +63,6 @@ class DashboardService:
 
     def _update_training_metrics(self):
         """Update training metrics from PerfMonitor."""
-        from dlrover.python.master.node.job_context import get_job_context
-        job_ctx = get_job_context()
 
         # Update from internal PerfMonitor instance if available
         if self._perf_monitor:
@@ -75,9 +72,13 @@ class DashboardService:
         else:
             # Fallback: try to find PerfMonitor in global objects
             try:
-                from dlrover.python.master.monitor.perf_monitor import PerfMonitor
+                from dlrover.python.master.monitor.perf_monitor import (
+                    PerfMonitor,
+                )
+
                 monitor = None
                 import gc
+
                 for obj in gc.get_objects():
                     if isinstance(obj, PerfMonitor):
                         monitor = obj
@@ -131,7 +132,7 @@ class DashboardService:
             "global_step": self.get_global_step(),
             "training_speed": self.get_training_speed(),
             "total_steps": self.get_total_steps(),
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
 

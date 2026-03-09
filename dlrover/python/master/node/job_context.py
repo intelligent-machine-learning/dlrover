@@ -332,7 +332,12 @@ class JobContext(Singleton):
         """Get number of running nodes across all types."""
         running_count = 0
         with self._locker:
-            for node_type in [NodeType.WORKER, NodeType.PS, NodeType.CHIEF, NodeType.EVALUATOR]:
+            for node_type in [
+                NodeType.WORKER,
+                NodeType.PS,
+                NodeType.CHIEF,
+                NodeType.EVALUATOR,
+            ]:
                 if node_type in self._job_nodes:
                     for node in self._job_nodes[node_type].values():
                         if node.status == NodeStatus.RUNNING:
