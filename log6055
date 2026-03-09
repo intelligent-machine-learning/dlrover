@@ -1,0 +1,130 @@
+[2026-03-09 05:41:26,988] [WARNING][deprecation.py:364:new_func] From /usr/local/lib/python3.8/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+[2026-03-09 05:44:17,200] [INFO][base_executor.py:68:get_cluster_info_by_tf_config] cluster spec is {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}                 task_type is chief                 task_id is 0                 address is p1.default.svc:5001
+[2026-03-09 05:44:17,303] [WARNING][deprecation.py:364:new_func] From /home/m00915/work/github/dlrover/dlrover/trainer/tensorflow/executor/base_executor.py:143: RunConfig.__init__ (from tensorflow_estimator.python.estimator.run_config) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.keras instead.
+[2026-03-09 05:44:17,303] [INFO][run_config.py:548:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}, 'task': {'type': 'chief', 'index': 0}}
+[2026-03-09 05:44:17,303] [INFO][base_executor.py:116:get_cluster_def] cluster def is:
+ job {
+  name: "ps"
+  tasks {
+    key: 0
+    value: "web04-pod2.default.svc:5002"
+  }
+}
+job {
+  name: "chief"
+  tasks {
+    key: 0
+    value: "p1.default.svc:5001"
+  }
+}
+
+[2026-03-09 05:44:17,304] [INFO][run_config.py:548:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}, 'task': {'type': 'chief', 'index': 0}, 'environment': 'google'}
+[2026-03-09 05:44:17,304] [INFO][base_executor.py:158:get_config] Using _get_run_config : {'_model_dir': None, '_tf_random_seed': None, '_save_summary_steps': 100, '_save_checkpoints_steps': None, '_save_checkpoints_secs': 600, '_session_config': device_filters: "/job:ps"
+device_filters: "/job:chief"
+allow_soft_placement: true
+graph_options {
+  rewrite_options {
+    meta_optimizer_iterations: ONE
+  }
+}
+, '_keep_checkpoint_max': 5, '_keep_checkpoint_every_n_hours': 10000, '_log_step_count_steps': 100, '_train_distribute': None, '_device_fn': None, '_protocol': None, '_eval_distribute': None, '_experimental_distribute': None, '_experimental_max_worker_delay_secs': None, '_session_creation_timeout_secs': 7200, '_checkpoint_save_graph_def': True, '_service': None, '_cluster_spec': ClusterSpec({'chief': ['p1.default.svc:5001'], 'ps': ['web04-pod2.default.svc:5002'], 'worker': ['web04-pod1.default.svc:5000']}), '_task_type': 'chief', '_task_id': 0, '_evaluation_master': '', '_master': 'grpc://p1.default.svc:5001', '_num_ps_replicas': 1, '_num_worker_replicas': 2, '_global_id_in_cluster': 0, '_is_chief': True}
+[2026-03-09 05:44:17,304] [INFO][base_executor.py:166:get_config] mini cluster spec is {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001']}
+[2026-03-09 05:44:17,323] [INFO][base_executor.py:116:get_cluster_def] cluster def is:
+ job {
+  name: "ps"
+  tasks {
+    key: 0
+    value: "web04-pod2.default.svc:5002"
+  }
+}
+job {
+  name: "worker"
+  tasks {
+    key: 1
+    value: "web04-pod1.default.svc:5000"
+  }
+}
+
+[2026-03-09 05:44:17,341] [INFO][base_executor.py:68:get_cluster_info_by_tf_config] cluster spec is {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}                 task_type is worker                 task_id is 0                 address is web04-pod1.default.svc:5000
+[2026-03-09 05:44:17,362] [INFO][base_executor.py:68:get_cluster_info_by_tf_config] cluster spec is {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}                 task_type is worker                 task_id is 0                 address is web04-pod1.default.svc:5000
+[2026-03-09 05:44:17,436] [WARNING][deprecation.py:364:new_func] From /home/m00915/work/github/dlrover/dlrover/trainer/tensorflow/executor/base_executor.py:143: RunConfig.__init__ (from tensorflow_estimator.python.estimator.run_config) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.keras instead.
+[2026-03-09 05:44:17,436] [INFO][run_config.py:548:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}, 'task': {'type': 'worker', 'index': 0}}
+[2026-03-09 05:44:17,436] [INFO][base_executor.py:116:get_cluster_def] cluster def is:
+ job {
+  name: "ps"
+  tasks {
+    key: 0
+    value: "web04-pod2.default.svc:5002"
+  }
+}
+job {
+  name: "worker"
+  tasks {
+    key: 1
+    value: "web04-pod1.default.svc:5000"
+  }
+}
+
+[2026-03-09 05:44:17,437] [INFO][run_config.py:548:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}, 'task': {'type': 'worker', 'index': 0}, 'environment': 'google'}
+[2026-03-09 05:44:17,437] [INFO][base_executor.py:158:get_config] Using _get_run_config : {'_model_dir': None, '_tf_random_seed': None, '_save_summary_steps': 100, '_save_checkpoints_steps': None, '_save_checkpoints_secs': 600, '_session_config': device_filters: "/job:ps"
+device_filters: "/job:worker/task:0"
+allow_soft_placement: true
+graph_options {
+  rewrite_options {
+    meta_optimizer_iterations: ONE
+  }
+}
+, '_keep_checkpoint_max': 5, '_keep_checkpoint_every_n_hours': 10000, '_log_step_count_steps': 100, '_train_distribute': None, '_device_fn': None, '_protocol': None, '_eval_distribute': None, '_experimental_distribute': None, '_experimental_max_worker_delay_secs': None, '_session_creation_timeout_secs': 7200, '_checkpoint_save_graph_def': True, '_service': None, '_cluster_spec': ClusterSpec({'chief': ['p1.default.svc:5001'], 'ps': ['web04-pod2.default.svc:5002'], 'worker': ['web04-pod1.default.svc:5000']}), '_task_type': 'worker', '_task_id': 0, '_evaluation_master': '', '_master': 'grpc://web04-pod1.default.svc:5000', '_num_ps_replicas': 1, '_num_worker_replicas': 2, '_global_id_in_cluster': 1, '_is_chief': False}
+[2026-03-09 05:44:17,437] [INFO][base_executor.py:166:get_config] mini cluster spec is {'ps': ['web04-pod2.default.svc:5002'], 'worker': ['web04-pod1.default.svc:5000']}
+[2026-03-09 05:44:17,455] [INFO][tensorflow_failover.py:41:__init__] initializing tensorflow_failover and failover level is 1
+[2026-03-09 05:44:17,455] [INFO][tensorflow_failover.py:54:init_for_dynet] TF_CONFIG is {'cluster': {'ps': ['web04-pod2.default.svc:5002'], 'chief': ['p1.default.svc:5001'], 'worker': ['web04-pod1.default.svc:5000']}, 'task': {'type': 'worker', 'index': 0}}
+[2026-03-09 05:44:17,455] [INFO][tensorflow_failover.py:67:init_for_dynet] Initial ps address is ['web04-pod2.default.svc:5002']
+[2026-03-09 05:44:17,455] [INFO][tensorflow_failover.py:105:ps_addresses_changed] ps address changed from ['web04-pod2.default.svc:5002'] to ['web04-pod2.default.svc:5004'].
+[2026-03-09 05:44:17,455] [INFO][tensorflow_failover.py:129:refresh_env] successfully refresh TF_CONFIFG {"cluster": {"ps": ["web04-pod2.default.svc:5004"], "chief": ["p1.default.svc:5001"], "worker": ["web04-pod1.default.svc:5000"]}, "task": {"type": "worker", "index": 0}}
+[2026-03-09 05:44:29,773] [INFO][dataloader.py:93:init_config] Init the batch size of dataloader to 32
+[2026-03-09 05:44:29,775] [INFO][dataloader.py:129:load_config] Update the batch size of dataloader to 128
+[2026-03-09 05:44:29,775] [INFO][dataloader.py:129:load_config] Update the batch size of dataloader to 128
+[2026-03-09 05:44:29,775] [INFO][dataloader.py:93:init_config] Init the batch size of dataloader to 128
+[2026-03-09 05:44:29,776] [WARNING][dataloader.py:116:load_config] Fail to load config 
+[2026-03-09 05:44:29,794] [INFO][dataloader.py:93:init_config] Init the batch size of dataloader to 32
+[2026-03-09 05:44:36,565] [INFO][dataloader.py:129:load_config] Update the batch size of dataloader to 64
+[2026-03-09 05:44:44,358] [INFO][conf_util.py:177:merge_configs] override sequence is test_set < rules
+[2026-03-09 05:44:44,358] [INFO][conf_util.py:182:merge_configs] conf after merge is {'a': 1, 'priority': 1, 'test_set': {'path': '231', 'sls': {'ak': '1', 'sk': '44'}, 'rules': {'rules': [{'metric': 'auc', 'op': '>', 'val': '0.0001'}], 'steps': 40, 'export': {'model_dir': ['pangu://pangu1_analyze_sata_em14_online/'], 'meta_file_for_arks': 'test.txt', 'protocol': 'arks'}}}, '_rules__path': '\n            {\n                "rules": [\n                    {\n                        "metric": "auc",\n                        "op": ">",\n                        "val": "0.0001"\n                    }\n                ],\n                "steps": 40,\n                "export": {\n                    "model_dir": [\n                        "pangu://pangu1_analyze_sata_em14_online/"\n                    ],\n                    "meta_file_for_arks": "test.txt",\n                    "protocol": "arks"\n                }\n            }\n            ', 'rules': {'rules': [{'metric': 'auc', 'op': '>', 'val': '0.0001'}], 'steps': 40, 'export': {'model_dir': ['pangu://pangu1_analyze_sata_em14_online/'], 'meta_file_for_arks': 'test.txt', 'protocol': 'arks'}}}
+[2026-03-09 05:44:44,372] [INFO][conf_util.py:177:merge_configs] override sequence is test_set_1 < test_set_2
+[2026-03-09 05:44:44,372] [INFO][conf_util.py:182:merge_configs] conf after merge is {'a': 22, 'priority': 1073741823, 'test_set': {'path': 'dd', 'sls': {'ak': '23', 'sk': 'ss'}}}
+[2026-03-09 05:44:44,372] [INFO][conf_util.py:64:get] get value from conf: the key is a and value is 22
+[2026-03-09 05:44:44,372] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'int'>
+[2026-03-09 05:44:44,389] [INFO][conf_util.py:177:merge_configs] override sequence is test_set_1 < test_set_2
+[2026-03-09 05:44:44,390] [INFO][conf_util.py:182:merge_configs] conf after merge is {'a': 22, 'priority': 1073741823, 'test_set': {'path': 'dd', 'sls': {'ak': '23', 'sk': 'ss'}}}
+[2026-03-09 05:44:44,409] [INFO][conf_util.py:194:get_conf] Entering get_conf, original py_conf is <class 'conf_util_test.NewConfigurationManagerTest.test_get_conf.<locals>.TrainConf'>
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:195:get_conf] current working director is /home/m00915/work/github/dlrover
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:177:merge_configs] override sequence is py_conf
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:182:merge_configs] conf after merge is {'batch_size': 64, 'log_steps': 100, 'params': {'deep_embedding_dim': 8, 'learning_rate': 0.0001, 'l1': 0.0, 'l21': 0.0, 'l2': 0.0, 'optimizer': 'group_adam', 'log_steps': 100}, 'priority': 1073741824, 'save_max_secs': 360, 'save_min_secs': 60, 'save_steps': 1000}
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:64:get] get value from conf: the key is batch_size and value is 64
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'int'>
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:64:get] get value from conf: the key is epoch and value is None
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'NoneType'>
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:64:get] get value from conf: the key is epoch and value is 1
+[2026-03-09 05:44:44,410] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'int'>
+[2026-03-09 05:44:44,430] [INFO][conf_util.py:177:merge_configs] override sequence is a
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:182:merge_configs] conf after merge is {'batch_size': 1, 'priority': 10, 'thisa': 'aaa', 'train_set': {'path': '23', 'sls': {'ak': '1', 'sk': '2'}}}
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:64:get] get value from conf: the key is train_set and value is {'path': '23', 'sls': {'ak': '1', 'sk': '2'}}
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'dict'>
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:64:get] get value from conf: the key is train_set and value is ConfigTree([('path', '100'), ('sls', ConfigTree([('ak', '1'), ('sk', '2')]))])
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'pyhocon.config_tree.ConfigTree'>
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:64:get] get value from conf: the key is test_set and value is {}
+[2026-03-09 05:44:44,431] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'dict'>
+[2026-03-09 05:44:44,451] [INFO][conf_util.py:177:merge_configs] override sequence is a < b
+[2026-03-09 05:44:44,452] [INFO][conf_util.py:182:merge_configs] conf after merge is {'batch_size': 10, 'priority': 9, 'thisa': 'aaa', 'train_set': {'path': '231', 'sls': {'ak': '1', 'sk': '44'}}, 'thisb': 'bbb'}
+[2026-03-09 05:44:44,452] [INFO][conf_util.py:64:get] get value from conf: the key is thisa and value is aaa
+[2026-03-09 05:44:44,452] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'str'>
+[2026-03-09 05:44:44,452] [INFO][conf_util.py:64:get] get value from conf: the key is this_not_exist and value is None
+[2026-03-09 05:44:44,452] [INFO][conf_util.py:67:get] get value from conf: value type is <class 'NoneType'>
+[2026-03-09 05:44:44,469] [INFO][conf_util.py:177:merge_configs] override sequence is my1 < my2
+[2026-03-09 05:44:44,469] [INFO][conf_util.py:182:merge_configs] conf after merge is {'b': 'my2', 'priority': 1073741823}
