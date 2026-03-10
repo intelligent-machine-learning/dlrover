@@ -18,10 +18,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.node.job_context import JobContext
 from dlrover.dashboard.app import create_dashboard_app, WebSocketHandler
-from dlrover.dashboard.service_integration import (
-    start_dashboard_service,
-    stop_dashboard_service,
-)
 
 
 class DashboardManager:
@@ -36,7 +32,6 @@ class DashboardManager:
         self._perf_monitor = perf_monitor
         self._dashboard_thread = None
         self._executor = ThreadPoolExecutor(max_workers=2)
-        self._dashboard_service = None
 
     def start(self):
         """Start the dashboard manager."""
@@ -45,11 +40,6 @@ class DashboardManager:
             return
 
         try:
-            # Start dashboard service with perf monitor
-            self._dashboard_service = start_dashboard_service(
-                self._perf_monitor
-            )
-
             # Start dashboard server in a separate thread
             self._dashboard_thread = threading.Thread(
                 target=self._run_dashboard_server
@@ -69,9 +59,6 @@ class DashboardManager:
     def stop(self):
         """Stop the dashboard manager."""
         try:
-            if self._dashboard_service:
-                stop_dashboard_service()
-
             self._executor.shutdown(wait=True)
             logger.info("Dashboard manager stopped")
         except Exception as e:
@@ -83,7 +70,7 @@ class DashboardManager:
             from tornado.httpserver import HTTPServer
             from tornado.ioloop import IOLoop
 
-            app = create_dashboard_app()
+            app = create_dashboard_app(perf_monitor=self._perf_monitor)
             server = HTTPServer(app)
             server.listen(self.port, self.host)
 

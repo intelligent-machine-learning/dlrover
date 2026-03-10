@@ -123,10 +123,16 @@ class TestNodesHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
+    @patch("dlrover.dashboard.app.NodesHandler._build_consanguinity_chain")
     @patch("dlrover.dashboard.app.json")
     @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_nodes_success(self, mock_get_job_context, mock_json):
+    def test_get_nodes_success(
+        self, mock_get_job_context, mock_json, mock_build_consanguinity
+    ):
         """Test successful retrieval of node information."""
+        # Mock _build_consanguinity_chain to return empty string
+        mock_build_consanguinity.return_value = ""
+
         # Create mock node
         mock_node = Mock()
         mock_node.id = 1

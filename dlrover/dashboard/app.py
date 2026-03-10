@@ -14,6 +14,7 @@
 import json
 import os
 from datetime import datetime
+from typing import Optional
 
 from tornado import httpserver, ioloop, web, websocket
 from tornado.concurrent import run_on_executor
@@ -21,6 +22,7 @@ from tornado.web import RequestHandler
 from concurrent.futures import ThreadPoolExecutor
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.common.constants import NodeType, NodeStatus
 from dlrover.python.common.global_context import Context
@@ -35,6 +37,9 @@ class BaseHandler(RequestHandler):
         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
         self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 
+    def get_perf_monitor(self) -> Optional[PerfMonitor]:
+        return self.application.settings.get("perf_monitor", None)
+
 
 class JobInfoHandler(BaseHandler):
     """Handle requests for job information."""
@@ -43,8 +48,12 @@ class JobInfoHandler(BaseHandler):
         """Get overall job information."""
         job_ctx = get_job_context()
 
-        # Get base job information from attributes (may not be set)
+        # Get base job information from attributes
         job_args = job_ctx.get_job_args()
+        if not job_args:
+            self.write(json.dumps({}))
+            return
+
         job_name = job_args.job_name
         job_type = job_args.distribution_strategy
         job_stage = job_ctx.get_job_stage()
@@ -54,6 +63,7 @@ class JobInfoHandler(BaseHandler):
 
         # Try to get some sensible node counts
         total_nodes_cnt = 0
+        pending_nodes_cnt = 0
         running_nodes_cnt = 0
         failed_nodes_cnt = job_ctx.get_failed_node_cnt()
         succeeded_nodes_cnt = 0
@@ -68,15 +78,20 @@ class JobInfoHandler(BaseHandler):
             nodes = job_ctx.job_nodes_by_type(node_type)
             if nodes:
                 total_nodes_cnt += len(nodes)
+                pending_nodes_cnt += sum(
+                    1
+                    for node in nodes.values()
+                    if node.status in (NodeStatus.PENDING, NodeStatus.INITIAL)
+                )
                 running_nodes_cnt += sum(
                     1
                     for node in nodes.values()
-                    if getattr(node, "status", "") == "RUNNING"
+                    if node.status == NodeStatus.RUNNING
                 )
                 succeeded_nodes_cnt += sum(
                     1
                     for node in nodes.values()
-                    if getattr(node, "status", "") == "SUCCEEDED"
+                    if node.status == NodeStatus.SUCCEEDED
                 )
 
         job_info = {
@@ -86,6 +101,7 @@ class JobInfoHandler(BaseHandler):
             "create_time": import_time.isoformat(),  # Simplified for now
             "start_time": import_time.isoformat(),  # Simplified for now
             "total_nodes": total_nodes_cnt,
+            "pending_nodes": pending_nodes_cnt,
             "running_nodes": running_nodes_cnt,
             "failed_nodes": failed_nodes_cnt,
             "succeeded_nodes": succeeded_nodes_cnt,
@@ -190,17 +206,11 @@ class NodesHandler(BaseHandler):
         # Add nodes from job context groups if needed (for cross-group replacements)
         # This handles cases where a node's rank might be in a different group
         try:
-            from dlrover.python.master.node.job_context import get_job_context
-
             job_ctx = get_job_context()
             if hasattr(job_ctx, "_job_node_groups"):
                 for group_nodes in job_ctx._job_node_groups.values():
                     for node_id, node in group_nodes.items():
-                        node_rank = (
-                            node.rank_index
-                            if hasattr(node, "rank_index")
-                            else node.id
-                        )
+                        node_rank = node.rank_index
                         if (
                             node.type == current_node.type
                             and node_rank == current_rank
@@ -281,7 +291,7 @@ class NodesHandler(BaseHandler):
         return {
             "cpu": resource.cpu,
             "memory": resource.memory,
-            "gpu": resource.gpu_num + f"({resource.gpu_type})",
+            "gpu": f"{resource.gpu_num}({resource.gpu_type})",
             "gpu_type": resource.gpu_type,
         }
 
@@ -436,29 +446,19 @@ class MetricsHandler(BaseHandler):
 
     def _get_global_step(self):
         """Get current global step from available monitors."""
-        try:
-            from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-            import gc
 
-            for obj in gc.get_objects():
-                if isinstance(obj, PerfMonitor):
-                    return obj.completed_global_step
-        except Exception:
-            pass
-        return 0
+        monitor = self.get_perf_monitor()
+        if monitor:
+            return monitor.completed_global_step
+        return -1
 
     def _get_training_speed(self):
         """Get current training speed from available monitors."""
-        try:
-            from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-            import gc
 
-            for obj in gc.get_objects():
-                if isinstance(obj, PerfMonitor):
-                    return obj.running_speed
-        except Exception:
-            pass
-        return 0.0
+        monitor = self.get_perf_monitor()
+        if monitor:
+            return monitor.running_speed
+        return -1
 
 
 class RestartNodeHandler(BaseHandler):
@@ -549,6 +549,9 @@ class JobArgsHandler(BaseHandler):
 
             # Get JobArgs from context
             job_args = job_ctx.get_job_args()
+            if not job_args:
+                self.write(json.dumps({}))
+                return
 
             # Convert JobArgs to dict
             job_args_data = {}
@@ -599,7 +602,7 @@ class ContextHandler(BaseHandler):
             self.write(json.dumps({"error": str(e)}))
 
 
-def create_dashboard_app():
+def create_dashboard_app(**kwargs):
     """Create the dashboard application."""
 
     settings = {
@@ -607,6 +610,10 @@ def create_dashboard_app():
         "template_path": os.path.join(os.path.dirname(__file__), "templates"),
         "debug": True,
     }
+
+    # setup instance objects
+    if "perf_monitor" in kwargs:
+        settings["perf_monitor"] = kwargs["perf_monitor"]
 
     app = web.Application(
         [
