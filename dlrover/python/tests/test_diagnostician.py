@@ -454,7 +454,7 @@ class DiagnosticianTest(unittest.TestCase):
         )
 
         actions = diagnostician.resolve(ob)
-        self.assertTrue(isinstance(actions[0], EventAction))
+        self.assertTrue(isinstance(actions[-1], EventAction))
 
     @patch(
         "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
@@ -505,10 +505,14 @@ class DiagnosticianTest(unittest.TestCase):
         )
 
         # test resolve
-        total_nodes_num = 4
-        mock_job_context.get_total_worker_num = MagicMock(
-            return_value=total_nodes_num
-        )
+        mock_nodes = {
+            0: Node(node_type=NodeType.WORKER, node_id=0),
+            1: Node(node_type=NodeType.WORKER, node_id=1),
+            2: Node(node_type=NodeType.WORKER, node_id=2),
+            3: Node(node_type=NodeType.WORKER, node_id=3),
+        }
+        mock_job_context.job_nodes_by_type = MagicMock(return_value=mock_nodes)
+        total_nodes_num = len(mock_nodes)
 
         # hang detection level 0
         mock_dlrover_context.hang_detection = 0
@@ -519,6 +523,7 @@ class DiagnosticianTest(unittest.TestCase):
             self.assertEqual(
                 action.action_type, DiagnosisActionType.COLLECT_METRIC
             )
+            self.assertTrue(action.instance in mock_nodes.keys())
 
         # hang detection level 1
         mock_dlrover_context.hang_detection = 1

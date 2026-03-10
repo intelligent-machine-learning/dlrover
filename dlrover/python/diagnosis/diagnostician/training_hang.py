@@ -17,6 +17,7 @@ from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisErrorConstant,
     JobHangWatermark,
@@ -46,6 +47,7 @@ from dlrover.python.common.constants import (
     GpuMetricEnum,
     MthreadsGPUMetricEnum,
     NodeType,
+    HangDetectionStrategy,
 )
 from dlrover.python.master.node.job_context import get_job_context
 
@@ -96,35 +98,46 @@ class TrainingHangDiagnostician(Diagnostician):
             actions: List[DiagnosisAction] = []
 
             # add metric collection action for all worker node
-            for _ in range(_job_context.get_total_worker_num()):
-                actions.append(
-                    NodeAction(
-                        node_id=-1,
-                        node_type=NodeType.WORKER,
-                        action_type=DiagnosisActionType.COLLECT_METRIC,
-                        instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
+            for _, node in _job_context.job_nodes_by_type(
+                NodeType.WORKER
+            ).items():
+                if not node.is_released:
+                    actions.append(
+                        NodeAction(
+                            node_id=node.id,
+                            node_type=NodeType.WORKER,
+                            action_type=DiagnosisActionType.COLLECT_METRIC,
+                            instance=node.id,
+                        )
                     )
-                )
 
             # do failover
-            if _dlrover_context.hang_detection == 2:
-                node = _job_context.job_node_by_rank(NodeType.WORKER, 0)
-                if node is None:
+            if (
+                _dlrover_context.hang_detection
+                == HangDetectionStrategy.DO_FAILOVER
+            ):
+                node_0: Optional[Node] = _job_context.job_node_by_rank(
+                    NodeType.WORKER, 0
+                )
+                if node_0 is None:
                     logger.warning("Failed to get rank 0 worker")
                 else:
-                    logger.info(f"Restart worker-{node.id} all processes")
+                    logger.info(f"Restart worker-{node_0.id} all processes")
                     _event_context.train_steps.clear_step_events()
 
                     actions.append(
                         NodeAction(
-                            node_id=node.id,
+                            node_id=node_0.id,
                             node_type=NodeType.WORKER,
                             action_type=(DiagnosisActionType.RESTART_WORKER),
                             instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
                         )
                     )
             # do event notify
-            elif _dlrover_context.hang_detection == 1:
+            elif (
+                _dlrover_context.hang_detection
+                == HangDetectionStrategy.DO_NOTIFY
+            ):
                 actions.append(
                     EventAction(
                         event_type=EventReportConstants.TYPE_WARN,
