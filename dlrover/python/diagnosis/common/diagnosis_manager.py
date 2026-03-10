@@ -73,6 +73,13 @@ class DiagnosisManager:
             logger.info(f"Start periodical diagnosis: {self._diagnosticians}")
             for name in self._diagnosticians.keys():
                 try:
+                    time_interval = self._diagnosticians[name][1]
+                    if time_interval <= 0:
+                        logger.debug(
+                            f"Skip non-periodical diagnostician: {name}"
+                        )
+                        continue
+
                     thread_name = f"periodical_diagnose_{name}"
                     thread = threading.Thread(
                         target=self._start_periodical_diagnosticians,
