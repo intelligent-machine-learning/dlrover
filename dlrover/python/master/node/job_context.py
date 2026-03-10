@@ -36,6 +36,7 @@ from dlrover.python.diagnosis.common.constants import (
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
+from dlrover.python.scheduler.job import JobArgs
 
 _dlrover_context = Context.singleton_instance()
 
@@ -47,6 +48,7 @@ class JobContext(Singleton):
     """
 
     def __init__(self):
+        self._job_args = None
         self._exit_code = 0
         self._exit_reason = None
 
@@ -68,6 +70,12 @@ class JobContext(Singleton):
         # the value is a dict with rank_index as key
         self._job_node_groups: Dict[int, Dict[int, Node]] = {}
         self._max_group_idx = DefaultValues.FIRST_GROUP_IDX
+
+    def set_job_args(self, args):
+        self._job_args = args
+
+    def get_job_args(self) -> JobArgs:
+        return self._job_args
 
     def get_exit_code(self):
         return self._exit_code

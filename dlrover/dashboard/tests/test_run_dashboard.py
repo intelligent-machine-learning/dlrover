@@ -152,30 +152,6 @@ if IMPORT_SUCCESS:
                 mock_create_app.assert_called_once()
                 mock_exit.assert_called_once_with(1)
 
-        @patch("dlrover.dashboard.run_dashboard.sys.exit")
-        @patch("dlrover.dashboard.app.PeriodicCallback")
-        @patch("dlrover.dashboard.app.ioloop.IOLoop")
-        def test_integration_with_job_context(
-            self, mock_ioloop, mock_periodic_callback, mock_exit
-        ):
-            """Test integration with job context initialization."""
-            # Mock IOLoop to prevent server from actually running
-            mock_ioloop_instance = MagicMock()
-            mock_ioloop.current.return_value = mock_ioloop_instance
-
-            # Mock PeriodicCallback to avoid comparison issues with MagicMock
-            mock_callback_instance = MagicMock()
-            mock_periodic_callback.return_value = mock_callback_instance
-
-            with patch(
-                "dlrover.dashboard.app.init_job_context_for_test"
-            ) as mock_init_ctx:
-                with patch("sys.argv", ["run_dashboard.py"]):
-                    main()
-
-                # Job context should be initialized (called in create_dashboard_app)
-                mock_init_ctx.assert_called_once()
-
 
 class TestMasterDashboardIntegration(unittest.TestCase):
     """Test dashboard integration in master main."""

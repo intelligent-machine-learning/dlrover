@@ -21,25 +21,10 @@ from tornado.web import RequestHandler
 from concurrent.futures import ThreadPoolExecutor
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.node.job_context import JobContext, get_job_context
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.common.constants import NodeType, NodeStatus
 from dlrover.python.common.global_context import Context
 from tornado.ioloop import PeriodicCallback
-
-
-def init_job_context_for_test():
-    """Initialize JobContext with test data. This is for testing purposes."""
-    job_ctx = JobContext.singleton_instance()
-
-    # Add missing attributes with fallback values for testing
-    if not hasattr(job_ctx, "_job_name"):
-        job_ctx._job_name = "test-job"
-    if not hasattr(job_ctx, "_job_type"):
-        job_ctx._job_type = "tensorflow"
-    if not hasattr(job_ctx, "_job_create_time"):
-        job_ctx._job_create_time = datetime.now()
-    if not hasattr(job_ctx, "_job_start_time"):
-        job_ctx._job_start_time = datetime.now()
 
 
 class BaseHandler(RequestHandler):
@@ -59,18 +44,19 @@ class JobInfoHandler(BaseHandler):
         job_ctx = get_job_context()
 
         # Get base job information from attributes (may not be set)
-        job_name = getattr(job_ctx, "_job_name", "") or "Unnamed Job"
-        job_type = getattr(job_ctx, "_job_type", "") or "Unknown"
+        job_args = job_ctx.get_job_args()
+        job_name = job_args.job_name
+        job_type = job_args.distribution_strategy
         job_stage = job_ctx.get_job_stage()
 
         # For create/start times, fall back to using import time if not set
         import_time = datetime.now()
 
         # Try to get some sensible node counts
-        total_nodes = 0
-        running_nodes = 0
-        failed_nodes = job_ctx.get_failed_node_cnt()
-        succeeded_nodes = 0
+        total_nodes_cnt = 0
+        running_nodes_cnt = 0
+        failed_nodes_cnt = job_ctx.get_failed_node_cnt()
+        succeeded_nodes_cnt = 0
 
         # Count nodes from job_nodes
         for node_type in [
@@ -81,13 +67,13 @@ class JobInfoHandler(BaseHandler):
         ]:
             nodes = job_ctx.job_nodes_by_type(node_type)
             if nodes:
-                total_nodes += len(nodes)
-                running_nodes += sum(
+                total_nodes_cnt += len(nodes)
+                running_nodes_cnt += sum(
                     1
                     for node in nodes.values()
                     if getattr(node, "status", "") == "RUNNING"
                 )
-                succeeded_nodes += sum(
+                succeeded_nodes_cnt += sum(
                     1
                     for node in nodes.values()
                     if getattr(node, "status", "") == "SUCCEEDED"
@@ -99,10 +85,10 @@ class JobInfoHandler(BaseHandler):
             "job_stage": job_stage,
             "create_time": import_time.isoformat(),  # Simplified for now
             "start_time": import_time.isoformat(),  # Simplified for now
-            "total_nodes": total_nodes,
-            "running_nodes": running_nodes,
-            "failed_nodes": failed_nodes,
-            "succeeded_nodes": succeeded_nodes,
+            "total_nodes": total_nodes_cnt,
+            "running_nodes": running_nodes_cnt,
+            "failed_nodes": failed_nodes_cnt,
+            "succeeded_nodes": succeeded_nodes_cnt,
         }
         self.write(json.dumps(job_info))
 
@@ -295,7 +281,7 @@ class NodesHandler(BaseHandler):
         return {
             "cpu": resource.cpu,
             "memory": resource.memory,
-            "gpu": resource.gpu,
+            "gpu": resource.gpu_num + f"({resource.gpu_type})",
             "gpu_type": resource.gpu_type,
         }
 
@@ -561,19 +547,8 @@ class JobArgsHandler(BaseHandler):
             # Try to get the actual JobArgs instance from the job context
             job_ctx = get_job_context()
 
-            # Check if job context has JobArgs
-            job_args = None
-            if hasattr(job_ctx, "job_args") and job_ctx.job_args:
-                job_args = job_ctx.job_args
-            else:
-                # Create a mock JobArgs with job context info if available
-                from dlrover.python.scheduler.job import LocalJobArgs
-
-                job_name = getattr(job_ctx, "_job_name", "unknown-job")
-                job_args = LocalJobArgs("kubernetes", "default", job_name)
-                job_args.enable_dynamic_sharding = True
-                job_args.enable_elastic_scheduling = True
-                job_args.distribution_strategy = "ParameterServerStrategy"
+            # Get JobArgs from context
+            job_args = job_ctx.get_job_args()
 
             # Convert JobArgs to dict
             job_args_data = {}
@@ -626,8 +601,6 @@ class ContextHandler(BaseHandler):
 
 def create_dashboard_app():
     """Create the dashboard application."""
-    # Initialize test data if no real job context exists
-    init_job_context_for_test()
 
     settings = {
         "static_path": os.path.join(os.path.dirname(__file__), "static"),
