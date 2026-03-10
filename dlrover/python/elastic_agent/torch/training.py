@@ -1539,6 +1539,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 saver.save_shm_to_storage, 60, self._client
             )
 
+    def _get_time(self):
+        return time.time()
+
     def ucp(self):
         """
         Do universal checkpoint.
@@ -1552,7 +1555,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             if not saver:
                 return
 
-            start_time = time.time()
+            start_time = self._get_time()
             max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
             wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
 
@@ -1574,7 +1577,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     saver.get_latest_success_save_dir()
                 )
                 start_saving_step = saver.get_latest_start_saving_step()
-                elapsed_time = time.time() - start_time
+                elapsed_time = self._get_time() - start_time
 
                 # Detect that a NEW checkpoint saving has actually started
                 if (

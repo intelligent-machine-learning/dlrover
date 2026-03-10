@@ -2088,7 +2088,9 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 # Use itertools.count() to provide infinite values
                 import itertools
 
-                with mock.patch("time.time", side_effect=itertools.count()):
+                with mock.patch.object(
+                    agent, "_get_time", side_effect=itertools.count()
+                ):
                     with mock.patch("time.sleep"):
                         agent.ucp()
 
