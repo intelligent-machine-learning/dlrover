@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, List
 
 from dlrover.python.common.constants import DictKey, EventReportConstants
 from dlrover.python.diagnosis.common.constants import (
@@ -52,15 +52,17 @@ class ResourceCollectionFailureDiagnostician(Diagnostician):
 
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
-    ) -> DiagnosisAction:
+    ) -> List[DiagnosisAction]:
         if problem.observation == DiagnosisErrorConstant.GPU_LOST:
-            return EventAction(
-                event_type=EventReportConstants.TYPE_WARN,
-                event_instance=f"{DiagnosisConstant.LOCAL_INSTANCE}",
-                event_action=problem.observation,
-                event_msg=problem.extra_infos.get(DictKey.LOGS, ""),
-                event_labels={},
-                expired_time_period=120,
-            )
+            return [
+                EventAction(
+                    event_type=EventReportConstants.TYPE_WARN,
+                    event_instance=f"{DiagnosisConstant.LOCAL_INSTANCE}",
+                    event_action=problem.observation,
+                    event_msg=problem.extra_infos.get(DictKey.LOGS, ""),
+                    event_labels={},
+                    expired_time_period=120,
+                )
+            ]
         else:
-            return NoAction()
+            return [NoAction()]
