@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
-from dlrover.python.master.node.job_context import get_job_context
+from dlrover.python.master.node.job_context import get_job_context, JobContext
 from dlrover.python.common.constants import NodeType, NodeStatus
 from dlrover.python.common.global_context import Context
 from tornado.ioloop import PeriodicCallback
@@ -31,6 +31,12 @@ from tornado.ioloop import PeriodicCallback
 
 class BaseHandler(RequestHandler):
     """Base handler with CORS support."""
+
+    _job_context: JobContext = get_job_context()
+
+    @property
+    def job_ctx(self) -> JobContext:
+        return self._job_context
 
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -46,17 +52,16 @@ class JobInfoHandler(BaseHandler):
 
     def get(self):
         """Get overall job information."""
-        job_ctx = get_job_context()
 
         # Get base job information from attributes
-        job_args = job_ctx.get_job_args()
+        job_args = self.job_ctx.get_job_args()
         if not job_args:
             self.write(json.dumps({}))
             return
 
         job_name = job_args.job_name
         job_type = job_args.distribution_strategy
-        job_stage = job_ctx.get_job_stage()
+        job_stage = self.job_ctx.get_job_stage()
 
         # For create/start times, fall back to using import time if not set
         import_time = datetime.now()
@@ -65,7 +70,7 @@ class JobInfoHandler(BaseHandler):
         total_nodes_cnt = 0
         pending_nodes_cnt = 0
         running_nodes_cnt = 0
-        failed_nodes_cnt = job_ctx.get_failed_node_cnt()
+        failed_nodes_cnt = self.job_ctx.get_failed_node_cnt()
         succeeded_nodes_cnt = 0
 
         # Count nodes from job_nodes
@@ -75,7 +80,7 @@ class JobInfoHandler(BaseHandler):
             NodeType.CHIEF,
             NodeType.EVALUATOR,
         ]:
-            nodes = job_ctx.job_nodes_by_type(node_type)
+            nodes = self.job_ctx.get_mutable_job_nodes(node_type)
             if nodes:
                 total_nodes_cnt += len(nodes)
                 pending_nodes_cnt += sum(
@@ -114,7 +119,6 @@ class NodesHandler(BaseHandler):
 
     def get(self):
         """Get all nodes information."""
-        job_ctx = get_job_context()
         nodes = {}
 
         for node_type in [
@@ -124,12 +128,12 @@ class NodesHandler(BaseHandler):
             NodeType.EVALUATOR,
         ]:
             nodes[node_type] = []
-            node_dict = job_ctx.get_mutable_job_nodes(node_type)
+            node_dict = self.job_ctx.get_mutable_job_nodes(node_type)
 
             for node_id, node in node_dict.items():
                 # Build consanguinity chain
                 consanguinity = self._build_consanguinity_chain(
-                    node, job_ctx, node_type, node_dict
+                    node, node_type, node_dict
                 )
 
                 node_info = {
@@ -137,9 +141,7 @@ class NodesHandler(BaseHandler):
                     "type": node_type,
                     "status": node.status,
                     "name": node.name,
-                    "rank_index": node.rank_index
-                    if hasattr(node, "rank_index")
-                    else node_id,
+                    "rank_index": node.rank_index,
                     "service_addr": node.service_addr,
                     "start_time": node.start_time.isoformat()
                     if node.start_time
@@ -169,25 +171,19 @@ class NodesHandler(BaseHandler):
         self.write(json.dumps(nodes))
 
     def _build_consanguinity_chain(
-        self, current_node, job_ctx, node_type, node_dict
+        self, current_node, node_type, node_dict
     ):
         """Build consanguinity chain for a node based on rank_index (logical identity)."""
         # Get all logical instances of the same node (same type and rank_index)
         logical_instances = []
 
         # Key insight: rank_index represents logical identity within node type, not node_id
-        current_rank = (
-            current_node.rank_index
-            if hasattr(current_node, "rank_index")
-            else current_node.id
-        )
+        current_rank = current_node.rank_index
 
         # Get all nodes of the same type with same logical identity
         for node_id, node in node_dict.items():
             # Use rank_index (logical ID) not node_id (physical ID)
-            node_rank = (
-                node.rank_index if hasattr(node, "rank_index") else node.id
-            )
+            node_rank = node.rank_index
             if (
                 node.type == current_node.type
                 and node_rank == current_rank
@@ -203,30 +199,36 @@ class NodesHandler(BaseHandler):
                     }
                 )
 
-        # Add nodes from job context groups if needed (for cross-group replacements)
-        # This handles cases where a node's rank might be in a different group
+        # Add nodes from other node types if needed (for cross-type replacements)
+        # Use get_mutable_job_nodes which is thread-safe
         try:
-            job_ctx = get_job_context()
-            if hasattr(job_ctx, "_job_node_groups"):
-                for group_nodes in job_ctx._job_node_groups.values():
-                    for node_id, node in group_nodes.items():
-                        node_rank = node.rank_index
-                        if (
-                            node.type == current_node.type
-                            and node_rank == current_rank
-                            and node.start_time
-                            and node_id
-                            not in [inst["id"] for inst in logical_instances]
-                        ):
-                            logical_instances.append(
-                                {
-                                    "id": node_id,
-                                    "rank_index": node_rank,
-                                    "name": node.name,
-                                    "start_time": node.start_time,
-                                    "status": node.status,
-                                }
-                            )
+            for other_type in [
+                NodeType.WORKER,
+                NodeType.PS,
+                NodeType.CHIEF,
+                NodeType.EVALUATOR,
+            ]:
+                if other_type == node_type:
+                    continue
+                other_nodes = self.job_ctx.get_mutable_job_nodes(other_type)
+                for node_id, node in other_nodes.items():
+                    node_rank = node.rank_index
+                    if (
+                        node.type == current_node.type
+                        and node_rank == current_rank
+                        and node.start_time
+                        and node_id
+                        not in [inst["id"] for inst in logical_instances]
+                    ):
+                        logical_instances.append(
+                            {
+                                "id": node_id,
+                                "rank_index": node_rank,
+                                "name": node.name,
+                                "start_time": node.start_time,
+                                "status": node.status,
+                            }
+                        )
         except (ImportError, AttributeError):
             pass  # Job context not available, skip
 
@@ -244,44 +246,6 @@ class NodesHandler(BaseHandler):
 
                 if chain_parts:
                     return " -> ".join(chain_parts)
-
-        # Fallback: if no lineage found and we don't have rank_index, use name-based matching
-        if not logical_instances and not hasattr(current_node, "rank_index"):
-            # Fallback logic uses name patterns
-            current_base = (
-                current_node.name.split("-")[0]
-                if "-" in current_node.name
-                and len(current_node.name.split("-")) > 1
-                else current_node.name
-            )
-            fallback_instances = []
-
-            for node_id, node in node_dict.items():
-                node_base = (
-                    node.name.split("-")[0] if "-" in node.name else node.name
-                )
-                if node_base == current_base and node.start_time:
-                    fallback_instances.append(
-                        {
-                            "id": node_id,
-                            "rank_index": getattr(
-                                node, "rank_index", 0
-                            ),  # Use 0 as default rank
-                            "name": node.name,
-                            "start_time": node.start_time,
-                            "status": node.status,
-                        }
-                    )
-
-            fallback_instances.sort(key=lambda x: x["start_time"])
-
-            if len(fallback_instances) > 1:
-                return " -> ".join(
-                    [
-                        f"{inst['rank_index']}({inst['id']})"
-                        for inst in fallback_instances
-                    ]
-                )
 
         # No lineage found
         return ""
@@ -340,11 +304,6 @@ class DiagnosisHandler(BaseHandler):
     def get(self):
         """Get diagnosis results and fault tolerance information."""
         try:
-            # Get fault tolerance statistics
-            from dlrover.python.master.node.job_context import JobContext
-
-            job_ctx = JobContext.singleton_instance()
-
             # Mock data for diagnosis (safeguard if DiagnosisDataManager not available)
             results = [
                 {
@@ -355,9 +314,9 @@ class DiagnosisHandler(BaseHandler):
             ]
 
             fault_stats = {
-                "total_restarts": job_ctx.get_job_restart_count(),
-                "failed_nodes": job_ctx.get_failed_node_cnt(),
-                "recent_failures": self._get_recent_failures(job_ctx, 10),
+                "total_restarts": self.job_ctx.get_job_restart_count(),
+                "failed_nodes": self.job_ctx.get_failed_node_cnt(),
+                "recent_failures": self._get_recent_failures(10),
             }
 
             self.write(
@@ -373,7 +332,7 @@ class DiagnosisHandler(BaseHandler):
             self.set_status(500)
             self.write(json.dumps({"error": str(e)}))
 
-    def _get_recent_failures(self, job_ctx, limit):
+    def _get_recent_failures(self, limit):
         """Get recent node failures."""
         failures = []
         # Get all nodes and find failed ones
@@ -383,7 +342,7 @@ class DiagnosisHandler(BaseHandler):
             NodeType.CHIEF,
             NodeType.EVALUATOR,
         ]:
-            for node_id, node in job_ctx.get_mutable_job_nodes(
+            for node_id, node in self.job_ctx.get_mutable_job_nodes(
                 node_type
             ).items():
                 if node.status == NodeStatus.FAILED and node.finish_time:
@@ -408,7 +367,6 @@ class MetricsHandler(BaseHandler):
 
     def get(self):
         """Get real-time metrics including resource usage and training speed."""
-        job_ctx = get_job_context()
 
         # Aggregate resource usage across all nodes
         total_cpu = 0
@@ -417,7 +375,7 @@ class MetricsHandler(BaseHandler):
         running_workers = 0
 
         for node_type in [NodeType.WORKER, NodeType.PS, NodeType.CHIEF]:
-            for node in job_ctx.get_mutable_job_nodes(node_type).values():
+            for node in self.job_ctx.get_mutable_job_nodes(node_type).values():
                 if node.status == NodeStatus.RUNNING and node.used_resource:
                     total_cpu += float(getattr(node.used_resource, "cpu", 0))
                     total_memory += float(
@@ -544,11 +502,8 @@ class JobArgsHandler(BaseHandler):
     def get(self):
         """Get JobArgs fields as JSON."""
         try:
-            # Try to get the actual JobArgs instance from the job context
-            job_ctx = get_job_context()
-
             # Get JobArgs from context
-            job_args = job_ctx.get_job_args()
+            job_args = self.job_ctx.get_job_args()
             if not job_args:
                 self.write(json.dumps({}))
                 return

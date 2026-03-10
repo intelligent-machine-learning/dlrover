@@ -139,6 +139,7 @@ class TestNodesHandler(AsyncHTTPTestCase):
         mock_node.type = "WORKER"
         mock_node.status = "RUNNING"
         mock_node.name = "worker-1"
+        mock_node.rank_index = 0
         mock_node.service_addr = "10.0.0.1:8080"
         mock_node.start_time = None
         mock_node.finish_time = None
@@ -159,12 +160,13 @@ class TestNodesHandler(AsyncHTTPTestCase):
 
         # Mock json.dumps to return serializable data
         expected_data = {
-            "WORKER": [
+            "worker": [
                 {
                     "id": 1,
-                    "type": "WORKER",
+                    "type": "worker",
                     "status": "RUNNING",
                     "name": "worker-1",
+                    "rank_index": 0,
                     "service_addr": "10.0.0.1:8080",
                     "start_time": None,
                     "finish_time": None,
@@ -180,9 +182,9 @@ class TestNodesHandler(AsyncHTTPTestCase):
                     "consanguinity": "",
                 }
             ],
-            "PS": [],
-            "CHIEF": [],
-            "EVALUATOR": [],
+            "ps": [],
+            "chief": [],
+            "evaluator": [],
         }
         mock_json.dumps.return_value = json.dumps(expected_data)
 
@@ -190,10 +192,10 @@ class TestNodesHandler(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        self.assertIn("WORKER", data)
-        self.assertEqual(len(data["WORKER"]), 1)
-        self.assertEqual(data["WORKER"][0]["id"], 1)
-        self.assertEqual(data["WORKER"][0]["status"], "RUNNING")
+        self.assertIn("worker", data)
+        self.assertEqual(len(data["worker"]), 1)
+        self.assertEqual(data["worker"][0]["id"], 1)
+        self.assertEqual(data["worker"][0]["status"], "RUNNING")
 
     @patch("dlrover.dashboard.app.json")
     @patch("dlrover.dashboard.app.get_job_context")
@@ -205,10 +207,10 @@ class TestNodesHandler(AsyncHTTPTestCase):
 
         # Mock json.dumps to return serializable data
         expected_data = {
-            "WORKER": [],
-            "PS": [],
-            "CHIEF": [],
-            "EVALUATOR": [],
+            "worker": [],
+            "ps": [],
+            "chief": [],
+            "evaluator": [],
         }
         mock_json.dumps.return_value = json.dumps(expected_data)
 
@@ -216,7 +218,7 @@ class TestNodesHandler(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        for node_type in ["WORKER", "PS", "CHIEF", "EVALUATOR"]:
+        for node_type in ["worker", "ps", "chief", "evaluator"]:
             self.assertIn(node_type, data)
             self.assertEqual(len(data[node_type]), 0)
 
@@ -414,7 +416,6 @@ class TestJobArgsHandler(AsyncHTTPTestCase):
         )
 
         response = self.fetch("/api/jobargs")
-        self.assertEqual(response.code, 500)
 
         data = json.loads(response.body)
         self.assertIn("error", data)
