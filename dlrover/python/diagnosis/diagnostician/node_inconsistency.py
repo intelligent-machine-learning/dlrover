@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from dlrover.python.common.constants import (
     EventReportConstants,
@@ -44,8 +44,7 @@ class NodeInconsistencyDiagnostician(Diagnostician):
     """
 
     def __init__(self, job_args):
-        super().__init__()
-        self._job_args = job_args
+        super().__init__(job_args)
         self._k8s_client = k8sClient.singleton_instance(job_args.namespace)
 
     # by type+index
@@ -90,15 +89,17 @@ class NodeInconsistencyDiagnostician(Diagnostician):
 
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
-    ) -> DiagnosisAction:
+    ) -> List[DiagnosisAction]:
         if problem.observation in [DiagnosisErrorConstant.REPEATED_NODE]:
-            return EventAction(
-                event_type=EventReportConstants.TYPE_WARN,
-                event_instance=f"{DiagnosisConstant.MASTER_INSTANCE}",
-                event_action=problem.observation,
-                event_msg=problem.extra_infos.get("target", ""),
-                event_labels={},
-                expired_time_period=120,
-            )
+            return [
+                EventAction(
+                    event_type=EventReportConstants.TYPE_WARN,
+                    event_instance=f"{DiagnosisConstant.MASTER_INSTANCE}",
+                    event_action=problem.observation,
+                    event_msg=problem.extra_infos.get("target", ""),
+                    event_labels={},
+                    expired_time_period=120,
+                )
+            ]
         else:
-            return NoAction()
+            return [NoAction()]
