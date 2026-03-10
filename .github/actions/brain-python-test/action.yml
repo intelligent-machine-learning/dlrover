@@ -1,0 +1,11 @@
+---
+name: brain-python-test
+description: run pytest to execute python test cases of brain python test
+runs:
+  using: 'docker'
+  image: "easydl/dlrover:ci_py310"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "python -m pytest --durations=10 dlrover/brain/python/tests \
+--cov-report xml --cov=dlrover "
