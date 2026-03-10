@@ -1566,7 +1566,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
     @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
     @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
-    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
+    @patch("dlrover.python.elastic_agent.torch.training.get_metaxgpu_stats")
+    def test_check_device(
+        self, mock_get_metaxgpu_stats, mock_get_hpu_stats, mock_get_gpu_stats
+    ):
         self.assertFalse(ElasticTrainingAgent.is_device_checked())
         ElasticTrainingAgent.set_device_checked()
         self.assertTrue(ElasticTrainingAgent.is_device_checked())
@@ -1614,6 +1617,25 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         with self.assertRaises(NodeCheckFailedError):
             ElasticTrainingAgent.reset_device_checked()
             _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = []
+        config.accelerator = Accelerators.METAX_GPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+
         # skip cuz checked
         _check_device(config)
 
