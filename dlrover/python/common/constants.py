@@ -143,6 +143,12 @@ class PendingTimeoutStrategyType(object):
     ALL = 2
 
 
+class HangDetectionStrategy(object):
+    LOG_ONLY = 0
+    DO_NOTIFY = 1
+    DO_FAILOVER = 2
+
+
 class GpuMetricEnum(object):
     """
     it is the metrics enum of nvidia GPU, collected by DCGM

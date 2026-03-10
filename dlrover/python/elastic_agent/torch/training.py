@@ -65,6 +65,9 @@ from dlrover.python.elastic_agent.monitor.resource import (
     get_gpu_stats,
     get_hpu_stats,
     get_metaxgpu_stats,
+    get_used_cpu,
+    get_used_memory,
+    get_used_disk,
 )
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common import env_utils
@@ -1148,77 +1151,49 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _stop_timeout_handler(self, signum, frame):
         current_pid = os.getpid()
-        current_pgid = os.getpgid(current_pid)
+        child_processes = []
+        child_pgids = set()
 
-        def get_processes_by_pgid(pgid):
-            target_processes = []
-            for proc in psutil.process_iter(
-                ["pid", "ppid", "name", "cmdline"]
-            ):
-                try:
-                    if os.getpgid(proc.pid) == pgid:
-                        cmdline = (
-                            " ".join(proc.cmdline())
-                            if proc.cmdline()
-                            else proc.name()
-                        )
-                        target_processes.append(
-                            {
-                                "pid": proc.pid,
-                                "ppid": proc.ppid(),
-                                "name": proc.name(),
-                                "cmdline": cmdline,
-                                "kernel_stack": env_utils.get_kernel_stack(
-                                    proc.pid
-                                )[1],
-                                "user_stack": env_utils.get_user_stack_pyspy(
-                                    proc.pid
-                                )[1],
-                            }
-                        )
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            return target_processes
+        # record info before killing
+        self._collect_metric(log_only=True)
+
+        # get all the subprocess's pgid by current pid
+        child_pids = env_utils.get_all_child_pids(current_pid)
+        for child_pid in child_pids:
+            try:
+                proc = psutil.Process(child_pid)
+                child_processes.append(proc)
+                child_pgids.add(os.getpgid(child_pid))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
 
         try:
-            # get all the subprocess's pgid by current pid
-            child_pids = env_utils.get_all_child_pids(current_pid)
-            child_pgids = set(
-                [os.getpgid(child_pid) for child_pid in child_pids]
-            )
-
             # kill child pg 1st
-            if child_pids and child_pgids:
-                for child_pgid in child_pgids:
-                    target_processes = get_processes_by_pgid(child_pgid)
-
-                    # print target processes' stack info and do killing
-                    logger.warning(
-                        "Use pkill to kill all sub-processes in 'stop_timeout_handler', "
-                        f"Target pgid: {child_pgid}, processes: {target_processes}"
-                    )
-                    subprocess.run(
-                        ["pkill", "-9", "-g", str(child_pgid)],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
+            for child_pgid in child_pgids:
+                # print target processes' stack info and do killing
+                logger.warning(
+                    "Use pkill to kill all sub-processes in 'stop_timeout_handler' "
+                    f"by killing target pgid: {child_pgid}"
+                )
+                subprocess.run(
+                    ["pkill", "-9", "-g", str(child_pgid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
 
             time.sleep(1)
 
             # if still remain child process, kill current pgid
-            child_pids = env_utils.get_all_child_pids(current_pid)
-            if child_pids:
+            still_alive = [p for p in child_processes if p.is_running()]
+            if still_alive:
+                parent_pgid = os.getpgid(current_pid)
                 logger.warning(
-                    f"Still remaining process after pkill child process in 'stop_timeout_handler': {child_pids}"
-                )
-                target_processes = get_processes_by_pgid(current_pgid)
-                logger.warning(
-                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler', "
-                    f"Target pgid: {current_pgid}, processes: {target_processes}"
+                    "Use pkill to kill all processes(including current process) in 'stop_timeout_handler' "
+                    f"by killing target pgid: {parent_pgid} for there is still running child processes."
                 )
                 subprocess.run(
-                    ["pkill", "-9", "-g", str(current_pgid)],
+                    ["pkill", "-9", "-g", str(parent_pgid)],
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -1476,10 +1451,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if isinstance(action, NodeAction):
             action.__class__ = NodeAction
+            logger.info(
+                f"Process diagnosis action: {action_type} {action.instance}"
+            )
             if action_type == DiagnosisActionType.RESTART_WORKER:
-                logger.info(
-                    f"Process diagnosis action: {action_type} {action.instance}"
-                )
                 if action.instance == DiagnosisConstant.LOCAL_INSTANCE:
                     self._remaining_failovers -= 1
                     logger.info(
@@ -1487,11 +1462,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                 self._restart_workers(self._worker_group)
             elif action_type == DiagnosisActionType.RELAUNCH_WORKER:
-                logger.info(
-                    f"Process diagnosis action: {action_type} {action.instance}"
-                )
                 self._stop_workers(self._worker_group)
                 self._worker_group.state = WorkerState.FAILED
+            elif action_type == DiagnosisActionType.COLLECT_METRIC:
+                self._collect_metric()
         elif isinstance(action, EventAction):
             action.__class__ = EventAction
             labels = action.event_labels
@@ -1513,7 +1487,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _check_and_process_diagnosis_action(self):
         for instance in [
             DiagnosisConstant.LOCAL_INSTANCE,
-            DiagnosisConstant.ANY_INSTANCE,
+            DiagnosisConstant.ANY_WORKER_INSTANCE,
         ]:
             action = self._agent_context.next_diagnosis_action(instance)
             if isinstance(action, NoAction):
@@ -1802,6 +1776,79 @@ class ElasticTrainingAgent(LocalElasticAgent):
             logger.error(
                 f"Error waiting on exit barrier. Elapsed: {time.time() - start} seconds"
             )
+
+    def _collect_metric(self, log_only=True):
+        start = time.time()
+
+        total_process_metric = {}
+        total_node_metric = {}
+        total_other_metric = {}
+
+        def get_child_process_metric():
+            process_metric = {}
+            child_pids = env_utils.get_all_child_pids(os.getpid())
+            for child_pid in child_pids:
+                try:
+                    proc = psutil.Process(child_pid)
+                    cmdline = (
+                        " ".join(proc.cmdline())
+                        if proc.cmdline()
+                        else proc.name()
+                    )
+                    process_metric[proc.pid] = {
+                        "ppid": proc.ppid(),
+                        "name": proc.name(),
+                        "cmdline": cmdline,
+                        "kernel_stack": env_utils.get_kernel_stack(proc.pid)[
+                            1
+                        ],
+                        "user_stack": env_utils.get_user_stack_pyspy(proc.pid)[
+                            1
+                        ],
+                        "cpu": proc.cpu_percent(interval=1),
+                        "memory": proc.memory_info().rss / (1024**2),
+                    }
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return process_metric
+
+        try:
+            # for process metric
+            total_process_metric.update(get_child_process_metric())
+
+            # for node metric
+            total_node_metric["cpu"] = get_used_cpu()
+            total_node_metric["mem"] = get_used_memory()
+            total_node_metric["disk"] = get_used_disk()
+            gpu_metric = []
+            if self._config.accelerator == Accelerators.NVIDIA_GPU:
+                gpu_metric = get_gpu_stats()
+            elif self._config.accelerator == Accelerators.ASCEND_NPU:
+                gpu_metric = get_hpu_stats()
+            total_node_metric["gpu"] = gpu_metric
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to collect metrics due to unexpected error: {e}"
+            )
+            return None
+
+        metric_result = {
+            "process_metric": total_process_metric,
+            "node_metric": total_node_metric,
+            "other_metric": total_other_metric,
+        }
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        if log_only:
+            logger.info(
+                f"Got elastic agent metric result: {metric_result}, "
+                f"cost: {elapsed_ms} ms."
+            )
+            return None
+
+        return metric_result
 
 
 def launch_agent(
@@ -2257,7 +2304,7 @@ def node_health_check(
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
     result = agent.run()
-    logger.info("Network check result is %s", result)
+    logger.info(f"Network check result is {result}")
     return result
 
 
@@ -2271,13 +2318,13 @@ def comm_perf_check(
         config,
         entrypoint,
         args,
-        RendezvousName.TRAINING,
+        RendezvousName.NETWORK_CHECK,
         check_round=1,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
     result = agent.run()
-    logger.info("Network check result is %s", result)
+    logger.info(f"Communication perf check result is {result}")
     return result
 
 

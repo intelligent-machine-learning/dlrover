@@ -45,10 +45,21 @@ def get_process_cpu_percent():
     return cpu_percent / 100.0
 
 
+def get_used_cpu():
+    """Get the used cpu(average) of the container"""
+    return psutil.cpu_percent(interval=1)
+
+
 def get_used_memory():
     """Get the used memory of the container"""
     mem = psutil.virtual_memory()
-    return int(mem.used / 1024 / 1024)
+    return int(mem.used / (1024**2))
+
+
+def get_used_disk():
+    """Get the used disk of the container"""
+    disk = psutil.disk_usage("/")
+    return int(disk.used / (1024**3))
 
 
 def get_gpu_stats(gpus=[]):

@@ -18,6 +18,7 @@ from dlrover.python.common.constants import (
     CommunicationType,
     PendingTimeoutStrategyType,
     UserEnv,
+    HangDetectionStrategy,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -75,7 +76,6 @@ class DefaultValues(object):
             True,
         )
     ]
-    HANG_DETECTION = 1
     HANG_DOWNTIME = 10  # default downtime, unit is minute
     MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
     MAX_CKPT_THRESHOLD = 15  # unit is minute
@@ -139,7 +139,7 @@ class Context(Singleton):
         self.relaunch_always = False
         # The strategy of 'hang detection':
         # 0: log only; 1: notify; 2: with fault tolerance
-        self.hang_detection = DefaultValues.HANG_DETECTION
+        self.hang_detection = HangDetectionStrategy.DO_NOTIFY
         # The duration of downtime as training hang, unit is minute
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
