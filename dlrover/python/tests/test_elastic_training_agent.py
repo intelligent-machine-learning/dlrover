@@ -986,6 +986,30 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertDictEqual(run_result.failures, {})
             self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+        with patch(
+            "dlrover.python.util.numa_util.get_metaxgpu_affinity",
+            return_value={0, 1},
+        ):
+            self.config.numa_affinity = True
+            self.config.accelerator = Accelerators.METAX_GPU
+            self.spec.entrypoint = "sleep"
+            self.spec.args = tuple(["3"])
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="sleep",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                exit_barrier_timeout=1,
+            )
+            self.assertEqual(agent._rank_cpu_affinity[0], None)
+            self.assertEqual(agent._rank_cpu_affinity[1], None)
+            agent._rank_cpu_affinity[0] = {0, 1}
+            agent._rank_cpu_affinity[1] = {2, 3}
+            run_result = agent._invoke_run()
+            self.assertDictEqual(run_result.failures, {})
+            self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
     def test_sync_node_port(self):
         self.config.accelerator = Accelerators.ASCEND_NPU
         agent = ElasticTrainingAgent(
