@@ -7,28 +7,11 @@
 
     <!-- External CDNs -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4/dist/echarts.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        .status-indicator {
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        .log-container {
-            max-height: 400px;
-            overflow-y: auto;
         }
         /* Custom scrollbar for modal content */
         .overflow-y-auto::-webkit-scrollbar {
@@ -44,10 +27,6 @@
         }
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8;
-        }
-        /* Tab button focus styles */
-        .tab-button:focus {
-            outline: none;
         }
     </style>
 </head>
@@ -106,11 +85,15 @@
                     </div>
                 </div>
 
-                <!-- Row 2: Running Nodes, Failed Nodes, Training Speed -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Row 2: Pending Nodes, Running Nodes, Failed Nodes, Training Speed -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Pending Nodes</p>
+                        <p class="text-2xl font-bold mt-1 text-yellow-600">{{ jobInfo.pending_nodes }}</p>
+                    </div>
                     <div class="bg-white rounded-xl shadow-md p-6">
                         <p class="text-gray-600 text-sm">Running Nodes</p>
-                        <p class="text-2xl font-bold mt-1">{{ jobInfo.running_nodes }}</p>
+                        <p class="text-2xl font-bold mt-1 text-green-600">{{ jobInfo.running_nodes }}</p>
                     </div>
                     <div class="bg-white rounded-xl shadow-md p-6">
                         <p class="text-gray-600 text-sm">Failed Nodes</p>
@@ -206,6 +189,7 @@
             create_time: new Date().toISOString(),
             start_time: new Date().toISOString(),
             total_nodes: 12,
+            pending_nodes: 1,
             running_nodes: 9,
             failed_nodes: 1,
             succeeded_nodes: 2
@@ -315,6 +299,7 @@
                         job_stage: '-',
                         create_time: '',
                         total_nodes: 0,
+                        pending_nodes: 0,
                         running_nodes: 0,
                         failed_nodes: 0,
                         succeeded_nodes: 0
@@ -330,11 +315,6 @@
                     const metrics = reactive({
                         resource_usage: { total_cpu: 0, total_memory: 0, total_gpu: 0 },
                         training_stats: { training_speed: 0, global_step: 0, running_workers: 0 }
-                    });
-
-                    const diagnosis = reactive({
-                        diagnosis_results: [],
-                        fault_tolerance: { total_restarts: 0, recent_failures: [] }
                     });
 
                     const currentYear = new Date().getFullYear();
@@ -387,11 +367,10 @@
                             }
 
                             // Use API data if not in mock mode
-                            const [jobRes, nodesRes, metricsRes, diagnosisRes] = await Promise.all([
+                            const [jobRes, nodesRes, metricsRes] = await Promise.all([
                                 fetch('/api/job'),
                                 fetch('/api/nodes'),
-                                fetch('/api/metrics'),
-                                fetch('/api/diagnosis')
+                                fetch('/api/metrics')
                             ]);
 
                             if (jobRes.ok) Object.assign(jobInfo, await jobRes.json());
@@ -402,7 +381,6 @@
                                 });
                             }
                             if (metricsRes.ok) Object.assign(metrics, await metricsRes.json());
-                            if (diagnosisRes.ok) Object.assign(diagnosis, await diagnosisRes.json());
 
                         } catch (error) {
                             console.error('Error refreshing data:', error);
@@ -548,7 +526,6 @@
                         jobInfo,
                         nodes,
                         metrics,
-                        diagnosis,
                         currentYear,
                         showConfigModal,
                         configData,

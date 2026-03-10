@@ -19,14 +19,6 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
-        .status-indicator {
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
         .custom-scrollbar {
             scrollbar-width: thin;
             scrollbar-color: #4B5563 #E5E7EB;
@@ -45,12 +37,6 @@
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #374151;
-        }
-        .fade-enter-active, .fade-leave-active {
-            transition: opacity 0.3s ease;
-        }
-        .fade-enter-from, .fade-leave-to {
-            opacity: 0;
         }
     </style>
 </head>
@@ -594,11 +580,7 @@
                     }
                 };
 
-                // Utility functions - ensure they're synchronous and don't reference other functions undefined
-                const checkLinkHealth = (node) => {
-                    return node.status === 'RUNNING' ? 'healthy' : 'unkown';
-                };
-
+                // Generate mock nodes for testing
                 const generateMockNodesForType = () => {
                     try {
                         const mockNodes = [];
