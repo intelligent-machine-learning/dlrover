@@ -7,5 +7,6 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "python -m pytest --durations=10 dlrover/brain/python/tests \
+    - "bash scripts/ci_install.sh && \
+python -m pytest --durations=10 dlrover/brain/python/tests \
 --cov-report xml --cov=dlrover "
