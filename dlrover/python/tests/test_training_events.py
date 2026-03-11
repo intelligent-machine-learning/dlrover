@@ -506,7 +506,7 @@ class TrainingEventTest(unittest.TestCase):
 
         ckpt1 = AtorchEvent(
             timestamp=now,
-            target=EventTargetName.TRAINER,
+            target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
             step=1,
@@ -522,7 +522,7 @@ class TrainingEventTest(unittest.TestCase):
 
         ckpt1 = AtorchEvent(
             timestamp=now + 1,
-            target=EventTargetName.TRAINER,
+            target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.BEGIN,
             step=1,
@@ -532,7 +532,7 @@ class TrainingEventTest(unittest.TestCase):
 
         ckpt1 = AtorchEvent(
             timestamp=now + 1,
-            target=EventTargetName.TRAINER,
+            target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.END,
             step=2,
@@ -542,12 +542,86 @@ class TrainingEventTest(unittest.TestCase):
 
         ckpt2 = AtorchEvent(
             timestamp=now + 1,
-            target=EventTargetName.TRAINER,
+            target=EventTargetName.SAVER,
             name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
             type=EventTypeName.END,
             step=1,
         )
         test_events.add_ckpt_event(ckpt2)
+        self.assertEqual(test_events.size(), 1)
+        last_step = test_events.get_last_step_event()
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, now + 1)
+        self.assertEqual(last_step.step_time, 1)
+
+    def test_atorch_eval_event(self):
+        test_events = StepEvents(max_events=2)
+        now = int(datetime.now().timestamp())
+
+        eval1 = AtorchEvent(
+            timestamp=None,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 0)
+
+        eval1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=None,
+        )
+        test_events.add_ckpt_event(eval1)
+        self.assertEqual(test_events.size(), 0)
+
+        eval1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 1)
+        last_step = test_events.get_last_step_event()
+        self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.end_timestamp, 0)
+        self.assertEqual(
+            last_step.event_state, TrainEventState.TRAIN_EVT_BEGIN
+        )
+
+        eval1 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 1)
+
+        eval1 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 1)
+
+        eval2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_ckpt_event(eval2)
         self.assertEqual(test_events.size(), 1)
         last_step = test_events.get_last_step_event()
         self.assertEqual(last_step.begin_timestamp, now)
