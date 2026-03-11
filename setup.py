@@ -26,7 +26,7 @@ extra_require = {
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
-    "nv": ["nvidia-ml-py"]
+    "nv": ["nvidia-ml-py"],
 }
 
 setup(
