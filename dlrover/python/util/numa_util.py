@@ -114,6 +114,41 @@ def get_gpu_numa_node(rank):
             return int(f.read().strip())
 
 
+def get_metaxgpu_pci_bus(rank):
+    """
+    get metax-gpu pci bus info in BDF format
+
+    Args:
+        rank: gpu rank number
+
+    Returns:
+        gpu pci bus info, None if failed
+    """
+    cmd = "mx-smi -i {} --show-pcie | grep 'GPU#' | awk '{{print $3}}'".format(
+        rank
+    )
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode == 0:
+        return result.stdout.lower().strip()
+
+
+def get_metaxgpu_numa_node(rank):
+    """
+    get metax-gpu device nearest numa node
+
+    Args:
+        rank: gpu rank number
+
+    Returns:
+        numa node number, None if failed
+    """
+    bus = get_metaxgpu_pci_bus(rank)
+    if bus is not None:
+        path = r"/sys/bus/pci/devices/{}/numa_node".format(bus)
+        with open(path, "r") as f:
+            return int(f.read().strip())
+
+
 def parse_cpulist(cpulist):
     """
 
@@ -144,6 +179,29 @@ def get_gpu_affinity(rank):
     """
     try:
         node = get_gpu_numa_node(rank)
+        if node is not None:
+            with open(f"/sys/devices/system/node/node{node}/cpulist") as f:
+                return parse_cpulist(f.read().strip())
+    except ValueError as e:
+        logger.warning(f"get numa affinity value error: {e}")
+    except OSError as e:
+        logger.warning(f"get numa affinity os error: {e}")
+    except Exception as e:
+        logger.warning(f"get numa affinity unexpected error: {e}")
+
+
+def get_metaxgpu_affinity(rank):
+    """
+    get metax-gpu numa-affinity cpuset
+
+    Args:
+        rank: gpu rank
+
+    Returns:
+        cpu set
+    """
+    try:
+        node = get_metaxgpu_numa_node(rank)
         if node is not None:
             with open(f"/sys/devices/system/node/node{node}/cpulist") as f:
                 return parse_cpulist(f.read().strip())

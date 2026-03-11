@@ -37,13 +37,14 @@ class DiagnosisConstant(object):
     CHECK_TENSOR_DEFAULT_RECORDS = 30
 
     AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 15
-    MASTER_INSTANCE = -1
-    ANY_INSTANCE = -2
-    LOCAL_INSTANCE = -3
+    MASTER_INSTANCE = -1  # do action by master instance only
+    ANY_WORKER_INSTANCE = -2  # do action by any worker instance
+    LOCAL_INSTANCE = -3  # do action by the current instance(master or worker)
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
     MAX_ACTION_QUEUE_SIZE = 1000
 
-    MIN_DIAGNOSIS_INTERVAL = 15
+    MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT = 10
+    MAX_DIAGNOSTICIAN_RESOLVE_TIME_LIMIT = 30
 
 
 class DiagnosticianType(object):
@@ -82,6 +83,7 @@ class DiagnosisActionType(object):
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
+    COLLECT_METRIC = "collect_metric"
 
     # job operation
     RESTART_JOB = "restart_job"
