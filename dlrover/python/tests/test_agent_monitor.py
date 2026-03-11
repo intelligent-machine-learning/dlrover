@@ -103,6 +103,39 @@ class ResourceMonitorTest(unittest.TestCase):
                 self.assertTrue(resource_monitor._total_cpu >= 0.0)
                 self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
 
+    def test_resource_monitor_report_resource_metax_gpu(self):
+        gpu_stats: list[GPUStats] = [
+            GPUStats(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
+        ]
+        mock_env = {
+            NodeEnv.DLROVER_MASTER_ADDR: self.addr,
+            NodeEnv.MONITOR_ENABLED: "true",
+        }
+
+        with patch.dict("os.environ", mock_env):
+            result = not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "") or not (
+                os.getenv(NodeEnv.MONITOR_ENABLED, "") == "true"
+            )
+            self.assertFalse(result)
+            # mock get_metaxgpu_stats
+            with patch(
+                "dlrover.python.elastic_agent.monitor.resource.get_metaxgpu_stats",
+                return_value=gpu_stats,
+            ):
+                resource_monitor = ResourceMonitor.singleton_instance(
+                    Accelerators.METAX_GPU
+                )
+                resource_monitor.start()
+                time.sleep(0.3)
+                resource_monitor.report_resource()
+                self.assertTrue(resource_monitor._total_cpu >= 0.0)
+                self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
+
     def test_training_reporter(self):
         TF_CONFIG = {
             "cluster": {
