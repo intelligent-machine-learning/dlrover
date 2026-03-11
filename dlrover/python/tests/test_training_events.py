@@ -572,6 +572,16 @@ class TrainingEventTest(unittest.TestCase):
             timestamp=now,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 0)
+
+        eval1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
             type=EventTypeName.BEGIN,
             step=None,
         )
@@ -605,6 +615,16 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(test_events.size(), 1)
 
         eval1 = AtorchEvent(
+            timestamp=now - 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=1,
+        )
+        test_events.add_eval_event(eval1)
+        self.assertEqual(test_events.size(), 1)
+
+        eval1 = AtorchEvent(
             timestamp=now + 1,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_EVALUATE,
@@ -614,19 +634,48 @@ class TrainingEventTest(unittest.TestCase):
         test_events.add_eval_event(eval1)
         self.assertEqual(test_events.size(), 1)
 
-        eval2 = AtorchEvent(
+        eval1 = AtorchEvent(
             timestamp=now + 1,
             target=EventTargetName.TRAINER,
             name=TrainEventName.TRAIN_EVT_EVALUATE,
             type=EventTypeName.END,
             step=1,
         )
-        test_events.add_ckpt_event(eval2)
+        test_events.add_eval_event(eval1)
         self.assertEqual(test_events.size(), 1)
         last_step = test_events.get_last_step_event()
         self.assertEqual(last_step.begin_timestamp, now)
         self.assertEqual(last_step.end_timestamp, now + 1)
         self.assertEqual(last_step.step_time, 1)
+
+        eval2 = AtorchEvent(
+            timestamp=now - 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_eval_event(eval2)
+        self.assertEqual(test_events.size(), 1)
+
+        eval2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_eval_event(eval2)
+        self.assertEqual(test_events.size(), 2)
+        eval2 = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_eval_event(eval2)
+        self.assertEqual(test_events.size(), 1)
 
     def test_hang_threshold(self):
         now = int(datetime.now().timestamp())
