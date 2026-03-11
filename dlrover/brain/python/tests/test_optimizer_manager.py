@@ -25,6 +25,7 @@ from dlrover.brain.python.common.job import (
 )
 from dlrover.brain.python.common.constants import (
     Node,
+    DefaultResource,
 )
 
 
@@ -38,17 +39,17 @@ class TestOptimizerManager(unittest.TestCase):
         job = JobMeta(
             uuid="job_uuid",
         )
-        conf = OptimizeConfig(optimizer=self.optimizer_name)
+        conf = OptimizeConfig(optimizer_name=self.optimizer_name)
         plan = self.manager.optimize(job, conf)
         job_resource = plan.job_resource
         self.assertEqual(
             job_resource.node_group_resources[
                 Node.NODE_TYPE_WORKER
             ].resource.cpu,
-            4,
+            DefaultResource.WORKER_CPU,
         )
 
-        conf.optimizer = "unknown"
+        conf.optimizer_name = "unknown"
         plan = self.manager.optimize(job, conf)
         self.assertIsNone(plan)
 
@@ -57,7 +58,7 @@ class TestOptimizerManager(unittest.TestCase):
         job = JobMeta(
             uuid="job_uuid",
         )
-        conf = OptimizeConfig(optimizer="my_algo")
+        conf = OptimizeConfig(optimizer_name="my_algo")
 
         mock_optimizer = MagicMock(spec=BaseOptimizer)
         mock_optimizer.optimize.side_effect = ValueError(

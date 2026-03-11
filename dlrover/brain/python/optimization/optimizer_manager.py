@@ -26,6 +26,11 @@ from dlrover.brain.python.optimization.optimizer_router import OptimizerRouter
 
 
 class OptimizerManager:
+    """
+    OptimizerManager manages registered optimizers. For an optimize request from
+    the training job, it picks up one optimizer to optimize this job based runtime status of this job.
+    """
+
     def __init__(self):
         self.optimizers: Dict[str, BaseOptimizer] = {}
         self.router = OptimizerRouter()
@@ -44,7 +49,7 @@ class OptimizerManager:
             return None
 
         try:
-            plan = self.optimizers[conf.optimizer].optimize(job)
+            plan = self.optimizers[conf.optimizer_name].optimize(job)
             return plan
         except Exception as e:
             logger.warning(f"Fail to optimize {job.uuid}: {e}")

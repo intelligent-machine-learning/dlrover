@@ -22,6 +22,7 @@ from dlrover.brain.python.common.job import (
 )
 from dlrover.brain.python.common.constants import (
     Node,
+    DefaultResource,
 )
 
 
@@ -40,8 +41,8 @@ class BaseOptimizer:
                 node_group_resources={
                     Node.NODE_TYPE_WORKER: NodeGroupResource(
                         resource=NodeResource(
-                            cpu=4,
-                            memory=8 * 1024 * 1024,
+                            cpu=DefaultResource.WORKER_CPU,
+                            memory=DefaultResource.WORKER_MEM,
                         ),
                     )
                 },

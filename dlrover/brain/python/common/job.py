@@ -52,5 +52,5 @@ class JobOptimizePlan(BaseModel):
 
 
 class OptimizeConfig(BaseModel):
-    optimizer: str = ""
+    optimizer_name: str = ""
     customized_config: dict[str, str] = Field(default_factory=dict)

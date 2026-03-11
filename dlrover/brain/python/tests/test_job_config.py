@@ -15,8 +15,10 @@ import unittest
 from dlrover.brain.python.jobmanagement.job_config import (
     JobConfig,
     JobConfigScope,
-    JobConfigManager,
     JobConfigValues,
+)
+from dlrover.brain.python.jobmanagement.job_config_manager import (
+    JobConfigManager,
 )
 from dlrover.brain.python.common.job import JobMeta
 

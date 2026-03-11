@@ -27,7 +27,7 @@ class TestOptimizerRouter(unittest.TestCase):
         optimizer = "test_optimizer"
         job = JobMeta()
         conf = OptimizeConfig(
-            optimizer=optimizer,
+            optimizer_name=optimizer,
         )
 
         routed_optimizer = self.opt_router.route(job, conf)

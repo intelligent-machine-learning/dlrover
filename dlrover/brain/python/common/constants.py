@@ -14,3 +14,8 @@
 
 class Node(object):
     NODE_TYPE_WORKER = "worker"
+
+
+class DefaultResource(object):
+    WORKER_CPU = 4
+    WORKER_MEM = 8 * 1024 * 1024

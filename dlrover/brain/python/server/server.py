@@ -20,7 +20,9 @@ from dlrover.brain.python.common.http_schemas import (
 )
 import uvicorn
 
-from dlrover.brain.python.jobmanagement.job_config import JobConfigManager
+from dlrover.brain.python.jobmanagement.job_config_manager import (
+    JobConfigManager,
+)
 from dlrover.brain.python.optimization.optimizer_manager import (
     OptimizerManager,
 )
@@ -28,6 +30,13 @@ from dlrover.brain.python.common.args import get_parsed_args
 
 
 class BrainServer:
+    """
+    The training jobs access the service of DLRover brain via BrainServer.
+    The BrainServer provides two APIs via HTTP protocol:
+        - optimize: optimize the resource configuration of a training job.
+        - get_config: retrieve the configuration of a job.
+    """
+
     def __init__(self):
         self._server = FastAPI(title="DLRover Brain Server")
         self._optimizer_manager = OptimizerManager()

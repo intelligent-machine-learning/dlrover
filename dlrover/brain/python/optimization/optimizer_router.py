@@ -18,8 +18,14 @@ from dlrover.brain.python.common.job import (
 
 
 class OptimizerRouter:
+    """
+    OptimizerRouter routes optimize requests to the best optimizers
+    based runtime status of this job.
+    """
+
     def __init__(self):
         pass
 
     def route(self, job: JobMeta, conf: OptimizeConfig) -> str:
-        return conf.optimizer
+        # todo: pick up optimizer based on job information
+        return conf.optimizer_name

@@ -75,14 +75,3 @@ class JobConfig:
     @property
     def config_values(self) -> JobConfigValues:
         return self._config_values
-
-
-class JobConfigManager:
-    def __init__(self):
-        self._configs: List[JobConfig] = []
-
-    def get_job_config(self, job: JobMeta) -> Optional[JobConfigValues]:
-        for config in self._configs:
-            if config.in_scope(job):
-                return config.config_values
-        return None

@@ -19,6 +19,8 @@ from dlrover.brain.python.common.http_schemas import (
     OptimizeRequest,
     OptimizeResponse,
     Response,
+    JobConfigRequest,
+    JobConfigResponse,
 )
 from dlrover.brain.python.common.job import (
     JobMeta,
@@ -28,20 +30,16 @@ from dlrover.brain.python.common.job import (
 
 class TestBrainClient(unittest.TestCase):
     def setUp(self):
-        """Runs before every test method"""
-        self.base_url = "http://api.brain.local"
+        self.base_url = "http://api.brain.local:8000"
         self.client = BrainClient(self.base_url)
 
-        # Create a mock session to replace the real requests.Session
         self.mock_session = MagicMock()
-        # Inject our mock into the client
         self.client.session = self.mock_session
 
     def test_init_creates_robust_session(self):
         """Verify the session is configured with retries."""
         real_client = BrainClient("http://test.com")
 
-        # Check if HTTPAdapter is mounted (this confirms retries are configured)
         adapter = real_client.session.get_adapter("http://")
         self.assertIsNotNone(adapter)
         self.assertEqual(adapter.max_retries.total, 3)
@@ -61,23 +59,18 @@ class TestBrainClient(unittest.TestCase):
 
         expected_resp_json = opt_response.model_dump()
 
-        # 2. Configure the Mock Response
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = expected_resp_json
         self.mock_session.post.return_value = mock_response
 
-        # 3. Execution
         result = self.client.optimize(req_data)
 
-        # 4. Assertions
-        # Verify the result is the correct Pydantic model
         self.assertIsInstance(result, OptimizeResponse)
         self.assertEqual(result.job_opt_plan.job_meta.uuid, job_uid)
 
-        # Verify the client called the correct URL with correct JSON
         self.mock_session.post.assert_called_once_with(
-            "http://api.brain.local/optimize",
+            "http://api.brain.local:8000/optimize",
             json=req_data.model_dump(),
         )
 
@@ -86,14 +79,12 @@ class TestBrainClient(unittest.TestCase):
         job = JobMeta(uuid=job_uid)
         req_data = OptimizeRequest(job=job)
 
-        # 2. Configure Mock to simulate a 500 error
         mock_response = MagicMock()
-        mock_response.status_code = 500
+        mock_response.status_code = 503
         mock_response.text = "Internal Server Error"
 
-        # raise_for_status() should raise HTTPError when called
         error = requests.exceptions.HTTPError(
-            "500 Error", response=mock_response
+            "503 Error", response=mock_response
         )
         mock_response.raise_for_status.side_effect = error
 
@@ -123,6 +114,65 @@ class TestBrainClient(unittest.TestCase):
         self.mock_session.post.side_effect = Exception("Exception!!!")
         resp = self.client.optimize(req_data)
         self.assertIsNone(resp)
+
+    def test_get_config_success(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # The JSON the fake server returns
+        expected_json = {
+            "response": {"success": True, "reason": ""},
+            "job_configs": {"memory": "16G", "cpu": "8"},
+        }
+        mock_response.json.return_value = expected_json
+
+        self.client.session.post.return_value = mock_response
+
+        req = JobConfigRequest(type="test", job=JobMeta(uuid="job-1"))
+
+        result = self.client.get_config(req)
+
+        self.assertIsInstance(result, JobConfigResponse)
+        self.assertEqual(result.job_configs, {"memory": "16G", "cpu": "8"})
+        self.assertTrue(result.response.success)
+
+        self.client.session.post.assert_called_once_with(
+            "http://api.brain.local:8000/job_config", json=req.model_dump()
+        )
+
+    def test_get_config_http_error(self):
+        """Test how the client handles a 4xx or 5xx HTTP error."""
+        mock_err_response = MagicMock()
+        mock_err_response.status_code = 503
+        mock_err_response.text = "Internal Server Error"
+
+        http_error = requests.exceptions.HTTPError(response=mock_err_response)
+
+        self.client.session.post.side_effect = http_error
+
+        req = JobConfigRequest()
+        result = self.client.get_config(req)
+
+        self.assertIsNone(result)
+
+    def test_get_config_connection_error(self):
+        """Test how the client handles a complete inability to connect."""
+        conn_error = requests.exceptions.ConnectionError("Connection refused")
+        self.client.session.post.side_effect = conn_error
+
+        req = JobConfigRequest()
+        result = self.client.get_config(req)
+
+        self.assertIsNone(result)
+
+    def test_get_config_unexpected_exception(self):
+        """Test how the client handles completely random Python crashes."""
+        generic_error = ValueError("Something completely unexpected broke")
+        self.client.session.post.side_effect = generic_error
+
+        req = JobConfigRequest()
+        result = self.client.get_config(req)
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
