@@ -96,6 +96,7 @@ class AtorchEventCollector(Singleton):
         if event_name not in (
             TrainEventName.TRAIN_EVT_STEP,
             TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            TrainEventName.TRAIN_EVT_EVALUATE,
         ):
             logger.debug(f"Invalid event name {event_name} in line {line}")
             raise AtorchNotFoundException()

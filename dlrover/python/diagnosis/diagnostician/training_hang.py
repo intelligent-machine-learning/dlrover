@@ -215,6 +215,7 @@ class TrainingHangDiagnostician(Diagnostician):
         )
         step_hang = _event_context.check_job_step_hang()
         ckpt_hang = _event_context.check_ckpt_hang()
+        event_block = _event_context.check_event_block()
 
         if is_tensor_drop_zero == DiagnosisResult.DIAG_HANG:
             time_format = "%Y-%m-%d %H:%M:%S"
@@ -227,7 +228,7 @@ class TrainingHangDiagnostician(Diagnostician):
             )
 
             # set to hang when both is_tensor_drop_zero and (step_hang or ckpt_hang)
-            if step_hang or ckpt_hang:
+            if step_hang or ckpt_hang or event_block:
                 return True
         return False
 
