@@ -143,6 +143,12 @@ class PendingTimeoutStrategyType(object):
     ALL = 2
 
 
+class HangDetectionStrategy(object):
+    LOG_ONLY = 0
+    DO_NOTIFY = 1
+    DO_FAILOVER = 2
+
+
 class GpuMetricEnum(object):
     """
     it is the metrics enum of nvidia GPU, collected by DCGM
@@ -479,6 +485,7 @@ class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
     MTHREADS_GPU = "mthreads.com/gpu"
+    METAX_GPU = "metax-tech.com/gpu"
     GENERIC_CPU = "cpu"
 
 

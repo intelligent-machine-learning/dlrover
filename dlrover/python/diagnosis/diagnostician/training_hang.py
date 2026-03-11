@@ -10,11 +10,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from datetime import datetime
 from typing import Optional
 
+from dlrover.python.common.event.context import JobEventContext
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.constants import DiagnosisErrorConstant
+from dlrover.python.common.metric.context import JobMetricContext
+from dlrover.python.common.node import Node
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisErrorConstant,
+    JobHangWatermark,
+    DiagnosisResult,
+    DiagnosisActionType,
+    DiagnosisConstant,
+)
 from dlrover.python.diagnosis.common.diagnostician import (
     DiagnosisObservation,
     Diagnostician,
@@ -28,9 +38,23 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     EventAction,
     NoAction,
+    NodeAction,
 )
-from dlrover.python.common.constants import EventReportConstants
+from dlrover.python.common.constants import (
+    EventReportConstants,
+    Accelerators,
+    NpuMetricEnum,
+    GpuMetricEnum,
+    MthreadsGPUMetricEnum,
+    NodeType,
+    HangDetectionStrategy,
+)
+from dlrover.python.master.node.job_context import get_job_context
 
+_dlrover_context = Context.singleton_instance()
+_job_context = get_job_context()
+_event_context = JobEventContext.singleton_instance()
+_metric_context = JobMetricContext.singleton_instance()
 HANG_METRIC_PREFIX = "XPU_TIMER_COMMON_HANG"
 
 
@@ -39,53 +63,111 @@ class TrainingHangDiagnostician(Diagnostician):
     TrainingHangDiagnostician is to observe and resolve the training hang problem
     """
 
-    def __init__(self, data_mgr):
-        super().__init__()
+    def __init__(self, job_args, data_mgr):
+        super().__init__(job_args)
         self._data_mgr = data_mgr
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
-        diagnosis_data = self._data_mgr.get_data(
+        # analyze xpu_timer metrics 1st
+        xpu_timer_diagnosis_data = self._data_mgr.get_data(
             DiagnosisDataType.XPU_TIMER_METRIC
         )
 
-        if (
-            diagnosis_data
-            and len(diagnosis_data) > 0
-            and self.is_hang(diagnosis_data)
-        ):
+        if self.is_hang_by_xpu_timer_metric(xpu_timer_diagnosis_data):
             return DiagnosisObservation(
                 observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
+                extra_infos={"TYPE": "BY_XPU_TIMER_METRIC"},
             )
+
+        # analyze other metrics
+        if self.is_hang_by_other_metric():
+            return DiagnosisObservation(
+                observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
+                extra_infos={"TYPE": "BY_OTHER_METRIC"},
+            )
+
         return None
 
     def resolve(
         self, problem: DiagnosisObservation, **kwargs
-    ) -> DiagnosisAction:
+    ) -> List[DiagnosisAction]:
         if (
             problem is not None
             and problem.observation == DiagnosisErrorConstant.TRAINING_IS_HANG
         ):
-            return EventAction(
-                event_type=EventReportConstants.TYPE_WARN,
-                event_instance=EventReportConstants.JOB_INSTANCE,
-                event_action=problem.observation,
-                event_msg="",
-                event_labels={},
-                expired_time_period=120,
-            )
-        else:
-            return NoAction()
+            actions: List[DiagnosisAction] = []
 
-    def is_hang(self, diagnosis_data: List[DiagnosisData]):
+            # add metric collection action for all worker node
+            for _, node in _job_context.job_nodes_by_type(
+                NodeType.WORKER
+            ).items():
+                if not node.is_released:
+                    actions.append(
+                        NodeAction(
+                            node_id=node.id,
+                            node_type=NodeType.WORKER,
+                            action_type=DiagnosisActionType.COLLECT_METRIC,
+                            instance=node.id,
+                        )
+                    )
+
+            # do failover
+            if (
+                _dlrover_context.hang_detection
+                == HangDetectionStrategy.DO_FAILOVER
+            ):
+                node_0: Optional[Node] = _job_context.job_node_by_rank(
+                    NodeType.WORKER, 0
+                )
+                if node_0 is None:
+                    logger.warning("Failed to get rank 0 worker")
+                else:
+                    logger.info(f"Restart worker-{node_0.id} all processes")
+                    _event_context.train_steps.clear_step_events()
+
+                    actions.append(
+                        NodeAction(
+                            node_id=node_0.id,
+                            node_type=NodeType.WORKER,
+                            action_type=(DiagnosisActionType.RESTART_WORKER),
+                            instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
+                        )
+                    )
+            # do event notify
+            elif (
+                _dlrover_context.hang_detection
+                == HangDetectionStrategy.DO_NOTIFY
+            ):
+                actions.append(
+                    EventAction(
+                        event_type=EventReportConstants.TYPE_WARN,
+                        event_instance=EventReportConstants.JOB_INSTANCE,
+                        event_action=problem.observation,
+                        event_msg="",
+                        event_labels={},
+                        expired_time_period=120,
+                    )
+                )
+            # log only
+            else:
+                logger.info(
+                    f"Got {DiagnosisErrorConstant.TRAINING_IS_HANG} "
+                    "but action is disabled(log only)."
+                )
+            return actions
+        return [NoAction()]
+
+    def is_hang_by_xpu_timer_metric(self, diagnosis_data: List[DiagnosisData]):
+        if not diagnosis_data or len(diagnosis_data) <= 0:
+            logger.debug("Skip for no worker xpu-timer metric.")
+            return False
+
         logger.debug(
-            "Hang detection start using diagnosis data, "
+            "Hang detection start using diagnosis data by xpu-timer, "
             f"data number: {len(diagnosis_data)}, "
             f"data size: {sys.getsizeof(diagnosis_data)}."
         )
         worker_hang_metric: Dict[int, List[Tuple[int, bool]]] = {}
-        if not diagnosis_data:
-            logger.debug("Skip for no worker hang metric.")
-            return False
 
         # the format of the hang metric can refer these files:
         # dlrover/python/tests/data/xpu_timer/hang
@@ -125,6 +207,76 @@ class TrainingHangDiagnostician(Diagnostician):
             )
             return True
         return False
+
+    def is_hang_by_other_metric(self):
+        hang_downtime = _dlrover_context.hang_downtime
+        is_tensor_drop_zero, start, end = self._check_tensor_drop_zero(
+            hang_downtime
+        )
+        step_hang = _event_context.check_job_step_hang()
+        ckpt_hang = _event_context.check_ckpt_hang()
+
+        if is_tensor_drop_zero == DiagnosisResult.DIAG_HANG:
+            time_format = "%Y-%m-%d %H:%M:%S"
+            start_dt = datetime.fromtimestamp(start).strftime(time_format)
+            end_dt = datetime.fromtimestamp(end).strftime(time_format)
+            logger.warning(
+                f"Detect job hang by tensor drop zero: "
+                f"{start_dt}-{end_dt}, step hang is {step_hang}, "
+                f"ckpt hang is {ckpt_hang}"
+            )
+
+            # set to hang when both is_tensor_drop_zero and (step_hang or ckpt_hang)
+            if step_hang or ckpt_hang:
+                return True
+        return False
+
+    def _check_tensor_drop_zero(self, duration):
+        if duration > _metric_context.max_metric_records:
+            duration = _metric_context.max_metric_records
+
+        if self._job_args.xpu_type is Accelerators.ASCEND_NPU:
+            metrics = _metric_context.backtrace_avg_metrics(
+                NpuMetricEnum.NPU_UTIL, duration
+            )
+        elif self._job_args.xpu_type is Accelerators.NVIDIA_GPU:
+            metrics = _metric_context.backtrace_avg_metrics(
+                GpuMetricEnum.GPU_TENSOR_UTIL, duration
+            )
+        elif self._job_args.xpu_type is Accelerators.MTHREADS_GPU:
+            metrics = _metric_context.backtrace_avg_metrics(
+                MthreadsGPUMetricEnum.GPU_TENSOR_UTIL, duration
+            )
+        else:
+            return DiagnosisResult.DIAG_INVALID_PARAM, 0, 0
+
+        if metrics is None:
+            logger.warning(f"invalid metrics: {metrics}")
+            return DiagnosisResult.DIAG_ERROR, 0, 0
+
+        if len(metrics) < duration:
+            logger.debug(
+                f"Waiting for tensor metrics: {len(metrics)}/{duration}"
+            )
+            return DiagnosisResult.DIAG_WAITING, 0, 0
+
+        key_list = list(metrics.keys())
+        key_list.sort(reverse=True)
+
+        logger.debug(f"Check tensor metrics: {dict(metrics)}")
+
+        start_ts = key_list[0]
+        end_ts = key_list[0]
+        for key in key_list:
+            end_ts = key
+            if metrics[key] > JobHangWatermark.TENSOR_UTIL_LOW_WM:
+                return DiagnosisResult.DIAG_HEALTHY, start_ts, end_ts
+
+            duration = duration - 1
+            if duration <= 0:
+                break
+
+        return DiagnosisResult.DIAG_HANG, start_ts, end_ts
 
     def _get_hang_time_last_threshold(self):
         # set 5 minutes for now(second)

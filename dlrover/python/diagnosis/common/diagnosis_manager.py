@@ -13,7 +13,7 @@
 
 import threading
 import time
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
@@ -47,8 +47,14 @@ class DiagnosisManager:
     ):
         if diagnostician is None or not name:
             return
-        if 0 < time_interval < DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL:
-            time_interval = DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL
+        if (
+            0
+            < time_interval
+            < DiagnosisConstant.MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT
+        ):
+            time_interval = (
+                DiagnosisConstant.MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT
+            )
 
         with self._lock:
             self._diagnosticians[name] = (diagnostician, time_interval)
@@ -113,9 +119,9 @@ class DiagnosisManager:
                         f"Failed to start the {thread_name} thread. Error: {e}"
                     )
 
-    def diagnose(self, name: str, **kwargs) -> DiagnosisAction:
+    def diagnose(self, name: str, **kwargs) -> List[DiagnosisAction]:
         if name not in self._diagnosticians:
-            return NoAction()
+            return [NoAction()]
         diagnostician = self._diagnosticians[name][0]
         return diagnostician.diagnose(**kwargs)
 
@@ -143,9 +149,10 @@ class DiagnosisManager:
         while True:
             time.sleep(time_interval)
             try:
-                action = diagnostician.diagnose(**self.get_diagnosis_inputs())
-                if not isinstance(action, NoAction):
-                    self._context.enqueue_diagnosis_action(action)
+                actions = diagnostician.diagnose(**self.get_diagnosis_inputs())
+                for action in actions:
+                    if not isinstance(action, NoAction):
+                        self._context.enqueue_diagnosis_action(action)
             except Exception as e:
                 logger.error(f"Fail to diagnose {name}: {e}")
 
@@ -162,12 +169,13 @@ class DiagnosisManager:
             except TimeoutException:
                 logger.error(f"The collector {name} is timeout.")
             except Exception as e:
-                action = self.diagnose(
+                actions = self.diagnose(
                     DiagnosticianType.RESOURCE_COLLECT_FAILURE,
                     error_log=f"{e}",
                 )
-                if not isinstance(action, NoAction):
-                    self._context.enqueue_diagnosis_action(action)
+                for action in actions:
+                    if not isinstance(action, NoAction):
+                        self._context.enqueue_diagnosis_action(action)
 
     def observe(self, name: str, **kwargs) -> DiagnosisObservation:
         diagnostician = self._diagnosticians.get(name, None)

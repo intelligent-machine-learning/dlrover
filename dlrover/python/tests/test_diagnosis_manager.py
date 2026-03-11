@@ -23,7 +23,6 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
-    EventAction,
     NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
@@ -61,29 +60,31 @@ class DiagnosisManagerTest(unittest.TestCase):
         action = mgr.resolve(name, ob)
         self.assertTrue(isinstance(action, NoAction))
 
-        action = mgr.diagnose(name)
-        self.assertTrue(isinstance(action, NoAction))
+        actions = mgr.diagnose(name)
+        self.assertTrue(isinstance(actions[0], NoAction))
 
         mgr.register_diagnostician(name, diagnostician)
         ob = mgr.observe(name)
         self.assertTrue(len(ob.observation) > 0)
 
-        action = mgr.resolve(name, ob)
-        self.assertTrue(isinstance(action, EventAction))
+        actions = mgr.resolve(name, ob)
+        self.assertTrue(isinstance(actions[0], NoAction))
 
-        action = mgr.diagnose(name)
-        self.assertTrue((isinstance(action, EventAction)))
+        actions = mgr.diagnose(name)
+        self.assertTrue((isinstance(actions[0], NoAction)))
 
         # test register diagnosis
         mgr.register_diagnostician("unknown", Diagnostician(), 60)
         self.assertEqual(len(mgr._diagnosticians), 2)
 
         mgr.register_diagnostician(
-            name, Diagnostician(), DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL - 5
+            name,
+            Diagnostician(),
+            DiagnosisConstant.MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT - 5,
         )
         self.assertEqual(
             mgr._diagnosticians[name][1],
-            DiagnosisConstant.MIN_DIAGNOSIS_INTERVAL,
+            DiagnosisConstant.MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT,
         )
 
         # test start diagnosis
@@ -167,7 +168,7 @@ class DiagnosisManagerTest(unittest.TestCase):
             )
             thread.start()
             time.sleep(0.2)
-            self.assertTrue(context._diagnosis_action_queue.len() > 0)
+            self.assertTrue(context._diagnosis_action_queue.len() == 0)
 
             mock_diagnose.side_effect = Exception()
             time.sleep(0.2)
