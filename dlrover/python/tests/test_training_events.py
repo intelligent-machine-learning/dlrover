@@ -681,3 +681,70 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(_event_context.check_ckpt_hang(), False)
         time.sleep(1.2)
         self.assertEqual(_event_context.check_ckpt_hang(), False)
+
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
+    @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
+    def test_event_block(self):
+        _event_context.hang_threshold = 1
+        _event_context.ckpt_steps.clear_step_events()
+        _event_context.train_steps.clear_step_events()
+        _event_context.eval_steps.clear_step_events()
+
+        self.assertEqual(_event_context.check_event_block(), False)
+
+        now = int(datetime.now().timestamp())
+        evt1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        _event_context.train_steps.add_step_event(evt1)
+        self.assertEqual(_event_context.check_event_block(), False)
+
+        evt2 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.END,
+            step=2,
+        )
+        _event_context.train_steps.add_step_event(evt2)
+        self.assertEqual(_event_context.check_event_block(), False)
+
+        time.sleep(2)
+        self.assertEqual(_event_context.check_event_block(), True)
+
+        now = int(datetime.now().timestamp())
+        ckpt1 = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(ckpt1)
+        self.assertEqual(_event_context.check_event_block(), False)
+
+        _event_context.ckpt_steps.clear_step_events()
+        eval = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        _event_context.ckpt_steps.add_eval_event(eval)
+        eval = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.END,
+            step=2,
+        )
+        _event_context.ckpt_steps.add_eval_event(eval)
+        self.assertEqual(_event_context.check_event_block(), False)

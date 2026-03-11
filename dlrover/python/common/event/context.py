@@ -386,8 +386,8 @@ class JobEventContext(Singleton):
                     f"Confirm event block: {now} {self.hang_threshold} {step}"
                 )
                 return True
-        else:
-            return False
+
+        return False
 
 
 def get_job_event_context() -> JobEventContext:
