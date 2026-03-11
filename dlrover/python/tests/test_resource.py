@@ -18,6 +18,7 @@ from dlrover.python.common.resource import Resource
 from dlrover.python.elastic_agent.monitor.resource import (
     get_hpu_stats,
     get_gpu_stats,
+    get_metaxgpu_stats,
 )
 
 
@@ -75,6 +76,45 @@ class ResourceTest(unittest.TestCase):
 
     def test_get_hpu_stats_without_acl(self):
         self.assertEqual(get_hpu_stats(), [])
+
+    def test_get_gpu_stats_without_pymxsml(self):
+        self.assertEqual(get_metaxgpu_stats(), [])
+
+    def test_get_metaxgpu_stats_with_mock_pymxsml(self):
+        mock_pymxsml = MagicMock()
+        mock_pymxsml.mxsml_extension = mock_pymxsml
+        mock_pymxsml.mxSmlExInit.return_value = None
+        mock_pymxsml.mxSmlExShutdown.return_value = None
+        mock_pymxsml.mxSmlExDeviceGetCount.return_value = 2
+
+        mock_handle = MagicMock()
+        mock_pymxsml.mxSmlExDeviceGetHandleByIndex.return_value = mock_handle
+
+        mock_memory_info = MagicMock()
+        mock_memory_info.total = 1024 * 1024 * 1024
+        mock_memory_info.used = 512 * 1024 * 1024
+        mock_pymxsml.mxSmlExDeviceGetMemoryInfo.return_value = mock_memory_info
+
+        mock_utilization = MagicMock()
+        mock_utilization.gpu = 50
+        mock_pymxsml.mxSmlExDeviceGetUtilizationRates.return_value = (
+            mock_utilization
+        )
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "pymxsml": mock_pymxsml,
+                "pymxsml.mxsml_extension": mock_pymxsml.mxsml_extension,
+            },
+        ):
+            gpu_stats = get_metaxgpu_stats()
+            self.assertEqual(len(gpu_stats), 2)
+            self.assertEqual(gpu_stats[0].index, 0)
+            self.assertEqual(gpu_stats[1].index, 1)
+
+            mock_pymxsml.mxSmlExDeviceGetCount.side_effect = Exception()
+            self.assertEqual(get_metaxgpu_stats(), [])
 
     def test_get_hpu_stats_with_mock_acl(self):
         mock_acl = MagicMock()
