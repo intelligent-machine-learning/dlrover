@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,6 @@ from setuptools import find_packages, setup
 
 install_requires = [
     "psutil",
-    "pynvml",
     "deprecated",
     "requests",
     "packaging",
@@ -27,6 +26,7 @@ extra_require = {
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
+    "nv": ["nvidia-ml-py"],
 }
 
 setup(
