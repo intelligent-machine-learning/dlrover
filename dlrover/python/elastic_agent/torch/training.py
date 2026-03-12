@@ -1792,20 +1792,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
             try:
                 proc = psutil.Process(pid)
                 cmdline = (
-                    " ".join(proc.cmdline())
-                    if proc.cmdline()
-                    else proc.name()
+                    " ".join(proc.cmdline()) if proc.cmdline() else proc.name()
                 )
                 result = {
                     "ppid": proc.ppid(),
                     "name": proc.name(),
                     "cmdline": cmdline,
-                    "kernel_stack": env_utils.get_kernel_stack(proc.pid)[
-                        1
-                    ],
-                    "user_stack": env_utils.get_user_stack_pyspy(proc.pid)[
-                        1
-                    ],
+                    "kernel_stack": env_utils.get_kernel_stack(proc.pid)[1],
+                    "user_stack": env_utils.get_user_stack_pyspy(proc.pid)[1],
                     "cpu": proc.cpu_percent(interval=1),
                     "memory": proc.memory_info().rss / (1024**2),
                 }
@@ -1818,8 +1812,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
         try:
             # for process metric
             child_pids = env_utils.get_all_child_pids(os.getpid())
-            with ThreadPoolExecutor(max_workers=min(len(child_pids), 8)) as executor:
-                futures = [executor.submit(get_process_metric, pid) for pid in child_pids]
+            with ThreadPoolExecutor(
+                max_workers=min(len(child_pids), 8)
+            ) as executor:
+                futures = [
+                    executor.submit(get_process_metric, pid)
+                    for pid in child_pids
+                ]
 
                 child_process_metric = {}
                 for future in as_completed(futures, timeout=15):
