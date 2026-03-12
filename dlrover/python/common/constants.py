@@ -485,6 +485,7 @@ class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
     MTHREADS_GPU = "mthreads.com/gpu"
+    METAX_GPU = "metax-tech.com/gpu"
     GENERIC_CPU = "cpu"
 
 
