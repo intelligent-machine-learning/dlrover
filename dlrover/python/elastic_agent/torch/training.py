@@ -22,7 +22,7 @@ import sys
 import time
 import traceback
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -1788,37 +1788,46 @@ class ElasticTrainingAgent(LocalElasticAgent):
         total_node_metric = {}
         total_other_metric = {}
 
-        def get_child_process_metric():
-            process_metric = {}
-            child_pids = env_utils.get_all_child_pids(os.getpid())
-            for child_pid in child_pids:
-                try:
-                    proc = psutil.Process(child_pid)
-                    cmdline = (
-                        " ".join(proc.cmdline())
-                        if proc.cmdline()
-                        else proc.name()
-                    )
-                    process_metric[proc.pid] = {
-                        "ppid": proc.ppid(),
-                        "name": proc.name(),
-                        "cmdline": cmdline,
-                        "kernel_stack": env_utils.get_kernel_stack(proc.pid)[
-                            1
-                        ],
-                        "user_stack": env_utils.get_user_stack_pyspy(proc.pid)[
-                            1
-                        ],
-                        "cpu": proc.cpu_percent(interval=1),
-                        "memory": proc.memory_info().rss / (1024**2),
-                    }
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            return process_metric
+        def get_process_metric(pid):
+            try:
+                proc = psutil.Process(pid)
+                cmdline = (
+                    " ".join(proc.cmdline())
+                    if proc.cmdline()
+                    else proc.name()
+                )
+                result = {
+                    "ppid": proc.ppid(),
+                    "name": proc.name(),
+                    "cmdline": cmdline,
+                    "kernel_stack": env_utils.get_kernel_stack(proc.pid)[
+                        1
+                    ],
+                    "user_stack": env_utils.get_user_stack_pyspy(proc.pid)[
+                        1
+                    ],
+                    "cpu": proc.cpu_percent(interval=1),
+                    "memory": proc.memory_info().rss / (1024**2),
+                }
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                return pid, {}
+            except Exception:
+                return pid, {}
+            return pid, result
 
         try:
             # for process metric
-            total_process_metric.update(get_child_process_metric())
+            child_pids = env_utils.get_all_child_pids(os.getpid())
+            with ThreadPoolExecutor(max_workers=min(len(child_pids), 8)) as executor:
+                futures = [executor.submit(get_process_metric, pid) for pid in child_pids]
+
+                child_process_metric = {}
+                for future in as_completed(futures, timeout=15):
+                    result = future.result()
+                    if result:
+                        pid, metric = result
+                        child_process_metric[pid] = metric
+            total_process_metric.update(child_process_metric)
 
             # for node metric
             total_node_metric["cpu"] = get_used_cpu()
