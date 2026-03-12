@@ -64,6 +64,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from dlrover.python.elastic_agent.monitor.resource import (
     get_gpu_stats,
     get_hpu_stats,
+    get_metaxgpu_stats,
     get_used_cpu,
     get_used_memory,
     get_used_disk,
@@ -118,7 +119,11 @@ from dlrover.python.util.common_util import (
     find_free_port_in_range,
     find_free_port_in_set,
 )
-from dlrover.python.util.numa_util import get_gpu_affinity, get_npu_affinity
+from dlrover.python.util.numa_util import (
+    get_gpu_affinity,
+    get_npu_affinity,
+    get_metaxgpu_affinity,
+)
 from dlrover.python.util.time_util import timestamp_diff_in_seconds
 from dlrover.trainer.torch.utils import (
     version_less_than_230,
@@ -349,7 +354,9 @@ class ElasticLaunchConfig(LaunchConfig):
             device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
-        if "mthreads" in device:
+        elif "MetaX" in device:
+            self.accelerator = Accelerators.METAX_GPU
+        elif "mthreads" in device:
             self.accelerator = Accelerators.MTHREADS_GPU
         logger.info(
             f"Use {self.accelerator} device for training, "
@@ -716,6 +723,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
             for rank in range(self._config.nproc_per_node):
                 if self._config.accelerator == Accelerators.ASCEND_NPU:
                     self._rank_cpu_affinity[rank] = get_npu_affinity(rank)
+                elif self._config.accelerator == Accelerators.METAX_GPU:
+                    self._rank_cpu_affinity[rank] = get_metaxgpu_affinity(rank)
                 else:
                     self._rank_cpu_affinity[rank] = get_gpu_affinity(rank)
                 logger.info(
@@ -1252,7 +1261,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{spec.get_entrypoint_name()}"
         )
 
-        if self._config.numa_affinity and isinstance(spec.entrypoint, str):
+        if (
+            self._config.numa_affinity
+            and isinstance(spec.entrypoint, str)
+            and self._config.accelerator
+            in (
+                Accelerators.NVIDIA_GPU,
+                Accelerators.METAX_GPU,
+            )
+        ):
+            os.environ["DLROVER_ACCELERATOR_TYPE"] = self._config.accelerator
             os.environ["DLROVER_MEMBIND_POLICY"] = self._config.membind_policy
             logger.info(
                 f"WorkerGroup before numa affinity: {self._worker_group.spec}"
@@ -1522,6 +1540,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 saver.save_shm_to_storage, 60, self._client
             )
 
+    def _get_time(self):
+        return time.time()
+
     def ucp(self):
         """
         Do universal checkpoint.
@@ -1535,7 +1556,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             if not saver:
                 return
 
-            start_time = time.time()
+            start_time = self._get_time()
             max_wait_time = int(os.getenv("DLROVER_UCP_MAX_WAIT_TIME", "60"))
             wait_time = int(os.getenv("DLROVER_UCP_WAIT_TIME", "30"))
 
@@ -1557,7 +1578,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     saver.get_latest_success_save_dir()
                 )
                 start_saving_step = saver.get_latest_start_saving_step()
-                elapsed_time = time.time() - start_time
+                elapsed_time = self._get_time() - start_time
 
                 # Detect that a NEW checkpoint saving has actually started
                 if (
@@ -2325,6 +2346,8 @@ def _check_device(config: ElasticLaunchConfig):
     elif config.accelerator == Accelerators.ASCEND_NPU:
         # for ascend
         device_stats = get_hpu_stats()
+    elif config.accelerator == Accelerators.METAX_GPU:
+        device_stats = get_metaxgpu_stats()
     else:
         logger.debug(
             f"Device type {config.accelerator} is not supported for checking."
@@ -2366,7 +2389,10 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
     _check_device(config)
 
     # matmul + comm check
-    if config.accelerator == Accelerators.NVIDIA_GPU:
+    if config.accelerator in (
+        Accelerators.NVIDIA_GPU,
+        Accelerators.METAX_GPU,
+    ):
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.ascend_npu"]

@@ -1094,6 +1094,30 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             self.assertDictEqual(run_result.failures, {})
             self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+        with patch(
+            "dlrover.python.util.numa_util.get_metaxgpu_affinity",
+            return_value={0, 1},
+        ):
+            self.config.numa_affinity = True
+            self.config.accelerator = Accelerators.METAX_GPU
+            self.spec.entrypoint = "sleep"
+            self.spec.args = tuple(["3"])
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="sleep",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                exit_barrier_timeout=1,
+            )
+            self.assertEqual(agent._rank_cpu_affinity[0], None)
+            self.assertEqual(agent._rank_cpu_affinity[1], None)
+            agent._rank_cpu_affinity[0] = {0, 1}
+            agent._rank_cpu_affinity[1] = {2, 3}
+            run_result = agent._invoke_run()
+            self.assertDictEqual(run_result.failures, {})
+            self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
     def test_sync_node_port(self):
         self.config.accelerator = Accelerators.ASCEND_NPU
         agent = ElasticTrainingAgent(
@@ -1542,7 +1566,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
     @patch("dlrover.python.elastic_agent.torch.training.get_gpu_stats")
     @patch("dlrover.python.elastic_agent.torch.training.get_hpu_stats")
-    def test_check_device(self, mock_get_hpu_stats, mock_get_gpu_stats):
+    @patch("dlrover.python.elastic_agent.torch.training.get_metaxgpu_stats")
+    def test_check_device(
+        self, mock_get_metaxgpu_stats, mock_get_hpu_stats, mock_get_gpu_stats
+    ):
         self.assertFalse(ElasticTrainingAgent.is_device_checked())
         ElasticTrainingAgent.set_device_checked()
         self.assertTrue(ElasticTrainingAgent.is_device_checked())
@@ -1590,6 +1617,25 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         with self.assertRaises(NodeCheckFailedError):
             ElasticTrainingAgent.reset_device_checked()
             _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = []
+        config.accelerator = Accelerators.METAX_GPU
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=10)
+        ]
+        ElasticTrainingAgent.reset_device_checked()
+        _check_device(config)
+
+        mock_get_metaxgpu_stats.return_value = [
+            GPUStats(total_memory_mb=100, used_memory_mb=50)
+        ]
+        with self.assertRaises(NodeCheckFailedError):
+            ElasticTrainingAgent.reset_device_checked()
+            _check_device(config)
+
         # skip cuz checked
         _check_device(config)
 
@@ -2042,7 +2088,9 @@ class ElasticTrainingAgentUcpTest(unittest.TestCase):
                 # Use itertools.count() to provide infinite values
                 import itertools
 
-                with mock.patch("time.time", side_effect=itertools.count()):
+                with mock.patch.object(
+                    agent, "_get_time", side_effect=itertools.count()
+                ):
                     with mock.patch("time.sleep"):
                         agent.ucp()
 
