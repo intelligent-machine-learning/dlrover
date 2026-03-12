@@ -80,7 +80,7 @@ class DiagnosisManager:
                         )
                         continue
 
-                    thread_name = f"periodical_diagnose_{name}"
+                    thread_name = f"periodical_diagnose-{name}"
                     thread = threading.Thread(
                         target=self._start_periodical_diagnosticians,
                         name=thread_name,
@@ -89,7 +89,10 @@ class DiagnosisManager:
                     )
                     thread.start()
                     if thread.is_alive():
-                        logger.info(f"{thread_name} initialized successfully")
+                        logger.info(
+                            f"{thread_name} initialized successfully "
+                            f"with interval {time_interval}"
+                        )
                     else:
                         logger.error(f"{thread_name} is not alive")
                 except Exception as e:

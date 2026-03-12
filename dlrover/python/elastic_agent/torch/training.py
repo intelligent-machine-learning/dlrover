@@ -1470,6 +1470,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         for instance in [
             DiagnosisConstant.LOCAL_INSTANCE,
             DiagnosisConstant.ANY_WORKER_INSTANCE,
+            env_utils.get_node_id(),
         ]:
             action = self._agent_context.next_diagnosis_action(instance)
             if isinstance(action, NoAction):

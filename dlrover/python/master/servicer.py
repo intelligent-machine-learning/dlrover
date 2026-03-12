@@ -813,7 +813,8 @@ class MasterServicer(ABC):
         )
         if action and not isinstance(action, NoAction):
             logger.info(
-                f"Master return action {action.__class__.__name__}: {action.to_json()}"
+                f"Master return action {action.__class__.__name__}: {action.to_json()} "
+                f"for node: {node_id}"
             )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,
