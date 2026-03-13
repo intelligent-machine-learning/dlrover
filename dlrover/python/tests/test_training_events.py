@@ -861,7 +861,7 @@ class TrainingEventTest(unittest.TestCase):
             type=EventTypeName.BEGIN,
             step=2,
         )
-        _event_context.ckpt_steps.add_eval_event(eval)
+        _event_context.eval_steps.add_eval_event(eval)
         eval = AtorchEvent(
             timestamp=now + 1,
             target=EventTargetName.TRAINER,
@@ -869,5 +869,5 @@ class TrainingEventTest(unittest.TestCase):
             type=EventTypeName.END,
             step=2,
         )
-        _event_context.ckpt_steps.add_eval_event(eval)
+        _event_context.eval_steps.add_eval_event(eval)
         self.assertEqual(_event_context.check_event_block(), False)
