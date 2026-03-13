@@ -1280,8 +1280,10 @@ class DistributedJobManager(JobManager):
                         node.relaunchable = False
 
                         if node_type == NodeType.WORKER:
-                            node.eval_time = self._perf_monitor.get_worker_eval_time(
-                                node.id
+                            node.eval_time = (
+                                self._perf_monitor.get_worker_eval_time(
+                                    node.id
+                                )
                             )
                         self._job_context.update_job_node(node)
                         if node.has_group():
