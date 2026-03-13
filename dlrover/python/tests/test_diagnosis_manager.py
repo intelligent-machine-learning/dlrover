@@ -89,7 +89,7 @@ class DiagnosisManagerTest(unittest.TestCase):
 
         # test start diagnosis
         mgr.start_diagnosis()
-        thread_name = f"periodical_diagnose_{name}"
+        thread_name = f"periodical_diagnose-{name}"
         thread_names = [t.name for t in threading.enumerate()]
         self.assertIn(thread_name, thread_names, f"Not found {thread_name}")
 
