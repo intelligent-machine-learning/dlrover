@@ -909,6 +909,16 @@ class DistributedJobManager(JobManager):
 
         if should_relaunch:
             self._relaunch_node(cur_node)
+        else:
+            # stop if min rdzv nodes are not enough for all-reduce
+            if self.is_all_reduce_type_job():
+                if self._worker_manager.get_min_nodes_required() > 0 and (
+                    self.get_worker_num() - 1
+                    < self._worker_manager.get_min_nodes_required()
+                ):
+                    reason = f"Stop job because there isn't enough nodes available as {cur_node.name} can't be relaunch anymore."
+                    logger.warning(reason)
+                    job_ctx.request_stop(1, reason)
 
     def _process_node_events(
         self, status_change_flow: NodeStateFlow, node: Node
