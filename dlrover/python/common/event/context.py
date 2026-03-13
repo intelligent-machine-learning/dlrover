@@ -165,10 +165,16 @@ class StepEvents(object):
                 )
 
     def add_ckpt_event(self, event: AtorchEvent):
+        self._add_generic_event(event, "ckpt")
+
+    def add_eval_event(self, event: AtorchEvent):
+        self._add_generic_event(event, "eval")
+
+    def _add_generic_event(self, event: AtorchEvent, evt_type: str):
         with self._lock:
             keys = list(self._step_events.keys())
             if event.timestamp is None or event.step is None:
-                logger.warning(f"invalid event: {event}")
+                logger.warning(f"invalid {evt_type} event: {event}")
                 return
             elif len(keys) >= self._max_events:
                 self._step_events.popitem(last=False)
@@ -178,12 +184,12 @@ class StepEvents(object):
                     last_event = self._step_events[keys[-1]]
                     if last_event.event_state != TrainEventState.TRAIN_EVT_END:
                         logger.warning(
-                            f"invalid ckpt step: {last_event}, {event}"
+                            f"invalid {evt_type} step: {last_event}, {event}"
                         )
                         return
                     if event.timestamp < last_event.end_timestamp:
                         logger.warning(
-                            f"invalid ckpt step time: {last_event}, {event}"
+                            f"invalid {evt_type} step time: {last_event}, {event}"
                         )
                         return
 
@@ -194,12 +200,14 @@ class StepEvents(object):
                 step_event.localtime = int(time.time())
                 self._step_events[event.timestamp] = step_event
                 logger.info(
-                    f"Add BEGIN event with {event.timestamp}, {step_event}"
+                    f"Add BEGIN {evt_type} event with {event.timestamp}, {step_event}"
                 )
 
             elif event.type == EventTypeName.END:
                 if not len(keys):
-                    logger.warning(f"invalid ckpt step without BEGIN: {event}")
+                    logger.warning(
+                        f"invalid {evt_type} step without BEGIN: {event}"
+                    )
                     return
                 last_key = keys[-1]
                 step_event = self._step_events[last_key]
@@ -208,11 +216,13 @@ class StepEvents(object):
                     or step_event.event_state
                     != TrainEventState.TRAIN_EVT_BEGIN
                 ):
-                    logger.warning(f"invalid ckpt step: {step_event}, {event}")
+                    logger.warning(
+                        f"invalid {evt_type} step: {step_event}, {event}"
+                    )
                     return
                 if step_event.begin_timestamp > event.timestamp:
                     logger.warning(
-                        f"invalid ckpt step time: {step_event}, {event}"
+                        f"invalid {evt_type} step time: {step_event}, {event}"
                     )
                     return
 
@@ -225,7 +235,7 @@ class StepEvents(object):
                 step_event.localtime = int(time.time())
                 self._step_events[last_key] = step_event
                 logger.info(
-                    f"Add END event with {event.timestamp}, {step_event}"
+                    f"Add END {evt_type} event with {event.timestamp}, {step_event}"
                 )
 
 
@@ -238,8 +248,9 @@ class JobEventContext(Singleton):
         self.train_steps: StepEvents = StepEvents()
         self.predict_steps: StepEvents = StepEvents()
         self.ckpt_steps: StepEvents = StepEvents()
-        self.hang_threshold = DefaultValues.HANG_DOWNTIME
-        self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD
+        self.eval_steps: StepEvents = StepEvents()
+        self.hang_threshold = DefaultValues.HANG_DOWNTIME * 60
+        self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD * 60
 
     def check_job_step_hang(self):
         self.hang_threshold = _dlrover_context.hang_downtime * 60
@@ -293,6 +304,36 @@ class JobEventContext(Singleton):
         else:
             logger.debug(f"No new ckpt: {now} {self.ckpt_threshold} {step}")
             return False
+
+    def check_event_block(self):
+        """
+        Check if not event emitted after step END
+        """
+        now = int(datetime.now().timestamp())
+
+        step = self.train_steps.get_last_step_event()
+        if step and step.event_state == TrainEventState.TRAIN_EVT_END:
+            if now - step.localtime > self.hang_threshold:
+                ckpt_step = self.ckpt_steps.get_last_step_event()
+                if ckpt_step and ckpt_step.localtime > step.localtime:
+                    logger.warning(
+                        f"Detect event block: {now} {self.hang_threshold} {step} because of ckpt {ckpt_step}"
+                    )
+                    return False
+
+                eval_step = self.eval_steps.get_last_step_event()
+                if eval_step and eval_step.localtime > step.localtime:
+                    logger.warning(
+                        f"Detect event block: {now} {self.hang_threshold} {step} because of eval {eval_step}"
+                    )
+                    return False
+
+                logger.warning(
+                    f"Confirm event block: {now} {self.hang_threshold} {step}"
+                )
+                return True
+
+        return False
 
 
 def get_job_event_context() -> JobEventContext:

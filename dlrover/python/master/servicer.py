@@ -654,6 +654,9 @@ class MasterServicer(ABC):
         elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
             logger.info(f"Add ckpt event: {message}")
             _event_context.ckpt_steps.add_ckpt_event(message)
+        elif message.name == TrainEventName.TRAIN_EVT_EVALUATE:
+            logger.info(f"Add evaluate event: {message}")
+            _event_context.eval_steps.add_eval_event(message)
 
         return True
 
