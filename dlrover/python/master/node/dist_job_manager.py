@@ -1187,15 +1187,16 @@ class DistributedJobManager(JobManager):
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
 
-    def clear_all_nodes(self):
+    def clear_all_nodes(self, force=False):
         scale_plan = ScalePlan()
         job_nodes = self.get_job_nodes()
         with self._lock:
             for _, nodes in job_nodes.items():
                 for _, node in nodes.items():
-                    if not node.is_released:
-                        scale_plan.remove_nodes.append(node)
-                        node.is_released = True
+                    if not force and node.is_released:
+                        continue
+                    scale_plan.remove_nodes.append(node)
+                    node.is_released = True
         logger.info("Remove all nodes.")
         self._scaler.scale(scale_plan)
 
@@ -1277,16 +1278,15 @@ class DistributedJobManager(JobManager):
                         node.critical = False
                         node.is_released = True
                         node.relaunchable = False
+
+                        if node_type == NodeType.WORKER:
+                            node.eval_time = self._perf_monitor.get_worker_eval_time(
+                                node.id
+                            )
                         self._job_context.update_job_node(node)
                         if node.has_group():
                             self._job_context.update_job_node_by_group(node)
-                for node in job_nodes[NodeType.WORKER].values():
-                    node.eval_time = self._perf_monitor.get_worker_eval_time(
-                        node.id
-                    )
-                    self._job_context.update_job_node(node)
-                    if node.has_group():
-                        self._job_context.update_job_node_by_group(node)
+
             self._stopped = True
 
     def update_node_resource_usage(
