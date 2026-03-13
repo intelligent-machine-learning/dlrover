@@ -654,6 +654,9 @@ class MasterServicer(ABC):
         elif message.name == TrainEventName.TRAIN_EVT_FLASH_CKPT:
             logger.info(f"Add ckpt event: {message}")
             _event_context.ckpt_steps.add_ckpt_event(message)
+        elif message.name == TrainEventName.TRAIN_EVT_EVALUATE:
+            logger.info(f"Add evaluate event: {message}")
+            _event_context.eval_steps.add_eval_event(message)
 
         return True
 
@@ -813,7 +816,8 @@ class MasterServicer(ABC):
         )
         if action and not isinstance(action, NoAction):
             logger.info(
-                f"Master return action {action.__class__.__name__}: {action.to_json()}"
+                f"Master return action {action.__class__.__name__}: {action.to_json()} "
+                f"for node: {node_id}"
             )
         grpc_action = comm.DiagnosisAction(
             action.__class__.__name__,
