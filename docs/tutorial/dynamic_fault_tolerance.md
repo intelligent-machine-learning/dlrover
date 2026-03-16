@@ -3,7 +3,7 @@
 ## Background
 
 The current fault tolerance mechanism in DLRover primarily falls into two categories:
- - Process-level fault toleran
+ - Process-level fault tolerance
  - Pod-level fault tolerance
 
 This means that regardless of the specific issue encountered, the fault tolerance 

@@ -479,6 +479,7 @@ class DiagnosticianTest(unittest.TestCase):
         )
         mock_event_context.check_job_step_hang = MagicMock(return_value=False)
         mock_event_context.check_ckpt_hang = MagicMock(return_value=False)
+        mock_event_context.check_event_block = MagicMock(return_value=False)
         self.assertIsNone(diagnostician.observe())
 
         # tensor_drop_zero: true + step_hang: false + ckpt_hang: false
@@ -498,6 +499,15 @@ class DiagnosticianTest(unittest.TestCase):
         # tensor_drop_zero: true + step_hang: false + ckpt_hang: true
         mock_event_context.check_job_step_hang = MagicMock(return_value=False)
         mock_event_context.check_ckpt_hang = MagicMock(return_value=True)
+        ob = diagnostician.observe()
+        self.assertIsNotNone(ob)
+        self.assertEqual(
+            ob.observation, DiagnosisErrorConstant.TRAINING_IS_HANG
+        )
+
+        mock_event_context.check_job_step_hang = MagicMock(return_value=False)
+        mock_event_context.check_ckpt_hang = MagicMock(return_value=False)
+        mock_event_context.check_event_block = MagicMock(return_value=True)
         ob = diagnostician.observe()
         self.assertIsNotNone(ob)
         self.assertEqual(
