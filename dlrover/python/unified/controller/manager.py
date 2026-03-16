@@ -684,6 +684,60 @@ class PrimeManager:
                 return True
             return False
 
+    def _determine_failure_responsibility(
+        self, instances: List[DLExecutionWorkerVertex]
+    ):
+        """
+        Determine and assign diagnostic responsibility for failed instances.
+        
+        This method analyzes failed instances and assigns responsibility based
+        on their failure timestamps. The earliest failing actor is marked as
+        ROOT_CAUSE, while other failed actors are marked as BE_AFFECTED.
+        
+        Args:
+            instances: List of DLExecutionWorkerVertex instances to analyze.
+        """
+        from dlrover.python.unified.common.enums import DiagnosticResponsibility
+        from dlrover.python.unified.common.actor_base import DiagnosticInfo
+
+        # Filter failed instances
+        failed_instances = [
+            instance for instance in instances if instance.is_failure()
+        ]
+        
+        if not failed_instances:
+            return
+        
+        # Sort by timestamp (earliest first)
+        failed_instances.sort(
+            key=lambda x: x.result.timestamp if x.result else float("inf")
+        )
+        
+        # Assign responsibility
+        for i, instance in enumerate(failed_instances):
+            if instance.diagnostic is None:
+                instance.diagnostic = DiagnosticInfo()
+            
+            if i == 0:
+                # First (earliest) failure is the root cause
+                instance.diagnostic.responsibility = (
+                    DiagnosticResponsibility.ROOT_CAUSE
+                )
+                logger.info(
+                    f"Actor {instance.name} marked as ROOT_CAUSE "
+                    f"(timestamp: {instance.result.timestamp})"
+                )
+            else:
+                # Other failures are affected by the root cause
+                instance.diagnostic.responsibility = (
+                    DiagnosticResponsibility.BE_AFFECTED
+                )
+                logger.info(
+                    f"Actor {instance.name} marked as BE_AFFECTED "
+                    f"(timestamp: {instance.result.timestamp}, "
+                    f"root cause: {failed_instances[0].name})"
+                )
+
     def _record_failure(self, role_name):
         """
         Update failure info into context.
@@ -704,6 +758,9 @@ class PrimeManager:
                 target_instances.extend(role.instances)
         else:
             target_instances.extend(self.graph.roles[role_name].instances)
+
+        # Determine responsibility before checking is_failure_responsibility
+        self._determine_failure_responsibility(target_instances)
 
         if any(
             instance.is_failure_responsibility()

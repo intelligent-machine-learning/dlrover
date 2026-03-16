@@ -1,4 +1,4 @@
-# Copyright 2026 The DLRover Authors. All rights reserved.
+﻿# Copyright 2026 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -39,6 +39,9 @@ from dlrover.python.unified.controller.api import PrimeMasterApi
 from dlrover.python.unified.util.decorators import log_execution
 from dlrover.python.util.reflect_util import import_callable
 
+import ray
+from ray.util.state import get_log
+
 
 class BaseWorker(ActorBase):
     """Base class for Worker actors in the DLRover system."""
@@ -78,11 +81,95 @@ class BaseWorker(ActorBase):
 
     def get_diagnostic(self) -> DiagnosticInfo:
         """
-        Get the diagnostic info of the worker. Should be overridden by subclasses.
+        Get the diagnostic info of the worker.
+        
+        This method collects actor logs and performs basic diagnosis based on
+        log content to determine error type, code and reason.
+        
+        Returns:
+            DiagnosticInfo: The diagnostic information including log content
+            and error classification.
         """
-
-        # by default
-        return DiagnosticInfo(type=DiagnosticInfoType.ERROR)
+        # Get actor_id for log retrieval
+        actor_id = self.id
+        log_content = ""
+        
+        # Try to fetch logs using ray.util.state.get_log
+        if actor_id:
+            try:
+                log_lines = []
+                for line in get_log(actor_id=actor_id, tail=10000):
+                    log_lines.append(line)
+                log_content = "".join(log_lines)
+                # Limit log content size to avoid excessive memory usage
+                max_log_size = 1024 * 1024  # 1MB
+                if len(log_content) > max_log_size:
+                    log_content = log_content[-max_log_size:]
+                    log_content = "...[truncated]...\n" + log_content
+            except Exception as e:
+                logger.warning("Failed to get logs for actor {actor_id}: {e}")
+                log_content = ""
+        else:
+            log_content = ""
+        
+        # Parse logs to determine error type, code and reason
+        diag_type, code, reason = self._parse_diagnostic_info(log_content)
+        
+        return DiagnosticInfo(
+            type=diag_type,
+            code=code,
+            reason=reason,
+            log_content=log_content,
+            # responsibility is determined by manager side based on timestamp
+        )
+    
+    def _parse_diagnostic_info(self, log_content: str) -> tuple:
+        """
+        Parse log content to determine diagnostic type, error code and reason.
+        
+        Args:
+            log_content: The actor log content.
+            
+        Returns:
+            tuple: (DiagnosticInfoType, code, reason)
+        """
+        # Default: unknown error
+        diag_type = DiagnosticInfoType.ERROR
+        code = 1
+        reason = "Unknown error occurred"
+        
+        if not log_content:
+            return diag_type, code, reason
+        
+        log_lower = log_content.lower()
+        
+        # Check for CUDA OOM
+        if any(pattern in log_lower for pattern in [
+            "cuda out of memory", "cuda oom", "out of cuda memory",
+            "runtimeerror: cuda", "torch.cuda.outofmemoryerror"
+        ]):
+            return DiagnosticInfoType.FATAL, 1001, "GPU memory insufficient"
+        
+        # Check for NCCL/Distributed communication errors
+        if any(pattern in log_lower for pattern in [
+            "nccl", "distributed", "connection reset", "connection refused",
+            "broken pipe", "socket timeout", "rendezvous", "processgroup"
+        ]):
+            return DiagnosticInfoType.ERROR, 1002, "Distributed communication failure"
+        
+        # Check for system OOM killed
+        if any(pattern in log_lower for pattern in [
+            "killed", "oom", "out of memory", "signal 9", "sigkill"
+        ]):
+            return DiagnosticInfoType.FATAL, 3001, "Process killed by system OOM"
+        
+        # Check for user code exceptions (common patterns)
+        if any(pattern in log_lower for pattern in [
+            "exception", "error", "traceback", "failed"
+        ]):
+            return DiagnosticInfoType.ERROR, 2001, "User function execution failed"
+        
+        return diag_type, code, reason
 
     def _start_with_module_func(self, entrypoint: str):
         try:

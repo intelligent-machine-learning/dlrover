@@ -1,4 +1,4 @@
-# Copyright 2025 The DLRover Authors. All rights reserved.
+﻿# Copyright 2025 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -76,15 +76,24 @@ class NodeInfo:
 
 @dataclass()
 class DiagnosticInfo:
-    """Diagnostic information of worker's execution."""
+    """Diagnostic information of worker's execution.
+
+    Error Code and Reason Mapping:
+    - code=0: Normal execution, reason="" (empty)
+    - code=1: Unknown error, reason="Unknown error occurred"
+    - code=1001: CUDA out of memory error, reason="GPU memory insufficient"
+    - code=1002: NCCL communication error, reason="Distributed communication failure"
+    - code=2001: User code exception, reason="User function execution failed"
+    - code=3001: System/OOM killed, reason="Process killed by system OOM"
+    """
 
     type: DiagnosticInfoType = DiagnosticInfoType.NORMAL
     responsibility: DiagnosticResponsibility = DiagnosticResponsibility.UNKNOWN
-    code: int = 0  # may be defined later
-    reason: str = ""
+    code: int = 0  
+    reason: str = ""  
 
-    log_content: str = ""
-    metric_content: dict = field(default_factory=dict)
+    log_content: str = ""  
+    metric_content: dict = field(default_factory=dict)  
 
 
 @dataclass()
