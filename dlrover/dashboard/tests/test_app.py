@@ -13,6 +13,7 @@
 
 import json
 import unittest
+from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 from tornado.testing import AsyncHTTPTestCase
 from tornado.web import Application
@@ -22,6 +23,8 @@ from dlrover.dashboard.app import (
     BaseHandler,
     create_dashboard_app,
 )
+from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.node import Node, NodeResource
 
 
 class TestBaseHandler(AsyncHTTPTestCase):
@@ -52,69 +55,87 @@ class TestJobInfoHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_job_info_success(self, mock_get_job_context, mock_json):
-        """Test successful retrieval of job information."""
-        # Mock job context
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_job_stage.return_value = "RUNNING"
-        mock_job_ctx.get_failed_node_cnt.return_value = 1
-        mock_job_ctx.job_nodes_by_type.return_value = []
-        mock_get_job_context.return_value = mock_job_ctx
-        mock_json.dumps.return_value = {
-            "job_stage": "RUNNING",
-            "failed_nodes": 1,
-            "job_nodes_by_type": [],
-        }
+    def test_get_job_info_no_job_args(self):
+        """Test job info returns empty when no job_args set."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        # Ensure no job_args set
+        job_ctx._job_args = None
 
         response = self.fetch("/api/job")
         self.assertEqual(response.code, 200)
-
         data = json.loads(response.body)
-        self.assertIn("job_stage", data)
-        self.assertEqual(data["job_stage"], "RUNNING")
-        self.assertIn("failed_nodes", data)
-        self.assertEqual(data["failed_nodes"], 1)
+        self.assertEqual(data, {})
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_job_info_with_attributes(
-        self, mock_get_job_context, mock_json
-    ):
-        """Test job info retrieval with various attributes."""
-        mock_job_ctx = Mock()
-        mock_job_ctx._job_name = "test-job"
-        mock_job_ctx._job_type = "tensorflow"
-        mock_job_ctx._job_create_time = None
-        mock_job_ctx._job_start_time = None
-        mock_job_ctx.get_job_stage.return_value = "COMPLETED"
-        mock_job_ctx.get_failed_node_cnt.return_value = 0
-        mock_job_ctx.job_nodes_by_type.return_value = []
-        mock_get_job_context.return_value = mock_job_ctx
+    def test_get_job_info_with_nodes(self):
+        """Test job info with actual nodes in job context."""
+        from dlrover.python.master.node.job_context import get_job_context
+        from dlrover.python.scheduler.job import LocalJobArgs
 
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "job_name": "test-job",
-            "job_type": "tensorflow",
-            "job_stage": "COMPLETED",
-            "failed_nodes": 0,
-            "create_time": "2026-01-01T00:00:00",
-            "start_time": "2026-01-01T00:00:00",
-            "total_nodes": 0,
-            "running_nodes": 0,
-            "succeeded_nodes": 0,
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        job_ctx = get_job_context()
 
-        response = self.fetch("/api/job")
-        self.assertEqual(response.code, 200)
+        # Set up job args
+        job_args = LocalJobArgs("local", "default", "test-job")
+        job_ctx.set_job_args(job_args)
 
-        data = json.loads(response.body)
-        self.assertEqual(data["job_name"], "test-job")
-        self.assertEqual(data["job_type"], "tensorflow")
-        self.assertEqual(data["job_stage"], "COMPLETED")
-        self.assertEqual(data["failed_nodes"], 0)
+        # Set up nodes
+        now = datetime(2026, 1, 15, 10, 0, 0)
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+            start_time=now,
+        )
+        node0.create_time = now
+        node1 = Node(
+            NodeType.WORKER,
+            1,
+            name="worker-1",
+            status=NodeStatus.PENDING,
+        )
+        job_ctx.update_job_node(node0)
+        job_ctx.update_job_node(node1)
+
+        try:
+            response = self.fetch("/api/job")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            self.assertEqual(data["job_name"], "test-job")
+            self.assertIn("job_stage", data)
+            self.assertEqual(data["total_nodes"], 2)
+            self.assertEqual(data["running_nodes"], 1)
+            self.assertEqual(data["pending_nodes"], 1)
+            # create_time/start_time should come from actual node data
+            self.assertEqual(data["create_time"], now.isoformat())
+            self.assertEqual(data["start_time"], now.isoformat())
+        finally:
+            # Cleanup
+            job_ctx.clear_job_nodes()
+            job_ctx._job_args = None
+
+    def test_get_job_info_no_nodes_times_are_none(self):
+        """Test that create_time/start_time are None when no nodes exist."""
+        from dlrover.python.master.node.job_context import get_job_context
+        from dlrover.python.scheduler.job import LocalJobArgs
+
+        job_ctx = get_job_context()
+        job_args = LocalJobArgs("local", "default", "empty-job")
+        job_ctx.set_job_args(job_args)
+
+        try:
+            response = self.fetch("/api/job")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            self.assertIsNone(data["create_time"])
+            self.assertIsNone(data["start_time"])
+            self.assertEqual(data["total_nodes"], 0)
+        finally:
+            job_ctx.clear_job_nodes()
+            job_ctx._job_args = None
 
 
 class TestNodesHandler(AsyncHTTPTestCase):
@@ -123,104 +144,143 @@ class TestNodesHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.NodesHandler._build_consanguinity_chain")
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_nodes_success(
-        self, mock_get_job_context, mock_json, mock_build_consanguinity
-    ):
-        """Test successful retrieval of node information."""
-        # Mock _build_consanguinity_chain to return empty string
-        mock_build_consanguinity.return_value = ""
-
-        # Create mock node
-        mock_node = Mock()
-        mock_node.id = 1
-        mock_node.type = "WORKER"
-        mock_node.status = "RUNNING"
-        mock_node.name = "worker-1"
-        mock_node.rank_index = 0
-        mock_node.service_addr = "10.0.0.1:8080"
-        mock_node.start_time = None
-        mock_node.finish_time = None
-        mock_node.exit_reason = None
-        mock_node.relaunch_count = 0
-        mock_node.config_resource = None
-        mock_node.used_resource = None
-        mock_node.critical = True
-        mock_node.max_relaunch_count = 3
-        mock_node.unrecoverable_failure_msg = None
-        mock_node.host_name = "worker-1-host"
-        mock_node.host_ip = "10.0.0.1"
-
-        # Mock job context
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_mutable_job_nodes.return_value = {1: mock_node}
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "worker": [
-                {
-                    "id": 1,
-                    "type": "worker",
-                    "status": "RUNNING",
-                    "name": "worker-1",
-                    "rank_index": 0,
-                    "service_addr": "10.0.0.1:8080",
-                    "start_time": None,
-                    "finish_time": None,
-                    "exit_reason": None,
-                    "relaunch_count": 0,
-                    "config_resource": None,
-                    "used_resource": None,
-                    "critical": True,
-                    "max_relaunch_count": 3,
-                    "unrecoverable_failure_msg": None,
-                    "hostname": "worker-1-host",
-                    "pod_ip": "10.0.0.1",
-                    "consanguinity": "",
-                }
-            ],
-            "ps": [],
-            "chief": [],
-            "evaluator": [],
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
-        response = self.fetch("/api/nodes")
-        self.assertEqual(response.code, 200)
-
-        data = json.loads(response.body)
-        self.assertIn("worker", data)
-        self.assertEqual(len(data["worker"]), 1)
-        self.assertEqual(data["worker"][0]["id"], 1)
-        self.assertEqual(data["worker"][0]["status"], "RUNNING")
-
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_nodes_empty(self, mock_get_job_context, mock_json):
+    def test_get_nodes_empty(self):
         """Test retrieval of nodes when no nodes exist."""
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_mutable_job_nodes.return_value = {}
-        mock_get_job_context.return_value = mock_job_ctx
+        from dlrover.python.master.node.job_context import get_job_context
 
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "worker": [],
-            "ps": [],
-            "chief": [],
-            "evaluator": [],
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
 
         response = self.fetch("/api/nodes")
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        for node_type in ["worker", "ps", "chief", "evaluator"]:
+        for node_type in [
+            NodeType.WORKER,
+            NodeType.PS,
+            NodeType.CHIEF,
+            NodeType.EVALUATOR,
+        ]:
             self.assertIn(node_type, data)
             self.assertEqual(len(data[node_type]), 0)
+
+    def test_get_nodes_with_data(self):
+        """Test retrieval of nodes with actual node data."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        now = datetime(2026, 1, 15, 10, 0, 0)
+        node = Node(
+            NodeType.WORKER,
+            0,
+            config_resource=NodeResource(4.0, 8192),
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+            start_time=now,
+            rank_index=0,
+            host_name="host-0",
+            host_ip="10.0.0.1",
+        )
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/nodes")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            workers = data[NodeType.WORKER]
+            self.assertEqual(len(workers), 1)
+
+            w = workers[0]
+            self.assertEqual(w["id"], 0)
+            self.assertEqual(w["status"], NodeStatus.RUNNING)
+            self.assertEqual(w["name"], "worker-0")
+            self.assertEqual(w["rank_index"], 0)
+            self.assertEqual(w["start_time"], now.isoformat())
+            self.assertEqual(w["hostname"], "host-0")
+            self.assertEqual(w["pod_ip"], "10.0.0.1")
+            self.assertIsNotNone(w["config_resource"])
+            self.assertEqual(w["config_resource"]["cpu"], 4.0)
+            self.assertEqual(w["config_resource"]["memory"], 8192)
+            # Single node — no consanguinity chain
+            self.assertEqual(w["consanguinity"], "")
+        finally:
+            job_ctx.clear_job_nodes()
+
+    def test_get_nodes_consanguinity_chain(self):
+        """Test consanguinity chain is built for relaunched nodes."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        t1 = datetime(2026, 1, 15, 10, 0, 0)
+        t2 = datetime(2026, 1, 15, 11, 0, 0)
+
+        # Two physical nodes with the same rank_index (relaunch)
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.FAILED,
+            start_time=t1,
+            rank_index=0,
+        )
+        node1 = Node(
+            NodeType.WORKER,
+            1,
+            name="worker-0-relaunch",
+            status=NodeStatus.RUNNING,
+            start_time=t2,
+            rank_index=0,
+        )
+        job_ctx.update_job_node(node0)
+        job_ctx.update_job_node(node1)
+
+        try:
+            response = self.fetch("/api/nodes")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            workers = data[NodeType.WORKER]
+            self.assertEqual(len(workers), 2)
+
+            # Both should have the same consanguinity chain
+            for w in workers:
+                self.assertIn("->", w["consanguinity"])
+                self.assertIn("0(0)", w["consanguinity"])
+                self.assertIn("0(1)", w["consanguinity"])
+        finally:
+            job_ctx.clear_job_nodes()
+
+    def test_get_nodes_start_time_string(self):
+        """Test nodes with string start_time are handled correctly."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        node = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+            start_time="2026-01-15T10:00:00",
+            rank_index=0,
+        )
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/nodes")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            w = data[NodeType.WORKER][0]
+            self.assertEqual(w["start_time"], "2026-01-15T10:00:00")
+        finally:
+            job_ctx.clear_job_nodes()
 
 
 class TestContextHandler(AsyncHTTPTestCase):
@@ -229,82 +289,20 @@ class TestContextHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.Context.singleton_instance")
-    def test_get_context_success(self, mock_singleton, mock_json):
+    def test_get_context_success(self):
         """Test successful retrieval of context data."""
-        # Mock context instance using SimpleNamespace to avoid Mock __dict__ issues
-        from types import SimpleNamespace
-
-        mock_context = SimpleNamespace(
-            master_service_type="grpc",
-            train_speed_record_num=50,
-            auto_worker_enabled=False,
-            dashboard_port=8080,
-            private_attr="should not be included",
-            _private_method=lambda: "should not be included",
-        )
-        mock_singleton.return_value = mock_context
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "master_service_type": "grpc",
-            "train_speed_record_num": 50,
-            "auto_worker_enabled": False,
-            "dashboard_port": 8080,
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
         response = self.fetch("/api/context")
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        self.assertIn("master_service_type", data)
-        self.assertEqual(data["master_service_type"], "grpc")
-        self.assertIn("train_speed_record_num", data)
-        self.assertEqual(data["train_speed_record_num"], 50)
-        self.assertNotIn("private_attr", data)
-        self.assertNotIn("_private_method", data)
+        # Context should not contain private attributes
+        for key in data:
+            self.assertFalse(key.startswith("_"))
 
-    @patch("dlrover.dashboard.app.json")
     @patch("dlrover.dashboard.app.Context.singleton_instance")
-    def test_get_context_private_attrs_filtered(
-        self, mock_singleton, mock_json
-    ):
-        """Test that private attributes are filtered out."""
-        # Mock context instance using SimpleNamespace to avoid Mock __dict__ issues
-        from types import SimpleNamespace
-
-        mock_context = SimpleNamespace(
-            public_attr="visible",
-            _private_attr_1="invisible",
-            __very_private="invisible",
-            method=lambda: "should not be included",
-        )
-        mock_singleton.return_value = mock_context
-
-        # Mock json.dumps to return serializable data
-        expected_data = {"public_attr": "visible"}
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
-        response = self.fetch("/api/context")
-        self.assertEqual(response.code, 200)
-
-        data = json.loads(response.body)
-        self.assertEqual(len(data), 1)
-        self.assertIn("public_attr", data)
-        self.assertEqual(data["public_attr"], "visible")
-
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.Context.singleton_instance")
-    def test_get_context_error_handling(self, mock_singleton, mock_json):
+    def test_get_context_error_handling(self, mock_singleton):
         """Test error handling when Context creation fails."""
         mock_singleton.side_effect = Exception("Context creation failed")
-
-        # Mock json.dumps for error response
-        mock_json.dumps.return_value = json.dumps(
-            {"error": "Context creation failed"}
-        )
 
         response = self.fetch("/api/context")
         self.assertEqual(response.code, 500)
@@ -320,106 +318,81 @@ class TestJobArgsHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_job_args_with_context(self, mock_get_job_context, mock_json):
-        """Test retrieval of JobArgs when job context has job_args."""
-        # Create mock job args using SimpleNamespace to avoid Mock __dict__ issues
-        from types import SimpleNamespace
+    def test_get_job_args_empty(self):
+        """Test retrieval when no job_args set."""
+        from dlrover.python.master.node.job_context import get_job_context
 
-        # Create resource limits object
-        mock_resource_limits = SimpleNamespace(cpu=4, memory=8192)
-
-        # Create mock job args
-        mock_job_args = SimpleNamespace(
-            platform="kubernetes",
-            namespace="default",
-            job_name="test-job",
-            enable_dynamic_sharding=True,
-            enable_elastic_scheduling=True,
-            distribution_strategy="PS",
-            resource_limits=mock_resource_limits,
-        )
-
-        # Mock job context
-        mock_job_ctx = Mock()
-        mock_job_ctx.job_args = mock_job_args
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "platform": "kubernetes",
-            "namespace": "default",
-            "job_name": "test-job",
-            "enable_dynamic_sharding": True,
-            "enable_elastic_scheduling": True,
-            "distribution_strategy": "PS",
-            "resource_limits": {"cpu": 4, "memory": 8192},
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        job_ctx = get_job_context()
+        job_ctx._job_args = None
 
         response = self.fetch("/api/jobargs")
         self.assertEqual(response.code, 200)
-
         data = json.loads(response.body)
-        self.assertIn("platform", data)
-        self.assertEqual(data["platform"], "kubernetes")
-        self.assertIn("enable_dynamic_sharding", data)
-        self.assertTrue(data["enable_dynamic_sharding"])
-        self.assertIn("resource_limits", data)
-        # ResourceLimits should be converted to dict
-        self.assertIsInstance(data["resource_limits"], dict)
-        self.assertNotIn("_private_attr", data)
+        self.assertEqual(data, {})
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_job_args_mock_data(self, mock_get_job_context, mock_json):
-        """Test retrieval of JobArgs when creating mock data."""
-        # Mock job context without job_args
-        mock_job_ctx = Mock()
-        mock_job_ctx.job_args = None
-        mock_job_ctx._job_name = "mock-job"
-        mock_get_job_context.return_value = mock_job_ctx
+    def test_get_job_args_with_real_job_args(self):
+        """Test retrieval of JobArgs with actual JobArgs object.
 
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "platform": "kubernetes",
-            "namespace": "default",
-            "job_name": "mock-job",
-            "enable_dynamic_sharding": True,
-            "enable_elastic_scheduling": True,
-            "distribution_strategy": "ParameterServerStrategy",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        This tests that nested objects (NodeArgs, NodeGroupResource,
+        ResourceLimits) are properly serialized via JsonSerializable.to_json().
+        """
+        from dlrover.python.master.node.job_context import get_job_context
+        from dlrover.python.scheduler.job import LocalJobArgs
 
-        response = self.fetch("/api/jobargs")
-        self.assertEqual(response.code, 200)
+        job_ctx = get_job_context()
+        job_args = LocalJobArgs("local", "default", "test-job")
+        job_ctx.set_job_args(job_args)
 
-        data = json.loads(response.body)
-        self.assertIn("platform", data)
-        self.assertIn("namespace", data)
-        self.assertIn("job_name", data)
-        # Should use mock job name from context
-        self.assertEqual(data["job_name"], "mock-job")
+        try:
+            response = self.fetch("/api/jobargs")
+            self.assertEqual(response.code, 200)
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_job_args_error_handling(
-        self, mock_get_job_context, mock_json
-    ):
-        """Test error handling when JobArgs retrieval fails."""
-        mock_get_job_context.side_effect = Exception("Job context error")
+            data = json.loads(response.body)
+            self.assertEqual(data["platform"], "local")
+            self.assertEqual(data["namespace"], "default")
+            self.assertEqual(data["job_name"], "test-job")
+            self.assertIn("distribution_strategy", data)
+            # resource_limits should be recursively serialized
+            self.assertIn("resource_limits", data)
+            rl = data["resource_limits"]
+            self.assertIn("cpu", rl)
+            self.assertIn("memory", rl)
+        finally:
+            job_ctx._job_args = None
 
-        # Mock json.dumps for error response
-        mock_json.dumps.return_value = json.dumps(
-            {"error": "Job context error"}
+    def test_get_job_args_with_node_args(self):
+        """Test that node_args with nested objects serialize correctly."""
+        from dlrover.python.master.node.job_context import get_job_context
+        from dlrover.python.scheduler.job import LocalJobArgs
+        from dlrover.python.common.node import NodeGroupResource, NodeResource
+
+        job_ctx = get_job_context()
+        job_args = LocalJobArgs("local", "default", "nested-test")
+
+        # Add node_args with nested NodeGroupResource
+        from dlrover.python.scheduler.job import NodeArgs
+
+        class ConcreteNodeArgs(NodeArgs):
+            pass
+
+        group_resource = NodeGroupResource(
+            2, NodeResource(4.0, 8192)
         )
+        node_args = ConcreteNodeArgs(group_resource)
+        job_args.node_args[NodeType.WORKER] = node_args
+        job_ctx.set_job_args(job_args)
 
-        response = self.fetch("/api/jobargs")
+        try:
+            response = self.fetch("/api/jobargs")
+            self.assertEqual(response.code, 200)
 
-        data = json.loads(response.body)
-        self.assertIn("error", data)
-        self.assertEqual(data["error"], "Job context error")
+            # The key test: this should NOT raise TypeError
+            data = json.loads(response.body)
+            self.assertIn("node_args", data)
+            # node_args should be serialized as a dict, not fail
+            self.assertIsInstance(data["node_args"], dict)
+        finally:
+            job_ctx._job_args = None
 
 
 class TestMetricsHandler(AsyncHTTPTestCase):
@@ -428,39 +401,12 @@ class TestMetricsHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_metrics_basic(self, mock_get_job_context, mock_json):
-        """Test basic metrics retrieval."""
-        # Mock a running node with resource usage
-        mock_node = Mock()
-        mock_node.status = "RUNNING"
-        mock_node.used_resource = Mock()
-        mock_node.used_resource.cpu = 2.0
-        mock_node.used_resource.memory = 4096.0
-        mock_node.used_resource.gpu_num = 1
+    def test_get_metrics_no_nodes(self):
+        """Test metrics when no nodes are running."""
+        from dlrover.python.master.node.job_context import get_job_context
 
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_mutable_job_nodes.return_value = {
-            "worker-1": mock_node
-        }
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "timestamp": "2026-01-01T00:00:00",
-            "resource_usage": {
-                "total_cpu": 2.0,
-                "total_memory": 4096.0,
-                "total_gpu": 1,
-            },
-            "training_stats": {
-                "running_workers": 1,
-                "global_step": 0,
-                "training_speed": 0.0,
-            },
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
 
         response = self.fetch("/api/metrics")
         self.assertEqual(response.code, 200)
@@ -469,55 +415,38 @@ class TestMetricsHandler(AsyncHTTPTestCase):
         self.assertIn("timestamp", data)
         self.assertIn("resource_usage", data)
         self.assertIn("training_stats", data)
-        self.assertIn("total_cpu", data["resource_usage"])
-        self.assertIn("total_memory", data["resource_usage"])
-        self.assertIn("total_gpu", data["resource_usage"])
-
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_metrics_no_running_nodes(
-        self, mock_get_job_context, mock_json
-    ):
-        """Test metrics when no nodes are running."""
-        # Mock nodes with non-running status or no used_resource
-        mock_node1 = Mock()
-        mock_node1.status = "PENDING"
-        mock_node1.used_resource = None
-
-        mock_node2 = Mock()
-        mock_node2.status = "FAILED"
-        mock_node2.used_resource = None
-
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_mutable_job_nodes.return_value = {
-            "worker-1": mock_node1,
-            "worker-2": mock_node2,
-        }
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "timestamp": "2026-01-01T00:00:00",
-            "resource_usage": {
-                "total_cpu": 0,
-                "total_memory": 0,
-                "total_gpu": 0,
-            },
-            "training_stats": {
-                "running_workers": 0,
-                "global_step": 0,
-                "training_speed": 0.0,
-            },
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
-        response = self.fetch("/api/metrics")
-        self.assertEqual(response.code, 200)
-
-        data = json.loads(response.body)
         self.assertEqual(data["resource_usage"]["total_cpu"], 0)
         self.assertEqual(data["resource_usage"]["total_memory"], 0)
         self.assertEqual(data["resource_usage"]["total_gpu"], 0)
+        self.assertEqual(data["training_stats"]["running_workers"], 0)
+
+    def test_get_metrics_with_running_nodes(self):
+        """Test metrics with running nodes."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        node = Node(
+            NodeType.WORKER,
+            0,
+            config_resource=NodeResource(4.0, 8192),
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+        )
+        node.used_resource = NodeResource(2.0, 4096)
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/metrics")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            self.assertEqual(data["resource_usage"]["total_cpu"], 2.0)
+            self.assertEqual(data["resource_usage"]["total_memory"], 4096.0)
+            self.assertEqual(data["training_stats"]["running_workers"], 1)
+        finally:
+            job_ctx.clear_job_nodes()
 
 
 class TestDiagnosisHandler(AsyncHTTPTestCase):
@@ -526,44 +455,12 @@ class TestDiagnosisHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_diagnosis_basic(self, mock_get_job_context, mock_json):
+    def test_get_diagnosis_basic(self):
         """Test basic diagnosis retrieval."""
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_job_restart_count.return_value = 3
-        mock_job_ctx.get_failed_node_cnt.return_value = 2
+        from dlrover.python.master.node.job_context import get_job_context
 
-        # Create a failed node
-        mock_node = Mock()
-        mock_node.status = "FAILED"
-        mock_node.type = "WORKER"
-        mock_node.name = "worker-1"
-        mock_node.exit_reason = "Container crashed"
-        mock_node.finish_time = None
-
-        mock_job_ctx.get_mutable_job_nodes.return_value = {
-            "worker-1": mock_node
-        }
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "diagnosis_results": [
-                {
-                    "type": "warning",
-                    "description": "Diagnosis system not fully integrated",
-                    "timestamp": "2026-01-01T00:00:00",
-                }
-            ],
-            "fault_tolerance": {
-                "total_restarts": 3,
-                "failed_nodes": 2,
-                "recent_failures": [],
-            },
-            "timestamp": "2026-01-01T00:00:00",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
 
         response = self.fetch("/api/diagnosis")
         self.assertEqual(response.code, 200)
@@ -571,44 +468,39 @@ class TestDiagnosisHandler(AsyncHTTPTestCase):
         data = json.loads(response.body)
         self.assertIn("diagnosis_results", data)
         self.assertIn("fault_tolerance", data)
-        self.assertEqual(data["fault_tolerance"]["total_restarts"], 3)
-        self.assertEqual(data["fault_tolerance"]["failed_nodes"], 2)
-
-    @patch("dlrover.dashboard.app.json")
-    @patch("dlrover.dashboard.app.get_job_context")
-    def test_get_diagnosis_no_failures(self, mock_get_job_context, mock_json):
-        """Test diagnosis when there are no failures."""
-        mock_job_ctx = Mock()
-        mock_job_ctx.get_job_restart_count.return_value = 0
-        mock_job_ctx.get_failed_node_cnt.return_value = 0
-        mock_job_ctx.get_mutable_job_nodes.return_value = {}
-        mock_get_job_context.return_value = mock_job_ctx
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "diagnosis_results": [
-                {
-                    "type": "warning",
-                    "description": "Diagnosis system not fully integrated",
-                    "timestamp": "2026-01-01T00:00:00",
-                }
-            ],
-            "fault_tolerance": {
-                "total_restarts": 0,
-                "failed_nodes": 0,
-                "recent_failures": [],
-            },
-            "timestamp": "2026-01-01T00:00:00",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
-        response = self.fetch("/api/diagnosis")
-        self.assertEqual(response.code, 200)
-
-        data = json.loads(response.body)
-        self.assertEqual(data["fault_tolerance"]["total_restarts"], 0)
-        self.assertEqual(data["fault_tolerance"]["failed_nodes"], 0)
+        self.assertIn("timestamp", data)
         self.assertEqual(len(data["fault_tolerance"]["recent_failures"]), 0)
+
+    def test_get_diagnosis_with_failures(self):
+        """Test diagnosis with failed nodes."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        now = datetime(2026, 1, 15, 12, 0, 0)
+        node = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.FAILED,
+        )
+        node.finish_time = now
+        node.exit_reason = "OOM"
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/diagnosis")
+            self.assertEqual(response.code, 200)
+
+            data = json.loads(response.body)
+            failures = data["fault_tolerance"]["recent_failures"]
+            self.assertEqual(len(failures), 1)
+            self.assertEqual(failures[0]["name"], "worker-0")
+            self.assertEqual(failures[0]["exit_reason"], "OOM")
+            self.assertIn("2026-01-15", failures[0]["finish_time"])
+        finally:
+            job_ctx.clear_job_nodes()
 
 
 class TestLogsHandler(AsyncHTTPTestCase):
@@ -617,33 +509,24 @@ class TestLogsHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    @patch("os.path.exists")
     @patch("builtins.open")
     @patch.dict("os.environ", {"DLROVER_LOG_DIR": "/tmp/test_logs"})
-    def test_get_logs_success(self, mock_open, mock_exists, mock_json):
+    def test_get_logs_success(self, mock_open):
         """Test successful retrieval of logs."""
-        mock_exists.return_value = True
         mock_file = MagicMock()
-        mock_file.readlines.return_value = ["Line 1\n", "Line 2\n", "Line 3\n"]
+        mock_file.readlines.return_value = [
+            "Line 1\n",
+            "Line 2\n",
+            "Line 3\n",
+        ]
         mock_open.return_value.__enter__.return_value = mock_file
-
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "node_name": "test-node",
-            "logs": "Line 1\nLine 2\nLine 3\n",
-            "timestamp": "2026-01-01T00:00:00",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
 
         response = self.fetch("/api/logs/test-node")
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        self.assertIn("node_name", data)
         self.assertEqual(data["node_name"], "test-node")
-        self.assertIn("logs", data)
-        self.assertIn("Line 1\nLine 2\nLine 3\n", data["logs"])
+        self.assertIn("Line 1", data["logs"])
 
 
 class TestNodeControlHandlers(AsyncHTTPTestCase):
@@ -652,44 +535,24 @@ class TestNodeControlHandlers(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("dlrover.dashboard.app.json")
-    def test_restart_node_success(self, mock_json):
+    def test_restart_node_success(self):
         """Test successful node restart request."""
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "status": "success",
-            "node": "test-node",
-            "message": "Restart request for test-node submitted successfully",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
-        response = self.fetch("/api/restart/test-node", method="POST", body="")
+        response = self.fetch(
+            "/api/restart/test-node", method="POST", body=""
+        )
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        self.assertIn("status", data)
         self.assertEqual(data["status"], "success")
-        self.assertIn("node", data)
         self.assertEqual(data["node"], "test-node")
 
-    @patch("dlrover.dashboard.app.json")
-    def test_stop_node_success(self, mock_json):
+    def test_stop_node_success(self):
         """Test successful node stop request."""
-        # Mock json.dumps to return serializable data
-        expected_data = {
-            "status": "success",
-            "node": "test-node",
-            "message": "Stop request for test-node submitted successfully",
-        }
-        mock_json.dumps.return_value = json.dumps(expected_data)
-
         response = self.fetch("/api/stop/test-node", method="POST", body="")
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
-        self.assertIn("status", data)
         self.assertEqual(data["status"], "success")
-        self.assertIn("node", data)
         self.assertEqual(data["node"], "test-node")
 
 

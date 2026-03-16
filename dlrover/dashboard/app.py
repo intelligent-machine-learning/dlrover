@@ -22,6 +22,7 @@ from tornado.web import RequestHandler
 from concurrent.futures import ThreadPoolExecutor
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import to_dict
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.job_context import get_job_context, JobContext
 from dlrover.python.common.constants import NodeType, NodeStatus
@@ -63,15 +64,14 @@ class JobInfoHandler(BaseHandler):
         job_type = job_args.distribution_strategy
         job_stage = self.job_ctx.get_job_stage()
 
-        # For create/start times, fall back to using import time if not set
-        import_time = datetime.now()
-
         # Try to get some sensible node counts
         total_nodes_cnt = 0
         pending_nodes_cnt = 0
         running_nodes_cnt = 0
         failed_nodes_cnt = self.job_ctx.get_failed_node_cnt()
         succeeded_nodes_cnt = 0
+        earliest_create_time = None
+        earliest_start_time = None
 
         # Count nodes from job_nodes
         for node_type in [
@@ -80,31 +80,37 @@ class JobInfoHandler(BaseHandler):
             NodeType.CHIEF,
             NodeType.EVALUATOR,
         ]:
-            nodes = self.job_ctx.get_mutable_job_nodes(node_type)
+            nodes = self.job_ctx.dup_job_nodes_by_type(node_type)
             if nodes:
                 total_nodes_cnt += len(nodes)
-                pending_nodes_cnt += sum(
-                    1
-                    for node in nodes.values()
-                    if node.status in (NodeStatus.PENDING, NodeStatus.INITIAL)
-                )
-                running_nodes_cnt += sum(
-                    1
-                    for node in nodes.values()
-                    if node.status == NodeStatus.RUNNING
-                )
-                succeeded_nodes_cnt += sum(
-                    1
-                    for node in nodes.values()
-                    if node.status == NodeStatus.SUCCEEDED
-                )
+                for node in nodes.values():
+                    if node.status in (
+                        NodeStatus.PENDING,
+                        NodeStatus.INITIAL,
+                    ):
+                        pending_nodes_cnt += 1
+                    elif node.status == NodeStatus.RUNNING:
+                        running_nodes_cnt += 1
+                    elif node.status == NodeStatus.SUCCEEDED:
+                        succeeded_nodes_cnt += 1
+
+                    if node.create_time and (
+                        earliest_create_time is None
+                        or node.create_time < earliest_create_time
+                    ):
+                        earliest_create_time = node.create_time
+                    if node.start_time and (
+                        earliest_start_time is None
+                        or node.start_time < earliest_start_time
+                    ):
+                        earliest_start_time = node.start_time
 
         job_info = {
             "job_name": job_name,
             "job_type": job_type,
             "job_stage": job_stage,
-            "create_time": import_time.isoformat(),  # Simplified for now
-            "start_time": import_time.isoformat(),  # Simplified for now
+            "create_time": self._format_time(earliest_create_time),
+            "start_time": self._format_time(earliest_start_time),
             "total_nodes": total_nodes_cnt,
             "pending_nodes": pending_nodes_cnt,
             "running_nodes": running_nodes_cnt,
@@ -112,6 +118,17 @@ class JobInfoHandler(BaseHandler):
             "succeeded_nodes": succeeded_nodes_cnt,
         }
         self.write(json.dumps(job_info))
+
+    @staticmethod
+    def _format_time(t):
+        """Safely format a time value to ISO string."""
+        if t is None:
+            return None
+        if isinstance(t, str):
+            return t
+        if hasattr(t, "isoformat"):
+            return t.isoformat()
+        return str(t)
 
 
 class NodesHandler(BaseHandler):
@@ -128,12 +145,12 @@ class NodesHandler(BaseHandler):
             NodeType.EVALUATOR,
         ]:
             nodes[node_type] = []
-            node_dict = self.job_ctx.get_mutable_job_nodes(node_type)
+            node_dict = self.job_ctx.dup_job_nodes_by_type(node_type)
 
             for node_id, node in node_dict.items():
                 # Build consanguinity chain
                 consanguinity = self._build_consanguinity_chain(
-                    node, node_type, node_dict
+                    node, node_dict
                 )
 
                 node_info = {
@@ -143,12 +160,8 @@ class NodesHandler(BaseHandler):
                     "name": node.name,
                     "rank_index": node.rank_index,
                     "service_addr": node.service_addr,
-                    "start_time": node.start_time.isoformat()
-                    if node.start_time
-                    else None,
-                    "finish_time": node.finish_time.isoformat()
-                    if node.finish_time
-                    else None,
+                    "start_time": self._format_time(node.start_time),
+                    "finish_time": self._format_time(node.finish_time),
                     "exit_reason": node.exit_reason,
                     "relaunch_count": node.relaunch_count,
                     "config_resource": self._resource_to_dict(
@@ -164,90 +177,60 @@ class NodesHandler(BaseHandler):
                     "unrecoverable_failure_msg": node.unrecoverable_failure_msg,
                     "hostname": node.host_name,
                     "pod_ip": node.host_ip,
-                    "consanguinity": consanguinity,  # Add consanguinity chain
+                    "consanguinity": consanguinity,
                 }
                 nodes[node_type].append(node_info)
 
         self.write(json.dumps(nodes))
 
-    def _build_consanguinity_chain(
-        self, current_node, node_type, node_dict
-    ):
-        """Build consanguinity chain for a node based on rank_index (logical identity)."""
-        # Get all logical instances of the same node (same type and rank_index)
+    @staticmethod
+    def _format_time(t):
+        """Safely format a time value to ISO string."""
+        if t is None:
+            return None
+        if isinstance(t, str):
+            return t
+        if hasattr(t, "isoformat"):
+            return t.isoformat()
+        return str(t)
+
+    def _build_consanguinity_chain(self, current_node, node_dict):
+        """Build consanguinity chain for a node based on rank_index
+        (logical identity).
+
+        Finds all nodes in the same node_dict that share the same
+        rank_index as current_node, indicating they are different
+        physical instances of the same logical role.
+        """
+        current_rank = current_node.rank_index
         logical_instances = []
 
-        # Key insight: rank_index represents logical identity within node type, not node_id
-        current_rank = current_node.rank_index
-
-        # Get all nodes of the same type with same logical identity
         for node_id, node in node_dict.items():
-            # Use rank_index (logical ID) not node_id (physical ID)
-            node_rank = node.rank_index
             if (
-                node.type == current_node.type
-                and node_rank == current_rank
+                node.rank_index == current_rank
                 and node.start_time
             ):
                 logical_instances.append(
                     {
                         "id": node_id,
-                        "rank_index": node_rank,
+                        "rank_index": node.rank_index,
                         "name": node.name,
                         "start_time": node.start_time,
                         "status": node.status,
                     }
                 )
 
-        # Add nodes from other node types if needed (for cross-type replacements)
-        # Use get_mutable_job_nodes which is thread-safe
-        try:
-            for other_type in [
-                NodeType.WORKER,
-                NodeType.PS,
-                NodeType.CHIEF,
-                NodeType.EVALUATOR,
-            ]:
-                if other_type == node_type:
-                    continue
-                other_nodes = self.job_ctx.get_mutable_job_nodes(other_type)
-                for node_id, node in other_nodes.items():
-                    node_rank = node.rank_index
-                    if (
-                        node.type == current_node.type
-                        and node_rank == current_rank
-                        and node.start_time
-                        and node_id
-                        not in [inst["id"] for inst in logical_instances]
-                    ):
-                        logical_instances.append(
-                            {
-                                "id": node_id,
-                                "rank_index": node_rank,
-                                "name": node.name,
-                                "start_time": node.start_time,
-                                "status": node.status,
-                            }
-                        )
-        except (ImportError, AttributeError):
-            pass  # Job context not available, skip
+        if len(logical_instances) > 1:
+            # Sort chronologically — use str() as fallback for mixed types
+            logical_instances.sort(
+                key=lambda x: str(x["start_time"])
+            )
+            chain_parts = [
+                f"{inst['rank_index']}({inst['id']})"
+                for inst in logical_instances
+            ]
+            return " -> ".join(chain_parts)
 
-        # Sort chronologically by start_time
-        if logical_instances:
-            logical_instances.sort(key=lambda x: x["start_time"])
-
-            # Build chain showing the complete lineage
-            if len(logical_instances) > 1:
-                # More than one instance -> there's a replacement history
-                chain_parts = []
-                for inst in logical_instances:
-                    # Format as: rank_index(node_id)
-                    chain_parts.append(f"{inst['rank_index']}({inst['id']})")
-
-                if chain_parts:
-                    return " -> ".join(chain_parts)
-
-        # No lineage found
         return ""
 
     def _resource_to_dict(self, resource):
@@ -342,7 +325,7 @@ class DiagnosisHandler(BaseHandler):
             NodeType.CHIEF,
             NodeType.EVALUATOR,
         ]:
-            for node_id, node in self.job_ctx.get_mutable_job_nodes(
+            for node_id, node in self.job_ctx.dup_job_nodes_by_type(
                 node_type
             ).items():
                 if node.status == NodeStatus.FAILED and node.finish_time:
@@ -351,14 +334,14 @@ class DiagnosisHandler(BaseHandler):
                             "name": node.name,
                             "type": node.type,
                             "exit_reason": node.exit_reason or "Unknown",
-                            "finish_time": node.finish_time.isoformat()
-                            if node.finish_time
-                            else None,
+                            "finish_time": str(node.finish_time),
                         }
                     )
 
         # Sort by finish time and limit
-        failures.sort(key=lambda x: x["finish_time"], reverse=True)
+        failures.sort(
+            key=lambda x: x["finish_time"] or "", reverse=True
+        )
         return failures[:limit]
 
 
@@ -375,7 +358,7 @@ class MetricsHandler(BaseHandler):
         running_workers = 0
 
         for node_type in [NodeType.WORKER, NodeType.PS, NodeType.CHIEF]:
-            for node in self.job_ctx.get_mutable_job_nodes(node_type).values():
+            for node in self.job_ctx.dup_job_nodes_by_type(node_type).values():
                 if node.status == NodeStatus.RUNNING and node.used_resource:
                     total_cpu += float(getattr(node.used_resource, "cpu", 0))
                     total_memory += float(
@@ -508,24 +491,14 @@ class JobArgsHandler(BaseHandler):
                 self.write(json.dumps({}))
                 return
 
-            # Convert JobArgs to dict
-            job_args_data = {}
-            for k, v in job_args.__dict__.items():
-                if k.startswith("_") or callable(v):
-                    continue
-                # Handle special types
-                if isinstance(
-                    v, (str, int, float, bool, list, dict, type(None))
-                ):
-                    job_args_data[k] = v
-                elif hasattr(
-                    v, "__dict__"
-                ):  # Handle objects like ResourceLimits
-                    job_args_data[k] = v.__dict__
-                else:
-                    job_args_data[k] = str(v)
-
-            self.write(json.dumps(job_args_data))
+            # Use JsonSerializable.to_json() if available (JobArgs extends
+            # JsonSerializable), which handles recursive serialization via
+            # the to_dict default function in serialize module.
+            if hasattr(job_args, "to_json"):
+                self.write(job_args.to_json())
+            else:
+                # Fallback: use to_dict for recursive conversion
+                self.write(json.dumps(to_dict(job_args), default=to_dict))
         except Exception as e:
             self.set_status(500)
             self.write(json.dumps({"error": str(e)}))
