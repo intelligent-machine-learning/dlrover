@@ -73,7 +73,14 @@ class DiagnosisManager:
             logger.info(f"Start periodical diagnosis: {self._diagnosticians}")
             for name in self._diagnosticians.keys():
                 try:
-                    thread_name = f"periodical_diagnose_{name}"
+                    time_interval = self._diagnosticians[name][1]
+                    if time_interval <= 0:
+                        logger.debug(
+                            f"Skip non-periodical diagnostician: {name}"
+                        )
+                        continue
+
+                    thread_name = f"periodical_diagnose-{name}"
                     thread = threading.Thread(
                         target=self._start_periodical_diagnosticians,
                         name=thread_name,
@@ -82,7 +89,10 @@ class DiagnosisManager:
                     )
                     thread.start()
                     if thread.is_alive():
-                        logger.info(f"{thread_name} initialized successfully")
+                        logger.info(
+                            f"{thread_name} initialized successfully "
+                            f"with interval {time_interval}"
+                        )
                     else:
                         logger.error(f"{thread_name} is not alive")
                 except Exception as e:
