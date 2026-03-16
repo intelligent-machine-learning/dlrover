@@ -253,6 +253,7 @@ class MasterClient(Singleton, ABC):
             )
         else:
             action = action_cls.from_json(response.action.action_content)
+            logger.info(f"Got action from master: {action.to_json()}")
         return action
 
     def update_node_addr(self, task_type, task_id, node_addr):
