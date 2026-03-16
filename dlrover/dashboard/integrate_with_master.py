@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -32,6 +33,7 @@ class DashboardManager:
         self._perf_monitor = perf_monitor
         self._dashboard_thread = None
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self._stop_event = threading.Event()
 
     def start(self):
         """Start the dashboard manager."""
@@ -40,6 +42,8 @@ class DashboardManager:
             return
 
         try:
+            self._stop_event.clear()
+
             # Start dashboard server in a separate thread
             self._dashboard_thread = threading.Thread(
                 target=self._run_dashboard_server
@@ -59,7 +63,8 @@ class DashboardManager:
     def stop(self):
         """Stop the dashboard manager."""
         try:
-            self._executor.shutdown(wait=True)
+            self._stop_event.set()
+            self._executor.shutdown(wait=False)
             logger.info("Dashboard manager stopped")
         except Exception as e:
             logger.error(f"Error stopping dashboard manager: {e}")
@@ -83,7 +88,10 @@ class DashboardManager:
 
     def _broadcast_loop(self):
         """Broadcast real-time updates to dashboard clients."""
-        while True:
+        consecutive_failures = 0
+        max_consecutive_failures = 30
+
+        while not self._stop_event.is_set():
             try:
                 job_ctx = JobContext.singleton_instance()
 
@@ -100,13 +108,25 @@ class DashboardManager:
                 }
 
                 # Broadcast to all WebSocket clients
-                WebSocketHandler.broadcast(update)
+                WebSocketHandler.broadcast(json.dumps(update))
 
-                # Sleep for 2 seconds
-                time.sleep(2)
+                consecutive_failures = 0
+                self._stop_event.wait(2)
             except Exception as e:
-                logger.error(f"Error in broadcast loop: {e}")
-                time.sleep(5)
+                consecutive_failures += 1
+                logger.error(
+                    f"Error in broadcast loop "
+                    f"({consecutive_failures}/{max_consecutive_failures}): {e}"
+                )
+                if consecutive_failures >= max_consecutive_failures:
+                    logger.error(
+                        "Too many consecutive broadcast failures, "
+                        "stopping broadcast loop"
+                    )
+                    break
+                # Exponential backoff capped at 30 seconds
+                backoff = min(5 * (2 ** (consecutive_failures - 1)), 30)
+                self._stop_event.wait(backoff)
 
 
 def add_dashboard_to_master(master_instance, dashboard_config=None):
@@ -135,22 +155,21 @@ def add_dashboard_to_master(master_instance, dashboard_config=None):
     master_instance._dashboard_instance = instance
 
     # Add hooks to master lifecycle
-    original_start = master_instance.prepare
+    original_prepare = master_instance.prepare
     original_stop = master_instance.stop
 
-    def start_with_dashboard(self):
+    def prepare_with_dashboard():
         """Start master with dashboard."""
         logger.info("Starting DLRover Master with Dashboard support")
 
         # Start dashboard first
-        if self._dashboard_instance:
-            self._dashboard_instance.start()
-            time.sleep(1)  # Give dashboard time to start
+        if master_instance._dashboard_instance:
+            master_instance._dashboard_instance.start()
 
         # Start original master
-        original_start()
+        original_prepare()
 
-    def stop_with_dashboard(self):
+    def stop_with_dashboard():
         """Stop master with dashboard."""
         logger.info("Stopping DLRover Master with Dashboard")
 
@@ -158,12 +177,12 @@ def add_dashboard_to_master(master_instance, dashboard_config=None):
         original_stop()
 
         # Stop dashboard
-        if self._dashboard_instance:
-            self._dashboard_instance.stop()
+        if master_instance._dashboard_instance:
+            master_instance._dashboard_instance.stop()
 
-    # Replace methods
-    master_instance.start = lambda: start_with_dashboard(master_instance)
-    master_instance.stop = lambda: stop_with_dashboard(master_instance)
+    # Replace methods with consistent naming
+    master_instance.prepare = prepare_with_dashboard
+    master_instance.stop = stop_with_dashboard
 
     logger.info(
         f"Dashboard integration added to master on port {instance.port}"

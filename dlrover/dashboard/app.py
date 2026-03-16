@@ -13,6 +13,7 @@
 
 import json
 import os
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -46,6 +47,17 @@ class BaseHandler(RequestHandler):
 
     def get_perf_monitor(self) -> Optional[PerfMonitor]:
         return self.application.settings.get("perf_monitor", None)
+
+    @staticmethod
+    def _format_time(t):
+        """Safely format a time value to ISO string."""
+        if t is None:
+            return None
+        if isinstance(t, str):
+            return t
+        if hasattr(t, "isoformat"):
+            return t.isoformat()
+        return str(t)
 
 
 class JobInfoHandler(BaseHandler):
@@ -119,17 +131,6 @@ class JobInfoHandler(BaseHandler):
         }
         self.write(json.dumps(job_info))
 
-    @staticmethod
-    def _format_time(t):
-        """Safely format a time value to ISO string."""
-        if t is None:
-            return None
-        if isinstance(t, str):
-            return t
-        if hasattr(t, "isoformat"):
-            return t.isoformat()
-        return str(t)
-
 
 class NodesHandler(BaseHandler):
     """Handle requests for node information."""
@@ -147,10 +148,13 @@ class NodesHandler(BaseHandler):
             nodes[node_type] = []
             node_dict = self.job_ctx.dup_job_nodes_by_type(node_type)
 
+            # Pre-compute rank_index -> nodes mapping (O(n) instead of O(n²))
+            rank_index_map = self._build_rank_index_map(node_dict)
+
             for node_id, node in node_dict.items():
-                # Build consanguinity chain
+                # Build consanguinity chain using pre-computed index
                 consanguinity = self._build_consanguinity_chain(
-                    node, node_dict
+                    node, rank_index_map
                 )
 
                 node_info = {
@@ -183,51 +187,30 @@ class NodesHandler(BaseHandler):
 
         self.write(json.dumps(nodes))
 
-    @staticmethod
-    def _format_time(t):
-        """Safely format a time value to ISO string."""
-        if t is None:
-            return None
-        if isinstance(t, str):
-            return t
-        if hasattr(t, "isoformat"):
-            return t.isoformat()
-        return str(t)
-
-    def _build_consanguinity_chain(self, current_node, node_dict):
-        """Build consanguinity chain for a node based on rank_index
-        (logical identity).
-
-        Finds all nodes in the same node_dict that share the same
-        rank_index as current_node, indicating they are different
-        physical instances of the same logical role.
-        """
-        current_rank = current_node.rank_index
-        logical_instances = []
-
+    def _build_rank_index_map(self, node_dict):
+        """Pre-compute rank_index -> list of (node_id, node) mapping."""
+        rank_map = {}
         for node_id, node in node_dict.items():
-            if (
-                node.rank_index == current_rank
-                and node.start_time
-            ):
-                logical_instances.append(
-                    {
-                        "id": node_id,
-                        "rank_index": node.rank_index,
-                        "name": node.name,
-                        "start_time": node.start_time,
-                        "status": node.status,
-                    }
-                )
+            if node.start_time:
+                rank = node.rank_index
+                if rank not in rank_map:
+                    rank_map[rank] = []
+                rank_map[rank].append((node_id, node))
 
-        if len(logical_instances) > 1:
-            # Sort chronologically — use str() as fallback for mixed types
-            logical_instances.sort(
-                key=lambda x: str(x["start_time"])
-            )
+        # Sort each group by start_time once
+        for rank, instances in rank_map.items():
+            instances.sort(key=lambda x: x[1].start_time or datetime.min)
+
+        return rank_map
+
+    def _build_consanguinity_chain(self, current_node, rank_index_map):
+        """Build consanguinity chain for a node using pre-computed
+        rank_index map. O(1) lookup instead of O(n) scan."""
+        instances = rank_index_map.get(current_node.rank_index, [])
+
+        if len(instances) > 1:
             chain_parts = [
-                f"{inst['rank_index']}({inst['id']})"
-                for inst in logical_instances
+                f"{node.rank_index}({node_id})" for node_id, node in instances
             ]
             return " -> ".join(chain_parts)
 
@@ -246,31 +229,56 @@ class NodesHandler(BaseHandler):
 class LogsHandler(BaseHandler):
     """Handle requests for node logs."""
 
+    # Valid node name pattern: alphanumeric, hyphens, underscores, dots
+    _NODE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+
     executor = ThreadPoolExecutor(max_workers=4)
 
-    @run_on_executor
-    def get(self, node_name):
+    def _validate_node_name(self, node_name):
+        """Validate node_name to prevent path traversal."""
+        if not self._NODE_NAME_PATTERN.match(node_name):
+            return False
+        # Extra safety: ensure no path separators after regex
+        if os.sep in node_name or "/" in node_name:
+            return False
+        return True
+
+    async def get(self, node_name):
         """Get logs for a specific node."""
+        if not self._validate_node_name(node_name):
+            self.set_status(400)
+            self.write(json.dumps({"error": "Invalid node name"}))
+            return
+
         try:
-            # Get log file path from environment or configuration
-            log_dir = os.environ.get("DLROVER_LOG_DIR", "/tmp/dlrover")
-            log_file = os.path.join(log_dir, f"{node_name}.log")
-
-            # Read last 1000 lines of log
-            logs = self._tail_log_file(log_file, 1000)
-
-            self.write(
-                json.dumps(
-                    {
-                        "node_name": node_name,
-                        "logs": logs,
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                )
-            )
+            result = await self._read_logs(node_name)
+            self.write(json.dumps(result))
         except Exception as e:
+            logger.error(f"Error reading logs for {node_name}: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to read logs"}))
+
+    @run_on_executor
+    def _read_logs(self, node_name):
+        """Read log file in thread pool. Returns data dict."""
+        log_dir = os.environ.get("DLROVER_LOG_DIR", "/tmp/dlrover")
+        log_file = os.path.join(log_dir, f"{node_name}.log")
+
+        # Resolve and verify the path stays within log_dir
+        resolved = os.path.realpath(log_file)
+        if not resolved.startswith(os.path.realpath(log_dir)):
+            return {
+                "node_name": node_name,
+                "logs": "Access denied",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        logs = self._tail_log_file(resolved, 1000)
+        return {
+            "node_name": node_name,
+            "logs": logs,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     def _tail_log_file(self, filepath, lines):
         """Read last N lines from a file."""
@@ -278,7 +286,7 @@ class LogsHandler(BaseHandler):
             with open(filepath, "r") as f:
                 return "".join(f.readlines()[-lines:])
         except FileNotFoundError:
-            return f"Log file not found: {filepath}"
+            return "Log file not found"
 
 
 class DiagnosisHandler(BaseHandler):
@@ -312,8 +320,9 @@ class DiagnosisHandler(BaseHandler):
                 )
             )
         except Exception as e:
+            logger.error(f"Error in DiagnosisHandler: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to get diagnosis data"}))
 
     def _get_recent_failures(self, limit):
         """Get recent node failures."""
@@ -339,9 +348,7 @@ class DiagnosisHandler(BaseHandler):
                     )
 
         # Sort by finish time and limit
-        failures.sort(
-            key=lambda x: x["finish_time"] or "", reverse=True
-        )
+        failures.sort(key=lambda x: x["finish_time"] or "", reverse=True)
         return failures[:limit]
 
 
@@ -360,11 +367,15 @@ class MetricsHandler(BaseHandler):
         for node_type in [NodeType.WORKER, NodeType.PS, NodeType.CHIEF]:
             for node in self.job_ctx.dup_job_nodes_by_type(node_type).values():
                 if node.status == NodeStatus.RUNNING and node.used_resource:
-                    total_cpu += float(getattr(node.used_resource, "cpu", 0))
-                    total_memory += float(
-                        getattr(node.used_resource, "memory", 0)
+                    total_cpu += float(
+                        getattr(node.used_resource, "cpu", 0) or 0
                     )
-                    total_gpu += getattr(node.used_resource, "gpu_num", 0)
+                    total_memory += float(
+                        getattr(node.used_resource, "memory", 0) or 0
+                    )
+                    total_gpu += float(
+                        getattr(node.used_resource, "gpu_num", 0) or 0
+                    )
 
                     if node_type == NodeType.WORKER:
                         running_workers += 1
@@ -420,8 +431,9 @@ class RestartNodeHandler(BaseHandler):
                 )
             )
         except Exception as e:
+            logger.error(f"Error restarting node {node_name}: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to restart node"}))
 
 
 class StopNodeHandler(BaseHandler):
@@ -442,8 +454,9 @@ class StopNodeHandler(BaseHandler):
                 )
             )
         except Exception as e:
+            logger.error(f"Error stopping node {node_name}: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to stop node"}))
 
 
 class WebSocketHandler(websocket.WebSocketHandler):
@@ -500,8 +513,9 @@ class JobArgsHandler(BaseHandler):
                 # Fallback: use to_dict for recursive conversion
                 self.write(json.dumps(to_dict(job_args), default=to_dict))
         except Exception as e:
+            logger.error(f"Error in JobArgsHandler: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to get job args"}))
 
 
 class ContextHandler(BaseHandler):
@@ -526,8 +540,9 @@ class ContextHandler(BaseHandler):
 
             self.write(json.dumps(context_data))
         except Exception as e:
+            logger.error(f"Error in ContextHandler: {e}")
             self.set_status(500)
-            self.write(json.dumps({"error": str(e)}))
+            self.write(json.dumps({"error": "Failed to get context data"}))
 
 
 def create_dashboard_app(**kwargs):
@@ -536,7 +551,8 @@ def create_dashboard_app(**kwargs):
     settings = {
         "static_path": os.path.join(os.path.dirname(__file__), "static"),
         "template_path": os.path.join(os.path.dirname(__file__), "templates"),
-        "debug": True,
+        "debug": os.environ.get("DLROVER_DASHBOARD_DEBUG", "").lower()
+        == "true",
     }
 
     # setup instance objects
@@ -569,7 +585,7 @@ def create_dashboard_app(**kwargs):
     return app
 
 
-class IndexHandler(web.RequestHandler):
+class IndexHandler(BaseHandler):
     """Serve the main dashboard HTML page."""
 
     def get(self):
@@ -586,7 +602,7 @@ class IndexHandler(web.RequestHandler):
             self.write("index.html not found")
 
 
-class NodeDetailHandler(web.RequestHandler):
+class NodeDetailHandler(BaseHandler):
     """Serve the node detail page HTML."""
 
     def get(self):

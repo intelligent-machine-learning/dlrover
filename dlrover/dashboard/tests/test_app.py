@@ -14,7 +14,7 @@
 import json
 import unittest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from tornado.testing import AsyncHTTPTestCase
 from tornado.web import Application
 
@@ -309,7 +309,7 @@ class TestContextHandler(AsyncHTTPTestCase):
 
         data = json.loads(response.body)
         self.assertIn("error", data)
-        self.assertEqual(data["error"], "Context creation failed")
+        self.assertEqual(data["error"], "Failed to get context data")
 
 
 class TestJobArgsHandler(AsyncHTTPTestCase):
@@ -375,9 +375,7 @@ class TestJobArgsHandler(AsyncHTTPTestCase):
         class ConcreteNodeArgs(NodeArgs):
             pass
 
-        group_resource = NodeGroupResource(
-            2, NodeResource(4.0, 8192)
-        )
+        group_resource = NodeGroupResource(2, NodeResource(4.0, 8192))
         node_args = ConcreteNodeArgs(group_resource)
         job_args.node_args[NodeType.WORKER] = node_args
         job_ctx.set_job_args(job_args)
@@ -509,17 +507,20 @@ class TestLogsHandler(AsyncHTTPTestCase):
     def get_app(self):
         return create_dashboard_app()
 
-    @patch("builtins.open")
-    @patch.dict("os.environ", {"DLROVER_LOG_DIR": "/tmp/test_logs"})
-    def test_get_logs_success(self, mock_open):
+    @patch("dlrover.dashboard.app.LogsHandler._read_logs")
+    def test_get_logs_success(self, mock_read_logs):
         """Test successful retrieval of logs."""
-        mock_file = MagicMock()
-        mock_file.readlines.return_value = [
-            "Line 1\n",
-            "Line 2\n",
-            "Line 3\n",
-        ]
-        mock_open.return_value.__enter__.return_value = mock_file
+        from tornado.concurrent import Future
+
+        future = Future()
+        future.set_result(
+            {
+                "node_name": "test-node",
+                "logs": "Line 1\nLine 2\nLine 3\n",
+                "timestamp": "2026-01-15T10:00:00",
+            }
+        )
+        mock_read_logs.return_value = future
 
         response = self.fetch("/api/logs/test-node")
         self.assertEqual(response.code, 200)
@@ -527,6 +528,19 @@ class TestLogsHandler(AsyncHTTPTestCase):
         data = json.loads(response.body)
         self.assertEqual(data["node_name"], "test-node")
         self.assertIn("Line 1", data["logs"])
+
+    def test_get_logs_path_traversal_rejected(self):
+        """Test that path traversal attempts are rejected."""
+        response = self.fetch("/api/logs/../../etc/passwd")
+        self.assertEqual(response.code, 400)
+
+        data = json.loads(response.body)
+        self.assertEqual(data["error"], "Invalid node name")
+
+    def test_get_logs_invalid_node_name(self):
+        """Test that invalid node names are rejected."""
+        response = self.fetch("/api/logs/node%20name%20with%20spaces")
+        self.assertEqual(response.code, 400)
 
 
 class TestNodeControlHandlers(AsyncHTTPTestCase):
@@ -537,9 +551,7 @@ class TestNodeControlHandlers(AsyncHTTPTestCase):
 
     def test_restart_node_success(self):
         """Test successful node restart request."""
-        response = self.fetch(
-            "/api/restart/test-node", method="POST", body=""
-        )
+        response = self.fetch("/api/restart/test-node", method="POST", body="")
         self.assertEqual(response.code, 200)
 
         data = json.loads(response.body)
