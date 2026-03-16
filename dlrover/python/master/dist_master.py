@@ -387,7 +387,7 @@ class DistributedJobMaster(JobMaster):
                 self._job_evt, self._job_args, self.exit_reason
             )
 
-        self.job_manager.clear_all_nodes()
+        self.job_manager.clear_all_nodes(True)
         return self.exit_code
 
     def _remove_not_participated_workers(self):

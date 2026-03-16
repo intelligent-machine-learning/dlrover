@@ -1361,6 +1361,51 @@ class DistributedJobManagerTest(unittest.TestCase):
         job_context.request_stop.assert_called_once()
         manager._scaler.scale.assert_not_called()
 
+    def test_stop_job_when_insufficient_nodes_for_allreduce(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(worker_count=4)
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+
+        # Mock the worker manager to return a min_nodes_required value
+        manager._worker_manager.update_node_required_info((4, 4, 300))
+
+        # Create a node that cannot be relaunched
+        job_nodes = self.job_context.job_nodes()
+        worker0 = job_nodes[NodeType.WORKER][0]
+        worker0.status = NodeStatus.RUNNING
+        worker0.max_relaunch_count = 3
+        worker0.relaunch_count = 3  # Already relaunched max times
+        self.job_context.update_job_node(worker0)
+
+        # Mock _relaunch_node to verify it's not called
+        manager._relaunch_node = mock.MagicMock()
+        manager._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=[]
+        )
+
+        # Create a deleted event for the worker
+        node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(1, 4096),
+            rank_index=0,
+            status=NodeStatus.DELETED,
+            max_relaunch_count=3,
+            relaunch_count=3,
+            name="test-worker-0",
+        )
+        node.exit_reason = NodeExitReason.FATAL_ERROR
+
+        # Process the event - should trigger stop due to insufficient nodes
+        manager._process_event(NodeEvent(NodeEventType.DELETED, node))
+
+        # Verify that _relaunch_node was not called (should_relaunch=False)
+        manager._relaunch_node.assert_not_called()
+
+        # Verify that job was requested to stop
+        self.assertTrue(self.job_context.is_stopped())
+
 
 class JobContextTest(unittest.TestCase):
     def setUp(self):
