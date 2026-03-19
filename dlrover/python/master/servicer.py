@@ -201,10 +201,22 @@ class MasterServicer(ABC):
             )
         elif isinstance(req_message, comm.HeartBeat):
             message = self._report_heartbeat(node_type, node_id, req_message)
+        elif isinstance(req_message, comm.ExecBrainResourcePlanRequest):
+            message = self.exec_opt_res_plan_ready(req_message)
+        elif isinstance(req_message, comm.BrainOptGpusRequest):
+            message = self.exec_opt_res_plan_ready(req_message)
 
         if message:
             response.data = message.serialize()
         return response
+
+    def exec_opt_res_plan_ready(self, req_message):
+        status: bool = self._job_manager.exec_opt_res_plan_ready()
+        return comm.ExecBrainResourcePlanReady(status)
+
+    def get_gpus_from_brain_resource_plan(self, req_message):
+        gpu_nums = self._job_manager.get_gpus_from_brain_resource_plan()
+        return comm.BrainOptGpus(gpu_nums)
 
     def _get_task(self, node_type, node_id, request: comm.TaskRequest):
         if not self._start_training_time:
@@ -473,9 +485,21 @@ class MasterServicer(ABC):
             success = self.set_rdzv_blocked(message)
         elif isinstance(message, comm.DiagnosisAction):
             success = self._report_action(message)
+        elif isinstance(message, comm.SaveCheckpointReady):
+            success = self.set_save_ckpt_status(message)
+        elif isinstance(message, comm.ParamTunningReady):
+            success = self.set_param_tunning_ready(message)
 
         response.success = success
         return response
+
+    def set_save_ckpt_status(self, message: comm.SaveCheckpointReady):
+        self._job_manager.set_save_ckpt_status(message.ckpt_save_ready, message.reason)
+        return True
+
+    def set_param_tunning_ready(self, message: comm.ParamTunningReady):
+        self._job_manager.set_param_tunning_ready(message.param_tunning_ready)
+        return True
 
     def set_rdzv_blocked(self, message: comm.RdzvBlocked):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]

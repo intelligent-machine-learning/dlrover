@@ -11,6 +11,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+class WorkerResourceScaleAction(object):
+    REDUCE_GPUS = "reduce_gpus"
+    ADD_GPUS = "add_gpus"
+    MANUAL = "manual"
+    NOT_ADJUST = "not_adjust"
+
+class OptimizerType(object):
+    BASE_OPTIMIZER = "BaseOptimizer"
+    MANUAL_OPTIMIZER = "ConfigMapManualOptimizer"
+    OOM_OPTIMIZER = "OOMOptimizer"
+    GPU_BOTTLENECK_OPTIMIZER = "GpuBottleneckOptimizer"
+
+class ElasticDimension(object):
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
+
+class Optimizers(object):
+    BASE_OPTIMIZER = "BaseOptimizer"
+    OOM_OPTIMIZER = "OOMOptimizer"
+    CONFIG_MAP_OPTIMIZER = "ConfigMapOptimizer"
+
+class BackendType(object):
+    GLOO = "gloo"
+    NCCL = "nccl"
+    HCCL = "hccl"
 
 class BasicClass(object):
     LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
@@ -324,6 +349,8 @@ class TrainingLoopStatus(object):
 
 
 class NodeEnv(object):
+    DLROVER_ELASTIC_DIMENSION = "DLROVER_ELASTIC_DIMENSION"
+    
     RELAUNCHED_POD = "RELAUNCHED_POD"
     DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     DLROVER_MASTER_SERVICE_TYPE = "DLROVER_MASTER_SERVICE_TYPE"

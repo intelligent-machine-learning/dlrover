@@ -12,13 +12,14 @@
 # limitations under the License.
 import importlib
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from dlrover.python.common.constants import (
     CommunicationType,
     PendingTimeoutStrategyType,
     UserEnv,
     HangDetectionStrategy,
+    ElasticDimension,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
@@ -44,6 +45,16 @@ class ConfigKeys(object):
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
     HANG_CPU_USAGE_RATE = "hang_cpu_usage_rate"
+
+    # resource elastic
+    VERTICAL_ELASTIC_SCALE_INTERVAL = "vertical_elastic_scale_interval"
+    VERTICAL_ELASTIC_OPT_INTERVAL = "vertical_elastic_opt_interval"
+    VERTICAL_ELASTIC_MAX_OPT_NUM = "vertical_elastic_max_opt_num"
+    CKPT_SAVE_STATUS_CHECK_MAX_WAIT_TIME = "ckpt_save_status_check_max_wait_time"
+    # check interval of ckpt save status
+    CKPT_SAVE_STATUS_CHECK_INTERVAL = "ckpt_save_status_check_interval"
+    # log record interval
+    LOG_INTERVAL_CHECK_NUMS = "log_interval_check_nums"
 
 
 class DefaultValues(object):
@@ -84,6 +95,14 @@ class DefaultValues(object):
     MAX_JOB_RESTART_COUNT = 3  # maximum job restart count
     MAX_GROUP_RELAUNCH_COUNT = 3  # maximum node group relaunch count
     TRAINING_ELASTIC_MODE = "base"
+
+    # resource elastic
+    VERTICAL_ELASTIC_SCALE_INTERVAL = 180  # unit is seconds
+    VERTICAL_ELASTIC_OPT_INTERVAL = 36000  # unit is seconds
+    VERTICAL_ELASTIC_MAX_OPT_NUM = 3 # maximum number of times to optimize
+    CKPT_SAVE_STATUS_CHECK_MAX_WAIT_TIME = 120  # unit is seconds
+    CKPT_SAVE_STATUS_CHECK_INTERVAL = 1  # unit is seconds 
+    LOG_INTERVAL_CHECK_NUMS = 5 # check interval of log record
 
 
 class Context(Singleton):
@@ -153,6 +172,17 @@ class Context(Singleton):
         # extensions
         self.dynamic_failover_extension = None
 
+        ########################## Resource elastic #########################
+        self.brain_resource_plan_ready = False
+        self.enable_elastic_resource = False
+        
+        self.elastic_dimension = ElasticDimension.HORIZONTAL
+
+        self.configmap_manual_scale_switch = "off"
+        self.resource_monitor_switch = "off"
+
+        self.temp_gpu_time_window_file_prefix = "dlrover_gpu_tw_"
+
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
             ConfigKeys.TRAIN_SPEED_RECORD_NUM,
@@ -210,6 +240,32 @@ class Context(Singleton):
         self.hang_cpu_usage_percentage = self.get_param_value_from_brain(
             ConfigKeys.HANG_CPU_USAGE_RATE,
             DefaultValues.HANG_CPU_USAGE_RATE,
+        )
+
+        # resource elastic
+        self.vertical_elastic_scale_interval = self.get_param_value_from_brain(
+            ConfigKeys.VERTICAL_ELASTIC_SCALE_INTERVAL,
+            DefaultValues.VERTICAL_ELASTIC_SCALE_INTERVAL,
+        )
+        self.vertical_elastic_opt_interval = self.get_param_value_from_brain(
+            ConfigKeys.VERTICAL_ELASTIC_OPT_INTERVAL,
+            DefaultValues.VERTICAL_ELASTIC_OPT_INTERVAL,
+        )
+        self.vertical_elastic_max_opt_num = self.get_param_value_from_brain(
+            ConfigKeys.VERTICAL_ELASTIC_MAX_OPT_NUM,
+            DefaultValues.VERTICAL_ELASTIC_MAX_OPT_NUM,
+        )
+        self.ckpt_save_status_check_max_wait_time = self.get_param_value_from_brain(
+            ConfigKeys.CKPT_SAVE_STATUS_CHECK_MAX_WAIT_TIME,
+            DefaultValues.CKPT_SAVE_STATUS_CHECK_MAX_WAIT_TIME,
+        )
+        self.ckpt_save_status_check_interval = self.get_param_value_from_brain(
+            ConfigKeys.CKPT_SAVE_STATUS_CHECK_INTERVAL,
+            DefaultValues.CKPT_SAVE_STATUS_CHECK_INTERVAL,
+        )
+        self.log_interval_check_nums = self.get_param_value_from_brain(
+            ConfigKeys.LOG_INTERVAL_CHECK_NUMS,
+            DefaultValues.LOG_INTERVAL_CHECK_NUMS,
         )
 
     def config_master_port(self, port=0):
