@@ -18,6 +18,7 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     NodeType,
     PlatformType,
+    ElasticDimension,
 )
 from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.global_context import Context, DefaultValues
@@ -40,6 +41,10 @@ def update_context(job_args: JobArgs):
     if job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
         _dlrover_context.relaunch_always = True
     _dlrover_context.training_elastic_mode = job_args.training_elastic_mode
+
+    _dlrover_context.elastic_dimension = job_args.elastic_dimension
+    _dlrover_context.configmap_manual_scale_switch = job_args.configmap_manual_scale_switch
+
     _dlrover_context.set_params_from_brain()
     _dlrover_context.print_config()
 
@@ -47,6 +52,20 @@ def update_context(job_args: JobArgs):
 def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
+
+    if args.xpu_type.lower() == "ascend":
+        job_args.xpu_type = Accelerators.ASCEND_NPU
+    elif args.xpu_type.lower() == "nvidia":
+        job_args.xpu_type = Accelerators.NVIDIA_GPU
+    elif args.xpu_type.lower() == "mthreads":
+        job_args.xpu_type = Accelerators.MTHREADS_GPU
+    else:
+        logger.info(f"{args.xpu_type}, use cpu as default")
+        job_args.xpu_type = Accelerators.GENERIC_CPU
+
+    job_args.elastic_dimension = args.elastic_dimension.lower()
+    job_args.configmap_manual_scale_switch = args.configmap_manual_scale_switch.lower()
+
     logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
     _dlrover_context.seconds_to_timeout_task_process = (
@@ -66,15 +85,6 @@ def run(args):
     )
 
     job_args.training_elastic_mode = args.training_elastic_mode
-    if args.xpu_type.lower() == "ascend":
-        job_args.xpu_type = Accelerators.ASCEND_NPU
-    elif args.xpu_type.lower() == "nvidia":
-        job_args.xpu_type = Accelerators.NVIDIA_GPU
-    elif args.xpu_type.lower() == "mthreads":
-        job_args.xpu_type = Accelerators.MTHREADS_GPU
-    else:
-        logger.info(f"{args.xpu_type}, use cpu as default")
-        job_args.xpu_type = Accelerators.GENERIC_CPU
 
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster

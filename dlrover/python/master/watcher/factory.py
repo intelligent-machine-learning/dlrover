@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+from typing import Callable
 
 from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
@@ -57,3 +59,22 @@ def new_elasticjob_watcher(args):
         return K8sElasticJobWatcher(args)
     else:
         logger.info(f"Skip elasticjob watcher for engine {args.platform}")
+
+def new_configmap_scale_watcher(platform, job_name, namespace, job_uuid, on_update_callback: Callable[[dict], None]):
+    logger.info("New %s configmap scale Watcher", platform)
+    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
+        from dlrover.python.master.watcher.k8s_watcher import (
+            K8sConfigMapScaleWatcher,
+        )
+        configmap_name = os.getenv(
+            "DLROVER_MANUAL_SCALE_CONFIGMAP_NAME", "brain-manual-scale-config"
+        ).lower()
+        return K8sConfigMapScaleWatcher(job_name, namespace, job_uuid, configmap_name, on_update_callback)
+    elif platform in (PlatformType.RAY):
+        from dlrover.python.master.watcher.ray_watcher import (
+            RayScalePlanWatcher,
+        )
+
+        return RayScalePlanWatcher(job_name, namespace, job_uuid)
+    else:
+        raise ValueError("Not support engine %s", platform)
