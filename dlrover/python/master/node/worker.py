@@ -138,6 +138,8 @@ class WorkerManager(TrainingNodeManager):
                 num,
                 worker_resource.node_resource.cpu,
                 worker_resource.node_resource.memory,
+                worker_resource.node_resource.gpu_type,
+                worker_resource.node_resource.gpu_num,
             )
         )
         alive_workers = []
@@ -151,6 +153,33 @@ class WorkerManager(TrainingNodeManager):
                 plan = self._scale_up_workers(num - alive_num)
             elif num < alive_num:
                 plan = self._scale_down_workers(alive_num - num, alive_workers)
+        return plan
+
+    def adjust_worker_by_scale_operate(self, worker_resource: NodeGroupResource, scale_operate: str):
+        plan = ScalePlan()
+        num = worker_resource.count
+        logger.info(
+            "Adjust worker resource to {}, {}, {}".format(
+                num,
+                worker_resource.node_resource.cpu,
+                worker_resource.node_resource.memory,
+                worker_resource.node_resource.gpu_type,
+                worker_resource.node_resource.gpu_num
+            )
+        )
+        alive_workers = []
+        nodes = self._get_mutable_nodes()
+        for worker in nodes.values():
+            if worker.status in ALIVE_STATUS:
+                alive_workers.append(worker)
+        alive_num = len(alive_workers)
+        logger.info("Adjust worker, alive_num = %s", alive_num)
+
+        with self._lock:
+            if scale_operate.strip() == "scale_up":
+                plan = self._scale_up_workers(num)
+            elif scale_operate.strip() == "scale_down":
+                plan = self._scale_down_workers(alive_num, alive_workers)
         return plan
 
     def _scale_up_workers(self, up_num):

@@ -125,6 +125,12 @@ class NodeResource(JsonSerializable):
             if "nvidia.com" in key:
                 gpu_type = key
                 gpu_num = int(resource[key])
+            elif "huawei.com" in key:
+                gpu_type = key
+                gpu_num = int(resource[key])
+            elif "metax-tech.com" in key:
+                gpu_type = key
+                gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
 
     @classmethod
@@ -185,7 +191,7 @@ class Node(object):
         self,
         node_type,
         node_id,
-        config_resource: NodeResource = NodeResource(0, 0),
+        config_resource: NodeResource = NodeResource(0, 0, "", 0),
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
@@ -220,7 +226,7 @@ class Node(object):
         self.is_released = False
         self.exit_reason = ""
         self.config_resource = config_resource
-        self.used_resource = NodeResource(0.0, 0.0)
+        self.used_resource = NodeResource(0.0, 0.0, "", 0)
         self.start_hang_time: float = 0
         self.init_time = time.time()
         self.eval_time = 0

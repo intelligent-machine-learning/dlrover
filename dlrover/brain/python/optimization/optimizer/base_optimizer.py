@@ -18,32 +18,32 @@ from dlrover.brain.python.common.job import (
     JobMeta,
     JobResource,
     NodeGroupResource,
-    NodeResource,
+    OptimizeConfig,
 )
 from dlrover.brain.python.common.constants import (
     Node,
     DefaultResource,
 )
+from dlrover.brain.python.optimization.optalgorithm.opt_algorithm_manager import OptAlgorithmManager
 
 
 class BaseOptimizer:
     def __init__(self):
-        pass
+        self.opt_algorithm_manager = OptAlgorithmManager()
 
     @staticmethod
     def get_name() -> str:
         return "BaseOptimizer"
 
-    def optimize(self, job: JobMeta) -> JobOptimizePlan:
+    def optimize(self, job: JobMeta, conf: OptimizeConfig) -> JobOptimizePlan:
+        conf.customized_config["algorithm"] = "BaseOptimizeJobResource"
+        current_node_resource = self.opt_algorithm_manager.generate_node_resource(job, conf)
         return JobOptimizePlan(
-            timestamp=int(time.time() * 1000),
+            time=int(time.time() * 1000),
             job_resource=JobResource(
                 node_group_resources={
                     Node.NODE_TYPE_WORKER: NodeGroupResource(
-                        resource=NodeResource(
-                            cpu=DefaultResource.WORKER_CPU,
-                            memory=DefaultResource.WORKER_MEM,
-                        ),
+                        resource=current_node_resource,
                     )
                 },
             ),
