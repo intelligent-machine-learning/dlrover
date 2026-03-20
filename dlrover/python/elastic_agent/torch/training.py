@@ -76,10 +76,12 @@ from dlrover.python.common.constants import (
     AscendConstants,
     ConfigPath,
     JobConstant,
+    NetworkFailureReason,
     NodeEnv,
     NodeEventType,
     NodeExitDescription,
     RendezvousName,
+    SchedulingLabel,
     TrainingExceptionLevel,
     EventReportConstants,
     ScriptPath,
@@ -2157,7 +2159,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f"and stragglers are: {stragglers} with reason: {straggler_reason}"
             )
             self._stop_workers(self._worker_group)
-            if fault_nodes or (stragglers and self._config.exclude_straggler):
+            if fault_reason == NetworkFailureReason.NEXT_PHASE:
+                # Current phase passed, continue to next phase.
+                time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
+                continue
+            elif fault_nodes or (stragglers and self._config.exclude_straggler):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
@@ -2306,12 +2312,14 @@ def node_health_check(
     entrypoint: Union[Callable, str, None],
     args: List[Any],
 ) -> bool:
+    is_group_node = os.environ.get(SchedulingLabel.NODE_GROUP_ID) is not None
+    check_round = 3 if is_group_node else 2
     agent = _create_check_agent(
         config,
         entrypoint,
         args,
         RendezvousName.NETWORK_CHECK,
-        check_round=2,
+        check_round=check_round,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))

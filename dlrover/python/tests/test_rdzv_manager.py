@@ -19,7 +19,11 @@ from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.constants import NetworkFailureReason, NodeEventType
+from dlrover.python.common.constants import (
+    GroupNodeCheckPhase,
+    NetworkFailureReason,
+    NodeEventType,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -34,6 +38,7 @@ from dlrover.python.master.elastic_training.net_topology import (
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
+    GroupNodeNetworkCheckRendezvousManager,
     NetworkCheckRendezvousManager,
     UcpRdzvManager,
     create_training_rdzv_manager,
@@ -599,3 +604,254 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
             err_message="Network connection failed",
             elapsed_time=15.0,
         )
+
+
+def _create_group_node_meta(node_id, node_rank, group, group_size, group_id):
+    """Helper to create a NodeTopologyMeta with group info."""
+    return NodeTopologyMeta(
+        node_id=node_id,
+        node_rank=node_rank,
+        process_num=8,
+        node_group=group,
+        node_group_size=group_size,
+        node_group_id=group_id,
+    )
+
+
+class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
+
+    def _setup_manager(self, num_nodes, groups):
+        """Setup a GroupNodeNetworkCheckRendezvousManager with group info.
+        Args:
+            num_nodes: total number of nodes.
+            groups: dict mapping group_index -> list of node_ranks.
+        """
+        manager = GroupNodeNetworkCheckRendezvousManager()
+        manager.update_rdzv_params(num_nodes, num_nodes, 60, 1)
+        manager._alive_nodes = set(range(num_nodes))
+
+        group_size = len(groups)
+        for g_idx, ranks in groups.items():
+            group_id = f"group-{g_idx}"
+            for rank in ranks:
+                meta = _create_group_node_meta(
+                    rank, rank, g_idx, group_size, group_id
+                )
+                manager._waiting_nodes[rank] = meta
+
+        # Simulate rdzv completion by directly populating _rdzv_nodes.
+        from collections import OrderedDict
+
+        manager._rdzv_nodes = OrderedDict()
+        for rank in sorted(manager._waiting_nodes.keys()):
+            manager._rdzv_nodes[rank] = manager._waiting_nodes[rank]
+        manager._waiting_nodes = {}
+        return manager
+
+    def test_group_node_intra_pass_inter_pass(self):
+        """2 groups, all checks pass: intra -> inter -> done."""
+        # G0=[0,1,2,3], G1=[4,5,6,7]
+        groups = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+        manager = self._setup_manager(8, groups)
+
+        # Round 0: INTRA_INITIAL - adjacent pairing within groups.
+        node_groups = manager._group_nodes(0)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+        # G0: {0,1}, {2,3}, G1: {4,5}, {6,7}
+        self.assertEqual(len(node_groups), 4)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
+        self.assertListEqual(sorted(node_groups[1].keys()), [2, 3])
+        self.assertListEqual(sorted(node_groups[2].keys()), [4, 5])
+        self.assertListEqual(sorted(node_groups[3].keys()), [6, 7])
+
+        # All nodes pass intra check.
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+
+        # Round 1: INTER_INITIAL - same-position cross-group pairing.
+        node_groups = manager._group_nodes(1)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+        # {0,4}, {1,5}, {2,6}, {3,7}
+        self.assertEqual(len(node_groups), 4)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 4])
+        self.assertListEqual(sorted(node_groups[1].keys()), [1, 5])
+        self.assertListEqual(sorted(node_groups[2].keys()), [2, 6])
+        self.assertListEqual(sorted(node_groups[3].keys()), [3, 7])
+
+        # All nodes pass inter check -> check_fault_node returns no faults.
+        manager._reported_nodes = set(range(8))
+        for i in range(8):
+            manager._node_status[i] = True
+        nodes, reason = manager.check_fault_node()
+        self.assertListEqual(nodes, [])
+        # Round should jump to end of cycle.
+        self.assertEqual(manager._rdzv_round % manager._check_round, 0)
+
+    def test_group_node_intra_fail_diagnostic(self):
+        """2 groups, intra check fails -> diagnostic identifies fault."""
+        groups = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+        manager = self._setup_manager(8, groups)
+
+        # Round 0: INTRA_INITIAL.
+        manager._group_nodes(0)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+
+        # Node 1 fails in intra check.
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+        manager._node_status[0] = False
+        manager._node_status[1] = False
+        manager._node_times[1] = 5.0  # Slower (likely faulty).
+
+        # Round 1: should be INTRA_DIAGNOSTIC.
+        node_groups = manager._group_nodes(1)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_DIAGNOSTIC)
+        # Cross pairing within groups: sorted by time.
+        # G0 sorted by time: [0(1.0), 2(1.0), 3(1.0), 1(5.0)]
+        # Pairs: {0,1}, {2,3} (fastest with slowest).
+        for group in node_groups:
+            self.assertLessEqual(len(group), 2)
+
+        # Simulate diagnostic: node 1 fails again.
+        manager._reported_nodes = set(range(8))
+        for i in range(8):
+            manager._node_status[i] = True
+        manager._node_status[1] = False
+        nodes, reason = manager.check_fault_node()
+        self.assertIn(1, nodes)
+        self.assertEqual(reason, NetworkFailureReason.NODE_FAILURE)
+
+    def test_group_node_inter_fail_diagnostic(self):
+        """2 groups, intra passes but inter fails -> inter diagnostic."""
+        groups = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+        manager = self._setup_manager(8, groups)
+
+        # Round 0: INTRA_INITIAL - all pass.
+        manager._group_nodes(0)
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+
+        # check_fault_node should return NEXT_PHASE.
+        manager._reported_nodes = set(range(8))
+        nodes, reason = manager.check_fault_node()
+        self.assertListEqual(nodes, [])
+        self.assertEqual(reason, NetworkFailureReason.NEXT_PHASE)
+
+        # Round 1: INTER_INITIAL - node 4 fails.
+        manager._fault_nodes.clear()
+        node_groups = manager._group_nodes(1)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+
+        manager._reported_nodes = set(range(8))
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+        manager._node_status[0] = False
+        manager._node_status[4] = False
+        manager._node_times[4] = 5.0
+
+        # Round 2: INTER_DIAGNOSTIC.
+        node_groups = manager._group_nodes(2)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC)
+        # Shifted pairing: G0 shift 0, G1 shift 1.
+        # The pairing should be different from INTER_INITIAL.
+        self.assertTrue(len(node_groups) > 0)
+        # Each group should contain nodes from different groups.
+        for group in node_groups:
+            group_indices = set()
+            for rank in group:
+                group_indices.add(manager._rdzv_nodes[rank].node_group)
+            self.assertTrue(len(group_indices) > 1)
+
+    def test_group_node_4_groups(self):
+        """4 groups with 2 nodes each."""
+        # G0=[0,1], G1=[2,3], G2=[4,5], G3=[6,7]
+        groups = {0: [0, 1], 1: [2, 3], 2: [4, 5], 3: [6, 7]}
+        manager = self._setup_manager(8, groups)
+
+        # Round 0: INTRA_INITIAL.
+        node_groups = manager._group_nodes(0)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+        # Each group has 1 pair: {0,1}, {2,3}, {4,5}, {6,7}
+        self.assertEqual(len(node_groups), 4)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
+        self.assertListEqual(sorted(node_groups[1].keys()), [2, 3])
+
+        # All pass intra.
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+
+        # Round 1: INTER_INITIAL.
+        node_groups = manager._group_nodes(1)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+        # Position 0: {0,2,4,6}, Position 1: {1,3,5,7}
+        self.assertEqual(len(node_groups), 2)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 2, 4, 6])
+        self.assertListEqual(sorted(node_groups[1].keys()), [1, 3, 5, 7])
+
+        # All pass inter -> done.
+        manager._reported_nodes = set(range(8))
+        for i in range(8):
+            manager._node_status[i] = True
+        nodes, reason = manager.check_fault_node()
+        self.assertListEqual(nodes, [])
+
+    def test_group_node_4_groups_inter_diagnostic(self):
+        """4 groups with 2 nodes each, inter diagnostic phase."""
+        groups = {0: [0, 1], 1: [2, 3], 2: [4, 5], 3: [6, 7]}
+        manager = self._setup_manager(8, groups)
+
+        # All pass intra.
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+
+        # Round 1: INTER_INITIAL.
+        manager._group_nodes(1)
+
+        # Some inter failures.
+        for i in range(8):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+        manager._node_status[2] = False
+        manager._node_times[2] = 5.0
+
+        # Round 2: INTER_DIAGNOSTIC - shifted pairing.
+        node_groups = manager._group_nodes(2)
+        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC)
+        self.assertTrue(len(node_groups) > 0)
+        # Each group should have nodes from multiple groups.
+        for group in node_groups:
+            group_indices = set()
+            for rank in group:
+                group_indices.add(manager._rdzv_nodes[rank].node_group)
+            self.assertTrue(len(group_indices) > 1)
+
+    def test_group_node_fallback_without_group_info(self):
+        """Without group info, should fall back to base behavior."""
+        manager = GroupNodeNetworkCheckRendezvousManager()
+        manager.update_rdzv_params(4, 4, 60, 1)
+        manager._alive_nodes = set(range(4))
+        for i in range(4):
+            # No group info (default node_group=-1).
+            meta = NodeTopologyMeta(
+                node_id=i, node_rank=i, process_num=8
+            )
+            manager._waiting_nodes[i] = meta
+
+        from collections import OrderedDict
+
+        manager._rdzv_nodes = OrderedDict()
+        for rank in sorted(manager._waiting_nodes.keys()):
+            manager._rdzv_nodes[rank] = manager._waiting_nodes[rank]
+        manager._waiting_nodes = {}
+
+        # Should fall back to base class grouping.
+        node_groups = manager._group_nodes(0)
+        self.assertEqual(len(node_groups), 2)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
+        self.assertListEqual(sorted(node_groups[1].keys()), [2, 3])
