@@ -22,7 +22,10 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.constants import (
+    CheckpointConstant,
+    BackendType,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import (
     LocalSocketComm,
@@ -62,7 +65,8 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
         return ready
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
-    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    #device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    device = get_device_by_backend(backend, local_rank)
     rt = ReadyTensor.singleton_instance(device)
     value = 0 if ready else 1
     rt.tensor[0] = value
@@ -79,7 +83,8 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
         return True
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
-    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    # device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    device = get_device_by_backend(backend, local_rank)
     t = torch.tensor([float(step)]).to(device)
     if group:
         world_size = group.size()
@@ -94,6 +99,17 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     del t, outputs
     return succeed
 
+def get_device_by_backend(backend: str = None, local_rank: int = None):
+    try:
+        if backend == BackendType.GLOO:
+            return "cpu"
+        if backend == BackendType.NCCL:
+            return f"cuda:{local_rank}"
+        if backend == BackendType.HCCL:
+            return f"npu:{local_rank}"
+    except:
+        logger.warning(f"invalid backend, will use gloo backend.")
+        return "cpu"
 
 def timer(func):
     def wrapper(*args, **kwargs):
