@@ -49,6 +49,7 @@ pip install -q peft==0.10.0
 pip install -q omegaconf
 pip install -q tensordict==0.9.0 cloudpickle --no-deps
 pip install -q types-Deprecated types-PyYAML types-requests
+pip install -q pydantic
 
 end_time=$(date +%s)
 cost_time=$((end_time-start_time))
