@@ -282,7 +282,7 @@ class k8sClient(Singleton):
 
     @retry_k8s_request
     def patch_annotations_to_pod(self, name, annotations: Dict[str, str]):
-        """Patch annotaions to a Pod.
+        """Patch annotations to a Pod.
 
         Args:
             name: str, the pod name.
@@ -292,6 +292,23 @@ class k8sClient(Singleton):
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
+
+    @retry_k8s_request
+    def get_pod_annotation(self, name, key) -> str:
+        """Get a specific annotation value of a Pod.
+
+        Args:
+            name: str, the pod name.
+            key: str, the annotation key.
+
+        Returns:
+            str, the annotation value. Empty string if the key is not found.
+        """
+        pod = self.client.read_namespaced_pod(
+            namespace=self._namespace, name=name
+        )
+        annotations = pod.metadata.annotations or {}
+        return annotations.get(key, "")
 
     def cordon_node(self, node_name):
         try:
