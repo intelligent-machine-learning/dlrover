@@ -200,6 +200,31 @@ class K8sClientTest(unittest.TestCase):
         )
         k8s_client.api_instance.delete_namespaced_custom_object.assert_called_once()
 
+    def test_get_pod_annotation(self):
+        k8s_client = k8sClient.singleton_instance("default")
+        pod = client.V1Pod(
+            metadata=client.V1ObjectMeta(
+                name="test-pod",
+                annotations={"key1": "value1", "key2": "value2"},
+            )
+        )
+        k8s_client.client.read_namespaced_pod = MagicMock(return_value=pod)
+        self.assertEqual(
+            k8sClient.get_pod_annotation(k8s_client, "test-pod", "key1"),
+            "value1",
+        )
+        self.assertEqual(
+            k8sClient.get_pod_annotation(k8s_client, "test-pod", "missing"),
+            "",
+        )
+
+        # Test with no annotations
+        pod.metadata.annotations = None
+        self.assertEqual(
+            k8sClient.get_pod_annotation(k8s_client, "test-pod", "key1"),
+            "",
+        )
+
     def test_delete_custom_resource_not_found(self):
         k8s_client = k8sClient.singleton_instance("default")
         k8s_client.api_instance = MagicMock()
