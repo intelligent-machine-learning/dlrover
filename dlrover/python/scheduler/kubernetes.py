@@ -103,20 +103,20 @@ def set_container_resource(
 def retry_k8s_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 5)
-        execption = None
+        exception = None
         for _ in range(retry):
             try:
                 return func(self, *args, **kwargs)
             except client.rest.ApiException as e:
                 if e.reason == k8sAPIExceptionReason.NOT_FOUND:
                     return None
-                execption = e
+                exception = e
                 time.sleep(3)
             except Exception as e:
-                execption = e
+                exception = e
                 time.sleep(3)
-        if execption:
-            logger.error("Fail to execute %s: %s", func.__name__, execption)
+        if exception:
+            logger.error("Fail to execute %s: %s", func.__name__, exception)
             return None
 
     return wrapper
