@@ -243,7 +243,7 @@ class BrainClient(object):
             pod_meta.is_mixed = pod.qos == "SigmaBestEffort"
             pod_meta.mem_usage = pod.mem_usage
             pod_meta.cpu_usage = pod.cpu_usage
-            metrics.running_nodes.append(pod_meta)
+            metrics.running_pods.append(pod_meta)
         return self.report_metrics(job_metrics)
 
     def get_optimization_plan(self, job_uuid, stage, opt_retriever, config={}):

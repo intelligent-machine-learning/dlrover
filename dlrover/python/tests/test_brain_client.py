@@ -14,6 +14,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 from dlrover.python.brain.client import BrainClient
+from dlrover.proto import brain_pb2
 
 
 CLIENT_MODULE = "dlrover.python.brain.client"
@@ -211,6 +212,260 @@ class TestBrainClient(unittest.TestCase):
 
         result = client.get_config("bad_key")
         self.assertIsNone(result)
+
+
+class TestBrainClientRealProtobuf(unittest.TestCase):
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_report_model_feature_real_proto(self, mock_stub_class):
+        """Verifies actual protobuf construction without mocking the proto classes."""
+        # Initialize client. The stub is mocked, but the proto building is REAL.
+        client = BrainClient("localhost:50051", protocol="grpc")
+
+        # 1. Setup dummy input objects with the attributes your function expects
+        class DummyMeta:
+            pass  # We'll mock the helper that uses this
+
+        class DummyTensorStats:
+            variable_count = 15
+            total_variable_size = 10240
+            max_variable_size = 512
+            kv_embedding_dims = [64, 128, 256]
+            tensor_alloc_bytes = {"tensor_A": 100, "tensor_B": 200}
+
+        class DummyOpStats:
+            op_count = 50
+            update_op_count = 10
+            read_op_count = 20
+            input_fetch_dur = 5
+            flops = 999
+            recv_op_count = 5
+
+        job_meta = DummyMeta()
+        tensor_stats = DummyTensorStats()
+        op_stats = DummyOpStats()
+
+        # 2. Mock the init_job_metrics_message helper to return a REAL proto object
+        # This isolates the test to ONLY the report_model_feature logic
+        with patch(f"{CLIENT_MODULE}.init_job_metrics_message") as mock_init:
+            # Provide a real, blank protobuf message for your function to fill out
+            real_blank_proto = brain_pb2.JobMetrics()
+            mock_init.return_value = real_blank_proto
+
+            # 3. Call the method
+            client.report_model_feature(job_meta, tensor_stats, op_stats)
+
+            # 4. Capture the EXACT argument passed to the mocked network stub
+            client._brain_stub.persist_metrics.assert_called_once()
+            args, _ = client._brain_stub.persist_metrics.call_args
+            sent_proto = args[0]
+
+            # 5. ASSERTIONS AGAINST THE REAL PROTOBUF!
+            self.assertIsInstance(sent_proto, brain_pb2.JobMetrics)
+
+            # Verify Enums
+            self.assertEqual(
+                sent_proto.metrics_type, brain_pb2.MetricsType.Model_Feature
+            )
+
+            # Verify standard scalar fields
+            self.assertEqual(sent_proto.model_feature.variable_count, 15)
+            self.assertEqual(sent_proto.model_feature.flops, 999)
+
+            # Verify repeated fields (Protobuf arrays)
+            # You must cast to list() to compare Protobuf RepeatedScalarContainers
+            self.assertEqual(
+                list(sent_proto.model_feature.kv_embedding_dims),
+                [64, 128, 256],
+            )
+
+            # Verify map fields (Protobuf dictionaries)
+            # You must cast to dict() to compare Protobuf MessageMaps
+            self.assertEqual(
+                dict(sent_proto.model_feature.tensor_alloc_bytes),
+                {"tensor_A": 100, "tensor_B": 200},
+            )
+
+    @patch(f"{CLIENT_MODULE}.init_job_metrics_message")
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_report_training_hyper_params(self, mock_stub_class, mock_init):
+        client = BrainClient("localhost:50051", protocol="grpc")
+
+        # Setup real blank protobuf
+        mock_init.return_value = brain_pb2.JobMetrics()
+
+        class DummyHyperParams:
+            batch_size = 64
+            epoch = 10
+            max_steps = 10000
+
+        # Call method
+        client.report_training_hyper_params(MagicMock(), DummyHyperParams())
+
+        # Capture sent proto
+        args, _ = client._brain_stub.persist_metrics.call_args
+        sent_proto = args[0]
+
+        # Assertions
+        self.assertEqual(
+            sent_proto.metrics_type,
+            brain_pb2.MetricsType.Training_Hyper_Params,
+        )
+        self.assertEqual(sent_proto.training_hyper_params.batch_size, 64)
+        self.assertEqual(sent_proto.training_hyper_params.epoch, 10)
+        self.assertEqual(sent_proto.training_hyper_params.max_steps, 10000)
+
+    @patch(f"{CLIENT_MODULE}.init_job_metrics_message")
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_report_workflow_feature(self, mock_stub_class, mock_init):
+        client = BrainClient("localhost", protocol="grpc")
+        mock_init.return_value = brain_pb2.JobMetrics()
+
+        class DummyWorkflowFeature:
+            job_name = "test-job"
+            user_id = "alice"
+            code_address = "git@github.com"
+            workflow_id = "wf-123"
+            node_id = "node-456"
+            odps_project = "my-project"
+            is_prod = True
+
+        client.report_workflow_feature(MagicMock(), DummyWorkflowFeature())
+
+        args, _ = client._brain_stub.persist_metrics.call_args
+        sent_proto = args[0]
+
+        self.assertEqual(
+            sent_proto.metrics_type, brain_pb2.MetricsType.Workflow_Feature
+        )
+        # Check that top-level job_meta was also populated
+        self.assertEqual(sent_proto.job_meta.name, "test-job")
+        self.assertEqual(sent_proto.job_meta.user, "alice")
+        # Check metrics payload
+        self.assertEqual(sent_proto.workflow_feature.workflow_id, "wf-123")
+        self.assertTrue(sent_proto.workflow_feature.is_prod)
+
+    @patch(f"{CLIENT_MODULE}.init_job_metrics_message")
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_report_training_set_metric(self, mock_stub_class, mock_init):
+        client = BrainClient("localhost", protocol="grpc")
+        mock_init.return_value = brain_pb2.JobMetrics()
+
+        class DummyFeatures:
+            def __init__(self, names, shapes, groups=None, count=0):
+                self.feature_names = names
+                self.feature_shapes = shapes
+                self.feature_groups = groups or []
+                self.item_count = count
+
+        class DummyDatasetMetric:
+            dataset_size = 5000
+            dataset_name = "imagenet"
+            sparse_features = DummyFeatures(
+                ["f1", "f2"], [[10], [20]], [1, 2], 100
+            )
+            dense_features = DummyFeatures(["d1", "d2"], [[5], [5]])
+            storage_size = 102400
+
+        client.report_training_set_metric(MagicMock(), DummyDatasetMetric())
+
+        args, _ = client._brain_stub.persist_metrics.call_args
+        sent_proto = args[0]
+
+        self.assertEqual(
+            sent_proto.metrics_type, brain_pb2.MetricsType.Training_Set_Feature
+        )
+        self.assertEqual(
+            sent_proto.training_set_feature.dataset_name, "imagenet"
+        )
+        # Verify the comma-separated string joins worked perfectly
+        self.assertEqual(
+            sent_proto.training_set_feature.sparse_features, "f1,f2"
+        )
+        self.assertEqual(
+            sent_proto.training_set_feature.sparse_feature_groups, "1,2"
+        )
+        self.assertEqual(
+            sent_proto.training_set_feature.sparse_feature_shapes, "[10],[20]"
+        )
+        self.assertEqual(
+            sent_proto.training_set_feature.dense_features, "d1,d2"
+        )
+
+    @patch(f"{CLIENT_MODULE}.init_job_metrics_message")
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_report_runtime_info(self, mock_stub_class, mock_init):
+        client = BrainClient("localhost", protocol="grpc")
+        mock_init.return_value = brain_pb2.JobMetrics()
+
+        class DummyPod:
+            name = "worker-0"
+            pod_ip = "10.0.0.1"
+            node_ip = "192.168.1.1"
+            host_name = "host-a"
+            qos = "SigmaBestEffort"
+            mem_usage = 4096
+            cpu_usage = 2.5
+
+        class DummyRuntimeMetric:
+            global_step = 500
+            timestamp = 1690000000
+            speed = 125.5
+            running_nodes = [DummyPod()]
+
+        client.report_runtime_info(
+            MagicMock(), "default", DummyRuntimeMetric()
+        )
+
+        args, _ = client._brain_stub.persist_metrics.call_args
+        sent_proto = args[0]
+
+        self.assertEqual(
+            sent_proto.metrics_type, brain_pb2.MetricsType.Runtime_Info
+        )
+        self.assertEqual(sent_proto.runtime_info.global_step, 500)
+
+        # Verify the PodMeta repeated field was built and appended correctly
+        self.assertEqual(len(sent_proto.runtime_info.running_pods), 1)
+        pod = sent_proto.runtime_info.running_pods[0]
+        self.assertIsInstance(pod, brain_pb2.PodMeta)
+        self.assertEqual(pod.pod_name, "worker-0")
+        self.assertEqual(pod.namespace, "default")
+        self.assertTrue(pod.is_mixed)  # Derived from qos == "SigmaBestEffort"
+
+    @patch(f"{CLIENT_MODULE}.brain_pb2_grpc.BrainStub")
+    def test_get_optimization_plan_real_proto(self, mock_stub_class):
+        client = BrainClient("localhost", protocol="grpc")
+
+        # Intercept the request_optimization method locally so we can grab the proto
+        client.request_optimization = MagicMock()
+
+        # Note: Depending on your imports, DATA_STORE and OPTIMIZE_PROCESSOR
+        # might just inject strings here.
+        client.get_optimization_plan(
+            job_uuid="job-789",
+            stage="training",
+            opt_retriever="my_retriever",
+            config={"timeout": "60", "retry": "3"},
+        )
+
+        args, _ = client.request_optimization.call_args
+        sent_proto = args[0]
+
+        self.assertIsInstance(sent_proto, brain_pb2.OptimizeRequest)
+        self.assertEqual(sent_proto.type, "training")
+        self.assertEqual(
+            sent_proto.config.optimizer_config_retriever, "my_retriever"
+        )
+
+        # Verify custom config dictionary updates correctly
+        self.assertEqual(
+            dict(sent_proto.config.customized_config),
+            {"timeout": "60", "retry": "3"},
+        )
+
+        # Verify repeated jobs field mapping
+        self.assertEqual(len(sent_proto.jobs), 1)
+        self.assertEqual(sent_proto.jobs[0].uid, "job-789")
 
 
 if __name__ == "__main__":
