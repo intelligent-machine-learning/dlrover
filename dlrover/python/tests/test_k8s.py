@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import unittest
-from unittest import mock
 from unittest.mock import MagicMock, patch
 
 from kubernetes import client
@@ -129,9 +128,7 @@ class K8sClientTest(unittest.TestCase):
     def test_create_service_failure(self):
         k8s_client = k8sClient.singleton_instance("default")
         k8s_client.client.create_namespaced_service = MagicMock(
-            side_effect=client.rest.ApiException(
-                status=409, reason="Conflict"
-            )
+            side_effect=client.rest.ApiException(status=409, reason="Conflict")
         )
         svc = client.V1Service(
             metadata=client.V1ObjectMeta(name="test-svc"),
@@ -195,11 +192,13 @@ class K8sClientTest(unittest.TestCase):
         k8s_client.api_instance = MagicMock()
         k8s_client.api_instance.delete_namespaced_custom_object = MagicMock()
         k8sClient.delete_custom_resource(
-            k8s_client, "elastic.iml.github.io", "v1alpha1", "elasticjobs",
-            "test"
+            k8s_client,
+            "elastic.iml.github.io",
+            "v1alpha1",
+            "elasticjobs",
+            "test",
         )
-        k8s_client.api_instance.delete_namespaced_custom_object \
-            .assert_called_once()
+        k8s_client.api_instance.delete_namespaced_custom_object.assert_called_once()
 
     def test_delete_custom_resource_not_found(self):
         k8s_client = k8sClient.singleton_instance("default")
@@ -211,8 +210,11 @@ class K8sClientTest(unittest.TestCase):
         )
         # Should not raise
         k8sClient.delete_custom_resource(
-            k8s_client, "elastic.iml.github.io", "v1alpha1", "elasticjobs",
-            "test"
+            k8s_client,
+            "elastic.iml.github.io",
+            "v1alpha1",
+            "elasticjobs",
+            "test",
         )
 
 
@@ -245,9 +247,7 @@ class K8sJobArgsTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_initilize(self):
-        job_args = K8sJobArgs(
-            PlatformType.KUBERNETES, "default", "test"
-        )
+        job_args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
         job_args.initilize()
         self.assertEqual(job_args.job_uuid, "111-222")
         self.assertEqual(
@@ -262,15 +262,11 @@ class K8sJobArgsTest(unittest.TestCase):
         self.assertEqual(ps_args.group_resource.count, 3)
         self.assertEqual(ps_args.group_resource.node_resource.cpu, 1.0)
         self.assertEqual(ps_args.group_resource.node_resource.memory, 4096)
-        self.assertEqual(
-            ps_args.group_resource.node_resource.priority, "high"
-        )
+        self.assertEqual(ps_args.group_resource.node_resource.priority, "high")
         self.assertEqual(ps_args.restart_count, 3)
 
     def test_get_job_uuid(self):
-        job_args = K8sJobArgs(
-            PlatformType.KUBERNETES, "default", "test"
-        )
+        job_args = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
         uuid = job_args._get_job_uuid({"metadata": {"uid": "abc-123"}})
         self.assertEqual(uuid, "abc-123")
 
