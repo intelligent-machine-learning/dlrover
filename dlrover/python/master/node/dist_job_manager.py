@@ -909,7 +909,7 @@ class DistributedJobManager(JobManager):
 
         if should_relaunch:
             self._relaunch_node(cur_node)
-        else:
+        elif new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             # stop if min rdzv nodes are not enough for all-reduce
             if self.is_all_reduce_type_job():
                 if self._worker_manager.get_min_nodes_required() > 0 and (
