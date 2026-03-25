@@ -52,6 +52,12 @@ setup(
             "Makefile",
             "trainer/check/*",
         ],
+        "dlrover.dashboard": [
+            "templates/*.html",
+            "static/css/*.css",
+            "static/js/*.js",
+            "static/img/*",
+        ],
     },
     entry_points={
         "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]

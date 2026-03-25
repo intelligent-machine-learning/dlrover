@@ -189,6 +189,8 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.dynamic_failover_extension = ""
         mock_args.training_elastic_mode = ""
         mock_args.xpu_type = "nvidia"
+        mock_args.enable_dashboard = "true"
+        mock_args.dashboard_port = 8080
         mock_parse_args.return_value = mock_args
 
         # Configure mock context with dashboard enabled
@@ -259,6 +261,8 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.dynamic_failover_extension = ""
         mock_args.training_elastic_mode = ""
         mock_args.xpu_type = "nvidia"
+        mock_args.enable_dashboard = "false"
+        mock_args.dashboard_port = 8080
         mock_parse_args.return_value = mock_args
 
         # Configure mock context with dashboard disabled
@@ -333,6 +337,8 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.dynamic_failover_extension = ""
         mock_args.training_elastic_mode = ""
         mock_args.xpu_type = "nvidia"
+        mock_args.enable_dashboard = "true"
+        mock_args.dashboard_port = 9999
         mock_parse_args.return_value = mock_args
 
         # Configure mock context with custom port
@@ -347,7 +353,7 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_job_args = MagicMock()
         mock_job_args.platform = "kubernetes"
         mock_job_args.node_args = {}
-        mock_job_args.initilize.return_value = None  # Mock initilize method
+        mock_job_args.initilize.return_value = None  # Mock initialize method
         mock_job_args.to_json.return_value = "{}"  # Mock to_json method
         mock_new_job_args.return_value = mock_job_args
 
