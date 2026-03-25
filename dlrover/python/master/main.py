@@ -65,6 +65,12 @@ def run(args):
     _dlrover_context.dynamic_failover_extension = (
         args.dynamic_failover_extension
     )
+    _dlrover_context.enable_dashboard = args.enable_dashboard.lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    _dlrover_context.dashboard_port = args.dashboard_port
 
     job_args.training_elastic_mode = args.training_elastic_mode
     if args.xpu_type.lower() == "ascend":

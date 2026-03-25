@@ -48,6 +48,8 @@ const (
 	preCheckOperatorsArg   = "pre_check_ops"
 	preCheckBypassArg      = "pre_check_bypass"
 	trainingElasticModeArg = "training_elastic_mode"
+	enableDashboardArg     = "enable_dashboard"
+	dashboardPortArg       = "dashboard_port"
 )
 
 // ReconcileJobMasterPod reconciles the job master Pods.
@@ -108,6 +110,8 @@ func getMasterArguments() []string {
 		preCheckOperatorsArg,
 		preCheckBypassArg,
 		trainingElasticModeArg,
+		enableDashboardArg,
+		dashboardPortArg,
 	}
 }
 

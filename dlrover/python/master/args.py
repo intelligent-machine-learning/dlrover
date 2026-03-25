@@ -118,6 +118,19 @@ def _build_master_args_parser():
         "The argument format is 'module::class'. The class should implement "
         "'dlrover.python.elastic_agent.torch.dynamic_failover::DynamicAgentFailoverExtension'.",
     )
+    parser.add_argument(
+        "--enable_dashboard",
+        default="false",
+        type=str,
+        help="Enable the DLRover dashboard for job monitoring. "
+        "Value should be 'true' or 'false'.",
+    )
+    parser.add_argument(
+        "--dashboard_port",
+        default=8080,
+        type=pos_int,
+        help="The port of the DLRover dashboard.",
+    )
     return parser
 
 
