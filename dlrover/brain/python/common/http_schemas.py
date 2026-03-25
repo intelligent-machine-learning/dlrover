@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import field
 from typing import Dict
 
 from dlrover.brain.python.common.job import (
@@ -19,7 +18,7 @@ from dlrover.brain.python.common.job import (
     OptimizeConfig,
     JobMeta,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Response(BaseModel):
@@ -28,21 +27,21 @@ class Response(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
-    response: Response = field(default_factory=Response)
-    job_opt_plan: JobOptimizePlan = field(default_factory=JobOptimizePlan)
+    response: Response = Field(default_factory=Response)
+    job_opt_plan: JobOptimizePlan = Field(default_factory=JobOptimizePlan)
 
 
 class OptimizeRequest(BaseModel):
     type: str = ""
-    config: OptimizeConfig = field(default_factory=OptimizeConfig)
-    job: JobMeta = field(default_factory=JobMeta)
+    config: OptimizeConfig = Field(default_factory=OptimizeConfig)
+    job: JobMeta = Field(default_factory=JobMeta)
 
 
 class JobConfigRequest(BaseModel):
     type: str = ""
-    job: JobMeta = field(default_factory=JobMeta)
+    job: JobMeta = Field(default_factory=JobMeta)
 
 
 class JobConfigResponse(BaseModel):
-    response: Response = field(default_factory=Response)
-    job_configs: Dict[str, str] = field(default_factory=dict)
+    response: Response = Field(default_factory=Response)
+    job_configs: Dict[str, str] = Field(default_factory=dict)
