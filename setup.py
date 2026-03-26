@@ -19,6 +19,10 @@ install_requires = [
     "deprecated",
     "requests",
     "packaging",
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "pydantic",
 ]
 
 extra_require = {
