@@ -119,20 +119,20 @@ def set_container_resource(
 def retry_k8s_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 5)
-        execption = None
+        exception = None
         for _ in range(retry):
             try:
                 return func(self, *args, **kwargs)
             except client.rest.ApiException as e:
                 if e.reason == k8sAPIExceptionReason.NOT_FOUND:
                     return None
-                execption = e
+                exception = e
                 time.sleep(3)
             except Exception as e:
-                execption = e
+                exception = e
                 time.sleep(3)
-        if execption:
-            logger.error("Fail to execute %s: %s", func.__name__, execption)
+        if exception:
+            logger.error("Fail to execute %s: %s", func.__name__, exception)
             return None
 
     return wrapper
@@ -298,7 +298,7 @@ class k8sClient(Singleton):
 
     @retry_k8s_request
     def patch_annotations_to_pod(self, name, annotations: Dict[str, str]):
-        """Patch annotaions to a Pod.
+        """Patch annotations to a Pod.
 
         Args:
             name: str, the pod name.
@@ -308,6 +308,23 @@ class k8sClient(Singleton):
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
+
+    @retry_k8s_request
+    def get_pod_annotation(self, name, key) -> str:
+        """Get a specific annotation value of a Pod.
+
+        Args:
+            name: str, the pod name.
+            key: str, the annotation key.
+
+        Returns:
+            str, the annotation value. Empty string if the key is not found.
+        """
+        pod = self.client.read_namespaced_pod(
+            namespace=self._namespace, name=name
+        )
+        annotations = pod.metadata.annotations or {}
+        return annotations.get(key, "")
 
     def cordon_node(self, node_name):
         try:

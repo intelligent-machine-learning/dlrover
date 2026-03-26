@@ -10,6 +10,7 @@ runs:
     - "sh scripts/ci_install.sh basic && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install deepctr \
+&& pip install pydantic \
 && pip install h5py==3.7.0 \
 && pip install pyhocon tensorflow==2.11 \
 && pip install ray['defult'] \

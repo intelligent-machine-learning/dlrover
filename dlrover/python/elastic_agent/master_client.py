@@ -33,6 +33,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
+from dlrover.python.diagnosis.common.constants import DiagnosisActionType
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
     NoAction,
@@ -253,7 +254,8 @@ class MasterClient(Singleton, ABC):
             )
         else:
             action = action_cls.from_json(response.action.action_content)
-            logger.info(f"Got action from master: {action.to_json()}")
+            if action and action.action_type != DiagnosisActionType.NONE:
+                logger.info(f"Got action from master: {action.to_json()}")
         return action
 
     def update_node_addr(self, task_type, task_id, node_addr):
