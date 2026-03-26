@@ -19,10 +19,6 @@ install_requires = [
     "deprecated",
     "requests",
     "packaging",
-    "fastapi",
-    "uvicorn",
-    "httpx",
-    "pydantic",
 ]
 
 extra_require = {
@@ -31,6 +27,7 @@ extra_require = {
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
     "nv": ["nvidia-ml-py"],
+    "brain": ["fastapi", "uvicorn", "pydantic", "httpx"],
 }
 
 setup(
