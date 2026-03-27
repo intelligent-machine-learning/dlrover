@@ -28,6 +28,7 @@ extra_require = {
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
     "nv": ["nvidia-ml-py"],
+    "brain": ["fastapi", "uvicorn", "pydantic", "httpx"],
 }
 
 setup(
