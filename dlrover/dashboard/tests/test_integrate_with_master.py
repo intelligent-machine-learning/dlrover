@@ -10,252 +10,313 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
+
 import unittest
-from unittest.mock import patch, MagicMock
-import warnings
+from unittest.mock import MagicMock, patch
 
-# Test the integration module
-try:
-    from dlrover.dashboard.integrate_with_master import add_dashboard_to_master
-
-    INTEGRATION_IMPORT_SUCCESS = True
-except ImportError as e:
-    INTEGRATION_IMPORT_SUCCESS = False
-    EXCEPTION_MSG = str(e)
+from dlrover.dashboard.integrate_with_master import (
+    DashboardManager,
+    add_dashboard_to_master,
+)
 
 
-class TestIntegrationImport(unittest.TestCase):
-    """Test that the integration module can be imported."""
+class TestDashboardManagerInit(unittest.TestCase):
+    """Test DashboardManager initialization."""
 
-    def test_import_success(self):
-        """Test that the module imports successfully."""
-        if INTEGRATION_IMPORT_SUCCESS:
-            self.assertTrue(True)
-        else:
-            self.fail(
-                f"Failed to import integrate_with_master: {EXCEPTION_MSG}"
-            )
+    def test_default_init(self):
+        mgr = DashboardManager()
+        self.assertEqual(mgr.host, "0.0.0.0")
+        self.assertEqual(mgr.port, 8080)
+        self.assertTrue(mgr.enable)
+        self.assertIsNone(mgr._perf_monitor)
+        self.assertIsNone(mgr._dashboard_thread)
+        self.assertFalse(mgr._stop_event.is_set())
+
+    def test_custom_init(self):
+        monitor = MagicMock()
+        mgr = DashboardManager(
+            host="127.0.0.1", port=9090, enable=False, perf_monitor=monitor
+        )
+        self.assertEqual(mgr.host, "127.0.0.1")
+        self.assertEqual(mgr.port, 9090)
+        self.assertFalse(mgr.enable)
+        self.assertIs(mgr._perf_monitor, monitor)
 
 
-if INTEGRATION_IMPORT_SUCCESS:
+class TestDashboardManagerStart(unittest.TestCase):
+    """Test DashboardManager.start()."""
 
-    class TestAddDashboardToMaster(unittest.TestCase):
-        """Test the add_dashboard_to_master function."""
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    def test_start_disabled(self, mock_logger):
+        mgr = DashboardManager(enable=False)
+        mgr.start()
+        mock_logger.info.assert_any_call("Dashboard is disabled")
+        self.assertIsNone(mgr._dashboard_thread)
 
-        def setUp(self):
-            """Set up test fixtures."""
-            self.mock_master = MagicMock()
-            self.mock_dashboard_config = {
-                "enable": True,
-                "host": "0.0.0.0",
-                "port": 8080,
-            }
+    @patch.object(DashboardManager, "_run_dashboard_server")
+    @patch.object(DashboardManager, "_broadcast_loop")
+    def test_start_enabled(self, mock_broadcast, mock_server):
+        mgr = DashboardManager(enable=True)
+        mgr.start()
+        self.assertIsNotNone(mgr._dashboard_thread)
+        self.assertTrue(mgr._dashboard_thread.daemon)
+        # Wait briefly for thread to invoke target
+        mgr._dashboard_thread.join(timeout=1)
+        mgr.stop()
 
-        def test_dashboard_addition_with_enable_true(self):
-            """Test dashboard addition when enabled."""
-            config = {"enable": True, "host": "0.0.0.0", "port": 8080}
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    @patch("dlrover.dashboard.integrate_with_master.threading.Thread")
+    def test_start_exception(self, mock_thread_cls, mock_logger):
+        mock_thread_cls.side_effect = RuntimeError("thread error")
+        mgr = DashboardManager(enable=True)
+        # Should not raise
+        mgr.start()
+        mock_logger.error.assert_called()
 
-            # Should successfully add dashboard (doesn't return a value)
-            add_dashboard_to_master(self.mock_master, config)
 
-            # Verify correct configuration was passed
-            # Actual verification depends on implementation
-            self.assertTrue(True)  # Placeholder
+class TestDashboardManagerStop(unittest.TestCase):
+    """Test DashboardManager.stop()."""
 
-        def test_dashboard_addition_with_enable_false(self):
-            """Test dashboard addition when disabled."""
-            config = {"enable": False, "host": "0.0.0.0", "port": 8080}
+    def test_stop_sets_event(self):
+        mgr = DashboardManager()
+        self.assertFalse(mgr._stop_event.is_set())
+        mgr.stop()
+        self.assertTrue(mgr._stop_event.is_set())
 
-            # Should handle disabled state gracefully
-            add_dashboard_to_master(self.mock_master, config)
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    def test_stop_exception(self, mock_logger):
+        mgr = DashboardManager()
+        mgr._executor = MagicMock()
+        mgr._executor.shutdown.side_effect = RuntimeError("shutdown err")
+        mgr.stop()
+        mock_logger.error.assert_called()
 
-            # When disabled, should not add dashboard
-            self.assertTrue(True)  # Placeholder
 
-        def test_dashboard_addition_with_custom_host(self):
-            """Test dashboard addition with custom host."""
-            config = {"enable": True, "host": "127.0.0.1", "port": 9999}
+class TestDashboardManagerRunServer(unittest.TestCase):
+    """Test DashboardManager._run_dashboard_server()."""
 
-            # Should handle custom configuration
-            add_dashboard_to_master(self.mock_master, config)
+    @patch("dlrover.dashboard.integrate_with_master.create_dashboard_app")
+    def test_run_dashboard_server(self, mock_create_app):
+        mock_app = MagicMock()
+        mock_create_app.return_value = mock_app
 
-            self.assertTrue(True)  # Placeholder
+        with patch(
+            "dlrover.dashboard.integrate_with_master.DashboardManager"
+            "._run_dashboard_server"
+        ):
+            # Test the real method by calling it directly with mocked imports
+            pass
 
-        def test_dashboard_addition_with_invalid_config(self):
-            """Test dashboard addition with invalid configuration."""
-            # Test with missing required fields
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # Suppress any warnings
+        # Test via patching tornado internals
+        mgr = DashboardManager(host="127.0.0.1", port=9999)
+        with (
+            patch("tornado.httpserver.HTTPServer") as mock_server_cls,
+            patch("tornado.ioloop.IOLoop") as mock_ioloop,
+        ):
+            mock_server = MagicMock()
+            mock_server_cls.return_value = mock_server
+            mock_loop = MagicMock()
+            mock_ioloop.current.return_value = mock_loop
 
-                add_dashboard_to_master(self.mock_master, None)
-                add_dashboard_to_master(self.mock_master, {})
-                add_dashboard_to_master(
-                    self.mock_master, {"invalid": "config"}
-                )
+            mgr._run_dashboard_server()
 
-            # Should handle invalid configurations gracefully
-            self.assertTrue(True)  # Placeholder
+            mock_create_app.assert_called_once_with(perf_monitor=None)
+            mock_server.listen.assert_called_once_with(9999, "127.0.0.1")
+            mock_loop.start.assert_called_once()
 
-        @patch("dlrover.dashboard.integrate_with_master.logger")
-        def test_dashboard_addition_logging(self, mock_logger):
-            """Test logging during dashboard addition."""
-            config = {"enable": True, "host": "0.0.0.0", "port": 8080}
+    @patch("dlrover.dashboard.integrate_with_master.create_dashboard_app")
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    def test_run_dashboard_server_exception(self, mock_logger, mock_create):
+        mock_create.side_effect = RuntimeError("app error")
+        mgr = DashboardManager()
+        mgr._run_dashboard_server()
+        mock_logger.error.assert_called()
 
-            add_dashboard_to_master(self.mock_master, config)
 
-            # Should log relevant information
-            # Actual logging assertion depends on implementation
-            mock_logger.info.assert_called() if mock_logger.info.called else None
+class TestDashboardManagerBroadcastLoop(unittest.TestCase):
+    """Test DashboardManager._broadcast_loop()."""
 
-        def test_dashboard_addition_with_mock_master(self):
-            """Test dashboard addition with various master scenarios."""
-            # Test with None master
-            add_dashboard_to_master(None, self.mock_dashboard_config)
+    @patch("dlrover.dashboard.integrate_with_master.WebSocketHandler")
+    @patch("dlrover.dashboard.integrate_with_master.JobContext")
+    def test_broadcast_loop_single_iteration(self, mock_jc_cls, mock_ws):
+        mock_ctx = MagicMock()
+        mock_ctx.get_job_stage.return_value = "running"
+        mock_ctx.get_running_node_size.return_value = 4
+        mock_ctx.get_failed_node_size.return_value = 0
+        mock_ctx.get_total_node_size.return_value = 4
+        mock_jc_cls.singleton_instance.return_value = mock_ctx
 
-            # Test with completely mocked master
-            mock_master = MagicMock()
-            mock_master.add_service = MagicMock()
-            mock_master.register_endpoint = MagicMock()
+        mgr = DashboardManager()
 
-            add_dashboard_to_master(mock_master, self.mock_dashboard_config)
+        call_count = 0
 
-            # Verify that appropriate methods were called
-            # Actual verification depends on implementation
-            self.assertTrue(True)  # Placeholder
+        def stop_after_first(timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 1:
+                mgr._stop_event.set()
+            return True
 
-    class TestIntegrationErrorHandling(unittest.TestCase):
-        """Test error handling in integration."""
+        mgr._stop_event.wait = stop_after_first
+        mgr._broadcast_loop()
 
-        def test_integration_exception_handling(self):
-            """Test handling of exceptions during integration."""
-            # Mock master that raises exception
-            mock_master = MagicMock()
-            mock_master.side_effect = Exception("Master service error")
+        mock_ws.broadcast.assert_called_once()
+        self.assertEqual(call_count, 1)
 
-            # Should handle exception gracefully
-            try:
-                add_dashboard_to_master(mock_master, {"enable": True})
-            except Exception:
-                # Exception is acceptable if properly handled
-                pass
+    @patch("dlrover.dashboard.integrate_with_master.WebSocketHandler")
+    @patch("dlrover.dashboard.integrate_with_master.JobContext")
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    def test_broadcast_loop_exception_backoff(
+        self, mock_logger, mock_jc_cls, mock_ws
+    ):
+        mock_jc_cls.singleton_instance.side_effect = RuntimeError("ctx err")
 
-            # Test is successful if it doesn't crash
-            self.assertTrue(True)
+        mgr = DashboardManager()
+        call_count = 0
 
-        def test_integration_with_broken_master(self):
-            """Test integration with a broken master object."""
+        def stop_after_two(timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                mgr._stop_event.set()
+            return True
 
-            # Create broken master object
-            class BrokenMaster:
-                def add_dashboard(self):
-                    raise RuntimeError("Master is broken")
+        mgr._stop_event.wait = stop_after_two
+        mgr._broadcast_loop()
 
-            broken_master = BrokenMaster()
+        # Should have logged errors
+        self.assertTrue(mock_logger.error.called)
 
-            # Should handle broken master gracefully
-            try:
-                add_dashboard_to_master(broken_master, {"enable": True})
-            except Exception:
-                pass
+    @patch("dlrover.dashboard.integrate_with_master.WebSocketHandler")
+    @patch("dlrover.dashboard.integrate_with_master.JobContext")
+    @patch("dlrover.dashboard.integrate_with_master.logger")
+    def test_broadcast_loop_max_failures_breaks(
+        self, mock_logger, mock_jc_cls, mock_ws
+    ):
+        mock_jc_cls.singleton_instance.side_effect = RuntimeError("err")
 
-            self.assertTrue(True)
+        mgr = DashboardManager()
+        # Never set stop event; rely on max_consecutive_failures to break
+        mgr._stop_event.wait = lambda timeout: False
 
-    class TestIntegrationConfiguration(unittest.TestCase):
-        """Test various configuration scenarios."""
+        mgr._broadcast_loop()
 
-        def test_minimal_configuration(self):
-            """Test with minimal configuration."""
-            minimal_config = {"enable": True}
+        # Should log the "too many consecutive" message
+        error_calls = [str(c) for c in mock_logger.error.call_args_list]
+        self.assertTrue(any("Too many consecutive" in c for c in error_calls))
 
-            # Should work with minimal config
-            add_dashboard_to_master(MagicMock(), minimal_config)
 
-            self.assertTrue(True)
+class TestAddDashboardToMaster(unittest.TestCase):
+    """Test add_dashboard_to_master function."""
 
-        def test_complex_configuration(self):
-            """Test with complex configuration including optional parameters."""
-            complex_config = {
-                "enable": True,
-                "host": "192.168.1.100",
-                "port": 9999,
-                "ssl": {
-                    "enabled": True,
-                    "cert": "/path/to/cert.pem",
-                    "key": "/path/to/key.pem",
-                },
-                "auth": {"enabled": True, "method": "token"},
-            }
+    def test_none_master_returns_none(self):
+        result = add_dashboard_to_master(None, {"enable": True})
+        self.assertIsNone(result)
 
-            # Should handle complex config
-            add_dashboard_to_master(MagicMock(), complex_config)
+    def test_none_config_uses_defaults(self):
+        master = MagicMock()
+        result = add_dashboard_to_master(master, None)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.port, 8080)
+        self.assertEqual(result.host, "0.0.0.0")
+        self.assertTrue(result.enable)
 
-            self.assertTrue(True)
+    def test_empty_config_uses_defaults(self):
+        master = MagicMock()
+        result = add_dashboard_to_master(master, {})
+        self.assertIsNotNone(result)
+        self.assertEqual(result.port, 8080)
 
-        def test_port_boundary_conditions(self):
-            """Test port boundary conditions."""
-            # Test minimum valid port
-            add_dashboard_to_master(MagicMock(), {"enable": True, "port": 1})
+    def test_disabled_returns_none(self):
+        master = MagicMock()
+        result = add_dashboard_to_master(
+            master, {"enable": False, "port": 9090}
+        )
+        self.assertIsNone(result)
 
-            # Test maximum valid port
-            add_dashboard_to_master(
-                MagicMock(), {"enable": True, "port": 65535}
-            )
+    def test_returns_dashboard_manager(self):
+        master = MagicMock()
+        result = add_dashboard_to_master(
+            master, {"enable": True, "host": "127.0.0.1", "port": 9090}
+        )
+        self.assertIsInstance(result, DashboardManager)
+        self.assertEqual(result.host, "127.0.0.1")
+        self.assertEqual(result.port, 9090)
 
-            # Test invalid port (should handle gracefully)
-            add_dashboard_to_master(MagicMock(), {"enable": True, "port": -1})
-            add_dashboard_to_master(
-                MagicMock(), {"enable": True, "port": 99999}
-            )
+    def test_stores_instance_on_master(self):
+        master = MagicMock()
+        result = add_dashboard_to_master(
+            master, {"enable": True, "port": 8080}
+        )
+        self.assertIs(master._dashboard_instance, result)
 
-            self.assertTrue(True)
+    def test_perf_monitor_forwarded(self):
+        master = MagicMock()
+        monitor = MagicMock()
+        master.perf_monitor = monitor
+        result = add_dashboard_to_master(
+            master, {"enable": True, "port": 8080}
+        )
+        self.assertIs(result._perf_monitor, monitor)
 
-    class TestIntegrationPerformance(unittest.TestCase):
-        """Test performance characteristics of integration."""
+    def test_perf_monitor_missing(self):
+        master = MagicMock()
+        # Remove perf_monitor so getattr returns None
+        del master.perf_monitor
+        result = add_dashboard_to_master(
+            master, {"enable": True, "port": 8080}
+        )
+        self.assertIsNone(result._perf_monitor)
 
-        def setUp(self):
-            """Set up test fixtures."""
-            self.mock_master = MagicMock()
-            self.mock_dashboard_config = {
-                "enable": True,
-                "host": "0.0.0.0",
-                "port": 8080,
-            }
 
-        def test_integration_performance(self):
-            """Test that dashboard integration doesn't significantly delay startup."""
-            start_time = time.time()
+class TestLifecycleHooks(unittest.TestCase):
+    """Test prepare_with_dashboard and stop_with_dashboard hooks."""
 
-            # Multiple calls should be efficient
-            for _ in range(10):
-                add_dashboard_to_master(
-                    MagicMock(), self.mock_dashboard_config
-                )
+    def test_prepare_hook_starts_dashboard_then_calls_original(self):
+        master = MagicMock()
+        original_prepare = master.prepare
+        add_dashboard_to_master(master, {"enable": True, "port": 8080})
 
-            end_time = time.time()
-            total_time = end_time - start_time
+        call_order = []
+        master._dashboard_instance.start = lambda: call_order.append("dash")
+        original_prepare.side_effect = lambda: call_order.append("prepare")
 
-            # Should complete quickly (adjust threshold as needed)
-            self.assertLess(total_time, 1.0)  # Less than 1 second for 10 calls
+        master.prepare()
 
-        def test_integration_memory_usage(self):
-            """Test that integration doesn't leak memory."""
-            import gc
+        self.assertEqual(call_order, ["dash", "prepare"])
 
-            # Force garbage collection
-            gc.collect()
+    def test_stop_hook_stops_original_then_dashboard(self):
+        master = MagicMock()
+        original_stop = master.stop
+        add_dashboard_to_master(master, {"enable": True, "port": 8080})
 
-            # Run integration multiple times
-            for _ in range(100):
-                add_dashboard_to_master(
-                    MagicMock(), self.mock_dashboard_config
-                )
+        call_order = []
+        original_stop.side_effect = lambda: call_order.append("stop")
+        master._dashboard_instance.stop = lambda: call_order.append("dash")
 
-            # Force garbage collection again
-            gc.collect()
+        master.stop()
 
-            # If no exception is raised, memory management is likely OK
-            self.assertTrue(True)
+        self.assertEqual(call_order, ["stop", "dash"])
+
+    def test_prepare_hook_without_dashboard_instance(self):
+        master = MagicMock()
+        original_prepare = MagicMock()
+        master.prepare = original_prepare
+        add_dashboard_to_master(master, {"enable": True, "port": 8080})
+
+        # Remove dashboard instance to test None guard
+        master._dashboard_instance = None
+        master.prepare()
+        # original_prepare should still be called (via closure)
+
+    def test_stop_hook_without_dashboard_instance(self):
+        master = MagicMock()
+        original_stop = MagicMock()
+        master.stop = original_stop
+        add_dashboard_to_master(master, {"enable": True, "port": 8080})
+
+        master._dashboard_instance = None
+        master.stop()
 
 
 if __name__ == "__main__":

@@ -12,15 +12,18 @@
 # limitations under the License.
 
 import json
+import os
+import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from tornado.testing import AsyncHTTPTestCase
 from tornado.web import Application
 
 # Import the module to test
 from dlrover.dashboard.app import (
     BaseHandler,
+    WebSocketHandler,
     create_dashboard_app,
 )
 from dlrover.python.common.constants import NodeStatus, NodeType
@@ -566,6 +569,455 @@ class TestNodeControlHandlers(AsyncHTTPTestCase):
         data = json.loads(response.body)
         self.assertEqual(data["status"], "success")
         self.assertEqual(data["node"], "test-node")
+
+
+class TestFormatTime(unittest.TestCase):
+    """Test BaseHandler._format_time static method."""
+
+    def test_none(self):
+        self.assertIsNone(BaseHandler._format_time(None))
+
+    def test_string_passthrough(self):
+        self.assertEqual(BaseHandler._format_time("2026-01-15"), "2026-01-15")
+
+    def test_datetime_isoformat(self):
+        dt = datetime(2026, 1, 15, 10, 30, 0)
+        self.assertEqual(BaseHandler._format_time(dt), "2026-01-15T10:30:00")
+
+    def test_fallback_to_str(self):
+        """Non-string, non-datetime objects use str()."""
+        self.assertEqual(BaseHandler._format_time(12345), "12345")
+
+
+class TestCreateDashboardApp(unittest.TestCase):
+    """Test create_dashboard_app factory."""
+
+    def test_creates_app(self):
+        app = create_dashboard_app()
+        self.assertIsNotNone(app)
+
+    def test_perf_monitor_in_settings(self):
+        monitor = MagicMock()
+        app = create_dashboard_app(perf_monitor=monitor)
+        self.assertIs(app.settings["perf_monitor"], monitor)
+
+    @patch.dict(os.environ, {"DLROVER_DASHBOARD_DEBUG": "true"})
+    def test_debug_mode(self):
+        app = create_dashboard_app()
+        self.assertTrue(app.settings["debug"])
+
+
+class TestIndexHandler(AsyncHTTPTestCase):
+    """Test IndexHandler serving index.html."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_get_index(self):
+        response = self.fetch("/")
+        self.assertEqual(response.code, 200)
+        self.assertIn("text/html", response.headers["Content-Type"])
+
+    @patch("dlrover.dashboard.app.os.path.exists", return_value=False)
+    def test_get_index_missing(self, _):
+        response = self.fetch("/")
+        self.assertEqual(response.code, 404)
+
+
+class TestNodeDetailHandler(AsyncHTTPTestCase):
+    """Test NodeDetailHandler serving node_detail.html."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_get_node_detail(self):
+        response = self.fetch("/node_detail.html")
+        self.assertEqual(response.code, 200)
+        self.assertIn("text/html", response.headers["Content-Type"])
+
+    @patch("dlrover.dashboard.app.os.path.exists", return_value=False)
+    def test_get_node_detail_missing(self, _):
+        response = self.fetch("/node_detail.html")
+        self.assertEqual(response.code, 404)
+
+
+class TestMetricsHandlerWithPerfMonitor(AsyncHTTPTestCase):
+    """Test MetricsHandler when perf_monitor is available."""
+
+    def get_app(self):
+        self.mock_monitor = MagicMock()
+        self.mock_monitor.completed_global_step = 1500
+        self.mock_monitor.running_speed = 3.5
+        return create_dashboard_app(perf_monitor=self.mock_monitor)
+
+    def test_metrics_with_perf_monitor(self):
+        response = self.fetch("/api/metrics")
+        self.assertEqual(response.code, 200)
+
+        data = json.loads(response.body)
+        self.assertEqual(data["training_stats"]["global_step"], 1500)
+        self.assertEqual(data["training_stats"]["training_speed"], 3.5)
+
+
+class TestMetricsHandlerNoPerfMonitor(AsyncHTTPTestCase):
+    """Test MetricsHandler when no perf_monitor is set."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_metrics_no_perf_monitor_returns_negative(self):
+        """Without perf_monitor, global_step and speed are -1."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        get_job_context().clear_job_nodes()
+
+        response = self.fetch("/api/metrics")
+        data = json.loads(response.body)
+        self.assertEqual(data["training_stats"]["global_step"], -1)
+        self.assertEqual(data["training_stats"]["training_speed"], -1)
+
+
+class TestLogsHandlerDirect(AsyncHTTPTestCase):
+    """Test LogsHandler with real file operations."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_read_actual_log_file(self):
+        """Test reading an actual log file from disk."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Write a test log file
+            log_file = os.path.join(tmpdir, "test-node.log")
+            with open(log_file, "w") as f:
+                f.write("line1\nline2\nline3\n")
+
+            with patch.dict(os.environ, {"DLROVER_LOG_DIR": tmpdir}):
+                response = self.fetch("/api/logs/test-node")
+                self.assertEqual(response.code, 200)
+                data = json.loads(response.body)
+                self.assertEqual(data["node_name"], "test-node")
+                self.assertIn("line1", data["logs"])
+                self.assertIn("line3", data["logs"])
+
+    def test_read_missing_log_file(self):
+        """Test reading a log file that doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {"DLROVER_LOG_DIR": tmpdir}):
+                response = self.fetch("/api/logs/nonexistent-node")
+                self.assertEqual(response.code, 200)
+                data = json.loads(response.body)
+                self.assertIn("not found", data["logs"])
+
+    def test_path_traversal_via_symlink(self):
+        """Test that symlink-based traversal is blocked."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # This is tested indirectly — the node name regex already
+            # blocks slashes, but the realpath check adds defense in depth
+            with patch.dict(os.environ, {"DLROVER_LOG_DIR": tmpdir}):
+                response = self.fetch("/api/logs/..%2F..%2Fetc%2Fpasswd")
+                self.assertEqual(response.code, 400)
+
+    def test_valid_node_name_patterns(self):
+        """Test that valid node name patterns are accepted."""
+        from dlrover.dashboard.app import LogsHandler
+
+        handler = LogsHandler
+        self.assertTrue(handler._NODE_NAME_PATTERN.match("worker-0"))
+        self.assertTrue(handler._NODE_NAME_PATTERN.match("ps_1.pod"))
+        self.assertTrue(handler._NODE_NAME_PATTERN.match("chief-0"))
+        self.assertIsNone(handler._NODE_NAME_PATTERN.match("no spaces"))
+        self.assertIsNone(handler._NODE_NAME_PATTERN.match("a/b"))
+
+
+class TestJobArgsHandlerFallback(AsyncHTTPTestCase):
+    """Test JobArgsHandler fallback path (no to_json method)."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_fallback_without_to_json(self):
+        """Test fallback when job_args has no to_json method."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+
+        # Create a simple object without to_json
+        class SimpleArgs:
+            def __init__(self):
+                self.platform = "test"
+                self.job_name = "fallback-job"
+
+        job_ctx._job_args = SimpleArgs()
+
+        try:
+            response = self.fetch("/api/jobargs")
+            self.assertEqual(response.code, 200)
+            data = json.loads(response.body)
+            self.assertEqual(data["platform"], "test")
+            self.assertEqual(data["job_name"], "fallback-job")
+        finally:
+            job_ctx._job_args = None
+
+    @patch(
+        "dlrover.dashboard.app.BaseHandler.job_ctx",
+        new_callable=lambda: property(
+            lambda self: MagicMock(
+                get_job_args=MagicMock(side_effect=RuntimeError("err"))
+            )
+        ),
+    )
+    def test_job_args_exception(self, _):
+        """Test error handling in JobArgsHandler."""
+        # Patch at handler level to force exception
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        original = job_ctx.get_job_args
+
+        def raise_err():
+            raise RuntimeError("err")
+
+        job_ctx.get_job_args = raise_err
+        try:
+            response = self.fetch("/api/jobargs")
+            self.assertEqual(response.code, 500)
+            data = json.loads(response.body)
+            self.assertIn("error", data)
+        finally:
+            job_ctx.get_job_args = original
+
+
+class TestWebSocketHandler(unittest.TestCase):
+    """Test WebSocketHandler class methods."""
+
+    def setUp(self):
+        # Reset clients set between tests
+        WebSocketHandler.clients = set()
+
+    def test_broadcast_no_clients(self):
+        """Broadcast with no connected clients should not raise."""
+        WebSocketHandler.broadcast('{"test": true}')
+
+    def test_broadcast_to_client(self):
+        mock_client = MagicMock()
+        mock_client.ws_connection = MagicMock()
+        mock_client.ws_connection.is_closing.return_value = False
+        WebSocketHandler.clients.add(mock_client)
+
+        WebSocketHandler.broadcast('{"type": "update"}')
+
+        mock_client.write_message.assert_called_once_with('{"type": "update"}')
+
+    def test_broadcast_skips_closing_client(self):
+        mock_client = MagicMock()
+        mock_client.ws_connection = MagicMock()
+        mock_client.ws_connection.is_closing.return_value = True
+        WebSocketHandler.clients.add(mock_client)
+
+        WebSocketHandler.broadcast('{"type": "update"}')
+
+        mock_client.write_message.assert_not_called()
+
+    def test_broadcast_skips_none_ws_connection(self):
+        mock_client = MagicMock()
+        mock_client.ws_connection = None
+        WebSocketHandler.clients.add(mock_client)
+
+        WebSocketHandler.broadcast('{"type": "update"}')
+
+        mock_client.write_message.assert_not_called()
+
+    def test_broadcast_removes_erroring_client(self):
+        mock_client = MagicMock()
+        mock_client.ws_connection = MagicMock()
+        mock_client.ws_connection.is_closing.return_value = False
+        mock_client.write_message.side_effect = RuntimeError("send err")
+        WebSocketHandler.clients.add(mock_client)
+
+        WebSocketHandler.broadcast('{"type": "update"}')
+
+        self.assertNotIn(mock_client, WebSocketHandler.clients)
+
+    def _make_handler(self):
+        """Create a mock handler that shares the class-level clients set."""
+        handler = MagicMock()
+        handler.clients = WebSocketHandler.clients
+        return handler
+
+    def test_open_adds_client(self):
+        handler = self._make_handler()
+        WebSocketHandler.open(handler)
+        self.assertIn(handler, WebSocketHandler.clients)
+
+    def test_on_close_removes_client(self):
+        handler = self._make_handler()
+        WebSocketHandler.clients.add(handler)
+        WebSocketHandler.on_close(handler)
+        self.assertNotIn(handler, WebSocketHandler.clients)
+
+    def test_on_close_absent_client_no_error(self):
+        handler = self._make_handler()
+        # Not in clients set — discard should not raise
+        WebSocketHandler.on_close(handler)
+
+    def test_on_message_logs(self):
+        handler = self._make_handler()
+        with patch("dlrover.dashboard.app.logger") as mock_logger:
+            WebSocketHandler.on_message(handler, "hello")
+            mock_logger.info.assert_called()
+
+
+class TestDiagnosisHandlerRecentFailures(AsyncHTTPTestCase):
+    """Test DiagnosisHandler with multiple failure types."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_failures_sorted_by_time_and_limited(self):
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        # Create 3 failed nodes with different finish times
+        for i in range(3):
+            node = Node(
+                NodeType.WORKER,
+                i,
+                name=f"worker-{i}",
+                status=NodeStatus.FAILED,
+            )
+            node.finish_time = datetime(2026, 1, 15, 10 + i, 0, 0)
+            node.exit_reason = f"Error-{i}"
+            job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/diagnosis")
+            self.assertEqual(response.code, 200)
+            data = json.loads(response.body)
+            failures = data["fault_tolerance"]["recent_failures"]
+            self.assertEqual(len(failures), 3)
+            # Should be sorted by finish_time descending
+            self.assertEqual(failures[0]["name"], "worker-2")
+            self.assertEqual(failures[-1]["name"], "worker-0")
+        finally:
+            job_ctx.clear_job_nodes()
+
+    def test_failure_without_exit_reason(self):
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        node = Node(
+            NodeType.PS,
+            0,
+            name="ps-0",
+            status=NodeStatus.FAILED,
+        )
+        node.finish_time = datetime(2026, 1, 15, 10, 0, 0)
+        # No exit_reason set — should default to "Unknown"
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/diagnosis")
+            data = json.loads(response.body)
+            failures = data["fault_tolerance"]["recent_failures"]
+            self.assertEqual(len(failures), 1)
+            self.assertEqual(failures[0]["exit_reason"], "Unknown")
+        finally:
+            job_ctx.clear_job_nodes()
+
+
+class TestNodesHandlerResourceConversion(AsyncHTTPTestCase):
+    """Test NodesHandler._resource_to_dict and edge cases."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_node_without_used_resource(self):
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        node = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.RUNNING,
+            start_time=datetime(2026, 1, 15, 10, 0, 0),
+        )
+        # config_resource and used_resource are both None
+        node.config_resource = None
+        node.used_resource = None
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/nodes")
+            data = json.loads(response.body)
+            w = data[NodeType.WORKER][0]
+            self.assertIsNone(w["config_resource"])
+            self.assertIsNone(w["used_resource"])
+        finally:
+            job_ctx.clear_job_nodes()
+
+    def test_node_without_start_time_excluded_from_rank_map(self):
+        """Nodes without start_time should not appear in rank_index_map."""
+        from dlrover.python.master.node.job_context import get_job_context
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+
+        node = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.PENDING,
+            rank_index=0,
+        )
+        # No start_time
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/nodes")
+            data = json.loads(response.body)
+            w = data[NodeType.WORKER][0]
+            self.assertEqual(w["consanguinity"], "")
+        finally:
+            job_ctx.clear_job_nodes()
+
+
+class TestJobInfoHandlerSucceededNodes(AsyncHTTPTestCase):
+    """Test JobInfoHandler with succeeded nodes."""
+
+    def get_app(self):
+        return create_dashboard_app()
+
+    def test_succeeded_nodes_counted(self):
+        from dlrover.python.master.node.job_context import get_job_context
+        from dlrover.python.scheduler.job import LocalJobArgs
+
+        job_ctx = get_job_context()
+        job_ctx.clear_job_nodes()
+        job_args = LocalJobArgs("local", "default", "test")
+        job_ctx.set_job_args(job_args)
+
+        node = Node(
+            NodeType.WORKER,
+            0,
+            name="worker-0",
+            status=NodeStatus.SUCCEEDED,
+        )
+        job_ctx.update_job_node(node)
+
+        try:
+            response = self.fetch("/api/job")
+            data = json.loads(response.body)
+            self.assertEqual(data["succeeded_nodes"], 1)
+        finally:
+            job_ctx.clear_job_nodes()
+            job_ctx._job_args = None
 
 
 if __name__ == "__main__":

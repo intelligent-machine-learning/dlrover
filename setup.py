@@ -22,6 +22,7 @@ install_requires = [
 ]
 
 extra_require = {
+    "dashboard": ["tornado"],
     "k8s": ["kubernetes", "tornado", "grpcio"],
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
