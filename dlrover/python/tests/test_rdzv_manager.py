@@ -230,6 +230,15 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(rdzv_round, 0)
         self.assertEqual(rdzv_manager.rendezvous_events, {})
         rdzv_manager._alive_nodes = [0, 1, 2]
+
+        # Register callback to verify _on_rdzv_completed is called
+        callback_results = []
+        rdzv_manager.add_rdzv_completed_callback(
+            lambda rdzv_round, nodes: callback_results.append(
+                (rdzv_round, nodes)
+            )
+        )
+
         rdzv_manager.join_rendezvous(0, 0, 8)
         rdzv_manager.join_rendezvous(1, 1, 8)
         round, _, world = rdzv_manager.get_comm_world(0)
@@ -238,6 +247,9 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
         self.assertEqual(list(rdzv_manager.rendezvous_events.keys()), [0])
+        # Callback should not be called before rdzv completes
+        self.assertEqual(len(callback_results), 0)
+
         rdzv_manager.join_rendezvous(2, 2, 8)
         self.assertListEqual(list(rdzv_manager._node_rdzv_times), [0, 1, 2])
         for key in rdzv_manager._node_rdzv_times:
@@ -250,9 +262,28 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(list(world.keys()), [0, 1, 2])
         self.assertEqual(list(rdzv_manager.rendezvous_events.keys()), [0])
 
+        # Callback should be called exactly once with correct args
+        self.assertEqual(len(callback_results), 1)
+        self.assertEqual(callback_results[0][0], 0)  # finished_rdzv_round
+        self.assertListEqual(callback_results[0][1], [0, 1, 2])  # node_ids
+
+        # Subsequent get_comm_world calls should NOT trigger callback again
+        round, _, world = rdzv_manager.get_comm_world(1)
+        round, _, world = rdzv_manager.get_comm_world(2)
+        self.assertEqual(len(callback_results), 1)
+
     def test_min_nodes(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
         rdzv_manager.update_rdzv_params(2, 3, 0.1, 1)
+
+        # Register callback to verify _on_rdzv_completed
+        callback_results = []
+        rdzv_manager.add_rdzv_completed_callback(
+            lambda rdzv_round, nodes: callback_results.append(
+                (rdzv_round, nodes)
+            )
+        )
+
         node_1 = Node("worker", 1)
         rdzv_manager.add_alive_node(node_1)
         node_0 = Node("worker", 0)
@@ -271,6 +302,11 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 2)
         self.assertListEqual(list(world.keys()), [0, 1])
+
+        # Callback called exactly once with correct round and node ids
+        self.assertEqual(len(callback_results), 1)
+        self.assertEqual(callback_results[0][0], 0)
+        self.assertListEqual(callback_results[0][1], [0, 1])
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
@@ -395,6 +431,24 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         )
         for i in rdzv_manager._waiting_nodes.keys():
             self.assertTrue(900 <= i <= 999)
+
+    def test_on_rdzv_completed_callback_exception(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        results = []
+
+        def bad_callback(rdzv_round, nodes):
+            raise RuntimeError("callback error")
+
+        def good_callback(rdzv_round, nodes):
+            results.append((rdzv_round, nodes))
+
+        rdzv_manager.add_rdzv_completed_callback(bad_callback)
+        rdzv_manager.add_rdzv_completed_callback(good_callback)
+
+        rdzv_manager._on_rdzv_completed(0, [0, 1, 2])
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], (0, [0, 1, 2]))
 
     @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
     def test_check_rdzv_completed_with_failed_node_before_relaunch(

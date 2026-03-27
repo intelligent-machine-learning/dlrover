@@ -15,6 +15,7 @@ from pydantic import (
     Field,
     BaseModel,
 )
+from typing import Dict
 
 
 class NodeResource(BaseModel):
@@ -31,10 +32,10 @@ class NodeGroupResource(BaseModel):
 
 
 class JobResource(BaseModel):
-    node_group_resources: dict[str, NodeGroupResource] = Field(
+    node_group_resources: Dict[str, NodeGroupResource] = Field(
         default_factory=dict
     )
-    node_resources: dict[str, NodeResource] = Field(default_factory=dict)
+    node_resources: Dict[str, NodeResource] = Field(default_factory=dict)
 
 
 class JobMeta(BaseModel):
@@ -53,4 +54,4 @@ class JobOptimizePlan(BaseModel):
 
 class OptimizeConfig(BaseModel):
     optimizer_name: str = ""
-    customized_config: dict[str, str] = Field(default_factory=dict)
+    customized_config: Dict[str, str] = Field(default_factory=dict)

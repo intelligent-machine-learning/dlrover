@@ -92,6 +92,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self.rendezvous_events: Dict[int, DurationSpan] = {}
         self._rdzv_blocked = False
         self._rdzv_block_reason = ""
+        self._rdzv_completed_callbacks = []
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -467,6 +468,14 @@ class RendezvousManager(metaclass=ABCMeta):
         """The node updates its status"""
         pass
 
+    def add_rdzv_completed_callback(self, callback):
+        """
+        Callback when rdzv completed.
+
+        Callback signature: (rdzv_round: int, rdzv_nodes: List[int)
+        """
+        self._rdzv_completed_callbacks.append(callback)
+
     def process_error(
         self, node_id, node_rank, err_type, err_message, elapsed_time
     ):
@@ -553,11 +562,22 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                             node_rank=node_rank,
                             node_elapsed_time=node_elapsed_time,
                         )
+                    self._on_rdzv_completed(
+                        finished_rdzv_round,
+                        node_ids,
+                    )
 
             return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_rank, normal, elapsed_time):
         return
+
+    def _on_rdzv_completed(self, rdzv_round, rdzv_nodes):
+        for callback in self._rdzv_completed_callbacks:
+            try:
+                callback(rdzv_round, rdzv_nodes)
+            except Exception as e:
+                logger.warning(f"Rendezvous completed callback error: {e}")
 
 
 class UcpRdzvManager(ElasticTrainingRendezvousManager):
