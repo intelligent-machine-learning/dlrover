@@ -109,20 +109,18 @@ class TestDashboardManagerRunServer(unittest.TestCase):
 
         # Test via patching tornado internals
         mgr = DashboardManager(host="127.0.0.1", port=9999)
-        with (
-            patch("tornado.httpserver.HTTPServer") as mock_server_cls,
-            patch("tornado.ioloop.IOLoop") as mock_ioloop,
-        ):
-            mock_server = MagicMock()
-            mock_server_cls.return_value = mock_server
-            mock_loop = MagicMock()
-            mock_ioloop.current.return_value = mock_loop
+        with patch("tornado.httpserver.HTTPServer") as mock_server_cls:
+            with patch("tornado.ioloop.IOLoop") as mock_ioloop:
+                mock_server = MagicMock()
+                mock_server_cls.return_value = mock_server
+                mock_loop = MagicMock()
+                mock_ioloop.current.return_value = mock_loop
 
-            mgr._run_dashboard_server()
+                mgr._run_dashboard_server()
 
-            mock_create_app.assert_called_once_with(perf_monitor=None)
-            mock_server.listen.assert_called_once_with(9999, "127.0.0.1")
-            mock_loop.start.assert_called_once()
+                mock_create_app.assert_called_once_with(perf_monitor=None)
+                mock_server.listen.assert_called_once_with(9999, "127.0.0.1")
+                mock_loop.start.assert_called_once()
 
     @patch("dlrover.dashboard.integrate_with_master.create_dashboard_app")
     @patch("dlrover.dashboard.integrate_with_master.logger")
