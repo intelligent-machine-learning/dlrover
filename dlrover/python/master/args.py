@@ -118,6 +118,18 @@ def _build_master_args_parser():
         "The argument format is 'module::class'. The class should implement "
         "'dlrover.python.elastic_agent.torch.dynamic_failover::DynamicAgentFailoverExtension'.",
     )
+    parser.add_argument(
+        "--elastic_dimension",
+        default="horizontal",
+        type=str,
+        help="The type of elastic, should be 'horizontal' or 'vertical'",
+    )
+    parser.add_argument(
+        "--configmap_manual_scale_switch",
+        default="off",
+        type=str,
+        help="The configmap manual scale switch, should be 'on' or 'off'",
+    )
     return parser
 
 

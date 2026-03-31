@@ -33,6 +33,9 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     TrainingExceptionLevel,
+    OptimizeMode,
+    ElasticDimension,
+    WorkerResourceScaleAction,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -51,6 +54,10 @@ from dlrover.python.master.node.event_callback import (
 from dlrover.python.master.node.job_auto_scaler import (
     JobAutoScaler,
     new_job_auto_scaler,
+)
+from dlrover.python.master.node.job_resource_scaler import (
+    JobResourceScaler,
+    new_job_resource_scaler,
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.master.node.job_manager import JobManager
@@ -80,6 +87,7 @@ from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.master.watcher.factory import (
     new_node_watcher,
     new_scale_plan_watcher,
+    new_configmap_scale_watcher,
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
@@ -91,7 +99,7 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 job_ctx = get_job_context()
 
 _MAX_POD_RELAUNCH_COUNT = 5
-
+JSON_KEY = "config.json"
 
 def is_positive_exit(exit_reason):
     if exit_reason in [NodeExitReason.DIAG_FAIL, NodeExitReason.NO_HEARTBEAT]:
@@ -149,7 +157,11 @@ class DistributedJobManager(JobManager):
         elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
             self._job_optimizer = AllreduceJobResourceOptimizer(
                 self._job_resource.node_group_resources[NodeType.WORKER],
+                job_args.optimize_mode,
                 job_args.job_uuid,
+                job_args.resource_limits,
+                job_args.job_name,
+                job_args.namespace,
             )
         else:
             raise ValueError(
@@ -198,6 +210,14 @@ class DistributedJobManager(JobManager):
         self._group_relaunch_count = 0
         self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
 
+        self._configmap_manual_scaler = new_configmap_scale_watcher(
+            job_args.platform,
+            job_args.job_name,
+            job_args.namespace,
+            job_args.job_uuid,
+            self.handle_configmap_update_callback,
+        )
+
     def start(self):
         self._scaler.start()
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
@@ -205,6 +225,13 @@ class DistributedJobManager(JobManager):
         self._adjust_worker_for_estimator()
         self._init_nodes()
         self._init_job_auto_scaler()
+
+        # init job resource scaler and configmap manual scaler
+        if self._job_args.elastic_dimension == ElasticDimension.VERTICAL:
+            self._init_job_resource_scaler()
+            if _dlrover_context.configmap_manual_scale_switch == "on":
+                self._configmap_manual_scaler.start()
+        
         plan = self._create_initial_scale_plan()
         if not self._has_running_workers():
             # The job relaunches the evicted master, there are alive
@@ -234,6 +261,40 @@ class DistributedJobManager(JobManager):
             daemon=True,
         ).start()
 
+    def handle_configmap_update_callback(self, data: dict):
+        logger.info(f"Manual scale ConfigMap changed, will start resource scaling.")
+        if not data:
+            logger.warning(f"Manual scale configMap has no data, skip manual resource scaling.")
+            return
+        
+        if JSON_KEY not in data:
+            logger.warning(f"The key {JSON_KEY} was not found in the manual scale ConfigMap, skip manual resource scaling.")
+            return
+        json_str_content = data[JSON_KEY]
+        
+        # parse JSON str to Python dict
+        manual_config = json.loads(json_str_content)
+        if not isinstance(manual_config, dict):
+            logger.warning(f"ConfigMap data is not a dictionary, type: {type(manual_config)}. Skip manual resource scaling")
+            return
+
+        job_names = manual_config.get("job_names", None)
+        if not job_names or job_names is None:
+            logger.warning(f"The key 'job_names' was not found in the manual scale ConfigMap, skip manual resource scaling.")
+            _dlrover_context.enable_elastic_resource = False
+            return
+        job_list = [name.strip() for name in job_names.split(',')]
+
+        if self._job_args.job_name not in job_list:
+            logger.warning(f"The job {self._job_args.job_name} is not in the job list {job_list}, skip manual resource scaling.")
+            _dlrover_context.enable_elastic_resource = False
+        
+        _dlrover_context.enable_elastic_resource = True
+        
+        self.start_resource_scaling(WorkerResourceScaleAction.MANUAL)
+
+        logger.info(f"Manual resource scaling finished.")
+
     def _has_running_workers(self):
         nodes = self._node_watcher.list()
         for node in nodes:
@@ -255,6 +316,18 @@ class DistributedJobManager(JobManager):
             self._job_args.distribution_strategy
             == DistributionStrategy.ALLREDUCE
         )
+    
+    def get_gpus_from_brain_resource_plan(self):
+        return self._job_optimizer.get_brain_resource_plan_opt_gpus()
+
+    def set_save_ckpt_status(self, save_ckpt_ready: bool, reason: Optional[str] = None):
+        self._job_resource_scaler.set_save_ckpt_status_by_vertical_elastic(save_ckpt_ready)
+        
+    def exec_opt_res_plan_ready(self):
+        return self._job_resource_scaler.exec_opt_res_plan_ready()
+    
+    def set_param_tunning_ready(self, param_tunning_ready: bool):
+        self._job_resource_scaler.set_param_tunning_ready(param_tunning_ready)
 
     def restart(self):
         if not self.is_all_reduce_type_job():
@@ -506,6 +579,19 @@ class DistributedJobManager(JobManager):
         )
         logger.info(
             "Create job autoscaler: %s", self._job_autoscaler.__class__
+        )
+
+    def _init_job_resource_scaler(self):
+        self._job_resource_scaler: JobResourceScaler = new_job_resource_scaler(
+            self._job_args.distribution_strategy,
+            self._job_resource,
+            self._job_optimizer,
+            self._perf_monitor,
+            self._worker_manager,
+            self._scaler,
+        )
+        logger.info(
+            "Create job resource scaler: %s", self._job_resource_scaler.__class__
         )
 
     def _monitor_nodes(self):
@@ -1374,6 +1460,10 @@ class DistributedJobManager(JobManager):
     def start_auto_scaling(self):
         """Start auto scaling nodes to improve the training throughput."""
         self._job_autoscaler.start_auto_scaling()
+
+    def start_resource_scaling(self, scale_action: str):
+        """Start resource scaling nodes to improve the training throughput."""
+        self._job_resource_scaler.start_resource_scaling(scale_action)
 
     def _set_ps_addrs_in_plan(self, plan: ScalePlan):
         ps_addrs = self._ps_manager.get_ps_addrs()

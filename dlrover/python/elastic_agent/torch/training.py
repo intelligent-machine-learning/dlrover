@@ -85,6 +85,7 @@ from dlrover.python.common.constants import (
     ScriptPath,
     NodeExitReason,
     RendezvousErrorType,
+    ElasticDimension,
 )
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -360,7 +361,7 @@ class ElasticLaunchConfig(LaunchConfig):
             self.accelerator = Accelerators.MTHREADS_GPU
         logger.info(
             f"Use {self.accelerator} device for training, "
-            f"cuda is available: {torch.cuda.is_available()}."
+            f"xpu is available: {torch.cuda.is_available()}."
         )
 
         if not self.auto_config:
@@ -1441,8 +1442,34 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     ):
                         self.set_rdzv_blocked(False)
                     self._restart_workers(self._worker_group)
+                else:
+                    # vertical elastic
+                    elastic_dimension = os.getenv(
+                        "DLROVER_ELASTIC_DIMENSION", ElasticDimension.HORIZONTAL
+                    ).lower()
+                    if elastic_dimension == ElasticDimension.VERTICAL and self._client.exec_opt_res_plan_ready():
+                        self._save_ckpt_by_vertical_elastic()
             else:
                 raise Exception(f"[{role}] worker group in {state.name} state")
+            
+    def _save_ckpt_by_vertical_elastic(self):
+        # self._graceful_exit_workers(
+        #     worker_group=self._worker_group
+        # )
+        elastic_mode = os.getenv(
+            "DLROVER_TRAINING_ELASTIC_MODE", "base"
+        ).lower()
+        self._save_ckpt_to_storage()
+
+        if (
+            self._worker_group.group_rank == 0
+            and elastic_mode == "ucp"
+        ):
+            self.ucp()
+        self.set_save_ckpt_status(True)
+    
+    def set_save_ckpt_status(self, ckpt_save_ready, reason=""):
+        return self._client.set_save_ckpt_status(ckpt_save_ready=ckpt_save_ready, reason=reason)
 
     def _process_diagnosis_action(self, action: DiagnosisAction):
         if not action:
@@ -1882,25 +1909,32 @@ def launch_agent(
         f"name: {entrypoint_name}, rank: {node_rank}"
     )
 
+    elastic_dimension = os.getenv(
+        "DLROVER_ELASTIC_DIMENSION", ElasticDimension.HORIZONTAL
+    ).lower()
+    if elastic_dimension == ElasticDimension.VERTICAL:
+        _auto_param_tuning_by_vertical_elastic(config, args)
+
     logger.info(
         f"Starting training agent with launch configs:\n"
-        f"  entrypoint       : {entrypoint_name}\n"
-        f"  min_nodes        : {config.min_nodes}\n"
-        f"  max_nodes        : {config.max_nodes}\n"
-        f"  nproc_per_node   : {config.nproc_per_node}\n"
-        f"  run_id           : {config.run_id}\n"
-        f"  rdzv_backend     : {config.rdzv_backend}\n"
-        f"  rdzv_endpoint    : {config.rdzv_endpoint}\n"
-        f"  rdzv_configs     : {config.rdzv_configs}\n"
-        f"  max_restarts     : {config.max_restarts}\n"
-        f"  monitor_interval : {config.monitor_interval}\n"
-        f"  log_dir          : {config.get_log_dir()}\n"
-        f"  metrics_cfg      : {config.metrics_cfg}\n"
-        f"  training_log     : {config.training_log_file}\n"
-        f"  failure_errors   : {config.failure_node_errors}\n"
-        f"  numa_affinity    : {config.numa_affinity}\n"
-        f"  accelerator      : {config.accelerator}\n"
-        f" ucp_device_type   : {config.ucp_device_type}\n"
+        f"  entrypoint          : {entrypoint_name}\n"
+        f"  min_nodes           : {config.min_nodes}\n"
+        f"  max_nodes           : {config.max_nodes}\n"
+        f"  nproc_per_node      : {config.nproc_per_node}\n"
+        f"  run_id              : {config.run_id}\n"
+        f"  rdzv_backend        : {config.rdzv_backend}\n"
+        f"  rdzv_endpoint       : {config.rdzv_endpoint}\n"
+        f"  rdzv_configs        : {config.rdzv_configs}\n"
+        f"  max_restarts        : {config.max_restarts}\n"
+        f"  monitor_interval    : {config.monitor_interval}\n"
+        f"  log_dir             : {config.get_log_dir()}\n"
+        f"  metrics_cfg         : {config.metrics_cfg}\n"
+        f"  training_log        : {config.training_log_file}\n"
+        f"  failure_errors      : {config.failure_node_errors}\n"
+        f"  numa_affinity       : {config.numa_affinity}\n"
+        f"  accelerator         : {config.accelerator}\n"
+        f"  ucp_device_type     : {config.ucp_device_type}\n"
+        f"  elastic_dimension   : {elastic_dimension}\n"
     )
 
     _agent_evt.start(args=vars(config))
@@ -2002,6 +2036,24 @@ def launch_agent(
             spec.rdzv_handler.shutdown()
         agent.stop_executor()
         monitor.stop()
+
+def _auto_param_tuning_by_vertical_elastic(config: ElasticLaunchConfig, args: List[Any]):
+    logger.info(f"original nproc_per_node: {config.nproc_per_node}")
+
+    # Get resource plan from brain and Auto-tuning train params, eg: nproc_per_node .
+    _master_client = MasterClient.singleton_instance()
+    exec_opt_resource_plan_ready = _master_client.exec_opt_res_plan_ready()
+    logger.info(f"DEBUG: brain_resource_ready = {exec_opt_resource_plan_ready}")
+
+    if exec_opt_resource_plan_ready:
+        adjust_gpu_nums = _master_client.get_gpus_from_brain_resource_plan()
+        logger.warning(f"adjust gpu nums from brain is: {adjust_gpu_nums}")
+        if adjust_gpu_nums > 0 and config.nproc_per_node != adjust_gpu_nums:
+            config.nproc_per_node = adjust_gpu_nums
+            # report master
+            _master_client.set_param_tunning_ready(param_tunning_ready=True)
+
+    logger.info(f"adjust nproc_per_node: {config.nproc_per_node}")  
 
 
 def _create_worker_spec(

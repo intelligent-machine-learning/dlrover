@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from typing import Optional
 from dlrover.python.common.comm import ParallelConfig
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.node import Node
@@ -138,6 +138,21 @@ class LocalJobManager(JobManager):
         pass
 
     def start_auto_scaling(self):
+        pass
+
+    def start_resource_scaling(self, scale_action):
+        pass
+
+    def get_gpus_from_brain_resource_plan(self):
+        pass
+
+    def set_save_ckpt_status(self, save_ckpt_ready: bool, reason: Optional[str] = None):
+        pass
+
+    def exec_opt_res_plan_ready(self):
+        pass
+    
+    def set_param_tunning_ready(self, param_tunning_ready: bool):
         pass
 
     def all_running_node_hanged(self):
