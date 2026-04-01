@@ -455,7 +455,7 @@
                             throw new Error('Unable to fetch logs');
                         }
                         const data = await response.json();
-                        currentLogs.value = data.logs || 'No logs available';
+                        currentLogs.value = DashboardUtils.parseLogs(data.logs) || 'No logs available';
                     } catch (error) {
                         console.error('Error fetching logs:', error);
                         // Generate mock logs for testing

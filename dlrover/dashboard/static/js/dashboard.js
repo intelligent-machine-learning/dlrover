@@ -97,7 +97,12 @@ const DashboardUtils = {
 
     // Check if node is critical
     isCriticalNode: function(node) {
-        return node.critical === True;
+        return node.critical === true;
+    },
+
+    // Escape HTML special characters to prevent XSS
+    escapeHtml: function(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     },
 
     // Parse log lines and add syntax highlighting (basic)
@@ -105,17 +110,18 @@ const DashboardUtils = {
         if (!logText) return '';
 
         return logText.split('\n').map(line => {
+            const escaped = DashboardUtils.escapeHtml(line);
             // Basic log level highlighting
             if (line.includes('ERROR') || line.includes('FATAL')) {
-                return `<span class="text-red-400">${line}</span>`;
+                return `<span class="text-red-400">${escaped}</span>`;
             } else if (line.includes('WARN')) {
-                return `<span class="text-yellow-400">${line}</span>`;
+                return `<span class="text-yellow-400">${escaped}</span>`;
             } else if (line.includes('INFO')) {
-                return `<span class="text-green-400">${line}</span>`;
+                return `<span class="text-green-400">${escaped}</span>`;
             } else if (line.includes('DEBUG')) {
-                return `<span class="text-gray-400">${line}</span>`;
+                return `<span class="text-gray-400">${escaped}</span>`;
             } else {
-                return `<span class="text-gray-300">${line}</span>`;
+                return `<span class="text-gray-300">${escaped}</span>`;
             }
         }).join('\n');
     }
@@ -163,11 +169,13 @@ class AutoRefresher {
         this.interval = interval;
         this.timer = null;
         this.isActive = false;
+        this.callback = null;
     }
 
     start(callback) {
         if (this.isActive) return;
 
+        this.callback = callback;
         this.isActive = true;
         this.timer = setInterval(callback, this.interval);
     }
@@ -186,7 +194,7 @@ class AutoRefresher {
         this.interval = interval;
         if (this.isActive) {
             this.stop();
-            this.start(callback);
+            this.start(this.callback);
         }
     }
 }

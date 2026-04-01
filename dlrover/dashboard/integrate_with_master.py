@@ -88,6 +88,8 @@ class DashboardManager:
 
     def _broadcast_loop(self):
         """Broadcast real-time updates to dashboard clients."""
+        from tornado.ioloop import IOLoop
+
         consecutive_failures = 0
         max_consecutive_failures = 30
 
@@ -107,8 +109,12 @@ class DashboardManager:
                     },
                 }
 
-                # Broadcast to all WebSocket clients
-                WebSocketHandler.broadcast(json.dumps(update))
+                # Schedule broadcast on the Tornado IOLoop thread to
+                # avoid cross-thread WebSocket writes.
+                message = json.dumps(update)
+                IOLoop.current().add_callback(
+                    WebSocketHandler.broadcast, message
+                )
 
                 consecutive_failures = 0
                 self._stop_event.wait(2)

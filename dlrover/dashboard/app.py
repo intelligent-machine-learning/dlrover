@@ -281,10 +281,13 @@ class LogsHandler(BaseHandler):
         }
 
     def _tail_log_file(self, filepath, lines):
-        """Read last N lines from a file."""
+        """Read last N lines from a file without loading entire file
+        into memory."""
+        from collections import deque
+
         try:
             with open(filepath, "r") as f:
-                return "".join(f.readlines()[-lines:])
+                return "".join(deque(f, maxlen=lines))
         except FileNotFoundError:
             return "Log file not found"
 

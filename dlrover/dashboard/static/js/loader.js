@@ -15,10 +15,10 @@
 
     // Remove loading overlay when page is ready
     function removeLoadingOverlay() {
-        const overlay = document.getElementById('loading-overlay');
-        if (overlay) {
-            overlay.style.opacity = '0';
-            setTimeout(() => overlay.remove(), 300);
+        const loadingEl = document.getElementById('loading-overlay');
+        if (loadingEl) {
+            loadingEl.style.opacity = '0';
+            setTimeout(() => loadingEl.remove(), 300);
         }
     }
 
