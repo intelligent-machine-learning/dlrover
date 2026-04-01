@@ -907,6 +907,11 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
         # Sort ranks within each group for deterministic pairing.
         for group_idx in self._node_group_map:
             self._node_group_map[group_idx].sort()
+        logger.info(
+            f"Built node group map: {dict(self._node_group_map)} "
+            f"({len(self._node_group_map)} groups, "
+            f"{len(self._rdzv_nodes)} total nodes)"
+        )
 
     def _group_nodes(self, round):
         """Group nodes based on the current phase of group node check."""
@@ -914,6 +919,10 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
 
         if not self._node_group_map:
             # Fallback to base behavior if no group info.
+            logger.info(
+                f"No group info found in round {round}, "
+                f"falling back to base NetworkCheck."
+            )
             return super()._group_nodes(round)
 
         round_in_cycle = round % self._check_round
@@ -921,17 +930,35 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
         if round_in_cycle == 0:
             self._current_phase = GroupNodeCheckPhase.INTRA_INITIAL
             self._intra_passed = False
+            logger.info(
+                f"Round {round}: entering phase {self._current_phase} "
+                f"(intra-group adjacent pairing)."
+            )
             return self._group_intra_initial()
         elif round_in_cycle == 1:
             if self._has_intra_failures():
                 self._current_phase = GroupNodeCheckPhase.INTRA_DIAGNOSTIC
+                logger.info(
+                    f"Round {round}: intra failures detected, entering "
+                    f"phase {self._current_phase} "
+                    f"(intra-group cross pairing for diagnosis)."
+                )
                 return self._group_intra_diagnostic()
             else:
                 self._intra_passed = True
                 self._current_phase = GroupNodeCheckPhase.INTER_INITIAL
+                logger.info(
+                    f"Round {round}: intra check passed, entering "
+                    f"phase {self._current_phase} "
+                    f"(inter-group same-position pairing)."
+                )
                 return self._group_inter_initial()
         elif round_in_cycle == 2:
             self._current_phase = GroupNodeCheckPhase.INTER_DIAGNOSTIC
+            logger.info(
+                f"Round {round}: entering phase {self._current_phase} "
+                f"(inter-group shifted pairing for diagnosis)."
+            )
             return self._group_inter_diagnostic()
         return []
 
@@ -1150,13 +1177,23 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
                     # No faults found in this phase.
                     if self._current_phase == GroupNodeCheckPhase.INTRA_INITIAL:
                         # Intra passed, need to continue with inter check.
+                        logger.info(
+                            f"Phase {self._current_phase} passed with no "
+                            f"faults, signaling NEXT_PHASE for inter check."
+                        )
                         return [], NetworkFailureReason.NEXT_PHASE
                     else:
                         # All checks passed, jump to end of cycle.
-                        self._rdzv_round = (
+                        next_round = (
                             math.ceil(self._rdzv_round / self._check_round)
                             * self._check_round
                         )
+                        logger.info(
+                            f"Phase {self._current_phase} passed with no "
+                            f"faults, all checks done. Jumping rdzv_round "
+                            f"from {self._rdzv_round} to {next_round}."
+                        )
+                        self._rdzv_round = next_round
 
             if all_joined and len(self._fault_nodes) > 0:
                 reason = NetworkFailureReason.NODE_FAILURE

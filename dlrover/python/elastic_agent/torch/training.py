@@ -2161,6 +2161,10 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             self._stop_workers(self._worker_group)
             if fault_reason == NetworkFailureReason.NEXT_PHASE:
                 # Current phase passed, continue to next phase.
+                logger.info(
+                    f"Network check round {i} phase passed "
+                    f"(reason={fault_reason}), proceeding to next phase."
+                )
                 time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                 continue
             elif fault_nodes or (stragglers and self._config.exclude_straggler):
