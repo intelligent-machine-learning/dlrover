@@ -134,15 +134,21 @@ class TestDashboardManagerRunServer(unittest.TestCase):
 class TestDashboardManagerBroadcastLoop(unittest.TestCase):
     """Test DashboardManager._broadcast_loop()."""
 
+    @patch("tornado.ioloop.IOLoop")
     @patch("dlrover.dashboard.integrate_with_master.WebSocketHandler")
     @patch("dlrover.dashboard.integrate_with_master.JobContext")
-    def test_broadcast_loop_single_iteration(self, mock_jc_cls, mock_ws):
+    def test_broadcast_loop_single_iteration(
+        self, mock_jc_cls, mock_ws, mock_ioloop_cls
+    ):
         mock_ctx = MagicMock()
         mock_ctx.get_job_stage.return_value = "running"
         mock_ctx.get_running_node_size.return_value = 4
         mock_ctx.get_failed_node_size.return_value = 0
         mock_ctx.get_total_node_size.return_value = 4
         mock_jc_cls.singleton_instance.return_value = mock_ctx
+
+        mock_loop = MagicMock()
+        mock_ioloop_cls.current.return_value = mock_loop
 
         mgr = DashboardManager()
 
@@ -158,7 +164,9 @@ class TestDashboardManagerBroadcastLoop(unittest.TestCase):
         mgr._stop_event.wait = stop_after_first
         mgr._broadcast_loop()
 
-        mock_ws.broadcast.assert_called_once()
+        mock_loop.add_callback.assert_called_once()
+        args = mock_loop.add_callback.call_args[0]
+        self.assertIs(args[0], mock_ws.broadcast)
         self.assertEqual(call_count, 1)
 
     @patch("dlrover.dashboard.integrate_with_master.WebSocketHandler")
