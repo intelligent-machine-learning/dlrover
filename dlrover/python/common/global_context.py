@@ -183,17 +183,6 @@ class Context(Singleton):
         self.enable_dashboard = False
         self.dashboard_port = 8080
 
-        ########################## Resource elastic #########################
-        self.brain_resource_plan_ready = False
-        self.enable_elastic_resource = False
-        
-        self.elastic_dimension = ElasticDimension.HORIZONTAL
-
-        self.configmap_manual_scale_switch = "off"
-        self.resource_monitor_switch = "off"
-
-        self.temp_gpu_time_window_file_prefix = "dlrover_gpu_tw_"
-
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
             ConfigKeys.TRAIN_SPEED_RECORD_NUM,
