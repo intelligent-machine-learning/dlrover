@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node Details - DLRover Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <script src="/static/js/vue.global.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #4B5563 #E5E7EB;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #E5E7EB;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4B5563;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #374151;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div id="app" class="flex flex-col flex-1">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <button @click="goBack" class="flex items-center hover:bg-white/20 px-3 py-2 rounded-lg transition">
+                            <span class="mr-2">←</span> Back to Dashboard
+                        </button>
+                        <h1 class="text-3xl font-bold">Node Details</h1>
+                        <span class="bg-blue-500 text-white px-2 py-1 rounded text-xs font-semibold">{{ nodeType }}</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-white/20 px-3 py-1 rounded-full">
+                            <span class="text-sm">Total: {{ filteredNodes.length }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8 flex-1">
+            <!-- Search Bar -->
+            <div class="mb-6 bg-white rounded-lg shadow-md p-4">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1 relative">
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Search by Node ID, Name, or Status..."
+                            class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            @keyup.enter="handleSearch"
+                        >
+                        <div v-if="searchQuery" @click="clearSearch" class="absolute right-3 top-2.5 cursor-pointer text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            @click="handleSearch"
+                            class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center gap-2"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            Search
+                        </button>
+                        <button
+                            @click="clearSearch"
+                            class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-gray-600">
+                    Showing {{ filteredNodes.length }} of {{ nodes.length }} nodes
+                    <span v-if="searchQuery" class="ml-2">| Search results for "<span class="font-medium">{{ searchQuery }}</span>"</span>
+                </div>
+            </div>
+
+            <!-- Node List -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div v-for="node in paginatedNodes" :key="node.id" class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+                    <!-- Node Header -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-xl font-semibold">{{ node.name }}</h3>
+                            <span :class="getStatusClass(node.status)" class="px-3 py-1 rounded-full text-sm font-medium">
+                                {{ node.status }}
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-gray-700">#{{ node.id }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Node Details -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Rank:</span>
+                            <span class="font-medium">{{ node.rank_index ?? 'N/A' }}</span>
+                        </div>
+
+                        <div v-if="node.service_addr" class="flex items-center justify-between">
+                            <span class="text-gray-600">Address:</span>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ node.service_addr }}</code>
+                        </div>
+
+                        <div v-if="node.exit_reason" class="p-3 bg-red-50 border-l-4 border-red-500">
+                            <div class="text-sm">
+                                <span class="font-medium text-red-800">Exit Reason:</span>
+                                <p class="text-red-700 mt-1">{{ node.exit_reason }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="node.relaunch_count > 0" class="flex items-center justify-between">
+                            <span class="text-gray-600">Restart Count:</span>
+                            <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-medium">
+                                {{ node.relaunch_count }}
+                            </span>
+                        </div>
+
+                        <div v-if="node.start_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Start Time:</span>
+                            <span class="text-sm">{{ formatTime(node.start_time) }}</span>
+                        </div>
+
+                        <div v-if="node.relaunch_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Last Restart:</span>
+                            <span class="text-sm">{{ formatTime(node.relaunch_time) }}</span>
+                        </div>
+
+                        <div v-if="isTerminalState(node.status) && node.finish_time" class="flex items-center justify-between">
+                            <span class="text-gray-600">Finish Time:</span>
+                            <span class="text-sm">{{ formatTime(node.finish_time) }}</span>
+                        </div>
+
+                        <div v-if="node.succession" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Succession Information</div>
+                            <div class="bg-blue-50 p-3 rounded">
+                                <p class="text-sm">This node is a replacement for {{ node.succession.predecessor }}</p>
+                                <p class="text-sm text-gray-600">Succession reason: {{ node.succession.reason }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="node.resource_spec" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Resource Specification</div>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div v-if="node.resource_spec.cpu">
+                                    <span class="text-gray-600">CPU:</span>
+                                    <span class="font-medium">{{ node.resource_spec.cpu }} cores</span>
+                                </div>
+                                <div v-if="node.resource_spec.memory">
+                                    <span class="text-gray-600">Memory:</span>
+                                    <span class="font-medium">{{ formatMemory(node.resource_spec.memory) }}</span>
+                                </div>
+                                <div v-if="node.resource_spec.gpu">
+                                    <span class="text-gray-600">GPU:</span>
+                                    <span class="font-medium">{{ node.resource_spec.gpu }} units</span>
+                                </div>
+                                <div v-if="node.resource_spec.disk">
+                                    <span class="text-gray-600">Disk:</span>
+                                    <span class="font-medium">{{ formatMemory(node.resource_spec.disk) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="node.health_check && node.health_check.status" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Health Status</div>
+                            <div class="flex items-center space-x-2">
+                                <span :class="node.health_check.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                      class="px-2 py-1 rounded text-xs">
+                                    {{ node.health_check.status }}
+                                </span>
+                                <span class="text-xs text-gray-600">{{ node.health_check.last_check }}</span>
+                            </div>
+                        </div>
+
+                        <div v-if="node.consanguinity" class="border-t pt-3 mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-2">Consanguinity</div>
+                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <div class="flex items-center space-x-2 text-sm">
+                                    <span class="text-gray-600">Lineage:</span>
+                                    <span class="font-mono font-bold text-blue-700">{{ node.consanguinity }}</span>
+                                </div>
+                                <div class="text-gray-500 text-xs mt-1">
+                                    Node fault tolerance evolution based on type and rank
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-2 mt-4 pt-4 border-t">
+                        <button @click="viewLogs(node)" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition">
+                            View Logs
+                        </button>
+                        <button v-if="node.status === 'PENDING' || node.status === 'FAILED'" @click="restartNode(node)"
+                                class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded transition">
+                            Restart
+                        </button>
+                        <button v-if="node.status === 'RUNNING'" @click="stopNode(node)"
+                                class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition">
+                            Stop
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No Nodes Message -->
+            <div v-if="!nodes || nodes.length === 0" class="text-center py-12">
+                <div class="text-gray-400 text-6xl mb-4">🖥️</div>
+                <h3 class="text-xl font-medium text-gray-600 mb-2">No {{ nodeType }} Nodes Found</h3>
+                <p class="text-gray-500">No nodes of type {{ nodeType }} are currently available.</p>
+            </div>
+        </main>
+
+        <!-- Pagination Controls -->
+        <div v-if="filteredNodes.length > 0" class="bg-white border-t shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <!-- Left side - Results info -->
+                    <div class="text-sm text-gray-600">
+                        Showing {{ startItem }} - {{ endItem }} of {{ filteredNodes.length }} nodes
+                    </div>
+
+                    <!-- Right side - Controls -->
+                    <div class="flex items-center gap-4">
+                        <!-- Items per page -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm text-gray-600">Items per page:</label>
+                            <select
+                                v-model="itemsPerPage"
+                                class="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                @change="currentPage = 1"
+                            >
+                                <option :value="10">10</option>
+                                <option :value="20">20</option>
+                                <option :value="50">50</option>
+                                <option :value="100">100</option>
+                            </select>
+                        </div>
+
+                        <!-- Page navigation -->
+                        <div class="flex items-center gap-2">
+                            <button
+                                @click="currentPage--"
+                                :disabled="currentPage === 1"
+                                class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                Previous
+                            </button>
+
+                            <!-- Page numbers -->
+                            <div class="flex items-center gap-1">
+                                <button
+                                    v-if="currentPage > 3"
+                                    @click="currentPage = 1"
+                                    class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 transition"
+                                >
+                                    1
+                                </button>
+                                <span v-if="currentPage > 4" class="px-1">...</span>
+
+                                <button
+                                    v-for="page in visiblePages"
+                                    :key="page"
+                                    @click="currentPage = page"
+                                    :class="[
+                                        'px-3 py-1 border rounded transition',
+                                        currentPage === page
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'border-gray-300 hover:bg-gray-50'
+                                    ]"
+                                >
+                                    {{ page }}
+                                </button>
+
+                                <span v-if="currentPage < totalPages - 3" class="px-1">...</span>
+                                <button
+                                    v-if="currentPage < totalPages - 2"
+                                    @click="currentPage = totalPages"
+                                    class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 transition"
+                                >
+                                    {{ totalPages }}
+                                </button>
+                            </div>
+
+                            <button
+                                @click="currentPage++"
+                                :disabled="currentPage === totalPages"
+                                class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                Next
+                            </button>
+                        </div>
+
+                        <!-- Page input -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Page</span>
+                            <input
+                                type="number"
+                                v-model.number="currentPage"
+                                :min="1"
+                                :max="totalPages"
+                                class="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                @keyup.enter="handlePageInput"
+                            >
+                            <span class="text-sm text-gray-600">of {{ totalPages }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Modal -->
+        <div v-if="showLogs" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-xl w-11/12 max-w-4xl max-h-3/4 max-h-screen">
+                <div class="p-6 border-b">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">Node Logs - {{ selectedNode?.name || 'N/A' }}</h2>
+                        <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700">
+                            <span class="text-2xl">✕</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-y-auto max-h-96">
+                    <div class="bg-gray-900 text-gray-100 p-4 rounded-lg custom-scrollbar overflow-x-auto">
+                        <pre class="text-sm font-mono" v-html="currentLogs || 'No logs available'"></pre>
+                    </div>
+                </div>
+                <div class="p-6 border-t">
+                    <button @click="refreshLogs" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded mr-2">
+                        Refresh
+                    </button>
+                    <button @click="showLogs = false" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const nodeType = ref('');
+                const nodes = ref([]);
+                const selectedNode = ref(null);
+                const showLogs = ref(false);
+                const currentLogs = ref('');
+
+                // Search and pagination
+                const searchQuery = ref('');
+                const currentPage = ref(1);
+                const itemsPerPage = ref(20);
+                const searchedQuery = ref('');
+
+                // Helper functions
+                const getStatusClass = (status) => {
+                    const classes = {
+                        'RUNNING': 'bg-green-100 text-green-800',
+                        'SUCCEEDED': 'bg-blue-100 text-blue-800',
+                        'FAILED': 'bg-red-100 text-red-800',
+                        'PENDING': 'bg-yellow-100 text-yellow-800',
+                        'FINISHED': 'bg-gray-100 text-gray-800',
+                        'STOPPED': 'bg-gray-100 text-gray-800'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-800';
+                };
+
+                const checkForMockMode = () => {
+                    // Only check URL param - do NOT fall back to sessionStorage
+                    const urlMock = new URLSearchParams(window.location.search).get('mock') === 'true';
+
+                    if (urlMock) {
+                        sessionStorage.setItem('dlrover_mock_mode', 'true');
+                        return true;
+                    }
+
+                    // Explicitly clear session when not in mock mode
+                    sessionStorage.removeItem('dlrover_mock_mode');
+                    return false;
+                };
+
+                const formatTime = (timestamp) => {
+                    if (!timestamp) return 'N/A';
+                    if (typeof timestamp === 'number') {
+                        timestamp = timestamp * 1000; // Convert Unix timestamp to milliseconds
+                    }
+                    return new Date(timestamp).toLocaleString();
+                };
+
+                const isTerminalState = (status) => {
+                    const terminalStates = ['FAILED', 'SUCCEEDED', 'FINISHED', 'STOPPED', 'DELETED'];
+                    return terminalStates.includes(status);
+                };
+
+                const formatMemory = (bytes) => {
+                    if (!bytes) return 'N/A';
+                    const gb = bytes / (1024 * 1024 * 1024);
+                    return gb.toFixed(1) + ' GB';
+                };
+
+                const getNodeTypeFromURL = () => {
+                    const params = new URLSearchParams(window.location.search);
+                    return params.get('type') || 'WORKER';
+                };
+
+                const goBack = () => {
+                    window.history.back();
+                };
+
+                const viewLogs = async (node) => {
+                    selectedNode.value = node;
+                    showLogs.value = true;
+                    await refreshLogs();
+                };
+
+                const refreshLogs = async () => {
+                    if (!selectedNode.value) return;
+                    try {
+                        // Try to fetch logs from API first
+                        const response = await fetch(`/api/logs/${selectedNode.value.name}`);
+                        if (!response.ok) {
+                            throw new Error('Unable to fetch logs');
+                        }
+                        const data = await response.json();
+                        currentLogs.value = DashboardUtils.parseLogs(data.logs) || 'No logs available';
+                    } catch (error) {
+                        console.error('Error fetching logs:', error);
+                        // Generate mock logs for testing
+                        currentLogs.value = generateMockLogs(selectedNode.value.name);
+                    }
+                };
+
+                const generateMockLogs = (nodeName) => {
+                    const statuses = ['INFO', 'DEBUG', 'WARN', 'ERROR'];
+                    const messages = [
+                        'Starting node initialization...',
+                        'Loading TensorFlow model',
+                        'Connecting to parameter servers',
+                        'Worker registration complete',
+                        'Beginning training loop',
+                        'Saving checkpoint to /data/checkpoints/model.ckpt',
+                        '[ERROR] Connection timeout to ps-0',
+                        '[WARN] High memory usage detected',
+                        'Restarting after connection failure',
+                        'Training step 10000 completed'
+                    ];
+
+                    let logs = '';
+                    const offset = nodeName.charCodeAt(nodeName.length - 1) % 5; // Add some variation
+
+                    for (let i = 0; i < 50; i++) {
+                        const status = statuses[Math.floor(Math.random() * statuses.length)];
+                        const message = messages[Math.floor(Math.random() * messages.length)];
+                        const time = new Date(Date.now() - (49 - i) * 1000).toTimeString().split(' ')[0];
+
+                        let logLine = '';
+                        if (status === 'ERROR') {
+                            logLine = `<span class="text-red-400">${time} [ERROR] ${message}</span>`;
+                        } else if (status === 'WARN') {
+                            logLine = `<span class="text-yellow-400">${time} [WARN] ${message}</span>`;
+                        } else if (status === 'DEBUG') {
+                            logLine = `<span class="text-blue-400">${time} [DEBUG] ${message}</span>`;
+                        } else {
+                            logLine = `${time} [INFO] ${message}`;
+                        }
+
+                        logs += logLine + '\n';
+                    }
+
+                    return logs || 'No logs available';
+                };
+
+                const restartNode = async (node) => {
+                    if (confirm(`Are you sure you want to restart ${node.name}?`)) {
+                        try {
+                            console.log(`restartNode: Restarting ${node.name}`);
+                            // Make API call to restart node
+                            const response = await fetch(`/api/restart/${node.name}`, {
+                                method: 'POST'
+                            });
+                            if (response.ok) {
+                                console.log(`Node ${node.name} restarted successfully`);
+                                // Refresh data
+                                await fetchNodesForType();
+                            } else {
+                                throw new Error('Failed to restart node');
+                            }
+                        } catch (error) {
+                            console.error('Error restarting node:', error);
+                            alert('Failed to restart node. Please check logs.');
+                        }
+                    }
+                };
+
+                const stopNode = async (node) => {
+                    if (confirm(`Are you sure you want to stop ${node.name}?`)) {
+                        try {
+                            console.log(`stopNode: Stopping ${node.name}`);
+                            const response = await fetch(`/api/stop/${node.name}`, {
+                                method: 'POST'
+                            });
+                            if (response.ok) {
+                                console.log(`Node ${node.name} stopped successfully`);
+                                // Refresh data
+                                await fetchNodesForType();
+                            } else {
+                                throw new Error('Failed to stop node');
+                            }
+                        } catch (error) {
+                            console.error('Error stopping node:', error);
+                            alert('Failed to stop node. Please check logs.');
+                        }
+                    }
+                };
+
+                const fetchNodesForType = async () => {
+                    try {
+                        const mockMode = checkForMockMode();
+                        console.log('fetchNodesForType: Current URL:', window.location.href);
+                        console.log('fetchNodesForType: Mock mode detected:', mockMode);
+
+                        if (mockMode) {
+                            // Generate mock data
+                            console.log('fetchNodesForType: Loading mock data');
+                            generateMockNodesForType();
+                            return;
+                        }
+
+                        console.log('fetchNodesForType: Attempting API fetch');
+                        // Try to fetch from actual API
+                        const response = await fetch('/api/nodes');
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('fetchNodesForType: API data received:', Object.keys(data));
+                            nodes.value = data[nodeType.value] || [];
+                            console.log('fetchNodesForType: Nodes set:', nodes.value.length);
+                        } else {
+                            throw new Error('Failed to fetch nodes');
+                        }
+                    } catch (error) {
+                        console.error('Error fetching nodes:', error);
+                        // Fallback to mock data - only when in mock mode
+                        if (checkForMockMode()) {
+                            console.log('fetchNodesForType: Fallback to mock data');
+                            generateMockNodesForType();
+                        }
+                    }
+                };
+
+                // Generate mock nodes for testing
+                const generateMockNodesForType = () => {
+                    try {
+                        const mockNodes = [];
+                        const count = nodeType.value === 'WORKER' ? 25 : 12;
+
+                        // Define which rank_index values have multiple instances (fault tolerance occurred)
+                        // key: rank_index, value: [id1, id2, ...] ordered by creation time
+                        const multiInstanceRanks = {
+                            0: [0, 12, 24],      // rank_index=0 has 3 instances: id=0 failed -> id=12 failed -> id=24 running
+                            3: [3, 18],          // rank_index=3 has 2 instances: id=3 failed -> id=18 running
+                        };
+
+                        // Generate nodes
+                        for (let i = 0; i < count; i++) {
+                            // Determine rank_index (logical identity)
+                            let rank_index = i;
+                            let instanceIndex = 0;
+                            for (const [rank, ids] of Object.entries(multiInstanceRanks)) {
+                                const idx = ids.indexOf(i);
+                                if (idx !== -1) {
+                                    rank_index = parseInt(rank);
+                                    instanceIndex = idx;
+                                    break;
+                                }
+                            }
+
+                            const node = {
+                                id: i,
+                                name: `${nodeType.value.toLowerCase()}-${i}`,
+                                type: nodeType.value,
+                                rank_index: rank_index,
+                                status: 'RUNNING',
+                                service_addr: `${nodeType.value.toLowerCase()}-${i}:2222`,
+                                start_time: Date.now() - (3600 + i * 60 + instanceIndex * 300) * 1000,
+                                exit_reason: '',
+                                relaunch_count: instanceIndex
+                            };
+
+                            // Set status for multi-instance nodes
+                            if (multiInstanceRanks[rank_index]) {
+                                const ids = multiInstanceRanks[rank_index];
+                                const totalInstances = ids.length;
+                                const myInstanceIndex = ids.indexOf(i);
+
+                                if (myInstanceIndex < totalInstances - 1) {
+                                    // Not the last instance -> already failed
+                                    node.status = 'FAILED';
+                                    node.exit_reason = 'Container exited with code 137';
+                                    node.service_addr = '';
+                                    // Failed nodes have finish_time
+                                    node.finish_time = Date.now() - (3000 + i * 60) * 1000;
+                                } else {
+                                    // Last instance -> currently running
+                                    node.status = 'RUNNING';
+                                }
+                            } else {
+                                // Single-instance nodes: set different status based on id
+                                if (i === 0) {
+                                    node.status = 'FAILED';
+                                    node.exit_reason = 'Container exited with code 137';
+                                    node.service_addr = '';
+                                } else if (i % 7 === 0) {
+                                    node.status = 'PENDING';
+                                } else {
+                                    node.status = 'RUNNING';
+                                }
+                            }
+
+                            // Add finish_time for terminal states
+                            if (isTerminalState(node.status) && !node.finish_time) {
+                                node.finish_time = Date.now() - (30 + i * 3) * 60 * 1000;
+                            }
+
+                            // Add mock resource specs
+                            if (nodeType.value === 'WORKER' && i > 0) {
+                                node.resource_spec = {
+                                    cpu: 2 + (i % 3),
+                                    memory: (8192 + i * 512) * 1024 * 1024,
+                                    gpu: i % 2,
+                                    disk: (100 + i * 10) * 1024 * 1024 * 1024
+                                };
+                            }
+
+                            // Add health check for running nodes
+                            if (node.status === 'RUNNING') {
+                                node.health_check = {
+                                    status: 'healthy',
+                                    last_check: '2 minutes ago'
+                                };
+                            }
+
+                            mockNodes.push(node);
+                        }
+
+                        // Generate Consanguinity (fault tolerance lineage)
+                        // Group by rank_index, sort by start_time, generate lineage chain
+                        const rankGroups = {};
+                        for (const node of mockNodes) {
+                            if (!rankGroups[node.rank_index]) {
+                                rankGroups[node.rank_index] = [];
+                            }
+                            rankGroups[node.rank_index].push(node);
+                        }
+
+                        // Sort each group by start_time and generate Consanguinity
+                        for (const nodes of Object.values(rankGroups)) {
+                            nodes.sort((a, b) => a.start_time - b.start_time);
+
+                            if (nodes.length > 1) {
+                                // Multiple instances -> generate lineage chain
+                                const chain = nodes.map(n => n.id).join(' -> ');
+                                for (const node of nodes) {
+                                    node.consanguinity = chain;
+                                }
+                            }
+                            // If only one instance, don't set consanguinity (display empty)
+                        }
+
+                        console.log('generateMockNodesForType: Generated', mockNodes.length, 'mock nodes');
+                        nodes.value = mockNodes;
+
+                    } catch (error) {
+                        console.error('Error generating mock nodes:', error);
+                        // Fallback to simplest possible data
+                        nodes.value = [{
+                            id: 0,
+                            name: 'test-node-0',
+                            type: 'WORKER',
+                            status: 'RUNNING'
+                        }];
+                    }
+                };
+
+                // Search functionality
+                const handleSearch = () => {
+                    searchedQuery.value = searchQuery.value.toLowerCase().trim();
+                    currentPage.value = 1;
+                };
+
+                const clearSearch = () => {
+                    searchQuery.value = '';
+                    searchedQuery.value = '';
+                    currentPage.value = 1;
+                };
+
+                // Computed properties
+                const filteredNodes = computed(() => {
+                    if (!searchedQuery.value) return nodes.value;
+
+                    return nodes.value.filter(node => {
+                        const query = searchedQuery.value;
+                        return (
+                            node.id.toString().includes(query) ||
+                            node.name.toLowerCase().includes(query) ||
+                            node.status.toLowerCase().includes(query)
+                        );
+                    });
+                });
+
+                const totalPages = computed(() => {
+                    return Math.ceil(filteredNodes.value.length / itemsPerPage.value);
+                });
+
+                const paginatedNodes = computed(() => {
+                    const start = (currentPage.value - 1) * itemsPerPage.value;
+                    const end = start + itemsPerPage.value;
+                    return filteredNodes.value.slice(start, end);
+                });
+
+                const startItem = computed(() => {
+                    if (filteredNodes.value.length === 0) return 0;
+                    return (currentPage.value - 1) * itemsPerPage.value + 1;
+                });
+
+                const endItem = computed(() => {
+                    return Math.min(currentPage.value * itemsPerPage.value, filteredNodes.value.length);
+                });
+
+                const visiblePages = computed(() => {
+                    const pages = [];
+                    const start = Math.max(1, currentPage.value - 2);
+                    const end = Math.min(totalPages.value, currentPage.value + 2);
+
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                });
+
+                const handlePageInput = () => {
+                    if (currentPage.value < 1) currentPage.value = 1;
+                    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+                };
+
+                // Watch for node type changes
+                watch(nodeType, () => {
+                    fetchNodesForType();
+                    clearSearch();
+                });
+
+                onMounted(() => {
+                    console.log('node_detail page mounted');
+                    console.log('URL params:', window.location.search);
+                    nodeType.value = getNodeTypeFromURL();
+                    console.log('Detected node type:', nodeType.value);
+                    fetchNodesForType();
+                });
+
+                return {
+                    nodeType,
+                    nodes,
+                    selectedNode,
+                    showLogs,
+                    currentLogs,
+                    searchQuery,
+                    currentPage,
+                    itemsPerPage,
+                    filteredNodes,
+                    paginatedNodes,
+                    totalPages,
+                    startItem,
+                    endItem,
+                    visiblePages,
+                    getStatusClass,
+                    isTerminalState,
+                    formatTime,
+                    formatMemory,
+                    goBack,
+                    viewLogs,
+                    refreshLogs,
+                    restartNode,
+                    stopNode,
+                    handleSearch,
+                    clearSearch,
+                    handlePageInput
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

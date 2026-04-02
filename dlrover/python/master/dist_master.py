@@ -133,6 +133,7 @@ class DistributedJobMaster(JobMaster):
                 )
 
         self._job_ctx = get_job_context()
+        self._job_ctx.set_job_args(args)
         self.perf_monitor = PerfMonitor()
         self.job_manager = (
             create_job_manager(args, self.perf_monitor)

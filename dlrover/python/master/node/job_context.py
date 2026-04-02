@@ -36,6 +36,7 @@ from dlrover.python.diagnosis.common.constants import (
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisActionQueue,
 )
+from dlrover.python.scheduler.job import JobArgs
 
 _dlrover_context = Context.singleton_instance()
 
@@ -47,6 +48,7 @@ class JobContext(Singleton):
     """
 
     def __init__(self):
+        self._job_args = None
         self._exit_code = 0
         self._exit_reason = None
 
@@ -68,6 +70,12 @@ class JobContext(Singleton):
         # the value is a dict with rank_index as key
         self._job_node_groups: Dict[int, Dict[int, Node]] = {}
         self._max_group_idx = DefaultValues.FIRST_GROUP_IDX
+
+    def set_job_args(self, args):
+        self._job_args = args
+
+    def get_job_args(self) -> JobArgs:
+        return self._job_args
 
     def get_exit_code(self):
         return self._exit_code
@@ -327,6 +335,22 @@ class JobContext(Singleton):
 
     def get_failed_node_cnt(self):
         return len(self._failed_nodes)
+
+    def get_running_node_size(self):
+        """Get number of running nodes across all types."""
+        running_count = 0
+        with self._locker:
+            for node_type in [
+                NodeType.WORKER,
+                NodeType.PS,
+                NodeType.CHIEF,
+                NodeType.EVALUATOR,
+            ]:
+                if node_type in self._job_nodes:
+                    for node in self._job_nodes[node_type].values():
+                        if node.status == NodeStatus.RUNNING:
+                            running_count += 1
+        return running_count
 
     def set_pre_check_status(self, status: str):
         self._pre_check_status = status
