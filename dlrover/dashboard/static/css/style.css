@@ -1,0 +1,136 @@
+/* DLRover Dashboard Custom Styles */
+
+/* Status indicators */
+.status-running {
+    background-color: #10b981 !important;  /* green-500 */
+    color: white;
+}
+
+.status-failed {
+    background-color: #ef4444 !important;  /* red-500 */
+    color: white;
+}
+
+.status-pending {
+    background-color: #f59e0b !important;  /* yellow-500 */
+    color: white;
+}
+
+.status-succeeded {
+    background-color: #3b82f6 !important;  /* blue-500 */
+    color: white;
+}
+
+/* Pulse animation for live status */
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+.live-indicator {
+    animation: pulse-glow 2s infinite;
+}
+
+/* Custom scrollbar for logs */
+.log-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.log-container::-webkit-scrollbar-track {
+    background: #1f2937;  /* gray-800 */
+}
+
+.log-container::-webkit-scrollbar-thumb {
+    background: #4b5563;  /* gray-600 */
+    border-radius: 4px;
+}
+
+.log-container::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;  /* gray-500 */
+}
+
+/* Node type badges */
+.node-worker {
+    background-color: #3b82f6;  /* blue-500 */
+}
+
+.node-ps {
+    background-color: #10b981;  /* green-500 */
+}
+
+.node-chief {
+    background-color: #8b5cf6;  /* purple-500 */
+}
+
+.node-evaluator {
+    background-color: #f59e0b;  /* yellow-500 */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .grid-cols-2 {
+        grid-template-columns: 1fr !important;
+    }
+
+    .lg\\:grid-cols-3 {
+        grid-template-columns: 1fr !important;
+    }
+
+    .lg\\:col-span-2 {
+        grid-column: span 1 !important;
+    }
+
+    .container {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+}
+
+/* Loading animation */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading {
+    animation: spin 1s linear infinite;
+}
+
+/* Tooltip styles */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: #374151;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}

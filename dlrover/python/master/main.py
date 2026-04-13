@@ -13,6 +13,7 @@
 
 import os
 
+from dlrover.dashboard.integrate_with_master import add_dashboard_to_master
 from dlrover.python.common.constants import (
     Accelerators,
     DistributionStrategy,
@@ -64,6 +65,12 @@ def run(args):
     _dlrover_context.dynamic_failover_extension = (
         args.dynamic_failover_extension
     )
+    _dlrover_context.enable_dashboard = args.enable_dashboard.lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    _dlrover_context.dashboard_port = args.dashboard_port
 
     job_args.training_elastic_mode = args.training_elastic_mode
     if args.xpu_type.lower() == "ascend":
@@ -89,6 +96,16 @@ def run(args):
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
     master.pre_check()
+
+    # Add dashboard
+    dashboard_config = {
+        "enable": _dlrover_context.enable_dashboard,
+        "host": "0.0.0.0",
+        "port": _dlrover_context.dashboard_port,
+    }
+    logger.info(f"Dashboard config: {dashboard_config}")
+    add_dashboard_to_master(master, dashboard_config)
+
     return master.run()
 
 
