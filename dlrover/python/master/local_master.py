@@ -40,6 +40,8 @@ from dlrover.python.scheduler.job import JobArgs
 
 class LocalJobMaster(JobMaster):
     def __init__(self, port, args: JobArgs):
+        self._job_ctx = get_job_context()
+        self._job_ctx.set_job_args(args)
         self.perf_monitor = PerfMonitor()
         self.task_manager = TaskManager(0, self.perf_monitor)
         self.job_manager = create_job_manager(args, self.perf_monitor)
