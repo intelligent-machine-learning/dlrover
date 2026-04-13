@@ -674,11 +674,6 @@ def _create_group_node_meta(node_id, node_rank, group, group_size, group_id):
 
 class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
     def _setup_manager(self, num_nodes, groups):
-        """Setup a GroupNodeNetworkCheckRendezvousManager with group info.
-        Args:
-            num_nodes: total number of nodes.
-            groups: dict mapping group_index -> list of node_ranks.
-        """
         manager = GroupNodeNetworkCheckRendezvousManager()
         manager.update_rdzv_params(num_nodes, num_nodes, 60, 1)
         manager._alive_nodes = set(range(num_nodes))
@@ -924,3 +919,113 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(len(node_groups), 2)
         self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
         self.assertListEqual(sorted(node_groups[1].keys()), [2, 3])
+
+    def test_group_node_unequal_group_sizes(self):
+        """Unequal group sizes: G0 has 3 nodes, G1 has 2.
+
+        Covers single-node merge branches in _group_inter_initial
+        and _group_inter_diagnostic.
+        """
+        # G0=[0,1,2], G1=[3,4]
+        groups = {0: [0, 1, 2], 1: [3, 4]}
+        manager = self._setup_manager(5, groups)
+
+        # Round 0: INTRA_INITIAL - all pass.
+        manager._group_nodes(0)
+        for i in range(5):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+
+        # Round 1: INTER_INITIAL - same-position pairing.
+        # Position 0: {0,3}, Position 1: {1,4}, Position 2: {2} (single)
+        # Single node 2 should be merged into the last group -> {1,4,2}.
+        node_groups = manager._group_nodes(1)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL
+        )
+        self.assertEqual(len(node_groups), 2)
+        self.assertListEqual(sorted(node_groups[0].keys()), [0, 3])
+        self.assertIn(2, node_groups[1])
+        self.assertIn(1, node_groups[1])
+        self.assertIn(4, node_groups[1])
+
+        # Some inter failures -> trigger INTER_DIAGNOSTIC.
+        for i in range(5):
+            manager._node_status[i] = True
+            manager._node_times[i] = 1.0
+        manager._node_status[3] = False
+        manager._node_times[3] = 5.0
+
+        # Round 2: INTER_DIAGNOSTIC - shifted pairing.
+        # G0 shift 0: [0,1,2], G1 shift 1: [4,3] (sorted by time then shifted)
+        # Position 0: {0,4}, Position 1: {1,3}, Position 2: {2} (single)
+        # Single node 2 should be merged into the last group -> {1,3,2}.
+        node_groups = manager._group_nodes(2)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC
+        )
+        self.assertEqual(len(node_groups), 2)
+        # All 5 nodes must be covered across the 2 groups.
+        all_ranks = set()
+        for group in node_groups:
+            all_ranks.update(group.keys())
+        self.assertEqual(all_ranks, {0, 1, 2, 3, 4})
+
+    def test_group_node_get_comm_world(self):
+        """Test get_comm_world override with phase-aware clear logic."""
+        # G0=[0,1], G1=[2,3] — use _waiting_nodes so
+        # _check_rdzv_completed triggers naturally.
+        manager = GroupNodeNetworkCheckRendezvousManager()
+        manager.update_rdzv_params(4, 4, 60, 1)
+        manager._alive_nodes = set(range(4))
+
+        groups = {0: [0, 1], 1: [2, 3]}
+        group_size = len(groups)
+        for g_idx, ranks in groups.items():
+            group_id = f"group-{g_idx}"
+            for rank in ranks:
+                meta = _create_group_node_meta(
+                    rank, rank, g_idx, group_size, group_id
+                )
+                manager._waiting_nodes[rank] = meta
+
+        # --- Round 0 (INTRA_INITIAL): round_in_cycle==0 => clear_check_status
+        rdzv_round, group_idx, world = manager.get_comm_world(0)
+        self.assertEqual(rdzv_round, 1)  # round incremented after completion
+        self.assertIn(0, world)
+        # Node 0 should be in some group.
+        self.assertTrue(len(world) >= 1)
+        # _node_status should be cleared (round_in_cycle==0).
+        self.assertEqual(manager._node_status, {})
+
+        # Verify node_rank not in any group returns fallback.
+        rdzv_round, group_idx, world = manager.get_comm_world(99)
+        self.assertEqual(group_idx, 0)
+        # Fallback returns all rdzv_nodes.
+        self.assertEqual(len(world), 4)
+
+        # Report all nodes pass intra check.
+        for i in range(4):
+            manager.report_network_check_result(i, True, 1.0)
+
+        # check_fault_node should return NEXT_PHASE (intra passed).
+        nodes, reason = manager.check_fault_node()
+        self.assertEqual(reason, NetworkFailureReason.NEXT_PHASE)
+
+        # --- Round 1: all rejoin for the next phase.
+        # Clear _node_groups as join_rendezvous would do.
+        manager._node_groups.clear()
+        for g_idx, ranks in groups.items():
+            group_id = f"group-{g_idx}"
+            for rank in ranks:
+                meta = _create_group_node_meta(
+                    rank, rank, g_idx, group_size, group_id
+                )
+                manager._waiting_nodes[rank] = meta
+
+        # round_in_cycle==1 and _intra_passed==True => clear_check_status
+        rdzv_round, group_idx, world = manager.get_comm_world(0)
+        self.assertEqual(rdzv_round, 2)
+        self.assertTrue(manager._intra_passed)
+        # _node_status should be cleared (switching from intra to inter).
+        self.assertEqual(manager._node_status, {})
