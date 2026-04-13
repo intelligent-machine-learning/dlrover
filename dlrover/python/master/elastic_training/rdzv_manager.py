@@ -1025,9 +1025,7 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
         if not group_indices:
             return []
 
-        max_size = max(
-            len(self._node_group_map[g]) for g in group_indices
-        )
+        max_size = max(len(self._node_group_map[g]) for g in group_indices)
         node_groups = []
         for pos in range(max_size):
             group = {}
@@ -1058,9 +1056,7 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
         if not group_indices:
             return []
 
-        max_size = max(
-            len(self._node_group_map[g]) for g in group_indices
-        )
+        max_size = max(len(self._node_group_map[g]) for g in group_indices)
 
         # Sort ranks within each group by elapsed time for better diagnosis.
         shifted_ranks = {}
@@ -1175,7 +1171,10 @@ class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
 
                 if not self._fault_nodes and not stragglers:
                     # No faults found in this phase.
-                    if self._current_phase == GroupNodeCheckPhase.INTRA_INITIAL:
+                    if (
+                        self._current_phase
+                        == GroupNodeCheckPhase.INTRA_INITIAL
+                    ):
                         # Intra passed, need to continue with inter check.
                         logger.info(
                             f"Phase {self._current_phase} passed with no "

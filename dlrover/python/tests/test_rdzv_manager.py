@@ -673,7 +673,6 @@ def _create_group_node_meta(node_id, node_rank, group, group_size, group_id):
 
 
 class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
-
     def _setup_manager(self, num_nodes, groups):
         """Setup a GroupNodeNetworkCheckRendezvousManager with group info.
         Args:
@@ -710,7 +709,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 0: INTRA_INITIAL - adjacent pairing within groups.
         node_groups = manager._group_nodes(0)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL
+        )
         # G0: {0,1}, {2,3}, G1: {4,5}, {6,7}
         self.assertEqual(len(node_groups), 4)
         self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
@@ -725,7 +726,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 1: INTER_INITIAL - same-position cross-group pairing.
         node_groups = manager._group_nodes(1)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL
+        )
         # {0,4}, {1,5}, {2,6}, {3,7}
         self.assertEqual(len(node_groups), 4)
         self.assertListEqual(sorted(node_groups[0].keys()), [0, 4])
@@ -749,7 +752,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 0: INTRA_INITIAL.
         manager._group_nodes(0)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL
+        )
 
         # Node 1 fails in intra check.
         for i in range(8):
@@ -761,7 +766,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 1: should be INTRA_DIAGNOSTIC.
         node_groups = manager._group_nodes(1)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_DIAGNOSTIC)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTRA_DIAGNOSTIC
+        )
         # Cross pairing within groups: sorted by time.
         # G0 sorted by time: [0(1.0), 2(1.0), 3(1.0), 1(5.0)]
         # Pairs: {0,1}, {2,3} (fastest with slowest).
@@ -797,7 +804,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
         # Round 1: INTER_INITIAL - node 4 fails.
         manager._fault_nodes.clear()
         node_groups = manager._group_nodes(1)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL
+        )
 
         manager._reported_nodes = set(range(8))
         for i in range(8):
@@ -809,7 +818,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 2: INTER_DIAGNOSTIC.
         node_groups = manager._group_nodes(2)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC
+        )
         # Shifted pairing: G0 shift 0, G1 shift 1.
         # The pairing should be different from INTER_INITIAL.
         self.assertTrue(len(node_groups) > 0)
@@ -828,7 +839,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 0: INTRA_INITIAL.
         node_groups = manager._group_nodes(0)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTRA_INITIAL
+        )
         # Each group has 1 pair: {0,1}, {2,3}, {4,5}, {6,7}
         self.assertEqual(len(node_groups), 4)
         self.assertListEqual(sorted(node_groups[0].keys()), [0, 1])
@@ -841,7 +854,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 1: INTER_INITIAL.
         node_groups = manager._group_nodes(1)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_INITIAL
+        )
         # Position 0: {0,2,4,6}, Position 1: {1,3,5,7}
         self.assertEqual(len(node_groups), 2)
         self.assertListEqual(sorted(node_groups[0].keys()), [0, 2, 4, 6])
@@ -876,7 +891,9 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
 
         # Round 2: INTER_DIAGNOSTIC - shifted pairing.
         node_groups = manager._group_nodes(2)
-        self.assertEqual(manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC)
+        self.assertEqual(
+            manager._current_phase, GroupNodeCheckPhase.INTER_DIAGNOSTIC
+        )
         self.assertTrue(len(node_groups) > 0)
         # Each group should have nodes from multiple groups.
         for group in node_groups:
@@ -892,9 +909,7 @@ class GroupNodeNetworkCheckRendezvousManagerTest(unittest.TestCase):
         manager._alive_nodes = set(range(4))
         for i in range(4):
             # No group info (default node_group=-1).
-            meta = NodeTopologyMeta(
-                node_id=i, node_rank=i, process_num=8
-            )
+            meta = NodeTopologyMeta(node_id=i, node_rank=i, process_num=8)
             manager._waiting_nodes[i] = meta
 
         from collections import OrderedDict

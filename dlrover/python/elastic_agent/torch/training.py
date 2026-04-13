@@ -2167,7 +2167,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 )
                 time.sleep(JobConstant.NODE_CHECK_NEXT_ROUND_TIMEOUT)
                 continue
-            elif fault_nodes or (stragglers and self._config.exclude_straggler):
+            elif fault_nodes or (
+                stragglers and self._config.exclude_straggler
+            ):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
