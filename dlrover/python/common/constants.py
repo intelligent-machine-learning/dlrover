@@ -19,6 +19,10 @@ class BasicClass(object):
     LOG_ROTATE_BACKUP_COUNT_ENV = "DLROVER_LOG_ROTATE_BACKUP_COUNT"
     LOG_AGENT_DIR_ENV = "DLROVER_LOG_AGENT_DIR"
 
+class BackendType(object):
+    GLOO = "gloo"
+    NCCL = "nccl"
+    HCCL = "hccl"
 
 class PriorityClass(object):
     LOW = "low"
