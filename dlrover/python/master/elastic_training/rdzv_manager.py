@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 from dlrover.python.common.constants import (
     EventReportConstants,
+    GroupNodeCheckPhase,
     NetworkFailureReason,
     RendezvousName,
     NodeType,
@@ -310,6 +311,17 @@ class RendezvousManager(metaclass=ABCMeta):
                     nodes.append(node_id)
         return nodes
 
+    def _query_node_group(self, node_id):
+        """Query group info for a node from job context.
+        Returns:
+            Tuple of (group_index, group_size, group_id).
+            Returns (-1, 0, "") if not found.
+        """
+        node = job_ctx.job_node(NodeType.WORKER, node_id)
+        if node and node.has_group():
+            return node.group, node.group_size, node.group_id
+        return -1, 0, ""
+
     def join_rendezvous(
         self,
         node_id,
@@ -336,6 +348,9 @@ class RendezvousManager(metaclass=ABCMeta):
                 )
                 return self._rdzv_round
             asw, psw = self._topology_querier.query(node_ip)
+            node_group, node_group_size, node_group_id = (
+                self._query_node_group(node_id)
+            )
             meta = NodeTopologyMeta(
                 node_id=node_id,
                 node_rank=node_rank,
@@ -343,6 +358,9 @@ class RendezvousManager(metaclass=ABCMeta):
                 process_num=local_world_size,
                 asw=asw,
                 psw=psw,
+                node_group=node_group,
+                node_group_size=node_group_size,
+                node_group_id=node_group_id,
             )
             logger.info(
                 f"Worker node with id: {meta.node_id}, "
@@ -853,6 +871,332 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             if t > med_time * 2:
                 stragglers[node_id] = t
         return stragglers
+
+
+class GroupNodeNetworkCheckRendezvousManager(NetworkCheckRendezvousManager):
+    """Network check manager for group node scenarios.
+
+    Nodes belong to node groups (e.g., connected via NVSwitch within a group
+    and via IB across groups). The check uses a three-phase state machine:
+
+    Phase 0 (INTRA_INITIAL): Intra-group adjacent pairing.
+    Phase 1: If phase 0 failed -> INTRA_DIAGNOSTIC (intra-group cross pairing).
+             If phase 0 passed -> INTER_INITIAL (inter-group same-position pairing).
+    Phase 2 (INTER_DIAGNOSTIC): Inter-group shifted pairing (only if phase 1
+             inter failed).
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._check_round = 3
+        self._current_phase = GroupNodeCheckPhase.INTRA_INITIAL
+        # key: group index (e.g., 0, 1, 2, ...)
+        # value: sorted list of node ranks belonging to that group
+        self._node_group_map: Dict[int, List[int]] = {}
+        self._intra_passed = False
+
+    def _build_node_group_map(self):
+        """Build a mapping from group index to list of node ranks."""
+        self._node_group_map.clear()
+        for rank, meta in self._rdzv_nodes.items():
+            group_idx = meta.node_group
+            if group_idx < 0:
+                continue
+            self._node_group_map.setdefault(group_idx, [])
+            self._node_group_map[group_idx].append(rank)
+        # Sort ranks within each group for deterministic pairing.
+        for group_idx in self._node_group_map:
+            self._node_group_map[group_idx].sort()
+        logger.info(
+            f"Built node group map: {dict(self._node_group_map)} "
+            f"({len(self._node_group_map)} groups, "
+            f"{len(self._rdzv_nodes)} total nodes)"
+        )
+
+    def _group_nodes(self, round):
+        """Group nodes based on the current phase of group node check."""
+        self._build_node_group_map()
+
+        if not self._node_group_map:
+            # Fallback to base behavior if no group info.
+            logger.info(
+                f"No group info found in round {round}, "
+                f"falling back to base NetworkCheck."
+            )
+            return super()._group_nodes(round)
+
+        round_in_cycle = round % self._check_round
+
+        if round_in_cycle == 0:
+            self._current_phase = GroupNodeCheckPhase.INTRA_INITIAL
+            self._intra_passed = False
+            logger.info(
+                f"Round {round}: entering phase {self._current_phase} "
+                f"(intra-group adjacent pairing)."
+            )
+            return self._group_intra_initial()
+        elif round_in_cycle == 1:
+            if self._has_intra_failures():
+                self._current_phase = GroupNodeCheckPhase.INTRA_DIAGNOSTIC
+                logger.info(
+                    f"Round {round}: intra failures detected, entering "
+                    f"phase {self._current_phase} "
+                    f"(intra-group cross pairing for diagnosis)."
+                )
+                return self._group_intra_diagnostic()
+            else:
+                self._intra_passed = True
+                self._current_phase = GroupNodeCheckPhase.INTER_INITIAL
+                logger.info(
+                    f"Round {round}: intra check passed, entering "
+                    f"phase {self._current_phase} "
+                    f"(inter-group same-position pairing)."
+                )
+                return self._group_inter_initial()
+        elif round_in_cycle == 2:
+            self._current_phase = GroupNodeCheckPhase.INTER_DIAGNOSTIC
+            logger.info(
+                f"Round {round}: entering phase {self._current_phase} "
+                f"(inter-group shifted pairing for diagnosis)."
+            )
+            return self._group_inter_diagnostic()
+        return []
+
+    def _has_intra_failures(self):
+        """Check if any node reported failure in the previous round."""
+        for status in self._node_status.values():
+            if not status:
+                return True
+        return False
+
+    def _group_intra_initial(self):
+        """Intra-group adjacent pairing.
+        E.g., G0=[0,1,2,3] -> {0,1}, {2,3}
+        """
+        node_groups = []
+        for ranks in self._node_group_map.values():
+            for i in range(0, len(ranks), 2):
+                group = {}
+                group[ranks[i]] = self._rdzv_nodes[ranks[i]]
+                if i + 1 < len(ranks):
+                    group[ranks[i + 1]] = self._rdzv_nodes[ranks[i + 1]]
+                node_groups.append(group)
+        return node_groups
+
+    def _group_intra_diagnostic(self):
+        """Intra-group cross pairing based on elapsed time.
+        Sort nodes within each group by elapsed time and pair fastest
+        with slowest to isolate the fault node.
+        E.g., G0=[0,1,2,3] sorted by time -> {0,3}, {1,2}
+        """
+        node_groups = []
+        for ranks in self._node_group_map.values():
+            # Sort ranks by elapsed time within the group.
+            sorted_ranks = sorted(
+                ranks,
+                key=lambda r: self._node_times.get(r, 0),
+            )
+            left, right = 0, len(sorted_ranks) - 1
+            while left < right:
+                group = {
+                    sorted_ranks[left]: self._rdzv_nodes[sorted_ranks[left]],
+                    sorted_ranks[right]: self._rdzv_nodes[sorted_ranks[right]],
+                }
+                node_groups.append(group)
+                left += 1
+                right -= 1
+            if left == right:
+                # Odd node: merge into the last group.
+                rank = sorted_ranks[left]
+                if node_groups:
+                    node_groups[-1][rank] = self._rdzv_nodes[rank]
+                else:
+                    node_groups.append({rank: self._rdzv_nodes[rank]})
+        return node_groups
+
+    def _group_inter_initial(self):
+        """Inter-group same-position pairing.
+        Group nodes at the same position across all groups.
+        E.g., G0=[0,1], G1=[4,5] -> {0,4}, {1,5}
+        For 4 groups: G0=[0,1], G1=[2,3], G2=[4,5], G3=[6,7]
+            -> {0,2,4,6}, {1,3,5,7}
+        """
+        group_indices = sorted(self._node_group_map.keys())
+        if not group_indices:
+            return []
+
+        max_size = max(len(self._node_group_map[g]) for g in group_indices)
+        node_groups = []
+        for pos in range(max_size):
+            group = {}
+            for g_idx in group_indices:
+                ranks = self._node_group_map[g_idx]
+                if pos < len(ranks):
+                    rank = ranks[pos]
+                    group[rank] = self._rdzv_nodes[rank]
+            if len(group) > 1:
+                node_groups.append(group)
+            elif group:
+                # Single node: merge into the last group.
+                if node_groups:
+                    node_groups[-1].update(group)
+                else:
+                    node_groups.append(group)
+        return node_groups
+
+    def _group_inter_diagnostic(self):
+        """Inter-group shifted pairing for cross-diagnosis.
+        Shift each group's rank list by its group position, then combine
+        by position to create new cross-group pairs.
+        E.g., G0=[0,1], G1=[4,5]:
+            G0 shift 0: [0,1], G1 shift 1: [5,4]
+            -> {0,5}, {1,4}
+        """
+        group_indices = sorted(self._node_group_map.keys())
+        if not group_indices:
+            return []
+
+        max_size = max(len(self._node_group_map[g]) for g in group_indices)
+
+        # Sort ranks within each group by elapsed time for better diagnosis.
+        shifted_ranks = {}
+        for i, g_idx in enumerate(group_indices):
+            ranks = sorted(
+                self._node_group_map[g_idx],
+                key=lambda r: self._node_times.get(r, 0),
+            )
+            # Circular shift by group position.
+            shift = i % len(ranks) if ranks else 0
+            shifted = ranks[shift:] + ranks[:shift]
+            shifted_ranks[g_idx] = shifted
+
+        node_groups = []
+        for pos in range(max_size):
+            group = {}
+            for g_idx in group_indices:
+                ranks = shifted_ranks[g_idx]
+                if pos < len(ranks):
+                    rank = ranks[pos]
+                    group[rank] = self._rdzv_nodes[rank]
+            if len(group) > 1:
+                node_groups.append(group)
+            elif group:
+                if node_groups:
+                    node_groups[-1].update(group)
+                else:
+                    node_groups.append(group)
+        return node_groups
+
+    def get_comm_world(
+        self, node_rank
+    ) -> Tuple[int, int, Dict[int, NodeTopologyMeta]]:
+        """Override to adjust clear timing based on check phase."""
+        with self._lock:
+            if not self._node_groups:
+                rdzv_completed = self._check_rdzv_completed()
+                if rdzv_completed:
+                    self._fault_nodes.clear()
+                    self._straggler_nodes.clear()
+                    self._node_groups = self._group_nodes(self._rdzv_round)
+                    print_node_groups = self._get_print_node_groups()
+                    logger.info(
+                        f"Node groups of round {self._rdzv_round} "
+                        f"(phase: {self._current_phase}) "
+                        f"are: {print_node_groups}."
+                    )
+                    # Clear check status at the start of a new cycle
+                    # or when switching from intra to inter testing.
+                    round_in_cycle = self._rdzv_round % self._check_round
+                    if round_in_cycle == 0 or (
+                        round_in_cycle == 1 and self._intra_passed
+                    ):
+                        self._clear_check_status()
+                    self._reported_nodes = set()
+                    self._network_check_evt = self.new_network_check_evt()
+                    self._network_check_evt.begin()
+
+                    finished_rdzv_round = self._rdzv_round
+                    self._rdzv_round += 1
+                    elapsed_time = time.time() - self._lastcall_time
+
+                    if finished_rdzv_round in self.rendezvous_events.keys():
+                        self._event_reporter.report_rdzv_complete(
+                            self.rendezvous_events[finished_rdzv_round],
+                            self._name,
+                            finished_rdzv_round,
+                            self._rdzv_params,
+                            node_ids=print_node_groups,
+                            node_rank=node_rank,
+                            elapsed_time=elapsed_time,
+                        )
+
+            for i, group in enumerate(self._node_groups):
+                if node_rank in group:
+                    return self._rdzv_round, i, group
+            return self._rdzv_round, 0, self._rdzv_nodes
+
+    def check_fault_node(self):
+        """Check fault nodes with phase-aware logic.
+
+        - INTRA_INITIAL pass -> return NEXT_PHASE to continue inter check.
+        - INTRA_DIAGNOSTIC done -> report faults.
+        - INTER_INITIAL pass -> done, no faults.
+        - INTER_DIAGNOSTIC done -> report faults.
+        """
+        with self._lock:
+            if not self._rdzv_nodes:
+                logger.warning(
+                    "Skip check for rdzv_nodes hasn't been initialized."
+                )
+                return [], NetworkFailureReason.NO_INIT
+            reason = ""
+            all_joined = len(self._reported_nodes) >= len(self._rdzv_nodes)
+            if not all_joined:
+                reason = NetworkFailureReason.WAITING_NODE
+            elif len(self._fault_nodes) == 0:
+                for node_rank, status in self._node_status.items():
+                    if not status:
+                        self._fault_nodes.add(node_rank)
+
+                if len(self._fault_nodes) > 0:
+                    fault_nodes = {}
+                    for rank in self._fault_nodes:
+                        fault_nodes[rank] = self._rdzv_nodes[rank].node_id
+                    logger.warning(
+                        f"Fault nodes(rank:node_id) are: {fault_nodes} "
+                        f"in phase {self._current_phase}"
+                    )
+
+                stragglers = self._detect_stragglers()
+
+                if not self._fault_nodes and not stragglers:
+                    # No faults found in this phase.
+                    if (
+                        self._current_phase
+                        == GroupNodeCheckPhase.INTRA_INITIAL
+                    ):
+                        # Intra passed, need to continue with inter check.
+                        logger.info(
+                            f"Phase {self._current_phase} passed with no "
+                            f"faults, signaling NEXT_PHASE for inter check."
+                        )
+                        return [], NetworkFailureReason.NEXT_PHASE
+                    else:
+                        # All checks passed, jump to end of cycle.
+                        next_round = (
+                            math.ceil(self._rdzv_round / self._check_round)
+                            * self._check_round
+                        )
+                        logger.info(
+                            f"Phase {self._current_phase} passed with no "
+                            f"faults, all checks done. Jumping rdzv_round "
+                            f"from {self._rdzv_round} to {next_round}."
+                        )
+                        self._rdzv_round = next_round
+
+            if all_joined and len(self._fault_nodes) > 0:
+                reason = NetworkFailureReason.NODE_FAILURE
+            return list(self._fault_nodes), reason
 
 
 def create_training_rdzv_manager() -> RendezvousManager:
