@@ -414,6 +414,14 @@ class NetworkFailureReason(object):
     NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
+    NEXT_PHASE = "Next Phase"
+
+
+class GroupNodeCheckPhase(object):
+    INTRA_INITIAL = "intra_initial"
+    INTRA_DIAGNOSTIC = "intra_diagnostic"
+    INTER_INITIAL = "inter_initial"
+    INTER_DIAGNOSTIC = "inter_diagnostic"
 
 
 class TrainingExceptionLevel(object):

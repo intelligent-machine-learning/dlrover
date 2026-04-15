@@ -27,6 +27,9 @@ class NodeTopologyMeta(JsonSerializable):
     node_ip: str = ""
     asw: str = ""
     psw: str = ""
+    node_group: int = -1  # group index (0, 1, 2, ...)
+    node_group_size: int = 0  # total number of node groups
+    node_group_id: str = ""  # group name
 
 
 class TopologyQuerier(metaclass=ABCMeta):
