@@ -56,6 +56,7 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
+    GroupNodeNetworkCheckRendezvousManager,
     NetworkCheckRendezvousManager,
     RendezvousManager,
 )
@@ -311,6 +312,27 @@ class MasterServicer(ABC):
 
     def _join_rendezvous(self, request: comm.JoinRendezvousRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
+        # Upgrade to GroupNodeNetworkCheckRendezvousManager if the node
+        # has group info and the current manager is the base type.
+        if (
+            request.rdzv_name == RendezvousName.NETWORK_CHECK
+            and type(rdzv_manager) is NetworkCheckRendezvousManager
+        ):
+            node = _job_ctx.job_node(NodeType.WORKER, request.node_id)
+            if node and node.has_group():
+                new_manager = GroupNodeNetworkCheckRendezvousManager()
+                new_manager.update_rdzv_params(
+                    rdzv_manager.get_min_nodes(),
+                    rdzv_manager.get_max_nodes(),
+                    rdzv_manager.get_waiting_timeout(),
+                    rdzv_manager._node_unit,
+                )
+                self._rdzv_managers[request.rdzv_name] = new_manager
+                rdzv_manager = new_manager
+                logger.info(
+                    "Upgraded network check manager to "
+                    "GroupNodeNetworkCheckRendezvousManager."
+                )
         node_rank = request.node_rank
         if node_rank == -1:  # Back compatibility
             node_rank = request.node_id

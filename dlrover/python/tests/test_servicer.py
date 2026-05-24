@@ -44,6 +44,7 @@ from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
+    GroupNodeNetworkCheckRendezvousManager,
     NetworkCheckRendezvousManager,
     UcpRdzvManager,
 )
@@ -579,6 +580,54 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         res = self.servicer._num_nodes_waiting(RendezvousName.TRAINING)
         self.assertEqual(res.waiting_num, -1)
         job_ctx.update_job_stage(JobStage.JOB_INIT)
+
+    def test_join_rendezvous_upgrade_to_group_manager(self):
+        # Verify that the network check manager is upgraded to
+        # GroupNodeNetworkCheckRendezvousManager when a node has group info.
+        nc_manager = self.servicer._rdzv_managers[RendezvousName.NETWORK_CHECK]
+        self.assertIsInstance(nc_manager, NetworkCheckRendezvousManager)
+        self.assertNotIsInstance(
+            nc_manager, GroupNodeNetworkCheckRendezvousManager
+        )
+
+        # Set group info on worker node 0.
+        worker0 = self.job_context.job_node(NodeType.WORKER, 0)
+        worker0.group = 0
+        worker0.group_size = 2
+        worker0.group_id = "group-0"
+        self.job_context.update_job_node(worker0)
+
+        # Join rendezvous with the group node.
+        request = comm.JoinRendezvousRequest(
+            0, 8, RendezvousName.NETWORK_CHECK
+        )
+        self.servicer._join_rendezvous(request)
+
+        # The manager should now be upgraded.
+        new_manager = self.servicer._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        self.assertIsInstance(
+            new_manager, GroupNodeNetworkCheckRendezvousManager
+        )
+        # Verify rdzv params are preserved from the original manager.
+        self.assertEqual(
+            new_manager.get_min_nodes(), nc_manager.get_min_nodes()
+        )
+        self.assertEqual(
+            new_manager.get_max_nodes(), nc_manager.get_max_nodes()
+        )
+
+        # A second join with group node should NOT re-upgrade
+        # (already the right type).
+        request = comm.JoinRendezvousRequest(
+            1, 8, RendezvousName.NETWORK_CHECK
+        )
+        self.servicer._join_rendezvous(request)
+        self.assertIs(
+            self.servicer._rdzv_managers[RendezvousName.NETWORK_CHECK],
+            new_manager,
+        )
 
     def test_report_heartbeat(self):
         request = elastic_training_pb2.Message()

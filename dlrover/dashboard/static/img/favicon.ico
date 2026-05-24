@@ -1,0 +1,4 @@
+# Simple favicon creation (placeholder)
+# In a real scenario, you would replace this with an actual .ico file creation
+print("Favicon placeholder created")
+print("To use a real favicon, convert a PNG to ICO format and replace this file")

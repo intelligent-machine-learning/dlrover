@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLRover Dashboard</title>
+
+    <!-- Local Vue.js, Tailwind CSS from CDN -->
+    <script src="/static/js/vue.global.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        /* Custom scrollbar for modal content */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 8px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div id="app" class="flex flex-col flex-1">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <h1 class="text-3xl font-bold">DLRover Dashboard</h1>
+                        <span v-if="mockModeEnabled" class="bg-yellow-500 text-black px-2 py-1 rounded text-xs font-semibold">
+                            MOCK MODE
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="refreshData" class="hover:bg-white/30 px-4 py-2 transition rounded-lg">
+                            🔄 Refresh
+                        </button>
+                        <button @click="toggleMockMode" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">
+                            {{ mockModeEnabled ? 'Exit Mock' : 'Mock Mode' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8 flex-1">
+            <div v-if="!dashboardLoaded" class="text-center py-20">
+                <div class="text-2xl">Loading Dashboard...</div>
+            </div>
+
+            <div v-else>
+                <!-- Mock Mode Alert -->
+                <div v-if="mockModeEnabled" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                    <div class="flex">
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                Dashboard is running in mock mode with simulated data for testing purposes.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 1: Job Status and Job Configuration -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Job Status</p>
+                        <p class="text-2xl font-bold mt-1">{{ jobInfo.job_stage }}</p>
+                    </div>
+                    <div @click="showConfigModal = true"
+                         class="bg-white rounded-xl shadow-md p-6 cursor-pointer border-l-4 border-blue-500 hover:shadow-lg transition-all duration-200 hover:transform hover:-translate-y-1">
+                        <p class="text-gray-600 text-sm">Job Configuration</p>
+                        <p class="text-2xl font-bold mt-1">View Details</p>
+                    </div>
+                </div>
+
+                <!-- Row 2: Pending Nodes, Running Nodes, Failed Nodes, Training Speed -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Pending Nodes</p>
+                        <p class="text-2xl font-bold mt-1 text-yellow-600">{{ jobInfo.pending_nodes }}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Running Nodes</p>
+                        <p class="text-2xl font-bold mt-1 text-green-600">{{ jobInfo.running_nodes }}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Failed Nodes</p>
+                        <p class="text-2xl font-bold mt-1 text-red-600">{{ jobInfo.failed_nodes }}</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <p class="text-gray-600 text-sm">Training Speed</p>
+                        <p class="text-2xl font-bold mt-1">{{ metrics.training_stats.training_speed }} steps/sec</p>
+                    </div>
+                </div>
+
+                <!-- Row 3: Node Status (unchanged) -->
+                <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4">Node Status</h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition"
+                             v-for="nodeType in ['WORKER', 'PS', 'CHIEF', 'EVALUATOR']" :key="nodeType"
+                             @click="goToNodeDetails(nodeType)">
+                            <h3 class="text-lg font-semibold text-blue-900">{{ nodeType }}</h3>
+                            <p class="text-sm text-gray-600 mt-2">Total: {{ nodes[nodeType].length }}</p>
+                            <div class="mt-3 space-y-1 text-sm">
+                                <div v-for="status in ['RUNNING', 'FAILED', 'PENDING']" :key="status"
+                                    class="flex justify-between">
+                                    <span>{{ status }}</span>
+                                    <span class="font-medium">{{ getNodeCountByStatus(nodeType, status) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Configuration Modal -->
+        <div v-if="showConfigModal"
+             @click.self="showConfigModal = false"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-xl p-6 max-w-4xl mx-4 my-8 flex flex-col"
+                 style="max-height: min(90vh, 800px);">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                    <h2 class="text-2xl font-bold text-blue-900">Job Configuration</h2>
+                    <button @click="showConfigModal = false"
+                            class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-200 mb-4 flex-shrink-0">
+                    <button @click="activeTab = 'global'"
+                            :class="['px-4 py-2 font-medium text-sm transition',
+                                     activeTab === 'global'
+                                     ? 'text-blue-600 border-b-2 border-blue-600'
+                                     : 'text-gray-500 hover:text-gray-700']">
+                        View Global Configs
+                    </button>
+                    <button @click="activeTab = 'args'"
+                            :class="['px-4 py-2 font-medium text-sm transition',
+                                     activeTab === 'args'
+                                     ? 'text-blue-600 border-b-2 border-blue-600'
+                                     : 'text-gray-500 hover:text-gray-700']">
+                        View Job Arguments
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="bg-gray-50 rounded-lg p-4 overflow-y-auto flex-1 min-h-0">
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ activeTab === 'global' ? configData : jobArgsData }}</pre>
+                </div>
+                <div class="mt-4 text-right flex-shrink-0">
+                    <button @click="showConfigModal = false"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-3 mt-auto">
+            <div class="container mx-auto px-4 text-center">
+                <p class="text-sm text-gray-400">© {{ currentYear }} DLRover - Distributed Deep Learning Training Platform</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Mock data generators
+        const generateMockJobInfo = () => ({
+            job_name: 'mock-training-job',
+            job_type: 'tensorflow',
+            job_stage: 'RUNNING',
+            create_time: new Date().toISOString(),
+            start_time: new Date().toISOString(),
+            total_nodes: 12,
+            pending_nodes: 1,
+            running_nodes: 9,
+            failed_nodes: 1,
+            succeeded_nodes: 2
+        });
+
+        const generateMockNodes = () => {
+            const nodes = {
+                WORKER: [],
+                PS: [],
+                CHIEF: [],
+                EVALUATOR: []
+            };
+
+            // Generate realistic workers
+            for (let i = 0; i < 8; i++) {
+                const status = i === 0 ? 'FAILED' : (i < 7 ? 'RUNNING' : 'PENDING');
+                nodes.WORKER.push({
+                    id: i,
+                    rank_index: i,
+                    name: `worker-${i}`,
+                    type: 'WORKER',
+                    status: status,
+                    start_time: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+                    relaunch_count: status === 'FAILED' ? 1 : 0,
+                    exit_reason: status === 'FAILED' ? 'Container exit with code 1' : '',
+                    pod_ip: status === 'RUNNING' ? `10.244.1.${10 + i}` : ''
+                });
+            }
+
+            // Generate Parameter Servers
+            for (let i = 0; i < 2; i++) {
+                nodes.PS.push({
+                    id: i,
+                    rank_index: i,
+                    name: `ps-${i}`,
+                    type: 'PS',
+                    status: 'RUNNING',
+                    start_time: new Date(Date.now() - Math.random() * 3600000).toISOString(),
+                    relaunch_count: 0,
+                    exit_reason: '',
+                    pod_ip: `10.244.2.${10 + i}`
+                });
+            }
+
+            // Generate Chief
+            nodes.CHIEF.push({
+                id: 0,
+                rank_index: 0,
+                name: 'chief-0',
+                type: 'CHIEF',
+                status: 'RUNNING',
+                start_time: new Date(Date.now() - 3600000).toISOString(),
+                relaunch_count: 0,
+                exit_reason: '',
+                pod_ip: '10.244.3.10'
+            });
+
+            // Generate Evaluator
+            nodes.EVALUATOR.push({
+                id: 0,
+                rank_index: 0,
+                name: 'evaluator-0',
+                type: 'EVALUATOR',
+                status: 'SUCCEEDED',
+                start_time: new Date(Date.now() - 7200000).toISOString(),
+                finish_time: new Date().toISOString(),
+                relaunch_count: 0,
+                exit_reason: '',
+                pod_ip: ''
+            });
+
+            return nodes;
+        };
+
+        const generateMockMetrics = () => ({
+            timestamp: new Date().toISOString(),
+            resource_usage: {
+                total_cpu: 16,
+                total_memory: 65536, // MB
+                total_gpu: 0,
+                cpu_usage_percent: 75,
+                memory_usage_percent: 60
+            },
+            training_stats: {
+                running_workers: 7,
+                global_step: 15847,
+                training_speed: 3.2, // steps/sec
+                total_examples: 2500000,
+                examples_per_second: 128
+            }
+        });
+
+        // Check Vue availability
+        if (typeof Vue === 'undefined') {
+            document.body.innerHTML = '<div style="padding:20px;color:red;font-size:24px">Error: Vue.js failed to load. Please check browser console.</div>';
+        } else {
+            const { createApp, ref, reactive, onMounted, watch } = Vue;
+
+            createApp({
+                setup() {
+                    const dashboardLoaded = ref(false);
+                    const mockModeEnabled = ref(false);
+
+                    const jobInfo = reactive({
+                        job_name: '',
+                        job_type: '',
+                        job_stage: '-',
+                        create_time: '',
+                        total_nodes: 0,
+                        pending_nodes: 0,
+                        running_nodes: 0,
+                        failed_nodes: 0,
+                        succeeded_nodes: 0
+                    });
+
+                    const nodes = reactive({
+                        WORKER: [],
+                        PS: [],
+                        CHIEF: [],
+                        EVALUATOR: []
+                    });
+
+                    const metrics = reactive({
+                        resource_usage: { total_cpu: 0, total_memory: 0, total_gpu: 0 },
+                        training_stats: { training_speed: 0, global_step: 0, running_workers: 0 }
+                    });
+
+                    const currentYear = new Date().getFullYear();
+                    const showConfigModal = ref(false);
+                    const configData = ref('');
+                    const jobArgsData = ref('');
+                    const activeTab = ref('global');
+
+                    // Check for mock mode in URL
+                    const checkMockMode = () => {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const mockParam = urlParams.get('mock');
+                        mockModeEnabled.value = mockParam && mockParam.toLowerCase() === 'true';
+
+                        // Clear any previous session storage on normal navigation
+                        if (!mockModeEnabled.value) {
+                            sessionStorage.removeItem('dlrover_mock_mode');
+                            console.log('Normal mode - cleared mock mode session');
+                        } else {
+                            // Store mock mode state for persistence only when requested via URL
+                            sessionStorage.setItem('dlrover_mock_mode', 'true');
+                            console.log('Mock mode enabled via URL and stored in session');
+                        }
+                    };
+
+                    // Navigate to node detail page
+                    const goToNodeDetails = (nodeType) => {
+                        // Debug logging
+                        console.log('goToNodeDetails called with:', nodeType);
+                        console.log('mockModeEnabled.value:', mockModeEnabled.value);
+
+                        const url = new URL('/node_detail.html', window.location.origin);
+                        url.searchParams.set('type', nodeType);
+                        if (mockModeEnabled.value) {
+                            url.searchParams.set('mock', 'true');
+                            console.log('Adding mock=true to navigation URL');
+                        }
+                        console.log('Navigating to:', url.href);
+                        window.location.href = url.toString();
+                    };
+
+                    const refreshData = async () => {
+                        try {
+                            if (mockModeEnabled.value) {
+                                console.log('Loading mock data');
+                                Object.assign(jobInfo, generateMockJobInfo());
+                                Object.assign(nodes, generateMockNodes());
+                                Object.assign(metrics, generateMockMetrics());
+                                return;
+                            }
+
+                            // Use API data if not in mock mode
+                            const [jobRes, nodesRes, metricsRes] = await Promise.all([
+                                fetch('/api/job'),
+                                fetch('/api/nodes'),
+                                fetch('/api/metrics')
+                            ]);
+
+                            if (jobRes.ok) Object.assign(jobInfo, await jobRes.json());
+                            if (nodesRes.ok) {
+                                const nodesData = await nodesRes.json();
+                                Object.keys(nodes).forEach(key => {
+                                    nodes[key] = nodesData[key.toLowerCase()] || [];
+                                });
+                            }
+                            if (metricsRes.ok) Object.assign(metrics, await metricsRes.json());
+
+                        } catch (error) {
+                            console.error('Error refreshing data:', error);
+                        }
+                    };
+
+                    const toggleMockMode = () => {
+                        mockModeEnabled.value = !mockModeEnabled.value;
+                        const url = new URL(window.location);
+                        if (mockModeEnabled.value) {
+                            url.searchParams.set('mock', 'true');
+                        } else {
+                            url.searchParams.delete('mock');
+                        }
+                        window.history.pushState({}, '', url);
+                        refreshData();
+                    };
+
+                    const getNodeCountByStatus = (type, status) => {
+                        return nodes[type].filter(n => n.status === status).length;
+                    };
+
+                    const fetchJobArgs = async () => {
+                        if (mockModeEnabled.value) {
+                            // Mock JobArgs data
+                            const mockJobArgs = {
+                                "platform": "kubernetes",
+                                "namespace": "default",
+                                "job_name": "mock-training-job",
+                                "enable_dynamic_sharding": true,
+                                "enable_elastic_scheduling": true,
+                                "distribution_strategy": "PS",
+                                "job_uuid": "12345678-1234-1234-1234-123456789012",
+                                "user": "test-user",
+                                "cluster": "test-cluster",
+                                "optimize_mode": "single-job",
+                                "relaunch_always": true,
+                                "remove_exited_node": false,
+                                "cordon_fault_node": false,
+                                "xpu_type": "GENERIC_CPU",
+                                "enable_suspended": false,
+                                "training_elastic_mode": "base",
+                                "node_args": {
+                                    "worker": {
+                                        "num_workers": 4,
+                                        "resources": {
+                                            "cpu": 2,
+                                            "memory": "4Gi",
+                                            "gpu": 0
+                                        }
+                                    },
+                                    "ps": {
+                                        "num_servers": 2,
+                                        "resources": {
+                                            "cpu": 4,
+                                            "memory": "8Gi",
+                                            "gpu": 0
+                                        }
+                                    }
+                                }
+                            };
+                            jobArgsData.value = JSON.stringify(mockJobArgs, null, 2);
+                        } else {
+                            try {
+                                const response = await fetch('/api/jobargs');
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    jobArgsData.value = JSON.stringify(data, null, 2);
+                                } else {
+                                    jobArgsData.value = 'Error loading job arguments: ' + response.statusText;
+                                }
+                            } catch (error) {
+                                jobArgsData.value = 'Error loading job arguments: ' + error.message;
+                            }
+                        }
+                    };
+
+                    const fetchConfig = async () => {
+                        if (mockModeEnabled.value) {
+                            // Use mock configuration data in mock mode
+                            configData.value = JSON.stringify({
+                                "master_service_type": "grpc",
+                                "train_speed_record_num": 50,
+                                "seconds_to_autoscale_worker": 90,
+                                "step_to_adjust_worker": 200,
+                                "optimize_worker_cpu_threshold": 20,
+                                "seconds_for_stable_worker_count": 60,
+                                "seconds_interval_to_optimize": 300,
+                                "seconds_to_wait_pending_pod": 900,
+                                "seconds_huge_training_threshold": 1800,
+                                "sample_count_to_adjust_worker": 5,
+                                "hang_cpu_usage_percentage": 0.05,
+                                "seconds_interval_to_change_ps": 3600,
+                                "seconds_to_wait_failed_ps": 600,
+                                "auto_worker_enabled": false,
+                                "auto_ps_enabled": false,
+                                "is_tfv1_ps": false,
+                                "relaunch_always": false,
+                                "hang_detection": 1,
+                                "hang_downtime": 10,
+                                "gpu_per_node": 8,
+                                "npu_per_node": 16,
+                                "max_relaunch_count": 3,
+                                "job_max_restart_count": 3,
+                                "max_group_relaunch_count": 3,
+                                "training_elastic_mode": "base",
+                                "enable_dashboard": false,
+                                "dashboard_port": 8080
+                            }, null, 2);
+                        } else {
+                            try {
+                                const response = await fetch('/api/context');
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    configData.value = JSON.stringify(data, null, 2);
+                                } else {
+                                    configData.value = 'Error loading configuration: ' + response.statusText;
+                                }
+                            } catch (error) {
+                                configData.value = 'Error loading configuration: ' + error.message;
+                            }
+                        }
+                    };
+
+                    onMounted(async () => {
+                        checkMockMode();
+                        dashboardLoaded.value = true;
+                        await refreshData();
+                        setInterval(refreshData, 5000);
+                    });
+
+                    // Watch for modal opening to fetch config data
+                    watch(showConfigModal, (newVal) => {
+                        if (newVal) {
+                            fetchConfig();
+                            fetchJobArgs();
+                        }
+                    });
+
+                    return {
+                        dashboardLoaded,
+                        mockModeEnabled,
+                        jobInfo,
+                        nodes,
+                        metrics,
+                        currentYear,
+                        showConfigModal,
+                        configData,
+                        jobArgsData,
+                        activeTab,
+                        refreshData,
+                        getNodeCountByStatus,
+                        toggleMockMode,
+                        goToNodeDetails,
+                        fetchConfig,
+                        fetchJobArgs
+                    };
+                }
+            }).mount('#app');
+        }
+    </script>
+</body>
+</html>

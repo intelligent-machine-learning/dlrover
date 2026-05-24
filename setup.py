@@ -22,6 +22,7 @@ install_requires = [
 ]
 
 extra_require = {
+    "dashboard": ["tornado"],
     "k8s": ["kubernetes", "tornado", "grpcio"],
     "ray": ["ray[default]", "omegaconf", "pydantic"],
     "tensorflow": ["tensorflow"],
@@ -52,6 +53,12 @@ setup(
             "docker/*",
             "Makefile",
             "trainer/check/*",
+        ],
+        "dlrover.dashboard": [
+            "templates/*.html",
+            "static/css/*.css",
+            "static/js/*.js",
+            "static/img/*",
         ],
     },
     entry_points={
