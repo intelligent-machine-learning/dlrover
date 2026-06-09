@@ -28,8 +28,8 @@ var (
 	// GroupVersion is group version used to register these objects
 	GroupVersion = schema.GroupVersion{Group: "elastic.iml.github.io", Version: "v1alpha1"}
 
-	// 建议加上这行，方便某些版本的生成器识别
-  SchemeGroupVersion = GroupVersion
+	// SchemeGroupVersion is an alias for GroupVersion, used for compatibility with certain code generators.
+	SchemeGroupVersion = GroupVersion
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
@@ -40,4 +40,3 @@ var (
 	// SchemeGroupVersionKind is the gvk of ElasticJob
 	SchemeGroupVersionKind = GroupVersion.WithKind("ElasticJob")
 )
-

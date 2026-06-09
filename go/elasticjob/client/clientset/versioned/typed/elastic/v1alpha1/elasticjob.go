@@ -21,8 +21,8 @@ import (
 	"context"
 	"time"
 
-	scheme "github.com/intelligent-machine-learning/dlrover/go/elasticjob/client/clientset/versioned/scheme"
 	v1alpha1 "github.com/intelligent-machine-learning/dlrover/go/elasticjob/api/v1alpha1"
+	scheme "github.com/intelligent-machine-learning/dlrover/go/elasticjob/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
