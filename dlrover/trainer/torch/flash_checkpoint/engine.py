@@ -97,7 +97,10 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     del t, outputs
     return succeed
 
-def get_device_by_backend(backend: str = None, local_rank: int = None):
+
+def get_device_by_backend(
+    backend: Optional[str] = None, local_rank: Optional[int] = None
+):
     try:
         if backend == BackendType.GLOO:
             return "cpu"
@@ -105,12 +108,13 @@ def get_device_by_backend(backend: str = None, local_rank: int = None):
             return f"cuda:{local_rank}"
         if backend == BackendType.HCCL:
             return f"npu:{local_rank}"
-        
-        logger.warning(f"Invalid backend, will use gloo backend.")
+
+        logger.warning("Invalid backend, will use gloo backend.")
         return "cpu"
     except Exception as e:
-        logger.error("Get device failed: {e}")
+        logger.error(f"Get device failed: {e}")
         return "cpu"
+
 
 def timer(func):
     def wrapper(*args, **kwargs):

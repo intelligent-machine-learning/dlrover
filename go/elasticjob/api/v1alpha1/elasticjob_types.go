@@ -22,9 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ElasticJobSpec defines the desired state of ElasticJob
 type ElasticJobSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -100,14 +97,15 @@ type ElasticJobStatus struct {
 	Phase commonv1.JobConditionType `json:"phase,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// ElasticJob is the schema for the elasticjobs API
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +resource:path=elasticjob
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-
-// ElasticJob is the Schema for the elasticjobs API
 type ElasticJob struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -116,9 +114,9 @@ type ElasticJob struct {
 	Status ElasticJobStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
 // ElasticJobList contains a list of ElasticJob
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 type ElasticJobList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
