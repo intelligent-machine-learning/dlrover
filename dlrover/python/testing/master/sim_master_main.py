@@ -94,9 +94,9 @@ def main():
     sim_scaler = SimScaler()
 
     # Wire stub return values into the three factory patches.
-    _PATCHES[0].return_value = sim_job      # new_elastic_job  → SimElasticJob
+    _PATCHES[0].return_value = sim_job  # new_elastic_job  → SimElasticJob
     _PATCHES[1].return_value = sim_watcher  # new_node_watcher → SimNodeWatcher
-    _PATCHES[2].return_value = sim_scaler   # new_job_scaler   → SimScaler
+    _PATCHES[2].return_value = sim_scaler  # new_job_scaler   → SimScaler
     # _PATCHES[3] already has return_value=None for new_scale_plan_watcher.
 
     logger.info(

@@ -162,21 +162,32 @@ class MasterContext:
 
     def _build_cmd(self):
         common = [
-            "--port", str(self._port),
-            "--node_num", str(self._num_workers),
-            "--job_name", self._job_name,
-            "--namespace", self._namespace,
+            "--port",
+            str(self._port),
+            "--node_num",
+            str(self._num_workers),
+            "--job_name",
+            self._job_name,
+            "--namespace",
+            self._namespace,
         ]
         if self._master_type == "local":
             return [
-                sys.executable, "-u", "-m", "dlrover.python.master.main",
-                "--platform", "local",
+                sys.executable,
+                "-u",
+                "-m",
+                "dlrover.python.master.main",
+                "--platform",
+                "local",
             ] + common
         else:  # "dist"
             return [
-                sys.executable, "-u", "-m",
+                sys.executable,
+                "-u",
+                "-m",
                 "dlrover.python.testing.master.sim_master_main",
-                "--max_relaunch_count", str(self._max_relaunch_count),
+                "--max_relaunch_count",
+                str(self._max_relaunch_count),
             ] + common
 
     def _wait_for_ready(self) -> None:

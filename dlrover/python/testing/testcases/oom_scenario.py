@@ -50,6 +50,7 @@ from dlrover.python.testing.master.master_setup import MasterContext
 
 try:
     import psutil
+
     _PSUTIL_AVAILABLE = True
 except ImportError:
     _PSUTIL_AVAILABLE = False
@@ -60,7 +61,9 @@ def _master_rss_mb(ctx: MasterContext) -> float:
     if not _PSUTIL_AVAILABLE or ctx.master_proc is None:
         return -1.0
     try:
-        return psutil.Process(ctx.master_proc.pid).memory_info().rss / 1024 / 1024
+        return (
+            psutil.Process(ctx.master_proc.pid).memory_info().rss / 1024 / 1024
+        )
     except psutil.NoSuchProcess:
         return -1.0
 
@@ -75,7 +78,9 @@ def scenario_all_succeed(
         f"=== scenario_all_succeed: {num_workers} workers "
         f"(master={master_type}) ==="
     )
-    with MasterContext(master_type=master_type, num_workers=num_workers) as ctx:
+    with MasterContext(
+        master_type=master_type, num_workers=num_workers
+    ) as ctx:
         agents = make_agents(
             ctx.addr,
             num_agents=num_workers,
@@ -119,7 +124,9 @@ def scenario_burst_failures(
         f"(master={master_type}) ==="
     )
 
-    with MasterContext(master_type=master_type, num_workers=num_workers) as ctx:
+    with MasterContext(
+        master_type=master_type, num_workers=num_workers
+    ) as ctx:
         rss_before = _master_rss_mb(ctx)
         if rss_before >= 0:
             logger.info(f"  master RSS before failures: {rss_before:.1f} MB")
@@ -174,7 +181,9 @@ def scenario_partial_failures(
         f"{payload_bytes // 1024 // 1024} MB payload "
         f"(master={master_type}) ==="
     )
-    with MasterContext(master_type=master_type, num_workers=num_workers) as ctx:
+    with MasterContext(
+        master_type=master_type, num_workers=num_workers
+    ) as ctx:
         agents = make_mixed_agents(
             ctx.addr,
             num_agents=num_workers,

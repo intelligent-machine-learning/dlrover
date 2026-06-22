@@ -20,9 +20,9 @@ of a real ElasticTrainingAgent without spawning actual GPU processes.
 
 import time
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from dlrover.python.common.constants import (
     NodeType,
@@ -96,7 +96,9 @@ class TestTrainingAgent:
         self.run_duration = run_duration
         self.rdzv_name = rdzv_name
 
-        self.result = AgentResult(agent_id=agent_id, outcome=AgentOutcome.PENDING)
+        self.result = AgentResult(
+            agent_id=agent_id, outcome=AgentOutcome.PENDING
+        )
 
         # Each agent creates its own gRPC client so agents can run in the same
         # process without singleton conflicts.

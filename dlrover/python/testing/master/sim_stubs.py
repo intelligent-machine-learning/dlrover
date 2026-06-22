@@ -45,7 +45,7 @@ class SimElasticJob(ElasticJob):
         super().__init__("sim-job", "default")
 
     def get_node_service_addr(self, node_type, node_id):
-        return f"127.0.0.1:0"
+        return "127.0.0.1:0"
 
     def get_node_name(self, node_type, node_id):
         return f"sim-{node_type}-{node_id}"

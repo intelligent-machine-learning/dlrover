@@ -61,7 +61,9 @@ def scenario_normal_training(
         f"run_duration={run_duration}s, master={master_type} ==="
     )
 
-    with MasterContext(master_type=master_type, num_workers=num_workers) as ctx:
+    with MasterContext(
+        master_type=master_type, num_workers=num_workers
+    ) as ctx:
         agents = make_agents(
             ctx.addr,
             num_agents=num_workers,
@@ -71,7 +73,9 @@ def scenario_normal_training(
 
     succeeded = sum(1 for r in results if r.outcome == AgentOutcome.SUCCEEDED)
     failed = sum(1 for r in results if r.outcome == AgentOutcome.FAILED)
-    logger.info(f"  succeeded={succeeded}  failed={failed}  total={num_workers}")
+    logger.info(
+        f"  succeeded={succeeded}  failed={failed}  total={num_workers}"
+    )
     for r in results:
         logger.info(
             f"  agent-{r.agent_id}: {r.outcome.name}  "
