@@ -123,6 +123,42 @@ class MasterServicerBasicTest(unittest.TestCase):
         self.server.start()
         self.server.stop(grace=None)
 
+    def test_grpc_server_uses_correct_option_keys(self):
+        import grpc
+
+        created_options = []
+        original_server = grpc.server
+
+        def capturing_server(executor, options=None, **kwargs):
+            created_options.extend(options or [])
+            return original_server(executor, options=options, **kwargs)
+
+        # patch.object targets the grpc module itself so the local alias
+        # `import grpc as grpc_lib` inside create_master_service picks it up.
+        with patch.object(grpc, "server", side_effect=capturing_server):
+            self.server = create_master_service(
+                TEST_SERVER_PORT,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+
+        option_keys = [k for k, _ in created_options]
+        self.assertIn("grpc.max_send_message_length", option_keys)
+        self.assertIn("grpc.max_receive_message_length", option_keys)
+        self.assertNotIn("comm.max_send_message_length", option_keys)
+        self.assertNotIn("comm.max_receive_message_length", option_keys)
+
+        # Must start before stop; stopping a never-started gRPC server blocks.
+        self.server.start()
+        self.server.stop(grace=None)
+
     def test_http_basic(self):
         context = Context.singleton_instance()
         context.master_service_type = "http"
