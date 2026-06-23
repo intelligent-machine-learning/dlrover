@@ -166,6 +166,7 @@ class TestTrainingAgent:
             )
 
     def _report_failure(self) -> None:
+        assert self.failure_spec is not None
         spec = self.failure_spec
         try:
             self._client.report_failures(
@@ -227,7 +228,7 @@ def run_agents(
     for t in threads:
         t.join()
 
-    return results
+    return [r for r in results if r is not None]
 
 
 def make_agents(

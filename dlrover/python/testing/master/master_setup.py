@@ -138,6 +138,10 @@ class MasterContext:
 
     def _forward_logs(self) -> None:
         """Daemon thread: read master subprocess stdout and re-log each line."""
+        assert (
+            self.master_proc is not None
+            and self.master_proc.stdout is not None
+        )
         for raw in self.master_proc.stdout:
             line = raw.decode(errors="replace").rstrip()
             if line:
@@ -191,6 +195,7 @@ class MasterContext:
             ] + common
 
     def _wait_for_ready(self) -> None:
+        assert self.master_proc is not None
         deadline = time.monotonic() + self._startup_timeout
         while time.monotonic() < deadline:
             if self.master_proc.poll() is not None:
