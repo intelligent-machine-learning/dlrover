@@ -45,6 +45,12 @@ class BasicClass(object):
     LOG_AGENT_DIR_ENV = "DLROVER_LOG_AGENT_DIR"
 
 
+class BackendType(object):
+    GLOO = "gloo"
+    NCCL = "nccl"
+    HCCL = "hccl"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
