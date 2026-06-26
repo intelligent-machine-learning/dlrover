@@ -15,7 +15,7 @@ import json
 import threading
 from datetime import datetime
 from time import sleep
-from typing import List
+from typing import List, Callable
 
 from kubernetes import client, watch
 
@@ -512,3 +512,62 @@ class K8sElasticJobWatcher(object):
         threading.Thread(
             target=self.watch, name="job-watcher", daemon=True
         ).start()
+
+class K8sConfigMapScaleWatcher:
+    """ConfigMapScaleWatcher monitors the manual brain configmap on the cluster.
+    It generates a ResourcePlan by a brain configmap and notidy the
+    JobManager to adjust job resource by the brain ResourcePlan.
+    """
+
+    def __init__(self, job_name, namespace, job_uid, configmap_name, on_update_callback: Callable[[dict], None]):
+        self._namespace = namespace
+        self._job_name = job_name
+        self._job_uid = job_uid
+        self._configmap_name = configmap_name
+        self.on_update_callback = on_update_callback
+        self._k8s_client = k8sClient.singleton_instance(namespace)
+
+    def watch(self):
+        resource_version = None
+
+        while True:
+            try:
+                w = watch.Watch()
+                v1 = self._k8s_client.client
+                stream_kwargs = {
+                    "namespace": self._namespace,
+                    "field_selector": f"metadata.name={self._configmap_name}",
+                    "timeout_seconds": 0  # 0 means "listen as long as possible"
+                }
+
+                if resource_version:
+                    stream_kwargs["resource_version"] = resource_version
+
+                for event in w.stream(v1.list_namespaced_config_map, **stream_kwargs):
+                    obj = event['object']
+                    event_type = event['type']
+
+                    resource_version = obj.metadata.resource_version
+
+                    if event_type == "MODIFIED" or event_type == "ADDED":
+                        if obj.data:
+                            logger.info(f"Got event {event_type} for configmap {obj.metadata.name}, will trigger manual scale.")
+                            self.on_update_callback(obj.data)
+                sleep(5)
+            except Exception as e:
+                logger.warning(f"Watch connection broken ({e}). Retrying in 5 seconds...")
+                sleep(5)
+    
+    def start(self):
+        logger.info("Starting configmap scale watcher...")
+        if _dlrover_context.configmap_manual_scale_switch == "off":
+            logger.warning("Configmap manual scale switch is off, will not watch configmap.")
+            return
+        thread = threading.Thread(
+            target=self.watch, 
+            name="Configmap-scale-watcher", 
+            daemon=True
+        )
+        thread.start()
+        if thread.is_alive():
+            logger.info("ConfigMap scale watcher initialized successfully.")

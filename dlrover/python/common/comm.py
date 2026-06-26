@@ -230,6 +230,18 @@ class RdzvBlocked(Message):
     blocked: bool = False
     reason: str = ""
 
+@dataclass
+class SaveCheckpointReady(Message):
+    """Report ckpt save state to master."""
+
+    ckpt_save_ready: bool = False
+    reason: str = ""
+
+@dataclass
+class ParamTunningReady(Message):
+    """Report param tunning state to master."""
+
+    param_tunning_ready: bool = False
 
 @dataclass
 class HeartBeat(Message):
@@ -410,6 +422,21 @@ class RendezvousState(Message):
     round: int = 0
     group: int = 0
 
+@dataclass
+class BrainOptGpus(Message):
+    gpu_num: int = 0
+
+@dataclass
+class ExecBrainResourcePlanReady(Message):
+    exec_opt_resource_plan_ready: bool = False
+
+@dataclass
+class BrainOptGpusRequest(Message):
+    pass
+
+@dataclass
+class ExecBrainResourcePlanRequest(Message):
+    pass
 
 @dataclass
 class PsNodesRequest(Message):

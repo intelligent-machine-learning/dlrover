@@ -18,6 +18,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     DistributionStrategy,
     NodeType,
+    ElasticDimension,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
@@ -108,6 +109,9 @@ class JobArgs(JsonSerializable):
         self.xpu_type: Accelerators = Accelerators.GENERIC_CPU
         self.enable_suspended = False
         self.training_elastic_mode = "base"
+
+        self.elastic_dimension = ElasticDimension.HORIZONTAL
+        self.configmap_manual_scale_switch = "off"
 
     @abstractmethod
     def initilize(self):

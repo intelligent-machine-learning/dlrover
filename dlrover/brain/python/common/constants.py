@@ -19,3 +19,6 @@ class Node(object):
 class DefaultResource(object):
     WORKER_CPU = 4
     WORKER_MEM = 8 * 1024 * 1024
+
+class UnitConvertor(object):
+    GIB_TO_BYTES = 1024 ** 3

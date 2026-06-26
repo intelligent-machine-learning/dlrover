@@ -156,7 +156,7 @@ class ParameterServerManager(TrainingNodeManager):
             self._ps_cluster_changed = True
             new_ps_num = self._job_resource.ps_num - down_num
             self._job_resource.update_node_group_resource(
-                NodeType.PS, new_ps_num, 0, 0
+                NodeType.PS, new_ps_num, 0, 0, "", 0
             )
             running_ps = self._get_alive_ps()
             for node in reversed(running_ps):
