@@ -42,6 +42,11 @@ from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.util.common_util import find_free_port
 from dlrover.python.util.function_util import retry
 
+# Truncate error payloads before sending to the master to prevent the master
+# from allocating large gRPC receive buffers and accumulating data in Node
+# objects across relaunches.
+_MAX_ERROR_DATA_LEN = 2048
+
 
 class MasterClient(Singleton, ABC):
     """MasterClient provides some APIs connect with the master
@@ -450,6 +455,11 @@ class MasterClient(Singleton, ABC):
         return response.success
 
     def report_failures(self, error_data, restart_count=-1, level=""):
+        if (
+            isinstance(error_data, str)
+            and len(error_data) > _MAX_ERROR_DATA_LEN
+        ):
+            error_data = error_data[:_MAX_ERROR_DATA_LEN]
         message = comm.NodeFailure(error_data, restart_count, level)
         self._report(message)
 

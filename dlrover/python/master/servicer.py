@@ -1096,9 +1096,9 @@ def create_master_service(
                 thread_name_prefix="grpc_master_service",
             ),
             options=[
-                ("comm.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),
+                ("grpc.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),
                 (
-                    "comm.max_receive_message_length",
+                    "grpc.max_receive_message_length",
                     GRPC.MAX_RECEIVE_MESSAGE_LENGTH,
                 ),
             ],

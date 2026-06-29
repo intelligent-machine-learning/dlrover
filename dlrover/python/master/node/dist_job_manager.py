@@ -91,6 +91,11 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 job_ctx = get_job_context()
 
 _MAX_POD_RELAUNCH_COUNT = 5
+# Worker error dumps can be arbitrarily large. Storing the full payload in
+# Node.exit_reason (which is deep-copied into _job_nodes on every update)
+# causes unbounded master RSS growth across relaunches.  Truncate early so
+# the large string is released as soon as handle_training_failure returns.
+_MAX_ERROR_DATA_LEN = 2048
 
 
 def is_positive_exit(exit_reason):
@@ -1431,6 +1436,9 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_context.job_node(node_type, node_id)
+
+        if error_data and len(error_data) > _MAX_ERROR_DATA_LEN:
+            error_data = error_data[:_MAX_ERROR_DATA_LEN]
 
         if error_data:
             # self detected reason override the reason from k8s pod

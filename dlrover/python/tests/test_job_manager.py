@@ -1406,6 +1406,30 @@ class DistributedJobManagerTest(unittest.TestCase):
         # Verify that job was requested to stop
         self.assertTrue(self.job_context.is_stopped())
 
+    def test_handle_training_failure_truncates_large_error_data(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = MagicMock(return_value=None)
+
+        large_payload = "X" * (10 * 1024 * 1024)  # 10 MB
+
+        manager.handle_training_failure(
+            NodeType.WORKER,
+            0,
+            error_data=large_payload,
+            level=TrainingExceptionLevel.NODE_ERROR,
+        )
+
+        node = self.job_context.job_node(NodeType.WORKER, 0)
+        from dlrover.python.master.node.dist_job_manager import (
+            _MAX_ERROR_DATA_LEN,
+        )
+
+        self.assertLessEqual(len(node.exit_reason), _MAX_ERROR_DATA_LEN)
+        self.assertEqual(node.exit_reason, large_payload[:_MAX_ERROR_DATA_LEN])
+
 
 class JobContextTest(unittest.TestCase):
     def setUp(self):
