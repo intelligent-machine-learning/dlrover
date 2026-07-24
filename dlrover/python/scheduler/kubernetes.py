@@ -85,19 +85,35 @@ def set_container_resource(
             requests=res_requests.to_resource_dict(),
             limits=res_limits.to_resource_dict(),
         )
+        logger.info(f"[Set container resource] container resource is none, will use new resource.\n"
+            f"  container limits: {res_limits.to_resource_dict()}\n"
+            f"  container requests: {res_requests.to_resource_dict()}\n"
+        )
     else:
         res = container.resources
         if res.requests:
             res.requests["cpu"] = res_requests.cpu
             res.requests["memory"] = f"{res_requests.memory}Mi"
+            res.requests[res_requests.gpu_type] = res_requests.gpu_num
         else:
             res.requests = res_requests.to_resource_dict()
 
         if res.limits:
             res.limits["cpu"] = res_limits.cpu
             res.limits["memory"] = f"{res_limits.memory}Mi"
+            res.limits[res_limits.gpu_type] = res_limits.gpu_num
         else:
             res.limits = res_limits.to_resource_dict()
+        logger.info(f"[Set container resource] container resource is not none, will adjust limits and requests resource.\n"
+            f"container limits resource:\n"
+            f"  limits cpu: {res_limits.cpu}\n"
+            f"  limits memory: {res_limits.memory}Mi\n"
+            f"  limits {res_limits.gpu_type}: {res_limits.gpu_num}\n"
+            f"container requests resource:\n"
+            f"  requests cpu: {res_requests.cpu}\n"
+            f"  requests memory: {res_requests.memory}Mi\n"
+            f"  requests {res_requests.gpu_type}: {res_requests.gpu_num}\n"
+        )
 
 
 def retry_k8s_request(func):
@@ -464,6 +480,12 @@ class K8sJobArgs(JobArgs):
             gpu_num = 0
             for k, v in requests.items():
                 if "nvidia.com" in k:
+                    gpu_type = k
+                    gpu_num = int(v)
+                if "huawei.com" in k:
+                    gpu_type = k
+                    gpu_num = int(v)
+                if "metax-tech.com" in k:
                     gpu_type = k
                     gpu_num = int(v)
             group_resource = NodeGroupResource(

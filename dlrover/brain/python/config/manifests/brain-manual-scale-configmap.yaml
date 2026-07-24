@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: brain-manual-scale-config
+  namespace: dlrover
+data:
+  config.json: |
+    {
+      "customize_worker_resource": {
+        "cpu": 16,
+        "memory": 64,
+        "gpus": 2,
+        "gpu_type": "huawei.com/Ascend910B3"
+      },
+      "job_names": "gpu-elastic-manual,test2"
+    }
