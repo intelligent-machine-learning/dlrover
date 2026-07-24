@@ -385,6 +385,35 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(last_step.end_timestamp, now + 150)
         self.assertEqual(last_step.step_time, 50)
 
+    def test_report_atorch_inspect_event(self):
+        _event_context.train_steps.clear_step_events()
+        now = int(datetime.now().timestamp())
+
+        self._master_client.report_atorch_event(
+            event_ts=now,
+            event_target=EventTargetName.TRAINER,
+            event_name=TrainEventName.TRAIN_EVT_INSPECT,
+            event_type=EventTypeName.BEGIN,
+            event_step=1,
+        )
+        inspect_step = _event_context.train_steps.get_last_step_event()
+        self.assertEqual(
+            inspect_step.event_name, TrainEventName.TRAIN_EVT_INSPECT
+        )
+
+        self._master_client.report_atorch_event(
+            event_ts=now + 1,
+            event_target=EventTargetName.TRAINER,
+            event_name=TrainEventName.TRAIN_EVT_INSPECT,
+            event_type=EventTypeName.END,
+            event_step=2,
+        )
+        inspect_step = _event_context.train_steps.get_last_step_event()
+        self.assertEqual(
+            inspect_step.event_state, TrainEventState.TRAIN_EVT_END
+        )
+        self.assertEqual(inspect_step.step, 2)
+
     @patch.dict("sys.modules", {"dlrover.proto": None})
     def test_pb_not_installed(self):
         module = "dlrover.python.elastic_agent.master_client"

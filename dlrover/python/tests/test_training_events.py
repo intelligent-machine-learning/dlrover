@@ -165,6 +165,16 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(events[3], EventTypeName.BEGIN)
         self.assertEqual(events[4], 30)
 
+        inspect_line = (
+            "[2025-01-22T19:01:20.422454] [2044] [323] "
+            "[AtorchTrainerV2] "
+            '[#inspect] [BEGIN] {"global_step": 31}'
+        )
+        inspect_event = collector.parse_line(inspect_line)
+        self.assertEqual(inspect_event[2], TrainerEventName.INSPECT.value)
+        self.assertEqual(inspect_event[3], EventTypeName.BEGIN)
+        self.assertEqual(inspect_event[4], 31)
+
         with self.assertRaises(ValueError):
             line = (
                 "[2025-01-22T1901:19.422454] [2044] [322] [AtorchTrainerV2] "
@@ -479,6 +489,52 @@ class TrainingEventTest(unittest.TestCase):
 
         first_step = test_events.get_first_step_event()
         self.assertNotEqual(first_step.step, last_step.step)
+
+    def test_atorch_inspect_event(self):
+        test_events = StepEvents()
+        now = int(datetime.now().timestamp())
+        begin_event = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainerEventName.INSPECT.value,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        test_events.add_step_event(begin_event)
+
+        inspect_step = test_events.get_last_step_event()
+        self.assertEqual(
+            inspect_step.event_name, TrainerEventName.INSPECT.value
+        )
+
+        end_event = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainerEventName.INSPECT.value,
+            type=EventTypeName.END,
+            step=2,
+        )
+        test_events.add_step_event(end_event)
+
+        inspect_step = test_events.get_last_step_event()
+        self.assertEqual(
+            inspect_step.event_state, TrainEventState.TRAIN_EVT_END
+        )
+        self.assertEqual(inspect_step.step, 2)
+
+        normal_begin_event = AtorchEvent(
+            timestamp=now + 2,
+            target=EventTargetName.TRAINER,
+            name=TrainerEventName.TRAIN_STEP.value,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        test_events.add_step_event(normal_begin_event)
+
+        normal_step = test_events.get_last_step_event()
+        self.assertEqual(
+            normal_step.event_name, TrainerEventName.TRAIN_STEP.value
+        )
 
     def test_atorch_ckpt_event(self):
         test_events = StepEvents(max_events=2)

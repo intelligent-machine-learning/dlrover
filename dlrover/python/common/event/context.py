@@ -142,6 +142,7 @@ class StepEvents(object):
                     step_event.step >= event.step
                     or step_event.event_state
                     != TrainEventState.TRAIN_EVT_BEGIN
+                    or step_event.event_name != event.name
                 ):
                     logger.warning(f"invalid step: {step_event}, {event}")
                     return

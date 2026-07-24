@@ -31,6 +31,7 @@ class TrainerEventName(Enum):
     TRAIN = "#train"
     EPOCH = "#epoch"
     TRAIN_STEP = "#step"
+    INSPECT = "#inspect"
     TRAIN_SUBSTEP = "#substep"
     EVALUATE = "#evaluate"
     PREDICT = "#predict"
