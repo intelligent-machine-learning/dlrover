@@ -33,6 +33,10 @@ class ArgsTest(unittest.TestCase):
         self.assertTrue(parsed_args.service_type, "grpc")
         self.assertTrue(parsed_args.pre_check_ops)
         self.assertTrue(parsed_args.task_process_timeout, 1800)
+        self.assertEqual(
+            parsed_args.inspect_hang_downtime,
+            parsed_args.hang_downtime,
+        )
 
         original_args = [
             "--job_name",
@@ -68,7 +72,20 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed_args.job_name, "test")
         self.assertEqual(parsed_args.hang_detection, 1)
         self.assertEqual(parsed_args.hang_downtime, 15)
+        self.assertEqual(parsed_args.inspect_hang_downtime, 15)
         self.assertEqual(parsed_args.xpu_type, "ascend")
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--hang_downtime",
+            "15",
+            "--inspect_hang_downtime",
+            "7",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.hang_downtime, 15)
+        self.assertEqual(parsed_args.inspect_hang_downtime, 7)
 
         original_args = [
             "--job_name",
@@ -103,3 +120,13 @@ class ArgsTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             parse_master_args(original_args)
             self.assertEqual(cm.exception.code, 2)
+
+        original_args = [
+            "--job_name",
+            "test",
+            "--inspect_hang_downtime",
+            "-1",
+        ]
+        with self.assertRaises(SystemExit) as cm:
+            parse_master_args(original_args)
+        self.assertEqual(cm.exception.code, 2)

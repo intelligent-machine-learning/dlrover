@@ -828,6 +828,60 @@ class TrainingEventTest(unittest.TestCase):
         "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
         0,
     )
+    @patch(f"{__name__}._dlrover_context.hang_downtime", 10)
+    @patch(f"{__name__}._dlrover_context.inspect_hang_downtime", 0.05)
+    def test_inspect_job_step_hang(self):
+        now = int(datetime.now().timestamp())
+        _event_context.train_steps.clear_step_events()
+
+        inspect_begin = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_INSPECT,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        _event_context.train_steps.add_step_event(inspect_begin)
+        inspect_step = _event_context.train_steps.get_last_step_event()
+        inspect_step.localtime = now - 4
+
+        self.assertTrue(_event_context.check_job_step_hang())
+        self.assertEqual(_event_context.hang_threshold, 600)
+
+        _event_context.train_steps.clear_step_events()
+        normal_begin = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        _event_context.train_steps.add_step_event(normal_begin)
+        normal_step = _event_context.train_steps.get_last_step_event()
+        normal_step.localtime = now - 4
+
+        self.assertFalse(_event_context.check_job_step_hang())
+        self.assertEqual(_event_context.hang_threshold, 600)
+
+        _event_context.train_steps.clear_step_events()
+        _event_context.train_steps.add_step_event(inspect_begin)
+        inspect_end = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_INSPECT,
+            type=EventTypeName.END,
+            step=2,
+        )
+        _event_context.train_steps.add_step_event(inspect_end)
+
+        self.assertFalse(_event_context.check_job_step_hang())
+        self.assertEqual(_event_context.hang_threshold, 600)
+        _event_context.train_steps.clear_step_events()
+
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
     @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
     def test_ckpt_hang(self):
         _event_context.ckpt_threshold = 1

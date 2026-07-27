@@ -19,6 +19,7 @@ from datetime import datetime
 from dlrover.python.common.comm import AtorchEvent
 from dlrover.python.common.event.train_event import (
     AtorchStepEvent,
+    TrainEventName,
     TrainEventState,
 )
 from dlrover.python.common.global_context import Context, DefaultValues
@@ -254,27 +255,35 @@ class JobEventContext(Singleton):
         self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD * 60
 
     def check_job_step_hang(self):
+        step = self.train_steps.get_last_step_event()
         self.hang_threshold = _dlrover_context.hang_downtime * 60
         if self.hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
             self.hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
 
+        hang_threshold = self.hang_threshold
+        if (
+            step
+            and step.event_name == TrainEventName.TRAIN_EVT_INSPECT
+            and step.event_state == TrainEventState.TRAIN_EVT_BEGIN
+        ):
+            hang_threshold = _dlrover_context.inspect_hang_downtime * 60
+            if hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
+                hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
+
         now = int(datetime.now().timestamp())
 
         # check if step is still active
-        step = self.train_steps.get_last_step_event()
         if step is None:
             logger.warning("Skip step hang detection since no step collected")
             return False
         elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
-            if now - step.localtime < self.hang_threshold:
+            if now - step.localtime < hang_threshold:
                 logger.debug(
-                    f"No hang detected: {now} {self.hang_threshold} {step}"
+                    f"No hang detected: {now} {hang_threshold} {step}"
                 )
                 return False
             else:
-                logger.warning(
-                    f"Detect hang: {now} {self.hang_threshold} {step}"
-                )
+                logger.warning(f"Detect hang: {now} {hang_threshold} {step}")
                 return True
         else:
             logger.debug(f"No new step: {now} {self.hang_threshold} {step}")

@@ -190,7 +190,8 @@ class AtorchEventCollector(Singleton):
                 if (
                     self._first_step is None
                     and target == EventTargetName.TRAINER
-                    and event_name in (
+                    and event_name
+                    in (
                         TrainEventName.TRAIN_EVT_STEP,
                         TrainEventName.TRAIN_EVT_INSPECT,
                     )
