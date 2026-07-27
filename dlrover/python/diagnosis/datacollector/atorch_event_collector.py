@@ -95,6 +95,7 @@ class AtorchEventCollector(Singleton):
         event_name = str(match[4])
         if event_name not in (
             TrainEventName.TRAIN_EVT_STEP,
+            TrainEventName.TRAIN_EVT_INSPECT,
             TrainEventName.TRAIN_EVT_FLASH_CKPT,
             TrainEventName.TRAIN_EVT_EVALUATE,
         ):
@@ -110,7 +111,10 @@ class AtorchEventCollector(Singleton):
             logger.debug(f"Invalid event type {event_type} in line {line}")
             raise AtorchNotFoundException()
 
-        if event_name == TrainEventName.TRAIN_EVT_STEP:
+        if event_name in (
+            TrainEventName.TRAIN_EVT_STEP,
+            TrainEventName.TRAIN_EVT_INSPECT,
+        ):
             text = literal_eval(re.sub(self._prefix_pattern, "", line))
             if isinstance(text, dict):
                 event_step = int(text["global_step"])
@@ -186,7 +190,11 @@ class AtorchEventCollector(Singleton):
                 if (
                     self._first_step is None
                     and target == EventTargetName.TRAINER
-                    and event_name == TrainEventName.TRAIN_EVT_STEP
+                    and event_name
+                    in (
+                        TrainEventName.TRAIN_EVT_STEP,
+                        TrainEventName.TRAIN_EVT_INSPECT,
+                    )
                     and event_type == EventTypeName.BEGIN
                 ):
                     logger.info(

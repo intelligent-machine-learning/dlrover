@@ -93,6 +93,13 @@ def _build_master_args_parser():
         help="Training downtime to detect job hang, unit is minute",
     )
     parser.add_argument(
+        "--inspect_hang_downtime",
+        default=None,
+        type=pos_int,
+        help="Inspect event downtime to detect job hang, unit is minute. "
+        "Defaults to hang_downtime.",
+    )
+    parser.add_argument(
         "--xpu_type",
         default="nvidia",
         type=str,
@@ -138,6 +145,8 @@ def parse_master_args(master_args=None):
     parser = _build_master_args_parser()
 
     args, unknown_args = parser.parse_known_args(args=master_args)
+    if args.inspect_hang_downtime is None:
+        args.inspect_hang_downtime = args.hang_downtime
     print_args(args)
     if unknown_args:
         logger.warning("Unknown arguments: %s", unknown_args)

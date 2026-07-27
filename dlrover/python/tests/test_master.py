@@ -26,7 +26,7 @@ from dlrover.python.common.constants import (
     PreCheckStatus,
     RendezvousName,
 )
-from dlrover.python.common.global_context import Context
+from dlrover.python.common.global_context import Context, DefaultValues
 from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
     NoAction,
@@ -256,6 +256,7 @@ class MasterMainXpuTypeTest(unittest.TestCase):
         self.mock_args.task_process_timeout = 600
         self.mock_args.hang_detection = True
         self.mock_args.hang_downtime = 300
+        self.mock_args.inspect_hang_downtime = 300
         self.mock_args.pending_fail_strategy = "restart"
         self.mock_args.pending_timeout = 60
         self.mock_args.service_type = "ClusterIP"
@@ -305,6 +306,27 @@ class MasterMainXpuTypeTest(unittest.TestCase):
         run(self.mock_args)
 
         self.assertEqual(mock_job_args.xpu_type, Accelerators.MTHREADS_GPU)
+        self.assertEqual(mock_context.inspect_hang_downtime, 300)
+
+        self.mock_args.hang_downtime = 1
+        self.mock_args.inspect_hang_downtime = None
+        run(self.mock_args)
+        self.assertEqual(
+            mock_context.hang_downtime, DefaultValues.MIN_HANG_DOWNTIME
+        )
+        self.assertEqual(
+            mock_context.inspect_hang_downtime,
+            DefaultValues.MIN_HANG_DOWNTIME,
+        )
+
+        self.mock_args.hang_downtime = 10
+        self.mock_args.inspect_hang_downtime = 1
+        run(self.mock_args)
+        self.assertEqual(mock_context.hang_downtime, 10)
+        self.assertEqual(
+            mock_context.inspect_hang_downtime,
+            DefaultValues.MIN_HANG_DOWNTIME,
+        )
 
 
 if __name__ == "__main__":

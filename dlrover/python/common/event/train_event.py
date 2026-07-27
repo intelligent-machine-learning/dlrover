@@ -27,6 +27,7 @@ class TrainEventName(object):
     TRAIN_EVT_EVALUATE = TrainerEventName.EVALUATE.value
     TRAIN_EVT_PREDICT = TrainerEventName.PREDICT.value
     TRAIN_EVT_STEP = TrainerEventName.TRAIN_STEP.value
+    TRAIN_EVT_INSPECT = TrainerEventName.INSPECT.value
     TRAIN_EVT_PREDICT_STEP = TrainerEventName.PREDICT_STEP.value
     TRAIN_EVT_FLASH_CKPT = TrainerEventName.SAVE.value
     TRAIN_EVT_PERSIST_CKPT = TrainerEventName.TRAIN_PERSIST_CKPT.value
