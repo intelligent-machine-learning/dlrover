@@ -182,7 +182,46 @@ class DistributedJobManagerTest(unittest.TestCase):
             nodes[NodeType.WORKER][0].config_resource.memory, 4096
         )
 
-    def test_node_priority(self):
+    def test_job_resource_group_affinity(self):
+        job = JobResource()
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            25, NodeResource(1, 4096)
+        )
+        job.group_affinity = {0: 10, 1: 15}
+
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        workers = nodes[NodeType.WORKER]
+        self.assertEqual(len(workers), 25)
+
+        # group 0 occupies index 0-9, group 1 occupies index 10-24
+        for i in range(10):
+            self.assertEqual(workers[i].group, 0, f"worker {i}")
+        for i in range(10, 25):
+            self.assertEqual(workers[i].group, 1, f"worker {i}")
+        # every worker carries the total group count
+        for node in workers.values():
+            self.assertEqual(node.group_size, 2)
+            self.assertTrue(node.has_group())
+
+        # group id ordering follows ascending group id, not dict order
+        job.group_affinity = {1: 15, 0: 10}
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        workers = nodes[NodeType.WORKER]
+        for i in range(10):
+            self.assertEqual(workers[i].group, 0)
+        for i in range(10, 25):
+            self.assertEqual(workers[i].group, 1)
+
+    def test_job_resource_without_group_affinity(self):
+        job = JobResource()
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            3, NodeResource(1, 4096)
+        )
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        for node in nodes[NodeType.WORKER].values():
+            self.assertIsNone(node.group)
+            self.assertIsNone(node.group_size)
+            self.assertFalse(node.has_group())
         job = JobResource()
         job.node_group_resources[NodeType.PS] = NodeGroupResource(
             3, NodeResource(8, 10240, priority="high")

@@ -136,6 +136,8 @@ class DistributedJobManager(JobManager):
             )
             node_restart_count[type] = node_args.restart_count
 
+        self._init_group_affinity(job_args)
+
         self._ps_is_critical = False
         if (
             job_args.distribution_strategy == DistributionStrategy.PS
@@ -202,6 +204,35 @@ class DistributedJobManager(JobManager):
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
         self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
+
+    def _init_group_affinity(self, job_args: JobArgs):
+        """Validate and apply the ``--group-affinity`` configuration.
+
+        When ``group_affinity`` is configured, the worker replicas declared
+        in the ElasticJob CRD must equal the sum of all group sizes; the
+        master fails to start otherwise. On success the mapping is forwarded
+        to the ``JobResource`` so that worker nodes are partitioned into the
+        configured node groups.
+        """
+        if not job_args.group_affinity:
+            return
+        worker_resource = self._job_resource.node_group_resources.get(
+            NodeType.WORKER
+        )
+        worker_count = worker_resource.count if worker_resource else 0
+        expected = sum(job_args.group_affinity.values())
+        if worker_count != expected:
+            raise ValueError(
+                f"--group-affinity requires worker replicas={expected}, "
+                f"but got CRD worker replicas={worker_count}"
+            )
+        self._job_resource.group_affinity = job_args.group_affinity
+        logger.info(
+            "Enable node group affinity: %s (total %d groups, %d workers)",
+            job_args.group_affinity,
+            len(job_args.group_affinity),
+            expected,
+        )
 
     def start(self):
         self._scaler.start()

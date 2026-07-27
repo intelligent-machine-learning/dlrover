@@ -12,6 +12,7 @@
 # limitations under the License.
 import argparse
 import ast
+from typing import Dict, Optional
 
 
 def pos_int(arg):
@@ -107,3 +108,41 @@ def parse_tuple_dict(value):
         raise argparse.ArgumentTypeError(
             "Invalid format. Expected format: {(v1, v2): ${boolean}, ...}"
         )
+
+
+def parse_group_affinity(value) -> Optional[Dict[int, int]]:
+    """
+    Format：{${group_id}: ${pod_num}, ...}
+    e.g. "{0: 10, 1: 15}" means group 0 has 10 pods and group 1 has 15 pods.
+
+    Returns a dict mapping a non-negative int group id to a positive int pod
+    number, or None when the argument is empty/not provided. The keys must be
+    non-negative ints and the values must be positive ints.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        parsed_dict = ast.literal_eval(value)
+    except Exception:
+        raise argparse.ArgumentTypeError(
+            "Invalid format. Expected format: {0: 10, 1: 15}"
+        )
+
+    if not isinstance(parsed_dict, dict) or not parsed_dict:
+        raise argparse.ArgumentTypeError(
+            "Invalid format. Expected a non-empty dict like {0: 10, 1: 15}"
+        )
+
+    group_affinity: Dict[int, int] = {}
+    for k, v in parsed_dict.items():
+        if isinstance(k, bool) or not isinstance(k, int) or k < 0:
+            raise argparse.ArgumentTypeError(
+                f"Invalid group id {k!r}; expected a non-negative int."
+            )
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise argparse.ArgumentTypeError(
+                f"Invalid pod number {v!r} for group {k}; "
+                "expected a positive int."
+            )
+        group_affinity[k] = v
+    return group_affinity
