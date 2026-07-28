@@ -11,9 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import unittest
 
 from dlrover.python.util.args_util import (
+    parse_group_affinity,
     parse_tuple_dict,
     parse_tuple_list,
     str2bool,
@@ -78,3 +80,32 @@ class ArgsUtilTest(unittest.TestCase):
             self.fail()
         except Exception:
             pass
+
+    def test_parse_group_affinity(self):
+        # empty / None -> None
+        self.assertIsNone(parse_group_affinity(None))
+        self.assertIsNone(parse_group_affinity(""))
+
+        # valid
+        self.assertEqual(
+            parse_group_affinity("{0: 10, 1: 15}"), {0: 10, 1: 15}
+        )
+        self.assertEqual(parse_group_affinity("{2: 3}"), {2: 3})
+        # keys are ordered by value usage, not by dict order
+        self.assertEqual(
+            parse_group_affinity("{1: 15, 0: 10}"), {1: 15, 0: 10}
+        )
+
+        # invalid
+        for bad in ["[1, 2]", "abc", "[]", "'not a dict'", "{0: 0}", "{}"]:
+            with self.assertRaises(argparse.ArgumentTypeError):
+                parse_group_affinity(bad)
+        # negative group id
+        with self.assertRaises(argparse.ArgumentTypeError):
+            parse_group_affinity("{-1: 5}")
+        # non-int value
+        with self.assertRaises(argparse.ArgumentTypeError):
+            parse_group_affinity("{0: 'x'}")
+        # bool value (True is an int subclass, must be rejected)
+        with self.assertRaises(argparse.ArgumentTypeError):
+            parse_group_affinity("{0: True}")

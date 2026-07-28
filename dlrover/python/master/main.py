@@ -73,6 +73,7 @@ def run(args):
     _dlrover_context.dashboard_port = args.dashboard_port
 
     job_args.training_elastic_mode = args.training_elastic_mode
+    job_args.group_affinity = args.group_affinity
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

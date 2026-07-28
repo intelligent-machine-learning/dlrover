@@ -15,7 +15,7 @@ import copy
 import threading
 import time
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, List, Optional
 
 from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import (
@@ -71,6 +71,7 @@ def new_ps_resource_optimizer(
 class JobResource(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
+        self.group_affinity: Optional[Dict[int, int]] = None
 
     def get_node_group_resource(self, node_type):
         return self.node_group_resources.get(node_type, None)
@@ -130,7 +131,9 @@ class JobResource(JsonSerializable):
             group_resource = self.get_node_group_resource(node_type)
             config_resource = group_resource.node_resource
             group_nodes: Dict[int, Node] = {}
+            group_size = self._group_count()
             for i in range(group_resource.count):
+                group_id = self._resolve_group_id(node_type, i)
                 group_nodes[i] = Node(
                     node_type=node_type,
                     node_id=i,
@@ -139,12 +142,44 @@ class JobResource(JsonSerializable):
                     config_resource=copy.deepcopy(config_resource),
                     max_relaunch_count=relaunch_on_worker_failure,
                     service_addr=service_create_fn(node_type, i),
+                    node_group=group_id,
+                    node_group_size=group_size
+                    if group_id is not None
+                    else None,
                 )
             job_nodes[node_type] = group_nodes
         logger.info(
             "after initializing job node meta job_nodes are %s" % job_nodes
         )
         return job_nodes
+
+    def _group_count(self) -> Optional[int]:
+        """Return the total number of node groups, or None if group
+        affinity is not configured."""
+        if not self.group_affinity:
+            return None
+        return len(self.group_affinity)
+
+    def _resolve_group_id(
+        self, node_type: str, rank_index: int
+    ) -> Optional[int]:
+        """Resolve the node group id for a node by its rank index.
+
+        Only WORKER nodes are partitioned into node groups. The groups are
+        laid out in ascending group-id order, each occupying a contiguous
+        [start, end) rank range sized by ``group_affinity[group_id]``.
+        Returns None when group affinity is not configured.
+        """
+        if node_type != NodeType.WORKER or not self.group_affinity:
+            return None
+        ordered_groups: List[int] = sorted(self.group_affinity.keys())
+        start = 0
+        for group_id in ordered_groups:
+            size = self.group_affinity[group_id]
+            if start <= rank_index < start + size:
+                return group_id
+            start += size
+        return None
 
     def adjust_worker_for_estimator(self):
         if (

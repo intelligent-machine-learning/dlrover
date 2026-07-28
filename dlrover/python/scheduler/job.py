@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.python.common.constants import (
     Accelerators,
@@ -108,6 +108,7 @@ class JobArgs(JsonSerializable):
         self.xpu_type: Accelerators = Accelerators.GENERIC_CPU
         self.enable_suspended = False
         self.training_elastic_mode = "base"
+        self.group_affinity: Optional[Dict[int, int]] = None
 
     @abstractmethod
     def initilize(self):
