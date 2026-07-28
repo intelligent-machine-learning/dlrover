@@ -16,6 +16,7 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Dict
 from unittest import mock
 from unittest.mock import MagicMock, patch
@@ -222,6 +223,73 @@ class DistributedJobManagerTest(unittest.TestCase):
             self.assertIsNone(node.group)
             self.assertIsNone(node.group_size)
             self.assertFalse(node.has_group())
+
+    def _new_manager_with_worker_count(self, count):
+        """Build a lightweight DistributedJobManager with only the job
+        resource populated, bypassing the heavy __init__ so that
+        _init_group_affinity can be exercised in isolation."""
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        job_resource = JobResource()
+        if count is not None:
+            job_resource.node_group_resources[NodeType.WORKER] = (
+                NodeGroupResource(count, NodeResource(1, 4096))
+            )
+        manager._job_resource = job_resource
+        return manager
+
+    def test_init_group_affinity_disabled(self):
+        # no group_affinity -> no-op, job_resource untouched
+        manager = self._new_manager_with_worker_count(3)
+        manager._init_group_affinity(SimpleNamespace(group_affinity=None))
+        self.assertIsNone(manager._job_resource.group_affinity)
+        # an empty mapping is also treated as disabled
+        manager._init_group_affinity(SimpleNamespace(group_affinity={}))
+        self.assertIsNone(manager._job_resource.group_affinity)
+
+    def test_init_group_affinity_matched(self):
+        # worker replicas == sum(values) -> apply and forward
+        manager = self._new_manager_with_worker_count(25)
+        manager._init_group_affinity(
+            SimpleNamespace(group_affinity={0: 10, 1: 15})
+        )
+        self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
+
+    def test_init_group_affinity_mismatched(self):
+        # worker replicas != sum(values) -> raise on start
+        manager = self._new_manager_with_worker_count(2)
+        with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
+            manager._init_group_affinity(
+                SimpleNamespace(group_affinity={0: 10, 1: 15})
+            )
+        # the mapping must not be applied when validation fails
+        self.assertIsNone(manager._job_resource.group_affinity)
+
+    def test_init_group_affinity_without_worker_resource(self):
+        # no WORKER resource at all -> worker_count defaults to 0 -> raise
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        manager._job_resource = JobResource()
+        with self.assertRaisesRegex(ValueError, "requires worker replicas=5"):
+            manager._init_group_affinity(
+                SimpleNamespace(group_affinity={0: 5})
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
+
+    def test_init_group_affinity_via_job_manager_init(self):
+        # Exercise the __init__ path: create_job_manager must call
+        # _init_group_affinity and apply a matching group_affinity.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.group_affinity = {0: 8, 1: 8}
+        manager = create_job_manager(params, PerfMonitor())
+        self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
+
+    def test_init_group_affinity_via_job_manager_init_mismatch(self):
+        # A mismatched group_affinity must fail the manager construction.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.group_affinity = {0: 10, 1: 15}
+        with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
+            create_job_manager(params, PerfMonitor())
         job = JobResource()
         job.node_group_resources[NodeType.PS] = NodeGroupResource(
             3, NodeResource(8, 10240, priority="high")

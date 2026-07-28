@@ -103,3 +103,44 @@ class ArgsTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             parse_master_args(original_args)
             self.assertEqual(cm.exception.code, 2)
+
+    def test_parse_group_affinity(self):
+        # default is None when the argument is absent
+        original_args = [
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertIsNone(parsed_args.group_affinity)
+
+        # valid mapping with spaces inside the literal dict
+        original_args = [
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
+            "--group-affinity={0: 10, 1: 15}",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.group_affinity, {0: 10, 1: 15})
+
+        # the underscore alias is also accepted
+        original_args = [
+            "--job_name",
+            "test",
+            "--group_affinity={2: 3}",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.group_affinity, {2: 3})
+
+        # invalid mapping makes the parser exit with code 2
+        original_args = [
+            "--job_name",
+            "test",
+            "--group-affinity={0: 0}",
+        ]
+        with self.assertRaises(SystemExit) as cm:
+            parse_master_args(original_args)
+        self.assertEqual(cm.exception.code, 2)
