@@ -68,6 +68,31 @@ def new_ps_resource_optimizer(
         return SimpleOptimizer(job_uuid, resource_limits)
 
 
+def resolve_group_id(
+    group_affinity: Optional[Dict[int, int]],
+    node_type: str,
+    rank_index: int,
+) -> Optional[int]:
+    """Resolve the node group id for a node by its rank index.
+
+    Only WORKER nodes are partitioned into node groups. The groups are
+    laid out in ascending group-id order, each occupying a contiguous
+    ``[start, end)`` rank range sized by ``group_affinity[group_id]``.
+    Returns ``None`` when group affinity is not configured or the rank
+    falls outside the declared worker range.
+    """
+    if node_type != NodeType.WORKER or not group_affinity:
+        return None
+    ordered_groups: List[int] = sorted(group_affinity.keys())
+    start = 0
+    for group_id in ordered_groups:
+        size = group_affinity[group_id]
+        if start <= rank_index < start + size:
+            return group_id
+        start += size
+    return None
+
+
 class JobResource(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
@@ -146,6 +171,7 @@ class JobResource(JsonSerializable):
                     node_group_size=group_size
                     if group_id is not None
                     else None,
+                    node_group_id=group_id,
                 )
             job_nodes[node_type] = group_nodes
         logger.info(
@@ -170,16 +196,7 @@ class JobResource(JsonSerializable):
         [start, end) rank range sized by ``group_affinity[group_id]``.
         Returns None when group affinity is not configured.
         """
-        if node_type != NodeType.WORKER or not self.group_affinity:
-            return None
-        ordered_groups: List[int] = sorted(self.group_affinity.keys())
-        start = 0
-        for group_id in ordered_groups:
-            size = self.group_affinity[group_id]
-            if start <= rank_index < start + size:
-                return group_id
-            start += size
-        return None
+        return resolve_group_id(self.group_affinity, node_type, rank_index)
 
     def adjust_worker_for_estimator(self):
         if (

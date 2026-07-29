@@ -360,6 +360,33 @@ class PodScalerTest(unittest.TestCase):
             scaler._create_node_queue[0].service_addr,
             "elasticjob-sample-edljob-worker-1.default.svc:3333",
         )
+        # Without group affinity, created nodes carry no group info.
+        for node in scaler._create_node_queue:
+            self.assertIsNone(node.group)
+            self.assertIsNone(node.group_size)
+            self.assertIsNone(node.group_id)
+
+    def test_scale_up_pods_with_group_affinity(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        scaler.set_group_affinity({0: 1, 1: 1})
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(2, resource),
+        }
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, [], 0)
+        self.assertEqual(len(scaler._create_node_queue), 2)
+        rank0 = scaler._create_node_queue[0]
+        rank1 = scaler._create_node_queue[1]
+        self.assertEqual(rank0.rank_index, 0)
+        self.assertEqual(rank0.group, 0)
+        self.assertEqual(rank0.group_size, 2)
+        self.assertEqual(rank0.group_id, 0)
+        self.assertEqual(rank1.rank_index, 1)
+        self.assertEqual(rank1.group, 1)
+        self.assertEqual(rank1.group_size, 2)
+        self.assertEqual(rank1.group_id, 1)
 
     def test_update_job_pods(self):
         scaler = PodScaler("elasticjob-sample", "default")

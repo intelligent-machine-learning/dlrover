@@ -66,3 +66,12 @@ class Scaler(metaclass=ABCMeta):
     def scale(self, plan: ScalePlan, **kwargs):
         """Scale the job with the plan."""
         pass
+
+    def set_group_affinity(self, group_affinity):
+        """Set the node group affinity mapping for the scaler.
+
+        Scalers that schedule pods onto node groups (e.g. PodScaler) can
+        override this to label created pods with their group. The default
+        no-op keeps the base scaler agnostic of group affinity.
+        """
+        pass
