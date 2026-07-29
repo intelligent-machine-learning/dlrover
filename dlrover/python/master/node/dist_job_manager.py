@@ -200,6 +200,10 @@ class DistributedJobManager(JobManager):
             job_args.job_uuid,
         )
         self._scaler: Scaler = job_scaler
+        # _init_group_affinity (above) has already applied --group-affinity
+        # onto self._job_resource; forward it to the scaler so newly created
+        # pods can be labeled with their node group.
+        self._scaler.set_group_affinity(self._job_resource.group_affinity)
         self._init_training_node_manager()
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
