@@ -182,6 +182,7 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.task_process_timeout = 3600
         mock_args.hang_detection = False
         mock_args.hang_downtime = 300
+        mock_args.max_hang_downtime = 300
         mock_args.pending_fail_strategy = ""
         mock_args.pending_timeout = 0
         mock_args.service_type = ""
@@ -254,6 +255,7 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.task_process_timeout = 3600
         mock_args.hang_detection = False
         mock_args.hang_downtime = 300
+        mock_args.max_hang_downtime = 300
         mock_args.pending_fail_strategy = ""
         mock_args.pending_timeout = 0
         mock_args.service_type = ""
@@ -330,6 +332,7 @@ class TestMasterDashboardIntegration(unittest.TestCase):
         mock_args.task_process_timeout = 3600
         mock_args.hang_detection = False
         mock_args.hang_downtime = 300
+        mock_args.max_hang_downtime = 300
         mock_args.pending_fail_strategy = ""
         mock_args.pending_timeout = 0
         mock_args.service_type = ""
