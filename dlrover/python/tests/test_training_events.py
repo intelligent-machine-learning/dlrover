@@ -144,12 +144,17 @@ class TrainingEventTest(unittest.TestCase):
 
     def test_atorch_parse_line(self):
         collector = AtorchEventCollector()
-        with self.assertRaises(AtorchInvalidException):
-            line = (
-                "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
-                '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004, "step_type": "train,inspect" }'
-            )
-            collector.parse_line(line)
+        # Non-pure-train BEGIN (e.g. train,inspect) must NOT be rejected
+        # anymore; it is reported so the master can apply max_hang_timeout
+        # instead of silently dropping it (which used to break the master's
+        # step pairing chain).
+        line = (
+            "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
+            '[#step] [BEGIN] {"global_step": 30, "epoch": 0.004, "step_type": "train,inspect" }'
+        )
+        events = collector.parse_line(line)
+        self.assertEqual(events[4], 30)
+        self.assertEqual(events[5], "train,inspect")
 
         line = (
             "[2025-01-22T19:01:19.422454] [2044] [322] [AtorchTrainerV2] "
@@ -164,6 +169,7 @@ class TrainingEventTest(unittest.TestCase):
         self.assertEqual(events[2], TrainerEventName.TRAIN_STEP.value)
         self.assertEqual(events[3], EventTypeName.BEGIN)
         self.assertEqual(events[4], 30)
+        self.assertEqual(events[5], "train")
 
         with self.assertRaises(ValueError):
             line = (
@@ -233,13 +239,16 @@ class TrainingEventTest(unittest.TestCase):
         events = StepEvents()
         ckpts = StepEvents()
 
-        def mock_report_event(self, ts, target, event_name, event_type, step):
+        def mock_report_event(
+            self, ts, target, event_name, event_type, step, step_type=""
+        ):
             evt = AtorchEvent(
                 timestamp=ts,
                 step=step,
                 target=target,
                 name=event_name,
                 type=event_type,
+                step_type=step_type,
             )
             if event_name == TrainEventName.TRAIN_EVT_STEP:
                 events.add_step_event(evt)
@@ -258,9 +267,19 @@ class TrainingEventTest(unittest.TestCase):
             time.sleep(1)
             collector.stop_collectors()
 
+            # The first step (177018->177019, a long ~22min step) is now
+            # tracked (no longer skipped); it is the first step since the
+            # store is empty, so is_first_step is True.
+            _, step = events.pop_step_event()
+            self.assertEqual(step.step, 177019)
+            self.assertEqual(step.step_time, 1346)
+            self.assertTrue(step.is_first_step)
+            self.assertEqual(step.event_name, TrainEventName.TRAIN_EVT_STEP)
+            self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
             _, step = events.pop_step_event()
             self.assertEqual(step.step, 177020)
             self.assertEqual(step.step_time, 21)
+            self.assertFalse(step.is_first_step)
             self.assertEqual(step.event_name, TrainEventName.TRAIN_EVT_STEP)
             self.assertEqual(step.event_state, TrainEventState.TRAIN_EVT_END)
             _, step = events.pop_step_event()
@@ -871,3 +890,159 @@ class TrainingEventTest(unittest.TestCase):
         )
         _event_context.eval_steps.add_eval_event(eval)
         self.assertEqual(_event_context.check_event_block(), False)
+
+    def test_atorch_step_event_step_type_and_first_step(self):
+        test_events = StepEvents(max_events=10)
+        now = int(datetime.now().timestamp())
+
+        # The first BEGIN is the first step (store empty); step_type is stored.
+        evt = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+            step_type="train,inspect",
+        )
+        test_events.add_step_event(evt)
+        last = test_events.get_last_step_event()
+        self.assertEqual(last.step_type, "train,inspect")
+        self.assertTrue(last.is_first_step)
+
+        # After END, the next BEGIN is not the first step anymore.
+        test_events.add_step_event(
+            AtorchEvent(
+                timestamp=now + 1,
+                target=EventTargetName.TRAINER,
+                name=TrainEventName.TRAIN_EVT_STEP,
+                type=EventTypeName.END,
+                step=2,
+                step_type="train,inspect",
+            )
+        )
+        test_events.add_step_event(
+            AtorchEvent(
+                timestamp=now + 2,
+                target=EventTargetName.TRAINER,
+                name=TrainEventName.TRAIN_EVT_STEP,
+                type=EventTypeName.BEGIN,
+                step=2,
+                step_type="train",
+            )
+        )
+        last = test_events.get_last_step_event()
+        self.assertEqual(last.step_type, "train")
+        self.assertFalse(last.is_first_step)
+
+        # Legacy agent event without step_type attribute is treated as a pure
+        # train step (empty step_type), i.e. backward compatible.
+        legacy = StepEvents(max_events=10)
+        evt_legacy = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        # Mimic an old pickle whose __dict__ lacks the step_type field.
+        delattr(evt_legacy, "step_type")
+        legacy.add_step_event(evt_legacy)
+        last = legacy.get_last_step_event()
+        self.assertEqual(last.step_type, "")
+        self.assertTrue(last.is_first_step)
+
+    def test_atorch_step_event_forward_gap_tolerance(self):
+        test_events = StepEvents(max_events=10)
+        now = int(datetime.now().timestamp())
+
+        def _evt(event_type, step, ts):
+            return AtorchEvent(
+                timestamp=ts,
+                target=EventTargetName.TRAINER,
+                name=TrainEventName.TRAIN_EVT_STEP,
+                type=event_type,
+                step=step,
+            )
+
+        # Build a completed step: BEGIN(1) -> END(2). Each event gets a distinct
+        # timestamp since the store is keyed by the BEGIN timestamp.
+        test_events.add_step_event(_evt(EventTypeName.BEGIN, 1, now))
+        test_events.add_step_event(_evt(EventTypeName.END, 2, now + 1))
+        self.assertEqual(test_events.size(), 1)
+
+        # A forward jump (BEGIN step 5 after END step 2) is now tolerated:
+        # the missing BEGINs (e.g. an inspect step that was skipped/lost, or a
+        # lost event) no longer deadlock the whole chain. Previously this was
+        # rejected because 5 != 2.
+        test_events.add_step_event(_evt(EventTypeName.BEGIN, 5, now + 2))
+        self.assertEqual(test_events.size(), 2)
+        last = test_events.get_last_step_event()
+        self.assertEqual(last.step, 5)
+        self.assertEqual(last.event_state, TrainEventState.TRAIN_EVT_BEGIN)
+
+        # A backward jump (BEGIN step 3 while the last step is 5) is still
+        # rejected as out-of-order.
+        test_events.add_step_event(_evt(EventTypeName.BEGIN, 3, now + 3))
+        self.assertEqual(test_events.size(), 2)
+
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
+    def test_step_hang_max_hang_timeout(self):
+        _event_context.train_steps.clear_step_events()
+        # hang_downtime=1 -> hang_threshold=60s; max_hang_downtime=2 ->
+        # max_hang_timeout=120s. The latter is the ceiling for the first step
+        # and non-pure-train steps.
+        _dlrover_context.hang_downtime = 1
+        _dlrover_context.max_hang_downtime = 2
+
+        now = int(datetime.now().timestamp())
+
+        def _begin(step, step_type):
+            _event_context.train_steps.add_step_event(
+                AtorchEvent(
+                    timestamp=now,
+                    target=EventTargetName.TRAINER,
+                    name=TrainEventName.TRAIN_EVT_STEP,
+                    type=EventTypeName.BEGIN,
+                    step=step,
+                    step_type=step_type,
+                )
+            )
+            # Simulate the step started 90 seconds ago.
+            last = _event_context.train_steps.get_last_step_event()
+            last.localtime = now - 90
+            return last
+
+        def _end(step):
+            _event_context.train_steps.add_step_event(
+                AtorchEvent(
+                    timestamp=now,
+                    target=EventTargetName.TRAINER,
+                    name=TrainEventName.TRAIN_EVT_STEP,
+                    type=EventTypeName.END,
+                    step=step,
+                )
+            )
+
+        # First step (pure train, is_first_step=True) -> max_hang_timeout(120s).
+        # 90s < 120s -> not hang (would be hang under hang_timeout=60s).
+        _begin(0, "train")
+        self.assertEqual(_event_context.check_job_step_hang(), False)
+
+        # A later normal pure-train step -> hang_timeout(60s).
+        # 90s > 60s -> hang.
+        _end(1)
+        _begin(1, "train")
+        self.assertEqual(_event_context.check_job_step_hang(), True)
+
+        # A non-pure-train (inspect) step -> max_hang_timeout(120s).
+        # 90s < 120s -> not hang (the slow inspect step is tolerated).
+        _end(2)
+        _begin(2, "train,inspect")
+        self.assertEqual(_event_context.check_job_step_hang(), False)
+
+        # restore defaults
+        _dlrover_context.hang_downtime = 10
+        _dlrover_context.max_hang_downtime = 120

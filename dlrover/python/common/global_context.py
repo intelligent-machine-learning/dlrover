@@ -44,6 +44,7 @@ class ConfigKeys(object):
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
     HANG_CPU_USAGE_RATE = "hang_cpu_usage_rate"
+    MAX_HANG_DOWNTIME = "max_hang_downtime"
 
 
 class DefaultValues(object):
@@ -78,6 +79,10 @@ class DefaultValues(object):
     ]
     HANG_DOWNTIME = 10  # default downtime, unit is minute
     MIN_HANG_DOWNTIME = 2  # min downtime, unit is minute
+    # The max downtime as training hang for non-pure-train step (e.g.
+    # train,inspect / eval) and the first step, which are legitimate but
+    # long. Unit is minute.
+    MAX_HANG_DOWNTIME = 120
     MAX_CKPT_THRESHOLD = 15  # unit is minute
     FIRST_GROUP_IDX = 1000  # group idx initial value for group relaunch
     MAX_RELAUNCH_COUNT = 3  # maximum node relaunch count
@@ -142,6 +147,10 @@ class Context(Singleton):
         self.hang_detection = HangDetectionStrategy.DO_NOTIFY
         # The duration of downtime as training hang, unit is minute
         self.hang_downtime = DefaultValues.HANG_DOWNTIME
+        # The max downtime as training hang for non-pure-train step and the
+        # first step, unit is minute. Derived hang threshold is
+        # `max_hang_downtime * 60` (seconds).
+        self.max_hang_downtime = DefaultValues.MAX_HANG_DOWNTIME
         self.gpu_per_node = DefaultValues.GPU_NUM_PER_NODE
         self.npu_per_node = DefaultValues.NPU_NUM_PER_NODE
         # pre-check args
@@ -212,6 +221,11 @@ class Context(Singleton):
         self.hang_cpu_usage_percentage = self.get_param_value_from_brain(
             ConfigKeys.HANG_CPU_USAGE_RATE,
             DefaultValues.HANG_CPU_USAGE_RATE,
+        )
+        self.max_hang_downtime = self.get_param_value_from_brain(
+            ConfigKeys.MAX_HANG_DOWNTIME,
+            DefaultValues.MAX_HANG_DOWNTIME,
+            dtype=int,
         )
 
     def config_master_port(self, port=0):

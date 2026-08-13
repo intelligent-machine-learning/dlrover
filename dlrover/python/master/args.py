@@ -97,6 +97,14 @@ def _build_master_args_parser():
         help="Training downtime to detect job hang, unit is minute",
     )
     parser.add_argument(
+        "--max_hang_downtime",
+        default=DefaultValues.MAX_HANG_DOWNTIME,
+        type=pos_int,
+        help="The max downtime to detect job hang for non-pure-train step "
+        "(e.g. train,inspect / eval) and the first step, unit is minute. "
+        "Should be no less than --hang_downtime.",
+    )
+    parser.add_argument(
         "--xpu_type",
         default="nvidia",
         type=str,

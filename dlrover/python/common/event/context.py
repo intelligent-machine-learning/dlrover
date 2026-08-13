@@ -29,6 +29,14 @@ from dlrover.python.training_event.event import EventTypeName
 _dlrover_context = Context.singleton_instance()
 
 
+def _is_pure_train_step(step_type):
+    """A pure train step is one whose step_type is exactly "train". An empty
+    step_type (legacy agents / old logs without the field, or #save/#eval
+    events) is treated as a pure train step for hang detection, so that old
+    agents keep the original hang_timeout behavior (backward compatible)."""
+    return step_type in ("", "train")
+
+
 class StepEvents(object):
     def __init__(self, max_events=DefaultValues.MAX_TRAIN_STEPS):
         """
@@ -105,11 +113,25 @@ class StepEvents(object):
             elif len(keys) >= self._max_events:
                 self._step_events.popitem(last=False)
 
+            # step_type is optional (legacy agents / old logs don't send it);
+            # read defensively and treat empty as a pure train step.
+            step_type = getattr(event, "step_type", "") or ""
+
             if event.type == EventTypeName.BEGIN:
+                # The first BEGIN added after a store clear (rendezvous /
+                # failover) is the first step, which is usually slow due to
+                # compilation/warmup and is checked against max_hang_timeout.
+                is_first_step = len(keys) == 0
                 if len(keys) > 0:
                     last_event = self._step_events[keys[-1]]
+                    # Tolerate a forward gap in step number: non-pure-train
+                    # steps (inspect/eval) are now tracked (not dropped) and
+                    # still increment global_step, and a BEGIN can also be
+                    # lost in transit. A forward jump is acceptable; only a
+                    # backward/out-of-order step is rejected, so that one
+                    # missing BEGIN no longer deadlocks the whole chain.
                     if (
-                        event.step != last_event.step
+                        event.step < last_event.step
                         or last_event.event_state
                         != TrainEventState.TRAIN_EVT_END
                     ):
@@ -123,10 +145,14 @@ class StepEvents(object):
                         return
 
                 step_event = AtorchStepEvent(
-                    event.name, TrainEventState.TRAIN_EVT_BEGIN, event.step
+                    event.name,
+                    TrainEventState.TRAIN_EVT_BEGIN,
+                    event.step,
+                    step_type,
                 )
                 step_event.begin_timestamp = event.timestamp
                 step_event.localtime = int(time.time())
+                step_event.is_first_step = is_first_step
                 self._step_events[event.timestamp] = step_event
                 logger.debug(
                     f"Add BEGIN event with {event.timestamp}, {step_event}"
@@ -250,12 +276,18 @@ class JobEventContext(Singleton):
         self.ckpt_steps: StepEvents = StepEvents()
         self.eval_steps: StepEvents = StepEvents()
         self.hang_threshold = DefaultValues.HANG_DOWNTIME * 60
+        # max_hang_timeout is the ceiling for non-pure-train steps (inspect/
+        # eval) and the first step, derived from max_hang_downtime (minute).
+        self.max_hang_timeout = DefaultValues.MAX_HANG_DOWNTIME * 60
         self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD * 60
 
     def check_job_step_hang(self):
         self.hang_threshold = _dlrover_context.hang_downtime * 60
         if self.hang_threshold < DefaultValues.MIN_HANG_DOWNTIME * 60:
             self.hang_threshold = DefaultValues.MIN_HANG_DOWNTIME * 60
+        self.max_hang_timeout = _dlrover_context.max_hang_downtime * 60
+        if self.max_hang_timeout < self.hang_threshold:
+            self.max_hang_timeout = self.hang_threshold
 
         now = int(datetime.now().timestamp())
 
@@ -265,15 +297,18 @@ class JobEventContext(Singleton):
             logger.warning("Skip step hang detection since no step collected")
             return False
         elif step.event_state == TrainEventState.TRAIN_EVT_BEGIN:
-            if now - step.localtime < self.hang_threshold:
-                logger.debug(
-                    f"No hang detected: {now} {self.hang_threshold} {step}"
-                )
+            # The first step (compile/warmup) and non-pure-train steps
+            # (inspect/eval) are legitimately slow; check them against the
+            # larger max_hang_timeout ceiling instead of hang_threshold.
+            if step.is_first_step or not _is_pure_train_step(step.step_type):
+                threshold = self.max_hang_timeout
+            else:
+                threshold = self.hang_threshold
+            if now - step.localtime < threshold:
+                logger.debug(f"No hang detected: {now} {threshold} {step}")
                 return False
             else:
-                logger.warning(
-                    f"Detect hang: {now} {self.hang_threshold} {step}"
-                )
+                logger.warning(f"Detect hang: {now} {threshold} {step}")
                 return True
         else:
             logger.debug(f"No new step: {now} {self.hang_threshold} {step}")
@@ -313,6 +348,10 @@ class JobEventContext(Singleton):
 
         step = self.train_steps.get_last_step_event()
         if step and step.event_state == TrainEventState.TRAIN_EVT_END:
+            # Non-pure-train steps (inspect/eval) and the first step are now
+            # visible to the master; while they are running the last step is in
+            # BEGIN state and this check is skipped below. So a genuine stall
+            # after the last END is still judged against hang_timeout.
             if now - step.localtime > self.hang_threshold:
                 ckpt_step = self.ckpt_steps.get_last_step_event()
                 if ckpt_step and ckpt_step.localtime > step.localtime:

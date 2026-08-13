@@ -256,6 +256,7 @@ class MasterMainXpuTypeTest(unittest.TestCase):
         self.mock_args.task_process_timeout = 600
         self.mock_args.hang_detection = True
         self.mock_args.hang_downtime = 300
+        self.mock_args.max_hang_downtime = 300
         self.mock_args.pending_fail_strategy = "restart"
         self.mock_args.pending_timeout = 60
         self.mock_args.service_type = "ClusterIP"

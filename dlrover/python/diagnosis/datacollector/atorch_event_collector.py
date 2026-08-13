@@ -60,13 +60,13 @@ class AtorchEventCollector(Singleton):
         self._retry_timeout = retry_timeout
         self._ranks = local_world_size
         self._threads = []
-        self._first_step = None
 
     def reset_first_step(self):
-        logger.info(
-            f"AtorchEventCollector: reset first step {self._first_step} to None"
-        )
-        self._first_step = None
+        # Deprecated: first-step detection now happens on the master side.
+        # The first BEGIN added after a train_steps clear is treated as the
+        # first step and checked against max_hang_downtime. Kept as a no-op so
+        # existing callers (e.g. after rendezvous) do not break.
+        logger.debug("AtorchEventCollector: reset_first_step is a no-op now")
 
     def parse_line(self, line):
         match = re.findall(self._prefix_pattern, line)
@@ -110,22 +110,18 @@ class AtorchEventCollector(Singleton):
             logger.debug(f"Invalid event type {event_type} in line {line}")
             raise AtorchNotFoundException()
 
+        event_step_type = ""
         if event_name == TrainEventName.TRAIN_EVT_STEP:
             text = literal_eval(re.sub(self._prefix_pattern, "", line))
             if isinstance(text, dict):
                 event_step = int(text["global_step"])
-                if "step_type" in text:  # backward compatible
-                    event_step_type = text["step_type"]
-                    if (
-                        event_type == EventTypeName.BEGIN
-                        and event_target == EventTargetName.TRAINER
-                        and event_name == TrainEventName.TRAIN_EVT_STEP
-                        and event_step_type != "train"
-                    ):
-                        logger.debug(
-                            f"Invalid step type {event_step_type} in line {line}"
-                        )
-                        raise AtorchInvalidException()
+                # step_type is optional (backward compatible). Non-pure-train
+                # steps (e.g. "train,inspect" / "eval" / "train,eval") are
+                # legit but slow; they MUST stay visible to the master so that
+                # hang detection can apply max_hang_timeout instead of being
+                # silently skipped (which used to break the master's step
+                # pairing chain).
+                event_step_type = str(text.get("step_type", "") or "")
             else:
                 logger.warning(f"Invalid text format {text} in line {line}")
                 raise ValueError
@@ -144,11 +140,20 @@ class AtorchEventCollector(Singleton):
                 )
                 raise e
 
-        return event_ts, event_target, event_name, event_type, event_step
+        return (
+            event_ts,
+            event_target,
+            event_name,
+            event_type,
+            event_step,
+            event_step_type,
+        )
 
-    def _report_event(self, ts, target, event_name, event_type, step):
+    def _report_event(
+        self, ts, target, event_name, event_type, step, step_type=""
+    ):
         self._client.report_atorch_event(
-            ts, target, event_name, event_type, step
+            ts, target, event_name, event_type, step, step_type
         )
 
     def _monitor_file(self, filepath):
@@ -167,12 +172,18 @@ class AtorchEventCollector(Singleton):
                     continue
 
                 try:
-                    ts, target, event_name, event_type, step = self.parse_line(
-                        line
-                    )
+                    (
+                        ts,
+                        target,
+                        event_name,
+                        event_type,
+                        step,
+                        step_type,
+                    ) = self.parse_line(line)
                     logger.info(
                         f"Parse line output: "
-                        f"{ts} {target} {event_name} {event_type} {step}"
+                        f"{ts} {target} {event_name} {event_type} {step} "
+                        f"{step_type}"
                     )
                 except (AtorchNotFoundException, AtorchInvalidException):
                     continue
@@ -183,24 +194,16 @@ class AtorchEventCollector(Singleton):
                     logger.warning(f"Parse {line} unexpected error: {e}")
                     continue
 
-                if (
-                    self._first_step is None
-                    and target == EventTargetName.TRAINER
-                    and event_name == TrainEventName.TRAIN_EVT_STEP
-                    and event_type == EventTypeName.BEGIN
-                ):
-                    logger.info(
-                        f"Collect first step since last rendezvous: {step}"
-                    )
-                    self._first_step = step
-
-                if self._first_step is not None and step != self._first_step:
-                    logger.info(
-                        f"Report event: {ts} {target} {event_name} {event_type} {step}"
-                    )
-                    self._report_event(
-                        ts, target, event_name, event_type, step
-                    )
+                # Report every event. The first step and non-pure-train steps
+                # (inspect/eval) are no longer skipped here; the master keeps
+                # them visible and applies max_hang_timeout for hang detection.
+                logger.info(
+                    f"Report event: {ts} {target} {event_name} {event_type} "
+                    f"{step} {step_type}"
+                )
+                self._report_event(
+                    ts, target, event_name, event_type, step, step_type
+                )
 
     def collect_events(self, rank: int):
         filepath = os.path.join(self._filepath, f"events_{rank}.log")
