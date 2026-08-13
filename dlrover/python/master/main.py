@@ -58,6 +58,20 @@ def run(args):
     if _dlrover_context.hang_downtime < DefaultValues.MIN_HANG_DOWNTIME:
         _dlrover_context.hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
 
+    _dlrover_context.max_hang_downtime = args.max_hang_downtime
+    if _dlrover_context.max_hang_downtime < DefaultValues.MIN_HANG_DOWNTIME:
+        _dlrover_context.max_hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
+    # max_hang_downtime is a ceiling for non-pure-train/first step and should
+    # be no less than hang_downtime; otherwise the corner case is stricter than
+    # the normal case, which defeats the purpose.
+    if _dlrover_context.max_hang_downtime < _dlrover_context.hang_downtime:
+        logger.warning(
+            f"max_hang_downtime({_dlrover_context.max_hang_downtime}) is "
+            f"less than hang_downtime({_dlrover_context.hang_downtime}), "
+            "fallback to hang_downtime."
+        )
+        _dlrover_context.max_hang_downtime = _dlrover_context.hang_downtime
+
     _dlrover_context.pending_fail_strategy = args.pending_fail_strategy
     _dlrover_context.pending_timeout = args.pending_timeout
     _dlrover_context.master_service_type = args.service_type

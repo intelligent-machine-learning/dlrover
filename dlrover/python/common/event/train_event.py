@@ -103,12 +103,19 @@ class AtorchPredictEvent(TrainEvent):
 
 
 class AtorchStepEvent(TrainEvent):
-    def __init__(self, evt_name, evt_state, step):
+    def __init__(self, evt_name, evt_state, step, step_type=""):
         super().__init__(evt_name, evt_state)
         self.event_state = evt_state
         self.event_name = evt_name
         self.step = step
         self.step_time = 0
+        # step_type of the #step event, e.g. "train", "train,inspect", "eval".
+        # Empty means unknown/legacy and is treated as a pure train step.
+        self.step_type = step_type
+        # Whether this step is the first step since the last rendezvous /
+        # store clear. The first step usually involves compilation/warmup and
+        # is legitimately slow, so it is checked against max_hang_timeout.
+        self.is_first_step = False
 
     def __repr__(self):
         attributes = [f"{k}={v!r}" for k, v in vars(self).items()]

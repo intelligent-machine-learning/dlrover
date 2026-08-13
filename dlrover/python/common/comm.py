@@ -243,6 +243,10 @@ class AtorchEvent(Message):
     name: str = ""
     type: str = ""
     step: int = 0
+    # step_type is only meaningful for #step events, e.g. "train",
+    # "train,inspect", "eval", "train,eval". Empty for #save/#eval (legacy
+    # agents won't send it; consumers should read it defensively).
+    step_type: str = ""
 
 
 @dataclass

@@ -298,6 +298,7 @@ class MasterClient(Singleton, ABC):
         event_name,
         event_type,
         event_step,
+        step_type="",
     ):
         message = comm.AtorchEvent(
             timestamp=event_ts,
@@ -305,6 +306,7 @@ class MasterClient(Singleton, ABC):
             target=event_target,
             name=event_name,
             type=event_type,
+            step_type=step_type,
         )
 
         return self._report(message)

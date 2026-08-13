@@ -285,11 +285,14 @@ class MasterClientTest(unittest.TestCase):
         time.sleep(1)
         collector.stop_collectors()
 
-        self.assertEqual(_event_context.train_steps.size(), 2)
+        # The first step (177018->177019, a long ~22min step) is now tracked
+        # (no longer skipped by the collector), so train_steps holds 3 steps.
+        self.assertEqual(_event_context.train_steps.size(), 3)
         first_step = _event_context.train_steps.get_first_step_event()
         last_step = _event_context.train_steps.get_last_step_event()
-        self.assertEqual(first_step.step, 177020)
+        self.assertEqual(first_step.step, 177019)
         self.assertEqual(last_step.step, 177021)
+        self.assertTrue(first_step.is_first_step)
 
         self.assertEqual(_event_context.ckpt_steps.size(), 2)
         first_step = _event_context.ckpt_steps.get_first_step_event()
@@ -308,6 +311,7 @@ class MasterClientTest(unittest.TestCase):
             event_name=TrainEventName.TRAIN_EVT_STEP,
             event_type=EventTypeName.BEGIN,
             event_step=1,
+            step_type="train",
         )
         last_step = _event_context.train_steps.get_last_step_event()
         self.assertEqual(last_step.step, 1)
@@ -315,6 +319,8 @@ class MasterClientTest(unittest.TestCase):
             last_step.event_state, TrainEventState.TRAIN_EVT_BEGIN
         )
         self.assertEqual(last_step.begin_timestamp, now)
+        self.assertEqual(last_step.step_type, "train")
+        self.assertTrue(last_step.is_first_step)
 
         self._master_client.report_atorch_event(
             event_ts=now + 1,
