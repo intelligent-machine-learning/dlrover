@@ -13,7 +13,7 @@
 
 import os
 import time
-from typing import Dict
+from typing import Dict, Optional
 
 from kubernetes import client, config
 from kubernetes.utils.quantity import parse_quantity
@@ -533,10 +533,16 @@ class k8sServiceFactory(object):
         owner_ref: client.V1OwnerReference,
         retry_num=5,
         patch_if_exists: bool = True,
+        labels: Optional[Dict[str, str]] = None,
     ):
         """
         Create a new service if the service dose not exist, otherwise
         the method patch the service with modifications.
+
+        Args:
+            labels: extra labels merged into the Service metadata (both
+                labels and annotations). Keys here override the default
+                labels. When None, only the default labels are applied.
         """
         service = self._create_service_obj(
             name=name,
@@ -544,6 +550,7 @@ class k8sServiceFactory(object):
             target_port=target_port,
             selector=selector,
             owner_ref=owner_ref,
+            new_labels=labels,
         )
 
         svc = self.get_service(name)
@@ -583,11 +590,17 @@ class k8sServiceFactory(object):
         selector: Dict[str, str],
         owner_ref: client.V1OwnerReference,
         port_name="grpc",
+        new_labels: Optional[Dict[str, str]] = None,
     ):
         labels = {
             "app": ElasticJobLabel.APP_NAME,
             ElasticJobLabel.JOB_KEY: self._job_name,
         }
+        # `new_labels` are merged on top of the defaults so callers (e.g. a
+        # vendor-specific ServiceFactory) can attach or override labels; keys
+        # in `new_labels` win over the defaults.
+        if new_labels:
+            labels = {**labels, **new_labels}
 
         metadata = client.V1ObjectMeta(
             name=name,

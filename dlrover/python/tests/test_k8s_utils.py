@@ -109,6 +109,45 @@ class KubernetesTest(unittest.TestCase):
         self.assertTrue(succeed)
         self.assertEqual(svc.spec.ports[0].name, "http")
 
+    def test_service_obj_with_extra_labels(self):
+        fac = k8sServiceFactory("dlrover", "test")
+
+        default_labels = {
+            "app": "dlrover",
+            "elasticjob.dlrover/name": "test",
+        }
+
+        # Without new_labels, only the default labels are applied and the
+        # same dict is mirrored into annotations.
+        svc = fac._create_service_obj("svc", 12345, 12345, {}, None)
+        self.assertEqual(svc.metadata.labels, default_labels)
+        self.assertEqual(svc.metadata.annotations, default_labels)
+
+        # new_labels are merged on top; same-named keys override defaults.
+        extra = {
+            "ignore.extensions.k8s.alipay.com/dnsrr": "true",
+            "app": "custom",
+        }
+        svc = fac._create_service_obj(
+            "svc", 12345, 12345, {}, None, new_labels=extra
+        )
+        self.assertEqual(
+            svc.metadata.labels,
+            {
+                "app": "custom",
+                "elasticjob.dlrover/name": "test",
+                "ignore.extensions.k8s.alipay.com/dnsrr": "true",
+            },
+        )
+        self.assertEqual(svc.metadata.labels, svc.metadata.annotations)
+
+        # create_service forwards `labels` to _create_service_obj.
+        self.assertTrue(
+            fac.create_service("svc", 12345, 12345, {}, None, labels=extra)
+        )
+        # `labels` defaults to None -> no extra keys.
+        self.assertTrue(fac.create_service("svc", 12345, 12345, {}, None))
+
     def test_client(self):
         k8s_client = k8sClient.singleton_instance("default")
         succeed = k8s_client.cordon_node("test-node-0")
