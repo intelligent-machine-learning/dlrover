@@ -920,7 +920,15 @@ class DistributedJobManager(JobManager):
             ):
                 return
 
-            # Update the node status
+            # Update the node status. A synthetic event (e.g. no-heartbeat)
+            # may carry a FAILED status while the state machine resolves to
+            # DELETED; persist the resolved terminal status to avoid leaving
+            # the node in a non-terminal FAILED state.
+            if (
+                new_status == NodeStatus.FAILED
+                and status_change_flow.to_status == NodeStatus.DELETED
+            ):
+                new_status = status_change_flow.to_status
             cur_node.update_status(new_status)
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)

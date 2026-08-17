@@ -1513,6 +1513,72 @@ class DistributedJobManagerTest(unittest.TestCase):
         # Verify that job was requested to stop
         self.assertTrue(self.job_context.is_stopped())
 
+    def test_no_heartbeat_persists_terminal_deleted_status(self):
+        """Regression for BUG#1.
+
+        A no-heartbeat synthetic event carries status=FAILED with
+        event_type=DELETED (see DistributedJobManager._get_dead_node_event).
+        The state machine resolves it to the terminal DELETED status, so the
+        node must be persisted as DELETED rather than left in the non-terminal
+        FAILED state. Otherwise, when the stuck terminating pod later
+        re-emits a DELETED event, the node transitions FAILED->DELETED
+        (should_relaunch=False) and spuriously stops an all-reduce job even
+        though the worker has already been relaunched.
+        """
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(worker_count=4)
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+        manager._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=client.V1PodList(items=[])
+        )
+
+        # Fixed-size all-reduce world: min_nodes == worker_num, so losing one
+        # non-relaunchable worker must stop the job.
+        manager._worker_manager.update_node_required_info((4, 4, 300))
+
+        worker0 = self.job_context.job_nodes()[NodeType.WORKER][0]
+        worker0.status = NodeStatus.RUNNING
+        worker0.relaunch_count = 0
+        self.job_context.update_job_node(worker0)
+
+        # 1) no-heartbeat synthetic event (status=FAILED, event DELETED),
+        #    exactly as built by _get_dead_node_event.
+        dead_node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(1, 4096),
+            rank_index=0,
+            status=NodeStatus.FAILED,
+            name="test-worker-0",
+        )
+        dead_node.exit_reason = NodeExitReason.NO_HEARTBEAT
+        manager._process_event(NodeEvent(NodeEventType.DELETED, dead_node))
+
+        persisted = self.job_context.job_nodes()[NodeType.WORKER][0]
+        # The node must be in the terminal DELETED status, not FAILED.
+        self.assertEqual(persisted.status, NodeStatus.DELETED)
+        # The dead node has been relaunched (count 0 -> 1) and is not
+        # relaunchable anymore.
+        self.assertEqual(persisted.relaunch_count, 1)
+        self.assertFalse(persisted.relaunchable)
+
+        # 2) The stuck terminating pod re-emits a DELETED event later. Since
+        #    the node is already terminal DELETED, this must be a no-op and
+        #    must NOT stop the job (its replacement is already running).
+        reemit_node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(1, 4096),
+            rank_index=0,
+            status=NodeStatus.DELETED,
+            name="test-worker-0",
+        )
+        manager._process_event(NodeEvent(NodeEventType.DELETED, reemit_node))
+
+        self.assertFalse(self.job_context.is_stopped())
+
     def test_handle_training_failure_truncates_large_error_data(self):
         params = MockK8sAllreduceJobArgs()
         params.initilize()
