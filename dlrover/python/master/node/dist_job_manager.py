@@ -296,6 +296,43 @@ class DistributedJobManager(JobManager):
             == DistributionStrategy.ALLREDUCE
         )
 
+    def _has_live_replacement(self, node: Node) -> bool:
+        """Whether another worker of the same rank is still alive or
+        coming up.
+
+        When a worker has already been relaunched, the trailing
+        ``FAILED -> DELETED`` event of its old pod must not stop an
+        all-reduce job, because the rank is still served by the
+        replacement. This is especially needed when the replacement pod
+        is not running yet (the scaler has not created it), so the
+        top-of-_process_event skip guard -- which queries K8s pods --
+        cannot see it. Here we look at the replacement node already
+        tracked in the job context for the same ``rank_index`` in a live
+        state (``INITIAL``/``PENDING``/``RUNNING``).
+        """
+        if node.type != NodeType.WORKER:
+            return False
+        live_states = {
+            NodeStatus.INITIAL,
+            NodeStatus.PENDING,
+            NodeStatus.RUNNING,
+        }
+        workers = self._job_context.dup_job_nodes_by_type(node.type)
+        for wid, worker in workers.items():
+            if wid == node.id:
+                continue
+            if (
+                worker.rank_index == node.rank_index
+                and worker.status in live_states
+            ):
+                logger.info(
+                    f"Skip stopping the job for {node.name} since a "
+                    f"live replacement {worker.name} (rank "
+                    f"{worker.rank_index}) already exists."
+                )
+                return True
+        return False
+
     def restart(self):
         if not self.is_all_reduce_type_job():
             logger.warning(
@@ -958,11 +995,18 @@ class DistributedJobManager(JobManager):
         if should_relaunch:
             self._relaunch_node(cur_node)
         elif new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
-            # stop if min rdzv nodes are not enough for all-reduce
+            # stop if min rdzv nodes are not enough for all-reduce. A node
+            # that has already been relaunched still owns a live replacement
+            # for its rank, so its trailing FAILED/DELETED event must not
+            # stop the whole job.
             if self.is_all_reduce_type_job():
-                if self._worker_manager.get_min_nodes_required() > 0 and (
-                    self.get_worker_num() - 1
-                    < self._worker_manager.get_min_nodes_required()
+                if (
+                    self._worker_manager.get_min_nodes_required() > 0
+                    and (
+                        self.get_worker_num() - 1
+                        < self._worker_manager.get_min_nodes_required()
+                    )
+                    and not self._has_live_replacement(cur_node)
                 ):
                     reason = f"Stop job because there isn't enough nodes available as {cur_node.name} can't be relaunch anymore."
                     logger.warning(reason)
