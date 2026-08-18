@@ -1579,6 +1579,94 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         self.assertFalse(self.job_context.is_stopped())
 
+    def test_allreduce_not_stopped_when_replacement_pending(self):
+        """Regression: a failed worker that has already been relaunched
+        must not stop an all-reduce job when its old pod's trailing
+        FAILED->DELETED event arrives.
+
+        This mirrors the incident where a worker crashed (RUNNING->FAILED
+        via a genuine K8s MODIFIED event, relaunch decided) and then the
+        old crashed pod's deletion (FAILED->DELETED via MODIFIED) arrived
+        before the replacement pod was running. The top-of-_process_event
+        skip guard cannot help here because it queries K8s pods and the
+        replacement pod is not up yet; the all-reduce stop check must
+        instead see the replacement node already tracked in the job
+        context and skip the stop.
+        """
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(worker_count=4)
+        manager = create_job_manager(params, PerfMonitor())
+        manager._init_nodes()
+        manager._scaler.scale = mock.MagicMock(return_value=None)
+        # No K8s pod for the replacement yet: the race window in which the
+        # top skip guard (which queries K8s pods) cannot find a running
+        # replacement pod.
+        manager._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=[]
+        )
+        # Fixed-size all-reduce world: min_nodes == worker_num, so losing
+        # one non-relaunchable worker with no replacement must stop the job.
+        manager._worker_manager.update_node_required_info((4, 4, 300))
+
+        worker0 = self.job_context.job_nodes()[NodeType.WORKER][0]
+        worker0.status = NodeStatus.RUNNING
+        worker0.relaunch_count = 0
+        self.job_context.update_job_node(worker0)
+
+        # The crash carries exit_reason "Error" (== FATAL_ERROR); the job
+        # is configured to relaunch fatal errors, so the worker relaunches.
+        old_relaunch_always = _dlrover_context.relaunch_always
+        _dlrover_context.relaunch_always = True
+        try:
+            # 1) worker-0 crashes: RUNNING -> FAILED (genuine K8s MODIFIED),
+            #    relaunch is decided and the replacement node is registered.
+            failed_node = Node(
+                NodeType.WORKER,
+                0,
+                NodeResource(1, 4096),
+                rank_index=0,
+                status=NodeStatus.FAILED,
+                name="test-worker-0",
+            )
+            failed_node.exit_reason = NodeExitReason.FATAL_ERROR
+            manager._process_event(
+                NodeEvent(NodeEventType.MODIFIED, failed_node)
+            )
+        finally:
+            _dlrover_context.relaunch_always = old_relaunch_always
+
+        # The replacement (rank 0) is now tracked, still INITIAL/PENDING,
+        # and worker-0 has been relaunched (count 0 -> 1).
+        persisted = self.job_context.job_nodes()[NodeType.WORKER][0]
+        self.assertEqual(persisted.relaunch_count, 1)
+        replacements = [
+            w
+            for wid, w in (manager.get_job_nodes()[NodeType.WORKER].items())
+            if wid != 0 and w.rank_index == 0
+        ]
+        self.assertTrue(replacements)
+        self.assertIn(
+            replacements[0].status,
+            [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING],
+        )
+        self.assertFalse(self.job_context.is_stopped())
+
+        # 2) The old crashed pod's deletion arrives (FAILED -> DELETED via
+        #    MODIFIED) while the replacement pod is still not running. The
+        #    job must NOT stop, because the rank is still covered.
+        deleted_node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(1, 4096),
+            rank_index=0,
+            status=NodeStatus.DELETED,
+            name="test-worker-0",
+        )
+        deleted_node.exit_reason = NodeExitReason.FATAL_ERROR
+        manager._process_event(NodeEvent(NodeEventType.MODIFIED, deleted_node))
+
+        self.assertFalse(self.job_context.is_stopped())
+
     def test_handle_training_failure_truncates_large_error_data(self):
         params = MockK8sAllreduceJobArgs()
         params.initilize()
