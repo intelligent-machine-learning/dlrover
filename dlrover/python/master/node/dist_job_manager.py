@@ -1175,6 +1175,15 @@ class DistributedJobManager(JobManager):
         return should_relaunch
 
     def _relaunch_node(self, node: Node):
+        # Record the host IP of a nodecheck-failed node before relaunching,
+        # so that the relaunch pod (and later pods) get scheduled away from
+        # it via node affinity in the scaler.
+        if node.exit_reason == NodeExitReason.CHECK_FAIL and node.host_ip:
+            self._scaler.add_failed_node_ip(node.host_ip)
+            logger.info(
+                f"Record nodecheck-failed node {node.name} with host IP "
+                f"{node.host_ip} to avoid relaunching onto it."
+            )
         if node.type == NodeType.WORKER:
             plan = self._worker_manager.relaunch_node(
                 node, self._remove_exited_node
