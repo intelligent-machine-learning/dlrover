@@ -97,6 +97,7 @@ class MasterClientTest(unittest.TestCase):
             _MAX_ERROR_DATA_LEN,
         )
 
+        self.assertEqual(_MAX_ERROR_DATA_LEN, 8 * 1024)
         large_payload = "X" * (10 * 1024 * 1024)  # 10 MB
 
         sent_messages = []

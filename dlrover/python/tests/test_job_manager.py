@@ -1725,6 +1725,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             _MAX_ERROR_DATA_LEN,
         )
 
+        self.assertEqual(_MAX_ERROR_DATA_LEN, 8 * 1024)
         self.assertLessEqual(len(node.exit_reason), _MAX_ERROR_DATA_LEN)
         self.assertEqual(node.exit_reason, large_payload[:_MAX_ERROR_DATA_LEN])
 

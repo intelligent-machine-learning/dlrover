@@ -45,7 +45,7 @@ from dlrover.python.util.function_util import retry
 # Truncate error payloads before sending to the master to prevent the master
 # from allocating large gRPC receive buffers and accumulating data in Node
 # objects across relaunches.
-_MAX_ERROR_DATA_LEN = 2048
+_MAX_ERROR_DATA_LEN = 8 * 1024
 
 
 class MasterClient(Singleton, ABC):
