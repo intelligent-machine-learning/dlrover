@@ -30,6 +30,7 @@ from dlrover.python.common.comm import (
 )
 from dlrover.python.common.constants import (
     CommunicationType,
+    JobConstant,
     NodeEnv,
     NodeEventType,
     NodeType,
@@ -93,11 +94,7 @@ class MasterClientTest(unittest.TestCase):
         self.assertIsNone(res)
 
     def test_report_failures_truncates_large_error_data(self):
-        from dlrover.python.elastic_agent.master_client import (
-            _MAX_ERROR_DATA_LEN,
-        )
-
-        self.assertEqual(_MAX_ERROR_DATA_LEN, 8 * 1024)
+        self.assertEqual(JobConstant.MAX_ERROR_DATA_LEN, 8 * 1024)
         large_payload = "X" * (10 * 1024 * 1024)  # 10 MB
 
         sent_messages = []
@@ -116,10 +113,12 @@ class MasterClientTest(unittest.TestCase):
 
         self.assertEqual(len(sent_messages), 1)
         self.assertLessEqual(
-            len(sent_messages[0].error_data), _MAX_ERROR_DATA_LEN
+            len(sent_messages[0].error_data),
+            JobConstant.MAX_ERROR_DATA_LEN,
         )
         self.assertEqual(
-            sent_messages[0].error_data, large_payload[:_MAX_ERROR_DATA_LEN]
+            sent_messages[0].error_data,
+            large_payload[: JobConstant.MAX_ERROR_DATA_LEN],
         )
 
     def test_ready_for_ps_relaunch(self):

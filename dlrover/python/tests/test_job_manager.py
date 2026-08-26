@@ -33,6 +33,7 @@ from dlrover.python.common.comm import (
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    JobConstant,
     JobExitReason,
     JobStage,
     NodeEventType,
@@ -1721,13 +1722,14 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
 
         node = self.job_context.job_node(NodeType.WORKER, 0)
-        from dlrover.python.master.node.dist_job_manager import (
-            _MAX_ERROR_DATA_LEN,
+        self.assertEqual(JobConstant.MAX_ERROR_DATA_LEN, 8 * 1024)
+        self.assertLessEqual(
+            len(node.exit_reason), JobConstant.MAX_ERROR_DATA_LEN
         )
-
-        self.assertEqual(_MAX_ERROR_DATA_LEN, 8 * 1024)
-        self.assertLessEqual(len(node.exit_reason), _MAX_ERROR_DATA_LEN)
-        self.assertEqual(node.exit_reason, large_payload[:_MAX_ERROR_DATA_LEN])
+        self.assertEqual(
+            node.exit_reason,
+            large_payload[: JobConstant.MAX_ERROR_DATA_LEN],
+        )
 
 
 class JobContextTest(unittest.TestCase):
