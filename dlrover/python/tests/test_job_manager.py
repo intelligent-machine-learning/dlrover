@@ -33,6 +33,7 @@ from dlrover.python.common.comm import (
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    JobConstant,
     JobExitReason,
     JobStage,
     NodeEventType,
@@ -79,6 +80,7 @@ from dlrover.python.master.node.training_node import (
     update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
@@ -458,6 +460,42 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         node.exit_reason = NodeExitReason.RELAUNCHED
         self.assertFalse(manager._should_relaunch(node, NODE_STATE_FLOWS[6]))
+
+    def test_relaunch_node_records_failed_node_ip(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, PerfMonitor())
+        manager._worker_manager.relaunch_node = MagicMock(
+            return_value=ScalePlan()
+        )
+        manager._scaler = MagicMock()
+
+        node = Node(
+            node_type=NodeType.WORKER,
+            node_id=1,
+            status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
+            max_relaunch_count=1,
+        )
+
+        # A nodecheck-failed node records its host IP before relaunch.
+        node.exit_reason = NodeExitReason.CHECK_FAIL
+        node.host_ip = "10.0.0.1"
+        manager._relaunch_node(node)
+        manager._scaler.add_failed_node_ip.assert_called_once_with("10.0.0.1")
+
+        # Other exit reasons must not record the host IP.
+        manager._scaler.add_failed_node_ip.reset_mock()
+        node.exit_reason = NodeExitReason.HARDWARE_ERROR
+        manager._relaunch_node(node)
+        manager._scaler.add_failed_node_ip.assert_not_called()
+
+        # A nodecheck failure without a host IP is skipped.
+        manager._scaler.add_failed_node_ip.reset_mock()
+        node.exit_reason = NodeExitReason.CHECK_FAIL
+        node.host_ip = ""
+        manager._relaunch_node(node)
+        manager._scaler.add_failed_node_ip.assert_not_called()
 
     def test_relaunch_node_group(self):
         params = MockK8sAllreduceJobArgs()
@@ -1684,12 +1722,14 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
 
         node = self.job_context.job_node(NodeType.WORKER, 0)
-        from dlrover.python.master.node.dist_job_manager import (
-            _MAX_ERROR_DATA_LEN,
+        self.assertEqual(JobConstant.MAX_ERROR_DATA_LEN, 8 * 1024)
+        self.assertLessEqual(
+            len(node.exit_reason), JobConstant.MAX_ERROR_DATA_LEN
         )
-
-        self.assertLessEqual(len(node.exit_reason), _MAX_ERROR_DATA_LEN)
-        self.assertEqual(node.exit_reason, large_payload[:_MAX_ERROR_DATA_LEN])
+        self.assertEqual(
+            node.exit_reason,
+            large_payload[: JobConstant.MAX_ERROR_DATA_LEN],
+        )
 
 
 class JobContextTest(unittest.TestCase):

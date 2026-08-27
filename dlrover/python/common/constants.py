@@ -447,6 +447,9 @@ class CheckpointConstant(object):
 
 
 class JobConstant(object):
+    # Maximum number of characters retained in a reported training failure.
+    MAX_ERROR_DATA_LEN = 8 * 1024
+
     RDZV_JOIN_TIMEOUT_DEFAULT = 600
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN = 600
     INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 3600

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
@@ -56,6 +57,11 @@ class Scaler(metaclass=ABCMeta):
         self._job_name = job_name
         self._job = None
         self._job_uid = ""
+        # Host IPs of nodes that failed node check. Pods created afterward
+        # can be scheduled away from these nodes via node affinity by scalers
+        # that support it (e.g. the sigma PodScaler in dlrover-addon).
+        self._failed_node_ips = set()
+        self._failed_node_lock = threading.Lock()
 
     @abstractmethod
     def start(self):
@@ -66,6 +72,23 @@ class Scaler(metaclass=ABCMeta):
     def scale(self, plan: ScalePlan, **kwargs):
         """Scale the job with the plan."""
         pass
+
+    def add_failed_node_ip(self, host_ip: str):
+        """Record the host IP of a nodecheck-failed node.
+
+        Subsequent pod creations should avoid being scheduled onto this
+        node. The affinity injection is scaler-specific and implemented by
+        subclasses; the base scaler only keeps the accumulated list.
+        """
+        if not host_ip:
+            return
+        with self._failed_node_lock:
+            self._failed_node_ips.add(host_ip)
+
+    def get_failed_node_ips(self):
+        """Return the sorted list of failed node host IPs."""
+        with self._failed_node_lock:
+            return sorted(self._failed_node_ips)
 
     def set_group_affinity(self, group_affinity):
         """Set the node group affinity mapping for the scaler.
