@@ -489,6 +489,16 @@ class JobConstant(object):
     # interval seconds for pre-check waiting
     PRE_CHECK_WAIT_SECS = 10
 
+    # Network-check group-info consistency gate. Scheduler patches the
+    # scheduling/rack-id label after pod creation, so the master may observe
+    # some workers with group info and some without. Re-evaluate at this
+    # cadence while waiting for the watcher to sync labels.
+    NETWORK_CHECK_GROUP_SYNC_INTERVAL = 10
+
+    # Max wait for group-info consistency before falling back to the
+    # non-group (consecutive-rank) pairing.
+    NETWORK_CHECK_GROUP_SYNC_TIMEOUT = 180
+
 
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"

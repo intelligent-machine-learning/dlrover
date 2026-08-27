@@ -19,7 +19,11 @@ from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.constants import NetworkFailureReason, NodeEventType
+from dlrover.python.common.constants import (
+    JobConstant,
+    NetworkFailureReason,
+    NodeEventType,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -653,3 +657,164 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
             err_message="Network connection failed",
             elapsed_time=15.0,
         )
+
+    def _make_nc_manager(self, num_nodes):
+        """Build a NetworkCheckRendezvousManager with num_nodes joined.
+
+        Both _waiting_nodes and _rdzv_nodes are populated so the group
+        consistency gate (reads _waiting_nodes) and _group_round0 (reads
+        _rdzv_nodes) can both be exercised directly.
+        """
+        rdzv_manager = NetworkCheckRendezvousManager()
+        rdzv_manager.update_rdzv_params(num_nodes, num_nodes, 60, 1)
+        rdzv_manager._alive_nodes = list(range(num_nodes))
+        for rank in range(num_nodes):
+            meta = NodeTopologyMeta(
+                node_id=rank, node_rank=rank, process_num=8
+            )
+            rdzv_manager._rdzv_nodes[rank] = meta
+            rdzv_manager._waiting_nodes[rank] = meta
+        rdzv_manager._rdzv_round = 0
+        return rdzv_manager
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_group_round0_balanced_pairing(self, mock_job_ctx):
+        # 4 groups x 4 nodes; group = node_id // 4.
+        def job_node(node_type, node_id):
+            g = node_id // 4
+            return Node(
+                "worker",
+                node_id,
+                name=f"worker-{node_id}",
+                rank_index=node_id,
+                node_group=g,
+                node_group_size=4,
+                node_group_id=f"g{g}",
+            )
+
+        mock_job_ctx.job_node.side_effect = job_node
+
+        rdzv_manager = self._make_nc_manager(16)
+        rdzv_manager._group_pairing_mode = (
+            NetworkCheckRendezvousManager._PAIRING_WITH_GROUP
+        )
+        pairs = rdzv_manager._group_round0()
+
+        # Every rank appears exactly once across all pairs.
+        all_ranks = []
+        for grp in pairs:
+            all_ranks.extend(grp.keys())
+        self.assertCountEqual(all_ranks, list(range(16)))
+
+        # One intra pair per group (4) + balanced inter pairs (4).
+        intra, inter = [], []
+        for grp in pairs:
+            keys = list(grp.keys())
+            r0, r1 = keys[0], keys[1]
+            (intra if r0 // 4 == r1 // 4 else inter).append((r0, r1))
+        self.assertEqual(len(intra), 4)
+        self.assertEqual(len(inter), 4)
+        for r0, r1 in inter:
+            self.assertNotEqual(r0 // 4, r1 // 4)
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_group_round0_no_group_fallback(self, mock_job_ctx):
+        # No group info -> legacy consecutive-rank pairing.
+        mock_job_ctx.job_node.return_value = Node(
+            "worker", 0, name="worker-0", rank_index=0
+        )
+        rdzv_manager = self._make_nc_manager(4)
+        rdzv_manager._group_pairing_mode = (
+            NetworkCheckRendezvousManager._PAIRING_NO_GROUP
+        )
+        pairs = rdzv_manager._group_round0()
+        self.assertListEqual([list(g.keys()) for g in pairs], [[0, 1], [2, 3]])
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_group_consistency_gate_all_have(self, mock_job_ctx):
+        mock_job_ctx.job_node.return_value = Node(
+            "worker",
+            0,
+            name="worker-0",
+            rank_index=0,
+            node_group=0,
+            node_group_size=2,
+            node_group_id="g0",
+        )
+        rdzv_manager = self._make_nc_manager(2)
+        blocked, reason = rdzv_manager._pre_rdzv_check_hook()
+        self.assertFalse(blocked)
+        self.assertIsNone(reason)
+        self.assertEqual(
+            rdzv_manager._group_pairing_mode,
+            NetworkCheckRendezvousManager._PAIRING_WITH_GROUP,
+        )
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_group_consistency_gate_all_none(self, mock_job_ctx):
+        mock_job_ctx.job_node.return_value = Node(
+            "worker", 0, name="worker-0", rank_index=0
+        )
+        rdzv_manager = self._make_nc_manager(2)
+        blocked, reason = rdzv_manager._pre_rdzv_check_hook()
+        self.assertFalse(blocked)
+        self.assertIsNone(reason)
+        self.assertEqual(
+            rdzv_manager._group_pairing_mode,
+            NetworkCheckRendezvousManager._PAIRING_NO_GROUP,
+        )
+
+    @patch("dlrover.python.master.elastic_training.rdzv_manager.job_ctx")
+    def test_group_consistency_gate_partial_timeout(self, mock_job_ctx):
+        # Even node_ids carry group info, odd ones do not -> partial.
+        def job_node(node_type, node_id):
+            if node_id % 2 == 0:
+                return Node(
+                    "worker",
+                    node_id,
+                    name=f"worker-{node_id}",
+                    rank_index=node_id,
+                    node_group=0,
+                    node_group_size=2,
+                    node_group_id="g0",
+                )
+            return Node(
+                "worker",
+                node_id,
+                name=f"worker-{node_id}",
+                rank_index=node_id,
+            )
+
+        mock_job_ctx.job_node.side_effect = job_node
+
+        rdzv_manager = self._make_nc_manager(4)
+        # First poll: partial -> block.
+        rdzv_manager._group_eval_ts = 0.0
+        blocked, _ = rdzv_manager._pre_rdzv_check_hook()
+        self.assertTrue(blocked)
+        self.assertGreater(rdzv_manager._partial_start_ts, 0.0)
+        # Simulate the sync timeout elapsing.
+        rdzv_manager._group_eval_ts = 0.0
+        rdzv_manager._partial_start_ts = (
+            time.time() - JobConstant.NETWORK_CHECK_GROUP_SYNC_TIMEOUT - 1
+        )
+        blocked, reason = rdzv_manager._pre_rdzv_check_hook()
+        self.assertFalse(blocked)
+        self.assertIsNone(reason)
+        # Timed out -> fall back to no-group pairing.
+        self.assertEqual(
+            rdzv_manager._group_pairing_mode,
+            NetworkCheckRendezvousManager._PAIRING_NO_GROUP,
+        )
+
+    def test_round1_diagnostic_pairing_unchanged(self):
+        # Round 1 pairs abnormal nodes with normal ones by elapsed time.
+        rdzv_manager = self._make_nc_manager(4)
+        rdzv_manager._node_status = {0: True, 1: False, 2: True, 3: True}
+        rdzv_manager._node_times = {0: 1.0, 1: 9.0, 2: 2.0, 3: 3.0}
+        pairs = rdzv_manager._group_nodes(1)
+        pair_keys = [list(g.keys()) for g in pairs]
+        # Slowest (abnormal node 1) paired with fastest (node 0).
+        self.assertIn([0, 1], pair_keys)
+        # Remaining nodes 2, 3 paired together.
+        self.assertIn([2, 3], pair_keys)

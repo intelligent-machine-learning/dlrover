@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import math
+import random
 import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
@@ -20,6 +21,7 @@ from typing import Dict, List, Optional, Tuple
 
 from dlrover.python.common.constants import (
     EventReportConstants,
+    JobConstant,
     NetworkFailureReason,
     RendezvousName,
     NodeType,
@@ -592,6 +594,11 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node-1 if not available.
     """
 
+    # Round-0 (coverage) pairing modes, resolved by _pre_rdzv_check_hook and
+    # consumed by _group_round0.
+    _PAIRING_NO_GROUP = "no_group"
+    _PAIRING_WITH_GROUP = "with_group"
+
     def __init__(self):
         super().__init__()
         self._name = RendezvousName.NETWORK_CHECK
@@ -603,6 +610,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._fault_nodes = set()
         self._straggler_nodes = set()
         self._network_check_evt = self.new_network_check_evt()
+        # Group-aware pairing state. The scheduler patches the
+        # scheduling/rack-id label after a pod is created, so at rdzv
+        # completion some workers may already carry group info and some may
+        # not. _pre_rdzv_check_hook gates completion until the group info is
+        # consistent (all-have / all-none) or the sync timeout elapses; the
+        # resolved mode is then consumed by _group_round0.
+        self._group_pairing_mode: Optional[str] = None
+        self._group_eval_ts: float = 0.0
+        self._group_eval_blocked: bool = False
+        self._group_eval_reason: str = ""
+        self._partial_start_ts: float = 0.0
 
     def new_network_check_evt(self):
         return _master_evt.network_check(round=self.get_rdzv_round())
@@ -663,28 +681,140 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status = {}
         self._node_times = {}
 
+    def _query_node_group(self, node_id):
+        """Query the group info of a node from the job context.
+
+        Returns:
+            Tuple (group_index, group_size, group_id). Returns (-1, 0, "")
+            when the node is unknown or has no group info yet, e.g. the
+            scheduler has not yet patched the scheduling/rack-id label.
+        """
+        node = job_ctx.job_node(NodeType.WORKER, node_id)
+        if node and node.has_group():
+            return node.group, node.group_size, node.group_id
+        return -1, 0, ""
+
+    def _count_group_consistency(self):
+        """Count joined workers that have / lack group info right now.
+
+        Returns (have_count, none_count, none_node_ids). Reads the live
+        job_ctx which the master's periodic pod LIST keeps fresh, so
+        repeated calls observe scheduler-patched labels as they arrive.
+        """
+        have = 0
+        none_node_ids: List[int] = []
+        for meta in self._waiting_nodes.values():
+            group_idx, _, _ = self._query_node_group(meta.node_id)
+            if group_idx >= 0:
+                have += 1
+            else:
+                none_node_ids.append(meta.node_id)
+        return have, len(none_node_ids), none_node_ids
+
+    def _reset_group_gate_state(self):
+        """Clear partial-wait tracking so the next round-0 re-evaluates."""
+        self._partial_start_ts = 0.0
+        self._group_eval_ts = 0.0
+        self._group_eval_blocked = False
+        self._group_eval_reason = ""
+
+    def _pre_rdzv_check_hook(self) -> Tuple[bool, Optional[str]]:
+        """Gate rdzv completion on group-info consistency for round 0.
+
+        The scheduler patches the scheduling/rack-id label after pod
+        creation, so at completion some joined workers may already carry
+        group info while others do not. Round-0 pairing needs the group info
+        to be consistent: all-have -> balanced intra/inter pairing; all-none
+        -> legacy consecutive pairing. This hook blocks completion (without
+        sleeping, since it runs under self._lock) until consistency is
+        reached or NETWORK_CHECK_GROUP_SYNC_TIMEOUT elapses, after which it
+        falls back to no-group. Retries are driven by agents polling
+        get_comm_world; the master's periodic pod LIST refreshes job_ctx.
+        """
+        # Only the round-0 (coverage) pairing relies on group info; the
+        # round-1 diagnostic pairing is group-agnostic.
+        if self._rdzv_round % self._check_round != 0:
+            return self.is_rdzv_blocked()
+        # Gate only once all expected workers have joined.
+        if len(self._waiting_nodes) < self._rdzv_params.max_nodes:
+            return self.is_rdzv_blocked()
+
+        now = time.time()
+        # Throttle re-evaluation: the lock is held and every agent polls.
+        interval = JobConstant.NETWORK_CHECK_GROUP_SYNC_INTERVAL
+        if now - self._group_eval_ts < interval:
+            return self._group_eval_blocked, (self._group_eval_reason or None)
+        self._group_eval_ts = now
+
+        have, none, none_ids = self._count_group_consistency()
+        if none == 0:
+            logger.info(
+                f"network-check group info ready: all {have} joined workers "
+                f"carry group info; use balanced intra/inter pairing."
+            )
+            self._group_pairing_mode = self._PAIRING_WITH_GROUP
+            self._reset_group_gate_state()
+            self._group_eval_blocked = False
+            self._group_eval_reason = ""
+            return False, None
+        if have == 0:
+            logger.info(
+                "network-check: no joined worker carries group info "
+                "(scheduler did not patch labels); use consecutive pairing."
+            )
+            self._group_pairing_mode = self._PAIRING_NO_GROUP
+            self._reset_group_gate_state()
+            self._group_eval_blocked = False
+            self._group_eval_reason = ""
+            return False, None
+
+        # Partial: some have, some lack group info. Wait for the watcher to
+        # sync the remaining scheduler-patched labels.
+        timeout = JobConstant.NETWORK_CHECK_GROUP_SYNC_TIMEOUT
+        if self._partial_start_ts == 0.0:
+            self._partial_start_ts = now
+            logger.info(
+                f"network-check group info partial: have={have} none={none} "
+                f"(missing node_ids sample={none_ids[:16]}); wait up to "
+                f"{timeout}s for scheduler-patched rack-id labels to sync."
+            )
+        elapsed = now - self._partial_start_ts
+        if elapsed >= timeout:
+            logger.warning(
+                f"network-check group info still partial after {timeout}s "
+                f"(have={have} none={none}, missing node_ids sample="
+                f"{none_ids[:16]}); fall back to consecutive pairing."
+            )
+            self._group_pairing_mode = self._PAIRING_NO_GROUP
+            self._reset_group_gate_state()
+            self._group_eval_blocked = False
+            self._group_eval_reason = ""
+            return False, None
+        self._group_eval_blocked = True
+        self._group_eval_reason = "waiting for network-check group info sync"
+        logger.info(
+            f"network-check waiting group info sync: have={have} none={none} "
+            f"elapsed={int(elapsed)}s"
+        )
+        return True, self._group_eval_reason
+
     def _group_nodes(self, round):
-        """Group nodes into groups.
-        Round 0: group all nodes into a group like {0:8, 1:8, 2:8, 3:8}.
-        Round 1: Split nodes into groups and each group contains
-            two nodes, like [{0:8, 1:8},{2:8, 3:8}].
-        Round 1: group the abnormal node with a normal node like
-            [{0:8, 2:8}, {1:8, 2:8}].
+        """Group nodes into pairs for the network check.
+
+        Round 0 (coverage): pair up all nodes. When group info is available
+        and consistent, each group contributes half of its nodes to
+        intra-group pairs (ranks shuffled) and half to inter-group pairs
+        (balanced across groups), so both the intra-fabric (e.g. NVSwitch)
+        and the inter-fabric (e.g. IB) get exercised in one round. Without
+        group info, falls back to the legacy consecutive-rank pairing. The
+        mode is resolved by _pre_rdzv_check_hook.
+        Round 1 (diagnostic): pair each abnormal node with a normal node to
+        locate the faulty node (group-agnostic).
         """
         round = round % self._check_round
         node_groups: List[Dict[int, int]] = []
         if round == 0:
-            group = {}
-            for node_id, meta in self._rdzv_nodes.items():
-                group[node_id] = meta
-                if len(group) == 2:
-                    node_groups.append(group)
-                    group = {}
-            if len(group) == 1:
-                if len(node_groups) > 0:
-                    node_groups[-1].update(group)
-                else:
-                    node_groups.append(group)
+            return self._group_round0()
         elif round == 1:
             self._check_abnormal_nodes()
             node_times = sorted(self._node_times.items(), key=lambda x: x[1])
@@ -710,6 +840,210 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 else:
                     node_groups.append(group)
         return node_groups
+
+    def _consecutive_pairs(
+        self, ranks: List[int]
+    ) -> List[Dict[int, NodeTopologyMeta]]:
+        """Legacy round-0 pairing: consecutive ranks {r0,r1},{r2,r3},...
+
+        A trailing odd node is folded into the last pair, matching the
+        original behaviour.
+        """
+        node_groups: List[Dict[int, NodeTopologyMeta]] = []
+        group: Dict[int, NodeTopologyMeta] = {}
+        for rank in ranks:
+            group[rank] = self._rdzv_nodes[rank]
+            if len(group) == 2:
+                node_groups.append(group)
+                group = {}
+        if len(group) == 1:
+            if node_groups:
+                node_groups[-1].update(group)
+            else:
+                node_groups.append(group)
+        logger.info(
+            f"network-check round {self._rdzv_round} coverage pairing "
+            f"(mode=no_group): consecutive-rank pairs={len(node_groups)}, "
+            f"nodes={len(ranks)}."
+        )
+        return node_groups
+
+    def _group_round0(self) -> List[Dict[int, NodeTopologyMeta]]:
+        """Build round-0 (coverage) pairs.
+
+        With group info: each group's nodes are split in half; one half is
+        paired within the group (ranks shuffled to break consecutive-rank
+        bias) and the other half is paired across groups (balanced so each
+        group tests against different groups on average). Each node joins
+        exactly one pair, so a single round exercises both fabrics
+        fleet-wide.
+
+        Without group info (or after the consistency-gate timeout): legacy
+        consecutive-rank pairing.
+        """
+        mode = self._group_pairing_mode or self._PAIRING_NO_GROUP
+        ranks = list(self._rdzv_nodes.keys())  # ascending rank order
+        if len(ranks) < 2:
+            return self._consecutive_pairs(ranks)
+        if mode != self._PAIRING_WITH_GROUP:
+            return self._consecutive_pairs(ranks)
+
+        # Build group -> [ranks], reading group info live from job_ctx.
+        group_map: Dict[int, List[int]] = {}
+        insertion_order: List[int] = []
+        ungrouped: List[int] = []
+        for rank in ranks:
+            meta = self._rdzv_nodes[rank]
+            group_idx, _, _ = self._query_node_group(meta.node_id)
+            if group_idx < 0:
+                ungrouped.append(rank)
+            else:
+                if group_idx not in group_map:
+                    group_map[group_idx] = []
+                    insertion_order.append(group_idx)
+                group_map[group_idx].append(rank)
+
+        if ungrouped:
+            logger.warning(
+                f"network-check round 0: {len(ungrouped)} node(s) still lack "
+                f"group info at pairing time (ranks sample={ungrouped[:16]}); "
+                f"they are folded into existing pairs."
+            )
+        # No grouped nodes at all -> full consecutive fallback.
+        if not group_map:
+            return self._consecutive_pairs(ranks)
+
+        node_groups: List[Dict[int, NodeTopologyMeta]] = []
+        inter_by_group: Dict[int, List[int]] = {}
+        rng = random.Random(self._rdzv_round * 100003 + len(ranks))
+        single_group = len(insertion_order) == 1
+
+        for g in insertion_order:
+            members = list(group_map[g])
+            rng.shuffle(members)
+            half = len(members) // 2
+            intra_members = members[:half]
+            inter_members = members[half:]
+            # With a single group there is no "cross group"; pair everyone
+            # intra so each node still gets a partner.
+            if single_group:
+                intra_members = members
+                inter_members = []
+            i = 0
+            while i + 1 < len(intra_members):
+                r0 = intra_members[i]
+                r1 = intra_members[i + 1]
+                node_groups.append(
+                    {r0: self._rdzv_nodes[r0], r1: self._rdzv_nodes[r1]}
+                )
+                i += 2
+            # Odd intra leftover is handed off to the inter pool.
+            if i < len(intra_members):
+                inter_members = inter_members + [intra_members[i]]
+            if inter_members:
+                inter_by_group[g] = inter_members
+
+        inter_pairs = self._balanced_cross_group_pairs(inter_by_group)
+        node_groups.extend(inter_pairs)
+
+        # Fold any still-unmatched node (odd inter total, or ungrouped) into
+        # an existing pair as an extra member, matching legacy leftovers.
+        paired_ranks: set[int] = set()
+        for grp in node_groups:
+            paired_ranks.update(grp.keys())
+        leftovers = [r for r in ranks if r not in paired_ranks]
+        if leftovers:
+            logger.info(
+                f"network-check round 0: folding {len(leftovers)} leftover "
+                f"node(s) (ranks={leftovers}) into existing pairs."
+            )
+            for r in leftovers:
+                if node_groups:
+                    node_groups[-1][r] = self._rdzv_nodes[r]
+                else:
+                    node_groups.append({r: self._rdzv_nodes[r]})
+
+        intra_pair_count = len(node_groups) - len(inter_pairs)
+        logger.info(
+            f"network-check round {self._rdzv_round} coverage pairing "
+            f"(mode=with_group): groups={len(insertion_order)}, "
+            f"intra_pairs={intra_pair_count}, inter_pairs={len(inter_pairs)}, "
+            f"total_pairs={len(node_groups)}, nodes={len(ranks)}, "
+            f"ungrouped={len(ungrouped)}."
+        )
+        self._log_pairing_sample(node_groups, sample_per_kind=8)
+        return node_groups
+
+    def _balanced_cross_group_pairs(
+        self, inter_by_group: Dict[int, List[int]]
+    ) -> List[Dict[int, NodeTopologyMeta]]:
+        """Pair inter-group nodes across different groups, balanced.
+
+        Nodes are laid out grouped-by-group; each node at position i is
+        paired with the node half-way across the layout ((i + n//2) mod n),
+        which (with >=2 groups) lands in a different group; a linear scan
+        fixes any same-group collision. Each group's inter nodes are thus
+        spread across the groups ~half-way around, giving balanced
+        cross-group coverage. Nodes with no available different-group
+        partner are left for the caller to fold.
+        """
+        flat: List[Tuple[int, int]] = []  # (rank, group_idx)
+        for g, ranks in inter_by_group.items():
+            for r in ranks:
+                flat.append((r, g))
+        n = len(flat)
+        if n < 2:
+            return []
+        offset = n // 2
+        used = [False] * n
+        pairs: List[Dict[int, NodeTopologyMeta]] = []
+        for i in range(n):
+            if used[i]:
+                continue
+            j = (i + offset) % n
+            for _ in range(n):
+                if j != i and not used[j] and flat[j][1] != flat[i][1]:
+                    break
+                j = (j + 1) % n
+            if j == i or used[j] or flat[j][1] == flat[i][1]:
+                continue  # no different-group partner; caller folds node i
+            used[i] = True
+            used[j] = True
+            r0 = flat[i][0]
+            r1 = flat[j][0]
+            pairs.append({r0: self._rdzv_nodes[r0], r1: self._rdzv_nodes[r1]})
+        return pairs
+
+    def _log_pairing_sample(
+        self, node_groups: List[Dict[int, NodeTopologyMeta]], sample_per_kind=8
+    ):
+        """Log a small intra/inter pairing sample for debugging."""
+        intra: List[str] = []
+        inter: List[str] = []
+        for grp in node_groups:
+            ranks_in_grp = list(grp.keys())
+            if len(ranks_in_grp) < 2:
+                continue
+            r0, r1 = ranks_in_grp[0], ranks_in_grp[1]
+            g0 = self._query_node_group(self._rdzv_nodes[r0].node_id)[0]
+            g1 = self._query_node_group(self._rdzv_nodes[r1].node_id)[0]
+            tag = "intra" if g0 >= 0 and g0 == g1 else "inter"
+            entry = (
+                f"r{r0}/n{self._rdzv_nodes[r0].node_id}(g{g0})<->"
+                f"r{r1}/n{self._rdzv_nodes[r1].node_id}(g{g1})"
+            )
+            if tag == "intra":
+                intra.append(entry)
+            else:
+                inter.append(entry)
+        logger.info(
+            f"network-check pairing sample [intra, first {sample_per_kind}]: "
+            f"{intra[:sample_per_kind]}"
+        )
+        logger.info(
+            f"network-check pairing sample [inter, first {sample_per_kind}]: "
+            f"{inter[:sample_per_kind]}"
+        )
 
     def _check_abnormal_nodes(self):
         abnormal_nodes = []
