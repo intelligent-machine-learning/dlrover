@@ -146,3 +146,25 @@ def parse_group_affinity(value) -> Optional[Dict[int, int]]:
             )
         group_affinity[k] = v
     return group_affinity
+
+
+def validate_group_affinity_equal_size(
+    group_affinity: Optional[Dict[int, int]],
+) -> Optional[int]:
+    """Return the single group size shared by all groups, or None when group
+    affinity is not configured.
+
+    Raises ``ValueError`` when the groups are present but their sizes are not
+    all equal. This is the hard platform requirement (equal-size segments)
+    that the ``ep_pp_dp`` node-group strategy relies on.
+    """
+    if not group_affinity:
+        return None
+    sizes = set(group_affinity.values())
+    if len(sizes) != 1:
+        raise ValueError(
+            "group_affinity requires all group sizes to be equal, got "
+            f"{sorted(sizes)}; ep_pp_dp node-group strategy needs equal-size "
+            "segments."
+        )
+    return next(iter(sizes))

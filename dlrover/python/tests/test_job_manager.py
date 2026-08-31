@@ -38,6 +38,7 @@ from dlrover.python.common.constants import (
     JobStage,
     NodeEventType,
     NodeExitReason,
+    NodeGroupStrategy,
     NodeStatus,
     NodeType,
     PreCheckStatus,
@@ -79,7 +80,7 @@ from dlrover.python.master.node.training_node import (
     set_critical_node,
     update_nodes_priority,
 )
-from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.resource.job import JobResource, NodeGroupSchedule
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import LocalJobArgs
@@ -226,7 +227,33 @@ class DistributedJobManagerTest(unittest.TestCase):
             self.assertIsNone(node.group_size)
             self.assertFalse(node.has_group())
 
-    def _new_manager_with_worker_count(self, count):
+    def test_job_resource_ep_pp_dp_init_node_meta_stripe(self):
+        # Compact topology: N=4, R=8, EP=8, PP=2, G=2 -> group(k)=(k%2)//1.
+        # init_job_node_meta must assign groups via _resolve_group_id (stripe),
+        # so worker nodes 0,2 -> group 0 and 1,3 -> group 1.
+        job = JobResource()
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            4, NodeResource(1, 4096, "a100", 8)
+        )
+        job.group_affinity = {0: 2, 1: 2}
+        job.node_group_schedule = NodeGroupSchedule(
+            strategy=NodeGroupStrategy.EP_PP_DP,
+            tp=1,
+            pp=2,
+            ep=8,
+            cp=1,
+            num_nodes=4,
+            ranks_per_node=8,
+        )
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        workers = nodes[NodeType.WORKER]
+        self.assertEqual(len(workers), 4)
+        self.assertEqual([workers[i].group for i in range(4)], [0, 1, 0, 1])
+        for node in workers.values():
+            self.assertEqual(node.group_size, 2)
+            self.assertEqual(node.group_id, node.group)
+
+    def _new_manager_with_worker_count(self, count, gpu_num=0):
         """Build a lightweight DistributedJobManager with only the job
         resource populated, bypassing the heavy __init__ so that
         _init_group_affinity can be exercised in isolation."""
@@ -234,7 +261,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         job_resource = JobResource()
         if count is not None:
             job_resource.node_group_resources[NodeType.WORKER] = (
-                NodeGroupResource(count, NodeResource(1, 4096))
+                NodeGroupResource(
+                    count, NodeResource(1, 4096, "a100", gpu_num)
+                )
             )
         manager._job_resource = job_resource
         return manager
@@ -275,6 +304,94 @@ class DistributedJobManagerTest(unittest.TestCase):
                 SimpleNamespace(group_affinity={0: 5})
             )
         self.assertIsNone(manager._job_resource.group_affinity)
+
+    def test_init_group_affinity_contiguous_leaves_schedule_unset(self):
+        # With the default/contiguous strategy no schedule is attached.
+        manager = self._new_manager_with_worker_count(25)
+        manager._init_group_affinity(
+            SimpleNamespace(
+                group_affinity={0: 10, 1: 15},
+                node_group_strategy=NodeGroupStrategy.CONTIGUOUS,
+            )
+        )
+        self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_ep_pp_dp_ok(self):
+        # Valid 4-node topology: R=8, EP=8, PP=2, G=2 -> schedule attached.
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        manager._init_group_affinity(
+            SimpleNamespace(
+                group_affinity={0: 2, 1: 2},
+                node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                tensor_model_parallel_size=1,
+                pipeline_model_parallel_size=2,
+                expert_model_parallel_size=8,
+                context_parallel_size=1,
+            )
+        )
+        self.assertEqual(manager._job_resource.group_affinity, {0: 2, 1: 2})
+        schedule = manager._job_resource.node_group_schedule
+        self.assertIsNotNone(schedule)
+        self.assertEqual(schedule.strategy, NodeGroupStrategy.EP_PP_DP)
+        self.assertEqual(
+            (schedule.tp, schedule.pp, schedule.ep, schedule.cp), (1, 2, 8, 1)
+        )
+        self.assertEqual((schedule.num_nodes, schedule.ranks_per_node), (4, 8))
+
+    def test_init_group_affinity_ep_pp_dp_invalid_topology(self):
+        # Invalid topology (EP=24 > S=16) must raise and leave the resource
+        # untouched (neither group_affinity nor schedule applied).
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        with self.assertRaisesRegex(ValueError, "EP"):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity={0: 2, 1: 2},
+                    node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                    tensor_model_parallel_size=1,
+                    pipeline_model_parallel_size=1,
+                    expert_model_parallel_size=24,
+                    context_parallel_size=1,
+                )
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_ep_pp_dp_requires_group_affinity(self):
+        # ep_pp_dp without group_affinity is a hard error.
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        with self.assertRaisesRegex(ValueError, "requires --group-affinity"):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity=None,
+                    node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                    tensor_model_parallel_size=1,
+                    pipeline_model_parallel_size=2,
+                    expert_model_parallel_size=8,
+                    context_parallel_size=1,
+                )
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_ep_pp_dp_via_job_manager_init(self):
+        # End-to-end via create_job_manager with a valid topology:
+        # MockK8sAllreduceJobArgs worker = NodeResource gpu_num=8, count=16.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.group_affinity = {0: 8, 1: 8}
+        params.tensor_model_parallel_size = 1
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 8
+        params.context_parallel_size = 1
+        manager = create_job_manager(params, PerfMonitor())
+        self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
+        self.assertIsNotNone(manager._job_resource.node_group_schedule)
+        self.assertEqual(
+            manager._job_resource.node_group_schedule.strategy,
+            NodeGroupStrategy.EP_PP_DP,
+        )
 
     def test_init_group_affinity_via_job_manager_init(self):
         # Exercise the __init__ path: create_job_manager must call

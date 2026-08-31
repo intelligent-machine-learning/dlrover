@@ -88,6 +88,11 @@ def run(args):
 
     job_args.training_elastic_mode = args.training_elastic_mode
     job_args.group_affinity = args.group_affinity
+    job_args.node_group_strategy = args.node_group_strategy
+    job_args.tensor_model_parallel_size = args.tensor_model_parallel_size
+    job_args.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+    job_args.expert_model_parallel_size = args.expert_model_parallel_size
+    job_args.context_parallel_size = args.context_parallel_size
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

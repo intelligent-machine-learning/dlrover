@@ -19,6 +19,7 @@ from dlrover.python.util.args_util import (
     parse_tuple_dict,
     parse_tuple_list,
     str2bool,
+    validate_group_affinity_equal_size,
 )
 
 
@@ -109,3 +110,18 @@ class ArgsUtilTest(unittest.TestCase):
         # bool value (True is an int subclass, must be rejected)
         with self.assertRaises(argparse.ArgumentTypeError):
             parse_group_affinity("{0: True}")
+
+    def test_validate_group_affinity_equal_size(self):
+        # None / empty -> None (not applicable)
+        self.assertIsNone(validate_group_affinity_equal_size(None))
+        self.assertIsNone(validate_group_affinity_equal_size({}))
+
+        # equal sizes -> the single size
+        self.assertEqual(validate_group_affinity_equal_size({0: 8, 1: 8}), 8)
+        self.assertEqual(
+            validate_group_affinity_equal_size({2: 128, 0: 128, 1: 128}), 128
+        )
+
+        # unequal sizes -> ValueError
+        with self.assertRaisesRegex(ValueError, "equal"):
+            validate_group_affinity_equal_size({0: 10, 1: 15})

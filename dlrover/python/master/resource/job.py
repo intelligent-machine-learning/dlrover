@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import (
     JobOptStage,
+    NodeGroupStrategy,
     NodeResourceLimit,
     NodeType,
     OptimizeMode,
@@ -38,6 +39,7 @@ from dlrover.python.master.resource.optimizer import (
     SimpleOptimizer,
 )
 from dlrover.python.scheduler.job import ResourceLimits
+from dlrover.python.util.args_util import validate_group_affinity_equal_size
 
 _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 
@@ -68,21 +70,98 @@ def new_ps_resource_optimizer(
         return SimpleOptimizer(job_uuid, resource_limits)
 
 
+class NodeGroupSchedule(object):
+    """Strategies + parallel sizes used to map a worker node (ranked by its
+    creation order, i.e. its ``rank_index`` at the node granularity) into a
+    node group. A node group corresponds to a physical scheduling segment.
+
+    Only ``strategy`` is meaningful by itself. The parallel sizes are used by
+    the :func:`validate_topology` and :func:`_resolve_stripe_group_id` helpers
+    when ``strategy == NodeGroupStrategy.EP_PP_DP``.
+
+    Args:
+        strategy: one of :class:`NodeGroupStrategy`. Defaults to
+            ``CONTIGUOUS`` (current behavior).
+        tp / pp / ep / cp: Megatron tensor/pipeline/expert/context parallel
+            sizes. Only ``tp == 1`` and ``cp == 1`` are supported today.
+        num_nodes: total number of worker nodes (``N``).
+        ranks_per_node: number of ranks per worker node (``R``), i.e.
+            ``NodeResource.gpu_num``.
+    """
+
+    def __init__(
+        self,
+        strategy: str = NodeGroupStrategy.CONTIGUOUS,
+        tp: int = 1,
+        pp: int = 1,
+        ep: int = 1,
+        cp: int = 1,
+        num_nodes: int = 0,
+        ranks_per_node: int = 0,
+    ):
+        self.strategy = strategy
+        self.tp = tp
+        self.pp = pp
+        self.ep = ep
+        self.cp = cp
+        self.num_nodes = num_nodes
+        self.ranks_per_node = ranks_per_node
+
+
+def _resolve_stripe_group_id(
+    group_affinity: Dict[int, int],
+    rank_index: int,
+    schedule: NodeGroupSchedule,
+) -> int:
+    """Resolve the node group when ``strategy == ep_pp_dp``.
+
+    One pipeline stage (a dense-DP group, ``dense_dp`` ranks) is striped
+    across all groups/segments so that EP groups and PP stay intra-segment,
+    while only the dense DP collective crosses segments. Working at the
+    node granularity (``rank_index`` = node creation order):
+
+        DP_nodes = N / (TP*PP*CP)          # nodes per pipeline stage
+        seg      = DP_nodes / G            # nodes per segment per stage
+        group(k) = (k % DP_nodes) // seg
+
+    The caller is responsible for having validated the topology via
+    :func:`validate_topology`, which guarantees the divisions are integral
+    and ``seg >= 1``.
+    """
+    g = len(group_affinity)
+    dp_nodes = schedule.num_nodes // (schedule.tp * schedule.pp * schedule.cp)
+    seg = dp_nodes // g
+    return (rank_index % dp_nodes) // seg
+
+
 def resolve_group_id(
     group_affinity: Optional[Dict[int, int]],
     node_type: str,
     rank_index: int,
+    schedule: Optional[NodeGroupSchedule] = None,
 ) -> Optional[int]:
     """Resolve the node group id for a node by its rank index.
 
-    Only WORKER nodes are partitioned into node groups. The groups are
-    laid out in ascending group-id order, each occupying a contiguous
-    ``[start, end)`` rank range sized by ``group_affinity[group_id]``.
+    Only WORKER nodes are partitioned into node groups.
+
+    - With the default ``schedule`` (None) or its strategy being
+      :data:`NodeGroupStrategy.CONTIGUOUS`, groups are laid out in ascending
+      group-id order, each occupying a contiguous ``[start, end)`` rank range
+      sized by ``group_affinity[group_id]``. This is the existing behavior.
+    - With strategy :data:`NodeGroupStrategy.EP_PP_DP`, the stripe mapping in
+      :func:`_resolve_stripe_group_id` is used instead. This requires a
+      validated topology (see :func:`validate_topology`).
+
     Returns ``None`` when group affinity is not configured or the rank
     falls outside the declared worker range.
     """
     if node_type != NodeType.WORKER or not group_affinity:
         return None
+    if (
+        schedule is not None
+        and schedule.strategy == NodeGroupStrategy.EP_PP_DP
+    ):
+        return _resolve_stripe_group_id(group_affinity, rank_index, schedule)
     ordered_groups: List[int] = sorted(group_affinity.keys())
     start = 0
     for group_id in ordered_groups:
@@ -93,10 +172,144 @@ def resolve_group_id(
     return None
 
 
+def validate_topology(
+    group_affinity: Optional[Dict[int, int]],
+    schedule: Optional[NodeGroupSchedule],
+) -> None:
+    """Validate ``group_affinity`` against the parallel topology when the
+    ``ep_pp_dp`` node-group strategy is enabled. Raises ``ValueError`` (and
+    leaves ``group_affinity`` unapplied) whenever any constraint is violated.
+
+    Constraints (``N`` = #worker nodes, ``R`` = ranks/node, ``G`` =
+    ``len(group_affinity)``, ``dense_dp = N*R / (TP*PP*CP)``,
+    ``S = dense_dp / G`` ranks per segment per stage):
+
+      - scope: ``TP == 1`` and ``CP == 1``;
+      - A: ``dense_dp % G == 0`` (each segment gets an integer #ranks/stage);
+      - B: ``S % R == 0`` equiv ``N % (TP*PP*CP*G) == 0`` (a node's ``R``
+            ranks do not cross a segment-per-stage block, and nodes/stages
+            are whole);
+      - C: ``S % EP == 0`` (an EP group does not cross a segment, which also
+            makes ``de`` divisible across the ``G`` segments);
+      - D: ``N % G == 0`` and all ``group_affinity`` values are equal to
+            ``N/G`` (equal-size groups, the platform hard requirement), and
+            the group ids are exactly ``{0, 1, ..., G-1}``;
+      - E: ``EP % R == 0`` (an EP group is composed of whole nodes);
+      - implicit: ``dense_dp`` and ``dp_nodes`` are integral and ``seg >= 1``.
+    """
+    if schedule is None or schedule.strategy != NodeGroupStrategy.EP_PP_DP:
+        return
+    if not group_affinity:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires --group-affinity to be set"
+        )
+
+    g = len(group_affinity)
+    tp, pp, ep, cp = schedule.tp, schedule.pp, schedule.ep, schedule.cp
+    n, r = schedule.num_nodes, schedule.ranks_per_node
+
+    if tp != 1:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp currently requires TP=1 "
+            f"(got tp={tp}); TP>1 support is planned for a later phase."
+        )
+    if cp != 1:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp currently requires CP=1 "
+            f"(got cp={cp}); CP>1 support is planned for a later phase."
+        )
+    if r <= 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires ranks_per_node>0 "
+            f"(NodeResource.gpu_num), got {r}."
+        )
+
+    model_parallel = tp * pp * cp
+    # DP_nodes = N / (TP*PP*CP) must be whole; this also guarantees dense_dp
+    # (= N*R/(TP*PP*CP)) is integral since R is integer.
+    if n % model_parallel != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires the worker node count N "
+            f"to be divisible by TP*PP*CP={model_parallel}, got N={n}."
+        )
+
+    # Constraint A: dense_dp is divisible by G (each segment gets an integer
+    # number of ranks per pipeline stage).
+    dense_dp = (n * r) // model_parallel
+    if dense_dp % g != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires dense_dp="
+            f"{dense_dp} (N*R/(TP*PP*CP)) to be divisible by G={g} segments."
+        )
+    s = dense_dp // g
+
+    # Constraint B: a node's R ranks do not straddle a segment-per-stage block;
+    # equivalently the nodes per segment per stage are integral
+    # (N % (TP*PP*CP*G) == 0).
+    if s % r != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires S=dense_dp/G={s} ranks "
+            f"per segment per stage to be divisible by ranks_per_node R={r} "
+            "(equivalently N % (TP*PP*CP*G) == 0)."
+        )
+    seg_nodes = s // r
+    if seg_nodes < 1:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires at least one node per "
+            f"segment per stage, got {seg_nodes}."
+        )
+
+    # Constraint C: an EP group fits and aligns inside a segment-per-stage
+    # block (also guarantees de=S/EP is integral across the G segments).
+    if ep <= 0:
+        raise ValueError(
+            f"node-group-strategy=ep_pp_dp requires EP>0, got ep={ep}."
+        )
+    if s % ep != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires the EP size "
+            f"({ep}) to divide S=dense_dp/G={s} so each EP group stays "
+            "inside a segment."
+        )
+
+    # Constraint E: an EP group is composed of whole nodes.
+    if ep % r != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires EP="
+            f"{ep} to be divisible by ranks_per_node R={r} so an EP "
+            "group spans whole nodes."
+        )
+
+    # Constraint D: equal-size groups, group ids == {0..G-1}, each == N/G.
+    if n % g != 0:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires the worker node count "
+            f"N={n} to be divisible by G={g} segments (equal group sizes)."
+        )
+    expected_size = n // g
+    # Raises ValueError when the group sizes are not all equal.
+    equal_size = validate_group_affinity_equal_size(group_affinity)
+    if equal_size != expected_size:
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires all group_affinity sizes "
+            f"to be equal to N/G={expected_size}, got {equal_size}."
+        )
+    keys = sorted(group_affinity.keys())
+    if keys != list(range(g)):
+        raise ValueError(
+            "node-group-strategy=ep_pp_dp requires contiguous group ids "
+            f"{{0,1,...,{g - 1}}}, got {keys}."
+        )
+
+
 class JobResource(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
         self.group_affinity: Optional[Dict[int, int]] = None
+        # Node-group schedule (strategy + parallel sizes). Defaults to None,
+        # i.e. ``CONTIGUOUS`` behavior; set to a NodeGroupSchedule(strategy=
+        # ep_pp_dp, ...) when the ep_pp_dp strategy is enabled and validated.
+        self.node_group_schedule: Optional[NodeGroupSchedule] = None
 
     def get_node_group_resource(self, node_type):
         return self.node_group_resources.get(node_type, None)
@@ -192,11 +405,18 @@ class JobResource(JsonSerializable):
         """Resolve the node group id for a node by its rank index.
 
         Only WORKER nodes are partitioned into node groups. The groups are
-        laid out in ascending group-id order, each occupying a contiguous
-        [start, end) rank range sized by ``group_affinity[group_id]``.
+        laid out according to ``self.node_group_schedule``: by default
+        (None / contiguous) this is the ascending-group-id contiguous
+        [start, end) rank range sized by ``group_affinity[group_id]``; when an
+        ep_pp_dp schedule is configured, the stripe mapping is used.
         Returns None when group affinity is not configured.
         """
-        return resolve_group_id(self.group_affinity, node_type, rank_index)
+        return resolve_group_id(
+            self.group_affinity,
+            node_type,
+            rank_index,
+            self.node_group_schedule,
+        )
 
     def adjust_worker_for_estimator(self):
         if (

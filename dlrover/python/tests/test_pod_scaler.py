@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.resource.job import NodeGroupSchedule
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -387,6 +388,40 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(rank1.group, 1)
         self.assertEqual(rank1.group_size, 2)
         self.assertEqual(rank1.group_id, 1)
+
+    def test_scale_up_pods_with_ep_pp_dp(self):
+        """The ep_pp_dp schedule stripes nodes across groups so EP/PP stay
+        intra-group: with the compact topology below,
+        group(k) = (k % 2) // 1. Nodes 0,2 -> group 0; nodes 1,3 -> group 1."""
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        scaler.set_group_affinity({0: 2, 1: 2})
+        scaler.set_node_group_schedule(
+            NodeGroupSchedule(
+                strategy="ep_pp_dp",
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=4,
+                ranks_per_node=8,
+            )
+        )
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(4, resource),
+        }
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, [], 0)
+        self.assertEqual(len(scaler._create_node_queue), 4)
+        # node 0,2 -> group 0 (segment 0); node 1,3 -> group 1 (segment 1)
+        groups = [n.group for n in scaler._create_node_queue]
+        ids = [n.rank_index for n in scaler._create_node_queue]
+        self.assertEqual(ids, [0, 1, 2, 3])
+        self.assertEqual(groups, [0, 1, 0, 1])
+        for n in scaler._create_node_queue:
+            self.assertEqual(n.group_size, 2)
+            self.assertEqual(n.group_id, n.group)
 
     def test_update_job_pods(self):
         scaler = PodScaler("elasticjob-sample", "default")

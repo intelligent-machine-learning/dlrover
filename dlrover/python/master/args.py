@@ -153,6 +153,56 @@ def _build_master_args_parser():
         "replicas in the ElasticJob CRD must equal the sum of all group "
         "sizes, otherwise the master fails to start.",
     )
+    parser.add_argument(
+        "--node-group-strategy",
+        "--node_group_strategy",
+        default="contiguous",
+        choices=["contiguous", "ep_pp_dp"],
+        help="Strategy used to map worker nodes (by creation order) into "
+        "node groups (== physical segments). 'contiguous' (default) keeps "
+        "the existing behavior: groups occupy contiguous rank ranges. "
+        "'ep_pp_dp' stripes one Megatron MoE pipeline stage across all "
+        "groups so EP groups and PP stay intra-segment while only the dense "
+        "DP collective crosses segments. Requires TP=1 and CP=1 and a "
+        "validated parallel topology (see --tp/--pp/--ep/--cp). When unset "
+        "or 'contiguous', the parallel sizes below are ignored.",
+    )
+    parser.add_argument(
+        "--tensor-model-parallel-size",
+        "--tensor_model_parallel_size",
+        "--tp",
+        default=1,
+        type=pos_int,
+        help="Tensor-parallel size. Only consulted (and required to be 1) "
+        "when --node-group-strategy=ep_pp_dp.",
+    )
+    parser.add_argument(
+        "--pipeline-model-parallel-size",
+        "--pipeline_model_parallel_size",
+        "--pp",
+        default=1,
+        type=pos_int,
+        help="Pipeline-parallel size. Consulted when "
+        "--node-group-strategy=ep_pp_dp.",
+    )
+    parser.add_argument(
+        "--expert-model-parallel-size",
+        "--expert_model_parallel_size",
+        "--ep",
+        default=1,
+        type=pos_int,
+        help="Expert-parallel size (EP group size). Consulted when "
+        "--node-group-strategy=ep_pp_dp.",
+    )
+    parser.add_argument(
+        "--context-parallel-size",
+        "--context_parallel_size",
+        "--cp",
+        default=1,
+        type=pos_int,
+        help="Context-parallel size. Only consulted (and required to be 1) "
+        "when --node-group-strategy=ep_pp_dp.",
+    )
     return parser
 
 
