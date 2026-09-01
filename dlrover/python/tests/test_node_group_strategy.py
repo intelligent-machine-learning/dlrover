@@ -91,6 +91,21 @@ class ResolveGroupIdStripeTest(unittest.TestCase):
             [0, 1, 0, 1],
         )
 
+    def test_stripe_out_of_range_rank_raises(self):
+        # A validated ep_pp_dp topology is fixed-size: a rank beyond
+        # num_nodes (e.g. an unexpected scale-up) must fail loudly
+        # instead of wrapping back into an already-full segment.
+        ga = {0: 2, 1: 2}
+        sched = _ep_pp_dp(
+            tp=1, pp=2, ep=8, cp=1, num_nodes=4, ranks_per_node=8
+        )
+        with self.assertRaises(AssertionError):
+            resolve_group_id(ga, NodeType.WORKER, 4, sched)
+        with self.assertRaises(AssertionError):
+            resolve_group_id(ga, NodeType.WORKER, -1, sched)
+        # The last in-range rank still resolves normally.
+        self.assertEqual(resolve_group_id(ga, NodeType.WORKER, 3, sched), 1)
+
     def test_stripe_matches_formula_helper_on_9216_job(self):
         # N=1152, R=8, TP=1, PP=16, EP=32, CP=1, G=9.
         N, R, PP, EP, G = 1152, 8, 16, 32, 9

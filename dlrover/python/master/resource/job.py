@@ -150,10 +150,14 @@ def resolve_group_id(
       sized by ``group_affinity[group_id]``. This is the existing behavior.
     - With strategy :data:`NodeGroupStrategy.EP_PP_DP`, the stripe mapping in
       :func:`_resolve_stripe_group_id` is used instead. This requires a
-      validated topology (see :func:`validate_topology`).
+      validated topology (see :func:`validate_topology`); as the topology
+      is fixed-size, the rank is asserted to be within
+      ``schedule.num_nodes``.
 
     Returns ``None`` when group affinity is not configured or the rank
-    falls outside the declared worker range.
+    falls outside the declared worker range. For ``ep_pp_dp``, an
+    out-of-range rank (e.g. an unexpected scale-up beyond ``N``) raises
+    ``AssertionError`` instead of silently wrapping into a segment.
     """
     if node_type != NodeType.WORKER or not group_affinity:
         return None
@@ -161,6 +165,11 @@ def resolve_group_id(
         schedule is not None
         and schedule.strategy == NodeGroupStrategy.EP_PP_DP
     ):
+        assert 0 <= rank_index < schedule.num_nodes, (
+            f"rank_index={rank_index} is outside the validated "
+            f"ep_pp_dp topology (num_nodes={schedule.num_nodes}); "
+            "scale-up beyond the fixed world is not supported."
+        )
         return _resolve_stripe_group_id(group_affinity, rank_index, schedule)
     ordered_groups: List[int] = sorted(group_affinity.keys())
     start = 0
