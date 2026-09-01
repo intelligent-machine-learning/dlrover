@@ -245,13 +245,43 @@ class DistributedJobManagerTest(unittest.TestCase):
             num_nodes=4,
             ranks_per_node=8,
         )
-        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        with self.assertLogs("dlrover.logger", level="INFO") as logs:
+            nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         workers = nodes[NodeType.WORKER]
         self.assertEqual(len(workers), 4)
         self.assertEqual([workers[i].group for i in range(4)], [0, 1, 0, 1])
         for node in workers.values():
             self.assertEqual(node.group_size, 2)
             self.assertEqual(node.group_id, node.group)
+        # the per-parallel-group worker ranges are logged once, from the
+        # finest (ep) to the coarsest (ep_dp == dense-DP, pp_stage).
+        # For N=4, R=8, EP=8, PP=2: EP group = 1 worker, ep_pp group = the
+        # same EP slot across both stages, ep_dp/pp = the whole stage.
+        joined = " ".join(logs.output)
+        self.assertIn("group ep: [", joined)
+        self.assertIn(
+            "{'group_id': 'ep0', 'world_size': 1, "
+            "'members_ranges': '0-0', 'num_members': 1}",
+            joined,
+        )
+        self.assertIn("group ep_pp (groups per segment: 1): [", joined)
+        self.assertIn(
+            "{'group_id': 'ep_pp0', 'world_size': 2, "
+            "'members_ranges': '0-0,2-2', 'num_members': 2}",
+            joined,
+        )
+        self.assertIn("group ep_dp (dense-DP, crosses segments): [", joined)
+        self.assertIn(
+            "{'group_id': 'ep_dp0', 'world_size': 2, "
+            "'members_ranges': '0-1', 'num_members': 2}",
+            joined,
+        )
+        self.assertIn("group pp_stage: [", joined)
+        self.assertIn(
+            "{'group_id': 'pp1', 'world_size': 2, "
+            "'members_ranges': '2-3', 'num_members': 2}",
+            joined,
+        )
 
     def _new_manager_with_worker_count(self, count, gpu_num=0):
         """Build a lightweight DistributedJobManager with only the job

@@ -396,10 +396,109 @@ class JobResource(JsonSerializable):
                     node_group_id=group_id,
                 )
             job_nodes[node_type] = group_nodes
+        self._log_ep_pp_dp_groups()
         logger.info(
             "after initializing job node meta job_nodes are %s" % job_nodes
         )
         return job_nodes
+
+    def _log_ep_pp_dp_groups(self):
+        """Log the worker ranges of every parallel-group granularity when
+        the ``ep_pp_dp`` strategy is enabled. Ranges refer to worker indices
+        (node ``rank_index``). The families, printed from the finest to the
+        coarsest:
+
+        - ``group ep``: one EP group = ``EP/R`` consecutive workers inside
+          one pipeline stage (the EP collective never leaves it).
+        - ``group ep_pp``: one EP-group slot across ALL pipeline stages;
+          it is the domain where EP and PP communication stay local, and
+          each segment (node group) contains ``S/EP`` such groups.
+        - ``group ep_dp``: the dense-DP allreduce domain == a whole
+          pipeline stage (the only collective that crosses segments).
+        - ``group pp_stage``: the pipeline stages themselves.
+        """
+        schedule = self.node_group_schedule
+        if schedule is None or schedule.strategy != NodeGroupStrategy.EP_PP_DP:
+            return
+        g = len(self.group_affinity)
+        pp, ep, r = schedule.pp, schedule.ep, schedule.ranks_per_node
+        if g <= 0 or pp <= 0 or ep <= 0 or r <= 0:
+            return
+        dp_nodes = schedule.num_nodes // pp  # workers per pipeline stage
+        ep_nodes = ep // r  # workers per EP group
+        if dp_nodes <= 0 or ep_nodes <= 0:
+            return
+        slots = dp_nodes // ep_nodes  # EP-group slots per pipeline stage
+        seg_nodes = dp_nodes // g  # workers per segment per stage
+        seg_slots = seg_nodes // ep_nodes  # EP-group slots per segment
+        if slots <= 0 or seg_nodes <= 0 or seg_slots <= 0:
+            return
+
+        ep_entries = []
+        for s in range(pp):
+            for j in range(slots):
+                start = s * dp_nodes + j * ep_nodes
+                ep_entries.append(
+                    f"{{'group_id': 'ep{s * slots + j}', "
+                    f"'world_size': {ep_nodes}, "
+                    f"'members_ranges': '{start}-{start + ep_nodes - 1}', "
+                    f"'num_members': {ep_nodes}}}"
+                )
+        ep_pp_entries = []
+        for j in range(slots):
+            ranges = []
+            for s in range(pp):
+                start = s * dp_nodes + j * ep_nodes
+                ranges.append(f"{start}-{start + ep_nodes - 1}")
+            members = pp * ep_nodes
+            ep_pp_entries.append(
+                f"{{'group_id': 'ep_pp{j}', "
+                f"'world_size': {members}, "
+                f"'members_ranges': '{','.join(ranges)}', "
+                f"'num_members': {members}}}"
+            )
+        ep_dp_entries = []
+        pp_entries = []
+        for s in range(pp):
+            start = s * dp_nodes
+            ranges = f"{start}-{start + dp_nodes - 1}"
+            ep_dp_entries.append(
+                f"{{'group_id': 'ep_dp{s}', "
+                f"'world_size': {dp_nodes}, "
+                f"'members_ranges': '{ranges}', "
+                f"'num_members': {dp_nodes}}}"
+            )
+            pp_entries.append(
+                f"{{'group_id': 'pp{s}', "
+                f"'world_size': {dp_nodes}, "
+                f"'members_ranges': '{ranges}', "
+                f"'num_members': {dp_nodes}}}"
+            )
+
+        families = [
+            ("ep", ep_entries),
+            (
+                f"ep_pp (groups per segment: {seg_slots})",
+                ep_pp_entries,
+            ),
+            ("ep_dp (dense-DP, crosses segments)", ep_dp_entries),
+            ("pp_stage", pp_entries),
+        ]
+        batch = 16
+        for name, entries in families:
+            for i in range(0, len(entries), batch):
+                chunk = ", ".join(entries[i : i + batch])
+                if len(entries) <= batch:
+                    logger.info("group %s: [%s]", name, chunk)
+                else:
+                    logger.info(
+                        "group %s [%d-%d/%d]: [%s]",
+                        name,
+                        i + 1,
+                        min(i + batch, len(entries)),
+                        len(entries),
+                        chunk,
+                    )
 
     def _group_count(self) -> Optional[int]:
         """Return the total number of node groups, or None if group
