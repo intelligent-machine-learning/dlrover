@@ -109,6 +109,18 @@ class JobArgs(JsonSerializable):
         self.enable_suspended = False
         self.training_elastic_mode = "base"
         self.group_affinity: Optional[Dict[int, int]] = None
+        # Node-group scheduling strategy for worker nodes; defaults to the
+        # existing contiguous behavior. See NodeGroupStrategy in
+        # dlrover.python.common.constants and NodeGroupSchedule/
+        # resolve_group_id in dlrover.python.master.resource.job.
+        self.node_group_strategy: str = "contiguous"
+        # Megatron parallel sizes, consulted only when
+        # node_group_strategy == "ep_pp_dp" (and validated by
+        # validate_topology in master.resource.job). TP/CP must be 1 today.
+        self.tensor_model_parallel_size: int = 1
+        self.pipeline_model_parallel_size: int = 1
+        self.expert_model_parallel_size: int = 1
+        self.context_parallel_size: int = 1
 
     @abstractmethod
     def initilize(self):

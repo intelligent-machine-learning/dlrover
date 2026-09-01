@@ -19,7 +19,11 @@ from unittest.mock import patch
 
 import dlrover.python.util.store_util as store_util
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.constants import NetworkFailureReason, NodeEventType
+from dlrover.python.common.constants import (
+    NetworkFailureReason,
+    NodeEventType,
+    NodeType,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -38,6 +42,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     UcpRdzvManager,
     create_training_rdzv_manager,
 )
+from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.tests.test_utils import start_local_master
 
 
@@ -302,6 +307,41 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(len(callback_results), 1)
         self.assertEqual(callback_results[0][0], 0)
         self.assertListEqual(callback_results[0][1], [0, 1])
+
+    def test_world_log_and_rank_divergence_warning(self):
+        job_context = get_job_context()
+        workers = {
+            0: Node(NodeType.WORKER, 0, node_group=0, node_group_id=0),
+            2: Node(NodeType.WORKER, 2, node_group=1, node_group_id=1),
+        }
+        job_context.update_job_nodes_by_type(NodeType.WORKER, workers)
+        try:
+            rdzv_manager = ElasticTrainingRendezvousManager()
+            rdzv_manager.update_rdzv_params(2, 3, 0.1, 1)
+            for worker in workers.values():
+                rdzv_manager.add_alive_node(worker)
+            # rank 1 never joins: the rendezvous completes on the min-nodes
+            # timeout with ranks {0, 2}, so rank 2 sits at world position 1.
+            rdzv_manager.join_rendezvous(0, 0, 8, "10.0.0.1")
+            rdzv_manager.join_rendezvous(2, 2, 8, "10.0.0.3")
+            time.sleep(0.2)
+            with self.assertLogs("dlrover.logger", level="INFO") as logs:
+                round, _, world = rdzv_manager.get_comm_world(2)
+            self.assertEqual(round, 1)
+            self.assertListEqual(list(world.keys()), [0, 2])
+            joined = " ".join(logs.output)
+            self.assertIn("World [1-2/2]:", joined)
+            self.assertIn(
+                "pos=0,rank=0,id=0,ip=10.0.0.1,nproc=8,group=0", joined
+            )
+            self.assertIn(
+                "pos=1,rank=2,id=2,ip=10.0.0.3,nproc=8,group=1", joined
+            )
+            warnings = [o for o in logs.output if "diverge" in o]
+            self.assertTrue(warnings)
+            self.assertIn("pos=1->rank=2", warnings[0])
+        finally:
+            job_context.clear_job_nodes()
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()

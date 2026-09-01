@@ -98,3 +98,13 @@ class Scaler(metaclass=ABCMeta):
         no-op keeps the base scaler agnostic of group affinity.
         """
         pass
+
+    def set_node_group_schedule(self, node_group_schedule):
+        """Set the node-group schedule (strategy + parallel sizes).
+
+        Scalers that compute the group id per created worker (e.g. PodScaler,
+        via ``resolve_group_id``) can override this to forward the schedule
+        so a ``ep_pp_dp`` strategy is honored. The default no-op keeps the
+        base scaler agnostic of the schedule.
+        """
+        pass

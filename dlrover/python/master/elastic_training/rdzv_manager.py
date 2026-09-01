@@ -525,13 +525,43 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     ranks = list(self._rdzv_nodes.keys())
                     node_ips = []
                     node_ids = []
-                    for node_rank in ranks:
+                    world_parts = []
+                    for position, node_rank in enumerate(ranks):
                         node = self._rdzv_nodes[node_rank]
                         node_ips.append(node.node_ip)
                         node_ids.append(node.node_id)
+                        job_node = job_ctx.job_node(
+                            NodeType.WORKER, node.node_id
+                        )
+                        group = job_node.group_id if job_node else None
+                        world_parts.append(
+                            f"pos={position},rank={node_rank},"
+                            f"id={node.node_id},ip={node.node_ip},"
+                            f"nproc={node.process_num},group={group}"
+                        )
                     logger.info(
                         f"Node ids are {node_ids}.\n Node IPs are {node_ips}"
                     )
+                    mismatched = [
+                        f"pos={position}->rank={rank}"
+                        for position, rank in enumerate(ranks)
+                        if position != rank
+                    ]
+                    if mismatched:
+                        logger.warning(
+                            f"{len(mismatched)} rendezvous world ranks "
+                            "diverge from positions (topology sort or "
+                            "elastic compression); first: "
+                            f"{', '.join(mismatched[:10])}"
+                        )
+                    for i in range(0, len(world_parts), 40):
+                        logger.info(
+                            "World [%d-%d/%d]: %s",
+                            i + 1,
+                            min(i + 40, len(world_parts)),
+                            len(world_parts),
+                            "; ".join(world_parts[i : i + 40]),
+                        )
                     node_elapsed_time = time.time() - self._lastcall_time
 
                     if finished_rdzv_round in self.rendezvous_events.keys():

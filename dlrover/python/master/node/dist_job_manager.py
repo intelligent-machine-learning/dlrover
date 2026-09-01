@@ -31,6 +31,7 @@ from dlrover.python.common.constants import (
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
+    NodeGroupStrategy,
     NodeStatus,
     NodeType,
     TrainingExceptionLevel,
@@ -73,7 +74,9 @@ from dlrover.python.master.node.worker import (
 from dlrover.python.master.resource.job import (
     AllreduceJobResourceOptimizer,
     JobResourceOptimizer,
+    NodeGroupSchedule,
     PSJobResourceOptimizer,
+    validate_topology,
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
@@ -197,9 +200,13 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         # _init_group_affinity (above) has already applied --group-affinity
-        # onto self._job_resource; forward it to the scaler so newly created
-        # pods can be labeled with their node group.
+        # (and the optional ep_pp_dp node-group schedule) onto
+        # self._job_resource; forward them to the scaler so newly created
+        # pods can be labeled with their node group via the right strategy.
         self._scaler.set_group_affinity(self._job_resource.group_affinity)
+        self._scaler.set_node_group_schedule(
+            self._job_resource.node_group_schedule
+        )
         self._init_training_node_manager()
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
@@ -213,8 +220,25 @@ class DistributedJobManager(JobManager):
         master fails to start otherwise. On success the mapping is forwarded
         to the ``JobResource`` so that worker nodes are partitioned into the
         configured node groups.
+
+        When ``node_group_strategy == ep_pp_dp`` the parallel topology is
+        additionally validated via :func:`validate_topology` and a
+        :class:`NodeGroupSchedule` is attached to the ``JobResource`` so that
+        the scaler stripes pipeline stages across segments (EP/PP
+        intra-segment, DP cross-segment). The parallel sizes are read from
+        ``job_args``; when the strategy is unset or ``contiguous`` they are
+        ignored, preserving the existing behavior.
         """
+        strategy = getattr(
+            job_args, "node_group_strategy", NodeGroupStrategy.CONTIGUOUS
+        )
+        ep_pp_dp = strategy == NodeGroupStrategy.EP_PP_DP
         if not job_args.group_affinity:
+            if ep_pp_dp:
+                raise ValueError(
+                    "node-group-strategy=ep_pp_dp requires --group-affinity "
+                    "to be set (groups == physical segments)."
+                )
             return
         worker_resource = self._job_resource.node_group_resources.get(
             NodeType.WORKER
@@ -226,6 +250,29 @@ class DistributedJobManager(JobManager):
                 f"--group-affinity requires worker replicas={expected}, "
                 f"but got CRD worker replicas={worker_count}"
             )
+
+        # For ep_pp_dp, validate the full parallel topology BEFORE mutating any
+        # JobResource state so a violation leaves the resource untouched and
+        # the master fails to start cleanly.
+        schedule = None
+        if ep_pp_dp:
+            ranks_per_node = (
+                worker_resource.node_resource.gpu_num
+                if worker_resource is not None
+                and worker_resource.node_resource is not None
+                else 0
+            )
+            schedule = NodeGroupSchedule(
+                strategy=NodeGroupStrategy.EP_PP_DP,
+                tp=getattr(job_args, "tensor_model_parallel_size", 1),
+                pp=getattr(job_args, "pipeline_model_parallel_size", 1),
+                ep=getattr(job_args, "expert_model_parallel_size", 1),
+                cp=getattr(job_args, "context_parallel_size", 1),
+                num_nodes=worker_count,
+                ranks_per_node=ranks_per_node,
+            )
+            validate_topology(job_args.group_affinity, schedule)
+
         self._job_resource.group_affinity = job_args.group_affinity
         logger.info(
             "Enable node group affinity: %s (total %d groups, %d workers)",
@@ -233,6 +280,23 @@ class DistributedJobManager(JobManager):
             len(job_args.group_affinity),
             expected,
         )
+
+        if schedule is not None:
+            self._job_resource.node_group_schedule = schedule
+            logger.info(
+                "Enable ep_pp_dp node-group schedule "
+                "(tp=%d, pp=%d, ep=%d, cp=%d, N=%d, R=%d, G=%d): "
+                "each pipeline stage striped across %d segments "
+                "(EP/PP intra-segment, DP cross-segment).",
+                schedule.tp,
+                schedule.pp,
+                schedule.ep,
+                schedule.cp,
+                schedule.num_nodes,
+                schedule.ranks_per_node,
+                len(job_args.group_affinity),
+                len(job_args.group_affinity),
+            )
 
     def start(self):
         self._scaler.start()

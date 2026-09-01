@@ -39,7 +39,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.node.job_context import get_job_context
-from dlrover.python.master.resource.job import resolve_group_id
+from dlrover.python.master.resource.job import (
+    NodeGroupSchedule,
+    resolve_group_id,
+)
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -121,10 +124,20 @@ class PodScaler(Scaler):
         # newly created worker pods are labeled with their group so the
         # scheduler can place them by affinity.
         self._group_affinity: Optional[Dict[int, int]] = None
+        # Node-group schedule (strategy + parallel sizes) injected by
+        # DistributedJobManager; consulted by resolve_group_id so the
+        # ep_pp_dp stripe mapping is applied when labeling created pods.
+        self._node_group_schedule: Optional[NodeGroupSchedule] = None
 
     def set_group_affinity(self, group_affinity):
         """Store the group affinity mapping for labeling created pods."""
         self._group_affinity = group_affinity
+
+    def set_node_group_schedule(self, node_group_schedule):
+        """Store the node-group schedule (strategy + parallel sizes) so
+        resolve_group_id can apply the ep_pp_dp stripe mapping when
+        labeling created worker pods."""
+        self._node_group_schedule = node_group_schedule
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -468,7 +481,12 @@ class PodScaler(Scaler):
         for i in range(up_num):
             node_id = max_pod_id + 1 + i
             task_id = cur_num + i
-            group_id = resolve_group_id(self._group_affinity, type, task_id)
+            group_id = resolve_group_id(
+                self._group_affinity,
+                type,
+                task_id,
+                self._node_group_schedule,
+            )
             group_size = (
                 len(self._group_affinity)
                 if group_id is not None and self._group_affinity
