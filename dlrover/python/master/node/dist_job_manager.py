@@ -298,6 +298,15 @@ class DistributedJobManager(JobManager):
                 len(job_args.group_affinity),
             )
 
+    def get_expected_ranks_per_node(self) -> Optional[int]:
+        """Return the validated ``ranks_per_node`` of the ep_pp_dp topology
+        (or None when the strategy is not enabled) so other components can
+        re-validate it against the trainer-reported local_world_size."""
+        schedule = self._job_resource.node_group_schedule
+        if schedule is None or schedule.strategy != NodeGroupStrategy.EP_PP_DP:
+            return None
+        return schedule.ranks_per_node
+
     def start(self):
         self._scaler.start()
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
