@@ -343,6 +343,30 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         finally:
             job_context.clear_job_nodes()
 
+    def test_join_rendezvous_validates_expected_local_world_size(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager.update_rdzv_params(2, 2, 0.1, 1)
+        rdzv_manager.set_expected_local_world_size(8)
+
+        # a node reporting the expected nproc joins normally
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        self.assertEqual(list(rdzv_manager._waiting_nodes.keys()), [0])
+
+        # a node reporting a different nproc fails fast with a clear
+        # error (e.g. --nproc_per_node mismatches the inferred
+        # ranks_per_node of the ep_pp_dp topology), leaving no state
+        with self.assertRaises(ValueError) as ctx:
+            rdzv_manager.join_rendezvous(1, 1, 4, "10.0.0.2")
+        self.assertIn("local_world_size=4", str(ctx.exception))
+        self.assertIn("ranks_per_node=8", str(ctx.exception))
+        self.assertEqual(list(rdzv_manager._waiting_nodes.keys()), [0])
+
+        # the failure is loud in the master log
+        with self.assertLogs("dlrover.logger", level="ERROR") as logs:
+            with self.assertRaises(ValueError):
+                rdzv_manager.join_rendezvous(1, 1, 4, "10.0.0.2")
+        self.assertIn("--nproc_per_node", " ".join(logs.output))
+
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
         min_nodes = 8

@@ -295,6 +295,81 @@ class StripeInvariantsTest(unittest.TestCase):
     def test_9216_job(self):
         self._check_invariants(N=1152, R=8, TP=1, PP=16, EP=32, CP=1, G=9)
 
+    def test_9216_job_ep_and_pp_worlds_intra_segment(self):
+        # Worker-level view of the 9216-card job: G=9 segments x 128
+        # nodes, R=8, PP=16, EP=32. After the ep_pp_dp stripe placement,
+        # every EP world (32 ranks = 4 workers) and every PP world (the
+        # same 4-worker slot across all pipeline stages) stay inside one
+        # segment. E.g. the first ep-pp column gathers workers 0-3 (pp0),
+        # 72-75 (pp1), 144-147 (pp2), ..., 1080-1083 (pp15), all on
+        # segment 0.
+        N, R, PP, EP, G = 1152, 8, 16, 32, 9
+        ga = {i: N // G for i in range(G)}
+        sched = _ep_pp_dp(
+            tp=1, pp=PP, ep=EP, cp=1, num_nodes=N, ranks_per_node=R
+        )
+        validate_topology(ga, sched)
+
+        def seg(worker):
+            return resolve_group_id(ga, NodeType.WORKER, worker, sched)
+
+        dp_nodes = N // PP  # 72 workers per pipeline stage
+        seg_nodes = dp_nodes // G  # 8 workers per segment per stage
+        ep_workers = EP // R  # 4 workers per EP world
+        slots = dp_nodes // ep_workers  # 18 EP-group slots per stage
+
+        # every segment holds exactly 128 workers, covering the same
+        # within-stage slot in all PP stages
+        for g in range(G):
+            members = [w for w in range(N) if seg(w) == g]
+            self.assertEqual(len(members), N // G, f"segment {g}")
+            expected_positions = [
+                p
+                for p in range(g * seg_nodes, (g + 1) * seg_nodes)
+                for _ in range(PP)
+            ]
+            self.assertEqual(
+                sorted(w % dp_nodes for w in members), expected_positions
+            )
+
+        # every EP world (4 consecutive workers in one stage) is inside
+        # a single segment
+        for s in range(PP):
+            for j in range(slots):
+                members = [
+                    s * dp_nodes + j * ep_workers + k
+                    for k in range(ep_workers)
+                ]
+                self.assertEqual(
+                    len(set(seg(w) for w in members)), 1, f"pp={s} j={j}"
+                )
+
+        # every PP world (the same slot across all stages) is inside a
+        # single segment
+        for j in range(slots):
+            members = [
+                s * dp_nodes + j * ep_workers + k
+                for s in range(PP)
+                for k in range(ep_workers)
+            ]
+            self.assertEqual(len(set(seg(w) for w in members)), 1, f"slot {j}")
+
+        # the first PP world matches the expected layout literally:
+        # pp0: 0-3, pp1: 72-75, ..., pp15: 1080-1083, all on segment 0.
+        first = [
+            s * dp_nodes + k for s in range(PP) for k in range(ep_workers)
+        ]
+        self.assertEqual([seg(w) for w in first], [0] * len(first))
+        ranges = [
+            (first[s * ep_workers], first[(s + 1) * ep_workers - 1])
+            for s in range(PP)
+        ]
+        self.assertEqual(ranges[0], (0, 3))
+        self.assertEqual(ranges[1], (72, 75))
+        self.assertEqual(ranges[2], (144, 147))
+        self.assertEqual(ranges[3], (216, 219))
+        self.assertEqual(ranges[15], (1080, 1083))
+
     def test_small_compact(self):
         # 1 node / EP group / segment per stage.
         self._check_invariants(N=4, R=8, TP=1, PP=2, EP=8, CP=1, G=2)

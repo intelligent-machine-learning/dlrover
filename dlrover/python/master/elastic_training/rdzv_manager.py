@@ -92,6 +92,11 @@ class RendezvousManager(metaclass=ABCMeta):
         self._rdzv_blocked = False
         self._rdzv_block_reason = ""
         self._rdzv_completed_callbacks = []
+        # Expected local world size (ranks per node); None disables the
+        # join-time re-validation. e.g. the ep_pp_dp schedule infers
+        # ranks_per_node from the requested GPU count and re-validates it
+        # here against the --nproc_per_node reported by each trainer.
+        self._expected_local_world_size: Optional[int] = None
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -310,6 +315,18 @@ class RendezvousManager(metaclass=ABCMeta):
                     nodes.append(node_id)
         return nodes
 
+    def set_expected_local_world_size(self, local_world_size):
+        """Set the expected local world size (ranks per node) to
+        re-validate every node joining this rendezvous. None disables the
+        check. The ep_pp_dp node-group placement is validated at startup
+        with a ranks_per_node inferred from the requested GPU count; the
+        actual per-node process number (dlrover-run --nproc_per_node) only
+        reaches the master here, at rendezvous time, so the topology is
+        re-checked before the world freezes.
+        """
+        with self._lock:
+            self._expected_local_world_size = local_world_size
+
     def join_rendezvous(
         self,
         node_id,
@@ -326,6 +343,22 @@ class RendezvousManager(metaclass=ABCMeta):
             int: the number of rendezvous round.
         """
         with self._lock:
+            if (
+                self._expected_local_world_size is not None
+                and local_world_size != self._expected_local_world_size
+            ):
+                msg = (
+                    f"Node {node_id} (rank {node_rank}, ip {node_ip}) "
+                    f"reports local_world_size={local_world_size}, but "
+                    "the validated ep_pp_dp topology requires "
+                    f"ranks_per_node={self._expected_local_world_size}. "
+                    "The node-group placement was computed from "
+                    "ranks_per_node (inferred from the requested GPU "
+                    "count). Align the dlrover-run --nproc_per_node (or "
+                    "the GPU requests) with the validated topology."
+                )
+                logger.error(msg)
+                raise ValueError(msg)
             if not self._waiting_nodes:
                 self._start_rdzv_ts = time.time()
             if node_rank in self._waiting_nodes:

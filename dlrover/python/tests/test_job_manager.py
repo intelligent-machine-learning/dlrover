@@ -307,6 +307,25 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._init_group_affinity(SimpleNamespace(group_affinity={}))
         self.assertIsNone(manager._job_resource.group_affinity)
 
+    def test_get_expected_ranks_per_node(self):
+        # None without the ep_pp_dp schedule (check disabled), the
+        # validated ranks_per_node with it.
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        self.assertIsNone(manager.get_expected_ranks_per_node())
+        manager._job_resource.node_group_schedule = NodeGroupSchedule(
+            strategy=NodeGroupStrategy.EP_PP_DP,
+            num_nodes=4,
+            ranks_per_node=8,
+        )
+        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+        # a contiguous schedule is not ep_pp_dp either
+        manager._job_resource.node_group_schedule = NodeGroupSchedule(
+            strategy=NodeGroupStrategy.CONTIGUOUS,
+            num_nodes=4,
+            ranks_per_node=8,
+        )
+        self.assertIsNone(manager.get_expected_ranks_per_node())
+
     def test_init_group_affinity_matched(self):
         # worker replicas == sum(values) -> apply and forward
         manager = self._new_manager_with_worker_count(25)

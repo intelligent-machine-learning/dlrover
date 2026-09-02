@@ -152,6 +152,15 @@ class DistributedJobMaster(JobMaster):
             RendezvousName.TRAINING: create_training_rdzv_manager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
+        if self.job_manager is not None:
+            # The ep_pp_dp ranks_per_node is inferred from the requested
+            # GPU count at startup; re-validate it against the actual
+            # local_world_size reported by trainers at rendezvous time.
+            expected_ranks = self.job_manager.get_expected_ranks_per_node()
+            if expected_ranks is not None:
+                self.rdzv_managers[
+                    RendezvousName.TRAINING
+                ].set_expected_local_world_size(expected_ranks)
         self.diagnosis_manager = DiagnosisMaster(args)
         self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
