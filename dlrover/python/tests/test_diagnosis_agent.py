@@ -265,6 +265,59 @@ class TestDiagnosisAgent(unittest.TestCase):
         agent_with_global_extension.stop()
         agent_with_normal_extension.stop()
 
+    def test_diagnose_training_failure_emits_fault_detect_event(self):
+        """diagnose_training_failure emits a #fault_detect event when a node
+        failure is detected, and survives an emit failure.
+        """
+        file_path = os.path.join(
+            os.path.dirname(__file__), "data/training.log"
+        )
+        spec = _create_worker_spec(
+            node_rank=0,
+            rdzv_name=RendezvousName.TRAINING,
+            config=self.config,
+            entrypoint="echo",
+            args=[],
+        )
+        run_result = RunResult(
+            state=WorkerState(WorkerState.UNHEALTHY),
+            failures={},
+        )
+        context = get_agent_context()
+        context.update_context(
+            worker_spec=spec,
+            remaining_failovers=2,
+            restart_count=3,
+            run_result=run_result,
+        )
+        agent = DiagnosisAgent.singleton_instance()
+        agent.update_config(file_path, "error code is 507035")
+
+        with mock.patch(
+            "dlrover.python.elastic_agent.diagnosis.diagnosis_agent."
+            "DLRoverAgentEvent"
+        ) as mock_agent_evt_cls:
+            mock_evt = (
+                mock_agent_evt_cls.return_value.singleton_instance.return_value
+            )
+            action = agent.diagnose_training_failure()
+            # node failure detected -> #fault_detect emitted + RELAUNCH_WORKER
+            mock_evt.fault_detect.assert_called_once()
+            self.assertEqual(
+                mock_evt.fault_detect.call_args.kwargs.get("reason"),
+                "node_failure",
+            )
+            self.assertEqual(
+                action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+            )
+            # emit failure does not break handling.
+            mock_evt.fault_detect.reset_mock()
+            mock_evt.fault_detect.side_effect = RuntimeError("boom")
+            action = agent.diagnose_training_failure()
+            self.assertEqual(
+                action.action_type, DiagnosisActionType.RELAUNCH_WORKER
+            )
+
     def test_worker_training_metric(self):
         test = WorkerTrainingMetric(
             data_content="test123",

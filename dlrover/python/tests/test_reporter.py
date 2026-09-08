@@ -76,6 +76,14 @@ class EventReporterTest(unittest.TestCase):
         self.reporter.report_node_status_change(
             Node("worker", 0), "INIT", "PENDING"
         )
+        self.reporter.report_fault_detect(
+            "training_hang",
+            detection_type="BY_XPU_TIMER_METRIC",
+            node_rank="3",
+            time_last="600",
+            threshold="300",
+            strategy="DO_FAILOVER",
+        )
 
     def test_rdzv_report(self):
         rdzv_evt = self.master_evt.rendezvous(
