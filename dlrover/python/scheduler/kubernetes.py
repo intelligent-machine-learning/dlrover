@@ -294,6 +294,30 @@ class k8sClient(Singleton):
         )
 
     @retry_k8s_request
+    def patch_images_to_pod(self, name, images: Dict[str, str]):
+        """Patch images of named containers in a Pod.
+
+        The Pod is not recreated: the kubelet updates the container
+        image in place, so the Pod keeps its IP, labels and env.
+
+        Args:
+            name: str, the pod name.
+            images: dict, the key is the container name and the
+                value is the new image.
+        """
+        body = {
+            "spec": {
+                "containers": [
+                    {"name": container_name, "image": image}
+                    for container_name, image in images.items()
+                ]
+            }
+        }
+        return self.client.patch_namespaced_pod(
+            name=name, namespace=self._namespace, body=body
+        )
+
+    @retry_k8s_request
     def get_pod_annotation(self, name, key) -> str:
         """Get a specific annotation value of a Pod.
 

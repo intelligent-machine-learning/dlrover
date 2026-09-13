@@ -225,6 +225,45 @@ class K8sClientTest(unittest.TestCase):
             "",
         )
 
+    def test_patch_images_to_pod(self):
+        k8s_client = k8sClient.singleton_instance("default")
+        k8s_client.client.patch_namespaced_pod = MagicMock(
+            return_value=client.V1Pod(
+                metadata=client.V1ObjectMeta(name="test-pod")
+            )
+        )
+        images = {
+            "main": "dlrover/trainer:v2",
+            "sidecar": "dlrover/sidecar:v3",
+        }
+        result = k8sClient.patch_images_to_pod(k8s_client, "test-pod", images)
+        self.assertEqual(result.metadata.name, "test-pod")
+        body = {
+            "spec": {
+                "containers": [
+                    {"name": "main", "image": "dlrover/trainer:v2"},
+                    {"name": "sidecar", "image": "dlrover/sidecar:v3"},
+                ]
+            }
+        }
+        k8s_client.client.patch_namespaced_pod.assert_called_once_with(
+            name="test-pod", namespace="default", body=body
+        )
+
+    @patch("dlrover.python.scheduler.kubernetes.time.sleep")
+    def test_patch_images_to_pod_failure(self, mock_sleep):
+        k8s_client = k8sClient.singleton_instance("default")
+        k8s_client.client.patch_namespaced_pod = MagicMock(
+            side_effect=client.rest.ApiException(
+                status=500, reason="Internal Server Error"
+            )
+        )
+        result = k8sClient.patch_images_to_pod(
+            k8s_client, "test-pod", {"main": "dlrover/trainer:v2"}
+        )
+        self.assertIsNone(result)
+        mock_sleep.assert_called()
+
     def test_delete_custom_resource_not_found(self):
         k8s_client = k8sClient.singleton_instance("default")
         k8s_client.api_instance = MagicMock()
