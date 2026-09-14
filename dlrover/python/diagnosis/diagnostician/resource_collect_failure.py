@@ -13,6 +13,7 @@
 from typing import Optional, List
 
 from dlrover.python.common.constants import DictKey, EventReportConstants
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
     DiagnosisErrorConstant,
@@ -26,6 +27,7 @@ from dlrover.python.diagnosis.common.diagnostician import (
     DiagnosisObservation,
     Diagnostician,
 )
+from dlrover.python.training_event import DLRoverAgentEvent
 
 
 class ResourceCollectionFailureDiagnostician(Diagnostician):
@@ -54,6 +56,16 @@ class ResourceCollectionFailureDiagnostician(Diagnostician):
         self, problem: DiagnosisObservation, **kwargs
     ) -> List[DiagnosisAction]:
         if problem.observation == DiagnosisErrorConstant.GPU_LOST:
+            # Emit a #fault_detect event so the GPU-lost detection moment is
+            # observable in the training event stream (the EventAction below
+            # is only a log line). Runs on the agent; never breaks handling.
+            try:
+                DLRoverAgentEvent().singleton_instance().fault_detect(
+                    reason="gpu_lost",
+                    logs=problem.extra_infos.get(DictKey.LOGS, ""),
+                )
+            except Exception as exc:
+                logger.warning(f"report_fault_detect failed: {exc}")
             return [
                 EventAction(
                     event_type=EventReportConstants.TYPE_WARN,

@@ -61,6 +61,7 @@ from dlrover.python.elastic_agent.torch.dynamic_failover import (
     DynamicAgentFailoverExtension,
     AgentFailureInfo,
 )
+from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.training_event.config import is_dlrover_event_enabled
 
 
@@ -230,6 +231,19 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             node_failed = ob.observation == DiagnosisErrorConstant.NODE_FAILED
         else:
             node_failed = False
+
+        if node_failed:
+            # Surface the node-failure detection as a #fault_detect event
+            # (the resulting relaunch/restart is surfaced separately as
+            # #process_restart etc.). Never breaks handling.
+            try:
+                DLRoverAgentEvent().singleton_instance().fault_detect(
+                    reason="node_failure",
+                    node_rank=self._node_rank,
+                    errors=self._errors,
+                )
+            except Exception as exc:
+                logger.warning(f"report_fault_detect failed: {exc}")
 
         if self._agent_context.remaining_failovers > 0 and not node_failed:
             logger.info(
