@@ -575,7 +575,7 @@ def main():
     timeline_dir = args.path
     files = Path(timeline_dir)
     if not files.exists():
-        print("path {timeline_dir} not exists")
+        print(f"path {timeline_dir} not exists")
         return
     generate_perfetto_trace(args)
     parse_timeline_stack(timeline_dir)
