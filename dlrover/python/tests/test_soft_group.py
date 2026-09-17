@@ -27,11 +27,12 @@ from dlrover.python.master.resource.soft_group import (
 
 
 def _soft(
-    strategy=NodeGroupStrategy.CONTIGUOUS,
+    strategy=NodeGroupStrategy.EP_DP_PP,
     sizes=None,
     tp=1,
     pp=1,
     ep=1,
+    etp=None,
     cp=1,
     num_nodes=None,
     ranks_per_node=8,
@@ -45,6 +46,7 @@ def _soft(
         tp=tp,
         pp=pp,
         ep=ep,
+        etp=etp,
         cp=cp,
         num_nodes=(
             num_nodes if num_nodes is not None else sum(sizes.values())
@@ -61,17 +63,23 @@ class SoftGroupScheduleTest(unittest.TestCase):
             sizes={0: 30, 1: 20},
             pp=2,
             ep=40,
+            etp=2,
             no_group_failover=True,
         )
         self.assertEqual(schedule.sizes, {0: 30, 1: 20})
-        self.assertEqual(
-            (schedule.tp, schedule.pp, schedule.ep, schedule.cp), (1, 2, 40, 1)
-        )
+        self.assertEqual((schedule.pp, schedule.ep, schedule.etp), (2, 40, 2))
+        self.assertEqual((schedule.tp, schedule.cp), (1, 1))
         self.assertEqual(
             (schedule.num_nodes, schedule.ranks_per_node), (50, 8)
         )
         self.assertTrue(schedule.no_group_failover)
         self.assertIsNone(schedule._ep_pp_dp_layout)
+
+    def test_unset_etp_inherits_tp(self):
+        # An unset etp (None) inherits the recorded tp; an explicit etp
+        # wins over tp.
+        self.assertEqual(_soft(tp=4).etp, 4)
+        self.assertEqual(_soft(tp=4, etp=2).etp, 2)
 
 
 class ValidateSoftGroupTopologyTest(unittest.TestCase):
@@ -119,15 +127,13 @@ class ValidateSoftGroupTopologyTest(unittest.TestCase):
                 _soft(sizes={-1: 4, 0: 4}, pp=1, ep=1)
             )
 
-    def test_tp_cp_scope(self):
-        with self.assertRaisesRegex(ValueError, "TP=1"):
-            validate_soft_group_topology(
-                _soft(sizes={0: 8, 1: 8}, tp=2, pp=2, ep=8)
-            )
-        with self.assertRaisesRegex(ValueError, "CP=1"):
-            validate_soft_group_topology(
-                _soft(sizes={0: 8, 1: 8}, cp=2, pp=2, ep=8)
-            )
+    def test_tp_cp_recorded_not_used(self):
+        # TP and CP are recorded but not validated: tp>1 / cp>1 used to
+        # fail the check with "requires TP=1"/"requires CP=1"; they now
+        # pass through untouched (and an unset etp inherits tp).
+        schedule = _soft(sizes={0: 8, 1: 8}, tp=2, cp=2, pp=2, ep=8)
+        validate_soft_group_topology(schedule)
+        self.assertEqual((schedule.tp, schedule.etp, schedule.cp), (2, 2, 2))
 
     def test_invalid_parallel_sizes(self):
         with self.assertRaisesRegex(ValueError, "pp=0"):
@@ -140,23 +146,23 @@ class ValidateSoftGroupTopologyTest(unittest.TestCase):
             )
 
     def test_num_nodes_must_divide_model_parallel(self):
-        with self.assertRaisesRegex(ValueError, r"TP\*PP\*CP=3"):
+        with self.assertRaisesRegex(ValueError, r"PP=3"):
             validate_soft_group_topology(_soft(sizes={0: 8, 1: 8}, pp=3, ep=8))
 
     def test_dp_must_be_integral(self):
-        # N=50, R=8, PP=2 -> dense_dp=200 is not divisible by EP=16:
-        # not even a valid Megatron shape (dp=12.5).
-        with self.assertRaisesRegex(ValueError, "divisible by EP"):
+        # N=50, R=8, PP=2 -> dense_dp=200 is not divisible by the EP
+        # group size EPG=16: not even a valid Megatron shape (dp=12.5).
+        with self.assertRaisesRegex(ValueError, "EP group size"):
             validate_soft_group_topology(
                 _soft(sizes={0: 30, 1: 20}, pp=2, ep=16)
             )
 
     def test_ep_pp_dp_requires_ep_multiple_of_r(self):
-        # N=24, R=8, PP=2 -> dense_dp=96 divides EP=12 (dp integral) but
-        # EP=12 is not a multiple of R=8, so an EP slot is not whole
+        # N=24, R=8, PP=2 -> dense_dp=96 divides EPG=12 (dp integral) but
+        # EPG=12 is not a multiple of R=8, so an EP slot is not whole
         # nodes.
         with self.assertRaisesRegex(
-            ValueError, "EP=12 to be divisible by ranks_per_node"
+            ValueError, "ETP\\*EP=12 to be divisible by ranks_per_node"
         ):
             validate_soft_group_topology(
                 _soft(
@@ -173,7 +179,7 @@ class ValidateSoftGroupTopologyTest(unittest.TestCase):
         # (ep_workers=2). No flag exists to relax this: the master fails
         # to start for BOTH strategies.
         for strategy in (
-            NodeGroupStrategy.CONTIGUOUS,
+            NodeGroupStrategy.EP_DP_PP,
             NodeGroupStrategy.EP_PP_DP,
         ):
             with self.assertRaisesRegex(ValueError, "group 0 has 31"):
@@ -188,9 +194,9 @@ class ValidateSoftGroupTopologyTest(unittest.TestCase):
 
     def test_alignment_requires_ep_multiple_of_r_even_contiguous(self):
         # The EP slot must be well-defined regardless of the strategy:
-        # N=48, R=8, PP=2 -> dense_dp=192 divides EP=12, but EP=12 is
+        # N=48, R=8, PP=2 -> dense_dp=192 divides EPG=12, but EPG=12 is
         # not a multiple of R=8.
-        with self.assertRaisesRegex(ValueError, "EP=12 to be divisible"):
+        with self.assertRaisesRegex(ValueError, "ETP\\*EP=12 to be"):
             validate_soft_group_topology(
                 _soft(
                     sizes={0: 33, 1: 15},
@@ -232,6 +238,26 @@ class ResolveSoftGroupIdTest(unittest.TestCase):
             pp=2,
             ep=16,
         )
+        self.assertEqual(
+            [
+                resolve_soft_group_id(schedule, NodeType.WORKER, rank)
+                for rank in range(16)
+            ],
+            [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+        )
+
+    def test_ep_pp_dp_etp_enlarges_ep_slot(self):
+        # etp=2 with ep=8, R=8 -> the EP slot is ETP*EP/R = 2 pods, i.e.
+        # the SAME layout as ep=16 without etp: every 2-pod slot stays in
+        # one group across both pipeline stages.
+        schedule = _soft(
+            strategy=NodeGroupStrategy.EP_PP_DP,
+            sizes={0: 8, 1: 8},
+            pp=2,
+            ep=8,
+            etp=2,
+        )
+        validate_soft_group_topology(schedule)
         self.assertEqual(
             [
                 resolve_soft_group_id(schedule, NodeType.WORKER, rank)
@@ -523,13 +549,13 @@ class ResolveSoftGroupIdTest(unittest.TestCase):
         # A spectrum of illegal topologies rejected by the start-up
         # validation, each failing fast with its own message.
         invalid_cases = [
-            # dense_dp = 10*8/2 = 40 not divisible by EP=16 (N must be
-            # a multiple of 4 for pp=2, ep=16, R=8)
-            ({1: 6, 2: 2, 3: 2}, 2, 16, "divisible by EP"),
+            # dense_dp = 10*8/2 = 40 not divisible by EPG=EP=16 (N must
+            # be a multiple of 4 for pp=2, ep=16, R=8)
+            ({1: 6, 2: 2, 3: 2}, 2, 16, "EP group size"),
             # group 1 has 3 pods, not a multiple of the EP slot (2)
             ({1: 3, 2: 3, 3: 2}, 2, 16, "ep_workers=2"),
-            # N=6 -> dense_dp=24 not divisible by EP=16
-            ({1: 4, 2: 2}, 2, 16, "divisible by EP"),
+            # N=6 -> dense_dp=24 not divisible by EPG=EP=16
+            ({1: 4, 2: 2}, 2, 16, "EP group size"),
         ]
         for sizes, pp, ep, pattern in invalid_cases:
             schedule = _soft(
@@ -540,8 +566,9 @@ class ResolveSoftGroupIdTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, pattern):
                 validate_soft_group_topology(schedule)
-        # EP=12 passes dense_dp divisibility (48 % 12 == 0) but is not
-        # a multiple of R=8: an EP slot would not consist of whole nodes
+        # EPG=EP=12 passes dense_dp divisibility (48 % 12 == 0) but is
+        # not a multiple of R=8: an EP slot would not consist of whole
+        # nodes
         schedule = _soft(
             strategy=NodeGroupStrategy.EP_PP_DP,
             sizes={1: 6, 2: 6},
@@ -549,7 +576,7 @@ class ResolveSoftGroupIdTest(unittest.TestCase):
             ep=12,
         )
         with self.assertRaisesRegex(
-            ValueError, "EP=12 to be divisible by ranks_per_node"
+            ValueError, "ETP\\*EP=12 to be divisible by ranks_per_node"
         ):
             validate_soft_group_topology(schedule)
         # declared N mismatches the sum of sizes

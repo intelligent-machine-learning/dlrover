@@ -176,12 +176,14 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
 
     def test_parse_node_group_strategy(self):
-        # defaults: contiguous + all parallel sizes == 1
+        # defaults: no strategy + all parallel sizes at their defaults
+        # (etp stays None, i.e. it inherits tp at the master layer)
         parsed = parse_master_args(["--job_name", "test"])
-        self.assertEqual(parsed.node_group_strategy, "contiguous")
+        self.assertIsNone(parsed.node_group_strategy)
         self.assertEqual(parsed.tensor_model_parallel_size, 1)
         self.assertEqual(parsed.pipeline_model_parallel_size, 1)
         self.assertEqual(parsed.expert_model_parallel_size, 1)
+        self.assertIsNone(parsed.expert_tensor_parallel_size)
         self.assertEqual(parsed.context_parallel_size, 1)
 
         # ep_pp_dp with parallel sizes (long and short aliases)
@@ -197,6 +199,8 @@ class ArgsTest(unittest.TestCase):
                 "16",
                 "--ep",
                 "32",
+                "--etp",
+                "2",
                 "--cp",
                 "1",
             ]
@@ -206,7 +210,19 @@ class ArgsTest(unittest.TestCase):
         self.assertEqual(parsed.tensor_model_parallel_size, 1)
         self.assertEqual(parsed.pipeline_model_parallel_size, 16)
         self.assertEqual(parsed.expert_model_parallel_size, 32)
+        self.assertEqual(parsed.expert_tensor_parallel_size, 2)
         self.assertEqual(parsed.context_parallel_size, 1)
+
+        # the ep_dp_pp rename of the previous contiguous strategy
+        parsed = parse_master_args(
+            [
+                "--job_name",
+                "test",
+                "--node-group-strategy=ep_dp_pp",
+                "--group-affinity={0: 128, 1: 128}",
+            ]
+        )
+        self.assertEqual(parsed.node_group_strategy, "ep_dp_pp")
 
         # invalid strategy choice -> argparse exits with code 2
         with self.assertRaises(SystemExit) as cm:

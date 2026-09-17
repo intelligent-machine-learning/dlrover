@@ -32,18 +32,20 @@ class SoftGroupSchedule(object):
     labels pods with ``scheduling/rack-group`` for segment-affinity
     scheduling. There is deliberately NO equal-size constraint, but
     EVERY group size must be a multiple of the EP slot
-    (``ep_workers = EP/R`` pods): this EP alignment is an unconditional
-    start-up requirement, not an option.
+    (``ep_workers = ETP*EP/R`` pods): this EP alignment is an
+    unconditional start-up requirement, not an option.
 
     Args:
-        strategy: one of :class:`NodeGroupStrategy` (contiguous or
+        strategy: one of :class:`NodeGroupStrategy` (ep_dp_pp or
             ep_pp_dp), consulted by :func:`resolve_soft_group_id`.
         sizes: ``{group_id: pod count}``, e.g. ``{0: 30, 1: 20}``; the
             keys are the node-group ids and can be any non-negative
             integers (the fill order is ascending) and every count must
             be a multiple of the EP slot.
-        tp / pp / ep / cp: Megatron parallel sizes. Only ``tp == 1`` and
-            ``cp == 1`` are supported today.
+        tp / pp / ep / etp / cp: Megatron parallel sizes. ``tp`` and
+            ``cp`` are recorded but not used by the layout math today;
+            an unset ``etp`` (None) inherits ``tp`` and the real EP
+            group size is ``etp * ep``.
         num_nodes: total number of worker nodes (``N``), must equal the
             sum of ``sizes``.
         ranks_per_node: number of ranks per worker node (``R``).
@@ -62,6 +64,7 @@ class SoftGroupSchedule(object):
         tp: int = 1,
         pp: int = 1,
         ep: int = 1,
+        etp: Optional[int] = None,
         cp: int = 1,
         num_nodes: int = 0,
         ranks_per_node: int = 0,
@@ -72,6 +75,9 @@ class SoftGroupSchedule(object):
         self.tp = tp
         self.pp = pp
         self.ep = ep
+        # None (unset, --expert-tensor-parallel-size not configured)
+        # inherits the recorded tensor_model_parallel_size.
+        self.etp = etp if etp is not None else tp
         self.cp = cp
         self.num_nodes = num_nodes
         self.ranks_per_node = ranks_per_node
@@ -83,12 +89,14 @@ class SoftGroupSchedule(object):
 
 
 def ep_group_workers(schedule: SoftGroupSchedule) -> int:
-    """Return the EP slot size in pods (``EP/R``, one EP communication
-    group of ``EP`` consecutive ranks). The caller must have validated
-    ``EP % R == 0`` (see validate_soft_group_topology)."""
+    """Return the EP slot size in pods (``ETP*EP/R``, one EP
+    communication group of ``ETP*EP`` consecutive ranks). The caller must
+    have validated ``ETP*EP % R == 0`` (see
+    validate_soft_group_topology)."""
+    ep_group = schedule.etp * schedule.ep
     if schedule.ranks_per_node <= 0:
         return 0
-    return schedule.ep // schedule.ranks_per_node
+    return ep_group // schedule.ranks_per_node
 
 
 def validate_soft_group_topology(
@@ -101,17 +109,19 @@ def validate_soft_group_topology(
     leaves the schedule unapplied so the master fails to start cleanly.
 
     Constraints (``N`` = #worker nodes, ``R`` = ranks/node, ``G`` =
-    ``len(sizes)``, ``model_parallel = TP*PP*CP``,
-    ``dense_dp = N*R/model_parallel``, ``ep_workers = EP/R``):
+    ``len(sizes)``, ``model_parallel = PP`` with TP and CP recorded but
+    not used, ``EPG = ETP*EP`` the real EP group size (an unset ``etp``
+    inherits the recorded ``tp``), ``dense_dp = N*R/PP``,
+    ``ep_workers = EPG/R``):
 
       - ``sizes`` is non-empty with positive counts and non-negative keys;
       - ``sum(sizes) == N``;
-      - scope: ``TP == 1`` and ``CP == 1``; ``PP > 0`` and ``EP > 0``;
-      - ``N % model_parallel == 0`` and ``dense_dp % EP == 0`` so the
-        data-parallel size ``dp = dense_dp/EP`` is an integral number;
-      - ``EP % R == 0`` (an EP slot is composed of whole nodes) and every
-        group size is a multiple of ``ep_workers`` — the EP alignment is
-        mandatory by default, no opt-in flag;
+      - ``PP > 0`` and ``EP > 0``;
+      - ``N % PP == 0`` and ``dense_dp % EPG == 0`` so the
+        data-parallel size ``dp = dense_dp/EPG`` is an integral number;
+      - ``EPG % R == 0`` (an EP slot is composed of whole nodes) and
+        every group size is a multiple of ``ep_workers`` — the EP
+        alignment is mandatory by default, no opt-in flag;
       - when the strategy is ``ep_pp_dp``: additionally
         ``DP_nodes % ep_workers == 0`` so every pipeline stage holds a
         whole number of EP slots.
@@ -120,7 +130,7 @@ def validate_soft_group_topology(
         return
 
     sizes = schedule.sizes
-    tp, pp, ep, cp = schedule.tp, schedule.pp, schedule.ep, schedule.cp
+    pp, ep, etp = schedule.pp, schedule.ep, schedule.etp
     n, r = schedule.num_nodes, schedule.ranks_per_node
 
     total = sum(sizes.values())
@@ -140,16 +150,6 @@ def validate_soft_group_topology(
             f"{sorted(sizes.keys())}."
         )
 
-    if tp != 1:
-        raise ValueError(
-            "--soft-group-affinity currently requires TP=1 "
-            f"(got tp={tp}); TP>1 support is planned for a later phase."
-        )
-    if cp != 1:
-        raise ValueError(
-            "--soft-group-affinity currently requires CP=1 "
-            f"(got cp={cp}); CP>1 support is planned for a later phase."
-        )
     if pp <= 0 or ep <= 0:
         raise ValueError(
             f"--soft-group-affinity requires pp={pp} and ep={ep} to be "
@@ -161,30 +161,34 @@ def validate_soft_group_topology(
             f"(NodeResource.gpu_num), got {r}."
         )
 
-    model_parallel = tp * pp * cp
+    # TP and CP are recorded but not used; the layout math only involves
+    # PP and the real EP group size ETP*EP.
+    model_parallel = pp
     if n % model_parallel != 0:
         raise ValueError(
             "--soft-group-affinity requires the worker node count N="
-            f"{n} to be divisible by TP*PP*CP={model_parallel}."
+            f"{n} to be divisible by PP={model_parallel}."
         )
+    ep_group = etp * ep
     dense_dp = (n * r) // model_parallel
-    if dense_dp % ep != 0:
+    if dense_dp % ep_group != 0:
         raise ValueError(
             "--soft-group-affinity requires dense_dp="
-            f"{dense_dp} (N*R/(TP*PP*CP)) to be divisible by EP={ep} so "
-            "the data-parallel size dp=dense_dp/EP is an integer."
+            f"{dense_dp} (N*R/PP) to be divisible by the EP group size "
+            f"ETP*EP={ep_group} so the data-parallel size "
+            "dp=dense_dp/(ETP*EP) is an integer."
         )
 
     # EP alignment is the default, not an option: an EP slot must be
-    # well defined (EP % R == 0) and every group must be a whole number
+    # well defined (EPG % R == 0) and every group must be a whole number
     # of EP slots, otherwise the master fails to start.
-    if ep % r != 0:
+    if ep_group % r != 0:
         raise ValueError(
-            "--soft-group-affinity requires EP="
-            f"{ep} to be divisible by ranks_per_node R={r} so an EP "
+            "--soft-group-affinity requires the EP group size ETP*EP="
+            f"{ep_group} to be divisible by ranks_per_node R={r} so an EP "
             "group (slot) is composed of whole nodes."
         )
-    ep_workers = ep // r
+    ep_workers = ep_group // r
     for group_id, size in sizes.items():
         if size % ep_workers != 0:
             raise ValueError(
@@ -254,11 +258,12 @@ def _ep_pp_dp_layout(schedule: SoftGroupSchedule) -> List[int]:
                 remaining[group_id] = sizes[group_id] // slot
                 crumbs[group_id] = sizes[group_id] % slot
 
-        model_parallel = schedule.tp * schedule.pp * schedule.cp
-        dp_nodes = total // model_parallel if model_parallel else total
+        # TP and CP are recorded but not used; nodes per pipeline stage
+        # is purely N/PP.
+        pp = max(schedule.pp, 1)
+        dp_nodes = total // pp
         # Number of slot positions per stage == the number of PP columns.
         columns = dp_nodes // slot
-        pp = max(schedule.pp, 1)
 
         # Greedy column packing: one column of pp slots at a time, every
         # pick taking min(remaining of the largest group, capacity) slots.
@@ -335,9 +340,9 @@ def resolve_soft_group_id(
 ) -> Optional[int]:
     """Resolve the soft node group id of a worker by its rank index.
 
-    - ``contiguous``: groups occupy cumulative contiguous rank ranges in
+    - ``ep_dp_pp``: groups occupy cumulative contiguous rank ranges in
       ascending group-id order (fill up one group then the next).
-    - ``ep_pp_dp``: the global round-robin EP-slot layout (see
+    - ``ep_pp_dp``: the EP-column greedy packing layout (see
       :func:`_ep_pp_dp_layout`).
 
     Returns ``None`` for non-worker nodes, when no soft schedule is set,

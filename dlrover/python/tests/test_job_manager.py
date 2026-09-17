@@ -320,9 +320,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             ranks_per_node=8,
         )
         self.assertEqual(manager.get_expected_ranks_per_node(), 8)
-        # a contiguous schedule is not ep_pp_dp either
+        # an ep_dp_pp schedule is not ep_pp_dp either
         manager._job_resource.node_group_schedule = NodeGroupSchedule(
-            strategy=NodeGroupStrategy.CONTIGUOUS,
+            strategy=NodeGroupStrategy.EP_DP_PP,
             num_nodes=4,
             ranks_per_node=8,
         )
@@ -332,7 +332,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         # worker replicas == sum(values) -> apply and forward
         manager = self._new_manager_with_worker_count(25)
         manager._init_group_affinity(
-            SimpleNamespace(group_affinity={0: 10, 1: 15})
+            SimpleNamespace(
+                group_affinity={0: 10, 1: 15},
+                node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+            )
         )
         self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
 
@@ -341,7 +344,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = self._new_manager_with_worker_count(2)
         with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
             manager._init_group_affinity(
-                SimpleNamespace(group_affinity={0: 10, 1: 15})
+                SimpleNamespace(
+                    group_affinity={0: 10, 1: 15},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
             )
         # the mapping must not be applied when validation fails
         self.assertIsNone(manager._job_resource.group_affinity)
@@ -352,21 +358,67 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._job_resource = JobResource()
         with self.assertRaisesRegex(ValueError, "requires worker replicas=5"):
             manager._init_group_affinity(
-                SimpleNamespace(group_affinity={0: 5})
+                SimpleNamespace(
+                    group_affinity={0: 5},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
             )
         self.assertIsNone(manager._job_resource.group_affinity)
 
-    def test_init_group_affinity_contiguous_leaves_schedule_unset(self):
-        # With the default/contiguous strategy no schedule is attached.
+    def test_init_group_affinity_ep_dp_pp_leaves_schedule_unset(self):
+        # With the ep_dp_pp (renamed contiguous) strategy no schedule is
+        # attached.
         manager = self._new_manager_with_worker_count(25)
         manager._init_group_affinity(
             SimpleNamespace(
                 group_affinity={0: 10, 1: 15},
-                node_group_strategy=NodeGroupStrategy.CONTIGUOUS,
+                node_group_strategy=NodeGroupStrategy.EP_DP_PP,
             )
         )
         self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
         self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_requires_strategy(self):
+        # group-affinity configured without the strategy is a hard error.
+        manager = self._new_manager_with_worker_count(25)
+        with self.assertRaisesRegex(
+            ValueError, "requires --node-group-strategy"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(group_affinity={0: 10, 1: 15})
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_strategy_requires_affinity(self):
+        # A strategy without --group-affinity/--soft-group-affinity is
+        # also a hard error.
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "requires --group-affinity or --soft-group-affinity"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity=None,
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
+            )
+
+    def test_init_group_affinity_etp_requires_ep(self):
+        # An explicitly set expert-tensor-parallel-size must be used
+        # together with expert-model-parallel-size.
+        manager = self._new_manager_with_worker_count(25)
+        with self.assertRaisesRegex(
+            ValueError, "--expert-tensor-parallel-size must be used together"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity={0: 10, 1: 15},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                    expert_tensor_parallel_size=2,
+                )
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
 
     def test_init_group_affinity_ep_pp_dp_ok(self):
         # Valid 4-node topology: R=8, EP=8, PP=2, G=2 -> schedule attached.
@@ -385,9 +437,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         schedule = manager._job_resource.node_group_schedule
         self.assertIsNotNone(schedule)
         self.assertEqual(schedule.strategy, NodeGroupStrategy.EP_PP_DP)
-        self.assertEqual(
-            (schedule.tp, schedule.pp, schedule.ep, schedule.cp), (1, 2, 8, 1)
-        )
+        self.assertEqual((schedule.pp, schedule.ep, schedule.etp), (2, 8, 1))
+        self.assertEqual((schedule.tp, schedule.cp), (1, 1))
         self.assertEqual((schedule.num_nodes, schedule.ranks_per_node), (4, 8))
 
     def test_init_group_affinity_ep_pp_dp_invalid_topology(self):
@@ -450,6 +501,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sAllreduceJobArgs()
         params.initilize(16)
         params.group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_DP_PP
         manager = create_job_manager(params, PerfMonitor())
         self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
 
@@ -458,6 +510,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sAllreduceJobArgs()
         params.initilize(16)
         params.group_affinity = {0: 10, 1: 15}
+        params.node_group_strategy = NodeGroupStrategy.EP_DP_PP
         with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
             create_job_manager(params, PerfMonitor())
 
@@ -469,11 +522,39 @@ class DistributedJobManagerTest(unittest.TestCase):
             tensor_model_parallel_size=1,
             pipeline_model_parallel_size=2,
             expert_model_parallel_size=16,
+            expert_tensor_parallel_size=1,
             context_parallel_size=1,
             no_group_failover=False,
         )
         args.update(overrides)
         return SimpleNamespace(**args)
+
+    def test_init_soft_group_affinity_requires_strategy(self):
+        # soft-group-affinity configured without the strategy is a hard
+        # error.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "requires --node-group-strategy"
+        ):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(node_group_strategy=None)
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_etp_requires_ep(self):
+        # An explicitly set expert-tensor-parallel-size must be used
+        # together with expert-model-parallel-size.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "--expert-tensor-parallel-size must be used together"
+        ):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(
+                    expert_model_parallel_size=1,
+                    expert_tensor_parallel_size=2,
+                )
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
 
     def test_init_soft_group_affinity_ok(self):
         # 16 workers, {0:8, 1:8}, PP=2, EP=16: unequal sizes are legal and
@@ -486,9 +567,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         schedule = manager._job_resource.soft_group_schedule
         self.assertIsNotNone(schedule)
         self.assertEqual(schedule.sizes, {0: 8, 1: 8})
-        self.assertEqual(
-            (schedule.tp, schedule.pp, schedule.ep, schedule.cp), (1, 2, 16, 1)
-        )
+        self.assertEqual((schedule.pp, schedule.ep, schedule.etp), (2, 16, 1))
+        self.assertEqual((schedule.tp, schedule.cp), (1, 1))
         self.assertEqual(
             (schedule.num_nodes, schedule.ranks_per_node), (16, 8)
         )
@@ -520,9 +600,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertIsNone(manager._job_resource.soft_group_schedule)
 
     def test_init_soft_group_invalid_leaves_resource_untouched(self):
-        # N=16, R=8, PP=2 -> dense_dp=64, not divisible by EP=12.
+        # N=16, R=8, PP=2 -> dense_dp=64 not divisible by the EP group
+        # size ETP*EP=12.
         manager = self._new_manager_with_worker_count(16, gpu_num=8)
-        with self.assertRaisesRegex(ValueError, "divisible by EP"):
+        with self.assertRaisesRegex(ValueError, "EP group size"):
             manager._init_soft_group_affinity(
                 self._soft_group_args(expert_model_parallel_size=12)
             )
@@ -561,7 +642,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             2, NodeResource(8, 10240)
         )
         job.soft_group_schedule = SoftGroupSchedule(
-            strategy=NodeGroupStrategy.CONTIGUOUS,
+            strategy=NodeGroupStrategy.EP_DP_PP,
             sizes={0: 1, 1: 1},
             tp=1,
             pp=2,
@@ -586,7 +667,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         scaler = PodScaler("ej", "default")
         scaler.set_soft_group_schedule(
             SoftGroupSchedule(
-                strategy=NodeGroupStrategy.CONTIGUOUS,
+                strategy=NodeGroupStrategy.EP_DP_PP,
                 sizes={0: 2, 1: 2},
                 tp=1,
                 pp=2,

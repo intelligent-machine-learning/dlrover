@@ -156,16 +156,18 @@ def _build_master_args_parser():
     parser.add_argument(
         "--node-group-strategy",
         "--node_group_strategy",
-        default="contiguous",
-        choices=["contiguous", "ep_pp_dp"],
+        default=None,
+        choices=["ep_dp_pp", "ep_pp_dp"],
         help="Strategy used to map worker nodes (by creation order) into "
-        "node groups (== physical segments). 'contiguous' (default) keeps "
-        "the existing behavior: groups occupy contiguous rank ranges. "
-        "'ep_pp_dp' stripes one Megatron MoE pipeline stage across all "
-        "groups so EP groups and PP stay intra-segment while only the dense "
-        "DP collective crosses segments. Requires TP=1 and CP=1 and a "
-        "validated parallel topology (see --tp/--pp/--ep/--cp). When unset "
-        "or 'contiguous', the parallel sizes below are ignored.",
+        "node groups (== physical segments). 'ep_dp_pp' keeps the existing "
+        "behavior: groups occupy contiguous rank ranges. 'ep_pp_dp' packs "
+        "EP-group slots of a Megatron MoE pipeline stage into ep-pp columns "
+        "across groups so EP groups and PP stay intra-segment while only "
+        "the dense DP collective crosses segments. Required when "
+        "--group-affinity or --soft-group-affinity is configured; setting "
+        "a strategy without any group affinity is rejected. The parallel "
+        "sizes below are consulted only when a node-group affinity is "
+        "configured.",
     )
     parser.add_argument(
         "--tensor-model-parallel-size",
@@ -173,8 +175,8 @@ def _build_master_args_parser():
         "--tp",
         default=1,
         type=pos_int,
-        help="Tensor-parallel size. Only consulted (and required to be 1) "
-        "when --node-group-strategy=ep_pp_dp.",
+        help="Tensor-parallel size. Recorded on the job args but not used "
+        "by the node-group scheduling today.",
     )
     parser.add_argument(
         "--pipeline-model-parallel-size",
@@ -182,8 +184,8 @@ def _build_master_args_parser():
         "--pp",
         default=1,
         type=pos_int,
-        help="Pipeline-parallel size. Consulted when "
-        "--node-group-strategy=ep_pp_dp.",
+        help="Pipeline-parallel size. Consulted when a node-group affinity "
+        "is configured.",
     )
     parser.add_argument(
         "--expert-model-parallel-size",
@@ -191,8 +193,21 @@ def _build_master_args_parser():
         "--ep",
         default=1,
         type=pos_int,
-        help="Expert-parallel size (EP group size). Consulted when "
-        "--node-group-strategy=ep_pp_dp.",
+        help="Expert-model-parallel size. Consulted when a node-group "
+        "affinity is configured; the EP group size is --etp * --ep.",
+    )
+    parser.add_argument(
+        "--expert-tensor-parallel-size",
+        "--expert_tensor_parallel_size",
+        "--etp",
+        default=None,
+        type=pos_int,
+        help="Expert-tensor-parallel size. When unset it inherits "
+        "--tensor-model-parallel-size. When set explicitly it must be "
+        "used together with --expert-model-parallel-size; the real EP "
+        "group size is expert-tensor-parallel-size * "
+        "expert-model-parallel-size. Consulted when a node-group affinity "
+        "is configured.",
     )
     parser.add_argument(
         "--context-parallel-size",
@@ -200,8 +215,8 @@ def _build_master_args_parser():
         "--cp",
         default=1,
         type=pos_int,
-        help="Context-parallel size. Only consulted (and required to be 1) "
-        "when --node-group-strategy=ep_pp_dp.",
+        help="Context-parallel size. Recorded on the job args but not used "
+        "by the node-group scheduling today.",
     )
     parser.add_argument(
         "--soft-group-affinity",
