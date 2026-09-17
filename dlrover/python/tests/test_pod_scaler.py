@@ -391,12 +391,12 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(rank1.group_size, 2)
         self.assertEqual(rank1.group_id, 1)
 
-    def test_scale_up_pods_with_soft_group_contiguous(self):
+    def test_scale_up_pods_with_soft_group_ep_dp_pp(self):
         scaler = PodScaler("elasticjob-sample", "default")
         scaler._distribution_strategy = DistributionStrategy.PS
         scaler.set_soft_group_schedule(
             SoftGroupSchedule(
-                strategy=NodeGroupStrategy.CONTIGUOUS,
+                strategy=NodeGroupStrategy.EP_DP_PP,
                 sizes={0: 1, 1: 1},
                 tp=1,
                 pp=2,
@@ -461,7 +461,7 @@ class PodScalerTest(unittest.TestCase):
         scaler.set_group_affinity({0: 2})
         scaler.set_soft_group_schedule(
             SoftGroupSchedule(
-                strategy=NodeGroupStrategy.CONTIGUOUS,
+                strategy=NodeGroupStrategy.EP_DP_PP,
                 sizes={0: 1, 1: 1},
                 tp=1,
                 pp=2,
@@ -505,7 +505,7 @@ class PodScalerTest(unittest.TestCase):
         scaler = PodScaler("elasticjob-sample", "default")
         scaler.set_soft_group_schedule(
             SoftGroupSchedule(
-                strategy=NodeGroupStrategy.CONTIGUOUS,
+                strategy=NodeGroupStrategy.EP_DP_PP,
                 sizes={0: 2, 1: 2},
                 tp=1,
                 pp=2,
@@ -532,7 +532,7 @@ class PodScalerTest(unittest.TestCase):
         # nodes keep their groups and the labels are created as before.
         for schedule in (
             SoftGroupSchedule(
-                strategy=NodeGroupStrategy.CONTIGUOUS,
+                strategy=NodeGroupStrategy.EP_DP_PP,
                 sizes={0: 2, 1: 2},
                 tp=1,
                 pp=2,

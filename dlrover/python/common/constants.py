@@ -590,14 +590,14 @@ class NodeGroupStrategy(object):
     e.g. a super-node, where intra-group latency is much lower than
     cross-group latency.
 
-    - CONTIGUOUS: the default. Groups are laid out as contiguous rank-index
+    - EP_DP_PP: the default. Groups are laid out as contiguous rank-index
       ranges, in ascending group-id order, sized by ``group_affinity``.
-    - EP_PP_DP: designed for Megatron MoE (ep-dp-pp rank order, TP=CP=1).
-      Each pipeline stage is striped across all groups/segments so that EP
-      groups and PP stay intra-segment while only the dense DP collective
-      crosses segments. See ``resolve_group_id`` / ``validate_topology`` in
-      ``dlrover.python.master.resource.job``.
+    - EP_PP_DP: designed for Megatron MoE (ep-dp-pp rank order). EP-group
+      slots are packed into ep-pp columns across all groups/segments so
+      that EP groups and PP stay intra-segment while only the dense DP
+      collective crosses segments. See ``resolve_group_id`` /
+      ``validate_topology`` in ``dlrover.python.master.resource.job``.
     """
 
-    CONTIGUOUS = "contiguous"
+    EP_DP_PP = "ep_dp_pp"
     EP_PP_DP = "ep_pp_dp"
