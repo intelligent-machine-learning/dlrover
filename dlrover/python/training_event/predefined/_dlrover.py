@@ -66,6 +66,13 @@ class DLRoverCommonEvent(CommonPredefined, Singleton):
     def __init__(self, target: str) -> None:
         super().__init__(target)
 
+    def fault_detect(self, reason: str, **kwargs):
+        """Fault detection event (common to master and agent)."""
+        return self.instant(
+            DLRoverCommonEventName.DLROVER_FAULT_DETECT.value,
+            {"reason": reason, **kwargs},
+        )
+
 
 class DLRoverMasterEvent(DLRoverCommonEvent):
     """DLRover Master events"""
@@ -225,13 +232,6 @@ class DLRoverMasterEvent(DLRoverCommonEvent):
         return self.instant(
             DLRoverMasterEventName.DLROVER_WORKER_NO_HEARTBEAT.value,
             {"pod_name": pod_name, "timeout": timeout, **kwargs},
-        )
-
-    def fault_detect(self, reason: str, **kwargs):
-        """Fault detection event"""
-        return self.instant(
-            DLRoverCommonEventName.DLROVER_FAULT_DETECT.value,
-            {"reason": reason, **kwargs},
         )
 
     def train_job(self, job_name: str, args: Optional[dict] = None, **kwargs):
