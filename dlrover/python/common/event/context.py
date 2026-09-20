@@ -209,13 +209,34 @@ class StepEvents(object):
                 if len(keys) > 0:
                     last_event = self._step_events[keys[-1]]
                     if last_event.event_state != TrainEventState.TRAIN_EVT_END:
+                        # A dangling BEGIN whose END was lost, e.g. the
+                        # worker restarted before the event finished (ckpt
+                        # mid-save eviction) or the END line failed to
+                        # parse. A newer BEGIN of another step supersedes
+                        # it; otherwise the dangling BEGIN stays the
+                        # latest event forever and hang detection keeps
+                        # reporting hang against the dead session. A
+                        # same-step BEGIN is a re-report or retry of the
+                        # same event and is still rejected; its arriving
+                        # END closes the original one.
+                        if (
+                            event.timestamp <= last_event.begin_timestamp
+                            or event.step == last_event.step
+                        ):
+                            logger.warning(
+                                f"invalid {evt_type} step: {last_event}, "
+                                f"{event}"
+                            )
+                            return
                         logger.warning(
-                            f"invalid {evt_type} step: {last_event}, {event}"
+                            f"Supersede the dangling BEGIN by a newer "
+                            f"{evt_type} event {event}: {last_event}"
                         )
-                        return
-                    if event.timestamp < last_event.end_timestamp:
+                        self._step_events.popitem(last=True)
+                    elif event.timestamp < last_event.end_timestamp:
                         logger.warning(
-                            f"invalid {evt_type} step time: {last_event}, {event}"
+                            f"invalid {evt_type} step time: "
+                            f"{last_event}, {event}"
                         )
                         return
 
@@ -280,6 +301,22 @@ class JobEventContext(Singleton):
         # eval) and the first step, derived from max_hang_downtime (minute).
         self.max_hang_timeout = DefaultValues.MAX_HANG_DOWNTIME * 60
         self.ckpt_threshold = DefaultValues.MAX_CKPT_THRESHOLD * 60
+
+    def clear_all_step_events(self):
+        """Clear all step events on a restart boundary so that hang
+        detection starts a fresh observation session. Otherwise the
+        dangling BEGIN of a ckpt/eval reported by a worker which
+        restarted mid-event stays the latest event of ckpt_steps
+        (and eval_steps) forever and keeps being judged as hang
+        against the new run.
+        """
+        for step_events in (
+            self.train_steps,
+            self.predict_steps,
+            self.ckpt_steps,
+            self.eval_steps,
+        ):
+            step_events.clear_step_events()
 
     def check_job_step_hang(self):
         self.hang_threshold = _dlrover_context.hang_downtime * 60
