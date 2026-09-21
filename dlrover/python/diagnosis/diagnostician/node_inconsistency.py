@@ -17,6 +17,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     NodeStatus,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.common.node import Node
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisConstant,
@@ -91,6 +92,17 @@ class NodeInconsistencyDiagnostician(Diagnostician):
         self, problem: DiagnosisObservation, **kwargs
     ) -> List[DiagnosisAction]:
         if problem.observation in [DiagnosisErrorConstant.REPEATED_NODE]:
+            # Emit a #fault_detect event so the repeated-node detection
+            # moment is observable in the training event stream (the
+            # EventAction below is only consumed as a log line). Mirrors the
+            # hang detection emission; failure to emit never breaks handling.
+            try:
+                get_event_reporter().report_fault_detect(
+                    reason="repeated_node",
+                    target=problem.extra_infos.get("target", ""),
+                )
+            except Exception as exc:
+                logger.warning(f"report_fault_detect failed: {exc}")
             return [
                 EventAction(
                     event_type=EventReportConstants.TYPE_WARN,

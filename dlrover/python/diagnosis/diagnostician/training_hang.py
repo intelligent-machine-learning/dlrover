@@ -49,6 +49,7 @@ from dlrover.python.common.constants import (
     NodeType,
     HangDetectionStrategy,
 )
+from dlrover.python.common.event.reporter import get_event_reporter
 from dlrover.python.master.node.job_context import get_job_context
 
 _dlrover_context = Context.singleton_instance()
@@ -66,6 +67,10 @@ class TrainingHangDiagnostician(Diagnostician):
     def __init__(self, job_args, data_mgr):
         super().__init__(job_args)
         self._data_mgr = data_mgr
+        # last hang details detected by is_hang_by_xpu_timer_metric, surfaced
+        # into the #fault_detect event payload via observe()→extra_infos.
+        self._last_hang_node_rank = ""
+        self._last_hang_time_last = ""
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         # analyze xpu_timer metrics 1st
@@ -76,7 +81,11 @@ class TrainingHangDiagnostician(Diagnostician):
         if self.is_hang_by_xpu_timer_metric(xpu_timer_diagnosis_data):
             return DiagnosisObservation(
                 observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
-                extra_infos={"TYPE": "BY_XPU_TIMER_METRIC"},
+                extra_infos={
+                    "TYPE": "BY_XPU_TIMER_METRIC",
+                    "node_rank": self._last_hang_node_rank,
+                    "time_last": self._last_hang_time_last,
+                },
             )
 
         # analyze other metrics
@@ -95,6 +104,23 @@ class TrainingHangDiagnostician(Diagnostician):
             problem is not None
             and problem.observation == DiagnosisErrorConstant.TRAINING_IS_HANG
         ):
+            # Emit a #fault_detect training event so downstream consumers can
+            # observe the hang-detection moment (and correlate it with the
+            # failover/notify action below). Emitted for all hang_detection
+            # strategies (DO_FAILOVER / DO_NOTIFY / log-only), independent of
+            # the action taken. Failure to emit must never break hang handling.
+            try:
+                get_event_reporter().report_fault_detect(
+                    reason="training_hang",
+                    detection_type=problem.extra_infos.get("TYPE", ""),
+                    node_rank=problem.extra_infos.get("node_rank", ""),
+                    time_last=problem.extra_infos.get("time_last", ""),
+                    threshold=self._get_hang_time_last_threshold(),
+                    strategy=str(_dlrover_context.hang_detection),
+                )
+            except Exception as exc:
+                logger.warning(f"report_fault_detect failed: {exc}")
+
             actions: List[DiagnosisAction] = []
 
             # add metric collection action for all worker node
@@ -158,6 +184,8 @@ class TrainingHangDiagnostician(Diagnostician):
         return [NoAction()]
 
     def is_hang_by_xpu_timer_metric(self, diagnosis_data: List[DiagnosisData]):
+        self._last_hang_node_rank = ""
+        self._last_hang_time_last = ""
         if not diagnosis_data or len(diagnosis_data) <= 0:
             logger.debug("Skip for no worker xpu-timer metric.")
             return False
@@ -205,6 +233,8 @@ class TrainingHangDiagnostician(Diagnostician):
                 f"Got hang worker: {hang_id}, time last: {hang_last}, "
                 f"threshold: {hang_last_threshold}"
             )
+            self._last_hang_node_rank = str(hang_id)
+            self._last_hang_time_last = str(hang_last)
             return True
         return False
 

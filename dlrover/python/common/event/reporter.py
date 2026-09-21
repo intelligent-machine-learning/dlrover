@@ -226,6 +226,26 @@ class EventReporter(Singleton):
             labels={},
         )
 
+    @ignore_exceptions()
+    def report_fault_detect(self, reason: str, **kwargs):
+        """Report a fault-detection event as a ``#fault_detect`` training
+        event plus a log line. Used by diagnosticians (e.g. hang detection)
+        to surface the detection moment into the training event stream.
+
+        ``reason`` identifies the fault type (e.g. "training_hang"); further
+        details (detection_type / node_rank / time_last / threshold /
+        strategy ...) are passed via ``**kwargs`` into the ``#fault_detect``
+        event payload.
+        """
+        _master_evt.fault_detect(reason=reason, **kwargs)
+        self.report(
+            event_type=EventReportConstants.TYPE_WARN,
+            instance=EventReportConstants.JOB_INSTANCE,
+            action=reason,
+            msg="",
+            labels={k: f"{v}" for k, v in kwargs.items()},
+        )
+
     # ================ JobManager End ================
 
     # ================ RDZV Start ================
