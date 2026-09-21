@@ -81,7 +81,9 @@ from dlrover.python.master.node.training_node import (
     update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource, NodeGroupSchedule
+from dlrover.python.master.resource.soft_group import SoftGroupSchedule
 from dlrover.python.master.scaler.base_scaler import ScalePlan
+from dlrover.python.master.scaler.pod_scaler import PodScaler
 from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
@@ -318,9 +320,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             ranks_per_node=8,
         )
         self.assertEqual(manager.get_expected_ranks_per_node(), 8)
-        # a contiguous schedule is not ep_pp_dp either
+        # an ep_dp_pp schedule is not ep_pp_dp either
         manager._job_resource.node_group_schedule = NodeGroupSchedule(
-            strategy=NodeGroupStrategy.CONTIGUOUS,
+            strategy=NodeGroupStrategy.EP_DP_PP,
             num_nodes=4,
             ranks_per_node=8,
         )
@@ -330,7 +332,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         # worker replicas == sum(values) -> apply and forward
         manager = self._new_manager_with_worker_count(25)
         manager._init_group_affinity(
-            SimpleNamespace(group_affinity={0: 10, 1: 15})
+            SimpleNamespace(
+                group_affinity={0: 10, 1: 15},
+                node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+            )
         )
         self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
 
@@ -339,7 +344,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = self._new_manager_with_worker_count(2)
         with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
             manager._init_group_affinity(
-                SimpleNamespace(group_affinity={0: 10, 1: 15})
+                SimpleNamespace(
+                    group_affinity={0: 10, 1: 15},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
             )
         # the mapping must not be applied when validation fails
         self.assertIsNone(manager._job_resource.group_affinity)
@@ -350,21 +358,67 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._job_resource = JobResource()
         with self.assertRaisesRegex(ValueError, "requires worker replicas=5"):
             manager._init_group_affinity(
-                SimpleNamespace(group_affinity={0: 5})
+                SimpleNamespace(
+                    group_affinity={0: 5},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
             )
         self.assertIsNone(manager._job_resource.group_affinity)
 
-    def test_init_group_affinity_contiguous_leaves_schedule_unset(self):
-        # With the default/contiguous strategy no schedule is attached.
+    def test_init_group_affinity_ep_dp_pp_leaves_schedule_unset(self):
+        # With the ep_dp_pp (renamed contiguous) strategy no schedule is
+        # attached.
         manager = self._new_manager_with_worker_count(25)
         manager._init_group_affinity(
             SimpleNamespace(
                 group_affinity={0: 10, 1: 15},
-                node_group_strategy=NodeGroupStrategy.CONTIGUOUS,
+                node_group_strategy=NodeGroupStrategy.EP_DP_PP,
             )
         )
         self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
         self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_requires_strategy(self):
+        # group-affinity configured without the strategy is a hard error.
+        manager = self._new_manager_with_worker_count(25)
+        with self.assertRaisesRegex(
+            ValueError, "requires --node-group-strategy"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(group_affinity={0: 10, 1: 15})
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_strategy_requires_affinity(self):
+        # A strategy without --group-affinity/--soft-group-affinity is
+        # also a hard error.
+        manager = self._new_manager_with_worker_count(4, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "requires --group-affinity or --soft-group-affinity"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity=None,
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                )
+            )
+
+    def test_init_group_affinity_etp_requires_ep(self):
+        # An explicitly set expert-tensor-parallel-size must be used
+        # together with expert-model-parallel-size.
+        manager = self._new_manager_with_worker_count(25)
+        with self.assertRaisesRegex(
+            ValueError, "--expert-tensor-parallel-size must be used together"
+        ):
+            manager._init_group_affinity(
+                SimpleNamespace(
+                    group_affinity={0: 10, 1: 15},
+                    node_group_strategy=NodeGroupStrategy.EP_DP_PP,
+                    expert_tensor_parallel_size=2,
+                )
+            )
+        self.assertIsNone(manager._job_resource.group_affinity)
 
     def test_init_group_affinity_ep_pp_dp_ok(self):
         # Valid 4-node topology: R=8, EP=8, PP=2, G=2 -> schedule attached.
@@ -383,9 +437,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         schedule = manager._job_resource.node_group_schedule
         self.assertIsNotNone(schedule)
         self.assertEqual(schedule.strategy, NodeGroupStrategy.EP_PP_DP)
-        self.assertEqual(
-            (schedule.tp, schedule.pp, schedule.ep, schedule.cp), (1, 2, 8, 1)
-        )
+        self.assertEqual((schedule.pp, schedule.ep, schedule.etp), (2, 8, 1))
+        self.assertEqual((schedule.tp, schedule.cp), (1, 1))
         self.assertEqual((schedule.num_nodes, schedule.ranks_per_node), (4, 8))
 
     def test_init_group_affinity_ep_pp_dp_invalid_topology(self):
@@ -448,6 +501,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sAllreduceJobArgs()
         params.initilize(16)
         params.group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_DP_PP
         manager = create_job_manager(params, PerfMonitor())
         self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
 
@@ -456,8 +510,311 @@ class DistributedJobManagerTest(unittest.TestCase):
         params = MockK8sAllreduceJobArgs()
         params.initilize(16)
         params.group_affinity = {0: 10, 1: 15}
+        params.node_group_strategy = NodeGroupStrategy.EP_DP_PP
         with self.assertRaisesRegex(ValueError, "requires worker replicas=25"):
             create_job_manager(params, PerfMonitor())
+
+    def _soft_group_args(self, **overrides):
+        args = dict(
+            group_affinity=None,
+            soft_group_affinity={0: 8, 1: 8},
+            node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+            tensor_model_parallel_size=1,
+            pipeline_model_parallel_size=2,
+            expert_model_parallel_size=16,
+            expert_tensor_parallel_size=1,
+            context_parallel_size=1,
+            no_group_failover=False,
+        )
+        args.update(overrides)
+        return SimpleNamespace(**args)
+
+    def test_init_soft_group_affinity_requires_strategy(self):
+        # soft-group-affinity configured without the strategy is a hard
+        # error.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "requires --node-group-strategy"
+        ):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(node_group_strategy=None)
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_etp_requires_ep(self):
+        # An explicitly set expert-tensor-parallel-size must be used
+        # together with expert-model-parallel-size.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "--expert-tensor-parallel-size must be used together"
+        ):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(
+                    expert_model_parallel_size=1,
+                    expert_tensor_parallel_size=2,
+                )
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_affinity_ok(self):
+        # 16 workers, {0:8, 1:8}, PP=2, EP=16: unequal sizes are legal and
+        # both are multiples of the EP slot (ep_workers=2) as required by
+        # the default EP alignment.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        manager._init_soft_group_affinity(
+            self._soft_group_args(no_group_failover=True)
+        )
+        schedule = manager._job_resource.soft_group_schedule
+        self.assertIsNotNone(schedule)
+        self.assertEqual(schedule.sizes, {0: 8, 1: 8})
+        self.assertEqual((schedule.pp, schedule.ep, schedule.etp), (2, 16, 1))
+        self.assertEqual((schedule.tp, schedule.cp), (1, 1))
+        self.assertEqual(
+            (schedule.num_nodes, schedule.ranks_per_node), (16, 8)
+        )
+        self.assertTrue(schedule.no_group_failover)
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+
+    def test_init_soft_group_affinity_mutually_exclusive(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "cannot be combined with --group-affinity"
+        ):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(group_affinity={0: 8, 1: 8})
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_affinity_sum_mismatch(self):
+        manager = self._new_manager_with_worker_count(15, gpu_num=8)
+        with self.assertRaisesRegex(ValueError, "sum to 16"):
+            manager._init_soft_group_affinity(self._soft_group_args())
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_affinity_requires_worker_resource(self):
+        manager = self._new_manager_with_worker_count(None, gpu_num=8)
+        with self.assertRaisesRegex(ValueError, "worker replica spec"):
+            manager._init_soft_group_affinity(self._soft_group_args())
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_invalid_leaves_resource_untouched(self):
+        # N=16, R=8, PP=2 -> dense_dp=64 not divisible by the EP group
+        # size ETP*EP=12.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(ValueError, "EP group size"):
+            manager._init_soft_group_affinity(
+                self._soft_group_args(expert_model_parallel_size=12)
+            )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+        self.assertIsNone(manager._job_resource.group_affinity)
+
+    def test_init_soft_group_disabled_without_mapping(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        manager._init_soft_group_affinity(
+            self._soft_group_args(soft_group_affinity=None)
+        )
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_soft_group_via_job_manager_init(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.soft_group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 16
+        params.no_group_failover = True
+        manager = create_job_manager(params, PerfMonitor())
+        schedule = manager._job_resource.soft_group_schedule
+        self.assertIsNotNone(schedule)
+        self.assertTrue(schedule.no_group_failover)
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+        # The constructor forwarded the schedule to the scaler (the
+        # mocked job scaler only exposes the no-op base setter; the
+        # PodScaler-side labeling is covered by test_pod_scaler).
+        self.assertTrue(callable(manager._scaler.set_soft_group_schedule))
+
+    def test_job_resource_soft_group_init_node_meta(self):
+        job = JobResource()
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            2, NodeResource(8, 10240)
+        )
+        job.soft_group_schedule = SoftGroupSchedule(
+            strategy=NodeGroupStrategy.EP_DP_PP,
+            sizes={0: 1, 1: 1},
+            tp=1,
+            pp=2,
+            ep=8,
+            cp=1,
+            num_nodes=2,
+            ranks_per_node=8,
+        )
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        workers = nodes[NodeType.WORKER]
+        self.assertEqual(workers[0].group, 0)
+        self.assertEqual(workers[0].group_size, 2)
+        self.assertEqual(workers[0].group_id, 0)
+        self.assertEqual(workers[1].group, 1)
+        self.assertEqual(workers[1].group_size, 2)
+        self.assertEqual(workers[1].group_id, 1)
+
+    def _capture_soft_scaler(self, no_group_failover=True):
+        """A real PodScaler whose execution side (_scale) is stubbed to
+        capture the plan; set_soft_group_schedule stays intact so the
+        scale() common exit applies the real no-group-failover logic."""
+        scaler = PodScaler("ej", "default")
+        scaler.set_soft_group_schedule(
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_DP_PP,
+                sizes={0: 2, 1: 2},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=4,
+                ranks_per_node=8,
+                no_group_failover=no_group_failover,
+            )
+        )
+        captured = []
+        scaler._scale = lambda p: captured.append(p)
+        return scaler, captured
+
+    @staticmethod
+    def _grouped_worker_node(node_id=0, rank_index=1):
+        return Node(
+            NodeType.WORKER,
+            node_id,
+            NodeResource(4, 8192),
+            rank_index=rank_index,
+            name=f"ej-edljob-worker-{node_id}",
+            node_group=1,
+            node_group_size=2,
+            node_group_id=1,
+        )
+
+    def _assert_exception_free_event_report(self):
+        return SimpleNamespace(
+            report_node_relaunch=lambda old, new: None,
+        )
+
+    def _null_job_context(self, node=None):
+        return SimpleNamespace(
+            update_job_node=lambda n: None,
+            update_job_node_by_group=lambda n: None,
+        )
+
+    def test_relaunch_node_chain_strips_labels_via_scale_exit(self):
+        # Chain 1: _relaunch_node -> scaler.scale(with_merge=True). The
+        # strip now lives at the common scaler exit, not the manager.
+        scaler, captured = self._capture_soft_scaler(no_group_failover=True)
+        node = self._grouped_worker_node()
+        relaunched = node.generate_relaunch_node(2)
+        plan = ScalePlan()
+        plan.launch_nodes.append(relaunched)
+
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        manager._remove_exited_node = False
+        manager._event_reporter = self._assert_exception_free_event_report()
+        manager._set_ps_addrs_in_plan = lambda p: None
+        manager._job_context = self._null_job_context()
+        manager._worker_manager = SimpleNamespace(
+            relaunch_node=lambda n, remove: plan
+        )
+        manager._scaler = scaler
+        manager._relaunch_node(node)
+        # with_merge=True runs asynchronously; wait for the capture.
+        scaler._current_scaling.result()
+        self.assertEqual(len(captured), 1)
+        stashed = captured[0].launch_nodes[0]
+        self.assertIsNone(stashed.group)
+        self.assertIsNone(stashed.group_id)
+        self.assertIsNone(stashed.group_size)
+
+    def test_restart_chain_strips_labels_via_scale_exit(self):
+        # Chain 2: the job-level restart() (relaunch all workers)
+        # funnels into the same scaler exit.
+        scaler, captured = self._capture_soft_scaler(no_group_failover=True)
+        node = self._grouped_worker_node()
+        relaunched = node.generate_relaunch_node(2)
+        plan = ScalePlan()
+        plan.launch_nodes.append(relaunched)
+
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        manager._job_args = SimpleNamespace(
+            distribution_strategy=DistributionStrategy.ALLREDUCE
+        )
+        manager._job_resource = JobResource()
+        manager._job_resource.node_group_resources[NodeType.WORKER] = (
+            NodeGroupResource(1, NodeResource(1, 4096))
+        )
+        manager._job_context = SimpleNamespace(
+            job_nodes_by_type=lambda t: {0: node},
+            update_job_node=lambda n: None,
+            update_job_node_by_group=lambda n: None,
+        )
+        manager._worker_manager = SimpleNamespace(
+            relaunch_nodes=lambda nodes, remove: plan
+        )
+        manager._scaler = scaler
+
+        import dlrover.python.master.node.dist_job_manager as djm_module
+
+        old_ctx = djm_module.job_ctx
+        old_max = djm_module._dlrover_context.job_max_restart_count
+        djm_module.job_ctx = SimpleNamespace(inc_job_restart_count=lambda: 1)
+        djm_module._dlrover_context.job_max_restart_count = 10
+        try:
+            manager.restart()
+        finally:
+            djm_module.job_ctx = old_ctx
+            djm_module._dlrover_context.job_max_restart_count = old_max
+
+        # restart calls scaler.scale(plan): the sync, no-merge path.
+        self.assertEqual(len(captured), 1)
+        relaunched = captured[0].launch_nodes[0]
+        self.assertIsNone(relaunched.group)
+        self.assertIsNone(relaunched.group_id)
+        self.assertIsNone(relaunched.group_size)
+
+    def test_relaunch_node_group_chain_strips_labels_via_scale_exit(self):
+        # Chain 3: the group relaunch (migrating the group to a new
+        # group idx) also abandons group labels under --no-group-failover,
+        # whatever path generates the plan.
+        scaler, captured = self._capture_soft_scaler(no_group_failover=True)
+        node = self._grouped_worker_node()
+
+        def fake_relaunch_nodes(nodes, remove):
+            plan = ScalePlan()
+            for relaunched_node in nodes:
+                plan.launch_nodes.append(
+                    relaunched_node.generate_relaunch_node(
+                        10 + relaunched_node.id
+                    )
+                )
+            return plan
+
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        manager._job_context = SimpleNamespace(
+            next_group_idx=lambda: 7,
+            job_node_group=lambda group: {0: node},
+            update_job_node=lambda n: None,
+            update_job_node_by_group=lambda n: None,
+        )
+        manager._worker_manager = SimpleNamespace(
+            relaunch_nodes=fake_relaunch_nodes
+        )
+        manager._relaunched_groups = []
+        manager._group_relaunch_count = 0
+        manager._scaler = scaler
+
+        manager._relaunch_node_group(1)
+        relaunched = captured[0].launch_nodes[0]
+        self.assertIsNone(relaunched.group)
+        self.assertIsNone(relaunched.group_id)
+        self.assertIsNone(relaunched.group_size)
         job = JobResource()
         job.node_group_resources[NodeType.PS] = NodeGroupResource(
             3, NodeResource(8, 10240, priority="high")

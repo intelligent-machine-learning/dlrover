@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    NodeGroupStrategy,
     NodeStatus,
     NodeType,
     SchedulingLabel,
@@ -28,6 +29,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.resource.job import NodeGroupSchedule
+from dlrover.python.master.resource.soft_group import SoftGroupSchedule
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -388,6 +390,169 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(rank1.group, 1)
         self.assertEqual(rank1.group_size, 2)
         self.assertEqual(rank1.group_id, 1)
+
+    def test_scale_up_pods_with_soft_group_ep_dp_pp(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        scaler.set_soft_group_schedule(
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_DP_PP,
+                sizes={0: 1, 1: 1},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=2,
+                ranks_per_node=8,
+            )
+        )
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(2, resource),
+        }
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, [], 0)
+        self.assertEqual(len(scaler._create_node_queue), 2)
+        rank0 = scaler._create_node_queue[0]
+        rank1 = scaler._create_node_queue[1]
+        self.assertEqual(rank0.group, 0)
+        self.assertEqual(rank0.group_size, 2)
+        self.assertEqual(rank0.group_id, 0)
+        self.assertEqual(rank1.group, 1)
+        self.assertEqual(rank1.group_size, 2)
+        self.assertEqual(rank1.group_id, 1)
+
+    def test_scale_up_pods_with_soft_group_ep_pp_dp(self):
+        # N=4, R=8, PP=2, EP=8 -> ep_workers=1: one pod per group per
+        # round, so the layout alternates 0,1,0,1.
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        scaler.set_soft_group_schedule(
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_PP_DP,
+                sizes={0: 2, 1: 2},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=4,
+                ranks_per_node=8,
+            )
+        )
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(4, resource),
+        }
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, [], 0)
+        self.assertEqual(
+            [node.group for node in scaler._create_node_queue],
+            [0, 1, 0, 1],
+        )
+        for node in scaler._create_node_queue:
+            self.assertEqual(node.group_size, 2)
+            self.assertEqual(node.group_id, node.group)
+
+    def test_scale_up_pods_soft_group_takes_precedence(self):
+        # The manager enforces mutual exclusion, but the scaler also
+        # prefers the soft schedule when both are (mistakenly) set.
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        scaler.set_group_affinity({0: 2})
+        scaler.set_soft_group_schedule(
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_DP_PP,
+                sizes={0: 1, 1: 1},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=2,
+                ranks_per_node=8,
+            )
+        )
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(2, resource),
+        }
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, [], 0)
+        self.assertEqual(
+            [node.group for node in scaler._create_node_queue], [0, 1]
+        )
+
+    def _make_grouped_relaunch_plan(self):
+        old_node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(4, 8192),
+            rank_index=1,
+            name="ej-edljob-worker-0",
+            node_group=1,
+            node_group_size=2,
+            node_group_id=1,
+        )
+        relaunched = old_node.generate_relaunch_node(2)
+        plan = ScalePlan()
+        plan.launch_nodes.append(relaunched)
+        return old_node, plan
+
+    def test_scale_strips_group_labels_for_no_group_failover(self):
+        # scaler.scale is the common exit of every relaunch path: with
+        # --no-group-failover the launch nodes lose their group fields
+        # synchronously, before any execution, whatever produced the
+        # plan (generate_relaunch_node's deepcopy carried them over).
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler.set_soft_group_schedule(
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_DP_PP,
+                sizes={0: 2, 1: 2},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=4,
+                ranks_per_node=8,
+                no_group_failover=True,
+            )
+        )
+        _, plan = self._make_grouped_relaunch_plan()
+        captured = []
+        scaler._scale = lambda p: captured.append(p)
+        scaler.scale(plan)
+        self.assertEqual(len(captured), 1)
+        self.assertIs(captured[0], plan)
+        relaunched = captured[0].launch_nodes[0]
+        self.assertIsNone(relaunched.group)
+        self.assertIsNone(relaunched.group_id)
+        self.assertIsNone(relaunched.group_size)
+
+    def test_scale_keeps_group_labels_without_no_group_failover(self):
+        # Default (flag off) and without a soft schedule: the relaunch
+        # nodes keep their groups and the labels are created as before.
+        for schedule in (
+            SoftGroupSchedule(
+                strategy=NodeGroupStrategy.EP_DP_PP,
+                sizes={0: 2, 1: 2},
+                tp=1,
+                pp=2,
+                ep=8,
+                cp=1,
+                num_nodes=4,
+                ranks_per_node=8,
+            ),
+            None,
+        ):
+            scaler = PodScaler("elasticjob-sample", "default")
+            scaler.set_soft_group_schedule(schedule)
+            _, plan = self._make_grouped_relaunch_plan()
+            captured = []
+            scaler._scale = lambda p: captured.append(p)
+            scaler.scale(plan)
+            relaunched = captured[0].launch_nodes[0]
+            self.assertEqual(relaunched.group, 1)
+            self.assertEqual(relaunched.group_id, 1)
+            self.assertEqual(relaunched.group_size, 2)
 
     def test_scale_up_pods_with_ep_pp_dp(self):
         """The ep_pp_dp schedule stripes nodes across groups so EP/PP stay

@@ -78,6 +78,10 @@ from dlrover.python.master.resource.job import (
     PSJobResourceOptimizer,
     validate_topology,
 )
+from dlrover.python.master.resource.soft_group import (
+    SoftGroupSchedule,
+    validate_soft_group_topology,
+)
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
@@ -135,6 +139,9 @@ class DistributedJobManager(JobManager):
             )
             node_restart_count[type] = node_args.restart_count
 
+        # _init_soft_group_affinity runs first so its mutual-exclusion
+        # check takes precedence over the legacy group-affinity errors.
+        self._init_soft_group_affinity(job_args)
         self._init_group_affinity(job_args)
 
         self._ps_is_critical = False
@@ -207,39 +214,73 @@ class DistributedJobManager(JobManager):
         self._scaler.set_node_group_schedule(
             self._job_resource.node_group_schedule
         )
+        # _init_soft_group_affinity (above) has already applied
+        # --soft-group-affinity; forward the soft schedule so the scaler
+        # labels newly created pods with the soft-resolved groups.
+        self._scaler.set_soft_group_schedule(
+            self._job_resource.soft_group_schedule
+        )
         self._init_training_node_manager()
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
         self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
 
+    @staticmethod
+    def _check_expert_tensor_pairing(job_args: JobArgs):
+        """An explicitly configured ``--expert-tensor-parallel-size`` must
+        be used together with ``--expert-model-parallel-size`` (the EP
+        group size is ETP*EP). An unset ETP is exempt because it inherits
+        ``--tensor-model-parallel-size``, which is recorded only and does
+        not make the pairing mandatory."""
+        etp = getattr(job_args, "expert_tensor_parallel_size", None)
+        ep = getattr(job_args, "expert_model_parallel_size", 1)
+        if etp is not None and ep <= 1:
+            raise ValueError(
+                "--expert-tensor-parallel-size must be used together with "
+                "--expert-model-parallel-size (the EP group size is ETP*EP)."
+            )
+
     def _init_group_affinity(self, job_args: JobArgs):
         """Validate and apply the ``--group-affinity`` configuration.
 
         When ``group_affinity`` is configured, the worker replicas declared
-        in the ElasticJob CRD must equal the sum of all group sizes; the
-        master fails to start otherwise. On success the mapping is forwarded
-        to the ``JobResource`` so that worker nodes are partitioned into the
+        in the ElasticJob CRD must equal the sum of all group sizes and
+        ``--node-group-strategy`` must be set explicitly; the master fails
+        to start otherwise. On success the mapping is forwarded to the
+        ``JobResource`` so that worker nodes are partitioned into the
         configured node groups.
 
         When ``node_group_strategy == ep_pp_dp`` the parallel topology is
         additionally validated via :func:`validate_topology` and a
-        :class:`NodeGroupSchedule` is attached to the ``JobResource`` so that
-        the scaler stripes pipeline stages across segments (EP/PP
-        intra-segment, DP cross-segment). The parallel sizes are read from
-        ``job_args``; when the strategy is unset or ``contiguous`` they are
-        ignored, preserving the existing behavior.
+        :class:`NodeGroupSchedule` is attached to the ``JobResource`` so
+        that the scaler packs EP-group slots into ep-pp columns across
+        segments (EP/PP intra-segment, DP cross-segment). The parallel
+        sizes are read from ``job_args`` only when a node-group affinity
+        is configured; an unset ``--expert-tensor-parallel-size`` (None)
+        inherits ``--tensor-model-parallel-size``.
         """
-        strategy = getattr(
-            job_args, "node_group_strategy", NodeGroupStrategy.CONTIGUOUS
-        )
+        strategy = getattr(job_args, "node_group_strategy", None)
         ep_pp_dp = strategy == NodeGroupStrategy.EP_PP_DP
         if not job_args.group_affinity:
-            if ep_pp_dp:
+            # --soft-group-affinity configures the groups its own way
+            # (unequal sizes); the legacy requirement below does not
+            # apply. Mutual exclusion is enforced by
+            # _init_soft_group_affinity.
+            if strategy is not None and not getattr(
+                job_args, "soft_group_affinity", None
+            ):
                 raise ValueError(
-                    "node-group-strategy=ep_pp_dp requires --group-affinity "
-                    "to be set (groups == physical segments)."
+                    "--node-group-strategy requires --group-affinity or "
+                    "--soft-group-affinity to be set."
                 )
             return
+        if strategy is None:
+            raise ValueError(
+                "--group-affinity requires --node-group-strategy to be set "
+                "(ep_dp_pp keeps the contiguous layout; ep_pp_dp packs "
+                "EP-PP columns across groups)."
+            )
+        self._check_expert_tensor_pairing(job_args)
         worker_resource = self._job_resource.node_group_resources.get(
             NodeType.WORKER
         )
@@ -267,6 +308,8 @@ class DistributedJobManager(JobManager):
                 tp=getattr(job_args, "tensor_model_parallel_size", 1),
                 pp=getattr(job_args, "pipeline_model_parallel_size", 1),
                 ep=getattr(job_args, "expert_model_parallel_size", 1),
+                # None (unset) inherits tp inside the schedule.
+                etp=getattr(job_args, "expert_tensor_parallel_size", None),
                 cp=getattr(job_args, "context_parallel_size", 1),
                 num_nodes=worker_count,
                 ranks_per_node=ranks_per_node,
@@ -285,25 +328,132 @@ class DistributedJobManager(JobManager):
             self._job_resource.node_group_schedule = schedule
             logger.info(
                 "Enable ep_pp_dp node-group schedule "
-                "(tp=%d, pp=%d, ep=%d, cp=%d, N=%d, R=%d, G=%d): "
-                "each pipeline stage striped across %d segments "
-                "(EP/PP intra-segment, DP cross-segment).",
+                "(tp=%d, pp=%d, ep=%d, etp=%d, cp=%d, N=%d, R=%d, G=%d): "
+                "EP groups of etp*ep=%d ranks packed into ep-pp columns "
+                "across %d segments (EP/PP intra-segment, DP "
+                "cross-segment).",
                 schedule.tp,
                 schedule.pp,
                 schedule.ep,
+                schedule.etp,
                 schedule.cp,
                 schedule.num_nodes,
                 schedule.ranks_per_node,
                 len(job_args.group_affinity),
+                schedule.etp * schedule.ep,
                 len(job_args.group_affinity),
             )
 
+    def _init_soft_group_affinity(self, job_args: JobArgs):
+        """Validate and apply the ``--soft-group-affinity`` configuration.
+
+        Soft group affinity accepts UNEQUAL group sizes (the production
+        reality of uneven per-segment free resources) and is fully
+        isolated from the ``--group-affinity`` path: the schedule is
+        validated by :func:`validate_soft_group_topology`, attached to the
+        ``JobResource`` as ``soft_group_schedule``, and consumed by
+        ``init_job_node_meta`` and the scaler via
+        :func:`resolve_soft_group_id`. The two features are mutually
+        exclusive, and both require ``--node-group-strategy`` to be set
+        explicitly. The EP alignment (every group size must be a multiple
+        of the EP slot ETP*EP/R) is mandatory by default — the master
+        fails to start otherwise.
+
+        ``--no-group-failover`` is carried on the schedule and enforced
+        at the scaler exit (PodScaler.scale strips the node-group
+        labels from every relaunched node, whichever relaunch path —
+        single-node, job-level restart or group relaunch — produced
+        the plan) so the FO pod can be scheduled onto any segment.
+        """
+        if not job_args.soft_group_affinity:
+            return
+        if job_args.group_affinity:
+            raise ValueError(
+                "--soft-group-affinity cannot be combined with "
+                "--group-affinity: it replaces the equal-size static "
+                "mapping with an unequal-size soft mapping resolved at "
+                "pod creation time."
+            )
+        strategy = getattr(job_args, "node_group_strategy", None)
+        if strategy is None:
+            raise ValueError(
+                "--soft-group-affinity requires --node-group-strategy to "
+                "be set (ep_dp_pp keeps the contiguous layout; ep_pp_dp "
+                "packs EP-PP columns across groups)."
+            )
+        self._check_expert_tensor_pairing(job_args)
+        worker_resource = self._job_resource.node_group_resources.get(
+            NodeType.WORKER
+        )
+        if worker_resource is None:
+            raise ValueError(
+                "--soft-group-affinity requires a worker replica spec in "
+                "the job resource."
+            )
+        ranks_per_node = (
+            worker_resource.node_resource.gpu_num
+            if worker_resource.node_resource is not None
+            else 0
+        )
+        schedule = SoftGroupSchedule(
+            strategy=strategy,
+            sizes=job_args.soft_group_affinity,
+            tp=getattr(job_args, "tensor_model_parallel_size", 1),
+            pp=getattr(job_args, "pipeline_model_parallel_size", 1),
+            ep=getattr(job_args, "expert_model_parallel_size", 1),
+            # None (unset) inherits tp inside the schedule.
+            etp=getattr(job_args, "expert_tensor_parallel_size", None),
+            cp=getattr(job_args, "context_parallel_size", 1),
+            num_nodes=worker_resource.count,
+            ranks_per_node=ranks_per_node,
+            no_group_failover=job_args.no_group_failover,
+        )
+        # Validate BEFORE mutating the JobResource so a violation leaves
+        # the resource untouched and the master fails to start cleanly.
+        validate_soft_group_topology(schedule)
+
+        self._job_resource.soft_group_schedule = schedule
+        # TP and CP are recorded but not used; the layout math only
+        # involves PP and the EP group size ETP*EP.
+        dense_dp = (
+            schedule.num_nodes * schedule.ranks_per_node
+        ) // schedule.pp
+        ep_group = schedule.etp * schedule.ep
+        ep_workers = (
+            ep_group // schedule.ranks_per_node
+            if schedule.ranks_per_node > 0
+            else 0
+        )
+        logger.info(
+            "Enable soft group affinity: %s (strategy=%s, tp=%d, pp=%d, "
+            "ep=%d, etp=%d, cp=%d, N=%d, R=%d, dp=%d, ep_workers=%d, "
+            "no_group_failover=%s): every group size is aligned to the "
+            "EP slot and workers are labeled with the soft-resolved "
+            "groups at pod creation.",
+            schedule.sizes,
+            schedule.strategy,
+            schedule.tp,
+            schedule.pp,
+            schedule.ep,
+            schedule.etp,
+            schedule.cp,
+            schedule.num_nodes,
+            schedule.ranks_per_node,
+            dense_dp // ep_group,
+            ep_workers,
+            schedule.no_group_failover,
+        )
+
     def get_expected_ranks_per_node(self) -> Optional[int]:
-        """Return the validated ``ranks_per_node`` of the ep_pp_dp topology
-        (or None when the strategy is not enabled) so other components can
-        re-validate it against the trainer-reported local_world_size."""
+        """Return the validated ``ranks_per_node`` of the ep_pp_dp or
+        soft-group topology (or None when neither is enabled) so other
+        components can re-validate it against the trainer-reported
+        local_world_size."""
         schedule = self._job_resource.node_group_schedule
         if schedule is None or schedule.strategy != NodeGroupStrategy.EP_PP_DP:
+            soft_schedule = self._job_resource.soft_group_schedule
+            if soft_schedule is not None:
+                return soft_schedule.ranks_per_node
             return None
         return schedule.ranks_per_node
 

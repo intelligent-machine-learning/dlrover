@@ -149,7 +149,7 @@ class TrainingHangDiagnostician(Diagnostician):
                     logger.warning("Failed to get rank 0 worker")
                 else:
                     logger.info(f"Restart worker-{node_0.id} all processes")
-                    _event_context.train_steps.clear_step_events()
+                    _event_context.clear_all_step_events()
 
                     actions.append(
                         NodeAction(

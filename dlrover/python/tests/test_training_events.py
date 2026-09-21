@@ -829,6 +829,133 @@ class TrainingEventTest(unittest.TestCase):
         0,
     )
     @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
+    def test_ckpt_hang_restart_boundary(self):
+        # A dangling ckpt BEGIN from a worker restarted mid-save must
+        # not misjudge the new run once the restart boundary clears all
+        # step events, not only train_steps.
+        _event_context.clear_all_step_events()
+
+        now = int(datetime.now().timestamp())
+        train_evt = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_STEP,
+            type=EventTypeName.BEGIN,
+            step=1,
+        )
+        _event_context.train_steps.add_step_event(train_evt)
+        eval_evt = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_EVALUATE,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        _event_context.eval_steps.add_eval_event(eval_evt)
+        ckpt_evt = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=2,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(ckpt_evt)
+        time.sleep(3.2)
+        self.assertEqual(_event_context.check_ckpt_hang(), True)
+
+        _event_context.clear_all_step_events()
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
+        self.assertIsNone(_event_context.train_steps.get_last_step_event())
+        self.assertIsNone(_event_context.eval_steps.get_last_step_event())
+        self.assertIsNone(_event_context.ckpt_steps.get_last_step_event())
+        self.assertIsNone(_event_context.predict_steps.get_last_step_event())
+
+        # A fresh save of the new run registers and closes normally.
+        now = int(datetime.now().timestamp())
+        ckpt_begin = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=100,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(ckpt_begin)
+        ckpt_end = AtorchEvent(
+            timestamp=now + 1,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.END,
+            step=100,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(ckpt_end)
+        last = _event_context.ckpt_steps.get_last_step_event()
+        self.assertEqual(last.event_state, TrainEventState.TRAIN_EVT_END)
+
+    def test_ckpt_event_supersede_dangling_begin(self):
+        # Without a restart boundary, a lost ckpt END leaves a dangling
+        # BEGIN as the latest event; a newer BEGIN must supersede it
+        # instead of being rejected as an invalid ckpt step. Otherwise
+        # hang detection reports ckpt hang forever even though the new
+        # run saves successfully.
+        _event_context.ckpt_steps.clear_step_events()
+
+        now = int(datetime.now().timestamp())
+        begin_old = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=10,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(begin_old)
+        self.assertEqual(_event_context.ckpt_steps.size(), 1)
+
+        # A BEGIN with a not-newer timestamp is still rejected.
+        begin_stale = AtorchEvent(
+            timestamp=now,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=11,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(begin_stale)
+        last = _event_context.ckpt_steps.get_last_step_event()
+        self.assertEqual(last.step, 10)
+        self.assertEqual(_event_context.ckpt_steps.size(), 1)
+
+        # A newer BEGIN supersedes the dangling one.
+        begin_new = AtorchEvent(
+            timestamp=now + 120,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.BEGIN,
+            step=20,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(begin_new)
+        self.assertEqual(_event_context.ckpt_steps.size(), 1)
+        last = _event_context.ckpt_steps.get_last_step_event()
+        self.assertEqual(last.step, 20)
+        self.assertEqual(last.event_state, TrainEventState.TRAIN_EVT_BEGIN)
+        self.assertEqual(last.begin_timestamp, now + 120)
+
+        # The END of the new save closes it normally.
+        end_new = AtorchEvent(
+            timestamp=now + 180,
+            target=EventTargetName.TRAINER,
+            name=TrainEventName.TRAIN_EVT_FLASH_CKPT,
+            type=EventTypeName.END,
+            step=20,
+        )
+        _event_context.ckpt_steps.add_ckpt_event(end_new)
+        last = _event_context.ckpt_steps.get_last_step_event()
+        self.assertEqual(last.event_state, TrainEventState.TRAIN_EVT_END)
+        self.assertEqual(_event_context.check_ckpt_hang(), False)
+
+    @patch(
+        "dlrover.python.common.global_context.DefaultValues.MIN_HANG_DOWNTIME",
+        0,
+    )
+    @patch(f"{__name__}._dlrover_context.hang_downtime", 0.05)
     def test_event_block(self):
         _event_context.hang_threshold = 1
         _event_context.ckpt_steps.clear_step_events()

@@ -92,7 +92,12 @@ def run(args):
     job_args.tensor_model_parallel_size = args.tensor_model_parallel_size
     job_args.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     job_args.expert_model_parallel_size = args.expert_model_parallel_size
+    # None (unset) is forwarded as-is; the node-group schedule resolves it
+    # by inheriting tensor_model_parallel_size.
+    job_args.expert_tensor_parallel_size = args.expert_tensor_parallel_size
     job_args.context_parallel_size = args.context_parallel_size
+    job_args.soft_group_affinity = args.soft_group_affinity
+    job_args.no_group_failover = args.no_group_failover
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":

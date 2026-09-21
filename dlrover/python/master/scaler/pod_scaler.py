@@ -43,6 +43,10 @@ from dlrover.python.master.resource.job import (
     NodeGroupSchedule,
     resolve_group_id,
 )
+from dlrover.python.master.resource.soft_group import (
+    SoftGroupSchedule,
+    resolve_soft_group_id,
+)
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -128,6 +132,10 @@ class PodScaler(Scaler):
         # DistributedJobManager; consulted by resolve_group_id so the
         # ep_pp_dp stripe mapping is applied when labeling created pods.
         self._node_group_schedule: Optional[NodeGroupSchedule] = None
+        # Soft group schedule (--soft-group-affinity, unequal sizes)
+        # injected by DistributedJobManager; when set, newly created
+        # worker pods are labeled with the soft-resolved group.
+        self._soft_group_schedule: Optional[SoftGroupSchedule] = None
 
     def set_group_affinity(self, group_affinity):
         """Store the group affinity mapping for labeling created pods."""
@@ -138,6 +146,47 @@ class PodScaler(Scaler):
         resolve_group_id can apply the ep_pp_dp stripe mapping when
         labeling created worker pods."""
         self._node_group_schedule = node_group_schedule
+
+    def set_soft_group_schedule(self, soft_group_schedule):
+        """Store the soft group schedule (unequal-size node groups) so
+        resolve_soft_group_id labels newly created worker pods with
+        their soft-resolved group."""
+        self._soft_group_schedule = soft_group_schedule
+
+    def _strip_group_labels_for_no_group_failover(self, plan):
+        """With ``--soft-group-affinity --no-group-failover``, drop the
+        node-group fields of every relaunch node in the plan (the
+        ``generate_relaunch_node`` deepcopy carried them over) so the
+        recreated pod has no ``scheduling/rack-group`` label and can be
+        scheduled onto any segment instead of following the original
+        group affinity.
+
+        Called at the common exit of ALL relaunch paths (this scaler's
+        ``scale``): the single-node relaunch, the job-level ``restart``
+        and the group relaunch all hand their plans to ``scaler.scale``
+        here. The job context is kept in sync with the stripped state.
+
+        A no-op without a soft schedule or with --no-group-failover
+        disabled: the relaunch then keeps its group and the labels are
+        re-created as before.
+        """
+        if plan is None or not plan.launch_nodes:
+            return
+        soft_schedule = self._soft_group_schedule
+        if soft_schedule is None or not soft_schedule.no_group_failover:
+            return
+        for relaunched_node in plan.launch_nodes:
+            relaunched_node.group = None
+            relaunched_node.group_id = None
+            relaunched_node.group_size = None
+            self._job_context.update_job_node(relaunched_node)
+            logger.info(
+                "No-group failover: relaunch %s (rank %s) without its "
+                "node-group labels so it can be scheduled onto any "
+                "segment.",
+                relaunched_node.name,
+                relaunched_node.rank_index,
+            )
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -243,6 +292,12 @@ class PodScaler(Scaler):
             with_merge (bool, optional): If true, enable automatic plan merging.
                 Defaults to False.
         """
+
+        # Common exit of every relaunch plan (the single-node relaunch, the
+        # job-level restart and the group relaunch all funnel into
+        # scaler.scale): with --no-group-failover the relaunched nodes must
+        # carry no node-group information whatever path produced them.
+        self._strip_group_labels_for_no_group_failover(plan)
 
         with_merge = kwargs.pop("with_merge", False)
 
@@ -481,17 +536,32 @@ class PodScaler(Scaler):
         for i in range(up_num):
             node_id = max_pod_id + 1 + i
             task_id = cur_num + i
-            group_id = resolve_group_id(
-                self._group_affinity,
-                type,
-                task_id,
-                self._node_group_schedule,
-            )
-            group_size = (
-                len(self._group_affinity)
-                if group_id is not None and self._group_affinity
-                else None
-            )
+            if self._soft_group_schedule is not None:
+                # --soft-group-affinity takes precedence (it is mutually
+                # exclusive with --group-affinity anyway): label the pod
+                # with the soft-resolved group id.
+                group_id = resolve_soft_group_id(
+                    self._soft_group_schedule,
+                    type,
+                    task_id,
+                )
+                group_size = (
+                    len(self._soft_group_schedule.sizes)
+                    if group_id is not None
+                    else None
+                )
+            else:
+                group_id = resolve_group_id(
+                    self._group_affinity,
+                    type,
+                    task_id,
+                    self._node_group_schedule,
+                )
+                group_size = (
+                    len(self._group_affinity)
+                    if group_id is not None and self._group_affinity
+                    else None
+                )
             node = Node(
                 type,
                 node_id,

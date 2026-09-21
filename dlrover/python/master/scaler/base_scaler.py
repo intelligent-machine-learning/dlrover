@@ -108,3 +108,14 @@ class Scaler(metaclass=ABCMeta):
         base scaler agnostic of the schedule.
         """
         pass
+
+    def set_soft_group_schedule(self, soft_group_schedule):
+        """Set the soft group schedule (unequal-size node groups).
+
+        Scalers that compute the group id per created worker (e.g.
+        PodScaler, via ``resolve_soft_group_id``) can override this to
+        forward the ``--soft-group-affinity`` schedule so the workers
+        are labeled with the soft-resolved groups. The default no-op
+        keeps the base scaler agnostic of the schedule.
+        """
+        pass

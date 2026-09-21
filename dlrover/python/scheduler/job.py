@@ -109,18 +109,37 @@ class JobArgs(JsonSerializable):
         self.enable_suspended = False
         self.training_elastic_mode = "base"
         self.group_affinity: Optional[Dict[int, int]] = None
-        # Node-group scheduling strategy for worker nodes; defaults to the
-        # existing contiguous behavior. See NodeGroupStrategy in
-        # dlrover.python.common.constants and NodeGroupSchedule/
-        # resolve_group_id in dlrover.python.master.resource.job.
-        self.node_group_strategy: str = "contiguous"
-        # Megatron parallel sizes, consulted only when
-        # node_group_strategy == "ep_pp_dp" (and validated by
-        # validate_topology in master.resource.job). TP/CP must be 1 today.
+        # Node-group scheduling strategy for worker nodes; None (default)
+        # when the job configures no node-group affinity. Configuring
+        # group_affinity or soft_group_affinity requires the strategy to be
+        # set explicitly, otherwise the master fails to start. See
+        # NodeGroupStrategy in dlrover.python.common.constants and
+        # NodeGroupSchedule/resolve_group_id in
+        # dlrover.python.master.resource.job.
+        self.node_group_strategy: Optional[str] = None
+        # Megatron parallel sizes, consulted when a node-group affinity is
+        # configured (validated by validate_topology in
+        # master.resource.job and validate_soft_group_topology in
+        # master.resource.soft_group). The real EP group size is
+        # expert_tensor_parallel_size * expert_model_parallel_size, where
+        # an unset expert_tensor_parallel_size (None) inherits
+        # tensor_model_parallel_size at the master layer. TP and CP are
+        # recorded but not used by the scheduling today.
         self.tensor_model_parallel_size: int = 1
         self.pipeline_model_parallel_size: int = 1
         self.expert_model_parallel_size: int = 1
+        self.expert_tensor_parallel_size: Optional[int] = None
         self.context_parallel_size: int = 1
+        # Unequal-size node group pod counts (--soft-group-affinity),
+        # fully isolated from group_affinity above and mutually exclusive
+        # with it. See SoftGroupSchedule / validate_soft_group_topology /
+        # resolve_soft_group_id in master.resource.soft_group. Every group
+        # size must be a multiple of the EP slot (ETP*EP/R pods) — the EP
+        # alignment is mandatory, not an option.
+        self.soft_group_affinity: Optional[Dict[int, int]] = None
+        # With soft_group_affinity: relaunch (FO) workers without their
+        # node-group labels so they can be scheduled onto any segment.
+        self.no_group_failover: bool = False
 
     @abstractmethod
     def initilize(self):

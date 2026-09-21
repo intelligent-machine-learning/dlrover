@@ -22,12 +22,13 @@ from dlrover.python.master.resource.job import (
 )
 
 
-def _ep_pp_dp(tp=1, pp=1, ep=1, cp=1, num_nodes=0, ranks_per_node=0):
+def _ep_pp_dp(tp=1, pp=1, ep=1, etp=None, cp=1, num_nodes=0, ranks_per_node=0):
     return NodeGroupSchedule(
         strategy=NodeGroupStrategy.EP_PP_DP,
         tp=tp,
         pp=pp,
         ep=ep,
+        etp=etp,
         cp=cp,
         num_nodes=num_nodes,
         ranks_per_node=ranks_per_node,
@@ -35,20 +36,29 @@ def _ep_pp_dp(tp=1, pp=1, ep=1, cp=1, num_nodes=0, ranks_per_node=0):
 
 
 class NodeGroupScheduleTest(unittest.TestCase):
-    def test_defaults_are_contiguous_unsized(self):
+    def test_defaults_are_ep_dp_pp_unsized(self):
         sched = NodeGroupSchedule()
-        self.assertEqual(sched.strategy, NodeGroupStrategy.CONTIGUOUS)
+        self.assertEqual(sched.strategy, NodeGroupStrategy.EP_DP_PP)
         self.assertEqual(
-            (sched.tp, sched.pp, sched.ep, sched.cp), (1, 1, 1, 1)
+            (sched.tp, sched.pp, sched.ep, sched.etp, sched.cp),
+            (1, 1, 1, 1, 1),
         )
         self.assertEqual((sched.num_nodes, sched.ranks_per_node), (0, 0))
 
+    def test_unset_etp_inherits_tp(self):
+        # An unset etp (None) inherits the recorded tp; an explicit etp
+        # wins over tp.
+        sched = NodeGroupSchedule(tp=4)
+        self.assertEqual(sched.etp, 4)
+        sched = NodeGroupSchedule(tp=4, etp=2)
+        self.assertEqual(sched.etp, 2)
+
     def test_ep_pp_dp_carry_fields(self):
         sched = _ep_pp_dp(
-            tp=1, pp=16, ep=32, cp=1, num_nodes=1152, ranks_per_node=8
+            tp=1, pp=16, ep=32, etp=2, cp=1, num_nodes=1152, ranks_per_node=8
         )
         self.assertEqual(sched.strategy, NodeGroupStrategy.EP_PP_DP)
-        self.assertEqual((sched.pp, sched.ep), (16, 32))
+        self.assertEqual((sched.pp, sched.ep, sched.etp), (16, 32, 2))
         self.assertEqual((sched.num_nodes, sched.ranks_per_node), (1152, 8))
 
 
@@ -65,9 +75,9 @@ class ResolveGroupIdStripeTest(unittest.TestCase):
             [0, 0, 1, 1],
         )
 
-    def test_contiguous_explicit_schedule(self):
+    def test_ep_dp_pp_explicit_schedule(self):
         ga = {0: 2, 1: 2}
-        sched = NodeGroupSchedule(strategy=NodeGroupStrategy.CONTIGUOUS)
+        sched = NodeGroupSchedule(strategy=NodeGroupStrategy.EP_DP_PP)
         self.assertEqual(
             [
                 resolve_group_id(ga, NodeType.WORKER, k, sched)
@@ -155,12 +165,12 @@ class ValidateTopologyTest(unittest.TestCase):
             _ep_pp_dp(tp=1, pp=2, ep=8, cp=1, num_nodes=4, ranks_per_node=8),
         )
 
-    def test_contiguous_or_none_is_noop(self):
-        # A deliberately unequal/invalid-for-ep_pp_dp mapping is NOT checked at
-        # all when the strategy is contiguous or the schedule is None.
+    def test_ep_dp_pp_or_none_is_noop(self):
+        # A deliberately unequal/invalid-for-ep_pp_dp mapping is NOT checked
+        # at all when the strategy is ep_dp_pp or the schedule is None.
         ga = {0: 10, 1: 5}
         validate_topology(
-            ga, NodeGroupSchedule(strategy=NodeGroupStrategy.CONTIGUOUS)
+            ga, NodeGroupSchedule(strategy=NodeGroupStrategy.EP_DP_PP)
         )
         validate_topology(ga, None)
 
@@ -174,20 +184,35 @@ class ValidateTopologyTest(unittest.TestCase):
         self._assert_raises_msg(None, s, "requires --group-affinity")
         self._assert_raises_msg({}, s, "requires --group-affinity")
 
-    def test_tp_must_be_one(self):
+    def test_tp_cp_recorded_not_used(self):
+        # TP and CP are recorded but not used by the validation: tp>1 and
+        # cp>1 no longer fail the topology check (they used to require 1).
         ga = {0: 128, 1: 128, 2: 128}
         sched = _ep_pp_dp(
-            tp=2, pp=4, ep=8, cp=1, num_nodes=384, ranks_per_node=8
+            tp=2, pp=4, ep=8, cp=2, num_nodes=384, ranks_per_node=8
         )
-        self._assert_raises_msg(ga, sched, "requires TP=1")
+        validate_topology(ga, sched)
+        self.assertEqual((sched.tp, sched.etp, sched.cp), (2, 2, 2))
 
-    def test_cp_must_be_one(self):
-        ga = {0: 128, 1: 128, 2: 128}
-        sched = _ep_pp_dp(
-            tp=1, pp=4, ep=8, cp=2, num_nodes=384, ranks_per_node=8
-        )
-        with self.assertRaises(ValueError):
-            validate_topology(ga, sched)
+    def test_etp_scales_ep_group_size(self):
+        # N=8, R=8, PP=1, G=2, EP=16, ETP=2 -> EPG=32 == S: the whole
+        # segment-per-stage block is exactly one EP group.
+        ga = {0: 4, 1: 4}
+        sched = _ep_pp_dp(pp=1, ep=16, etp=2, num_nodes=8, ranks_per_node=8)
+        validate_topology(ga, sched)
+
+    def test_ep_group_too_large_for_segment_with_etp(self):
+        # Same shape with ETP=3 -> EPG=48 > S=32: constraint C fails.
+        ga = {0: 4, 1: 4}
+        sched = _ep_pp_dp(pp=1, ep=16, etp=3, num_nodes=8, ranks_per_node=8)
+        self._assert_raises_msg(ga, sched, "EP group size (48)")
+
+    def test_ep_group_not_whole_nodes_with_etp(self):
+        # N=12, R=8, PP=1, G=2, EP=4, ETP=3 -> EPG=12 divides S=48 but
+        # 12 % R != 0: constraint E fails.
+        ga = {0: 6, 1: 6}
+        sched = _ep_pp_dp(pp=1, ep=4, etp=3, num_nodes=12, ranks_per_node=8)
+        self._assert_raises_msg(ga, sched, "divisible by ranks_per_node R=8")
 
     def test_ranks_per_node_positive(self):
         ga = {0: 64, 1: 64}
@@ -215,12 +240,13 @@ class ValidateTopologyTest(unittest.TestCase):
         self._assert_raises_msg(ga, sched, "divisible by ranks_per_node R=8")
 
     def test_ep_too_large_for_segment(self):
-        # N=4, R=8, PP=1, G=2, EP=24: dense_dp=32, S=16; 16%24 != 0 (constraint C).
+        # N=4, R=8, PP=1, G=2, EPG=EP=24: dense_dp=32, S=16; 16%24 != 0
+        # (constraint C).
         ga = {0: 2, 1: 2}
         sched = _ep_pp_dp(
             tp=1, pp=1, ep=24, cp=1, num_nodes=4, ranks_per_node=8
         )
-        self._assert_raises_msg(ga, sched, "EP size (24) to")
+        self._assert_raises_msg(ga, sched, "EP group size (24) to")
 
     def test_ep_not_whole_nodes(self):
         # N=12, R=8, PP=1, G=2, EP=12: dense_dp=96, S=48; S%EP=0 (C ok),
@@ -248,12 +274,39 @@ class ValidateTopologyTest(unittest.TestCase):
         )
         self._assert_raises_msg(ga, sched, "N/G=6")
 
-    def test_non_contiguous_group_ids_fail(self):
-        ga = {0: 4, 1: 4, 3: 4}  # missing group id 2
+    def test_arbitrary_group_ids_accepted(self):
+        # Group ids are opaque: sparse/shifted ids are valid and the
+        # ascending id order defines the segment order. N=12, R=8, G=3,
+        # EP=8: dp_nodes=12, seg=4 -> slots 0/1/2 map to ids 0/1/3.
+        ga = {0: 4, 1: 4, 3: 4}  # missing group id 2, id 3 instead
         sched = _ep_pp_dp(
             tp=1, pp=1, ep=8, cp=1, num_nodes=12, ranks_per_node=8
         )
-        self._assert_raises_msg(ga, sched, "contiguous group ids")
+        validate_topology(ga, sched)
+        self.assertEqual(
+            [
+                resolve_group_id(ga, NodeType.WORKER, k, sched)
+                for k in range(12)
+            ],
+            [0] * 4 + [1] * 4 + [3] * 4,
+        )
+
+    def test_one_based_group_ids_stripe_like_zero_based(self):
+        # Production racks may be labeled from 1: {1: 4, 2: 4} must behave
+        # exactly like {0: 4, 1: 4} (N=8, R=8, PP=2, EP=16, G=2) — the ids
+        # only relabel the segments: ranks 0,1 -> 1; 2,3 -> 2; 4,5 -> 1;
+        # 6,7 -> 2 (PP/EP stay intra-segment, only DP crosses segments).
+        one_based = {1: 4, 2: 4}
+        zero_based = {0: 4, 1: 4}
+        sched = _ep_pp_dp(
+            tp=1, pp=2, ep=16, cp=1, num_nodes=8, ranks_per_node=8
+        )
+        validate_topology(one_based, sched)
+        for k in range(8):
+            self.assertEqual(
+                resolve_group_id(one_based, NodeType.WORKER, k, sched),
+                resolve_group_id(zero_based, NodeType.WORKER, k, sched) + 1,
+            )
 
 
 class StripeInvariantsTest(unittest.TestCase):
