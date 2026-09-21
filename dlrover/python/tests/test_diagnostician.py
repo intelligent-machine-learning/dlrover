@@ -40,7 +40,10 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     NoAction,
     NodeAction,
 )
-from dlrover.python.diagnosis.common.diagnostician import Diagnostician
+from dlrover.python.diagnosis.common.diagnostician import (
+    DiagnosisObservation,
+    Diagnostician,
+)
 from dlrover.python.diagnosis.diagnostician.node_failure import (
     FailureNodeDiagnostician,
 )
@@ -132,6 +135,34 @@ class DiagnosticianTest(unittest.TestCase):
         actions = diagnostician.diagnose(error_log=error_log)
         self.assertTrue(isinstance(actions[0], EventAction))
 
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.resource_collect_failure."
+        "DLRoverAgentEvent"
+    )
+    def test_resource_collect_failure_emits_fault_detect_event(
+        self, mock_agent_evt_cls
+    ):
+        """resolve() emits a #fault_detect event on GPU_LOST (the EventAction
+        alone is only a log line), and survives an emit failure.
+        """
+        mock_evt = (
+            mock_agent_evt_cls.return_value.singleton_instance.return_value
+        )
+        diagnostician = ResourceCollectionFailureDiagnostician()
+
+        actions = diagnostician.diagnose(error_log="GPU is lost")
+        mock_evt.fault_detect.assert_called_once()
+        self.assertEqual(
+            mock_evt.fault_detect.call_args.kwargs.get("reason"), "gpu_lost"
+        )
+        self.assertTrue(any(isinstance(a, EventAction) for a in actions))
+
+        # emit failure does not break handling.
+        mock_evt.fault_detect.reset_mock()
+        mock_evt.fault_detect.side_effect = RuntimeError("boom")
+        actions = diagnostician.diagnose(error_log="GPU is lost")
+        self.assertTrue(any(isinstance(a, EventAction) for a in actions))
+
     def test_node_inconsistency_diagnostician(self):
         job_args = MagicMock()
         job_args.job_name = "test-job"
@@ -188,6 +219,62 @@ class DiagnosticianTest(unittest.TestCase):
             empty_nodes = {}
             observation = diagnostician.observe(job_nodes=empty_nodes)
             self.assertIsNone(observation)
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.node_inconsistency."
+        "get_event_reporter"
+    )
+    @patch.object(k8sClient, "singleton_instance")
+    def test_node_inconsistency_emits_fault_detect_event(
+        self, mock_k8s, mock_get_reporter
+    ):
+        """resolve() emits a #fault_detect event on REPEATED_NODE detection;
+        the EventAction alone is only consumed as a log line.
+        """
+        mock_reporter = MagicMock()
+        mock_get_reporter.return_value = mock_reporter
+        job_args = MagicMock()
+        job_args.job_name = "test-job"
+        job_args.namespace = "default"
+        diagnostician = NodeInconsistencyDiagnostician(job_args)
+
+        problem = DiagnosisObservation(
+            DiagnosisErrorConstant.REPEATED_NODE,
+            {"target": "job=test-job"},
+        )
+        actions = diagnostician.resolve(problem)
+
+        mock_reporter.report_fault_detect.assert_called_once()
+        kwargs = mock_reporter.report_fault_detect.call_args.kwargs
+        self.assertEqual(kwargs.get("reason"), "repeated_node")
+        self.assertEqual(kwargs.get("target"), "job=test-job")
+        # EventAction still returned alongside the new event.
+        self.assertTrue(any(isinstance(a, EventAction) for a in actions))
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.node_inconsistency."
+        "get_event_reporter"
+    )
+    @patch.object(k8sClient, "singleton_instance")
+    def test_node_inconsistency_fault_detect_emit_failure_no_break(
+        self, mock_k8s, mock_get_reporter
+    ):
+        """resolve() must not break if the #fault_detect emission raises;
+        the EventAction is still returned.
+        """
+        mock_reporter = MagicMock()
+        mock_reporter.report_fault_detect.side_effect = RuntimeError("boom")
+        mock_get_reporter.return_value = mock_reporter
+        job_args = MagicMock()
+        job_args.job_name = "test-job"
+        job_args.namespace = "default"
+        diagnostician = NodeInconsistencyDiagnostician(job_args)
+        problem = DiagnosisObservation(
+            DiagnosisErrorConstant.REPEATED_NODE,
+            {"target": "job=test"},
+        )
+        actions = diagnostician.resolve(problem)
+        self.assertTrue(any(isinstance(a, EventAction) for a in actions))
 
     def test_training_hang_diagnostician_find_intersection(self):
         diagnostician = TrainingHangDiagnostician(None, None)
@@ -563,6 +650,100 @@ class DiagnosticianTest(unittest.TestCase):
                 self.assertEqual(
                     action.action_type, DiagnosisActionType.RESTART_WORKER
                 )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang."
+        "get_event_reporter"
+    )
+    @patch("dlrover.python.diagnosis.diagnostician.training_hang._job_context")
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
+    )
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._event_context"
+    )
+    def test_training_hang_emits_fault_detect_event(
+        self,
+        mock_event_context,
+        mock_dlrover_context,
+        mock_job_context,
+        mock_get_reporter,
+    ):
+        """resolve() emits a #fault_detect event on hang for all strategies
+        (DO_FAILOVER / DO_NOTIFY / log-only), independent of the action taken.
+        """
+        job_args = JobArgs("local", "test", "test")
+        diagnostician = TrainingHangDiagnostician(
+            job_args, DiagnosisDataManager()
+        )
+        mock_reporter = MagicMock()
+        mock_get_reporter.return_value = mock_reporter
+        mock_job_context.job_nodes_by_type = MagicMock(return_value={})
+        mock_job_context.job_node_by_rank = MagicMock(return_value=None)
+
+        problem = DiagnosisObservation(
+            observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
+            extra_infos={
+                "TYPE": "BY_XPU_TIMER_METRIC",
+                "node_rank": "3",
+                "time_last": "600",
+            },
+        )
+
+        # log-only(0) / DO_NOTIFY(1) / DO_FAILOVER(2) all emit the event.
+        for level in (0, 1, 2):
+            mock_reporter.report_fault_detect.reset_mock()
+            mock_dlrover_context.hang_detection = level
+            diagnostician.resolve(problem)
+            mock_reporter.report_fault_detect.assert_called_once()
+            kwargs = mock_reporter.report_fault_detect.call_args.kwargs
+            self.assertEqual(kwargs.get("reason"), "training_hang")
+            self.assertEqual(
+                kwargs.get("detection_type"), "BY_XPU_TIMER_METRIC"
+            )
+            self.assertEqual(kwargs.get("node_rank"), "3")
+            self.assertEqual(kwargs.get("time_last"), "600")
+            self.assertEqual(kwargs.get("threshold"), 5 * 60)
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang."
+        "get_event_reporter"
+    )
+    @patch("dlrover.python.diagnosis.diagnostician.training_hang._job_context")
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
+    )
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._event_context"
+    )
+    def test_training_hang_fault_detect_emit_failure_does_not_break_resolve(
+        self,
+        mock_event_context,
+        mock_dlrover_context,
+        mock_job_context,
+        mock_get_reporter,
+    ):
+        """resolve() must not break if the #fault_detect emission raises
+        (reporter/emit failure) — hang handling still proceeds.
+        """
+        job_args = JobArgs("local", "test", "test")
+        diagnostician = TrainingHangDiagnostician(
+            job_args, DiagnosisDataManager()
+        )
+        mock_reporter = MagicMock()
+        mock_reporter.report_fault_detect.side_effect = RuntimeError("boom")
+        mock_get_reporter.return_value = mock_reporter
+        mock_job_context.job_nodes_by_type = MagicMock(return_value={})
+        mock_dlrover_context.hang_detection = 0  # log-only
+
+        problem = DiagnosisObservation(
+            observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
+            extra_infos={"TYPE": "BY_OTHER_METRIC"},
+        )
+
+        # Must not raise; hang handling proceeds (log-only: empty actions).
+        actions = diagnostician.resolve(problem)
+        self.assertIsInstance(actions, list)
 
     @patch(
         "dlrover.python.diagnosis.diagnostician.training_hang._metric_context"
