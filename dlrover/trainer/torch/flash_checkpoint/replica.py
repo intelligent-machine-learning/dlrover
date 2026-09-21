@@ -40,6 +40,15 @@ class CkptReplicaManger(metaclass=ABCMeta):
             self.rank = dist.get_rank()
         else:
             self.rank = env_utils.get_rank()
+        # The position of this node in the rendezvous world order. Every
+        # global rank is derived from the world order, so backup groups
+        # must be keyed by the position, NOT by the NODE_RANK identity:
+        # with the topology rerank the two diverge. They are equal
+        # without the rerank (the default world is rank-ascending).
+        if self.rank >= 0 and self.local_world_size > 0:
+            self.node_position = self.rank // self.local_world_size
+        else:
+            self.node_position = self.node_rank
 
     @staticmethod
     def create_replica_manager(shard_num, replica_count):
@@ -94,7 +103,9 @@ class ShardCkptReplicaManager(CkptReplicaManger):
         local rank 1: {1, 9, 17}
 
         Arguments:
-            node_rank: the rank of node in the job.
+            node_position: the position of the node in the rendezvous
+                world order, which determines every global rank (equal
+                to node_rank without the topology rerank).
             local_rank: the local rank in a node.
             local_world_size: the number of local ranks in a node.
             group_size: the number of nodes in each backup group.
@@ -106,10 +117,10 @@ class ShardCkptReplicaManager(CkptReplicaManger):
         if replica_count <= 0:
             return backup_ranks
 
-        group_index = self.node_rank // replica_count
+        group_index = self.node_position // replica_count
         for i in range(replica_count):
-            node_rank = group_index * replica_count + i
-            rank = node_rank * self.local_world_size + self.local_rank
+            node_position = group_index * replica_count + i
+            rank = node_position * self.local_world_size + self.local_rank
             backup_ranks.append(rank)
         return backup_ranks
 
@@ -262,8 +273,8 @@ class FullCkptReplicaManager(CkptReplicaManger):
 
     def _get_backup_ranks(self):
         backup_ranks = []
-        for node_rank in range(self.node_num):
-            rank = node_rank * self.local_world_size
+        for node_position in range(self.node_num):
+            rank = node_position * self.local_world_size
             backup_ranks.append(rank)
         return backup_ranks
 

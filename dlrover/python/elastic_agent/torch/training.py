@@ -824,6 +824,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         group_rank = list(world.keys()).index(self._node_rank)
 
         workers = self._assign_worker_ranks(self._node_rank, world, spec)
+        self._log_rerank_ranks(
+            worker_group, workers, group_rank, group_world_size, spec
+        )
         worker_group.workers = workers
         worker_group.store = store
         worker_group.group_rank = group_rank
@@ -998,6 +1001,44 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     prefix_sum + role_infos[role_idx].local_world_size,
                 )
             ),
+        )
+
+    def _log_rerank_ranks(
+        self, worker_group, workers, group_rank, group_world_size, spec
+    ):
+        """Log, with the RERANK prefix for searchability, how the
+        rendezvous world order maps this node and its worker processes
+        to ranks: the node's position in the world and, per worker
+        process, the rank after the (re)ordering together with the rank
+        before it. "Before" is the previous round's rank on restarts and
+        otherwise the rank the node would get from its creation-order
+        NODE_RANK, i.e. the rank without any topology rerank."""
+        prev_ranks = {
+            worker.local_rank: worker.global_rank
+            for worker in getattr(worker_group, "workers", None) or []
+        }
+        rank_parts = []
+        for worker in workers:
+            before = prev_ranks.get(
+                worker.local_rank,
+                self._node_rank * spec.local_world_size + worker.local_rank,
+            )
+            if worker.global_rank != before:
+                rank_parts.append(
+                    f"local_rank={worker.local_rank}:"
+                    f"rank={worker.global_rank}(before={before})"
+                )
+            else:
+                rank_parts.append(
+                    f"local_rank={worker.local_rank}:"
+                    f"rank={worker.global_rank}(unchanged)"
+                )
+        logger.info(
+            f"RERANK: node_rank={self._node_rank} "
+            f"world_position={group_rank} "
+            f"world_size={group_world_size} "
+            f"restart_count={self._restart_count} "
+            f"workers=[{'; '.join(rank_parts)}]"
         )
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator

@@ -175,6 +175,21 @@ class ArgsTest(unittest.TestCase):
             parse_master_args(original_args)
         self.assertEqual(cm.exception.code, 2)
 
+    def test_parse_topology_rerank_args(self):
+        # default off
+        parsed = parse_master_args(["--job_name", "test"])
+        self.assertFalse(parsed.enable_topology_rerank)
+
+        # the dash and underscore aliases both enable the rerank
+        parsed = parse_master_args(
+            ["--job_name", "test", "--enable-topology-rerank"]
+        )
+        self.assertTrue(parsed.enable_topology_rerank)
+        parsed = parse_master_args(
+            ["--job_name", "test", "--enable_topology_rerank"]
+        )
+        self.assertTrue(parsed.enable_topology_rerank)
+
     def test_parse_node_group_strategy(self):
         # defaults: no strategy + all parallel sizes at their defaults
         # (etp stays None, i.e. it inherits tp at the master layer)

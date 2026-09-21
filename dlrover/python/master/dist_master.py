@@ -41,6 +41,10 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     create_training_rdzv_manager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
+from dlrover.python.master.elastic_training.topology_rerank import (
+    GroupTopologyQuerier,
+    GroupTopologySorter,
+)
 from dlrover.python.master.master import JobMaster, get_service_type
 from dlrover.python.master.monitor.perf_monitor import PerfMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
@@ -148,8 +152,11 @@ class DistributedJobMaster(JobMaster):
             if args.enable_dynamic_sharding
             else None
         )
+        topology_querier, topology_sorter = self._create_topology_rerank(args)
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            RendezvousName.TRAINING: create_training_rdzv_manager(),
+            RendezvousName.TRAINING: create_training_rdzv_manager(
+                topology_querier, topology_sorter
+            ),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
         if self.job_manager is not None:
@@ -174,6 +181,62 @@ class DistributedJobMaster(JobMaster):
             job_name=args.job_name, args=vars(args)
         )
         self._elasticjob_watcher = new_elasticjob_watcher(args)
+
+    @staticmethod
+    def _get_worker_ranks_per_node(args: JobArgs):
+        """Return the GPU count of the worker spec as the expected ranks
+        per node; None when the worker spec or the GPU count is absent
+        (the GroupTopologySorter then falls back to the local world size
+        observed at the rendezvous)."""
+        worker_args = args.node_args.get(NodeType.WORKER)
+        if worker_args is None:
+            return None
+        node_resource = worker_args.group_resource.node_resource
+        if node_resource is not None and node_resource.gpu_num > 0:
+            return node_resource.gpu_num
+        return None
+
+    def _create_topology_rerank(self, args: JobArgs):
+        """Build the GroupTopologyQuerier/GroupTopologySorter injected
+        into the training rendezvous manager when
+        ``--enable-topology-rerank`` is configured; (None, None) keeps
+        the legacy topology behavior. The configuration (strategy
+        present, mutual exclusion with the group affinities) has been
+        validated by DistributedJobManager._init_topology_rerank."""
+        if not getattr(args, "enable_topology_rerank", False):
+            return None, None
+        strategy = args.node_group_strategy
+        if not strategy:
+            # Defensive: DistributedJobManager._init_topology_rerank
+            # rejects this configuration before the manager builds.
+            raise ValueError(
+                "--enable-topology-rerank requires --node-group-strategy "
+                "to be set."
+            )
+        sorter = GroupTopologySorter(
+            strategy=strategy,
+            tp=getattr(args, "tensor_model_parallel_size", 1),
+            pp=getattr(args, "pipeline_model_parallel_size", 1),
+            ep=getattr(args, "expert_model_parallel_size", 1),
+            etp=getattr(args, "expert_tensor_parallel_size", None),
+            cp=getattr(args, "context_parallel_size", 1),
+            ranks_per_node=self._get_worker_ranks_per_node(args),
+        )
+        logger.info(
+            "Enable topology rerank at the training rendezvous "
+            "(strategy=%s, tp=%s, pp=%s, ep=%s, etp=%s, cp=%s, "
+            "ranks_per_node=%s): the world order will be recomputed from "
+            "the psw groups observed at join time by the "
+            "GroupTopologyQuerier.",
+            sorter.strategy,
+            sorter.tp,
+            sorter.pp,
+            sorter.ep,
+            sorter.etp,
+            sorter.cp,
+            sorter.ranks_per_node,
+        )
+        return GroupTopologyQuerier(), sorter
 
     @property
     def exit_code(self):

@@ -241,6 +241,20 @@ def _build_master_args_parser():
         "any segment. Defaults to false, i.e. the relaunch keeps its "
         "group and follows the original segment affinity.",
     )
+    parser.add_argument(
+        "--enable-topology-rerank",
+        "--enable_topology_rerank",
+        action="store_true",
+        default=False,
+        help="Reorder the elastic-training rendezvous world by the psw "
+        "network topology observed at rendezvous time (one node group "
+        "per distinct psw from the GroupTopologyQuerier, arbitrary group "
+        "sizes) so EP/PP communication groups stay intra-psw as much as "
+        "possible. Requires --node-group-strategy and the parallel "
+        "sizes; mutually exclusive with --group-affinity and "
+        "--soft-group-affinity. Only the world ORDER changes (node_rank "
+        "values stay the stable pod identity).",
+    )
     return parser
 
 

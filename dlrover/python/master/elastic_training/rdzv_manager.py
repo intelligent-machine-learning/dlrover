@@ -16,7 +16,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from threading import RLock
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from dlrover.python.common.constants import (
     EventReportConstants,
@@ -32,6 +32,8 @@ from dlrover.python.master.elastic_training.net_topology import (
     DefaultTopologyQuerier,
     DpTopologySorter,
     NodeTopologyMeta,
+    TopologyQuerier,
+    TopologySorter,
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.training_event import DLRoverMasterEvent
@@ -66,10 +68,14 @@ class RendezvousParameters(object):
 
 
 class RendezvousManager(metaclass=ABCMeta):
-    def __init__(self):
+    def __init__(
+        self,
+        topology_querier: Optional[TopologyQuerier] = None,
+        topology_sorter: Optional[TopologySorter] = None,
+    ):
         self._lock = RLock()
-        self._alive_nodes = set()
-        self._released_workers = []
+        self._alive_nodes: Set[int] = set()
+        self._released_workers: List[int] = []
         # for both '_waiting_nodes' and '_rdzv_nodes', key is the node rank.
         self._waiting_nodes: Dict[int, NodeTopologyMeta] = {}
         self._rdzv_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
@@ -78,20 +84,24 @@ class RendezvousManager(metaclass=ABCMeta):
         self._rdzv_round = 0
         self._node_unit = 1
         self._name = ""
-        self._latest_rdzv_nodes = []
+        self._latest_rdzv_nodes: List[int] = []
         self._start_rdzv_ts = 0
         # key is the node rank, value is the time.
         self._node_rdzv_times: Dict[int, int] = {}
         self._latest_log_nodes_time = 0
         # key is the node rank, value is the step.
         self._save_ckpt_nodes: Dict[int, int] = {}
-        self._topology_querier = DefaultTopologyQuerier()
-        self._topology_sorter = DpTopologySorter()
+        # Querier/sorter are injectable so --enable-topology-rerank can
+        # supply the GroupTopologyQuerier/GroupTopologySorter from
+        # elastic_training.topology_rerank; the defaults keep the legacy
+        # behavior (empty asw/psw and the asw-based DpTopologySorter).
+        self._topology_querier = topology_querier or DefaultTopologyQuerier()
+        self._topology_sorter = topology_sorter or DpTopologySorter()
         self._event_reporter = get_event_reporter()
         self.rendezvous_events: Dict[int, DurationSpan] = {}
         self._rdzv_blocked = False
         self._rdzv_block_reason = ""
-        self._rdzv_completed_callbacks = []
+        self._rdzv_completed_callbacks: List[Any] = []
         # Expected local world size (ranks per node); None disables the
         # join-time re-validation. e.g. the ep_pp_dp schedule infers
         # ranks_per_node from the requested GPU count and re-validates it
@@ -525,8 +535,12 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     Elasticjob of DLRover, the node has an unique node ID.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        topology_querier: Optional[TopologyQuerier] = None,
+        topology_sorter: Optional[TopologySorter] = None,
+    ):
+        super().__init__(topology_querier, topology_sorter)
         self._name = RendezvousName.TRAINING
 
     def get_comm_world(
@@ -628,8 +642,12 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 class UcpRdzvManager(ElasticTrainingRendezvousManager):
     """UcpRdzvManager blocks rendezvous completion until previous round ends."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        topology_querier: Optional[TopologyQuerier] = None,
+        topology_sorter: Optional[TopologySorter] = None,
+    ):
+        super().__init__(topology_querier, topology_sorter)
 
     def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
         if blocked and not reason:
@@ -918,21 +936,29 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         return stragglers
 
 
-def create_training_rdzv_manager() -> RendezvousManager:
+def create_training_rdzv_manager(
+    topology_querier: Optional[TopologyQuerier] = None,
+    topology_sorter: Optional[TopologySorter] = None,
+) -> RendezvousManager:
     """Factory to create the training rendezvous manager.
 
     Use master job args via global context to select the implementation.
-    Supported values: "base", "ucp". Default is "base".
+    Supported values: "base", "ucp". Default is "base". The optional
+    topology_querier/topology_sorter are injected for
+    --enable-topology-rerank (see elastic_training.topology_rerank);
+    the defaults keep the legacy topology behavior.
     """
     rdzv_type = (
         Context.singleton_instance().training_elastic_mode or "base"
     ).lower()
     if rdzv_type == "base":
-        return ElasticTrainingRendezvousManager()
+        return ElasticTrainingRendezvousManager(
+            topology_querier, topology_sorter
+        )
     if rdzv_type == "ucp":
-        return UcpRdzvManager()
+        return UcpRdzvManager(topology_querier, topology_sorter)
     logger.warning(
         f"Unknown training rendezvous manager type '{rdzv_type}', "
         "falling back to ElasticTrainingRendezvousManager."
     )
-    return ElasticTrainingRendezvousManager()
+    return ElasticTrainingRendezvousManager(topology_querier, topology_sorter)

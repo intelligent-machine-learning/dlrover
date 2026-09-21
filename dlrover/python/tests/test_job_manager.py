@@ -636,6 +636,97 @@ class DistributedJobManagerTest(unittest.TestCase):
         # PodScaler-side labeling is covered by test_pod_scaler).
         self.assertTrue(callable(manager._scaler.set_soft_group_schedule))
 
+    def _topology_rerank_args(self, **overrides):
+        args = dict(
+            group_affinity=None,
+            soft_group_affinity=None,
+            node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+            tensor_model_parallel_size=1,
+            pipeline_model_parallel_size=2,
+            expert_model_parallel_size=8,
+            expert_tensor_parallel_size=1,
+            context_parallel_size=1,
+            enable_topology_rerank=True,
+        )
+        args.update(overrides)
+        return SimpleNamespace(**args)
+
+    def test_init_topology_rerank_requires_strategy(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "requires --node-group-strategy"
+        ):
+            manager._init_topology_rerank(
+                self._topology_rerank_args(node_group_strategy=None)
+            )
+        self.assertFalse(getattr(manager, "_topology_rerank_enabled", False))
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_topology_rerank_mutually_exclusive_with_group(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "cannot be combined with --group-affinity"
+        ):
+            manager._init_topology_rerank(
+                self._topology_rerank_args(group_affinity={0: 8, 1: 8})
+            )
+
+    def test_init_topology_rerank_mutually_exclusive_with_soft(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "cannot be combined with --soft-group-affinity"
+        ):
+            manager._init_topology_rerank(
+                self._topology_rerank_args(soft_group_affinity={0: 8, 1: 8})
+            )
+
+    def test_init_topology_rerank_etp_requires_ep(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        with self.assertRaisesRegex(
+            ValueError, "--expert-tensor-parallel-size must be used together"
+        ):
+            manager._init_topology_rerank(
+                self._topology_rerank_args(
+                    expert_model_parallel_size=1,
+                    expert_tensor_parallel_size=2,
+                )
+            )
+
+    def test_init_topology_rerank_ok(self):
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        manager._init_topology_rerank(self._topology_rerank_args())
+        self.assertTrue(manager._topology_rerank_enabled)
+        # The rerank synthesizes its own groups at rendezvous time; no
+        # affinity schedule is attached to the job resource.
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_topology_rerank_via_job_manager_init(self):
+        # End-to-end: the rerank carries the strategy itself, so the
+        # legacy "--node-group-strategy requires an affinity" guard must
+        # not fire and the affinity schedules stay unset.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.enable_topology_rerank = True
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 8
+        manager = create_job_manager(params, PerfMonitor())
+        self.assertTrue(manager._topology_rerank_enabled)
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+
+    def test_init_topology_rerank_disabled_via_job_manager_init(self):
+        # A strategy WITHOUT any affinity and WITHOUT the rerank still
+        # fails: the legacy guard is untouched.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        with self.assertRaisesRegex(ValueError, "requires --group-affinity"):
+            create_job_manager(params, PerfMonitor())
+
     def test_job_resource_soft_group_init_node_meta(self):
         job = JobResource()
         job.node_group_resources[NodeType.WORKER] = NodeGroupResource(

@@ -140,6 +140,13 @@ class JobArgs(JsonSerializable):
         # With soft_group_affinity: relaunch (FO) workers without their
         # node-group labels so they can be scheduled onto any segment.
         self.no_group_failover: bool = False
+        # Reorder the elastic-training rendezvous world by the psw
+        # topology observed at rendezvous time (GroupTopologyQuerier +
+        # GroupTopologySorter in
+        # dlrover.python.master.elastic_training.topology_rerank).
+        # Requires node_group_strategy; mutually exclusive with
+        # group_affinity and soft_group_affinity.
+        self.enable_topology_rerank: bool = False
 
     @abstractmethod
     def initilize(self):

@@ -98,6 +98,7 @@ def run(args):
     job_args.context_parallel_size = args.context_parallel_size
     job_args.soft_group_affinity = args.soft_group_affinity
     job_args.no_group_failover = args.no_group_failover
+    job_args.enable_topology_rerank = args.enable_topology_rerank
     if args.xpu_type.lower() == "ascend":
         job_args.xpu_type = Accelerators.ASCEND_NPU
     elif args.xpu_type.lower() == "nvidia":
