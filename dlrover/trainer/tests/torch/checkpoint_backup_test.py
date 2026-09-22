@@ -126,6 +126,38 @@ class CheckpointBackupTest(unittest.TestCase):
         shard_manager = ShardCkptReplicaManager(replica_count=0)
         self.assertListEqual(shard_manager.backup_ranks, [])
 
+    @mock.patch("torch.distributed.new_group")
+    def test_get_backup_ranks_follows_world_position(self, _):
+        # With the topology rerank the node's position in the rendezvous
+        # world order diverges from NODE_RANK: rank 17 on an 8-rank node
+        # is position 2, so the backup group of replica_count=2 covers
+        # positions {2, 3} -> ranks {17, 25} (a node_rank-based formula
+        # would wrongly pick {1, 9}).
+        envs = {
+            "NODE_RANK": "0",
+            "RANK": "17",
+            "LOCAL_RANK": "1",
+            "LOCAL_WORLD_SIZE": "8",
+            "NODE_NUM": "4",
+        }
+        with mock.patch.dict(os.environ, envs):
+            shard_manager = ShardCkptReplicaManager(replica_count=2)
+        self.assertListEqual(shard_manager.backup_ranks, [17, 25])
+
+        # Every node of the same backup group computes the same rank set
+        # (positions {2, 3}), whatever its NODE_RANK identity is.
+        envs["NODE_RANK"] = "1"
+        envs["RANK"] = "25"
+        with mock.patch.dict(os.environ, envs):
+            peer_manager = ShardCkptReplicaManager(replica_count=2)
+        self.assertListEqual(peer_manager.backup_ranks, [17, 25])
+
+        # The full-checkpoint replica covers the local-rank-0 process of
+        # every node, which stays [0, 8, 16, 24] under any world order.
+        with mock.patch.dict(os.environ, envs):
+            full_manager = FullCkptReplicaManager(replica_count=2)
+        self.assertListEqual(full_manager.backup_ranks, [0, 8, 16, 24])
+
     def test_backup_checkpoint(self):
         world_size = 2
         mp.spawn(

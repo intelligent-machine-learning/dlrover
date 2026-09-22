@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import datetime
+import json
+import os
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,6 +24,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.constants import (
     NetworkFailureReason,
     NodeEventType,
+    NodeGroupStrategy,
     NodeType,
 )
 from dlrover.python.common.node import Node
@@ -34,7 +37,13 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.net_topology import (
+    DefaultTopologyQuerier,
     NodeTopologyMeta,
+)
+from dlrover.python.master.elastic_training.topology_rerank import (
+    GROUP_TOPOLOGY_ENV,
+    GroupTopologyQuerier,
+    GroupTopologySorter,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -190,6 +199,69 @@ class TrainingRdzvManagerFactoryTest(unittest.TestCase):
         blocked, reason = manager.is_rdzv_blocked()
         self.assertTrue(blocked)
         self.assertTrue(reason)
+
+    def test_create_training_rdzv_manager_injects_topology(self):
+        ctx = Context.singleton_instance()
+        ctx.training_elastic_mode = "base"
+        sorter = GroupTopologySorter(strategy=NodeGroupStrategy.EP_DP_PP)
+        manager = create_training_rdzv_manager(None, sorter)
+        self.assertIs(manager._topology_sorter, sorter)
+        self.assertIsInstance(
+            manager._topology_querier, DefaultTopologyQuerier
+        )
+
+
+class TopologyRerankRdzvManagerTest(unittest.TestCase):
+    def test_topology_rerank_reorders_training_world(self):
+        # 4 nodes with ranks 0,1 on SG1 and 2,3 on SG2. The ep_pp_dp
+        # rerank (pp=2, ep_workers=1) reorders the world keys to
+        # [0, 2, 1, 3] so each PP column spans a single psw. Only the
+        # world ORDER changes; the keys remain the node ranks.
+        topology = {
+            "10.0.0.0": "SG1",
+            "10.0.0.1": "SG1",
+            "10.0.0.2": "SG2",
+            "10.0.0.3": "SG2",
+        }
+        with patch.dict(
+            os.environ, {GROUP_TOPOLOGY_ENV: json.dumps(topology)}
+        ):
+            manager = ElasticTrainingRendezvousManager(
+                GroupTopologyQuerier(),
+                GroupTopologySorter(
+                    strategy=NodeGroupStrategy.EP_PP_DP,
+                    pp=2,
+                    ep=8,
+                    etp=1,
+                    ranks_per_node=8,
+                ),
+            )
+            manager.update_rdzv_params(4, 4, 60, 1)
+            manager._alive_nodes = [0, 1, 2, 3]
+            for i in range(4):
+                manager.join_rendezvous(i, i, 8, f"10.0.0.{i}")
+            with self.assertLogs("dlrover.logger", level="INFO") as logs:
+                rdzv_round, _, world = manager.get_comm_world(0)
+        self.assertEqual(rdzv_round, 1)
+        self.assertListEqual(list(world.keys()), [0, 2, 1, 3])
+        for node_rank, meta in world.items():
+            self.assertEqual(meta.psw, topology[meta.node_ip])
+        self.assertTrue(
+            any("RERANK: node node_rank=" in log for log in logs.output)
+        )
+
+    def test_topology_rerank_disabled_keeps_world(self):
+        # Without the injection the manager keeps the legacy default
+        # querier/sorter, so the world stays in the rank-ascending
+        # freeze order.
+        manager = ElasticTrainingRendezvousManager()
+        manager.update_rdzv_params(4, 4, 60, 1)
+        manager._alive_nodes = [0, 1, 2, 3]
+        for i in range(4):
+            manager.join_rendezvous(i, i, 8, f"10.0.0.{i}")
+        rdzv_round, _, world = manager.get_comm_world(0)
+        self.assertEqual(rdzv_round, 1)
+        self.assertListEqual(list(world.keys()), [0, 1, 2, 3])
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):

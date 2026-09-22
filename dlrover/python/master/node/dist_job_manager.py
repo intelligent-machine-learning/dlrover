@@ -139,10 +139,18 @@ class DistributedJobManager(JobManager):
             )
             node_restart_count[type] = node_args.restart_count
 
-        # _init_soft_group_affinity runs first so its mutual-exclusion
-        # check takes precedence over the legacy group-affinity errors.
-        self._init_soft_group_affinity(job_args)
-        self._init_group_affinity(job_args)
+        # _init_topology_rerank runs first so its mutual-exclusion checks
+        # (against --group-affinity and --soft-group-affinity) take
+        # precedence. With the topology rerank enabled the affinity
+        # initializations are skipped entirely: the rerank synthesizes
+        # its own node groups from the psw topology observed at the
+        # rendezvous, so there is no affinity schedule to apply and the
+        # legacy "--node-group-strategy requires an affinity" guard must
+        # not fire.
+        self._init_topology_rerank(job_args)
+        if not self._topology_rerank_enabled:
+            self._init_soft_group_affinity(job_args)
+            self._init_group_affinity(job_args)
 
         self._ps_is_critical = False
         if (
@@ -224,6 +232,53 @@ class DistributedJobManager(JobManager):
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
         self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
+
+    def _init_topology_rerank(self, job_args: JobArgs):
+        """Validate the ``--enable-topology-rerank`` configuration.
+
+        The topology rerank reorders the elastic-training rendezvous
+        world by the psw groups observed at join time (one group per
+        distinct psw reported by the GroupTopologyQuerier, arbitrary
+        group sizes, no EP-slot alignment constraint), using the
+        ``--node-group-strategy`` layout. It requires
+        ``--node-group-strategy`` and is mutually exclusive with both
+        ``--group-affinity`` and ``--soft-group-affinity``: the rerank
+        synthesizes its own groups from the observed topology while the
+        affinities declare groups ahead of scheduling.
+        """
+        enabled = getattr(job_args, "enable_topology_rerank", False)
+        if not enabled:
+            self._topology_rerank_enabled = False
+            return
+        if job_args.group_affinity:
+            raise ValueError(
+                "--enable-topology-rerank cannot be combined with "
+                "--group-affinity: the rerank synthesizes one node group "
+                "per psw observed at rendezvous time instead of the "
+                "declared equal-size groups."
+            )
+        if job_args.soft_group_affinity:
+            raise ValueError(
+                "--enable-topology-rerank cannot be combined with "
+                "--soft-group-affinity: the rerank synthesizes one node "
+                "group per psw observed at rendezvous time instead of the "
+                "declared unequal-size groups."
+            )
+        strategy = getattr(job_args, "node_group_strategy", None)
+        if strategy is None:
+            raise ValueError(
+                "--enable-topology-rerank requires --node-group-strategy "
+                "to be set (ep_dp_pp keeps the psw groups contiguous; "
+                "ep_pp_dp packs EP-PP columns across the psw groups)."
+            )
+        self._check_expert_tensor_pairing(job_args)
+        self._topology_rerank_enabled = True
+        logger.info(
+            "Enable topology rerank (strategy=%s): the training "
+            "rendezvous world order will be recomputed from the psw "
+            "topology observed at join time.",
+            strategy,
+        )
 
     @staticmethod
     def _check_expert_tensor_pairing(job_args: JobArgs):
