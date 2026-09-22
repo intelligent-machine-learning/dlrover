@@ -542,6 +542,7 @@ class EventReportConstants(object):
     ACTION_RESUME_MEM_CKPT_START = "resume_mem_ckpt_start"
     ACTION_RESUME_MEM_CKPT_COMPLETE = "resume_mem_ckpt_complete"
     ACTION_HANG_WARN = "hang_warning"
+    ACTION_HANG_RESTART = "hang_restart"
     ACTION_DEVICE_WARNING = "device_warning"
 
     ACTION_PRE_CHECK_DISABLE = "pre_check_disable"

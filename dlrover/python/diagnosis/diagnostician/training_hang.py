@@ -159,6 +159,23 @@ class TrainingHangDiagnostician(Diagnostician):
                             instance=DiagnosisConstant.ANY_WORKER_INSTANCE,
                         )
                     )
+
+                    # report the hang restart as a warn event so that
+                    # downstream reporters (e.g. dingding) can notify users
+                    # that a failover restart has been issued.
+                    actions.append(
+                        EventAction(
+                            event_type=EventReportConstants.TYPE_WARN,
+                            event_instance=(EventReportConstants.JOB_INSTANCE),
+                            event_action=(
+                                EventReportConstants.ACTION_HANG_RESTART
+                            ),
+                            event_msg=f"worker-{node_0.id}",
+                            event_labels={
+                                "type": problem.extra_infos.get("TYPE", ""),
+                            },
+                        )
+                    )
             # do event notify
             elif (
                 _dlrover_context.hang_detection

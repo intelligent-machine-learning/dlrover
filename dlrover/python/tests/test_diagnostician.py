@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     DistributionStrategy,
+    EventReportConstants,
     MthreadsGPUMetricEnum,
     Accelerators,
     GpuMetricEnum,
@@ -637,18 +638,31 @@ class DiagnosticianTest(unittest.TestCase):
 
         # hang detection level 2
         mock_dlrover_context.hang_detection = 2
+        mock_job_context.job_node_by_rank = MagicMock(
+            return_value=Node(node_type=NodeType.WORKER, node_id=0)
+        )
         actions = diagnostician.resolve(ob)
-        self.assertEqual(len(actions), total_nodes_num + 1)
+        self.assertEqual(len(actions), total_nodes_num + 2)
         for i, action in enumerate(actions):
             if i < total_nodes_num:
                 self.assertTrue(isinstance(action, NodeAction))
                 self.assertEqual(
                     action.action_type, DiagnosisActionType.COLLECT_METRIC
                 )
-            else:
+            elif i == total_nodes_num:
                 self.assertTrue(isinstance(action, NodeAction))
                 self.assertEqual(
                     action.action_type, DiagnosisActionType.RESTART_WORKER
+                )
+            else:
+                self.assertTrue(isinstance(action, EventAction))
+                self.assertEqual(
+                    action.event_action,
+                    EventReportConstants.ACTION_HANG_RESTART,
+                )
+                self.assertEqual(action.event_msg, "worker-0")
+                self.assertEqual(
+                    action.event_labels.get("type", ""), "BY_OTHER_METRIC"
                 )
 
     @patch(
