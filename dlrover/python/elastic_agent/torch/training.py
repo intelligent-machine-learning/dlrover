@@ -457,6 +457,12 @@ class MasterRendezvousHandler(RendezvousHandler):
             self.join_timeout,
         )
 
+    @property
+    def name(self) -> str:
+        """The rendezvous name, e.g. ``"elastic-training"`` or
+        ``"network-check"``, to tag the agent logs per phase."""
+        return self._name
+
     def get_backend(self) -> str:
         return "dlrover-master"
 
@@ -1012,11 +1018,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
         process, the rank after the (re)ordering together with the rank
         before it. "Before" is the previous round's rank on restarts and
         otherwise the rank the node would get from its creation-order
-        NODE_RANK, i.e. the rank without any topology rerank."""
+        NODE_RANK, i.e. the rank without any topology rerank. The
+        rendezvous name prefixes the line so the network-check world
+        (two-node pairs) is not mistaken for the training world."""
+        # The placeholder workers torch builds before the first
+        # rendezvous carry an unset global_rank (None or -1). Drop them
+        # so the first round falls back to the no-rerank baseline rank
+        # instead of logging before=-1.
         prev_ranks = {
             worker.local_rank: worker.global_rank
             for worker in getattr(worker_group, "workers", None) or []
+            if worker.global_rank is not None and worker.global_rank >= 0
         }
+        rdzv_name = getattr(getattr(spec, "rdzv_handler", None), "name", "")
         rank_parts = []
         for worker in workers:
             before = prev_ranks.get(
@@ -1034,7 +1048,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     f"rank={worker.global_rank}(unchanged)"
                 )
         logger.info(
-            f"RERANK: node_rank={self._node_rank} "
+            f"RERANK: rdzv={rdzv_name} "
+            f"node_rank={self._node_rank} "
             f"world_position={group_rank} "
             f"world_size={group_world_size} "
             f"restart_count={self._restart_count} "
