@@ -30,6 +30,7 @@ import psutil
 from dlrover.python.elastic_agent.torch.training import LogConfig
 from torch.distributed.elastic.agent.server.api import (
     RunResult,
+    Worker,
     WorkerSpec,
     WorkerState,
 )
@@ -310,6 +311,49 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(worker.world_size, 16)
         self.assertEqual(store.get("MASTER_ADDR").decode(), "127.0.0.1")
         self.assertEqual(store.get("MASTER_PORT").decode(), "12345")
+
+    def test_log_rerank_ranks(self):
+        agent = ElasticTrainingAgent(
+            node_rank=1,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            exit_barrier_timeout=1,
+        )
+        workers = [
+            Worker(local_rank=i, global_rank=16 + i, world_size=64)
+            for i in range(8)
+        ]
+
+        # First round: worker_group.workers holds the placeholder
+        # workers torch builds before any rendezvous (an unset global
+        # rank); "before" must fall back to the no-rerank baseline
+        # node_rank * local_world_size + local_rank instead of -1.
+        with self.assertLogs("dlrover.logger", level="INFO") as logs:
+            agent._log_rerank_ranks(
+                agent._worker_group, workers, 2, 8, self.spec
+            )
+        self.assertEqual(len(logs.output), 1)
+        line = logs.output[0]
+        self.assertIn("rdzv=elastic-training", line)
+        self.assertIn("node_rank=1", line)
+        self.assertIn("world_position=2", line)
+        self.assertIn("rank=16(before=8)", line)
+
+        # Restart round: worker_group.workers holds the previous
+        # round's ranks; "before" must keep the previous ranks.
+        agent._worker_group.workers = [
+            Worker(local_rank=i, global_rank=4 + i, world_size=64)
+            for i in range(8)
+        ]
+        with self.assertLogs("dlrover.logger", level="INFO") as logs:
+            agent._log_rerank_ranks(
+                agent._worker_group, workers, 2, 8, self.spec
+            )
+        self.assertEqual(len(logs.output), 1)
+        line = logs.output[0]
+        self.assertIn("rank=16(before=4)", line)
 
     def test_exit_barrier(self):
         agent = ElasticTrainingAgent(
