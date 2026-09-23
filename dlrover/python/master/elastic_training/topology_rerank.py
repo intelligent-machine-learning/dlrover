@@ -133,10 +133,19 @@ def _ep_pp_dp_group_sequence(
 
     Unlike the --soft-group-affinity path there is NO alignment
     constraint here: the group sizes are the observed per-psw node
-    counts, so leftover whole slots (``N % pp`` and
-    ``DP_nodes % ep_workers`` remainders) are appended slot by slot
-    after the columns and sub-slot crumbs pod by pod after that. Such
-    tail slots may straddle psw groups, which the caller reports.
+    counts. When the whole slots cannot fill the ``columns x pp`` slot
+    matrix (psw counts that are not multiples of ep_workers), the
+    sub-slot crumbs are packed into ep_workers-wide slots that
+    STRADDLE psw groups and FILL the ragged columns first, so the
+    matrix stays full and every stage row of the flattening holds
+    exactly ``columns`` EP slots: the rows stay aligned with the
+    uniform rank grid, the PP groups of the pure columns never leave
+    the psw, and only the crumb-filled slots straddle (the caller
+    reports them). Leftover whole slots and unconsumed crumbs only
+    appear when the world itself does not divide into the
+    ``pp x ep_workers`` grid; they are appended slot by slot and pod
+    by pod after the columns, as before, and such tail slots may
+    straddle psw groups too.
     """
     total = sum(sizes.values())
     pp = max(pp, 1)
@@ -159,22 +168,42 @@ def _ep_pp_dp_group_sequence(
             remaining[group_id] -= take
         column_slots.append(slots)
 
+    # Pack the crumbs into ep_workers-wide EP slots that straddle psw
+    # groups and FILL the ragged columns (up to pp rows each), so the
+    # columns x pp slot matrix stays full: every stage row of the
+    # flatten below then holds exactly `columns` EP slots and keeps
+    # the stage-major rows aligned with the uniform rank grid, so the
+    # PP groups of the pure columns never leave the psw. The crumb
+    # stream follows ascending group id, pod by pod, so the fill is
+    # deterministic across rendezvous rounds.
+    crumb_nodes: List[int] = [
+        group_id for group_id in group_ids for _ in range(crumbs[group_id])
+    ]
+    crumb_pos = 0
+    matrix: List[List[List[int]]] = []
+    for slots in column_slots:
+        rows: List[List[int]] = [[group_id] * ep_workers for group_id in slots]
+        while len(rows) < pp and crumb_pos + ep_workers <= len(crumb_nodes):
+            rows.append(crumb_nodes[crumb_pos : crumb_pos + ep_workers])
+            crumb_pos += ep_workers
+        matrix.append(rows)
+
     sequence: List[int] = []
     for stage in range(pp):
-        for slots in column_slots:
-            if stage < len(slots):
-                sequence.extend([slots[stage]] * ep_workers)
+        for rows in matrix:
+            if stage < len(rows):
+                sequence.extend(rows[stage])
 
-    # Leftover whole EP slots the column inventory could not place.
+    # Leftover whole EP slots and unconsumed crumbs: only when the
+    # world does not divide into the pp x ep_workers grid (the matrix
+    # above is already full whenever the greedy leaves columns ragged
+    # or empty). They keep the legacy tail placement - slot by slot
+    # and pod by pod - after the columns.
     for group_id in group_ids:
         while remaining[group_id] > 0 and len(sequence) + ep_workers <= total:
             sequence.extend([group_id] * ep_workers)
             remaining[group_id] -= 1
-    # Sub-slot crumbs, pod by pod.
-    for group_id in group_ids:
-        for _ in range(crumbs[group_id]):
-            if len(sequence) < total:
-                sequence.append(group_id)
+    sequence.extend(crumb_nodes[crumb_pos:])
 
     if len(sequence) != total:
         raise ValueError(

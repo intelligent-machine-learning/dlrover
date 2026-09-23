@@ -162,6 +162,34 @@ class GroupSequenceTest(unittest.TestCase):
             [1, 0, 1, 0, 1],
         )
 
+    def test_ep_pp_dp_fills_ragged_columns_with_crumb_slots(self):
+        # 4 groups x 3 nodes, pp=3 and ep_workers=2: only 4 whole slots
+        # for the 2x3 matrix, so the greedy leaves column 1 ragged (1
+        # of 3 slots). The 1+1+1+1 crumbs are packed into 2 straddling
+        # EP slots that FILL column 1's rows 1-2 inside the matrix
+        # (instead of being appended at the world tail), so every
+        # stage row of the flatten keeps the full 2-slot width and
+        # stays aligned with the uniform ep-dp-pp rank grid.
+        self.assertEqual(
+            _ep_pp_dp_group_sequence(
+                {0: 3, 1: 3, 2: 3, 3: 3}, pp=3, ep_workers=2
+            ),
+            [0, 0, 3, 3, 1, 1, 0, 1, 2, 2, 2, 3],
+        )
+
+    def test_ep_pp_dp_fills_empty_columns_with_crumb_slots(self):
+        # {0:5, 1:3, 2:3, 3:1} with pp=2, ep_workers=2: group 0 owns
+        # column 0 (its whole 2 slots) and groups 1-2 share column 1,
+        # leaving column 2 EMPTY (no whole slots left). The four crumbs
+        # fill BOTH rows of the empty column with straddling EP slots,
+        # so the matrix stays 3 columns wide at every stage row.
+        self.assertEqual(
+            _ep_pp_dp_group_sequence(
+                {0: 5, 1: 3, 2: 3, 3: 1}, pp=2, ep_workers=2
+            ),
+            [0, 0, 1, 1, 0, 1, 0, 0, 2, 2, 2, 3],
+        )
+
 
 class GroupTopologySorterTest(unittest.TestCase):
     def test_ep_dp_pp_groups_are_contiguous(self):
@@ -273,6 +301,55 @@ class GroupTopologySorterTest(unittest.TestCase):
             sorted_nodes = sorter.sort(nodes)
         self.assertEqual(len(sorted_nodes), 6)
         self.assertEqual(set(sorted_nodes.keys()), set(nodes.keys()))
+        self.assertTrue(
+            any("EP slot(s) straddle psw groups" in log for log in logs.output)
+        )
+
+    def test_ep_pp_dp_crumb_fill_keeps_pp_groups_intra_psw(self):
+        # 12 nodes in 4 psws of sizes 5/3/3/1, pp=2 and
+        # ep_workers=2 (etp*ep=16, R=8): group SG1 has enough whole
+        # slots (2) to own the pure column 0. Group SG4 (1 node) and
+        # the crumbs leave column 2 ragged; the crumbs FILL it with
+        # straddling EP slots instead of being appended at the tail,
+        # so the stage rows stay aligned with the uniform ep-dp-pp
+        # rank grid and every PP group of the pure column 0 sits
+        # within one psw.
+        psws = ["SG1"] * 5 + ["SG2"] * 3 + ["SG3"] * 3 + ["SG4"]
+        nodes = _nodes({rank: psw for rank, psw in enumerate(psws)})
+        sorter = GroupTopologySorter(
+            strategy=NodeGroupStrategy.EP_PP_DP,
+            pp=2,
+            ep=8,
+            etp=2,
+            ranks_per_node=8,
+        )
+        with self.assertLogs("dlrover.logger", level="INFO") as logs:
+            sorted_nodes = sorter.sort(nodes)
+        self.assertListEqual(
+            list(sorted_nodes.keys()),
+            [0, 1, 5, 6, 2, 7, 3, 4, 8, 9, 10, 11],
+        )
+        # The PP communication groups of column 0 (ranks
+        # stage*columns*ep_workers + 0 + node_in_slot in the
+        # ep-dp-pp order) all sit within the single psw SG1.
+        order = list(sorted_nodes.keys())
+        columns, ep_workers, stages = 3, 2, 2
+        for node_in_slot in range(ep_workers):
+            line = [
+                order[
+                    stage * columns * ep_workers
+                    + 0 * ep_workers
+                    + node_in_slot
+                ]
+                for stage in range(stages)
+            ]
+            self.assertEqual(
+                {psws[rank] for rank in line},
+                {"SG1"},
+            )
+        # Only the 2 crumb-filled slots straddle: the layout reports
+        # them instead of drifting the late stages into neighbor
+        # columns.
         self.assertTrue(
             any("EP slot(s) straddle psw groups" in log for log in logs.output)
         )
