@@ -136,7 +136,9 @@ def _ep_pp_dp_group_sequence(
     counts. When the whole slots cannot fill the ``columns x pp`` slot
     matrix (psw counts that are not multiples of ep_workers), the
     sub-slot crumbs are packed into ep_workers-wide slots that
-    STRADDLE psw groups and FILL the ragged columns first, so the
+    straddle the FEWEST possible psw groups (largest crumb pile, exact
+    complement, else the smallest cut - two psws per slot whenever
+    the piles allow it) and FILL the ragged columns first, so the
     matrix stays full and every stage row of the flattening holds
     exactly ``columns`` EP slots: the rows stay aligned with the
     uniform rank grid, the PP groups of the pure columns never leave
@@ -168,24 +170,56 @@ def _ep_pp_dp_group_sequence(
             remaining[group_id] -= take
         column_slots.append(slots)
 
-    # Pack the crumbs into ep_workers-wide EP slots that straddle psw
-    # groups and FILL the ragged columns (up to pp rows each), so the
-    # columns x pp slot matrix stays full: every stage row of the
-    # flatten below then holds exactly `columns` EP slots and keeps
-    # the stage-major rows aligned with the uniform rank grid, so the
-    # PP groups of the pure columns never leave the psw. The crumb
-    # stream follows ascending group id, pod by pod, so the fill is
-    # deterministic across rendezvous rounds.
-    crumb_nodes: List[int] = [
-        group_id for group_id in group_ids for _ in range(crumbs[group_id])
-    ]
+    # Pack the crumbs into ep_workers-wide EP slots that straddle the
+    # FEWEST possible psw groups, and FILL the ragged columns (up to
+    # pp rows each) with them, so the columns x pp slot matrix stays
+    # full: every stage row of the flatten below then holds exactly
+    # `columns` EP slots and keeps the stage-major rows aligned with
+    # the uniform rank grid, so the PP groups of the pure columns
+    # never leave the psw. The pairing minimizes the psw span of
+    # every slot: repeatedly take the largest crumb pile, look for
+    # another pile with exactly the complementary node count (the
+    # slot then straddles exactly two psws), and otherwise cut the
+    # complement from the smallest pile. A straggler shorter than
+    # ep_workers (only when the crumbs do not divide into whole EP
+    # slots at all) keeps the legacy tail placement below.
+    crumb_slots: List[List[int]] = []
+    crumb_heap = {
+        group_id: crumbs[group_id]
+        for group_id in group_ids
+        if crumbs[group_id] > 0
+    }
+    while crumb_heap:
+        base = max(sorted(crumb_heap), key=lambda g: (crumb_heap[g], -g))
+        slot: List[int] = [base] * min(crumb_heap[base], ep_workers)
+        crumb_heap[base] -= len(slot)
+        if crumb_heap[base] == 0:
+            del crumb_heap[base]
+        while len(slot) < ep_workers and crumb_heap:
+            need = ep_workers - len(slot)
+            exact = [g for g in crumb_heap if crumb_heap[g] == need]
+            pick = (
+                sorted(exact)[0]
+                if exact
+                else sorted(crumb_heap, key=lambda g: (crumb_heap[g], g))[0]
+            )
+            take = min(need, crumb_heap[pick])
+            slot.extend([pick] * take)
+            crumb_heap[pick] -= take
+            if crumb_heap[pick] == 0:
+                del crumb_heap[pick]
+        crumb_slots.append(slot)
     crumb_pos = 0
     matrix: List[List[List[int]]] = []
     for slots in column_slots:
         rows: List[List[int]] = [[group_id] * ep_workers for group_id in slots]
-        while len(rows) < pp and crumb_pos + ep_workers <= len(crumb_nodes):
-            rows.append(crumb_nodes[crumb_pos : crumb_pos + ep_workers])
-            crumb_pos += ep_workers
+        while (
+            len(rows) < pp
+            and crumb_pos < len(crumb_slots)
+            and len(crumb_slots[crumb_pos]) == ep_workers
+        ):
+            rows.append(crumb_slots[crumb_pos])
+            crumb_pos += 1
         matrix.append(rows)
 
     sequence: List[int] = []
@@ -203,7 +237,9 @@ def _ep_pp_dp_group_sequence(
         while remaining[group_id] > 0 and len(sequence) + ep_workers <= total:
             sequence.extend([group_id] * ep_workers)
             remaining[group_id] -= 1
-    sequence.extend(crumb_nodes[crumb_pos:])
+    sequence.extend(
+        group_id for slot in crumb_slots[crumb_pos:] for group_id in slot
+    )
 
     if len(sequence) != total:
         raise ValueError(
