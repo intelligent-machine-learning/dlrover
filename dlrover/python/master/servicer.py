@@ -51,6 +51,7 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     JobAbortionAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.common.urgent_save import register_master_kv_store
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
@@ -120,6 +121,9 @@ class MasterServicer(ABC):
         )
         # clear kv store in case previous data is still there
         self._kv_store.clear()
+        # Expose the KV store to the mcp REST handler of dlrover-addon so it
+        # can publish urgent-save requests on the bus the agents poll.
+        register_master_kv_store(self._kv_store)
 
     @abstractmethod
     def get_response(self, method):

@@ -113,6 +113,9 @@ from dlrover.python.elastic_agent.torch.dynamic_failover import (
     DynamicAgentFailoverExtension,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.elastic_agent.torch.urgent_save_listener import (
+    UrgentSaveListener,
+)
 from dlrover.python.training_event import DLRoverAgentEvent
 from dlrover.python.util.common_util import (
     find_free_port_for_hccl,
@@ -736,6 +739,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info(
                     f"get rank {rank} affinity: {self._rank_cpu_affinity[rank]}"
                 )
+
+        # Urgent-save marker protocol: only the node hosting training world
+        # rank 0 (node_rank == 0) listens for requests, because the marker
+        # must be created and removed on the rank-0 side only.
+        self._urgent_save_listener = None
+        if self._node_rank == 0:
+            self._urgent_save_listener = UrgentSaveListener(self._client)
+            self._urgent_save_listener.start()
 
     @classmethod
     def is_device_checked(cls):
