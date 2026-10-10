@@ -190,6 +190,27 @@ class GroupSequenceTest(unittest.TestCase):
             [0, 0, 1, 1, 0, 1, 0, 0, 2, 2, 2, 3],
         )
 
+    def test_ep_pp_dp_crumb_pairing_minimizes_slot_span(self):
+        # 8 psw groups sized 3/3/3/2/2/1/1/1 nodes with ep_workers=4:
+        # no whole slots at all, so both columns are filled entirely
+        # with crumb slots. The pairing takes the largest crumb pile
+        # and looks for an exact complementary pile first (3+1, 3+1,
+        # 3+1), then pairs the two 2-node leftovers (2+2), so every
+        # EP slot straddles exactly two psws; the flat group-id order
+        # would instead tile [0,0,0,1], [1,1,2,2], [3,3,4,5] and
+        # [6,10,10,10] with up to three psws per slot.
+        sequence = _ep_pp_dp_group_sequence(
+            {0: 3, 1: 3, 2: 2, 3: 2, 4: 1, 5: 1, 6: 1, 10: 3},
+            pp=2,
+            ep_workers=4,
+        )
+        self.assertEqual(
+            sequence,
+            [0, 0, 0, 4, 10, 10, 10, 6, 1, 1, 1, 5, 2, 2, 3, 3],
+        )
+        for start in range(0, len(sequence), 4):
+            self.assertEqual(len(set(sequence[start : start + 4])), 2)
+
 
 class GroupTopologySorterTest(unittest.TestCase):
     def test_ep_dp_pp_groups_are_contiguous(self):
