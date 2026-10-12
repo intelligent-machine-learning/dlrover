@@ -239,6 +239,56 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         config.auto_configure_params()
         self.assertEqual(config.failure_node_errors, "")
 
+    def test_urgent_save_listener_started_once(self):
+        """The urgent-save listener must start only once per process.
+
+        Regression: the listener used to start in ElasticTrainingAgent.
+        __init__, so the NodeCheckElasticAgent constructed by
+        --network-check in this same process started a SECOND listener;
+        both raced on the same marker file (the same tmp pid suffix) and
+        the losing open() got EOPNOTSUPP from the storage fuse mount.
+        """
+
+        def _make(cls=ElasticTrainingAgent, **kw):
+            params = dict(
+                node_rank=0,
+                config=self.config,
+                entrypoint="python",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                exit_barrier_timeout=1,
+            )
+            params.update(kw)
+            return cls(**params)
+
+        # The network-check agent constructed later in the same process.
+        check_agent = _make(NodeCheckElasticAgent, check_round=1)
+        agent = _make()
+
+        # Constructing agents (any subclass) must not start any listener.
+        self.assertIsNone(agent._urgent_save_listener)
+        self.assertIsNone(check_agent._urgent_save_listener)
+
+        # The once-per-process launch path starts the listener idempotently.
+        with mock.patch(
+            "dlrover.python.elastic_agent.torch.training.UrgentSaveListener"
+        ) as listener_cls:
+            agent.start_urgent_save_listener()
+            self.assertIs(
+                agent._urgent_save_listener, listener_cls.return_value
+            )
+            listener_cls.assert_called_once()
+            listener_cls.return_value.start.assert_called_once_with()
+
+            # A second call on the same agent must not build another listener.
+            agent.start_urgent_save_listener()
+            listener_cls.assert_called_once()
+
+        # Non-rank0 agents never start the listener.
+        agent1 = _make(node_rank=1)
+        agent1.start_urgent_save_listener()
+        self.assertIsNone(agent1._urgent_save_listener)
+
     def test_rank0_rendezvous(self):
         agent = ElasticTrainingAgent(
             node_rank=0,
