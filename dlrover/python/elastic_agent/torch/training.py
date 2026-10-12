@@ -743,10 +743,27 @@ class ElasticTrainingAgent(LocalElasticAgent):
         # Urgent-save marker protocol: only the node hosting training world
         # rank 0 (node_rank == 0) listens for requests, because the marker
         # must be created and removed on the rank-0 side only.
+        # The listener is NOT started in __init__: with --network-check,
+        # run_network_check() constructs a NodeCheckElasticAgent in this same
+        # process and its inherited __init__ would start a SECOND listener
+        # racing with this one on the same marker file. launch_agent() starts
+        # the single listener right before training workers are spawned.
         self._urgent_save_listener = None
-        if self._node_rank == 0:
-            self._urgent_save_listener = UrgentSaveListener(self._client)
-            self._urgent_save_listener.start()
+
+    def start_urgent_save_listener(self):
+        """Start the urgent-save marker listener (idempotent, node_rank 0).
+
+        Must be called from the once-per-process launch path (launch_agent)
+        rather than __init__, so agent subclasses constructed for side
+        purposes in this process (the NodeCheckElasticAgent of
+        --network-check) never bring up another listener.
+        """
+        if self._node_rank != 0:
+            return
+        if self._urgent_save_listener is not None:
+            return
+        self._urgent_save_listener = UrgentSaveListener(self._client)
+        self._urgent_save_listener.start()
 
     @classmethod
     def is_device_checked(cls):
@@ -1995,6 +2012,12 @@ def launch_agent(
         failure_node_errors=config.failure_node_errors,
         exit_barrier_timeout=900,
     )
+
+    # Urgent-save marker protocol: start the single listener on the
+    # node_rank-0 agent before any workers are spawned. This is the only
+    # once-per-process launch path, so the network-check agent constructed
+    # later inside agent.run() cannot start a second listener.
+    agent.start_urgent_save_listener()
 
     shutdown_rdzv = True
     is_node_check_failed = False
