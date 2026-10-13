@@ -68,6 +68,7 @@ class MasterClient(Singleton, ABC):
         self._node_id = node_id
         self._node_type = node_type
         self._node_ip = os.getenv("NODE_IP", "")
+        self._host_name = os.getenv("NODE_NAME", "")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = find_free_port()
         self._diagnosis_action_module = importlib.import_module(
@@ -399,6 +400,7 @@ class MasterClient(Singleton, ABC):
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
             node_ip=self._node_ip,
+            host_name=self._host_name,
         )
         result: comm.RendezvousState = self._get(request)
         return result.round

@@ -323,6 +323,7 @@ class MasterServicer(ABC):
             node_rank,
             request.local_world_size,
             request.node_ip,
+            host_name=request.host_name,
         )
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if

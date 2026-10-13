@@ -168,6 +168,7 @@ class PodScalerTest(unittest.TestCase):
         env_job_name = ""
         env_job_uid = ""
         host_ports = ""
+        node_name_field_path = ""
         for env in main_container.env:
             if env.name == "WORKER_NUM":
                 env_worker_num = int(env.value)
@@ -175,6 +176,8 @@ class PodScalerTest(unittest.TestCase):
                 env_job_name = env.value
             elif env.name == "JOB_UID":
                 env_job_uid = env.value
+            elif env.name == "NODE_NAME":
+                node_name_field_path = env.value_from.field_ref.field_path
             elif env.name == "HOST_PORTS":
                 host_ports = env.value
 
@@ -182,6 +185,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(env_job_name, "elasticjob-sample")
         self.assertEqual(env_job_uid, "111-222")
         self.assertEqual(host_ports, "1,2,3,4,5")
+        self.assertEqual(node_name_field_path, "spec.nodeName")
 
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
         pod = scaler._create_pod(node)

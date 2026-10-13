@@ -63,10 +63,12 @@ _event_context = JobEventContext.singleton_instance()
 
 class MasterClientTest(unittest.TestCase):
     def setUp(self) -> None:
+        os.environ["NODE_NAME"] = "node-test"
         self._master, addr = start_local_master()
         self._master_client = build_master_client(addr, 1)
 
     def tearDown(self):
+        os.environ.pop("NODE_NAME", None)
         self._master.stop()
 
     def test_open_channel(self):
@@ -217,6 +219,9 @@ class MasterClientTest(unittest.TestCase):
         nodes, _ = self._master_client.check_fault_node(timeout=1)
         self.assertListEqual(nodes, [])
 
+        # The agent reads the NODE_NAME env at the client construction
+        # so join_rendezvous can report the k8s node name.
+        self.assertEqual(self._master_client._host_name, "node-test")
         round = self._master_client.join_rendezvous(0, 8, "elastic-training")
         self.assertEqual(round, 0)
 

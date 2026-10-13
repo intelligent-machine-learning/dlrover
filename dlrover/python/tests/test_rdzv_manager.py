@@ -216,12 +216,14 @@ class TopologyRerankRdzvManagerTest(unittest.TestCase):
         # 4 nodes with ranks 0,1 on SG1 and 2,3 on SG2. The ep_pp_dp
         # rerank (pp=2, ep_workers=1) reorders the world keys to
         # [0, 2, 1, 3] so each PP column spans a single psw. Only the
-        # world ORDER changes; the keys remain the node ranks.
+        # world ORDER changes; the keys remain the node ranks. The
+        # topology keys the k8s node names the agents report as the
+        # host_name, not the node IPs.
         topology = {
-            "10.0.0.0": "SG1",
-            "10.0.0.1": "SG1",
-            "10.0.0.2": "SG2",
-            "10.0.0.3": "SG2",
+            "node-0": "SG1",
+            "node-1": "SG1",
+            "node-2": "SG2",
+            "node-3": "SG2",
         }
         with patch.dict(
             os.environ, {GROUP_TOPOLOGY_ENV: json.dumps(topology)}
@@ -239,13 +241,13 @@ class TopologyRerankRdzvManagerTest(unittest.TestCase):
             manager.update_rdzv_params(4, 4, 60, 1)
             manager._alive_nodes = [0, 1, 2, 3]
             for i in range(4):
-                manager.join_rendezvous(i, i, 8, f"10.0.0.{i}")
+                manager.join_rendezvous(i, i, 8, f"10.0.0.{i}", f"node-{i}")
             with self.assertLogs("dlrover.logger", level="INFO") as logs:
                 rdzv_round, _, world = manager.get_comm_world(0)
         self.assertEqual(rdzv_round, 1)
         self.assertListEqual(list(world.keys()), [0, 2, 1, 3])
         for node_rank, meta in world.items():
-            self.assertEqual(meta.psw, topology[meta.node_ip])
+            self.assertEqual(meta.psw, topology[f"node-{meta.node_rank}"])
         self.assertTrue(
             any("RERANK: node node_rank=" in log for log in logs.output)
         )

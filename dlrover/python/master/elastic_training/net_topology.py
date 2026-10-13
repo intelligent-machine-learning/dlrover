@@ -31,8 +31,14 @@ class NodeTopologyMeta(JsonSerializable):
 
 class TopologyQuerier(metaclass=ABCMeta):
     @abstractmethod
-    def query(self, node_ip) -> Tuple[str, str]:
-        """Query the asw and psw id of a node by the IP."""
+    def query(self, node_ip, host_name: str = "") -> Tuple[str, str]:
+        """Query the asw and psw id of a node.
+
+        ``node_ip`` is the node IP reported by the agent and
+        ``host_name`` is the k8s node name (spec.nodeName) reported by
+        the agent (empty when the agent does not report it). A querier
+        may use either to identify the node.
+        """
         pass
 
 
@@ -46,7 +52,7 @@ class TopologySorter(metaclass=ABCMeta):
 
 
 class DefaultTopologyQuerier(TopologyQuerier):
-    def query(self, node_ip) -> Tuple[str, str]:
+    def query(self, node_ip, host_name: str = "") -> Tuple[str, str]:
         return "", ""
 
 
