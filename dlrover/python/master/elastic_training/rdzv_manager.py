@@ -343,11 +343,16 @@ class RendezvousManager(metaclass=ABCMeta):
         node_rank,
         local_world_size,
         node_ip="",
+        host_name="",
     ):
         """The node joins the current rond rendezvous.
         Args:
             node_id: the node ID which is unique in an ElasticJob of DLrover.
             local_world_size: the local world size of a node.
+            node_ip: the node IP reported by the agent.
+            host_name: the k8s node name (spec.nodeName) reported by the
+                agent; the topology querier may use it to look up the
+                node's segment in the cluster topology.
 
         Returns:
             int: the number of rendezvous round.
@@ -378,7 +383,9 @@ class RendezvousManager(metaclass=ABCMeta):
                     "waiting nodes list."
                 )
                 return self._rdzv_round
-            asw, psw = self._topology_querier.query(node_ip)
+            asw, psw = self._topology_querier.query(
+                node_ip, host_name=host_name
+            )
             meta = NodeTopologyMeta(
                 node_id=node_id,
                 node_rank=node_rank,
@@ -389,7 +396,8 @@ class RendezvousManager(metaclass=ABCMeta):
             )
             logger.info(
                 f"Worker node with id: {meta.node_id}, "
-                f"rank: {meta.node_rank} and ip: {meta.node_ip} "
+                f"rank: {meta.node_rank}, ip: {meta.node_ip} and "
+                f"host_name: {host_name or '<empty>'} "
                 f"joining {self._name} rendezvous for round: {self._rdzv_round}."
             )
             self._waiting_nodes[node_rank] = meta
@@ -851,6 +859,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node_rank,
         local_world_size,
         node_ip="",
+        host_name="",
     ):
         """The node joins the current rond rendezvous.
         Args:
@@ -863,7 +872,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         """
         self._node_groups.clear()
         return super().join_rendezvous(
-            node_id, node_rank, local_world_size, node_ip
+            node_id, node_rank, local_world_size, node_ip, host_name
         )
 
     def check_fault_node(self):

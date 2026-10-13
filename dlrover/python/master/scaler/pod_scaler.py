@@ -81,11 +81,22 @@ def append_pod_ip_to_env(env):
             field_ref=V1ObjectFieldSelector(field_path="status.hostIP")
         ),
     )
+    # The k8s node name (spec.nodeName). It is the Node object name, not
+    # the OS hostname: e.g. the topology services (TNN) and the master's
+    # Node.host_name key on it, so agents can report the node they run
+    # on without a job-context lookup.
+    node_name_var = V1EnvVar(
+        name=NodeEnv.NODE_NAME,
+        value_from=V1EnvVarSource(
+            field_ref=V1ObjectFieldSelector(field_path="spec.nodeName")
+        ),
+    )
     if env:
         env.append(pod_ip_var)
         env.append(node_ip_var)
+        env.append(node_name_var)
     else:
-        env = [pod_ip_var, node_ip_var]
+        env = [pod_ip_var, node_ip_var, node_name_var]
     return env
 
 

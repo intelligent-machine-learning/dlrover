@@ -25,11 +25,14 @@ from dlrover.python.master.elastic_training.net_topology import (
 )
 
 # The cluster topology for --enable-topology-rerank: a JSON dict
-# {node_ip: psw} provided either inline by the DLROVER_GROUP_TOPOLOGY
-# env var or as a file at the path in DLROVER_GROUP_TOPOLOGY_FILE (the
-# inline env takes precedence). The platform (e.g. the dlrover-addon
-# distribution) is responsible for feeding the business cluster
-# topology here.
+# {host_name: segment} (the k8s node name, i.e. the pod's spec.nodeName,
+# to the segment psw group) provided either inline by the
+# DLROVER_GROUP_TOPOLOGY env var, as a file at the path in
+# DLROVER_GROUP_TOPOLOGY_FILE (the inline env takes precedence), or at
+# runtime via GroupTopologyQuerier.update(). The platform (e.g. the
+# dlrover-addon distribution) is responsible for feeding the cluster
+# topology here - typically fetched from the topology service before
+# the first rendezvous completes.
 GROUP_TOPOLOGY_ENV = "DLROVER_GROUP_TOPOLOGY"
 GROUP_TOPOLOGY_FILE_ENV = "DLROVER_GROUP_TOPOLOGY_FILE"
 
@@ -39,20 +42,53 @@ RERANK_LOG_PREFIX = "RERANK"
 
 
 class GroupTopologyQuerier(TopologyQuerier):
-    """Query the psw (physical switch) group of a node from the cluster
-    topology configured by the ``DLROVER_GROUP_TOPOLOGY`` env var or the
-    ``DLROVER_GROUP_TOPOLOGY_FILE`` file.
+    """Query the psw (segment) group of a node from the cluster topology.
+
+    The topology maps the k8s node name (the ``host_name`` the agent
+    reports from the NODE_NAME env, i.e. the pod's spec.nodeName) to its
+    segment. It is loaded from the ``DLROVER_GROUP_TOPOLOGY`` env var or
+    the ``DLROVER_GROUP_TOPOLOGY_FILE`` file at construction, and can be
+    refreshed at runtime by ``update`` (e.g. by the platform fetching
+    the topology from the topology service before the rendezvous).
 
     Used by the master when ``--enable-topology-rerank`` is configured.
-    Nodes whose IP is not in the map report an empty psw and fall into
-    the rerank's DEFAULT group, a peer of the known groups.
+    Nodes whose host_name is not in the map report an empty psw and fall
+    into the rerank's DEFAULT group, a peer of the known groups.
     """
 
     def __init__(self):
-        self._ip_to_psw: Dict[str, str] = _load_group_topology()
+        self._host_to_psw: Dict[str, str] = _load_group_topology()
 
-    def query(self, node_ip) -> Tuple[str, str]:
-        return "", self._ip_to_psw.get(node_ip, "")
+    def query(self, node_ip, host_name: str = "") -> Tuple[str, str]:
+        return "", self._host_to_psw.get(host_name, "")
+
+    def update(self, topology: Dict[str, str]):
+        """Replace the cluster topology with ``topology`` (a dict mapping
+        the k8s node name to its segment). Called at runtime by the
+        platform after it fetches the cluster topology (e.g. from the
+        TNN topology service) so the querier is not limited to the env
+        snapshot at the construction time."""
+        if not isinstance(topology, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in topology.items()
+        ):
+            raise ValueError(
+                "The updated cluster topology must be a dict mapping "
+                "node names (str) to segment strings (str), e.g. "
+                '{"node-a": "SG3"}.'
+            )
+        counts: Dict[str, int] = {}
+        for psw in topology.values():
+            counts[psw] = counts.get(psw, 0) + 1
+        self._host_to_psw = dict(topology)
+        logger.info(
+            "%s: GroupTopologyQuerier updated to %d node(s) in %d psw "
+            "group(s): %s.",
+            RERANK_LOG_PREFIX,
+            len(topology),
+            len(counts),
+            dict(sorted(counts.items())),
+        )
 
 
 def _load_group_topology() -> Dict[str, str]:
@@ -65,10 +101,11 @@ def _load_group_topology() -> Dict[str, str]:
             with open(topology_file, "r") as f:
                 raw = f.read()
     if not raw:
-        logger.warning(
+        logger.info(
             "%s: no cluster topology found (neither the %s env var nor "
-            "the %s file); every node reports an empty psw and the "
-            "topology rerank keeps the rendezvous order.",
+            "the %s file); every node reports an empty psw until "
+            "GroupTopologyQuerier.update() is called, and the topology "
+            "rerank keeps the rendezvous order.",
             RERANK_LOG_PREFIX,
             GROUP_TOPOLOGY_ENV,
             GROUP_TOPOLOGY_FILE_ENV,
@@ -86,8 +123,8 @@ def _load_group_topology() -> Dict[str, str]:
     ):
         raise ValueError(
             f"The cluster topology from the {source} must be a JSON dict "
-            "mapping node IPs to psw strings, e.g. "
-            '{"33.167.120.39": "SG2"}.'
+            "mapping node names (the pod's spec.nodeName) to psw "
+            'strings, e.g. {"node-a": "SG2"}.'
         )
     counts: Dict[str, int] = {}
     for psw in topology.values():
@@ -226,10 +263,10 @@ class GroupTopologySorter(TopologySorter):
     - ``ep_pp_dp``: EP slots are greedily packed into ep-pp columns so
       EP groups and PP stay intra-psw as much as possible.
 
-    A node whose IP is not in the cluster topology reports an empty
-    psw and joins the DEFAULT group, a PEER of the known groups: it is
-    laid out under the same rule ("" sorts first in the ascending-psw
-    group order) instead of being pushed to the tail.
+    A node whose host_name is not in the cluster topology reports an
+    empty psw and joins the DEFAULT group, a PEER of the known groups:
+    it is laid out under the same rule ("" sorts first in the
+    ascending-psw group order) instead of being pushed to the tail.
 
     Every layout slot is then instantiated with a concrete node taken
     from the group in ascending node_rank order, so the same metas
@@ -281,11 +318,11 @@ class GroupTopologySorter(TopologySorter):
             )
             return nodes
 
-        # One node group per distinct psw. A node whose IP is not in
-        # the cluster topology reports an empty psw and joins the
-        # DEFAULT group, a peer of the known groups: group ids follow
-        # the ascending-psw order ("" sorts first), with no special
-        # tail placement.
+        # One node group per distinct psw. A node whose host_name is
+        # not in the cluster topology reports an empty psw and joins
+        # the DEFAULT group, a peer of the known groups: group ids
+        # follow the ascending-psw order ("" sorts first), with no
+        # special tail placement.
         psws = {meta.psw for meta in nodes.values()}
         psw_group_ids = {psw: gid for gid, psw in enumerate(sorted(psws))}
 

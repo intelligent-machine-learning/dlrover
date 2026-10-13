@@ -384,6 +384,10 @@ class CommWorldRequest(RendezvousRequest):
 class JoinRendezvousRequest(RendezvousRequest):
     node_rank: int = -1
     node_ip: str = ""  # The IP of node where the pod is located.
+    # The k8s node name (spec.nodeName) the pod runs on, read from the
+    # NODE_NAME env injected at the pod creation. The master uses it (not
+    # the IP) to look up the node's segment in the cluster topology.
+    host_name: str = ""
 
 
 @dataclass

@@ -345,6 +345,10 @@ class NodeEnv(object):
     NODE_ID = "NODE_ID"
     NODE_NUM = "NODE_NUM"
     NODE_RANK = "NODE_RANK"
+    # The k8s node name (spec.nodeName) where the pod is placed, injected
+    # via the downward API. NOTE: it is the Node object name, NOT the OS
+    # hostname (they differ on hostNetwork sigma nodes).
+    NODE_NAME = "NODE_NAME"
 
     # Deprecated env vars.
     WORKER_TYPE = "WORKER_TYPE"

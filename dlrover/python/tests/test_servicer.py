@@ -595,7 +595,9 @@ class MasterServicerFunctionalTest(unittest.TestCase):
         self.assertFalse(config.restart)
 
     def test_join_rendezvous(self):
-        request = comm.JoinRendezvousRequest(0, 8, RendezvousName.TRAINING)
+        request = comm.JoinRendezvousRequest(
+            0, 8, RendezvousName.TRAINING, host_name="node-0"
+        )
         self.servicer._join_rendezvous(request)
         res = self.servicer._num_nodes_waiting(RendezvousName.TRAINING)
         self.assertEqual(res.waiting_num, 1)

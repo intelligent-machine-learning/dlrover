@@ -62,19 +62,27 @@ class GroupTopologyQuerierTest(unittest.TestCase):
         os.environ.pop(GROUP_TOPOLOGY_FILE_ENV, None)
 
     def test_query_from_env(self):
-        topology = {"10.0.0.1": "SG2", "10.0.0.2": "SG10"}
+        topology = {"node-a": "SG2", "node-b": "SG10"}
         with patch.dict(
             os.environ, {GROUP_TOPOLOGY_ENV: json.dumps(topology)}
         ):
             querier = GroupTopologyQuerier()
-        self.assertEqual(querier.query("10.0.0.1"), ("", "SG2"))
-        self.assertEqual(querier.query("10.0.0.2"), ("", "SG10"))
-        # asw stays empty (one-tier topology) and unknown IPs fall into
-        # the unknown group.
-        self.assertEqual(querier.query("10.0.0.3"), ("", ""))
+        self.assertEqual(
+            querier.query("10.0.0.1", host_name="node-a"), ("", "SG2")
+        )
+        self.assertEqual(
+            querier.query("10.0.0.2", host_name="node-b"), ("", "SG10")
+        )
+        # The topology keys the host_name (spec.nodeName), not the IP:
+        # an IP-only query or an unknown host_name falls into the
+        # unknown group.
+        self.assertEqual(querier.query("10.0.0.1"), ("", ""))
+        self.assertEqual(
+            querier.query("10.0.0.3", host_name="node-c"), ("", "")
+        )
 
     def test_query_from_file(self):
-        topology = {"10.0.0.1": "SG1", "10.0.0.2": "SG1"}
+        topology = {"node-a": "SG1", "node-b": "SG1"}
         with tempfile.NamedTemporaryFile("w", suffix=".json") as topo_file:
             json.dump(topology, topo_file)
             topo_file.flush()
@@ -82,12 +90,12 @@ class GroupTopologyQuerierTest(unittest.TestCase):
                 os.environ, {GROUP_TOPOLOGY_FILE_ENV: topo_file.name}
             ):
                 querier = GroupTopologyQuerier()
-        self.assertEqual(querier.query("10.0.0.1"), ("", "SG1"))
-        self.assertEqual(querier.query("10.0.0.2"), ("", "SG1"))
+        self.assertEqual(querier.query("", host_name="node-a"), ("", "SG1"))
+        self.assertEqual(querier.query("", host_name="node-b"), ("", "SG1"))
 
     def test_inline_env_takes_precedence_over_file(self):
-        file_topology = {"10.0.0.1": "SG1"}
-        inline_topology = {"10.0.0.1": "SG2"}
+        file_topology = {"node-a": "SG1"}
+        inline_topology = {"node-a": "SG2"}
         with tempfile.NamedTemporaryFile("w", suffix=".json") as topo_file:
             json.dump(file_topology, topo_file)
             topo_file.flush()
@@ -99,11 +107,30 @@ class GroupTopologyQuerierTest(unittest.TestCase):
                 },
             ):
                 querier = GroupTopologyQuerier()
-        self.assertEqual(querier.query("10.0.0.1"), ("", "SG2"))
+        self.assertEqual(querier.query("", host_name="node-a"), ("", "SG2"))
 
     def test_missing_topology_reports_empty_psw(self):
         querier = GroupTopologyQuerier()
-        self.assertEqual(querier.query("10.0.0.1"), ("", ""))
+        self.assertEqual(
+            querier.query("10.0.0.1", host_name="node-a"), ("", "")
+        )
+
+    def test_update_replaces_topology_at_runtime(self):
+        querier = GroupTopologyQuerier()
+        self.assertEqual(querier.query("", host_name="node-a"), ("", ""))
+        querier.update({"node-a": "SG3", "node-b": "SG3"})
+        self.assertEqual(querier.query("", host_name="node-a"), ("", "SG3"))
+        self.assertEqual(querier.query("", host_name="node-b"), ("", "SG3"))
+        # The update replaces the env snapshot entirely.
+        querier.update({"node-z": "SG9"})
+        self.assertEqual(querier.query("", host_name="node-a"), ("", ""))
+
+    def test_update_rejects_invalid_topologies(self):
+        querier = GroupTopologyQuerier()
+        with self.assertRaisesRegex(ValueError, "must be a dict"):
+            querier.update(["SG1"])
+        with self.assertRaisesRegex(ValueError, "must be a dict"):
+            querier.update({"node-a": 1})
 
     def test_invalid_json_fails_to_start(self):
         with patch.dict(os.environ, {GROUP_TOPOLOGY_ENV: "{not json"}):
