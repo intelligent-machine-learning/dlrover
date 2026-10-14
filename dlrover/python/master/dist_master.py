@@ -201,7 +201,7 @@ class DistributedJobMaster(JobMaster):
         into the training rendezvous manager when
         ``--enable-topology-rerank`` is configured; (None, None) keeps
         the legacy topology behavior. The configuration (strategy
-        present, mutual exclusion with the group affinities) has been
+        present, coexistence with the group affinities) has been
         validated by DistributedJobManager._init_topology_rerank."""
         if not getattr(args, "enable_topology_rerank", False):
             return None, None

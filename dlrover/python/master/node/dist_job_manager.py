@@ -139,18 +139,18 @@ class DistributedJobManager(JobManager):
             )
             node_restart_count[type] = node_args.restart_count
 
-        # _init_topology_rerank runs first so its mutual-exclusion checks
-        # (against --group-affinity and --soft-group-affinity) take
-        # precedence. With the topology rerank enabled the affinity
-        # initializations are skipped entirely: the rerank synthesizes
-        # its own node groups from the psw topology observed at the
-        # rendezvous, so there is no affinity schedule to apply and the
-        # legacy "--node-group-strategy requires an affinity" guard must
-        # not fire.
+        # _init_topology_rerank runs first: its flag exempts the legacy
+        # "--node-group-strategy requires an affinity" guard for
+        # rerank-only jobs (the rerank carries the strategy itself),
+        # and its "--enable-topology-rerank requires
+        # --node-group-strategy" error is reported ahead of the slower
+        # affinity errors. The affinity initializations always run:
+        # the declared affinities steer the initial pod placement
+        # while the rerank then reorders the world from the psw
+        # topology observed at the rendezvous.
         self._init_topology_rerank(job_args)
-        if not self._topology_rerank_enabled:
-            self._init_soft_group_affinity(job_args)
-            self._init_group_affinity(job_args)
+        self._init_soft_group_affinity(job_args)
+        self._init_group_affinity(job_args)
 
         self._ps_is_critical = False
         if (
@@ -241,29 +241,15 @@ class DistributedJobManager(JobManager):
         distinct psw reported by the GroupTopologyQuerier, arbitrary
         group sizes, no EP-slot alignment constraint), using the
         ``--node-group-strategy`` layout. It requires
-        ``--node-group-strategy`` and is mutually exclusive with both
-        ``--group-affinity`` and ``--soft-group-affinity``: the rerank
-        synthesizes its own groups from the observed topology while the
-        affinities declare groups ahead of scheduling.
+        ``--node-group-strategy`` and coexists with ``--group-affinity``
+        and ``--soft-group-affinity``: the declared affinities steer
+        the initial pod placement (labeled box counts), while the
+        observed psw groups decide the final world order.
         """
         enabled = getattr(job_args, "enable_topology_rerank", False)
         if not enabled:
             self._topology_rerank_enabled = False
             return
-        if job_args.group_affinity:
-            raise ValueError(
-                "--enable-topology-rerank cannot be combined with "
-                "--group-affinity: the rerank synthesizes one node group "
-                "per psw observed at rendezvous time instead of the "
-                "declared equal-size groups."
-            )
-        if job_args.soft_group_affinity:
-            raise ValueError(
-                "--enable-topology-rerank cannot be combined with "
-                "--soft-group-affinity: the rerank synthesizes one node "
-                "group per psw observed at rendezvous time instead of the "
-                "declared unequal-size groups."
-            )
         strategy = getattr(job_args, "node_group_strategy", None)
         if strategy is None:
             raise ValueError(
@@ -274,10 +260,14 @@ class DistributedJobManager(JobManager):
         self._check_expert_tensor_pairing(job_args)
         self._topology_rerank_enabled = True
         logger.info(
-            "Enable topology rerank (strategy=%s): the training "
+            "Enable topology rerank (strategy=%s, group_affinity=%s, "
+            "soft_group_affinity=%s): the declared affinities, if any, "
+            "steer the initial pod placement only, and the training "
             "rendezvous world order will be recomputed from the psw "
             "topology observed at join time.",
             strategy,
+            getattr(job_args, "group_affinity", None),
+            getattr(job_args, "soft_group_affinity", None),
         )
 
     @staticmethod
@@ -318,15 +308,20 @@ class DistributedJobManager(JobManager):
         ep_pp_dp = strategy == NodeGroupStrategy.EP_PP_DP
         if not job_args.group_affinity:
             # --soft-group-affinity configures the groups its own way
-            # (unequal sizes); the legacy requirement below does not
-            # apply. Mutual exclusion is enforced by
+            # (unequal sizes) and --enable-topology-rerank carries the
+            # strategy itself; the legacy requirement below applies to
+            # neither. The soft/hard mutual exclusion is enforced by
             # _init_soft_group_affinity.
-            if strategy is not None and not getattr(
-                job_args, "soft_group_affinity", None
+            if (
+                strategy is not None
+                and not getattr(job_args, "soft_group_affinity", None)
+                and not getattr(self, "_topology_rerank_enabled", False)
             ):
                 raise ValueError(
                     "--node-group-strategy requires --group-affinity or "
-                    "--soft-group-affinity to be set."
+                    "--soft-group-affinity to be set (or "
+                    "--enable-topology-rerank, which carries the "
+                    "strategy itself)."
                 )
             return
         if strategy is None:
@@ -1320,6 +1315,19 @@ class DistributedJobManager(JobManager):
         If node relaunch pending in node group happened, check if we
         need to relaunch the whole node group
         """
+        if getattr(self, "_topology_rerank_enabled", False):
+            # Topology rerank: single-pod failover only. The relaunched
+            # pod keeps its group labels and tends to return to its
+            # segment; any drift is absorbed by the rerank at the next
+            # rendezvous. A group-level relaunch would reassign the
+            # whole group's labels and forfeit the observed-topology
+            # placement.
+            logger.debug(
+                "Skip the node-group relaunch: the topology rerank is "
+                "enabled and the failover drift is absorbed at the "
+                "next rendezvous."
+            )
+            return False
         logger.debug(
             f"Check node group {node_group} "
             f"already relaunched: {self._relaunched_groups}"

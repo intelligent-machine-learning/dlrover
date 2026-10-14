@@ -165,9 +165,10 @@ def _build_master_args_parser():
         "across groups so EP groups and PP stay intra-segment while only "
         "the dense DP collective crosses segments. Required when "
         "--group-affinity or --soft-group-affinity is configured; setting "
-        "a strategy without any group affinity is rejected. The parallel "
-        "sizes below are consulted only when a node-group affinity is "
-        "configured.",
+        "a strategy with neither affinity is rejected, unless "
+        "--enable-topology-rerank is set (the rerank carries the "
+        "strategy itself). The parallel sizes below are consulted only "
+        "when a node-group affinity is configured.",
     )
     parser.add_argument(
         "--tensor-model-parallel-size",
@@ -251,8 +252,12 @@ def _build_master_args_parser():
         "per distinct psw from the GroupTopologyQuerier, arbitrary group "
         "sizes) so EP/PP communication groups stay intra-psw as much as "
         "possible. Requires --node-group-strategy and the parallel "
-        "sizes; mutually exclusive with --group-affinity and "
-        "--soft-group-affinity. Only the world ORDER changes (node_rank "
+        "sizes; may be combined with --group-affinity or "
+        "--soft-group-affinity: the declared groups then steer the "
+        "initial pod placement (labels) while the observed psw groups "
+        "decide the final world order, and the failover drift is "
+        "absorbed by the next rerank (single-pod relaunch keeps its "
+        "group labels). Only the world ORDER changes (node_rank "
         "values stay the stable pod identity).",
     )
     return parser

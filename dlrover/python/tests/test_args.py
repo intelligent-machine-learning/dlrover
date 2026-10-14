@@ -190,6 +190,41 @@ class ArgsTest(unittest.TestCase):
         )
         self.assertTrue(parsed.enable_topology_rerank)
 
+    def test_parse_topology_rerank_coexists_with_affinities(self):
+        # The rerank parses together with the hard and soft affinities.
+        # (The CLI layer never enforced the old mutual exclusion — the
+        # combination used to be rejected by the job manager only.)
+        parsed = parse_master_args(
+            [
+                "--job_name",
+                "test",
+                "--group-affinity={0: 8, 1: 8}",
+                "--node-group-strategy=ep_pp_dp",
+                "--pipeline-model-parallel-size",
+                "2",
+                "--enable-topology-rerank",
+            ]
+        )
+        self.assertTrue(parsed.enable_topology_rerank)
+        self.assertEqual(parsed.group_affinity, {0: 8, 1: 8})
+        self.assertEqual(parsed.node_group_strategy, "ep_pp_dp")
+        self.assertEqual(parsed.pipeline_model_parallel_size, 2)
+
+        parsed = parse_master_args(
+            [
+                "--job_name",
+                "test",
+                "--soft-group-affinity={0: 8, 1: 8}",
+                "--node-group-strategy=ep_dp_pp",
+                "--enable_topology_rerank",
+                "--no-group-failover",
+            ]
+        )
+        self.assertTrue(parsed.enable_topology_rerank)
+        self.assertEqual(parsed.soft_group_affinity, {0: 8, 1: 8})
+        self.assertEqual(parsed.node_group_strategy, "ep_dp_pp")
+        self.assertTrue(parsed.no_group_failover)
+
     def test_parse_node_group_strategy(self):
         # defaults: no strategy + all parallel sizes at their defaults
         # (etp stays None, i.e. it inherits tp at the master layer)
