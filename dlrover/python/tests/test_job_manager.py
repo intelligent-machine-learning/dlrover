@@ -476,6 +476,26 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertIsNone(manager._job_resource.group_affinity)
         self.assertIsNone(manager._job_resource.node_group_schedule)
 
+    def test_init_group_affinity_guard_exempted_by_topology_rerank(self):
+        # With the topology rerank enabled, a strategy WITHOUT any
+        # affinity is accepted (the rerank carries the strategy itself);
+        # the legacy guard must not fire and nothing is applied.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        manager._topology_rerank_enabled = True
+        manager._init_group_affinity(
+            SimpleNamespace(
+                group_affinity=None,
+                soft_group_affinity=None,
+                node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                tensor_model_parallel_size=1,
+                pipeline_model_parallel_size=2,
+                expert_model_parallel_size=8,
+                context_parallel_size=1,
+            )
+        )
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
     def test_init_group_affinity_ep_pp_dp_via_job_manager_init(self):
         # End-to-end via create_job_manager with a valid topology:
         # MockK8sAllreduceJobArgs worker = NodeResource gpu_num=8, count=16.
@@ -662,23 +682,26 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertFalse(getattr(manager, "_topology_rerank_enabled", False))
         self.assertIsNone(manager._job_resource.soft_group_schedule)
 
-    def test_init_topology_rerank_mutually_exclusive_with_group(self):
+    def test_init_topology_rerank_coexists_with_group(self):
+        # The declared hard groups steer the initial pod placement
+        # while the rerank reorders the world; the rerank validation
+        # accepts the combination.
         manager = self._new_manager_with_worker_count(16, gpu_num=8)
-        with self.assertRaisesRegex(
-            ValueError, "cannot be combined with --group-affinity"
-        ):
-            manager._init_topology_rerank(
-                self._topology_rerank_args(group_affinity={0: 8, 1: 8})
-            )
+        manager._init_topology_rerank(
+            self._topology_rerank_args(group_affinity={0: 8, 1: 8})
+        )
+        self.assertTrue(manager._topology_rerank_enabled)
+        self.assertIsNone(manager._job_resource.group_affinity)
 
-    def test_init_topology_rerank_mutually_exclusive_with_soft(self):
+    def test_init_topology_rerank_coexists_with_soft(self):
+        # Same for the soft groups: declared box counts for the
+        # initial placement, observed psw groups for the final order.
         manager = self._new_manager_with_worker_count(16, gpu_num=8)
-        with self.assertRaisesRegex(
-            ValueError, "cannot be combined with --soft-group-affinity"
-        ):
-            manager._init_topology_rerank(
-                self._topology_rerank_args(soft_group_affinity={0: 8, 1: 8})
-            )
+        manager._init_topology_rerank(
+            self._topology_rerank_args(soft_group_affinity={0: 8, 1: 8})
+        )
+        self.assertTrue(manager._topology_rerank_enabled)
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
 
     def test_init_topology_rerank_etp_requires_ep(self):
         manager = self._new_manager_with_worker_count(16, gpu_num=8)
@@ -696,8 +719,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = self._new_manager_with_worker_count(16, gpu_num=8)
         manager._init_topology_rerank(self._topology_rerank_args())
         self.assertTrue(manager._topology_rerank_enabled)
-        # The rerank synthesizes its own groups at rendezvous time; no
-        # affinity schedule is attached to the job resource.
+        # The rerank itself attaches no affinity schedule to the job
+        # resource: the observed psw groups are synthesized at the
+        # rendezvous. (With a coconfigured affinity the schedule is
+        # attached by the affinity initializers in __init__, not here.)
         self.assertIsNone(manager._job_resource.soft_group_schedule)
         self.assertIsNone(manager._job_resource.group_affinity)
         self.assertIsNone(manager._job_resource.node_group_schedule)
@@ -718,6 +743,68 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertIsNone(manager._job_resource.node_group_schedule)
         self.assertIsNone(manager._job_resource.soft_group_schedule)
 
+    def test_init_group_affinity_rerank_coexist_via_job_manager_init(
+        self,
+    ):
+        # End-to-end coexistence: the declared hard groups steer the
+        # initial pod placement (labels) while the rerank reorders the
+        # world from the psw topology observed at the rendezvous.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.enable_topology_rerank = True
+        params.group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.tensor_model_parallel_size = 1
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 8
+        params.context_parallel_size = 1
+        manager = create_job_manager(params, PerfMonitor())
+        self.assertTrue(manager._topology_rerank_enabled)
+        self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
+        self.assertIsNotNone(manager._job_resource.node_group_schedule)
+        self.assertIsNone(manager._job_resource.soft_group_schedule)
+        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+
+    def test_init_soft_group_rerank_coexist_via_job_manager_init(self):
+        # End-to-end coexistence: the declared soft groups steer the
+        # initial pod placement while the rerank reorders the world;
+        # no_group_failover keeps its standalone meaning.
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.enable_topology_rerank = True
+        params.soft_group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 16
+        params.no_group_failover = True
+        manager = create_job_manager(params, PerfMonitor())
+        self.assertTrue(manager._topology_rerank_enabled)
+        schedule = manager._job_resource.soft_group_schedule
+        self.assertIsNotNone(schedule)
+        self.assertTrue(schedule.no_group_failover)
+        self.assertIsNone(manager._job_resource.group_affinity)
+        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+        # The constructor forwarded the schedule to the scaler (see
+        # test_init_soft_group_via_job_manager_init).
+        self.assertTrue(callable(manager._scaler.set_soft_group_schedule))
+
+    def test_soft_hard_rerank_triple_raises(self):
+        # The soft/hard internal mutual exclusion stays: the triple
+        # config is rejected by _init_soft_group_affinity before the
+        # hard initializer runs (the rerank no longer rejects either).
+        params = MockK8sAllreduceJobArgs()
+        params.initilize(16)
+        params.enable_topology_rerank = True
+        params.group_affinity = {0: 8, 1: 8}
+        params.soft_group_affinity = {0: 8, 1: 8}
+        params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
+        params.pipeline_model_parallel_size = 2
+        params.expert_model_parallel_size = 16
+        with self.assertRaisesRegex(
+            ValueError, "cannot be combined with --group-affinity"
+        ):
+            create_job_manager(params, PerfMonitor())
+
     def test_init_topology_rerank_disabled_via_job_manager_init(self):
         # A strategy WITHOUT any affinity and WITHOUT the rerank still
         # fails: the legacy guard is untouched.
@@ -726,6 +813,16 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.node_group_strategy = NodeGroupStrategy.EP_PP_DP
         with self.assertRaisesRegex(ValueError, "requires --group-affinity"):
             create_job_manager(params, PerfMonitor())
+
+    def test_node_group_relaunch_disabled_with_topology_rerank(self):
+        # With the rerank on, the failover stays single-pod (the
+        # relaunched pod keeps its group labels and the drift is
+        # absorbed at the next rendezvous): a group-level relaunch
+        # would reassign the whole group's labels and forfeit the
+        # observed-topology placement, so it is disabled.
+        manager = self._new_manager_with_worker_count(16, gpu_num=8)
+        manager._topology_rerank_enabled = True
+        self.assertFalse(manager._should_relaunch_node_group(0))
 
     def test_job_resource_soft_group_init_node_meta(self):
         job = JobResource()

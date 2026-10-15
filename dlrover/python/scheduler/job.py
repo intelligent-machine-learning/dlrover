@@ -144,8 +144,10 @@ class JobArgs(JsonSerializable):
         # topology observed at rendezvous time (GroupTopologyQuerier +
         # GroupTopologySorter in
         # dlrover.python.master.elastic_training.topology_rerank).
-        # Requires node_group_strategy; mutually exclusive with
-        # group_affinity and soft_group_affinity.
+        # Requires node_group_strategy; coexists with group_affinity /
+        # soft_group_affinity: the declared affinities steer the initial
+        # pod placement (labels), while the observed psw groups decide
+        # the final world order.
         self.enable_topology_rerank: bool = False
 
     @abstractmethod
