@@ -85,9 +85,13 @@ class UrgentSaveProtocolTest(unittest.TestCase):
         self.assertEqual(cmd["save_dir"], self.save_dir)
         self.assertEqual(cmd["reason"], "node failure")
 
-        result = parse_payload(build_result(1.5, STATUS_SAVED, "done"))
+        result = parse_payload(build_result(1.5, STATUS_SAVED, "done", step=7))
         self.assertEqual(result["cmd_ts"], 1.5)
         self.assertEqual(result["status"], STATUS_SAVED)
+        self.assertEqual(result["step"], 7)
+        # The step is null until the tracker flip is observed.
+        result = parse_payload(build_result(1.5, STATUS_ERROR, "boom"))
+        self.assertIsNone(result["step"])
 
     def test_parse_payload_invalid(self):
         self.assertIsNone(parse_payload(b""))
@@ -204,6 +208,7 @@ class UrgentSaveListenerTest(unittest.TestCase):
         self.assertFalse(observer.is_alive())
         payload = parse_payload(self.client.store[result_key(4.0)])
         self.assertEqual(payload["status"], STATUS_SAVED)
+        self.assertEqual(payload["step"], 11)
         self.assertIn("11", payload["message"])
 
     def test_observe_waits_when_tracker_does_not_flip(self):

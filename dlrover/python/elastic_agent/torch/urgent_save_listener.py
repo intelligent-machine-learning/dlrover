@@ -185,6 +185,7 @@ class UrgentSaveListener(threading.Thread):
                     cmd_ts,
                     STATUS_SAVED,
                     "tracker flipped to iteration {}".format(iteration),
+                    step=iteration,
                 )
                 logger.info(
                     "Urgent-save: checkpoint completed, tracker=%s (request %s).",
@@ -193,10 +194,11 @@ class UrgentSaveListener(threading.Thread):
                 )
                 return
 
-    def _publish(self, cmd_ts, status, message=""):
+    def _publish(self, cmd_ts, status, message="", step=None):
         try:
             self._client.kv_store_set(
-                result_key(cmd_ts), build_result(cmd_ts, status, message)
+                result_key(cmd_ts),
+                build_result(cmd_ts, status, message, step=step),
             )
         except Exception as e:  # noqa: BLE001 - never break the listener
             logger.error(
