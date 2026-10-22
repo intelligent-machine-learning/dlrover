@@ -102,13 +102,23 @@ def build_cleanup_cmd(cmd_ts: float, save_dir: str) -> bytes:
     ).encode("utf-8")
 
 
-def build_result(cmd_ts: float, status: str, message: str = "") -> bytes:
-    """Serialize a result published on the per-request result key."""
+def build_result(
+    cmd_ts: float,
+    status: str,
+    message: str = "",
+    step: Optional[int] = None,
+) -> bytes:
+    """Serialize a result published on the per-request result key.
+
+    ``step`` is the checkpoint iteration the tracker flipped to. It is
+    set only for STATUS_SAVED and stays None (JSON null) otherwise.
+    """
     return json.dumps(
         {
             "v": PROTOCOL_VERSION,
             "cmd_ts": cmd_ts,
             "status": status,
+            "step": step,
             "message": message,
         }
     ).encode("utf-8")
